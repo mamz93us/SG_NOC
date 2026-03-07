@@ -227,7 +227,8 @@ class CollectSnmpMetricsJob implements ShouldQueue
         }
 
         // Counter64, Counter32, Gauge32, INTEGER, etc.
-        if (preg_match('/(-?\d+(\.\d+)?)/', $value, $matches)) {
+        // We look for a colon or space followed by digits to skip "64" in "Counter64: 123"
+        if (preg_match('/(?:[:\s]|^)(-?\d+(?:\.\d+)?)\s*$/', $value, $matches)) {
             return (float) $matches[1];
         }
 

@@ -49,12 +49,26 @@ class DiscoverSnmpInterfacesJob implements ShouldQueue
             $discoveredCount = 0;
 
             // Check if HC counters are supported (SNMP v2c/v3 usually)
-            // We check the first interface specifically
-            reset($interfaces);
-            $firstOid = key($interfaces);
-            $firstParts = explode('.', $firstOid);
-            $firstIndex = (int) end($firstParts);
-            $hcSupported = ($client->get("1.3.6.1.2.1.31.1.1.1.6.{$firstIndex}") !== false);
+            $hcSupported = false;
+            
+            if ($this->host->snmp_version !== 'v1') {
+                // Check up to 5 interfaces to see if any support HC counters
+                $checkCount = 0;
+                foreach ($interfaces as $oid => $descr) {
+                    $parts = explode('.', $oid);
+                    $index = (int) end($parts);
+                    
+                    // Try to get ifHCInOctets for this index
+                    $testVal = $client->get("1.3.6.1.2.1.31.1.1.1.6.{$index}");
+                    if ($testVal !== false && $testVal !== null && $testVal !== '') {
+                        $hcSupported = true;
+                        break;
+                    }
+                    
+                    $checkCount++;
+                    if ($checkCount >= 5) break;
+                }
+            }
 
             foreach ($interfaces as $oid => $descr) {
                 // Determine port index

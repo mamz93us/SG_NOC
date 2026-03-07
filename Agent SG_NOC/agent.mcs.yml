@@ -1,0 +1,10 @@
+# Name: Agent SG_NOC
+kind: GptComponentMetadata
+displayName: Agent SG_NOC
+instructions:
+gptCapabilities:
+  webBrowsing: true
+
+aISettings:
+  model:
+    modelNameHint: Sonnet46
