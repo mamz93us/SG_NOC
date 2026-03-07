@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<AddressBook>
+    <version>1</version>
+    <pbgroup>
+        <id>10</id>
+        <name>JED</name>
+        <photos></photos>
+        <ringtones></ringtones>
+        <RingtoneIndex>0</RingtoneIndex>
+    </pbgroup>
+    <pbgroup>
+        <id>20</id>
+        <name>RYD</name>
+        <photos></photos>
+        <ringtones></ringtones>
+        <RingtoneIndex>0</RingtoneIndex>
+    </pbgroup>
+    <Contact>
+        <id>2</id>
+        <FirstName>MMMMM</FirstName>
+        <LastName>mmm</LastName>
+        <Department></Department>
+        <Primary>0</Primary>
+        <Frequent>0</Frequent>
+        <Phone type="Work">
+            <phonenumber>1002</phonenumber>
+            <accountindex>1</accountindex>
+        </Phone>
+        <Mail type="Work">aaa@2222.com</Mail>
+        <Group>20</Group>
+        <PhotoUrl></PhotoUrl>
+        <RingtoneUrl></RingtoneUrl>
+        <RingtoneIndex>0</RingtoneIndex>
+    </Contact>
+    <Contact>
+        <id>1</id>
+        <FirstName>Mohamed</FirstName>
+        <LastName>Zahran</LastName>
+        <Department></Department>
+        <Primary>0</Primary>
+        <Frequent>0</Frequent>
+        <Phone type="Work">
+            <phonenumber>1001</phonenumber>
+            <accountindex>1</accountindex>
+        </Phone>
+        <Mail type="Work">mohamed.zahran@sssegypt.com</Mail>
+        <Group>10</Group>
+        <PhotoUrl></PhotoUrl>
+        <RingtoneUrl></RingtoneUrl>
+        <RingtoneIndex>0</RingtoneIndex>
+    </Contact>
+</AddressBook>

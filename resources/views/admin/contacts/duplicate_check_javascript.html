@@ -1,0 +1,96 @@
+<!-- Add this script to your contacts/create.blade.php and contacts/edit.blade.php -->
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const emailInput = document.getElementById('email');
+    const form = document.querySelector('form');
+    const submitButton = form.querySelector('button[type="submit"]');
+
+    let duplicateWarningDiv = null;
+
+    // Check for duplicates when email field loses focus
+    if (emailInput) {
+        emailInput.addEventListener('blur', function() {
+            checkDuplicate();
+        });
+    }
+
+    function checkDuplicate() {
+        const email = emailInput.value.trim();
+
+        // Remove existing warning if present
+        if (duplicateWarningDiv) {
+            duplicateWarningDiv.remove();
+            duplicateWarningDiv = null;
+        }
+
+        if (!email) return;
+
+        // Get contact ID for edit mode (to exclude current record)
+        const contactId = form.dataset.contactId || null;
+
+        fetch('{{ route('admin.contacts.check-duplicate') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                email: email,
+                exclude_id: contactId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.exists) {
+                showDuplicateWarning(data.contact);
+            }
+        })
+        .catch(error => {
+            console.error('Error checking duplicate:', error);
+        });
+    }
+
+    function showDuplicateWarning(contact) {
+        duplicateWarningDiv = document.createElement('div');
+        duplicateWarningDiv.className = 'mt-2 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700';
+        duplicateWarningDiv.innerHTML = `
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium">
+                        ⚠️ Duplicate Email Detected!
+                    </p>
+                    <p class="text-sm mt-1">
+                        This email already exists for: <strong>${contact.name}</strong><br>
+                        Phone: ${contact.phone} | Branch: ${contact.branch}
+                    </p>
+                </div>
+            </div>
+        `;
+
+        emailInput.parentNode.appendChild(duplicateWarningDiv);
+    }
+
+    // Add confirmation on form submit if duplicate exists
+    form.addEventListener('submit', function(e) {
+        if (duplicateWarningDiv) {
+            if (!confirm('This email already exists for another contact. Do you want to continue anyway?')) {
+                e.preventDefault();
+            }
+        }
+    });
+});
+</script>
+
+<!-- Make sure you have this in your layout head section: -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+<!-- 
+Add data-contact-id attribute to form in EDIT mode:
+<form ... data-contact-id="{{ $contact->id }}">
+-->

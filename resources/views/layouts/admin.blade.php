@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SG NOC</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+    <style>
+        body { background: #f8f9fa; }
+        .nav-link.active {
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .avatar-circle {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; color: #fff;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div class="container">
+            @php $__settings = \App\Models\Setting::get(); @endphp
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold py-1" href="/admin">
+                @if($__settings->company_logo)
+                    <img src="{{ \Illuminate\Support\Facades\Storage::url($__settings->company_logo) }}"
+                         alt="Logo" style="height:34px;width:auto;object-fit:contain;">
+                @else
+                    <span class="avatar-circle" style="background:linear-gradient(135deg,#1a56db,#6c47ff);font-size:15px;">SG</span>
+                @endif
+                <span class="d-none d-sm-inline">SG NOC</span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+
+                <ul class="navbar-nav me-auto">
+
+                    {{-- ── VoIP dropdown (Contacts + UCM/Extensions) ── --}}
+                    @canany(['view-contacts','view-extensions','view-trunks'])
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/contacts*','admin/extensions*','admin/trunks*','admin/gdms*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-telephone-fill me-1"></i>VoIP
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @can('view-contacts')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/contacts*') ? 'active' : '' }}"
+                                   href="{{ route('admin.contacts.index') }}">
+                                    <i class="bi bi-person-lines-fill me-2"></i>Contacts
+                                </a>
+                            </li>
+                            @endcan
+                            @canany(['view-extensions','view-trunks'])
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-hdd-stack me-1"></i>UCM / PBX</h6></li>
+                            @can('view-extensions')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/extensions*') ? 'active' : '' }}"
+                                   href="{{ route('admin.extensions.index') }}">
+                                    <i class="bi bi-telephone me-2"></i>Extensions
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-trunks')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/trunks*') ? 'active' : '' }}"
+                                   href="{{ route('admin.trunks.index') }}">
+                                    <i class="bi bi-hdd-network-fill me-2"></i>Trunks
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-extensions')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/gdms*') ? 'active' : '' }}"
+                                   href="{{ route('admin.gdms.ucm') }}">
+                                    <i class="bi bi-cloud-check-fill me-2"></i>UCM Status
+                                </a>
+                            </li>
+                            @endcan
+                            @endcanany
+                        </ul>
+                    </li>
+                    @endcanany
+
+                    {{-- ── Network dropdown ── --}}
+                    @can('view-network')
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/network*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-diagram-3-fill me-1"></i>Network
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.overview') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.overview') }}">
+                                    <i class="bi bi-speedometer2 me-2"></i>Meraki Overview
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.vpn.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.vpn.index') }}">
+                                    <i class="bi bi-shield-lock me-2"></i>VPN Hub
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.diagnostics.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.diagnostics.index') }}">
+                                    <i class="bi bi-search me-2"></i>Diagnostics
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.monitoring.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.monitoring.index') }}">
+                                    <i class="bi bi-broadcast me-2"></i>SNMP Monitoring
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.workers.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.workers.index') }}">
+                                    <i class="bi bi-cpu-fill me-2"></i>Workers & Tasks
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.scanner.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.scanner.index') }}">
+                                    <i class="bi bi-radar me-2"></i>IP Scanner
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.switches') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.switches') }}">
+                                    <i class="bi bi-hdd-network me-2"></i>Switches
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.clients') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.clients') }}">
+                                    <i class="bi bi-laptop me-2"></i>Clients
+                                </a>
+                            </li>
+                            @can('view-network-events')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.events') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.events') }}">
+                                    <i class="bi bi-clock-history me-2"></i>Change Monitor
+                                </a>
+                            </li>
+                            @endcan
+                        </ul>
+                    </li>
+                    @endcan
+
+                    {{-- ── Assets dropdown ── --}}
+                    @canany(['view-assets','view-printers','view-credentials','view-employees'])
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/devices*','admin/printers*','admin/credentials*','admin/employees*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-cpu me-1"></i>Assets
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @can('view-assets')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/devices*') ? 'active' : '' }}"
+                                   href="{{ route('admin.devices.index') }}">
+                                    <i class="bi bi-cpu me-2"></i>Devices
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-printers')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers*') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.index') }}">
+                                    <i class="bi bi-printer-fill me-2"></i>Printers
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-credentials')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/credentials*') ? 'active' : '' }}"
+                                   href="{{ route('admin.credentials.index') }}">
+                                    <i class="bi bi-key-fill me-2"></i>Credentials
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-employees')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/employees*') ? 'active' : '' }}"
+                                   href="{{ route('admin.employees.index') }}">
+                                    <i class="bi bi-person-vcard-fill me-2"></i>Employees
+                                </a>
+                            </li>
+                            @endcan
+                        </ul>
+                    </li>
+                    @endcanany
+
+                    {{-- ── Workflows dropdown ── --}}
+                    @canany(['view-workflows','manage-workflows','approve-workflows'])
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/workflows*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-diagram-2-fill me-1"></i>Workflows
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @can('view-workflows')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.workflows.my-requests') ? 'active' : '' }}"
+                                   href="{{ route('admin.workflows.my-requests') }}">
+                                    <i class="bi bi-send me-2"></i>My Requests
+                                </a>
+                            </li>
+                            @endcan
+                            @can('approve-workflows')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.workflows.pending') ? 'active' : '' }}"
+                                   href="{{ route('admin.workflows.pending') }}">
+                                    <i class="bi bi-clock-fill me-2"></i>Pending Approvals
+                                    @php $__pendingCount = \App\Models\WorkflowRequest::where('status','pending')->count(); @endphp
+                                    @if($__pendingCount > 0)
+                                    <span class="badge bg-danger ms-1">{{ $__pendingCount }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-workflows')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.workflows.index') ? 'active' : '' }}"
+                                   href="{{ route('admin.workflows.index') }}">
+                                    <i class="bi bi-list-ul me-2"></i>All Workflows
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-workflows')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.workflows.create') ? 'active' : '' }}"
+                                   href="{{ route('admin.workflows.create') }}">
+                                    <i class="bi bi-plus-circle-fill me-2"></i>New Request
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-workflow-templates')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.workflow-templates.index') ? 'active' : '' }}"
+                                   href="{{ route('admin.workflow-templates.index') }}">
+                                    <i class="bi bi-diagram-3 me-2"></i>Workflow Templates
+                                </a>
+                            </li>
+                            @endcan
+                        </ul>
+                    </li>
+                    @endcanany
+
+                    {{-- ── NOC link ── --}}
+                    @can('view-noc')
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('admin/noc*') ? 'active' : '' }}"
+                           href="{{ route('admin.noc.dashboard') }}">
+                            <i class="bi bi-speedometer2 me-1"></i>NOC
+                        </a>
+                    </li>
+                    @endcan
+
+                    {{-- ── Identity dropdown ── --}}
+                    @can('view-identity')
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/identity*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-people-fill me-1"></i>Identity
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.identity.users') ? 'active' : '' }}"
+                                   href="{{ route('admin.identity.users') }}">
+                                    <i class="bi bi-people me-2"></i>Users
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.identity.licenses') ? 'active' : '' }}"
+                                   href="{{ route('admin.identity.licenses') }}">
+                                    <i class="bi bi-patch-check me-2"></i>Licenses
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.identity.groups') ? 'active' : '' }}"
+                                   href="{{ route('admin.identity.groups') }}">
+                                    <i class="bi bi-collection me-2"></i>Groups
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.identity.sync-logs') ? 'active' : '' }}"
+                                   href="{{ route('admin.identity.sync-logs') }}">
+                                    <i class="bi bi-clock-history me-2"></i>Sync Logs
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    @endcan
+
+                    {{-- ── Settings dropdown ── --}}
+                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains'])
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-gear-fill me-1"></i>Settings
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @can('manage-settings')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.settings.index') ? 'active' : '' }}"
+                                   href="{{ route('admin.settings.index') }}">
+                                    <i class="bi bi-sliders me-2"></i>General Settings
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-building me-1"></i>Organisation</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.settings.locations') ? 'active' : '' }}"
+                                   href="{{ route('admin.settings.locations') }}">
+                                    <i class="bi bi-geo-alt-fill me-2"></i>Locations
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/branches*') ? 'active' : '' }}"
+                                   href="{{ route('admin.branches.index') }}">
+                                    <i class="bi bi-building me-2"></i>Branches
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.settings.departments') ? 'active' : '' }}"
+                                   href="{{ route('admin.settings.departments') }}">
+                                    <i class="bi bi-grid-1x2-fill me-2"></i>Departments
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.settings.domains') ? 'active' : '' }}"
+                                   href="{{ route('admin.settings.domains') }}">
+                                    <i class="bi bi-globe me-2"></i>Allowed Domains
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-cloud-check me-1"></i>Provisioning</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.settings.provisioning-licenses') ? 'active' : '' }}"
+                                   href="{{ route('admin.settings.provisioning-licenses') }}">
+                                    <i class="bi bi-patch-check-fill me-2"></i>Provisioning Licenses
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            @endcan
+                            @can('manage-users')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/users*') ? 'active' : '' }}"
+                                   href="{{ route('admin.users.index') }}">
+                                    <i class="bi bi-person-badge-fill me-2"></i>Users
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-permissions')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/permissions*') ? 'active' : '' }}"
+                                   href="{{ route('admin.permissions.index') }}">
+                                    <i class="bi bi-shield-lock-fill me-2"></i>Permissions
+                                </a>
+                            </li>
+                            @endcan
+                            @canany(['manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains'])
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-layers me-1"></i>Platform</h6></li>
+                            @can('manage-notification-rules')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.notification-rules.index') ? 'active' : '' }}"
+                                   href="{{ route('admin.notification-rules.index') }}">
+                                    <i class="bi bi-funnel-fill me-2"></i>Notification Rules
+                                </a>
+                            </li>
+                            @endcan
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.sync-status') ? 'active' : '' }}"
+                                   href="{{ route('admin.sync-status') }}">
+                                    <i class="bi bi-arrow-repeat me-2"></i>Sync Status
+                                </a>
+                            </li>
+                            @can('view-email-logs')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.email-log.index') ? 'active' : '' }}"
+                                   href="{{ route('admin.email-log.index') }}">
+                                    <i class="bi bi-envelope-check me-2"></i>Email Log
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-license-monitors')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.license-monitors.index') ? 'active' : '' }}"
+                                   href="{{ route('admin.license-monitors.index') }}">
+                                    <i class="bi bi-clipboard2-pulse me-2"></i>License Monitors
+                                </a>
+                            </li>
+                            @endcan
+                            @endcanany
+                            @canany(['view-phone-logs','view-activity-logs'])
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-journal-text me-1"></i>Logs</h6></li>
+                            @can('view-phone-logs')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/phone-logs*') ? 'active' : '' }}"
+                                   href="{{ route('admin.phone-logs.index') }}">
+                                    <i class="bi bi-telephone-inbound-fill me-2"></i>Phone Logs
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-activity-logs')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/activity-logs*') ? 'active' : '' }}"
+                                   href="{{ route('admin.activity-logs') }}">
+                                    <i class="bi bi-shield-check me-2"></i>Audit Log
+                                </a>
+                            </li>
+                            @endcan
+                            @endcanany
+                        </ul>
+                    </li>
+                    @endcanany
+
+                </ul>
+
+                {{-- ── Notification Bell ── --}}
+                <ul class="navbar-nav ms-2">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link position-relative px-2" href="#"
+                           role="button" data-bs-toggle="dropdown" aria-expanded="false"
+                           id="notifBell">
+                            <i class="bi bi-bell-fill fs-5"></i>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none"
+                                  id="notifBadge" style="font-size:10px"></span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" style="min-width:320px;max-width:380px" id="notifDropdown">
+                            <li class="px-3 py-2 d-flex justify-content-between align-items-center">
+                                <strong class="small">Notifications</strong>
+                                <form method="POST" action="{{ route('admin.notifications.read-all') }}" class="d-inline">
+                                    @csrf
+                                    <button type="submit" class="btn btn-link btn-sm p-0 text-muted small">Mark all read</button>
+                                </form>
+                            </li>
+                            <li><hr class="dropdown-divider my-1"></li>
+                            <li id="notifItems">
+                                <div class="px-3 py-3 text-center text-muted small" id="notifEmpty">
+                                    <i class="bi bi-bell-slash me-1"></i>No new notifications
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider my-1"></li>
+                            <li>
+                                <a class="dropdown-item text-center small" href="{{ route('admin.notifications.index') }}">
+                                    <i class="bi bi-list-ul me-1"></i>View All Notifications
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+
+                {{-- ── Profile dropdown ── --}}
+                <ul class="navbar-nav ms-2">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center gap-2 py-1" href="#"
+                           role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span class="avatar-circle">
+                                {{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 1)) }}
+                            </span>
+                            <span class="d-none d-lg-inline">{{ auth()->user()->name }}</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <span class="dropdown-item-text small">
+                                    <div class="fw-semibold">{{ auth()->user()->name }}</div>
+                                    <div class="text-muted">{{ auth()->user()->email }}</div>
+                                    <span class="badge bg-secondary mt-1">
+                                        {{ \App\Models\User::roleLabel(auth()->user()->role ?? 'admin') }}
+                                    </span>
+                                </span>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="#"
+                                   data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                                    <i class="bi bi-key me-2"></i>Change Password
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="POST" action="/logout">
+                                    @csrf
+                                    <button type="submit" class="dropdown-item text-danger">
+                                        <i class="bi bi-box-arrow-right me-2"></i>Logout
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+
+            </div>
+        </div>
+    </nav>
+
+    <!-- PAGE CONTENT -->
+    <div class="container mt-4 mb-5">
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
+
+        @if(session('error'))
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ session('error') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
+
+        @if(session('info'))
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                {{ session('info') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
+
+        @if(session('warning'))
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                {{ session('warning') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
+
+        @yield('content')
+    </div>
+
+    {{-- ── Change Password Modal (global, available on every admin page) ── --}}
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <form method="POST" action="{{ route('admin.profile.password') }}">
+                    @csrf @method('PUT')
+                    <div class="modal-header bg-secondary text-white">
+                        <h5 class="modal-title"><i class="bi bi-key me-2"></i>Change Password</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Current Password</label>
+                            <input type="password" name="current_password" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">New Password</label>
+                            <input type="password" name="password" class="form-control" required minlength="8">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Confirm New Password</label>
+                            <input type="password" name="password_confirmation" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Update Password
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    @stack('scripts')
+
+    {{-- Notification Bell Polling --}}
+    <script>
+    (function () {
+        const bell    = document.getElementById('notifBell');
+        const badge   = document.getElementById('notifBadge');
+        const items   = document.getElementById('notifItems');
+        const empty   = document.getElementById('notifEmpty');
+
+        function severityBorder(s) {
+            return s === 'critical' ? '#dc3545' : (s === 'warning' ? '#ffc107' : '#0dcaf0');
+        }
+
+        function loadNotifications() {
+            fetch('{{ route('admin.notifications.unread-count') }}', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const count = data.count ?? 0;
+                if (count > 0) {
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.classList.remove('d-none');
+                } else {
+                    badge.classList.add('d-none');
+                }
+
+                // Render latest unread items
+                if (data.items && data.items.length > 0) {
+                    let html = '';
+                    data.items.forEach(n => {
+                        html += `<li>
+                            <a href="${n.link || '#'}" class="dropdown-item py-2 px-3 small"
+                               style="border-left:3px solid ${severityBorder(n.severity)};white-space:normal">
+                                <div class="fw-semibold">${n.title}</div>
+                                <div class="text-muted" style="font-size:11px">${n.created_at}</div>
+                            </a>
+                        </li>`;
+                    });
+                    items.innerHTML = html;
+                } else {
+                    items.innerHTML = '<div class="px-3 py-3 text-center text-muted small"><i class="bi bi-bell-slash me-1"></i>No new notifications</div>';
+                }
+            })
+            .catch(() => {});
+        }
+
+        // Load once on page load and then every 60 seconds
+        loadNotifications();
+        setInterval(loadNotifications, 60000);
+    })();
+    </script>
+
+</body>
+</html>
