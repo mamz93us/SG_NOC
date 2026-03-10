@@ -121,9 +121,22 @@ class SophosFirewallController extends Controller
 
     public function sync(SophosFirewall $firewall)
     {
+        // Clear OPcache to ensure latest code is used
+        if (function_exists('opcache_reset')) {
+            opcache_reset();
+        }
+
         try {
             (new SyncSophosDataJob($firewall))->handle();
-            return back()->with('success', "Sync completed for '{$firewall->name}'.");
+
+            // Reload to get fresh counts
+            $firewall->refresh();
+            $ifCount   = $firewall->interfaces()->count();
+            $objCount  = $firewall->networkObjects()->count();
+            $vpnCount  = $firewall->vpnTunnels()->count();
+            $ruleCount = $firewall->firewallRules()->count();
+
+            return back()->with('success', "Sync completed for '{$firewall->name}': {$ifCount} interfaces, {$objCount} objects, {$vpnCount} VPN tunnels, {$ruleCount} rules.");
         } catch (\Throwable $e) {
             return back()->with('error', "Sync failed: {$e->getMessage()}");
         }

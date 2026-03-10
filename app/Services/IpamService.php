@@ -60,7 +60,7 @@ class IpamService
 
         // Preload reservations and leases for this subnet
         $reservations = IpReservation::where('subnet_id', $subnet->id)
-            ->orWhere(function ($q) use ($subnet) {
+            ->orWhere(function ($q) use ($subnet, $allIps) {
                 $q->where('branch_id', $subnet->branch_id)
                   ->whereIn('ip_address', $allIps);
             })
