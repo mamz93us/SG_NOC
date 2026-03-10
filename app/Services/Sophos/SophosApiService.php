@@ -123,8 +123,22 @@ class SophosApiService
 
     public function getIPSecConnections(): array
     {
+        // Try IPSecConnection first (SFOS 18+), fall back to IPSec (older versions)
         $result = $this->request('<Get><IPSecConnection/></Get>');
-        return $this->extractEntities($result, 'IPSecConnection');
+        $entities = $this->extractEntities($result, 'IPSecConnection');
+
+        if (empty($entities)) {
+            Log::debug("SophosApiService: IPSecConnection returned 0 — trying IPSec entity name");
+            $result2  = $this->request('<Get><IPSec/></Get>');
+            $entities = $this->extractEntities($result2, 'IPSec');
+
+            if (empty($entities)) {
+                // Log all response keys to help diagnose what the API returns
+                Log::debug("SophosApiService: IPSec also returned 0. Response keys: " . implode(', ', array_keys($result2)));
+            }
+        }
+
+        return $entities;
     }
 
     public function getFirewallRules(): array

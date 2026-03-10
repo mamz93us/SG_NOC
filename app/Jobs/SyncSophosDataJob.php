@@ -227,7 +227,7 @@ class SyncSophosDataJob implements ShouldQueue
         $tunnels = $api->getIPSecConnections();
         Log::debug("SyncSophosDataJob: getIPSecConnections returned " . count($tunnels) . " items for {$this->firewall->name}");
         if (!empty($tunnels)) {
-            Log::debug("SyncSophosDataJob: IPSecConnection sample keys", ['keys' => array_keys($tunnels[0] ?? [])]);
+            Log::debug("SyncSophosDataJob: VPN tunnel sample keys", ['keys' => array_keys($tunnels[0] ?? [])]);
         }
         $synced  = [];
 
@@ -236,15 +236,21 @@ class SyncSophosDataJob implements ShouldQueue
                 $name = $this->stringify($tunnel['Name'] ?? $tunnel['name'] ?? null);
                 if (!$name) continue;
 
+                // Sophos uses different field names across versions:
+                // SFOS 18+: ConnectionType, Policy, RemoteGateway, LocalSubnet, RemoteSubnet
+                // Older: ConnectionType, Authentication/Policy, Gateway/RemoteGateway
+                $remoteGw = $tunnel['RemoteGateway'] ?? $tunnel['Gateway'] ?? $tunnel['remote_gateway'] ?? null;
+                $policy   = $tunnel['Policy'] ?? $tunnel['Authentication'] ?? $tunnel['policy'] ?? null;
+
                 $record = SophosVpnTunnel::updateOrCreate(
                     ['firewall_id' => $this->firewall->id, 'name' => $name],
                     [
-                        'connection_type' => $this->stringify($tunnel['ConnectionType'] ?? $tunnel['connection_type'] ?? null),
-                        'policy'          => $this->stringify($tunnel['Policy'] ?? $tunnel['policy'] ?? null),
-                        'remote_gateway'  => $this->stringify($tunnel['RemoteGateway'] ?? $tunnel['remote_gateway'] ?? null),
+                        'connection_type' => $this->stringify($tunnel['ConnectionType'] ?? $tunnel['Type'] ?? $tunnel['connection_type'] ?? null),
+                        'policy'          => $this->stringify($policy),
+                        'remote_gateway'  => $this->stringify($remoteGw),
                         'local_subnet'    => $this->extractSubnet($tunnel, 'LocalSubnet'),
                         'remote_subnet'   => $this->extractSubnet($tunnel, 'RemoteSubnet'),
-                        'status'          => $this->normalizeStatus($this->stringify($tunnel['Status'] ?? $tunnel['status'] ?? 'unknown')),
+                        'status'          => $this->normalizeStatus($this->stringify($tunnel['Status'] ?? $tunnel['ConnectionStatus'] ?? $tunnel['status'] ?? null)),
                         'last_checked_at' => now(),
                     ]
                 );
