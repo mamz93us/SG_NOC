@@ -123,19 +123,21 @@ class SophosApiService
 
     public function getIPSecConnections(): array
     {
-        // Try IPSecConnection first (SFOS 18+), fall back to IPSec (older versions)
-        $result = $this->request('<Get><IPSecConnection/></Get>');
-        $entities = $this->extractEntities($result, 'IPSecConnection');
+        // Try IPSecConnection first (SFOS 18+), fall back to IPSec, then IPsecMTunnel (older/different versions)
+        $entities = [];
+        $fallbacks = ['IPSecConnection', 'IPSec', 'IPsecMTunnel', 'IPSecManualConnection'];
+
+        foreach ($fallbacks as $entity) {
+            $result = $this->request("<Get><{$entity}/></Get>");
+            $entities = $this->extractEntities($result, $entity);
+            if (!empty($entities)) {
+                Log::info("SophosApiService: Found " . count($entities) . " entities using '{$entity}'");
+                break;
+            }
+        }
 
         if (empty($entities)) {
-            Log::debug("SophosApiService: IPSecConnection returned 0 — trying IPSec entity name");
-            $result2  = $this->request('<Get><IPSec/></Get>');
-            $entities = $this->extractEntities($result2, 'IPSec');
-
-            if (empty($entities)) {
-                // Log all response keys to help diagnose what the API returns
-                Log::debug("SophosApiService: IPSec also returned 0. Response keys: " . implode(', ', array_keys($result2)));
-            }
+            Log::warning("SophosApiService: All IPSec VPN entity fallbacks returned 0 for {$this->firewall->name}");
         }
 
         return $entities;

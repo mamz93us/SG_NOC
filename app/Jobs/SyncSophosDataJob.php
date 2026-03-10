@@ -48,6 +48,14 @@ class SyncSophosDataJob implements ShouldQueue
 
             $this->firewall->update(['last_synced_at' => now()]);
 
+            // Log to ActivityLog for UI visibility
+            \App\Models\ActivityLog::log(
+                'Sophos Sync',
+                "Synced '{$this->firewall->name}': {$ifaceCount} interfaces, {$objectCount} objects, {$vpnCount} VPN tunnels, {$ruleCount} rules.",
+                'success',
+                $this->firewall->id
+            );
+
             // Auto-resolve stale Sophos sync failure alerts
             \App\Models\NocEvent::where('module', 'network')
                 ->where('entity_type', 'firewall')
@@ -58,6 +66,13 @@ class SyncSophosDataJob implements ShouldQueue
             // Log any per-entity errors that were caught but didn't kill the sync
             if (!empty($errors)) {
                 Log::warning("SyncSophosDataJob: {$this->firewall->name} completed with " . count($errors) . " warnings", $errors);
+                
+                \App\Models\ActivityLog::log(
+                    'Sophos Sync Warning',
+                    "Sync for '{$this->firewall->name}' had warnings: " . implode(', ', $errors),
+                    'warning',
+                    $this->firewall->id
+                );
             }
 
             Log::info("SyncSophosDataJob: Completed sync for {$this->firewall->name}");
@@ -149,10 +164,11 @@ class SyncSophosDataJob implements ShouldQueue
                 if (!$ipAddr) $ipAddr  = $iface['IPAddress'] ?? $iface['ip_address'] ?? null;
                 if (!$netmask) $netmask = $iface['Netmask'] ?? $iface['netmask'] ?? null;
 
-                // Determine status — Sophos uses many field names
+                // Determine status — Sophos uses many field names across versions
                 $rawStatus = $iface['Status'] ?? $iface['status']
                     ?? $iface['InterfaceStatus'] ?? $iface['LinkStatus']
-                    ?? $iface['AdminStatus'] ?? null;
+                    ?? $iface['AdminStatus'] ?? $iface['ActiveStatus'] 
+                    ?? $iface['Active'] ?? $iface['Enabled'] ?? null;
 
                 $record = SophosInterface::updateOrCreate(
                     ['firewall_id' => $this->firewall->id, 'name' => $name],
@@ -250,7 +266,7 @@ class SyncSophosDataJob implements ShouldQueue
                         'remote_gateway'  => $this->stringify($remoteGw),
                         'local_subnet'    => $this->extractSubnet($tunnel, 'LocalSubnet'),
                         'remote_subnet'   => $this->extractSubnet($tunnel, 'RemoteSubnet'),
-                        'status'          => $this->normalizeStatus($this->stringify($tunnel['Status'] ?? $tunnel['ConnectionStatus'] ?? $tunnel['status'] ?? null)),
+                        'status'          => $this->normalizeStatus($this->stringify($tunnel['Status'] ?? $tunnel['ConnectionStatus'] ?? $tunnel['ActiveStatus'] ?? $tunnel['Active'] ?? $tunnel['status'] ?? null)),
                         'last_checked_at' => now(),
                     ]
                 );
@@ -359,8 +375,12 @@ class SyncSophosDataJob implements ShouldQueue
             return 'down';
         }
 
+        // Check for numeric values (1 = Up, 0 = Down)
+        if ($lower === '1') return 'up';
+        if ($lower === '0') return 'down';
+
         // Check partial matches
-        if (str_contains($lower, 'connect') || str_contains($lower, 'enable') || str_contains($lower, 'active') || str_contains($lower, 'up')) {
+        if (str_contains($lower, 'connect') || str_contains($lower, 'enable') || str_contains($lower, 'active') || str_contains($lower, 'up') || str_contains($lower, 'establish')) {
             return 'up';
         }
         if (str_contains($lower, 'disconnect') || str_contains($lower, 'disable') || str_contains($lower, 'down') || str_contains($lower, 'inactive')) {
