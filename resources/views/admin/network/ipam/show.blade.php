@@ -79,13 +79,21 @@
                         if ($cell['device_name']) $tooltip .= " - " . $cell['device_name'];
                         if ($cell['mac']) $tooltip .= " (" . $cell['mac'] . ")";
                     @endphp
-                    <div class="d-inline-flex align-items-center justify-content-center {{ $bgClass }} text-white rounded"
-                         style="width:40px;height:32px;font-size:11px;cursor:pointer"
-                         data-bs-toggle="tooltip"
-                         data-bs-placement="top"
-                         title="{{ $tooltip }}">
+                    <a href="{{ route('admin.network.ip-reservations.create', [
+                            'ip_address' => $cell['ip'],
+                            'mac_address' => $cell['mac'],
+                            'device_name' => $cell['device_name'],
+                            'vlan' => $cell['vlan'] ?? $subnet->vlan,
+                            'subnet_id' => $subnet->id,
+                            'branch_id' => $subnet->branch_id,
+                        ]) }}"
+                       class="d-inline-flex align-items-center justify-content-center {{ $bgClass }} text-white rounded text-decoration-none"
+                       style="width:40px;height:32px;font-size:11px;cursor:pointer"
+                       data-bs-toggle="tooltip"
+                       data-bs-placement="top"
+                       title="{{ $tooltip }}">
                         {{ $lastOctet }}
-                    </div>
+                    </a>
                 @endforeach
             </div>
         </div>

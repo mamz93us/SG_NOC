@@ -474,6 +474,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/',                    [IpReservationController::class, 'index'])->name('index');
         Route::get('/create',              [IpReservationController::class, 'create'])->name('create');
         Route::get('/{reservation}/edit',  [IpReservationController::class, 'edit'])->name('edit');
+        Route::get('/ajax/get-available-ip', [IpReservationController::class, 'getAvailableIp'])->name('get-available-ip');
     });
     Route::middleware('permission:manage-network-settings')->prefix('network/ip-reservations')->name('network.ip-reservations.')->group(function () {
         Route::post('/',                   [IpReservationController::class, 'store'])->name('store');

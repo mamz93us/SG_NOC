@@ -23,7 +23,17 @@
                 <table class="table table-sm table-borderless small mb-0">
                     <tr><th class="text-muted w-40">Model</th><td>{{ $device->model ?: '—' }}</td></tr>
                     <tr><th class="text-muted">Serial</th><td class="font-monospace">{{ $device->serial_number ?: '—' }}</td></tr>
-                    <tr><th class="text-muted">IP</th><td class="font-monospace">{{ $device->ip_address ?: '—' }}</td></tr>
+                    <tr>
+                        <th class="text-muted w-40">IP</th>
+                        <td class="font-monospace d-flex justify-content-between align-items-center">
+                            <span>{{ $device->ip_address ?: '—' }}</span>
+                            @can('manage-network-settings')
+                            <a href="{{ route('admin.network.ip-reservations.create', ['device_id' => $device->id]) }}" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 11px;">
+                                <i class="bi bi-plus"></i> Reserve IP
+                            </a>
+                            @endcan
+                        </td>
+                    </tr>
                     <tr><th class="text-muted">MAC</th><td class="font-monospace">{{ $device->mac_address ?: '—' }}</td></tr>
                     <tr><th class="text-muted">Branch</th><td>{{ $device->branch?->name ?: '—' }}</td></tr>
                     <tr><th class="text-muted">Location</th><td>{{ $device->location_description ?: '—' }}</td></tr>
