@@ -155,22 +155,34 @@ class SophosApiService
         $wrapper = $result[$entityName] ?? [];
 
         if (empty($wrapper)) {
+            Log::debug("SophosApiService: No {$entityName} wrapper in response", [
+                'response_keys' => array_keys($result),
+            ]);
             return [];
         }
 
-        // Check if this is the wrapper level (has nested entities with same name)
-        $entities = $wrapper[$entityName] ?? null;
+        Log::debug("SophosApiService: extractEntities for {$entityName}", [
+            'wrapper_keys' => array_keys($wrapper),
+            'has_nested'   => isset($wrapper[$entityName]),
+        ]);
 
-        if ($entities === null) {
-            // No nested entities — could be the wrapper itself IS the entities
-            // (happens when response has no Status wrapper)
+        // Check if wrapper has nested entities with the same name
+        $nested = $wrapper[$entityName] ?? null;
+
+        if ($nested !== null) {
+            // Found nested entities — this IS the entity data (not the wrapper)
+            // Do NOT filter by Status here — entities have their own Status fields
+            $entities = $nested;
+        } else {
+            // No nested entity key found
+            // If wrapper only has Status/@attributes, there are no entities
+            $dataKeys = array_diff(array_keys($wrapper), ['Status', '@attributes']);
+            if (empty($dataKeys)) {
+                Log::debug("SophosApiService: No {$entityName} entities found (empty response)");
+                return [];
+            }
+            // Otherwise the wrapper itself contains entity data (no Status wrapper)
             $entities = $wrapper;
-        }
-
-        // Filter out non-entity keys like 'Status', '@attributes' from wrapper
-        if (is_array($entities) && isset($entities['Status'])) {
-            // We're still at the wrapper level with no entities returned
-            return [];
         }
 
         // Single entity returned as associative → wrap in array

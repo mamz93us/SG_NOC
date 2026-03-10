@@ -46,7 +46,7 @@ class SyncSophosDataJob implements ShouldQueue
             $this->firewall->update(['last_synced_at' => now()]);
 
             // Auto-resolve stale Sophos sync failure alerts
-            \App\Models\NocEvent::where('module', 'sophos')
+            \App\Models\NocEvent::where('module', 'network')
                 ->where('entity_type', 'firewall')
                 ->where('entity_id', (string) $this->firewall->id)
                 ->whereIn('status', ['open', 'acknowledged'])
@@ -61,7 +61,7 @@ class SyncSophosDataJob implements ShouldQueue
 
             // Create NOC alert for sync failure
             app(NocAlertEngine::class)->createOrUpdateEvent(
-                'sophos',
+                'network',
                 'firewall',
                 (string) $this->firewall->id,
                 'warning',
@@ -74,22 +74,30 @@ class SyncSophosDataJob implements ShouldQueue
     protected function syncInterfaces(SophosApiService $api): int
     {
         $interfaces = $api->getInterfaces();
+        Log::debug("SyncSophosDataJob: getInterfaces returned " . count($interfaces) . " items for {$this->firewall->name}");
         $synced = [];
 
         foreach ($interfaces as $iface) {
             $name = $iface['Name'] ?? $iface['name'] ?? null;
             if (!$name) continue;
 
+            // Extract IP/Netmask — may be nested in IPv4Configuration or flat
+            $ipv4 = $iface['IPv4Configuration'] ?? [];
+            $ipAddr  = is_array($ipv4) ? ($ipv4['IPAddress'] ?? null) : null;
+            $netmask = is_array($ipv4) ? ($ipv4['Netmask'] ?? null) : null;
+            if (!$ipAddr) $ipAddr  = $iface['IPAddress'] ?? $iface['ip_address'] ?? null;
+            if (!$netmask) $netmask = $iface['Netmask'] ?? $iface['netmask'] ?? null;
+
             $record = SophosInterface::updateOrCreate(
                 ['firewall_id' => $this->firewall->id, 'name' => $name],
                 [
-                    'hardware'   => $iface['Hardware'] ?? $iface['hardware'] ?? null,
-                    'ip_address' => $iface['IPv4Configuration']['IPAddress'] ?? $iface['IPAddress'] ?? $iface['ip_address'] ?? null,
-                    'netmask'    => $iface['IPv4Configuration']['Netmask'] ?? $iface['Netmask'] ?? $iface['netmask'] ?? null,
-                    'zone'       => $iface['Zone'] ?? $iface['NetworkZone'] ?? $iface['zone'] ?? null,
-                    'status'     => $this->normalizeStatus($iface['Status'] ?? $iface['status'] ?? 'unknown'),
-                    'mtu'        => $iface['MTU'] ?? $iface['mtu'] ?? null,
-                    'speed'      => $iface['Speed'] ?? $iface['speed'] ?? null,
+                    'hardware'   => $this->stringify($iface['Hardware'] ?? $iface['hardware'] ?? null),
+                    'ip_address' => $this->stringify($ipAddr),
+                    'netmask'    => $this->stringify($netmask),
+                    'zone'       => $this->stringify($iface['Zone'] ?? $iface['NetworkZone'] ?? $iface['zone'] ?? null),
+                    'status'     => $this->normalizeStatus($this->stringify($iface['Status'] ?? $iface['status'] ?? 'unknown')),
+                    'mtu'        => ($mtuVal = $this->stringify($iface['MTU'] ?? $iface['mtu'] ?? null)) !== null ? (int) $mtuVal : null,
+                    'speed'      => $this->stringify($iface['Speed'] ?? $iface['speed'] ?? null),
                 ]
             );
             $synced[] = $record->id;
@@ -108,6 +116,10 @@ class SyncSophosDataJob implements ShouldQueue
     protected function syncNetworkObjects(SophosApiService $api): int
     {
         $objects = $api->getIPHosts();
+        Log::debug("SyncSophosDataJob: getIPHosts returned " . count($objects) . " items for {$this->firewall->name}");
+        if (!empty($objects)) {
+            Log::debug("SyncSophosDataJob: IPHost sample keys", ['keys' => array_keys($objects[0] ?? [])]);
+        }
         $synced  = [];
 
         foreach ($objects as $obj) {
@@ -117,10 +129,10 @@ class SyncSophosDataJob implements ShouldQueue
             $record = SophosNetworkObject::updateOrCreate(
                 ['firewall_id' => $this->firewall->id, 'name' => $name],
                 [
-                    'object_type' => $obj['HostType'] ?? $obj['IPFamily'] ?? $obj['host_type'] ?? null,
-                    'ip_address'  => $obj['IPAddress'] ?? $obj['ip_address'] ?? null,
-                    'subnet'      => $obj['Subnet'] ?? $obj['subnet'] ?? null,
-                    'host_type'   => $obj['HostType'] ?? $obj['host_type'] ?? null,
+                    'object_type' => $this->stringify($obj['HostType'] ?? $obj['IPFamily'] ?? $obj['host_type'] ?? null),
+                    'ip_address'  => $this->stringify($obj['IPAddress'] ?? $obj['ip_address'] ?? null),
+                    'subnet'      => $this->stringify($obj['Subnet'] ?? $obj['subnet'] ?? null),
+                    'host_type'   => $this->stringify($obj['HostType'] ?? $obj['host_type'] ?? null),
                 ]
             );
             $synced[] = $record->id;
@@ -138,6 +150,10 @@ class SyncSophosDataJob implements ShouldQueue
     protected function syncVpnTunnels(SophosApiService $api): int
     {
         $tunnels = $api->getIPSecConnections();
+        Log::debug("SyncSophosDataJob: getIPSecConnections returned " . count($tunnels) . " items for {$this->firewall->name}");
+        if (!empty($tunnels)) {
+            Log::debug("SyncSophosDataJob: IPSecConnection sample keys", ['keys' => array_keys($tunnels[0] ?? [])]);
+        }
         $synced  = [];
 
         foreach ($tunnels as $tunnel) {
@@ -147,12 +163,12 @@ class SyncSophosDataJob implements ShouldQueue
             $record = SophosVpnTunnel::updateOrCreate(
                 ['firewall_id' => $this->firewall->id, 'name' => $name],
                 [
-                    'connection_type' => $tunnel['ConnectionType'] ?? $tunnel['connection_type'] ?? null,
-                    'policy'          => $tunnel['Policy'] ?? $tunnel['policy'] ?? null,
-                    'remote_gateway'  => $tunnel['RemoteGateway'] ?? $tunnel['remote_gateway'] ?? null,
+                    'connection_type' => $this->stringify($tunnel['ConnectionType'] ?? $tunnel['connection_type'] ?? null),
+                    'policy'          => $this->stringify($tunnel['Policy'] ?? $tunnel['policy'] ?? null),
+                    'remote_gateway'  => $this->stringify($tunnel['RemoteGateway'] ?? $tunnel['remote_gateway'] ?? null),
                     'local_subnet'    => $this->extractSubnet($tunnel, 'LocalSubnet'),
                     'remote_subnet'   => $this->extractSubnet($tunnel, 'RemoteSubnet'),
-                    'status'          => $this->normalizeStatus($tunnel['Status'] ?? $tunnel['status'] ?? 'unknown'),
+                    'status'          => $this->normalizeStatus($this->stringify($tunnel['Status'] ?? $tunnel['status'] ?? 'unknown')),
                     'last_checked_at' => now(),
                 ]
             );
@@ -171,6 +187,10 @@ class SyncSophosDataJob implements ShouldQueue
     protected function syncFirewallRules(SophosApiService $api): int
     {
         $rules  = $api->getFirewallRules();
+        Log::debug("SyncSophosDataJob: getFirewallRules returned " . count($rules) . " items for {$this->firewall->name}");
+        if (!empty($rules)) {
+            Log::debug("SyncSophosDataJob: FirewallRule sample keys", ['keys' => array_keys($rules[0] ?? [])]);
+        }
         $synced = [];
         $pos    = 0;
 
@@ -182,15 +202,15 @@ class SyncSophosDataJob implements ShouldQueue
             $record = SophosFirewallRule::updateOrCreate(
                 ['firewall_id' => $this->firewall->id, 'rule_name' => $name],
                 [
-                    'position'        => $rule['Position'] ?? $pos,
+                    'position'        => (int) ($this->stringify($rule['Position'] ?? null) ?? $pos),
                     'source_zone'     => $this->extractZone($rule, 'SourceZones'),
                     'dest_zone'       => $this->extractZone($rule, 'DestinationZones'),
                     'source_networks' => $this->extractNetworks($rule, 'SourceNetworks'),
                     'dest_networks'   => $this->extractNetworks($rule, 'DestinationNetworks'),
                     'services'        => $this->extractServices($rule),
-                    'action'          => strtolower($rule['Action'] ?? $rule['action'] ?? 'drop'),
-                    'enabled'         => ($rule['Status'] ?? $rule['status'] ?? 'Enable') !== 'Disable',
-                    'log_traffic'     => ($rule['LogTraffic'] ?? $rule['log_traffic'] ?? 'Disable') !== 'Disable',
+                    'action'          => strtolower($this->stringify($rule['Action'] ?? $rule['action'] ?? null) ?? 'drop'),
+                    'enabled'         => ($this->stringify($rule['Status'] ?? $rule['status'] ?? 'Enable')) !== 'Disable',
+                    'log_traffic'     => ($this->stringify($rule['LogTraffic'] ?? $rule['log_traffic'] ?? 'Disable')) !== 'Disable',
                 ]
             );
             $synced[] = $record->id;
@@ -207,8 +227,26 @@ class SyncSophosDataJob implements ShouldQueue
 
     // ─── Parsing Helpers ──────────────────────────────────────────
 
-    protected function normalizeStatus(string $raw): string
+    /**
+     * Safely convert a value to string — handles arrays from XML parsing.
+     */
+    protected function stringify(mixed $value): ?string
     {
+        if ($value === null) return null;
+        if (is_array($value)) {
+            // If it's a simple array with one element, use that
+            if (count($value) === 1 && isset($value[0])) return (string) $value[0];
+            // If it's an empty array, return null
+            if (empty($value)) return null;
+            // Otherwise JSON-encode it
+            return json_encode($value);
+        }
+        return (string) $value;
+    }
+
+    protected function normalizeStatus(?string $raw): string
+    {
+        if ($raw === null) return 'unknown';
         $lower = strtolower(trim($raw));
         if (in_array($lower, ['up', 'connected', 'enable', 'enabled', 'active', 'online'])) return 'up';
         if (in_array($lower, ['down', 'disconnected', 'disable', 'disabled', 'offline'])) return 'down';
@@ -227,9 +265,14 @@ class SyncSophosDataJob implements ShouldQueue
         $zones = $rule[$key] ?? $rule[lcfirst($key)] ?? null;
         if (is_array($zones)) {
             $zone = $zones['Zone'] ?? $zones;
-            return is_array($zone) ? implode(', ', $zone) : $zone;
+            if (is_array($zone)) {
+                // Handle nested arrays — flatten to strings
+                $flat = array_map(fn($z) => is_array($z) ? json_encode($z) : (string) $z, $zone);
+                return implode(', ', $flat);
+            }
+            return (string) $zone;
         }
-        return $zones;
+        return is_array($zones) ? json_encode($zones) : $zones;
     }
 
     protected function extractNetworks(array $rule, string $key): ?array
@@ -237,9 +280,15 @@ class SyncSophosDataJob implements ShouldQueue
         $networks = $rule[$key] ?? $rule[lcfirst($key)] ?? null;
         if (is_array($networks)) {
             $net = $networks['Network'] ?? $networks;
-            return is_array($net) ? (isset($net[0]) ? $net : [$net]) : [$net];
+            if (!is_array($net)) return [$net];
+            // Indexed array of networks
+            if (isset($net[0])) {
+                return array_map(fn($n) => is_array($n) ? json_encode($n) : $n, $net);
+            }
+            // Single associative network
+            return [is_string($net) ? $net : json_encode($net)];
         }
-        return $networks ? [$networks] : null;
+        return $networks ? [(string) $networks] : null;
     }
 
     protected function extractServices(array $rule): ?array
@@ -247,8 +296,14 @@ class SyncSophosDataJob implements ShouldQueue
         $services = $rule['Services'] ?? $rule['services'] ?? null;
         if (is_array($services)) {
             $svc = $services['Service'] ?? $services;
-            return is_array($svc) ? (isset($svc[0]) ? $svc : [$svc]) : [$svc];
+            if (!is_array($svc)) return [$svc];
+            // Indexed array of services
+            if (isset($svc[0])) {
+                return array_map(fn($s) => is_array($s) ? json_encode($s) : $s, $svc);
+            }
+            // Single associative service
+            return [is_string($svc) ? $svc : json_encode($svc)];
         }
-        return $services ? [$services] : null;
+        return $services ? [(string) $services] : null;
     }
 }

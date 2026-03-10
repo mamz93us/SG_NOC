@@ -126,7 +126,7 @@ class DhcpLeaseService
             // Create NOC alert
             $macs = $leases->pluck('mac_address')->implode(', ');
             app(NocAlertEngine::class)->createOrUpdateEvent(
-                'ipam',
+                'network',
                 'ip_conflict',
                 $ip,
                 'warning',
@@ -136,7 +136,7 @@ class DhcpLeaseService
         }
 
         // Auto-resolve conflicts that no longer exist
-        NocEvent::where('module', 'ipam')
+        NocEvent::where('module', 'network')
             ->where('entity_type', 'ip_conflict')
             ->whereIn('status', ['open', 'acknowledged'])
             ->whereNotIn('entity_id', $conflicts)
