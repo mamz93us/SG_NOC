@@ -34,7 +34,12 @@ class IpamController extends Controller
     {
         $validated = $request->validate([
             'branch_id'   => 'required|exists:branches,id',
-            'cidr'        => ['required', 'string', 'regex:/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/'],
+            'cidr'        => [
+                'required', 
+                'string', 
+                'regex:/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/',
+                'unique:ipam_subnets,cidr,NULL,id,branch_id,' . $request->branch_id
+            ],
             'vlan'        => 'nullable|integer|min:1|max:4094',
             'gateway'     => 'nullable|ip',
             'description' => 'nullable|string|max:255',
