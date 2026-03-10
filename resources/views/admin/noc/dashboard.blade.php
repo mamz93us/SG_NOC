@@ -250,6 +250,99 @@
 </div>
 @endif
 
+{{-- DHCP / IPAM / Sophos Row --}}
+<h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-hdd-rack me-2"></i>DHCP & Firewall Overview</h6>
+<div class="row g-3 mb-4">
+    {{-- DHCP Leases --}}
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100 noc-card position-relative">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0 fw-bold text-dark">DHCP Leases</h6>
+                    <span class="badge bg-primary-subtle text-primary">{{ $dhcpTotal ?? 0 }} Total</span>
+                </div>
+                <div class="d-flex gap-3 mb-2">
+                    <div class="text-center">
+                        <div class="fs-5 fw-bold text-primary">{{ $dhcpBySource['meraki'] ?? 0 }}</div>
+                        <small class="text-muted">Meraki</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="fs-5 fw-bold text-danger">{{ $dhcpBySource['sophos'] ?? 0 }}</div>
+                        <small class="text-muted">Sophos</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="fs-5 fw-bold text-warning">{{ $dhcpBySource['snmp'] ?? 0 }}</div>
+                        <small class="text-muted">SNMP</small>
+                    </div>
+                </div>
+                @if(($dhcpConflicts ?? 0) > 0)
+                <div class="small text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>{{ $dhcpConflicts }} IP conflicts detected</div>
+                @else
+                <div class="small text-success"><i class="bi bi-check-circle-fill me-1"></i>No IP conflicts</div>
+                @endif
+                <a href="{{ route('admin.network.dhcp.index') }}" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+
+    {{-- Subnet Utilization --}}
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100 noc-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0 fw-bold text-dark">Top Subnets</h6>
+                    <a href="{{ route('admin.network.ipam.index') }}" class="btn btn-sm btn-outline-secondary py-0 px-2">View All</a>
+                </div>
+                @forelse($topSubnets ?? [] as $sub)
+                @php $pct = $sub->utilizationPercent(); @endphp
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="fw-semibold">{{ $sub->cidr }}</span>
+                        <span class="{{ $pct >= 90 ? 'text-danger' : ($pct >= 70 ? 'text-warning' : 'text-success') }}">{{ $pct }}%</span>
+                    </div>
+                    <div class="progress" style="height:5px">
+                        <div class="progress-bar {{ $pct >= 90 ? 'bg-danger' : ($pct >= 70 ? 'bg-warning' : 'bg-success') }}" style="width:{{ $pct }}%"></div>
+                    </div>
+                </div>
+                @empty
+                <div class="text-muted small text-center py-2">No subnets tracked yet</div>
+                @endforelse
+            </div>
+        </div>
+    </div>
+
+    {{-- Sophos Firewalls --}}
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100 noc-card position-relative">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0 fw-bold text-dark">Sophos Firewalls</h6>
+                    <span class="badge {{ ($sophosTotal ?? 0) > 0 ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $sophosSynced ?? 0 }}/{{ $sophosTotal ?? 0 }} Synced</span>
+                </div>
+                @if(($sophosTotal ?? 0) > 0)
+                <div class="d-flex gap-3 mb-2">
+                    <div class="text-center">
+                        <div class="fs-5 fw-bold text-success">{{ $sophosSynced ?? 0 }}</div>
+                        <small class="text-muted">Synced</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="fs-5 fw-bold text-warning">{{ ($sophosTotal ?? 0) - ($sophosSynced ?? 0) }}</div>
+                        <small class="text-muted">Pending</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="fs-5 fw-bold text-info">{{ $sophosVpnUp ?? 0 }}</div>
+                        <small class="text-muted">VPN Up</small>
+                    </div>
+                </div>
+                @else
+                <div class="text-muted small text-center py-2">No Sophos firewalls configured</div>
+                @endif
+                <a href="{{ route('admin.network.sophos.index') }}" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- UCM Unified PBX Status --}}
 <h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-server me-2"></i>Unified PBX Health</h6>
 <div class="card border-0 shadow-sm mb-4">

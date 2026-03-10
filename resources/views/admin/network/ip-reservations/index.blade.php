@@ -72,6 +72,7 @@
                         <th>IP Address</th>
                         <th>Subnet</th>
                         <th>VLAN</th>
+                        <th>Status</th>
                         <th>Type</th>
                         <th>Device Name</th>
                         <th>MAC Address</th>
@@ -85,12 +86,19 @@
                     <tr>
                         <td class="fw-semibold">{{ $r->branch?->name ?: '—' }}</td>
                         <td class="font-monospace fw-bold">{{ $r->ip_address }}</td>
-                        <td class="font-monospace text-muted">{{ $r->subnet ?: '—' }}</td>
+                        <td class="font-monospace text-muted">
+                            @if($r->ipamSubnet)
+                            <a href="{{ route('admin.network.ipam.show', $r->ipamSubnet) }}" class="text-decoration-none">{{ $r->subnet ?: $r->ipamSubnet->cidr }}</a>
+                            @else
+                            {{ $r->subnet ?: '—' }}
+                            @endif
+                        </td>
                         <td>
                             @if($r->vlan)
                             <span class="badge bg-info-subtle text-info border">{{ $r->vlan }}</span>
                             @else — @endif
                         </td>
+                        <td><span class="badge {{ $r->statusBadgeClass() }}">{{ ucfirst($r->status ?? 'reserved') }}</span></td>
                         <td>
                             @if($r->device_type)
                             <span class="badge {{ $r->deviceTypeBadgeClass() }}">{{ $deviceTypes[$r->device_type] ?? ucfirst($r->device_type) }}</span>

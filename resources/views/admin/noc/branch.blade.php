@@ -141,6 +141,56 @@
             </div>
         </div>
 
+        {{-- 5b. Sophos Firewalls --}}
+        @if(($sophosFirewalls ?? collect())->count() > 0)
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-shield-fill me-1"></i>Sophos Firewalls ({{ $sophosFirewalls->count() }})</strong>
+                <a href="{{ route('admin.network.sophos.index') }}" class="btn btn-sm btn-outline-secondary py-0 px-2">View All</a>
+            </div>
+            <div class="card-body p-0">
+                @foreach($sophosFirewalls as $fw)
+                <a href="{{ route('admin.network.sophos.show', $fw) }}" class="d-flex align-items-center px-3 py-2 {{ !$loop->last ? 'border-bottom' : '' }} small text-decoration-none text-dark">
+                    <span class="badge {{ $fw->syncStatusBadge() }} me-2">{{ $fw->syncStatusLabel() }}</span>
+                    <span class="fw-semibold me-2">{{ $fw->name }}</span>
+                    <code class="text-muted me-auto">{{ $fw->ip }}:{{ $fw->port }}</code>
+                    <span class="text-muted">{{ $fw->model ?? '' }}</span>
+                </a>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        {{-- 5c. DHCP Leases (Recent) --}}
+        @if(($dhcpLeases ?? collect())->count() > 0)
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-hdd-network-fill me-1"></i>Recent DHCP Leases</strong>
+                <a href="{{ route('admin.network.dhcp.index', ['branch' => $branch->id]) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr><th class="ps-3">IP</th><th>MAC</th><th>Hostname</th><th>Source</th><th>Last Seen</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach($dhcpLeases as $lease)
+                            <tr class="{{ $lease->is_conflict ? 'table-danger' : '' }}">
+                                <td class="ps-3"><code>{{ $lease->ip_address }}</code></td>
+                                <td class="font-monospace text-muted">{{ $lease->mac_address }}</td>
+                                <td>{{ $lease->hostname ?? '-' }}</td>
+                                <td><span class="badge {{ $lease->sourceBadgeClass() }}">{{ ucfirst($lease->source) }}</span></td>
+                                <td class="text-muted">{{ $lease->last_seen?->diffForHumans() ?? '-' }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        @endif
+
         {{-- 6. Devices --}}
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-transparent"><strong><i class="bi bi-cpu me-1"></i>Devices ({{ $devices->count() }})</strong></div>
@@ -229,6 +279,31 @@
                 @endif
             </div>
         </div>
+
+        {{-- IPAM Subnets --}}
+        @if(($subnets ?? collect())->count() > 0)
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-grid-3x3 me-1"></i>Subnets</strong>
+                <span class="badge bg-secondary">{{ $subnets->count() }}</span>
+            </div>
+            <div class="card-body p-0">
+                @foreach($subnets as $sub)
+                @php $pct = $sub->utilizationPercent(); @endphp
+                <a href="{{ route('admin.network.ipam.show', $sub) }}" class="d-block px-3 py-2 {{ !$loop->last ? 'border-bottom' : '' }} small text-decoration-none text-dark">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="fw-semibold font-monospace">{{ $sub->cidr }}</span>
+                        <span class="{{ $pct >= 90 ? 'text-danger' : ($pct >= 70 ? 'text-warning' : 'text-success') }} fw-bold">{{ $pct }}%</span>
+                    </div>
+                    <div class="progress" style="height:4px">
+                        <div class="progress-bar {{ $pct >= 90 ? 'bg-danger' : ($pct >= 70 ? 'bg-warning' : 'bg-success') }}" style="width:{{ $pct }}%"></div>
+                    </div>
+                    @if($sub->description)<div class="text-muted mt-1" style="font-size:11px">{{ $sub->description }}</div>@endif
+                </a>
+                @endforeach
+            </div>
+        </div>
+        @endif
 
         {{-- Employees --}}
         <div class="card shadow-sm border-0 mb-4">

@@ -88,6 +88,23 @@ class NocController extends Controller
         $hostsUp = $monitoredHosts->where('status', 'up')->count();
         $hostsDown = $monitoredHosts->where('status', 'down')->count();
 
+        // DHCP Lease Overview
+        $dhcpTotal     = \App\Models\DhcpLease::count();
+        $dhcpConflicts = \App\Models\DhcpLease::where('is_conflict', true)->count();
+        $dhcpBySource  = \App\Models\DhcpLease::selectRaw("source, count(*) as cnt")->groupBy('source')->pluck('cnt', 'source')->toArray();
+
+        // Sophos Firewall Overview
+        $sophosAll    = \App\Models\SophosFirewall::all();
+        $sophosTotal  = $sophosAll->count();
+        $sophosSynced = $sophosAll->filter(fn($f) => $f->last_synced_at !== null)->count();
+        $sophosVpnUp  = \App\Models\SophosVpnTunnel::where('status', 'up')->count();
+
+        // Top Subnets by Utilization
+        $topSubnets = \App\Models\IpamSubnet::withCount(['ipReservations', 'dhcpLeases'])
+            ->orderByDesc('ip_reservations_count')
+            ->limit(5)
+            ->get();
+
         return view('admin.noc.dashboard', compact(
             'totalUsers', 'licensedUsers', 'disabledUsers', 'licensedPercent',
             'totalSwitches', 'onlineSwitches', 'onlinePercent',
@@ -96,7 +113,10 @@ class NocController extends Controller
             'contactCount', 'phoneRequestCount', 'totalXmlRequests',
             'ucmStats', 'ucmOnline', 'totalExt', 'totalIdle', 'totalInUse', 'totalUnavail', 'totalTrunks', 'totalReachable', 'totalUnreachable',
             'vpnTunnels', 'vpnOnline',
-            'monitoredHosts', 'hostsUp', 'hostsDown'
+            'monitoredHosts', 'hostsUp', 'hostsDown',
+            'dhcpTotal', 'dhcpConflicts', 'dhcpBySource',
+            'sophosTotal', 'sophosSynced', 'sophosVpnUp',
+            'topSubnets'
         ));
     }
 
@@ -123,10 +143,16 @@ class NocController extends Controller
             ->whereIn('status', ['open', 'investigating'])
             ->latest()->limit(5)->get();
 
+        // DHCP + IPAM + Sophos for this branch
+        $dhcpLeases       = \App\Models\DhcpLease::where('branch_id', $branch->id)->latest('last_seen')->limit(10)->get();
+        $subnets          = \App\Models\IpamSubnet::where('branch_id', $branch->id)->get();
+        $sophosFirewalls  = \App\Models\SophosFirewall::where('branch_id', $branch->id)->get();
+
         return view('admin.noc.branch', compact(
             'branch', 'score', 'switches', 'devices', 'printers',
             'vpnTunnels', 'ispConns', 'monitorHosts', 'landlines',
-            'ipCount', 'employees', 'openAlerts', 'openIncidents'
+            'ipCount', 'employees', 'openAlerts', 'openIncidents',
+            'dhcpLeases', 'subnets', 'sophosFirewalls'
         ));
     }
 

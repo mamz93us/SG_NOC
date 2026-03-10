@@ -7,6 +7,7 @@ use App\Models\Device;
 use App\Models\IspConnection;
 use App\Models\MonitoredHost;
 use App\Models\NetworkSwitch;
+use App\Models\SophosFirewall;
 use App\Models\VpnTunnel;
 
 class TopologyService
@@ -155,6 +156,37 @@ class TopologyService
                         'source' => "branch_{$host->branch_id}",
                         'target' => "host_{$host->id}",
                         'type'   => 'host',
+                    ],
+                ];
+            }
+        }
+
+        // ── Sophos Firewalls ────────────────────────────────────────
+        $fwQuery = SophosFirewall::query();
+        if ($branchId) {
+            $fwQuery->where('branch_id', $branchId);
+        }
+        $sophosFirewalls = $fwQuery->get();
+
+        foreach ($sophosFirewalls as $fw) {
+            $nodes[] = [
+                'data' => [
+                    'id'     => "sophos_{$fw->id}",
+                    'label'  => $fw->name,
+                    'type'   => 'firewall',
+                    'status' => $fw->last_synced_at ? 'up' : 'unknown',
+                    'model'  => $fw->model,
+                    'icon'   => 'bi-shield-fill',
+                    'parent' => $fw->branch_id ? "branch_{$fw->branch_id}" : null,
+                ],
+            ];
+            if ($fw->branch_id) {
+                $edges[] = [
+                    'data' => [
+                        'id'     => "e_branch_{$fw->branch_id}_sophos_{$fw->id}",
+                        'source' => "branch_{$fw->branch_id}",
+                        'target' => "sophos_{$fw->id}",
+                        'type'   => 'firewall',
                     ],
                 ];
             }

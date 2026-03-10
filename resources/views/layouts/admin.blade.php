@@ -171,6 +171,33 @@
                                     <i class="bi bi-graph-up me-2"></i>SLA Dashboard
                                 </a>
                             </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-hdd-rack me-1"></i>IPAM / DHCP</h6></li>
+                            @can('view-network')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.ipam.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.ipam.index') }}">
+                                    <i class="bi bi-grid-3x3 me-2"></i>IPAM Subnets
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-dhcp-leases')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.dhcp.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.dhcp.index') }}">
+                                    <i class="bi bi-hdd-network-fill me-2"></i>DHCP Leases
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-sophos')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.sophos.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.sophos.index') }}">
+                                    <i class="bi bi-shield-fill me-2"></i>Sophos Firewalls
+                                </a>
+                            </li>
+                            @endcan
+                            <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.topology.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.topology.index') }}">
