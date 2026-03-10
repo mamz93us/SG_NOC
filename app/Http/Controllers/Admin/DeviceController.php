@@ -117,17 +117,15 @@ class DeviceController extends Controller
             'location_description' => 'nullable|string|max:255',
             'notes'                => 'nullable|string',
             'status'               => 'required|in:active,available,assigned,maintenance,retired',
+            'purchase_date'        => 'nullable|date',
+            'warranty_expiry'      => 'nullable|date',
+            'firmware_version'     => 'nullable|string|max:100',
+            'latest_firmware'      => 'nullable|string|max:100',
         ]);
 
         $device = Device::create(array_merge($data, ['source' => 'manual']));
 
-        ActivityLog::create([
-            'model_type' => 'Device',
-            'model_id'   => $device->id,
-            'action'     => 'created',
-            'changes'    => $data,
-            'user_id'    => Auth::id(),
-        ]);
+        ActivityLog::log('created', $device, $data);
 
         return redirect()->route('admin.devices.show', $device)
                          ->with('success', "Device \"{$device->name}\" created.");
@@ -157,17 +155,15 @@ class DeviceController extends Controller
             'location_description' => 'nullable|string|max:255',
             'notes'                => 'nullable|string',
             'status'               => 'required|in:active,available,assigned,maintenance,retired',
+            'purchase_date'        => 'nullable|date',
+            'warranty_expiry'      => 'nullable|date',
+            'firmware_version'     => 'nullable|string|max:100',
+            'latest_firmware'      => 'nullable|string|max:100',
         ]);
 
         $device->update($data);
 
-        ActivityLog::create([
-            'model_type' => 'Device',
-            'model_id'   => $device->id,
-            'action'     => 'updated',
-            'changes'    => $data,
-            'user_id'    => Auth::id(),
-        ]);
+        ActivityLog::log('updated', $device, $data);
 
         return back()->with('success', "Device \"{$device->name}\" updated.");
     }
@@ -175,13 +171,7 @@ class DeviceController extends Controller
     public function destroy(Device $device)
     {
         $name = $device->name;
-        ActivityLog::create([
-            'model_type' => 'Device',
-            'model_id'   => $device->id,
-            'action'     => 'deleted',
-            'changes'    => ['name' => $name],
-            'user_id'    => Auth::id(),
-        ]);
+        ActivityLog::log('deleted device: ' . $name, $device);
         $device->delete();
 
         return redirect()->route('admin.devices.index')

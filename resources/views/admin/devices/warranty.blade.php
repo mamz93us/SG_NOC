@@ -90,6 +90,7 @@
                         <th>Warranty Expiry</th>
                         <th>Status</th>
                         <th>Days Left</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -125,6 +126,11 @@
                             @else
                             —
                             @endif
+                        </td>
+                        <td class="text-end">
+                            <a href="{{ route('admin.devices.edit', $dev) }}" class="btn btn-sm btn-outline-primary" title="Edit device">
+                                <i class="bi bi-pencil"></i>
+                            </a>
                         </td>
                     </tr>
                     @endforeach

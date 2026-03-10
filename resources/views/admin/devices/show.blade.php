@@ -27,6 +27,8 @@
                     <tr><th class="text-muted">MAC</th><td class="font-monospace">{{ $device->mac_address ?: '—' }}</td></tr>
                     <tr><th class="text-muted">Branch</th><td>{{ $device->branch?->name ?: '—' }}</td></tr>
                     <tr><th class="text-muted">Location</th><td>{{ $device->location_description ?: '—' }}</td></tr>
+                    <tr><th class="text-muted">Warranty Exp.</th><td>{{ $device->warranty_expiry?->format('M d, Y') ?: '—' }}</td></tr>
+                    <tr><th class="text-muted">Firmware</th><td class="font-monospace">{{ $device->firmware_version ?: '—' }}</td></tr>
                     <tr><th class="text-muted">Source</th><td><span class="badge bg-secondary">{{ ucfirst($device->source) }}</span></td></tr>
                     <tr><th class="text-muted">Updated</th><td>{{ $device->updated_at->diffForHumans() }}</td></tr>
                 </table>

@@ -81,6 +81,7 @@
                         <th>Current Firmware</th>
                         <th>Latest Available</th>
                         <th>Status</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -103,6 +104,11 @@
                             @else
                             <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Current</span>
                             @endif
+                        </td>
+                        <td class="text-end">
+                            <a href="{{ route('admin.devices.edit', $dev) }}" class="btn btn-sm btn-outline-primary" title="Edit device">
+                                <i class="bi bi-pencil"></i>
+                            </a>
                         </td>
                     </tr>
                     @endforeach

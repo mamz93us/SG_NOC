@@ -151,6 +151,42 @@
                            placeholder="e.g. Server room, under desk">
                 </div>
 
+                {{-- ── Warranty ── --}}
+                <div class="col-12">
+                    <hr class="my-0">
+                    <p class="fw-semibold small text-muted mb-0 mt-2">
+                        <i class="bi bi-shield-check me-1"></i>Warranty Tracking
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Purchase Date</label>
+                    <input type="date" name="purchase_date" class="form-control"
+                           value="{{ old('purchase_date', isset($device->purchase_date) ? $device->purchase_date->format('Y-m-d') : '') }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Warranty Expiry</label>
+                    <input type="date" name="warranty_expiry" class="form-control"
+                           value="{{ old('warranty_expiry', isset($device->warranty_expiry) ? $device->warranty_expiry->format('Y-m-d') : '') }}">
+                </div>
+
+                {{-- ── Firmware ── --}}
+                <div class="col-12">
+                    <hr class="my-0">
+                    <p class="fw-semibold small text-muted mb-0 mt-2">
+                        <i class="bi bi-cpu-fill me-1"></i>Firmware Information
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Installed Firmware Version</label>
+                    <input type="text" name="firmware_version" class="form-control"
+                           value="{{ old('firmware_version', $device->firmware_version ?? '') }}" maxlength="100" placeholder="e.g. 15.2(4)E7">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Latest Available Firmware</label>
+                    <input type="text" name="latest_firmware" class="form-control"
+                           value="{{ old('latest_firmware', $device->latest_firmware ?? '') }}" maxlength="100" placeholder="e.g. 15.2(4)E10">
+                </div>
+
                 {{-- ── Notes ── --}}
                 <div class="col-12">
                     <label class="form-label">Notes</label>
