@@ -7,14 +7,21 @@ use Illuminate\Database\Eloquent\Model;
 class NotificationRule extends Model
 {
     protected $fillable = [
-        'event_type', 'recipient_type', 'recipient_role',
-        'recipient_user_id', 'send_email', 'send_in_app', 'is_active',
+        'event_type', 'module', 'sensor_id', 'severity',
+        'recipient_type', 'recipient_role',
+        'recipient_user_id', 'send_email', 'send_in_app',
+        'notify_telegram', 'notify_sms', 'notify_dashboard',
+        'cooldown_minutes', 'is_active',
     ];
 
     protected $casts = [
-        'send_email' => 'boolean',
-        'send_in_app' => 'boolean',
-        'is_active'  => 'boolean',
+        'send_email'       => 'boolean',
+        'send_in_app'      => 'boolean',
+        'notify_telegram'  => 'boolean',
+        'notify_sms'       => 'boolean',
+        'notify_dashboard' => 'boolean',
+        'is_active'        => 'boolean',
+        'cooldown_minutes' => 'integer',
     ];
 
     public function recipientUser()

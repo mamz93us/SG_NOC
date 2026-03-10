@@ -210,6 +210,46 @@
     </div>
 </div>
 
+{{-- VPN Tunnel Detail Widget --}}
+@if($vpnTunnels->count() > 0)
+<h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-shield-lock-fill me-2"></i>VPN Tunnel Status</h6>
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex gap-4 mb-3">
+                    <div class="text-center">
+                        <div class="fs-3 fw-bold text-success">{{ $vpnTunnels->where('status', 'up')->count() }}</div>
+                        <small class="text-muted">Up</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="fs-3 fw-bold text-warning">{{ $vpnTunnels->where('status', 'connecting')->count() }}</div>
+                        <small class="text-muted">Connecting</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="fs-3 fw-bold text-danger">{{ $vpnTunnels->where('status', 'down')->count() }}</div>
+                        <small class="text-muted">Down</small>
+                    </div>
+                </div>
+                <div class="row g-2">
+                    @foreach($vpnTunnels->sortBy('status') as $t)
+                    <div class="col-md-4 col-lg-3">
+                        <div class="d-flex align-items-center gap-2 p-2 rounded border {{ $t->status === 'down' ? 'border-danger bg-danger bg-opacity-10' : ($t->status === 'connecting' ? 'border-warning bg-warning bg-opacity-10' : 'border-success bg-success bg-opacity-10') }}">
+                            <i class="bi {{ $t->status === 'up' ? 'bi-check-circle-fill text-success' : ($t->status === 'connecting' ? 'bi-arrow-repeat text-warning' : 'bi-x-circle-fill text-danger') }}"></i>
+                            <div>
+                                <div class="small fw-semibold">{{ $t->name }}</div>
+                                <div style="font-size:10px" class="text-muted">{{ $t->branch?->name ?: 'No branch' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- UCM Unified PBX Status --}}
 <h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-server me-2"></i>Unified PBX Health</h6>
 <div class="card border-0 shadow-sm mb-4">

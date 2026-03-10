@@ -41,6 +41,11 @@ Schedule::command('identity:sync')
 Schedule::job(new \App\Jobs\RunNocAlertsJob)->everyFiveMinutes();
 Schedule::job(new \App\Jobs\CheckLicenseMonitorsJob)->hourly();
 
+// Warranty Expiry Check — weekly (runs inline)
+Schedule::call(function () {
+    try { (new \App\Jobs\CheckWarrantyExpiryJob)->handle(); } catch (\Throwable $e) {}
+})->name('check-warranty-expiry')->withoutOverlapping(60)->weekly();
+
 // Monitoring jobs run directly (not via queue) — shared hosting has no queue worker
 Schedule::call(function () {
     try { (new \App\Jobs\CheckVpnStatusJob)->handle(); } catch (\Throwable $e) {}
@@ -83,19 +88,28 @@ Schedule::call(function () {
     }
 })->name('check-host-ping')->withoutOverlapping(2)->everyMinute();
 
-// SNMP Metrics Collection — runs inline per host every minute (shared hosting — no queue worker)
+// SNMP Metrics Collection — dispatched to queue for parallel processing
 Schedule::call(function () {
     $hosts = \App\Models\MonitoredHost::where('snmp_enabled', true)
         ->where('status', '!=', 'down')
         ->get();
     foreach ($hosts as $host) {
+        \App\Jobs\CollectSnmpMetricsJob::dispatch($host);
+    }
+})->name('collect-snmp-metrics')->everyMinute();
+
+// ISP SLA Link Checks — every 5 minutes (runs inline)
+Schedule::call(function () {
+    $sla = app(\App\Services\SlaMonitorService::class);
+    $isps = \App\Models\IspConnection::all();
+    foreach ($isps as $isp) {
         try {
-            (new \App\Jobs\CollectSnmpMetricsJob($host))->handle();
+            $sla->checkLink($isp);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("SNMP collect failed for {$host->ip}: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("SLA check failed for ISP #{$isp->id}: " . $e->getMessage());
         }
     }
-})->name('collect-snmp-metrics')->withoutOverlapping(2)->everyMinute();
+})->name('check-isp-sla')->withoutOverlapping(5)->everyFiveMinutes();
 
 // SNMP Device Discovery — once per day (runs inline)
 Schedule::call(function () {

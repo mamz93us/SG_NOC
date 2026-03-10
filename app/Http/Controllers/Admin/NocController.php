@@ -102,12 +102,32 @@ class NocController extends Controller
 
     public function branch(Branch $branch)
     {
-        $score   = $this->health->scoreForBranch($branch->id);
+        $score    = $this->health->scoreForBranch($branch->id);
         $switches = NetworkSwitch::where('branch_id', $branch->id)->get();
         $devices  = Device::where('branch_id', $branch->id)->with('credentials')->get();
         $printers = Printer::where('branch_id', $branch->id)->get();
 
-        return view('admin.noc.branch', compact('branch', 'score', 'switches', 'devices', 'printers'));
+        // Phase 4A: additional data for single pane of glass
+        $vpnTunnels   = \App\Models\VpnTunnel::where('branch_id', $branch->id)->get();
+        $ispConns     = \App\Models\IspConnection::where('branch_id', $branch->id)->get();
+        $monitorHosts = \App\Models\MonitoredHost::where('branch_id', $branch->id)->get();
+        $landlines    = \App\Models\Landline::where('branch_id', $branch->id)->get();
+        $ipCount      = \App\Models\IpReservation::where('branch_id', $branch->id)->count();
+        $employees    = \App\Models\Employee::where('branch_id', $branch->id)->get();
+        $openAlerts   = NocEvent::whereIn('status', ['open', 'acknowledged'])
+            ->where(function ($q) use ($branch) {
+                $q->whereHas('branch', fn($bq) => $bq->where('id', $branch->id));
+            })
+            ->orderByDesc('last_seen')->limit(5)->get();
+        $openIncidents = \App\Models\Incident::where('branch_id', $branch->id)
+            ->whereIn('status', ['open', 'investigating'])
+            ->latest()->limit(5)->get();
+
+        return view('admin.noc.branch', compact(
+            'branch', 'score', 'switches', 'devices', 'printers',
+            'vpnTunnels', 'ispConns', 'monitorHosts', 'landlines',
+            'ipCount', 'employees', 'openAlerts', 'openIncidents'
+        ));
     }
 
     public function events(Request $request)

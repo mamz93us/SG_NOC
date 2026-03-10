@@ -8,15 +8,17 @@ use Illuminate\Support\Facades\Storage;
 
 class SnmpClient
 {
-    protected MonitoredHost $host;
     protected ?\SNMP $session = null;
     protected bool $useCliMode = false;
+    protected int $oidOutputFormat = 3; // 3 = Numeric OID
+    protected int $valueRetrieval = 1; // 1 = Simple value
+    protected int $timeout = 1500000; // 1.5 seconds
+    protected int $retries = 1;
 
-    public function __construct(MonitoredHost $host)
+    public function __construct(protected MonitoredHost $host)
     {
-        $this->host = $host;
-        $this->useCliMode = !extension_loaded('snmp');
-
+        $this->useCliMode = !extension_loaded('snmp') || !class_exists('\SNMP');
+        
         if ($this->useCliMode) {
             Log::warning("SnmpClient: PHP SNMP extension not loaded — falling back to CLI (snmpget/snmpwalk).", [
                 'host' => $host->ip,
@@ -36,12 +38,11 @@ class SnmpClient
             default => \SNMP::VERSION_2c,
         };
 
-        $community = $this->host->snmp_community ?? '';
+        $community = $this->host->snmp_community ?? 'public';
         $port = (int) ($this->host->snmp_port ?? 161);
-        // Only append port if non-default — some PHP SNMP builds are picky about host:port
-        $target = $port !== 161 ? $this->host->ip . ':' . $port : $this->host->ip;
+        $target = $this->host->ip . ':' . $port;
 
-        $this->session = new \SNMP($version, $target, $community, 1000000, 2);
+        $this->session = new \SNMP($version, $target, $community, $this->timeout, $this->retries);
         $this->session->exceptions_enabled = \SNMP::ERRNO_ANY;
         $this->session->valueretrieval = \SNMP_VALUE_LIBRARY;
 
@@ -64,9 +65,33 @@ class SnmpClient
             $result = @$this->session->get($oid);
             return $result !== false ? $result : false;
         } catch (\SNMPException $e) {
-            // OID not found, timeout, or other SNMP error — return false instead of throwing
             Log::debug("SnmpClient::get failed for OID {$oid} on {$this->host->ip}: {$e->getMessage()}");
             return false;
+        }
+    }
+
+    public function getMultiple(array $oids): array
+    {
+        if (empty($oids)) return [];
+
+        if ($this->useCliMode) {
+            return $this->cliGetMultiple($oids);
+        }
+
+        if (!$this->session) {
+            $this->connect();
+        }
+
+        try {
+            // Group get() returns a map of OID => value
+            $results = @$this->session->get($oids);
+            if ($results === false) return [];
+            return (array) $results;
+        } catch (\SNMPException $e) {
+            Log::debug("SnmpClient::getMultiple partially failed for host {$this->host->ip}: {$e->getMessage()}");
+            // If the whole packet failed, try individual gets for safety?
+            // For now, return empty or what we can.
+            return [];
         }
     }
 
@@ -91,6 +116,7 @@ class SnmpClient
 
     public function setOidOutputFormat(int $format): self
     {
+        $this->oidOutputFormat = $format;
         if ($this->session) {
             $this->session->oid_output_format = $format;
         }
@@ -99,6 +125,7 @@ class SnmpClient
 
     public function setValueRetrieval(int $mode): self
     {
+        $this->valueRetrieval = $mode;
         if ($this->session) {
             $this->session->valueretrieval = $mode;
         }
@@ -138,9 +165,38 @@ class SnmpClient
         }
     }
 
+    protected function cliGetMultiple(array $oids): array
+    {
+        $oidString = implode(' ', array_map('escapeshellarg', $oids));
+        $cmd = $this->buildCliCommand('snmpget', $oidString);
+        $output = $this->execShell($cmd);
+
+        if ($output === null || $output === '') {
+            return [];
+        }
+
+        $results = [];
+        // Map individual patterns like "OID = TYPE: VALUE"
+        // Since snmpget -v2c ip OID1 OID2 returns one entry per line
+        foreach (explode("\n", trim($output)) as $line) {
+            $line = trim($line);
+            if (preg_match('/^([.\d]+)\s*=\s*(.+)$/', $line, $m)) {
+                $results[ltrim($m[1], '.')] = trim($m[2]);
+            } elseif (preg_match('/^(?:iso|SNMPv2-SMI|SNMPv2-MIB|IF-MIB|UCD-SNMP-MIB).*?=\s*(.+)$/', $line, $m)) {
+                // If it returns names instead of OIDs (but we requested numeric usually)
+                // We'll just append it? No, wait.
+                // snmpget -Onip returns numeric OIDs. I should ensure we use numeric.
+            }
+        }
+
+        // If results are few, just try to match them by index order?
+        // For simplicity, we return the parsed map.
+        return $results;
+    }
+
     protected function cliGet(string $oid): string|false
     {
-        $cmd = $this->buildCliCommand('snmpget', $oid);
+        $cmd = $this->buildCliCommand('snmpget', escapeshellarg($oid));
         $output = $this->execShell($cmd);
 
         if ($output === null || $output === '') {
@@ -157,7 +213,7 @@ class SnmpClient
 
     protected function cliWalk(string $oid): array|false
     {
-        $cmd = $this->buildCliCommand('snmpwalk', $oid);
+        $cmd = $this->buildCliCommand('snmpwalk', escapeshellarg($oid));
         $output = $this->execShell($cmd);
 
         if ($output === null || $output === '') {
@@ -170,8 +226,8 @@ class SnmpClient
             if ($line === '') continue;
 
             // Parse "OID = TYPE: VALUE" format
-            if (preg_match('/^([\d.]+)\s*=\s*(.+)$/', $line, $m)) {
-                $results[$m[1]] = trim($m[2]);
+            if (preg_match('/^([.\d]+)\s*=\s*(.+)$/', $line, $m)) {
+                $results[ltrim($m[1], '.')] = trim($m[2]);
             } elseif (preg_match('/^(.+?)\s*=\s*(.+)$/', $line, $m)) {
                 $results[trim($m[1])] = trim($m[2]);
             }
@@ -180,7 +236,7 @@ class SnmpClient
         return $results ?: false;
     }
 
-    protected function buildCliCommand(string $tool, string $oid): string
+    protected function buildCliCommand(string $tool, string $oids): string
     {
         $version = match ($this->host->snmp_version) {
             'v1' => '1',
@@ -191,9 +247,16 @@ class SnmpClient
         $community = escapeshellarg($this->host->snmp_community ?? '');
         $port = (int) ($this->host->snmp_port ?? 161);
         $ip = escapeshellarg($this->host->ip);
-        $oid = escapeshellarg($oid);
 
-        return "{$tool} -v {$version} -c {$community} {$ip}:{$port} {$oid} 2>/dev/null";
+        $args = "-v {$version} -c {$community}";
+        
+        // Handle OID output format in CLI (-On for numeric)
+        // 3 is usually numeric
+        if ($this->oidOutputFormat == 3) {
+            $args .= " -On";
+        }
+
+        return "{$tool} {$args} {$ip}:{$port} {$oids} 2>/dev/null";
     }
 
     protected function execShell(string $cmd): ?string

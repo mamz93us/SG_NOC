@@ -75,8 +75,10 @@ class RolePermission extends Model
                 'manage-employees' => 'Create / Edit Employees & Assign Assets',
             ],
             'NOC' => [
-                'view-noc'   => 'View NOC Dashboard & Events',
-                'manage-noc' => 'Acknowledge / Resolve NOC Events',
+                'view-noc'        => 'View NOC Dashboard & Events',
+                'manage-noc'      => 'Acknowledge / Resolve NOC Events',
+                'view-incidents'  => 'View Incidents',
+                'manage-incidents'=> 'Create / Edit / Close Incidents',
             ],
             'Platform' => [
                 'manage-workflow-templates' => 'Edit Workflow Types & Approval Chains',

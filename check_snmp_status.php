@@ -1,0 +1,15 @@
+<?php
+require 'vendor/autoload.php';
+$app = require_once 'bootstrap/app.php';
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel->bootstrap();
+
+use App\Models\SensorMetric;
+use Illuminate\Support\Facades\DB;
+
+$lastMetric = SensorMetric::latest('recorded_at')->first();
+$jobsCount = DB::table('jobs')->count();
+
+echo "Last Metric Recorded At: " . ($lastMetric ? $lastMetric->recorded_at : 'None') . "\n";
+echo "Pending Jobs in Queue: " . $jobsCount . "\n";
+echo "Current Server Time: " . now()->toDateTimeString() . "\n";

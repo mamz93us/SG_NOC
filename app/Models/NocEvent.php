@@ -12,6 +12,9 @@ class NocEvent extends Model
         'module',
         'entity_type',
         'entity_id',
+        'source_type',
+        'source_id',
+        'cooldown_minutes',
         'severity',
         'title',
         'message',
@@ -104,11 +107,34 @@ class NocEvent extends Model
     public function moduleIcon(): string
     {
         return match ($this->module) {
-            'network'  => 'bi-diagram-3-fill',
-            'identity' => 'bi-people-fill',
-            'voip'     => 'bi-telephone-fill',
-            'assets'   => 'bi-cpu-fill',
-            default    => 'bi-exclamation-circle',
+            'network'    => 'bi-diagram-3-fill',
+            'identity'   => 'bi-people-fill',
+            'voip'       => 'bi-telephone-fill',
+            'assets'     => 'bi-cpu-fill',
+            'vpn'        => 'bi-shield-lock-fill',
+            'snmp'       => 'bi-broadcast',
+            'ping'       => 'bi-wifi',
+            'meraki'     => 'bi-hdd-network-fill',
+            'ucm'        => 'bi-server',
+            'microsoft'  => 'bi-microsoft',
+            default      => 'bi-exclamation-circle',
+        };
+    }
+
+    public function moduleLabel(): string
+    {
+        return match ($this->module) {
+            'network'    => 'Network',
+            'identity'   => 'Identity',
+            'voip'       => 'VoIP',
+            'assets'     => 'Assets',
+            'vpn'        => 'VPN',
+            'snmp'       => 'SNMP',
+            'ping'       => 'Ping',
+            'meraki'     => 'Meraki',
+            'ucm'        => 'UCM',
+            'microsoft'  => 'Microsoft',
+            default      => ucfirst($this->module ?? 'System'),
         };
     }
 

@@ -82,18 +82,32 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
                 ]
             );
 
-            // --- Vendor Detection based on sysDescr ---
+            $sysObjectID = $client->get('1.3.6.1.2.1.1.2.0');
+
+            // --- Vendor Detection based on sysDescr and sysObjectID ---
             $discoveredType = 'generic';
+
+            $isSophos = (stripos($sysDescr, 'Sophos') !== false || 
+                         stripos($sysDescr, 'SFOS') !== false || 
+                         (is_string($sysObjectID) && str_contains($sysObjectID, '2604')));
 
             if (stripos($sysDescr, 'Cisco') !== false || stripos($sysDescr, 'IOS') !== false) {
                 $discoveredType = 'cisco';
                 $this->host->type = 'switch';
                 $this->createSensor('CPU Usage (5m)', '1.3.6.1.4.1.9.9.109.1.1.1.1.8.1', 'gauge', '%', 85, 95, 'system');
                 $this->createSensor('Free Memory', '1.3.6.1.4.1.9.9.48.1.1.1.6.1', 'gauge', 'bytes', null, null, 'system');
-            } elseif (stripos($sysDescr, 'Sophos') !== false || stripos($sysDescr, 'SFOS') !== false) {
+            } elseif ($isSophos) {
                 $discoveredType = 'sophos';
                 $this->host->type = 'firewall';
-                // Sophos specific sensors if desired
+                
+                // Add Sophos System Sensors
+                // .1.3.6.1.4.1.2604.5.1.2.4.1.0 = Memory Total (KB)
+                // .1.3.6.1.4.1.2604.5.1.2.4.2.0 = Memory Used (%)
+                $this->createSensor('Memory Usage', '1.3.6.1.4.1.2604.5.1.2.4.2.0', 'gauge', '%', 80, 95, 'system');
+                // .1.3.6.1.4.1.2604.5.1.2.1.1.0 (sometimes) or .1.3.6.1.4.1.2604.5.1.2.6.0 = CPU Load
+                $this->createSensor('CPU Load', '1.3.6.1.4.1.2604.5.1.2.6.0', 'gauge', '%', 80, 95, 'system');
+                
+                $this->discoverSophosVpns($client);
             } elseif (stripos($sysDescr, 'Printer') !== false || stripos($sysDescr, 'HP LaserJet') !== false || stripos($sysDescr, 'Lexmark') !== false) {
                 $discoveredType = 'printer';
                 $this->host->type = 'printer';
@@ -141,6 +155,33 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
             ]);
         } finally {
             $client?->close();
+        }
+    }
+
+    protected function discoverSophosVpns(SnmpClient $client): void
+    {
+        Log::info("Discovering Sophos VPNs on {$this->host->ip}");
+
+        // Walk IPSec Tunnel Names: .1.3.6.1.4.1.2604.5.1.6.1.1.1.1.2
+        $vpnNames = $client->walk('1.3.6.1.4.1.2604.5.1.6.1.1.1.1.2');
+
+        if ($vpnNames) {
+            foreach ($vpnNames as $fullOid => $vpnNameRaw) {
+                $vpnName = $this->cleanString($vpnNameRaw);
+                if (preg_match('/\.(\d+)$/', $fullOid, $m)) {
+                    $index = $m[1];
+                    
+                    // 1. Active Status (Administrative)
+                    // .6: (2 = Active/Enabled, 0 = Disabled)
+                    $activeOid = "1.3.6.1.4.1.2604.5.1.6.1.1.1.1.6.{$index}";
+                    $this->createSensor("VPN: {$vpnName} - Active", $activeOid, 'boolean', null, null, null, 'VPN');
+
+                    // 2. Connection Status (Operational)
+                    // .9: (1 = Connected, 0 = Disconnected)
+                    $connOid = "1.3.6.1.4.1.2604.5.1.6.1.1.1.1.9.{$index}";
+                    $this->createSensor("VPN: {$vpnName} - Connection", $connOid, 'boolean', null, null, null, 'VPN');
+                }
+            }
         }
     }
 
@@ -196,7 +237,7 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
         ?float $crit = null,
         ?string $sensorGroup = null
     ): void {
-        $this->host->snmpSensors()->firstOrCreate(
+        $this->host->snmpSensors()->updateOrCreate(
             ['oid' => $oid],
             [
                 'name' => $name,

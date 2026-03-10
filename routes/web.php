@@ -34,6 +34,13 @@ use App\Http\Controllers\Admin\DiagnosticsController;
 use App\Http\Controllers\Admin\SnmpMonitoringController;
 use App\Http\Controllers\Admin\WorkersDashboardController;
 use App\Http\Controllers\Admin\IpScannerController;
+use App\Http\Controllers\Admin\IspConnectionController;
+use App\Http\Controllers\Admin\IpReservationController;
+use App\Http\Controllers\Admin\LandlineController;
+use App\Http\Controllers\Admin\SlaController;
+use App\Http\Controllers\Admin\TopologyController;
+use App\Http\Controllers\Admin\WarrantyTrackerController;
+use App\Http\Controllers\Admin\PortMapController;
 use App\Http\Controllers\Auth\MicrosoftController;
 use App\Http\Controllers\PhonebookController;
 use App\Http\Controllers\PublicContactController;
@@ -282,10 +289,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ─── Devices (Assets) ─────────────────────────────────────
     Route::middleware('permission:view-assets')->group(function () {
-        Route::get('devices',                  [DeviceController::class, 'index'])  ->name('devices.index');
-        Route::get('devices/create',           [DeviceController::class, 'create'])  ->name('devices.create');
-        Route::get('devices/{device}/edit',    [DeviceController::class, 'edit'])    ->name('devices.edit');
-        Route::get('devices/{device}',         [DeviceController::class, 'show'])   ->name('devices.show');
+        Route::get('devices',                  [DeviceController::class, 'index'])     ->name('devices.index');
+        Route::get('devices/create',           [DeviceController::class, 'create'])    ->name('devices.create');
+        Route::get('devices/warranty',         [WarrantyTrackerController::class, 'index'])->name('devices.warranty');
+        Route::get('devices/firmware',         [DeviceController::class, 'firmware'])  ->name('devices.firmware');
+        Route::get('devices/{device}/edit',    [DeviceController::class, 'edit'])      ->name('devices.edit');
+        Route::get('devices/{device}',         [DeviceController::class, 'show'])     ->name('devices.show');
     });
     Route::middleware('permission:manage-assets')->group(function () {
         Route::post('devices',                 [DeviceController::class, 'store'])   ->name('devices.store');
@@ -445,6 +454,59 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/scan',  [IpScannerController::class, 'scan']) ->name('scan');
     });
 
+    // ─── ISP Connections ────────────────────────────────────────
+    Route::middleware('permission:view-network')->prefix('network/isp')->name('network.isp.')->group(function () {
+        Route::get('/',            [IspConnectionController::class, 'index'])->name('index');
+        Route::get('/create',      [IspConnectionController::class, 'create'])->name('create');
+        Route::get('/{isp}/edit',  [IspConnectionController::class, 'edit'])->name('edit');
+    });
+    Route::middleware('permission:manage-network-settings')->prefix('network/isp')->name('network.isp.')->group(function () {
+        Route::post('/',           [IspConnectionController::class, 'store'])->name('store');
+        Route::put('/{isp}',      [IspConnectionController::class, 'update'])->name('update');
+        Route::delete('/{isp}',   [IspConnectionController::class, 'destroy'])->name('destroy');
+    });
+
+    // ─── IP Reservations (IPAM) ─────────────────────────────────
+    Route::middleware('permission:view-network')->prefix('network/ip-reservations')->name('network.ip-reservations.')->group(function () {
+        Route::get('/',                    [IpReservationController::class, 'index'])->name('index');
+        Route::get('/create',              [IpReservationController::class, 'create'])->name('create');
+        Route::get('/{reservation}/edit',  [IpReservationController::class, 'edit'])->name('edit');
+    });
+    Route::middleware('permission:manage-network-settings')->prefix('network/ip-reservations')->name('network.ip-reservations.')->group(function () {
+        Route::post('/',                   [IpReservationController::class, 'store'])->name('store');
+        Route::put('/{reservation}',       [IpReservationController::class, 'update'])->name('update');
+        Route::delete('/{reservation}',    [IpReservationController::class, 'destroy'])->name('destroy');
+    });
+
+    // ─── Landlines ──────────────────────────────────────────────
+    Route::middleware('permission:view-extensions')->prefix('telecom/landlines')->name('telecom.landlines.')->group(function () {
+        Route::get('/',              [LandlineController::class, 'index'])->name('index');
+        Route::get('/create',        [LandlineController::class, 'create'])->name('create');
+        Route::get('/{landline}/edit', [LandlineController::class, 'edit'])->name('edit');
+    });
+    Route::middleware('permission:manage-extensions')->prefix('telecom/landlines')->name('telecom.landlines.')->group(function () {
+        Route::post('/',               [LandlineController::class, 'store'])->name('store');
+        Route::put('/{landline}',      [LandlineController::class, 'update'])->name('update');
+        Route::delete('/{landline}',   [LandlineController::class, 'destroy'])->name('destroy');
+    });
+
+    // ─── SLA Dashboard ─────────────────────────────────────────
+    Route::middleware('permission:view-network')->prefix('network/sla')->name('network.sla.')->group(function () {
+        Route::get('/',       [SlaController::class, 'index'])->name('index');
+        Route::get('/{isp}',  [SlaController::class, 'detail'])->name('detail');
+    });
+
+    // ─── Port Map ──────────────────────────────────────────────
+    Route::middleware('permission:view-network')->prefix('network/port-map')->name('network.port-map.')->group(function () {
+        Route::get('/', [PortMapController::class, 'index'])->name('index');
+    });
+
+    // ─── Network Topology ──────────────────────────────────────
+    Route::middleware('permission:view-network')->prefix('network/topology')->name('network.topology.')->group(function () {
+        Route::get('/',     [TopologyController::class, 'index'])->name('index');
+        Route::get('/data', [TopologyController::class, 'data'])->name('data');
+    });
+
     // ─── Notifications (all authenticated users) ──────────────
     Route::prefix('notifications')->name('notifications.')->group(function () {
         Route::get('/',           [NotificationController::class, 'index'])          ->name('index');
@@ -460,10 +522,26 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/',           [NocController::class, 'dashboard']) ->name('dashboard');
         Route::get('/branch/{id}',[NocController::class, 'branch'])    ->name('branch');
         Route::get('/events',     [NocController::class, 'events'])    ->name('events');
+        Route::get('/alerts',     [\App\Http\Controllers\Admin\AlertFeedController::class, 'index'])->name('alerts');
+        Route::get('/alerts/{id}/timeline', [\App\Http\Controllers\Admin\AlertFeedController::class, 'timeline'])->name('alerts.timeline');
     });
     Route::middleware('permission:manage-noc')->prefix('noc')->name('noc.')->group(function () {
         Route::post('/events/{id}/acknowledge', [NocController::class, 'acknowledge']) ->name('events.acknowledge');
         Route::post('/events/{id}/resolve',     [NocController::class, 'resolve'])     ->name('events.resolve');
+    });
+
+    // ─── Incidents ──────────────────────────────────────────────
+    Route::middleware('permission:view-incidents')->prefix('noc/incidents')->name('noc.incidents.')->group(function () {
+        Route::get('/',                [\App\Http\Controllers\Admin\IncidentController::class, 'index'])->name('index');
+        Route::get('/{incident}',      [\App\Http\Controllers\Admin\IncidentController::class, 'show'])->name('show');
+    });
+    Route::middleware('permission:manage-incidents')->prefix('noc/incidents')->name('noc.incidents.')->group(function () {
+        Route::get('/create',          [\App\Http\Controllers\Admin\IncidentController::class, 'create'])->name('create');
+        Route::post('/',               [\App\Http\Controllers\Admin\IncidentController::class, 'store'])->name('store');
+        Route::get('/{incident}/edit', [\App\Http\Controllers\Admin\IncidentController::class, 'edit'])->name('edit');
+        Route::put('/{incident}',      [\App\Http\Controllers\Admin\IncidentController::class, 'update'])->name('update');
+        Route::post('/{incident}/comment', [\App\Http\Controllers\Admin\IncidentController::class, 'addComment'])->name('comment');
+        Route::get('/from-event/{eventId}', [\App\Http\Controllers\Admin\IncidentController::class, 'createFromEvent'])->name('from-event');
     });
 
     // ─── Workflows ────────────────────────────────────────────

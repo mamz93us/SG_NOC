@@ -46,6 +46,48 @@ class DeviceController extends Controller
         return view('admin.devices.index', compact('devices', 'branches', 'types'));
     }
 
+    public function firmware(Request $request)
+    {
+        $query = Device::with('branch');
+
+        if ($request->filled('status')) {
+            switch ($request->status) {
+                case 'outdated':
+                    $query->whereNotNull('firmware_version')->whereNotNull('latest_firmware')
+                          ->whereColumn('firmware_version', '!=', 'latest_firmware');
+                    break;
+                case 'current':
+                    $query->whereNotNull('firmware_version')->whereNotNull('latest_firmware')
+                          ->whereColumn('firmware_version', '=', 'latest_firmware');
+                    break;
+                case 'unknown':
+                    $query->where(fn($q) => $q->whereNull('firmware_version')->orWhereNull('latest_firmware'));
+                    break;
+            }
+        }
+
+        if ($request->filled('branch')) {
+            $query->where('branch_id', $request->branch);
+        }
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(fn($q) => $q->where('name', 'like', "%{$s}%")->orWhere('model', 'like', "%{$s}%"));
+        }
+
+        $devices = $query->orderBy('name')->paginate(25)->withQueryString();
+        $branches = Branch::orderBy('name')->get();
+
+        $outdatedCount = Device::whereNotNull('firmware_version')->whereNotNull('latest_firmware')
+            ->whereColumn('firmware_version', '!=', 'latest_firmware')->count();
+        $uptodateCount = Device::whereNotNull('firmware_version')->whereNotNull('latest_firmware')
+            ->whereColumn('firmware_version', '=', 'latest_firmware')->count();
+        $unknownCount = Device::where(fn($q) => $q->whereNull('firmware_version')->orWhereNull('latest_firmware'))->count();
+
+        return view('admin.devices.firmware', compact(
+            'devices', 'branches', 'outdatedCount', 'uptodateCount', 'unknownCount'
+        ));
+    }
+
     public function show(Device $device)
     {
         $device->load(['branch', 'credentials.creator', 'printer']);

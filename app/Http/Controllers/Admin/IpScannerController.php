@@ -20,9 +20,6 @@ class IpScannerController extends Controller
         return view('admin.network.ip-scanner');
     }
 
-    /**
-     * Run a subnet/range scan and return JSON results for AJAX.
-     */
     public function scan(Request $request)
     {
         try {
@@ -43,40 +40,68 @@ class IpScannerController extends Controller
             }
 
             $results = [];
-            foreach ($ips as $ip) {
-                try {
-                    $result = $this->ping->ping($ip, 1); // 1 packet for fast scanning
-                } catch (\Throwable $e) {
-                    $result = ['success' => false, 'latency' => null, 'packet_loss' => 100];
+            $aliveIps = [];
+
+            // 1. Try parallel scanning with fping if available (much faster)
+            $fpingPath = @shell_exec('which fping');
+            if ($fpingPath && count($ips) > 1) {
+                $startIp = $ips[0];
+                $endIp = end($ips);
+                $cmd = "fping -g {$startIp} {$endIp} -a -r 1 -t 200 2>/dev/null";
+                $output = shell_exec($cmd);
+                if ($output) {
+                    $aliveIps = array_filter(explode("\n", trim($output)));
                 }
 
-                $hostname = null;
-                if ($result['success']) {
-                    // Try reverse DNS (briefly)
-                    $hostname = @gethostbyaddr($ip);
-                    if ($hostname === $ip) $hostname = null;
+                foreach ($ips as $ip) {
+                    $isAlive = in_array($ip, $aliveIps);
+                    $results[] = [
+                        'ip'         => $ip,
+                        'alive'      => $isAlive,
+                        'latency_ms' => null, // fping -a doesn't show latency in this mode, but we can add another pass if needed for alive ones
+                        'hostname'   => null, 
+                    ];
                 }
+            } else {
+                // 2. Fallback to serial ping (only if fping fails or single IP)
+                foreach ($ips as $ip) {
+                    try {
+                        $result = $this->ping->ping($ip, 1); 
+                    } catch (\Throwable $e) {
+                        $result = ['success' => false, 'latency' => null];
+                    }
 
-                $results[] = [
-                    'ip'         => $ip,
-                    'alive'      => $result['success'],
-                    'latency_ms' => $result['latency'] ?? null,
-                    'hostname'   => $hostname,
-                ];
+                    $results[] = [
+                        'ip'         => $ip,
+                        'alive'      => $result['success'],
+                        'latency_ms' => $result['latency'] ?? null,
+                        'hostname'   => null,
+                    ];
+                }
             }
 
-            $alive = collect($results)->where('alive', true)->count();
+            // 3. Briefly try reverse DNS only for ALIVE hosts to avoid bottleneck
+            foreach ($results as &$res) {
+                if ($res['alive']) {
+                    $hostname = @gethostbyaddr($res['ip']);
+                    if ($hostname && $hostname !== $res['ip']) {
+                        $res['hostname'] = $hostname;
+                    }
+                }
+            }
+
+            $aliveCount = collect($results)->where('alive', true)->count();
 
             return response()->json([
                 'total'   => count($results),
-                'alive'   => $alive,
+                'alive'   => $aliveCount,
                 'results' => $results,
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json(['error' => collect($e->errors())->flatten()->first()], 422);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('IP Scanner error: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('IP Scanner error: ' . $e->getFile() . ':' . $e->getLine() . ' (' . $e->getMessage() . ')');
             return response()->json(['error' => 'Scan failed on server: ' . $e->getMessage()], 500);
         }
     }

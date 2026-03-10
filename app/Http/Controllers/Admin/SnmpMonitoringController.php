@@ -33,8 +33,9 @@ class SnmpMonitoringController extends Controller
             'branch',
             'vpnTunnel',
             'mib',
-            'hostChecks' => fn($q) => $q->latest('checked_at')->limit(144),
-            'snmpSensors.sensorMetrics' => fn($q) => $q->where('recorded_at', '>=', now()->subHours(24))->orderBy('recorded_at')
+            // Only load the last 150 points for the graphs to avoid memory exhaustion
+            'hostChecks' => fn($q) => $q->latest('checked_at')->limit(150),
+            'snmpSensors.sensorMetrics' => fn($q) => $q->latest('recorded_at')->limit(120)
         ]);
 
         $snmpLoaded = SnmpClient::isSnmpExtensionLoaded();

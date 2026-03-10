@@ -58,6 +58,21 @@ class Branch extends Model
         return $this->belongsTo(UcmServer::class, 'ucm_server_id');
     }
 
+    public function ispConnections(): HasMany
+    {
+        return $this->hasMany(IspConnection::class);
+    }
+
+    public function ipReservations(): HasMany
+    {
+        return $this->hasMany(IpReservation::class);
+    }
+
+    public function landlines(): HasMany
+    {
+        return $this->hasMany(Landline::class);
+    }
+
     // ─── Provisioning Helpers ─────────────────────────────────────
     // Each method returns the branch-specific value, falling back to
     // the global Setting when the branch field is null.

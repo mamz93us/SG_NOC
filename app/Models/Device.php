@@ -27,6 +27,8 @@ class Device extends Model
         'status',
         'purchase_date',
         'warranty_expiry',
+        'firmware_version',
+        'latest_firmware',
     ];
 
     protected $casts = [
@@ -184,6 +186,12 @@ class Device extends Model
     {
         if (!$this->warranty_expiry) return null;
         return (int) now()->diffInDays($this->warranty_expiry, false);
+    }
+
+    public function isFirmwareOutdated(): bool
+    {
+        if (!$this->firmware_version || !$this->latest_firmware) return false;
+        return $this->firmware_version !== $this->latest_firmware;
     }
 
     /**

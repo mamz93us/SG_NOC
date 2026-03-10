@@ -27,6 +27,9 @@ class CollectSnmpMetricsJob implements ShouldQueue
 
     public function handle(): void
     {
+        @set_time_limit(600); // 10 minutes max for all hosts
+        @ini_set('memory_limit', '512M');
+
         if ($this->singleHost) {
             $hosts = collect([$this->singleHost->load(['snmpSensors', 'mib'])]);
         } else {
@@ -41,6 +44,8 @@ class CollectSnmpMetricsJob implements ShouldQueue
         }
 
         foreach ($hosts as $host) {
+            // Give each host up to 3 minutes to finish.
+            @set_time_limit(180); 
             $this->pollHost($host);
         }
     }
@@ -57,63 +62,54 @@ class CollectSnmpMetricsJob implements ShouldQueue
             $client->connect();
 
             $snmpSuccess = false;
+            $sensors = $host->snmpSensors;
+            
+            // Chunk sensors to avoid too many OIDs in a single SNMP packet
+            foreach ($sensors->chunk(20) as $chunk) {
+                $oids = $chunk->pluck('oid')->toArray();
+                $results = $client->getMultiple($oids);
 
-            foreach ($host->snmpSensors as $sensor) {
-                try {
-                    $rawResult = $client->get($sensor->oid);
+                foreach ($chunk as $sensor) {
+                    try {
+                        // try to find the result by numeric OID or original OID
+                        $cleanOid = ltrim($sensor->oid, '.');
+                        $rawResult = $results[$cleanOid] ?? $results[$sensor->oid] ?? false;
 
-                    if ($rawResult === false) {
-                        $this->recordSensorFailure($sensor, $host);
-                        continue;
-                    }
-
-                    Log::info("Polled {$sensor->oid} ({$sensor->name}) on {$host->ip}", [
-                        'raw' => $rawResult,
-                        'host' => $host->ip,
-                        'snmp_version' => $host->snmp_version,
-                        'port' => $host->snmp_port ?? 161,
-                    ]);
-
-                    $snmpSuccess = true;
-                    $parsedValue = $this->parseValue($rawResult);
-                    $finalValue = $parsedValue;
-                    $skipMetric = false;
-
-                    // Calculate rate for counters using database-persisted last_raw_counter
-                    if ($sensor->data_type === 'counter') {
-                        $isFirstPoll = ($sensor->last_raw_counter === null);
-                        $finalValue = $this->calculateCounterRate($sensor, $parsedValue);
-                        // Skip storing metric on first poll — we have no previous value to compute rate
-                        if ($isFirstPoll) {
-                            $skipMetric = true;
+                        // Fallback to individual get if bulk failed for this sensor or returned nothing
+                        if ($rawResult === false) {
+                            $rawResult = $client->get($sensor->oid);
                         }
+
+                        if ($rawResult === false) {
+                            $this->recordSensorFailure($sensor, $host);
+                            continue;
+                        }
+
+                        $snmpSuccess = true;
+                        $parsedValue = $this->parseValue($rawResult);
+                        $finalValue = $parsedValue;
+                        $skipMetric = false;
+
+                        if ($sensor->data_type === 'counter') {
+                            $isFirstPoll = ($sensor->last_raw_counter === null);
+                            $finalValue = $this->calculateCounterRate($sensor, $parsedValue);
+                            if ($isFirstPoll) $skipMetric = true;
+                        }
+
+                        if (!$skipMetric) {
+                            SensorMetric::create([
+                                'sensor_id' => $sensor->id,
+                                'value' => $finalValue,
+                                'recorded_at' => now(),
+                            ]);
+                            $this->checkThresholds($host, $sensor, $finalValue);
+                        }
+
+                        $sensor->update(['status' => 'active', 'consecutive_failures' => 0]);
+
+                    } catch (\Exception $e) {
+                        Log::error("Error processing sensor {$sensor->name} on {$host->ip}: " . $e->getMessage());
                     }
-
-                    if (!$skipMetric) {
-                        SensorMetric::create([
-                            'sensor_id' => $sensor->id,
-                            'value' => $finalValue,
-                            'recorded_at' => now(),
-                        ]);
-
-                        $this->checkThresholds($host, $sensor, $finalValue);
-                    }
-
-                    // Always reset sensor to active on successful poll
-                    $sensor->update([
-                        'status' => 'active',
-                        'consecutive_failures' => 0,
-                    ]);
-
-                } catch (\Exception $e) {
-                    Log::error("Failed to poll sensor on {$host->ip}", [
-                        'oid' => $sensor->oid,
-                        'name' => $sensor->name,
-                        'snmp_version' => $host->snmp_version,
-                        'port' => $host->snmp_port ?? 161,
-                        'error' => $e->getMessage(),
-                    ]);
-                    $this->recordSensorFailure($sensor, $host);
                 }
             }
 
@@ -215,15 +211,19 @@ class CollectSnmpMetricsJob implements ShouldQueue
         ]);
     }
 
-    protected function parseValue($value): float
+    protected function parseValue(string $value): float
     {
-        if (!is_string($value)) {
-            return 0;
-        }
-
-        // Timeticks: (12345) 1:23:45.67 → extract centisecond value
+        // Handle standard SNMP Timeticks
         if (preg_match('/Timeticks:\s*\((\d+)\)/', $value, $matches)) {
             return (float) $matches[1];
+        }
+
+        // Handle numeric statuses carefully BEFORE general numeric extraction
+        // Especially for Sophos VPN (2 = Active, 1 = Connecting, 0 = Inactive)
+        if (preg_match('/^INTEGER:\s*(\d+)$/', trim($value), $m)) {
+            $val = (int)$m[1];
+            // 2 is Active, 1 is Connecting. We'll count both as "Up" (1.0) for status sensors.
+            return ($val >= 1) ? 1.0 : 0.0;
         }
 
         // Counter64, Counter32, Gauge32, INTEGER, etc.
@@ -234,13 +234,14 @@ class CollectSnmpMetricsJob implements ShouldQueue
 
         // STRING-like status conversions
         $lower = strtolower($value);
-        if (str_contains($lower, 'up') || str_contains($lower, 'running') || str_contains($lower, 'active')) {
-            Log::debug("parseValue: Converted string to 1 (up)", ['raw' => $value]);
-            return 1;
+        $downStates = ['unreachable', 'unavailable', 'down', 'inactive', 'notconnect', 'unregistered'];
+        $upStates = ['reachable', 'up', 'running', 'active', 'idle', 'registered', 'ringing', 'inuse'];
+
+        foreach ($downStates as $state) {
+            if (str_contains($lower, $state)) return 0;
         }
-        if (str_contains($lower, 'down') || str_contains($lower, 'inactive') || str_contains($lower, 'notconnect')) {
-            Log::debug("parseValue: Converted string to 0 (down)", ['raw' => $value]);
-            return 0;
+        foreach ($upStates as $state) {
+            if (str_contains($lower, $state)) return 1;
         }
 
         Log::debug("parseValue: Could not parse value, defaulting to 0", ['raw' => $value]);

@@ -187,7 +187,7 @@
                 <div class="px-3 py-2 border-bottom">
                     <code class="small">{{ class_basename(json_decode($job->payload)->displayName ?? $job->queue) }}</code>
                     <div class="text-muted" style="font-size:11px;">Failed {{ \Carbon\Carbon::parse($job->failed_at)->diffForHumans() }}</div>
-                    <div class="text-danger" style="font-size:11px;">{{ str_limit($job->exception, 100) }}</div>
+                    <div class="text-danger" style="font-size:11px;">{{ \Illuminate\Support\Str::limit($job->exception, 100) }}</div>
                 </div>
                 @empty
                 <div class="text-center text-muted py-4"><i class="bi bi-check-circle text-success me-1"></i>No failed jobs.</div>

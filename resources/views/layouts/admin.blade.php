@@ -94,6 +94,16 @@
                                 </a>
                             </li>
                             @endcan
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-telephone-inbound me-1"></i>Telecom</h6></li>
+                            @can('view-extensions')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/telecom/landlines*') ? 'active' : '' }}"
+                                   href="{{ route('admin.telecom.landlines.index') }}">
+                                    <i class="bi bi-telephone me-2"></i>Landlines
+                                </a>
+                            </li>
+                            @endcan
                             @endcanany
                         </ul>
                     </li>
@@ -120,6 +130,18 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.isp.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.isp.index') }}">
+                                    <i class="bi bi-globe2 me-2"></i>ISP Connections
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.ip-reservations.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.ip-reservations.index') }}">
+                                    <i class="bi bi-hdd-rack me-2"></i>IP Reservations
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.diagnostics.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.diagnostics.index') }}">
                                     <i class="bi bi-search me-2"></i>Diagnostics
@@ -141,6 +163,24 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.scanner.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.scanner.index') }}">
                                     <i class="bi bi-radar me-2"></i>IP Scanner
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.sla.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.sla.index') }}">
+                                    <i class="bi bi-graph-up me-2"></i>SLA Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.topology.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.topology.index') }}">
+                                    <i class="bi bi-diagram-3 me-2"></i>Topology Map
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.port-map.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.port-map.index') }}">
+                                    <i class="bi bi-grid-3x3-gap me-2"></i>Port Map
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>
@@ -178,9 +218,21 @@
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
                             @can('view-assets')
                             <li>
-                                <a class="dropdown-item {{ request()->is('admin/devices*') ? 'active' : '' }}"
+                                <a class="dropdown-item {{ request()->routeIs('admin.devices.index') ? 'active' : '' }}"
                                    href="{{ route('admin.devices.index') }}">
                                     <i class="bi bi-cpu me-2"></i>Devices
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.devices.warranty') ? 'active' : '' }}"
+                                   href="{{ route('admin.devices.warranty') }}">
+                                    <i class="bi bi-shield-exclamation me-2"></i>Warranty Tracker
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.devices.firmware') ? 'active' : '' }}"
+                                   href="{{ route('admin.devices.firmware') }}">
+                                    <i class="bi bi-arrow-up-circle me-2"></i>Firmware Tracker
                                 </a>
                             </li>
                             @endcan
@@ -272,13 +324,50 @@
                     </li>
                     @endcanany
 
-                    {{-- ── NOC link ── --}}
+                    {{-- ── NOC dropdown ── --}}
                     @can('view-noc')
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('admin/noc*') ? 'active' : '' }}"
-                           href="{{ route('admin.noc.dashboard') }}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/noc*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-speedometer2 me-1"></i>NOC
                         </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.dashboard') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.dashboard') }}">
+                                    <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.alerts') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.alerts') }}">
+                                    <i class="bi bi-bell-fill me-2"></i>Alert Feed
+                                    @php $__openAlerts = \App\Models\NocEvent::where('status','open')->count(); @endphp
+                                    @if($__openAlerts > 0)
+                                    <span class="badge bg-danger ms-1">{{ $__openAlerts }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.events') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.events') }}">
+                                    <i class="bi bi-clock-history me-2"></i>Events Log
+                                </a>
+                            </li>
+                            @canany(['view-incidents','manage-incidents'])
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.incidents.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.incidents.index') }}">
+                                    <i class="bi bi-journal-text me-2"></i>Incidents
+                                    @php $__openInc = \App\Models\Incident::whereIn('status',['open','investigating'])->count(); @endphp
+                                    @if($__openInc > 0)
+                                    <span class="badge bg-danger ms-1">{{ $__openInc }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            @endcanany
+                        </ul>
                     </li>
                     @endcan
 

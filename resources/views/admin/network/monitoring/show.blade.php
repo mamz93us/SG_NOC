@@ -170,13 +170,25 @@
 </div>
 
 @php
-    $groupedSensors = ['General' => [], 'Interfaces' => [], 'Extensions' => [], 'Trunks' => []];
+    $groupedSensors = ['General' => [], 'Interfaces' => [], 'Extensions' => [], 'Trunks' => [], 'VPN' => []];
+    $vpnGrouped = [];
+
     foreach($host->snmpSensors as $sensor) {
         $name = $sensor->name ?: $sensor->oid;
         
         // Group by explicitly set sensor_group first
         if ($sensor->sensor_group && isset($groupedSensors[$sensor->sensor_group])) {
-            $groupedSensors[$sensor->sensor_group][] = $sensor;
+            if ($sensor->sensor_group === 'VPN') {
+                if (preg_match('/^VPN:\s*(.*?)\s*-\s*(Active|Connection)$/', $name, $m)) {
+                    $vpnName = $m[1];
+                    $type = $m[2];
+                    $vpnGrouped[$vpnName][$type] = $sensor;
+                } else {
+                    $groupedSensors['VPN'][] = $sensor;
+                }
+            } else {
+                $groupedSensors[$sensor->sensor_group][] = $sensor;
+            }
             continue;
         }
 
@@ -246,7 +258,7 @@
 <h6 class="text-uppercase text-muted fw-bold small mb-3"><i class="bi bi-cpu-fill me-2"></i>System & Performance Sensors</h6>
 <div class="row g-4 mb-5">
     @foreach($groupedSensors['General'] as $sensor)
-        @php $latest = $sensor->sensorMetrics->last(); @endphp
+        @php $latest = $sensor->sensorMetrics->first(); @endphp
         <div class="col-md-6 col-lg-4">
             <div class="card shadow-sm border-0 glass-card h-100">
                 <div class="card-body d-flex flex-column">
@@ -356,7 +368,7 @@
                         </thead>
                         <tbody>
                             @foreach($groupedSensors['Extensions'] as $sensor)
-                                @php $latest = $sensor->sensorMetrics->last(); @endphp
+                                @php $latest = $sensor->sensorMetrics->first(); @endphp
                                 <tr>
                                     <td class="ps-3 fw-bold">{{ $sensor->name }}</td>
                                     <td>
@@ -397,7 +409,7 @@
                         </thead>
                         <tbody>
                             @foreach($groupedSensors['Trunks'] as $sensor)
-                                @php $latest = $sensor->sensorMetrics->last(); @endphp
+                                @php $latest = $sensor->sensorMetrics->first(); @endphp
                                 <tr>
                                     <td class="ps-3 fw-bold">{{ $sensor->name }}</td>
                                     <td>
@@ -424,6 +436,79 @@
 </div>
 @endif
 
+<!-- Sophos VPN Table -->
+@if(!empty($vpnGrouped))
+<div class="row mb-5">
+    <div class="col-12">
+        <div class="d-flex align-items-center mb-3">
+            <h6 class="text-uppercase text-muted fw-bold small mb-0"><i class="bi bi-shield-lock-fill me-2 text-primary"></i>Site-to-Site VPN Connections</h6>
+            <span class="badge bg-primary-subtle text-primary ms-3">{{ count($vpnGrouped) }} Tunnels</span>
+        </div>
+        <div class="card shadow-sm border-0 glass-card">
+            <div class="card-body p-0">
+                <div class="table-responsive scrollable-table" style="max-height: 600px;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-dark text-white sticky-top">
+                            <tr>
+                                <th class="ps-4 py-3" style="width: 40%">Tunnel Name</th>
+                                <th class="text-center py-3">Active Status</th>
+                                <th class="text-center py-3">Connection Status</th>
+                                <th class="text-end pe-4 py-3">Last Update</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($vpnGrouped as $vpnName => $sensors)
+                                @php 
+                                    $active = $sensors['Active'] ?? null;
+                                    $conn = $sensors['Connection'] ?? null;
+                                    $activeLatest = $active ? $active->sensorMetrics->first() : null;
+                                    $connLatest = $conn ? $conn->sensorMetrics->first() : null;
+                                @endphp
+                                <tr>
+                                    <td class="ps-4 py-3">
+                                        <div class="fw-bold text-dark">{{ $vpnName }}</div>
+                                        <div class="x-small text-muted">IPSec Policy-based</div>
+                                    </td>
+                                    <td class="text-center py-3">
+                                        @if($activeLatest)
+                                            <div class="d-flex flex-column align-items-center">
+                                                <i class="bi bi-circle-fill {{ $activeLatest->value == 1 ? 'text-success' : 'text-danger' }} mb-1" style="font-size: 0.8rem; filter: drop-shadow(0 0 5px {{ $activeLatest->value == 1 ? 'rgba(25,135,84,0.5)' : 'rgba(220,53,69,0.5)' }});"></i>
+                                                <span class="x-small fw-bold {{ $activeLatest->value == 1 ? 'text-success' : 'text-danger' }}">
+                                                    {{ $activeLatest->value == 1 ? 'ENABLED' : 'DISABLED' }}
+                                                </span>
+                                            </div>
+                                        @else
+                                            <span class="text-muted small">N/A</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-center py-3">
+                                        @if($connLatest)
+                                            <div class="d-flex flex-column align-items-center">
+                                                <i class="bi bi-circle-fill {{ $connLatest->value == 1 ? 'text-success' : 'text-danger' }} mb-1" style="font-size: 0.8rem; filter: drop-shadow(0 0 5px {{ $connLatest->value == 1 ? 'rgba(25,135,84,0.5)' : 'rgba(220,53,69,0.5)' }});"></i>
+                                                <span class="x-small fw-bold {{ $connLatest->value == 1 ? 'text-success' : 'text-danger' }}">
+                                                    {{ $connLatest->value == 1 ? 'ESTABLISHED' : 'DISCONNECTED' }}
+                                                </span>
+                                            </div>
+                                        @else
+                                            <span class="text-muted small">N/A</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-end pe-4 py-3">
+                                        <span class="badge bg-light text-muted fw-normal x-small border">
+                                            {{ $connLatest ? $connLatest->recorded_at->diffForHumans() : ($activeLatest ? $activeLatest->recorded_at->diffForHumans() : 'Never') }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 <!-- Interface Sensors -->
 @if(!empty($groupedSensors['Interfaces']))
 <h6 class="text-uppercase text-muted fw-bold small mb-3">Network Interfaces</h6>
@@ -436,7 +521,7 @@
                         <div class="col-md-3 bg-light p-4 border-end d-flex flex-column justify-content-center">
                             <h5 class="fw-bold mb-1 text-dark">{{ $iface }}</h5>
                             @if(isset($sensors['Status']))
-                                @php $statusVal = $sensors['Status']->sensorMetrics->last()?->value; @endphp
+                                @php $statusVal = $sensors['Status']->sensorMetrics->first()?->value; @endphp
                                 <span class="badge bg-{{ $statusVal == 1 ? 'success' : 'danger' }}-subtle text-{{ $statusVal == 1 ? 'success' : 'danger' }} d-inline-block align-self-start mb-3">
                                     <i class="bi bi-circle-fill me-1 small"></i> {{ $statusVal == 1 ? 'UP' : 'DOWN' }}
                                 </span>
@@ -444,7 +529,7 @@
                             <div class="mt-auto">
                                 @if(isset($sensors['Traffic In']))
                                     @php
-                                        $inValBytes = $sensors['Traffic In']->sensorMetrics->last()?->value ?? 0;
+                                        $inValBytes = $sensors['Traffic In']->sensorMetrics->first()?->value ?? 0;
                                         $inValBits = $inValBytes * 8;
                                         $inFormatted = $inValBits > 1000000 ? number_format($inValBits / 1000000, 2) . ' Mbps' : ($inValBits > 1000 ? number_format($inValBits / 1000, 2) . ' Kbps' : number_format($inValBits, 0) . ' bps');
                                     @endphp
@@ -455,7 +540,7 @@
                                 @endif
                                 @if(isset($sensors['Traffic Out']))
                                     @php
-                                        $outValBytes = $sensors['Traffic Out']->sensorMetrics->last()?->value ?? 0;
+                                        $outValBytes = $sensors['Traffic Out']->sensorMetrics->first()?->value ?? 0;
                                         $outValBits = $outValBytes * 8;
                                         $outFormatted = $outValBits > 1000000 ? number_format($outValBits / 1000000, 2) . ' Mbps' : ($outValBits > 1000 ? number_format($outValBits / 1000, 2) . ' Kbps' : number_format($outValBits, 0) . ' bps');
                                     @endphp
@@ -639,12 +724,20 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 2. Sensor Metric Charts with threshold annotations
-    @foreach($host->snmpSensors->where('graph_enabled', true) as $sensor)
+@foreach($host->snmpSensors->where('graph_enabled', true) as $sensor)
         (function() {
             const ctx = document.getElementById('chart-sensor-{{ $sensor->id }}');
             if (!ctx) return;
 
-            const sensorData = @json($sensor->sensorMetrics->map(fn($m) => ['t' => $m->recorded_at->toIso8601String(), 'y' => $m->value])->values());
+            @php
+                $metrics = $sensor->sensorMetrics()
+                    ->orderBy('recorded_at', 'desc')
+                    ->limit(150)
+                    ->get()
+                    ->reverse()
+                    ->map(fn($m) => ['t' => $m->recorded_at->toIso8601String(), 'y' => $m->value]);
+            @endphp
+            const sensorData = @json($metrics->values());
             const color = '{{ str_contains($sensor->name, "Out") ? "#6610f2" : "#0dcaf0" }}';
             const warnThreshold = {{ $sensor->warning_threshold !== null ? $sensor->warning_threshold : 'null' }};
             const critThreshold = {{ $sensor->critical_threshold !== null ? $sensor->critical_threshold : 'null' }};

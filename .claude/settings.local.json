@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\admin\\\\network\\\\sla\"\" 2>/dev/null || echo \"Directory does not exist \")"
+    ]
+  }
+}
