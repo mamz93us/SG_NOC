@@ -21,7 +21,7 @@ fi
 
 case $ACTION in
     status)
-        OUTPUT=$(swanctl --list-sas 2>/dev/null)
+        OUTPUT=$(swanctl --list-sas 2>&1)
         echo "RAW_OUTPUT_START"
         echo "$OUTPUT"
         echo "RAW_OUTPUT_END"
@@ -59,24 +59,18 @@ case $ACTION in
         fi
         ;;
     logs)
-        # Try to get logs from multiple possible service names or fallback to grep
-        SERVICES=("strongswan" "strongswan-starter" "strongswan-swanctl" "charon")
-        OUTPUT=""
-        for SVC in "${SERVICES[@]}"; do
-            OUTPUT=$(journalctl -u "$SVC" -n 50 --no-pager 2>/dev/null)
-            if [[ $? -eq 0 && -n "$OUTPUT" ]]; then break; fi
-        done
-
-        if [[ -z "$OUTPUT" ]]; then
-             OUTPUT=$(grep -i "charon" /var/log/syslog 2>/dev/null | tail -n 50)
+        # Try once with a combined query
+        OUTPUT=$(journalctl -u strongswan -u charon -u strongswan-starter -n 50 --no-pager 2>&1)
+        
+        # If that returned nothing or failed, try syslog grep
+        if [[ -z "$OUTPUT" || "$OUTPUT" == *"-- No entries --"* ]]; then
+             OUTPUT=$(grep -iE "charon|strongswan|ipsec" /var/log/syslog 2>&1 | tail -n 50)
         fi
-
+        
         if [[ -z "$OUTPUT" ]]; then
-             OUTPUT="No IPsec logs found in journalctl or syslog."
+             OUTPUT="No IPsec logs found in journalctl or syslog. Try running 'ls -l /var/log/syslog' to check permissions."
         fi
-
-        # Use a more robust way to escape for JSON
-        # We'll just output the raw logs and let the PHP service handle it if it's not valid JSON
+        
         echo "RAW_LOGS_START"
         echo "$OUTPUT"
         echo "RAW_LOGS_END"

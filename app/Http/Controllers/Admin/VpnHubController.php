@@ -77,6 +77,8 @@ class VpnHubController extends Controller
                 'message' => 'Tunnel created and configuration reloaded.'
             ]);
 
+            \App\Models\ActivityLog::log('VPN', "Created new VPN tunnel '{$tunnel->name}'", 'success', $tunnel->id);
+
             DB::commit();
 
             // Try to initiate tunnel
@@ -149,6 +151,8 @@ class VpnHubController extends Controller
                 'message' => 'Tunnel configuration updated.'
             ]);
 
+            \App\Models\ActivityLog::log('VPN', "Updated configuration for VPN tunnel '{$tunnel->name}'", 'info', $tunnel->id);
+
             DB::commit();
 
             return redirect()->route('admin.network.vpn.index')
@@ -169,6 +173,8 @@ class VpnHubController extends Controller
             $tunnel->delete();
             $this->vpnService->reload();
 
+            \App\Models\ActivityLog::log('VPN', "Deleted VPN tunnel '{$name}'", 'danger');
+
             return redirect()->route('admin.network.vpn.index')
                 ->with('success', "VPN Tunnel '{$name}' deleted.");
         } catch (\Exception $e) {
@@ -181,6 +187,14 @@ class VpnHubController extends Controller
         $result = $this->vpnService->up($tunnel->name);
         
         if ($result['status'] === 'success') {
+            VpnLog::create([
+                'vpn_id' => $tunnel->id,
+                'event_type' => 'manual_up',
+                'message' => "Initiated tunnel '{$tunnel->name}' manually."
+            ]);
+
+            \App\Models\ActivityLog::log('VPN', "Initiated VPN tunnel '{$tunnel->name}'", 'info', $tunnel->id);
+
             return back()->with('success', "Initiating tunnel '{$tunnel->name}'...");
         }
 
@@ -192,6 +206,14 @@ class VpnHubController extends Controller
         $result = $this->vpnService->down($tunnel->name);
         
         if ($result['status'] === 'success') {
+            VpnLog::create([
+                'vpn_id' => $tunnel->id,
+                'event_type' => 'manual_down',
+                'message' => "Terminated tunnel '{$tunnel->name}' manually."
+            ]);
+
+            \App\Models\ActivityLog::log('VPN', "Terminated VPN tunnel '{$tunnel->name}'", 'warning', $tunnel->id);
+
             return back()->with('success', "Terminating tunnel '{$tunnel->name}'...");
         }
 
@@ -203,6 +225,7 @@ class VpnHubController extends Controller
         $result = $this->vpnService->reload();
         
         if ($result['status'] === 'success') {
+            \App\Models\ActivityLog::log('VPN', "Reloaded all VPN configurations", 'info');
             return back()->with('success', "All VPN configurations reloaded successfully.");
         }
 
@@ -214,16 +237,44 @@ class VpnHubController extends Controller
         try {
             $result = $this->vpnService->status();
             
-            // Simple logic to find if our tunnel is in the output
             $isEstablished = false;
             if ($result['status'] === 'success' && isset($result['output'])) {
-                $isEstablished = str_contains($result['output'], $tunnel->name) && str_contains($result['output'], 'ESTABLISHED');
+                // More robust check: Look for the tunnel name on a line that also contains 'ESTABLISHED'
+                // Typically: "tunnel_name: #1, ESTABLISHED, ..."
+                $lines = explode("\n", $result['output']);
+                foreach ($lines as $line) {
+                    if (str_contains($line, $tunnel->name . ':') && str_contains($line, 'ESTABLISHED')) {
+                        $isEstablished = true;
+                        break;
+                    }
+                }
             }
 
             // Update DB status if it changed
             $newStatus = $isEstablished ? 'up' : 'down';
             if ($tunnel->status !== $newStatus) {
+                $oldStatus = $tunnel->status;
                 $tunnel->update(['status' => $newStatus, 'last_checked_at' => now()]);
+
+                // Log to VpnLog for history
+                VpnLog::create([
+                    'vpn_id' => $tunnel->id,
+                    'event_type' => 'status_change',
+                    'message' => "Tunnel status changed from {$oldStatus} to {$newStatus}."
+                ]);
+
+                // Also log to general ActivityLog
+                if (class_exists('App\Models\ActivityLog')) {
+                    \App\Models\ActivityLog::log(
+                        'VPN',
+                        "VPN Tunnel '{$tunnel->name}' status changed to {$newStatus}",
+                        'info',
+                        $tunnel->id
+                    );
+                }
+            } else {
+                // Just update the last_checked_at
+                $tunnel->update(['last_checked_at' => now()]);
             }
 
             return response()->json([
