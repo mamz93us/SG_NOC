@@ -233,14 +233,27 @@ class SophosApiService
     }
 
     /**
-     * Get the Sophos firewall system info (if available).
+     * Get the Sophos firewall device/system info (model, serial, firmware).
      */
     public function getSystemInfo(): array
     {
-        try {
-            return $this->request('<Get><Interface/></Get>');
-        } catch (\Throwable) {
-            return [];
+        $fallbacks = ['DeviceInfo', 'ApplianceInfo', 'About'];
+        
+        foreach ($fallbacks as $entity) {
+            try {
+                $result = $this->request("<Get><{$entity}/></Get>");
+                $info = $this->extractEntities($result, $entity);
+                if (!empty($info)) {
+                    $data = $info[0] ?? $info;
+                    if (is_array($data) && (isset($data['Model']) || isset($data['SerialNumber']) || isset($data['Version']))) {
+                        return $data;
+                    }
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
         }
+        
+        return [];
     }
 }

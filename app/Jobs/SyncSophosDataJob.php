@@ -39,6 +39,7 @@ class SyncSophosDataJob implements ShouldQueue
             $api = new SophosApiService($this->firewall);
 
             // Each sync is independent — one failure should NOT block others
+            $this->safeSyncSystemInfo($api);
             $ifaceCount  = $this->safeSyncInterfaces($api, $errors);
             $objectCount = $this->safeSyncNetworkObjects($api, $errors);
             $vpnCount    = $this->safeSyncVpnTunnels($api, $errors);
@@ -99,6 +100,36 @@ class SyncSophosDataJob implements ShouldQueue
     }
 
     // ─── Safe Sync Wrappers (isolate failures) ──────────────────
+
+    protected function safeSyncSystemInfo(SophosApiService $api): void
+    {
+        try {
+            $this->syncSystemInfo($api);
+        } catch (\Throwable $e) {
+            Log::error("SyncSophosDataJob: syncSystemInfo failed for {$this->firewall->name}", ['error' => $e->getMessage()]);
+        }
+    }
+
+    protected function syncSystemInfo(SophosApiService $api): void
+    {
+        $info = $api->getSystemInfo();
+        if (empty($info)) return;
+
+        $updates = [];
+        
+        // Map Sophos XML fields to local DB fields
+        $model = $this->stringify($info['Model'] ?? $info['ApplianceModel'] ?? null);
+        $serial = $this->stringify($info['SerialNumber'] ?? $info['DeviceID'] ?? null);
+        $firmware = $this->stringify($info['FirmwareVersion'] ?? $info['Version'] ?? null);
+
+        if ($model) $updates['model'] = $model;
+        if ($serial) $updates['serial_number'] = $serial;
+        if ($firmware) $updates['firmware_version'] = $firmware;
+
+        if (!empty($updates)) {
+            $this->firewall->update($updates);
+        }
+    }
 
     protected function safeSyncInterfaces(SophosApiService $api, array &$errors): int
     {
