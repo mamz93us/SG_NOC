@@ -40,8 +40,11 @@ class RolePermission extends Model
             'Network' => [
                 'view-network'            => 'View Network (Switches, Clients, Events)',
                 'manage-network-settings' => 'Manage Meraki Network Settings',
-                'manage-vpn-settings'     => 'Manage VPN Settings', // Added based on instruction context
+                'manage-vpn-settings'     => 'Manage VPN Settings',
                 'view-network-events'     => 'View Network Change Events',
+                'view-dhcp-leases'        => 'View DHCP Leases',
+                'view-sophos'             => 'View Sophos Firewalls',
+                'manage-sophos'           => 'Manage Sophos Firewalls',
             ],
             'Assets' => [
                 'view-assets'   => 'View Device Inventory',
@@ -116,6 +119,7 @@ class RolePermission extends Model
             'view-extensions', 'view-trunks',
             'view-network', 'view-assets', 'view-printers',
             'view-workflows', 'view-employees', 'view-noc',
+            'view-dhcp-leases', 'view-sophos',
         ];
 
         return [

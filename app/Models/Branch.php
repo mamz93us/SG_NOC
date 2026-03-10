@@ -73,6 +73,21 @@ class Branch extends Model
         return $this->hasMany(Landline::class);
     }
 
+    public function dhcpLeases(): HasMany
+    {
+        return $this->hasMany(DhcpLease::class);
+    }
+
+    public function ipamSubnets(): HasMany
+    {
+        return $this->hasMany(IpamSubnet::class);
+    }
+
+    public function sophosFirewalls(): HasMany
+    {
+        return $this->hasMany(SophosFirewall::class);
+    }
+
     // ─── Provisioning Helpers ─────────────────────────────────────
     // Each method returns the branch-specific value, falling back to
     // the global Setting when the branch field is null.

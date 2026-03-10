@@ -41,6 +41,9 @@ use App\Http\Controllers\Admin\SlaController;
 use App\Http\Controllers\Admin\TopologyController;
 use App\Http\Controllers\Admin\WarrantyTrackerController;
 use App\Http\Controllers\Admin\PortMapController;
+use App\Http\Controllers\Admin\DhcpLeaseController;
+use App\Http\Controllers\Admin\SophosFirewallController;
+use App\Http\Controllers\Admin\IpamController;
 use App\Http\Controllers\Auth\MicrosoftController;
 use App\Http\Controllers\PhonebookController;
 use App\Http\Controllers\PublicContactController;
@@ -505,6 +508,34 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:view-network')->prefix('network/topology')->name('network.topology.')->group(function () {
         Route::get('/',     [TopologyController::class, 'index'])->name('index');
         Route::get('/data', [TopologyController::class, 'data'])->name('data');
+    });
+
+    // ─── DHCP Leases ────────────────────────────────────────────
+    Route::middleware('permission:view-dhcp-leases')->prefix('network/dhcp')->name('network.dhcp.')->group(function () {
+        Route::get('/',        [DhcpLeaseController::class, 'index'])->name('index');
+        Route::get('/widget',  [DhcpLeaseController::class, 'widget'])->name('widget');
+        Route::get('/{lease}', [DhcpLeaseController::class, 'show'])->name('show');
+    });
+
+    // ─── IPAM Subnets ───────────────────────────────────────────
+    Route::middleware('permission:view-network')->prefix('network/ipam')->name('network.ipam.')->group(function () {
+        Route::get('/',         [IpamController::class, 'index'])->name('index');
+        Route::get('/search',   [IpamController::class, 'search'])->name('search');
+        Route::post('/',        [IpamController::class, 'store'])->name('store')->middleware('permission:manage-network-settings');
+        Route::get('/{subnet}', [IpamController::class, 'show'])->name('show');
+    });
+
+    // ─── Sophos Firewalls ───────────────────────────────────────
+    Route::prefix('network/sophos')->name('network.sophos.')->group(function () {
+        Route::get('/',              [SophosFirewallController::class, 'index'])->name('index')->middleware('permission:view-sophos');
+        Route::get('/create',        [SophosFirewallController::class, 'create'])->name('create')->middleware('permission:manage-sophos');
+        Route::post('/',             [SophosFirewallController::class, 'store'])->name('store')->middleware('permission:manage-sophos');
+        Route::get('/{firewall}',    [SophosFirewallController::class, 'show'])->name('show')->middleware('permission:view-sophos');
+        Route::get('/{firewall}/edit', [SophosFirewallController::class, 'edit'])->name('edit')->middleware('permission:manage-sophos');
+        Route::put('/{firewall}',    [SophosFirewallController::class, 'update'])->name('update')->middleware('permission:manage-sophos');
+        Route::delete('/{firewall}', [SophosFirewallController::class, 'destroy'])->name('destroy')->middleware('permission:manage-sophos');
+        Route::post('/{firewall}/sync', [SophosFirewallController::class, 'sync'])->name('sync')->middleware('permission:manage-sophos');
+        Route::post('/{firewall}/test', [SophosFirewallController::class, 'testConnection'])->name('test')->middleware('permission:manage-sophos');
     });
 
     // ─── Notifications (all authenticated users) ──────────────

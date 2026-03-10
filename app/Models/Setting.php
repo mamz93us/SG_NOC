@@ -20,6 +20,9 @@ class Setting extends Model
         'meraki_api_key',
         'meraki_org_id',
         'meraki_polling_interval',
+        // Sophos Firewall
+        'sophos_sync_enabled',
+        'sophos_sync_interval',
         // Microsoft Graph / Identity
         'graph_tenant_id',
         'graph_client_id',
@@ -61,6 +64,8 @@ class Setting extends Model
         'sso_enabled'             => 'boolean',
         'meraki_enabled'          => 'boolean',
         'meraki_polling_interval' => 'integer',
+        'sophos_sync_enabled'     => 'boolean',
+        'sophos_sync_interval'    => 'integer',
         'identity_sync_enabled'   => 'boolean',
         'identity_sync_interval'  => 'integer',
         'gdms_sync_interval'      => 'integer',

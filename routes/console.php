@@ -134,3 +134,41 @@ Schedule::call(function () {
         }
     }
 })->name('discover-snmp-interfaces')->withoutOverlapping(30)->daily();
+
+// ──────────────────────────────────────────────────────────────────────
+// Sophos Firewall Sync — configurable interval (runs inline)
+// ──────────────────────────────────────────────────────────────────────
+$sophosInterval = max(5, (int) ($settings?->sophos_sync_interval ?: 15));
+Schedule::call(function () {
+    $firewalls = \App\Models\SophosFirewall::where('sync_enabled', true)->get();
+    foreach ($firewalls as $fw) {
+        try {
+            (new \App\Jobs\SyncSophosDataJob($fw))->handle();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("Sophos sync failed for {$fw->name}: " . $e->getMessage());
+        }
+    }
+})->name('sync-sophos-data')->withoutOverlapping(10)->cron($everyN($sophosInterval));
+
+// ARP Table Collection (Sophos hosts) — every 10 minutes
+Schedule::call(function () {
+    $hosts = \App\Models\MonitoredHost::where('snmp_enabled', true)
+        ->where('discovered_type', 'sophos')
+        ->get();
+    foreach ($hosts as $host) {
+        try {
+            (new \App\Jobs\CollectArpTableJob($host))->handle();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("ARP collection failed for {$host->ip}: " . $e->getMessage());
+        }
+    }
+})->name('collect-arp-tables')->withoutOverlapping(10)->everyTenMinutes();
+
+// DHCP Conflict Detection — every 10 minutes
+Schedule::call(function () {
+    try {
+        (new \App\Jobs\DetectDhcpConflictsJob)->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error("DHCP conflict detection failed: " . $e->getMessage());
+    }
+})->name('detect-dhcp-conflicts')->withoutOverlapping(10)->everyTenMinutes();

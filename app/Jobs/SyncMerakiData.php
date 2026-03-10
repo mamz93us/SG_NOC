@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\DhcpLease;
 use App\Models\NetworkClient;
 use App\Models\NetworkEvent;
 use App\Models\NetworkPort;
@@ -233,6 +234,28 @@ class SyncMerakiData implements ShouldQueue
                                         : null,
                 ]
             );
+
+            // Also create/update DHCP lease for centralized tracking
+            if ($client['ip'] ?? null) {
+                try {
+                    DhcpLease::updateOrCreate(
+                        ['mac_address' => $mac, 'source' => 'meraki'],
+                        [
+                            'ip_address'    => $client['ip'],
+                            'hostname'      => $client['description'] ?? $client['dhcpHostname'] ?? null,
+                            'vendor'        => $client['manufacturer'] ?? null,
+                            'vlan'          => $client['vlan'] ?? null,
+                            'switch_serial' => $serial,
+                            'port_id'       => (string) ($client['switchport'] ?? ''),
+                            'source_device' => $serial,
+                            'branch_id'     => $switch->branch_id,
+                            'last_seen'     => now(),
+                        ]
+                    );
+                } catch (\Throwable $e) {
+                    Log::debug("SyncMerakiData: DHCP lease sync failed for {$mac}: " . $e->getMessage());
+                }
+            }
         }
 
         $switch->update(['clients_count' => $clientCount]);

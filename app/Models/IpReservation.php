@@ -9,6 +9,7 @@ class IpReservation extends Model
 {
     protected $fillable = [
         'branch_id',
+        'subnet_id',
         'ip_address',
         'subnet',
         'device_type',
@@ -17,10 +18,15 @@ class IpReservation extends Model
         'vlan',
         'assigned_to',
         'notes',
+        'status',
+        'source',
+        'device_id',
+        'last_seen',
     ];
 
     protected $casts = [
-        'vlan' => 'integer',
+        'vlan'      => 'integer',
+        'last_seen' => 'datetime',
     ];
 
     // ─── Relationships ──────────────────────────────────────────
@@ -28,6 +34,16 @@ class IpReservation extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function ipamSubnet(): BelongsTo
+    {
+        return $this->belongsTo(IpamSubnet::class, 'subnet_id');
+    }
+
+    public function device(): BelongsTo
+    {
+        return $this->belongsTo(Device::class);
     }
 
     // ─── Helpers ────────────────────────────────────────────────
@@ -59,6 +75,19 @@ class IpReservation extends Model
             'printer'  => 'bg-warning text-dark',
             'phone'    => 'bg-secondary',
             default    => 'bg-light text-dark',
+        };
+    }
+
+    public function statusBadgeClass(): string
+    {
+        return match ($this->status) {
+            'available' => 'bg-success',
+            'reserved'  => 'bg-primary',
+            'dhcp'      => 'bg-info',
+            'static'    => 'bg-secondary',
+            'conflict'  => 'bg-danger',
+            'offline'   => 'bg-dark',
+            default     => 'bg-light text-dark',
         };
     }
 }

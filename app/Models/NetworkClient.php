@@ -36,6 +36,12 @@ class NetworkClient extends Model
         return $this->belongsTo(NetworkSwitch::class, 'switch_serial', 'serial');
     }
 
+    public function dhcpLease(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(DhcpLease::class, 'mac_address', 'mac')
+                    ->where('source', 'meraki');
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────
 
     public function isOnline(): bool

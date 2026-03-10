@@ -108,6 +108,13 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
                 $this->createSensor('CPU Load', '1.3.6.1.4.1.2604.5.1.2.6.0', 'gauge', '%', 80, 95, 'system');
                 
                 $this->discoverSophosVpns($client);
+
+                // Also collect ARP table for DHCP lease tracking
+                try {
+                    CollectArpTableJob::dispatchSync($this->host);
+                } catch (\Throwable $e) {
+                    Log::warning("DiscoverSnmpDeviceJob: ARP collection failed for {$this->host->ip}: " . $e->getMessage());
+                }
             } elseif (stripos($sysDescr, 'Printer') !== false || stripos($sysDescr, 'HP LaserJet') !== false || stripos($sysDescr, 'Lexmark') !== false) {
                 $discoveredType = 'printer';
                 $this->host->type = 'printer';
