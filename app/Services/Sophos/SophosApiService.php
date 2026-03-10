@@ -48,7 +48,23 @@ class SophosApiService
                 throw new \RuntimeException("Sophos API returned HTTP {$response->status()}");
             }
 
-            return $this->parseXml($response->body());
+            $parsed = $this->parseXml($response->body());
+
+            // Check authentication status — Sophos returns 200 even on auth failure
+            $loginStatus = $parsed['Login']['status'] ?? null;
+            if ($loginStatus && stripos($loginStatus, 'fail') !== false) {
+                Log::error("SophosApiService: Authentication failed for {$this->firewall->name}", [
+                    'status' => $loginStatus,
+                ]);
+                throw new \RuntimeException("Sophos authentication failed: {$loginStatus}");
+            }
+
+            Log::debug("SophosApiService: Response received from {$this->firewall->name}", [
+                'login_status' => $loginStatus,
+                'keys'         => array_keys($parsed),
+            ]);
+
+            return $parsed;
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             Log::error("SophosApiService: Connection failed to {$this->firewall->name}", [
                 'error' => $e->getMessage(),
@@ -64,7 +80,7 @@ class SophosApiService
         $user = htmlspecialchars($this->username, ENT_XML1);
         $pass = htmlspecialchars($this->password, ENT_XML1);
 
-        return "<Login><Username>{$user}</Username><Password passwordform=\"encrypt\">{$pass}</Password></Login>";
+        return "<Login><Username>{$user}</Username><Password>{$pass}</Password></Login>";
     }
 
     protected function buildRequestXml(string $entityXml): string
@@ -121,16 +137,53 @@ class SophosApiService
 
     /**
      * Extract an array of entities from the parsed XML response.
-     * Sophos returns either a single entity (assoc array) or list of entities.
+     *
+     * Sophos XML wraps entities in a container with the SAME name:
+     *   <Response>
+     *     <Interface transactionid="">        ← wrapper
+     *       <Status>...</Status>
+     *       <Interface>...</Interface>         ← actual entity
+     *       <Interface>...</Interface>         ← actual entity
+     *     </Interface>
+     *   </Response>
+     *
+     * After json_decode: ['Interface' => ['Status' => ..., 'Interface' => [entities]]]
+     * We need $result[$entityName][$entityName] to get the actual entities.
      */
     protected function extractEntities(array $result, string $entityName): array
     {
-        $entities = $result[$entityName] ?? [];
+        $wrapper = $result[$entityName] ?? [];
+
+        if (empty($wrapper)) {
+            return [];
+        }
+
+        // Check if this is the wrapper level (has nested entities with same name)
+        $entities = $wrapper[$entityName] ?? null;
+
+        if ($entities === null) {
+            // No nested entities — could be the wrapper itself IS the entities
+            // (happens when response has no Status wrapper)
+            $entities = $wrapper;
+        }
+
+        // Filter out non-entity keys like 'Status', '@attributes' from wrapper
+        if (is_array($entities) && isset($entities['Status'])) {
+            // We're still at the wrapper level with no entities returned
+            return [];
+        }
 
         // Single entity returned as associative → wrap in array
-        if (!empty($entities) && !isset($entities[0]) && !is_numeric(array_key_first($entities))) {
+        if (!empty($entities) && is_array($entities) && !isset($entities[0]) && !is_numeric(array_key_first($entities))) {
             $entities = [$entities];
         }
+
+        // Ensure we have a proper indexed array
+        if (!is_array($entities)) {
+            return [];
+        }
+
+        Log::debug("SophosApiService: Extracted " . count($entities) . " {$entityName} entities");
 
         return $entities;
     }

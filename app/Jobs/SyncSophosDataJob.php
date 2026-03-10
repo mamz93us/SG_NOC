@@ -36,10 +36,12 @@ class SyncSophosDataJob implements ShouldQueue
         try {
             $api = new SophosApiService($this->firewall);
 
-            $this->syncInterfaces($api);
-            $this->syncNetworkObjects($api);
-            $this->syncVpnTunnels($api);
-            $this->syncFirewallRules($api);
+            $ifaceCount  = $this->syncInterfaces($api);
+            $objectCount = $this->syncNetworkObjects($api);
+            $vpnCount    = $this->syncVpnTunnels($api);
+            $ruleCount   = $this->syncFirewallRules($api);
+
+            Log::info("SyncSophosDataJob: Synced {$this->firewall->name} — {$ifaceCount} interfaces, {$objectCount} objects, {$vpnCount} VPN tunnels, {$ruleCount} rules");
 
             $this->firewall->update(['last_synced_at' => now()]);
 
@@ -69,7 +71,7 @@ class SyncSophosDataJob implements ShouldQueue
         }
     }
 
-    protected function syncInterfaces(SophosApiService $api): void
+    protected function syncInterfaces(SophosApiService $api): int
     {
         $interfaces = $api->getInterfaces();
         $synced = [];
@@ -84,7 +86,7 @@ class SyncSophosDataJob implements ShouldQueue
                     'hardware'   => $iface['Hardware'] ?? $iface['hardware'] ?? null,
                     'ip_address' => $iface['IPv4Configuration']['IPAddress'] ?? $iface['IPAddress'] ?? $iface['ip_address'] ?? null,
                     'netmask'    => $iface['IPv4Configuration']['Netmask'] ?? $iface['Netmask'] ?? $iface['netmask'] ?? null,
-                    'zone'       => $iface['Zone'] ?? $iface['zone'] ?? null,
+                    'zone'       => $iface['Zone'] ?? $iface['NetworkZone'] ?? $iface['zone'] ?? null,
                     'status'     => $this->normalizeStatus($iface['Status'] ?? $iface['status'] ?? 'unknown'),
                     'mtu'        => $iface['MTU'] ?? $iface['mtu'] ?? null,
                     'speed'      => $iface['Speed'] ?? $iface['speed'] ?? null,
@@ -99,9 +101,11 @@ class SyncSophosDataJob implements ShouldQueue
                 ->whereNotIn('id', $synced)
                 ->delete();
         }
+
+        return count($synced);
     }
 
-    protected function syncNetworkObjects(SophosApiService $api): void
+    protected function syncNetworkObjects(SophosApiService $api): int
     {
         $objects = $api->getIPHosts();
         $synced  = [];
@@ -127,9 +131,11 @@ class SyncSophosDataJob implements ShouldQueue
                 ->whereNotIn('id', $synced)
                 ->delete();
         }
+
+        return count($synced);
     }
 
-    protected function syncVpnTunnels(SophosApiService $api): void
+    protected function syncVpnTunnels(SophosApiService $api): int
     {
         $tunnels = $api->getIPSecConnections();
         $synced  = [];
@@ -158,9 +164,11 @@ class SyncSophosDataJob implements ShouldQueue
                 ->whereNotIn('id', $synced)
                 ->delete();
         }
+
+        return count($synced);
     }
 
-    protected function syncFirewallRules(SophosApiService $api): void
+    protected function syncFirewallRules(SophosApiService $api): int
     {
         $rules  = $api->getFirewallRules();
         $synced = [];
@@ -193,6 +201,8 @@ class SyncSophosDataJob implements ShouldQueue
                 ->whereNotIn('id', $synced)
                 ->delete();
         }
+
+        return count($synced);
     }
 
     // ─── Parsing Helpers ──────────────────────────────────────────
