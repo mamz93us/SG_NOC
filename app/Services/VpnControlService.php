@@ -81,19 +81,45 @@ class VpnControlService
         }
         $config .= "        }\n";
         $config .= "        children {\n";
-        $config .= "            {$tunnel->name} {\n";
-        $config .= "                local_ts = {$tunnel->local_subnet}\n";
-        $config .= "                remote_ts = {$tunnel->remote_subnet}\n";
-        $config .= "                esp_proposals = {$proposal}\n";
-        $config .= "                dpd_action = restart\n";
-        $config .= "                start_action = start\n";
-        $config .= "            }\n";
+        
+        $localSubnets = array_filter(array_map('trim', explode(',', $tunnel->local_subnet)));
+        $remoteSubnets = array_filter(array_map('trim', explode(',', $tunnel->remote_subnet)));
+        
+        if (empty($localSubnets)) $localSubnets = ['0.0.0.0/0'];
+        if (empty($remoteSubnets)) $remoteSubnets = ['0.0.0.0/0'];
+        
+        $childCounter = 1;
+        foreach ($localSubnets as $localTs) {
+            foreach ($remoteSubnets as $remoteTs) {
+                // First child gets the tunnel name, subsequent get -2, -3, etc.
+                $childName = $childCounter === 1 ? $tunnel->name : "{$tunnel->name}-{$childCounter}";
+                
+                $config .= "            {$childName} {\n";
+                $config .= "                local_ts = {$localTs}\n";
+                $config .= "                remote_ts = {$remoteTs}\n";
+                $config .= "                esp_proposals = {$proposal}\n";
+                $config .= "                dpd_action = restart\n";
+                $config .= "                start_action = start\n";
+                $config .= "            }\n";
+                
+                $childCounter++;
+            }
+        }
         $config .= "        }\n";
         $config .= "    }\n";
         $config .= "}\n\n";
         
         $config .= "secrets {\n";
         $config .= "    ike-{$tunnel->name} {\n";
+        // Bind PSK to specific identities when IDs are configured.
+        // This matches strongSwan's id-N syntax and prevents PSK ambiguity.
+        if ($tunnel->local_id) {
+            $config .= "        id-0 = {$tunnel->local_id}\n";
+        }
+        if ($tunnel->remote_id) {
+            $idIndex = $tunnel->local_id ? '1' : '0';
+            $config .= "        id-{$idIndex} = {$tunnel->remote_id}\n";
+        }
         $config .= "        secret = \"{$tunnel->pre_shared_key}\"\n";
         $config .= "    }\n";
         $config .= "}\n";

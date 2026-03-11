@@ -218,7 +218,7 @@ class IpReservationController extends Controller
         return response()->json([
             'ip_address' => $ip,
             'vlan' => $subnet->vlan,
-            'subnet_str' => clone $subnet->cidr // could just format it
+            'subnet_str' => $subnet->cidr
         ]);
     }
 }
