@@ -94,6 +94,15 @@ class VpnControlService
         
         $config .= "secrets {\n";
         $config .= "    ike-{$tunnel->name} {\n";
+        // Bind PSK to specific identities when IDs are configured.
+        // This matches strongSwan's id-N syntax and prevents PSK ambiguity.
+        if ($tunnel->local_id) {
+            $config .= "        id-0 = {$tunnel->local_id}\n";
+        }
+        if ($tunnel->remote_id) {
+            $idIndex = $tunnel->local_id ? '1' : '0';
+            $config .= "        id-{$idIndex} = {$tunnel->remote_id}\n";
+        }
         $config .= "        secret = \"{$tunnel->pre_shared_key}\"\n";
         $config .= "    }\n";
         $config .= "}\n";
