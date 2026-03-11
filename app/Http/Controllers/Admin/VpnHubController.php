@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\SophosVpnTunnel;
 use App\Models\VpnLog;
 use App\Models\VpnTunnel;
 use App\Services\VpnControlService;
@@ -236,7 +237,26 @@ class VpnHubController extends Controller
     {
         try {
             $result = $this->vpnService->status();
-            
+
+            // If swanctl is unavailable, don't mark tunnel as 'down' — preserve last known status
+            if (($result['status'] ?? '') === 'unavailable' || ($result['swanctl_available'] ?? true) === false) {
+                $tunnel->update(['last_checked_at' => now()]);
+
+                // Check if the branch has a Sophos firewall with matching VPN data
+                $sophosInfo = $this->getSophosVpnInfo($tunnel);
+
+                return response()->json([
+                    'is_up'             => $tunnel->status === 'up',
+                    'swanctl_available' => false,
+                    'last_known_status' => $tunnel->status,
+                    'last_checked_at'   => $tunnel->last_checked_at?->diffForHumans(),
+                    'sophosVpn'         => $sophosInfo,
+                    'raw_output'        => '⚠️ IPSec service (swanctl) is not responding on this server. ' .
+                                          'Check that strongSwan is installed and running. ' .
+                                          'Displaying last known status: ' . strtoupper($tunnel->status ?? 'unknown'),
+                ]);
+            }
+
             $isEstablished = false;
             if ($result['status'] === 'success' && isset($result['output'])) {
                 // More robust check: Look for the tunnel name on a line that also contains 'ESTABLISHED'
@@ -278,13 +298,16 @@ class VpnHubController extends Controller
             }
 
             return response()->json([
-                'is_up' => $isEstablished,
-                'raw_output' => $this->sanitizeLog($result['output'] ?? 'No status output available.')
+                'is_up'             => $isEstablished,
+                'swanctl_available' => true,
+                'sophosVpn'         => $this->getSophosVpnInfo($tunnel),
+                'raw_output'        => $this->sanitizeLog($result['output'] ?? 'No status output available.'),
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'is_up' => false,
-                'raw_output' => 'Error checking status: ' . $e->getMessage()
+                'is_up'             => false,
+                'swanctl_available' => false,
+                'raw_output'        => 'Error checking status: ' . $e->getMessage(),
             ]);
         }
     }
@@ -293,16 +316,58 @@ class VpnHubController extends Controller
     {
         try {
             $result = $this->vpnService->execute(['logs']);
-            
+
+            // Detect swanctl unavailable
+            if (($result['status'] ?? '') === 'unavailable' || ($result['swanctl_available'] ?? true) === false) {
+                return response()->json([
+                    'status' => 'unavailable',
+                    'logs'   => "⚠️ IPSec service (swanctl) is not responding on this server.\n" .
+                                "Check that strongSwan is installed and running.\n" .
+                                "Run: sudo systemctl status strongswan",
+                ]);
+            }
+
+            $logText = $result['output'] ?? '';
+            if (empty(trim($logText))) {
+                $logText = 'No IPSec logs found. The log file may be empty or swanctl has not generated any output yet.';
+            }
+
             return response()->json([
                 'status' => $result['status'],
-                'logs'   => $this->sanitizeLog($result['output'] ?? 'No logs available.')
+                'logs'   => $this->sanitizeLog($logText),
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'logs'   => "Error retrieving logs: " . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Check if the branch linked to a VpnTunnel has a Sophos VPN tunnel that
+     * can act as a secondary status indicator.
+     */
+    protected function getSophosVpnInfo(VpnTunnel $tunnel): ?array
+    {
+        try {
+            if (!$tunnel->branch_id) return null;
+
+            // Find Sophos firewalls for this branch
+            $sophosVpn = SophosVpnTunnel::whereHas('firewall', function ($q) use ($tunnel) {
+                $q->where('branch_id', $tunnel->branch_id);
+            })->first();
+
+            if (!$sophosVpn) return null;
+
+            return [
+                'name'           => $sophosVpn->name,
+                'status'         => $sophosVpn->status,
+                'remote_gateway' => $sophosVpn->remote_gateway,
+                'last_checked'   => $sophosVpn->last_checked_at?->diffForHumans(),
+            ];
+        } catch (\Throwable $e) {
+            return null;
         }
     }
 

@@ -11,9 +11,10 @@
 
 @php
 $serviceConfig = [
-    'identity' => ['label' => 'Azure / Entra ID',           'icon' => 'bi-microsoft',     'color' => 'primary',  'intervalKey' => 'identity_sync_interval',  'desc' => 'Users, groups & licenses from Microsoft Graph'],
-    'gdms'     => ['label' => 'GDMS (UCM Cloud)',           'icon' => 'bi-router-fill',   'color' => 'success',  'intervalKey' => 'gdms_sync_interval',       'desc' => 'SIP accounts & device registrations from GDMS'],
-    'meraki'   => ['label' => 'Meraki Network',             'icon' => 'bi-hdd-network-fill','color' => 'warning', 'intervalKey' => 'meraki_polling_interval',  'desc' => 'Network devices and topology from Meraki API'],
+    'identity' => ['label' => 'Azure / Entra ID',           'icon' => 'bi-microsoft',       'color' => 'primary',  'intervalKey' => 'identity_sync_interval',  'desc' => 'Users, groups & licenses from Microsoft Graph'],
+    'gdms'     => ['label' => 'UCM / GDMS Cloud',           'icon' => 'bi-router-fill',     'color' => 'success',  'intervalKey' => 'gdms_sync_interval',       'desc' => 'SIP accounts & device registrations from GDMS (UCM provisioning)'],
+    'meraki'   => ['label' => 'Meraki Network',             'icon' => 'bi-hdd-network-fill','color' => 'warning',  'intervalKey' => 'meraki_polling_interval',  'desc' => 'Network devices and topology from Meraki API'],
+    'sophos'   => ['label' => 'Sophos Firewall API',        'icon' => 'bi-shield-lock-fill','color' => 'danger',   'intervalKey' => 'sophos_sync_interval',     'desc' => 'Interfaces, network objects, VPN tunnels & firewall rules from Sophos XG'],
 ];
 @endphp
 
@@ -95,6 +96,30 @@ $serviceConfig = [
                 @endif
             </dl>
 
+            {{-- Sophos-specific: show synced entity counts --}}
+            @if($svcKey === 'sophos' && !empty($s['counts']))
+            @php $c = $s['counts']; @endphp
+            <div class="d-flex gap-2 flex-wrap mb-3">
+                <span class="badge bg-light text-dark border">
+                    <i class="bi bi-shield-lock me-1"></i>{{ $c['firewalls'] }} firewall(s)
+                </span>
+                <span class="badge bg-light text-dark border">
+                    <i class="bi bi-ethernet me-1"></i>{{ number_format($c['interfaces']) }} interfaces
+                </span>
+                <span class="badge bg-light text-dark border">
+                    <i class="bi bi-diagram-3 me-1"></i>{{ number_format($c['objects']) }} objects
+                </span>
+                <span class="badge bg-light text-dark border">
+                    <i class="bi bi-list-check me-1"></i>{{ number_format($c['rules']) }} rules
+                </span>
+            </div>
+            @endif
+
+            @php
+            $triggerableServices = ['identity', 'gdms', 'meraki', 'sophos'];
+            $canTrigger = in_array($svcKey, $triggerableServices);
+            @endphp
+            @if($canTrigger)
             <form method="POST" action="{{ route('admin.sync-status.trigger') }}">
                 @csrf
                 <input type="hidden" name="service" value="{{ $svcKey }}">
@@ -103,6 +128,11 @@ $serviceConfig = [
                     {{ $run ? 'Running…' : 'Sync Now' }}
                 </button>
             </form>
+            @else
+            <button class="btn btn-sm btn-outline-secondary w-100" disabled title="Auto-synced via GDMS">
+                <i class="bi bi-info-circle me-1"></i>Synced via UCM / GDMS
+            </button>
+            @endif
         </div>
     </div>
 </div>
@@ -195,7 +225,7 @@ $serviceConfig = [
                 <tbody>
                 @foreach($history as $h)
                 @php
-                    $sLabel = $serviceConfig[$h->service]['label'] ?? $h->service;
+                    $sLabel = $serviceConfig[$h->service]['label'] ?? ucfirst($h->service);
                     $sIcon  = $serviceConfig[$h->service]['icon']  ?? 'bi-arrow-repeat';
                     $sColor = $serviceConfig[$h->service]['color'] ?? 'secondary';
                 @endphp

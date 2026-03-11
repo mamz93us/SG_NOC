@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\Credential;
 use App\Models\Department;
 use App\Models\Device;
+use App\Models\DeviceModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -96,9 +97,10 @@ class DeviceController extends Controller
 
     public function create()
     {
-        $branches    = Branch::orderBy('name')->get(['id', 'name']);
-        $departments = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
-        return view('admin.devices.form', compact('branches', 'departments'));
+        $branches     = Branch::orderBy('name')->get(['id', 'name']);
+        $departments  = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
+        $deviceModels = DeviceModel::orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
+        return view('admin.devices.form', compact('branches', 'departments', 'deviceModels'));
     }
 
     public function store(Request $request)
@@ -106,7 +108,7 @@ class DeviceController extends Controller
         $data = $request->validate([
             'type'                 => 'required|in:ucm,switch,router,firewall,ap,printer,server,laptop,desktop,monitor,keyboard,mouse,headset,tablet,other',
             'name'                 => 'required|string|max:255',
-            'model'                => 'nullable|string|max:255',
+            'device_model_id'      => 'nullable|exists:device_models,id',
             'serial_number'        => 'nullable|string|max:100',
             'mac_address'          => 'nullable|string|max:20',
             'ip_address'           => 'nullable|ip',
@@ -119,8 +121,6 @@ class DeviceController extends Controller
             'status'               => 'required|in:active,available,assigned,maintenance,retired',
             'purchase_date'        => 'nullable|date',
             'warranty_expiry'      => 'nullable|date',
-            'firmware_version'     => 'nullable|string|max:100',
-            'latest_firmware'      => 'nullable|string|max:100',
         ]);
 
         $device = Device::create(array_merge($data, ['source' => 'manual']));
@@ -133,10 +133,11 @@ class DeviceController extends Controller
 
     public function edit(Device $device)
     {
-        $branches    = Branch::orderBy('name')->get(['id', 'name']);
-        $departments = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
+        $branches     = Branch::orderBy('name')->get(['id', 'name']);
+        $departments  = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
+        $deviceModels = DeviceModel::orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
         $device->load(['floor', 'office']);
-        return view('admin.devices.form', compact('device', 'branches', 'departments'));
+        return view('admin.devices.form', compact('device', 'branches', 'departments', 'deviceModels'));
     }
 
     public function update(Request $request, Device $device)
@@ -144,7 +145,7 @@ class DeviceController extends Controller
         $data = $request->validate([
             'type'                 => 'required|in:ucm,switch,router,firewall,ap,printer,server,laptop,desktop,monitor,keyboard,mouse,headset,tablet,other',
             'name'                 => 'required|string|max:255',
-            'model'                => 'nullable|string|max:255',
+            'device_model_id'      => 'nullable|exists:device_models,id',
             'serial_number'        => 'nullable|string|max:100',
             'mac_address'          => 'nullable|string|max:20',
             'ip_address'           => 'nullable|ip',
@@ -157,8 +158,6 @@ class DeviceController extends Controller
             'status'               => 'required|in:active,available,assigned,maintenance,retired',
             'purchase_date'        => 'nullable|date',
             'warranty_expiry'      => 'nullable|date',
-            'firmware_version'     => 'nullable|string|max:100',
-            'latest_firmware'      => 'nullable|string|max:100',
         ]);
 
         $device->update($data);

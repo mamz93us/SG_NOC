@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\GdmsController;
 use App\Http\Controllers\Admin\NetworkController;
 use App\Http\Controllers\Admin\DeviceController;
+use App\Http\Controllers\Admin\DeviceModelController;
 use App\Http\Controllers\Admin\CredentialController;
 use App\Http\Controllers\Admin\PrinterController;
 use App\Http\Controllers\Admin\PrinterMaintenanceController;
@@ -288,6 +289,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('permissions.index');
         Route::put('permissions', [PermissionsController::class, 'update'])
             ->name('permissions.update');
+    });
+
+    // ─── Device Models ────────────────────────────────────────
+    Route::middleware('permission:view-assets')->group(function () {
+        Route::get('devices/models',  [DeviceModelController::class, 'index']) ->name('devices.models.index');
+    });
+    Route::middleware('permission:manage-assets')->group(function () {
+        Route::post('devices/models',                  [DeviceModelController::class, 'store'])   ->name('devices.models.store');
+        Route::put('devices/models/{deviceModel}',     [DeviceModelController::class, 'update'])  ->name('devices.models.update');
+        Route::delete('devices/models/{deviceModel}',  [DeviceModelController::class, 'destroy']) ->name('devices.models.destroy');
     });
 
     // ─── Devices (Assets) ─────────────────────────────────────

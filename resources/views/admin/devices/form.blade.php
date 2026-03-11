@@ -58,8 +58,26 @@
                 {{-- ── Model + Serial ── --}}
                 <div class="col-md-6">
                     <label class="form-label">Model</label>
-                    <input type="text" name="model" class="form-control"
-                           value="{{ old('model', $device->model ?? '') }}" maxlength="255">
+                    <div class="input-group">
+                        <select name="device_model_id" id="dv_model" class="form-select">
+                            <option value="">— None —</option>
+                            @foreach($deviceModels ?? [] as $dm)
+                            <option value="{{ $dm->id }}"
+                                    data-type="{{ $dm->device_type ?? '' }}"
+                                {{ old('device_model_id', $device->device_model_id ?? '') == $dm->id ? 'selected' : '' }}>
+                                {{ $dm->manufacturer ? $dm->manufacturer . ' ' . $dm->name : $dm->name }}
+                            </option>
+                            @endforeach
+                        </select>
+                        <button type="button" class="btn btn-outline-secondary"
+                                title="Add new model"
+                                data-bs-toggle="modal" data-bs-target="#dvAddModelModal">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                    <div class="form-text text-muted">Select a model or
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#dvAddModelModal">add a new one</a>.
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Serial Number</label>
@@ -169,24 +187,6 @@
                            value="{{ old('warranty_expiry', isset($device->warranty_expiry) ? $device->warranty_expiry->format('Y-m-d') : '') }}">
                 </div>
 
-                {{-- ── Firmware ── --}}
-                <div class="col-12">
-                    <hr class="my-0">
-                    <p class="fw-semibold small text-muted mb-0 mt-2">
-                        <i class="bi bi-cpu-fill me-1"></i>Firmware Information
-                    </p>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Installed Firmware Version</label>
-                    <input type="text" name="firmware_version" class="form-control"
-                           value="{{ old('firmware_version', $device->firmware_version ?? '') }}" maxlength="100" placeholder="e.g. 15.2(4)E7">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Latest Available Firmware</label>
-                    <input type="text" name="latest_firmware" class="form-control"
-                           value="{{ old('latest_firmware', $device->latest_firmware ?? '') }}" maxlength="100" placeholder="e.g. 15.2(4)E10">
-                </div>
-
                 {{-- ── Notes ── --}}
                 <div class="col-12">
                     <label class="form-label">Notes</label>
@@ -200,6 +200,53 @@
                 <a href="{{ route('admin.devices.index') }}" class="btn btn-outline-secondary">Cancel</a>
             </div>
         </form>
+    </div>
+</div>
+
+{{-- ── Add Model Modal ─────────────────────────────────────────── --}}
+<div class="modal fade" id="dvAddModelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-semibold"><i class="bi bi-collection me-1"></i>Add Device Model</h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dvAmError" class="alert alert-danger d-none py-2"></div>
+                <div class="row g-2">
+                    <div class="col-md-7">
+                        <label class="form-label small fw-semibold">Model Name <span class="text-danger">*</span></label>
+                        <input type="text" id="dvAmName" class="form-control form-control-sm"
+                               placeholder="e.g. UCM6510" maxlength="255">
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label small fw-semibold">Manufacturer</label>
+                        <input type="text" id="dvAmManufacturer" class="form-control form-control-sm"
+                               placeholder="e.g. Grandstream" maxlength="255">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Device Type</label>
+                        <select id="dvAmType" class="form-select form-select-sm">
+                            <option value="">— None —</option>
+                            @foreach(['ucm','switch','router','firewall','ap','printer','server','laptop','desktop','monitor','keyboard','mouse','headset','tablet','other'] as $t)
+                            <option value="{{ $t }}">{{ ucfirst($t) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Latest Firmware</label>
+                        <input type="text" id="dvAmFirmware" class="form-control form-control-sm font-monospace"
+                               placeholder="e.g. 1.0.23.29" maxlength="100">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" id="dvAmSaveBtn">
+                    <i class="bi bi-plus-lg me-1"></i>Create &amp; Select
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -232,11 +279,51 @@
 @push('scripts')
 <script>
 // ── Server-side URLs ─────────────────────────────────────────────────
-const dv_floorsUrl  = '{{ route("admin.network.floors") }}';
-const dv_officesUrl = '{{ route("admin.network.offices") }}';
-const dv_macUrl     = '{{ route("admin.network.clients.mac-search") }}';
-const dv_deptStore  = '{{ route("admin.settings.departments.store") }}';
-const dv_csrf       = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const dv_floorsUrl    = '{{ route("admin.network.floors") }}';
+const dv_officesUrl   = '{{ route("admin.network.offices") }}';
+const dv_macUrl       = '{{ route("admin.network.clients.mac-search") }}';
+const dv_deptStore    = '{{ route("admin.settings.departments.store") }}';
+const dv_modelStore   = '{{ route("admin.devices.models.store") }}';
+const dv_csrf         = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+// ── Add Model (AJAX) ──────────────────────────────────────────────────
+document.getElementById('dvAmSaveBtn').addEventListener('click', async function() {
+    const name         = document.getElementById('dvAmName').value.trim();
+    const manufacturer = document.getElementById('dvAmManufacturer').value.trim();
+    const device_type  = document.getElementById('dvAmType').value;
+    const firmware     = document.getElementById('dvAmFirmware').value.trim();
+    const errEl        = document.getElementById('dvAmError');
+    errEl.classList.add('d-none');
+
+    if (!name) {
+        errEl.textContent = 'Model name is required.';
+        errEl.classList.remove('d-none');
+        return;
+    }
+
+    const res = await fetch(dv_modelStore, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': dv_csrf, 'Accept': 'application/json' },
+        body: JSON.stringify({ name, manufacturer: manufacturer || null, device_type: device_type || null, latest_firmware: firmware || null }),
+    });
+    const data = await res.json();
+    if (!res.ok && res.status !== 201) {
+        const msgs = Object.values(data.errors || {}).flat();
+        errEl.textContent = msgs[0] || data.message || 'Error creating model.';
+        errEl.classList.remove('d-none');
+        return;
+    }
+
+    // Add to select and auto-select
+    const select = document.getElementById('dv_model');
+    const opt = new Option(data.name, data.id, true, true);
+    select.add(opt);
+    bootstrap.Modal.getInstance(document.getElementById('dvAddModelModal')).hide();
+
+    // Clear form
+    ['dvAmName','dvAmManufacturer','dvAmFirmware'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('dvAmType').value = '';
+});
 
 // ── Cascading location dropdowns ──────────────────────────────────────
 

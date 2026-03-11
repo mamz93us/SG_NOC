@@ -13,6 +13,7 @@ class Device extends Model
         'type',
         'name',
         'model',
+        'device_model_id',
         'serial_number',
         'mac_address',
         'ip_address',
@@ -38,6 +39,11 @@ class Device extends Model
     ];
 
     // ─── Relationships ────────────────────────────────────────────
+
+    public function deviceModel(): BelongsTo
+    {
+        return $this->belongsTo(DeviceModel::class, 'device_model_id');
+    }
 
     public function branch(): BelongsTo
     {

@@ -5,7 +5,25 @@
       "Bash(xargs grep -l \"IppbxApiService\\\\|UCM\\\\|Credential\")",
       "Bash(Select-String -Path \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\storage\\\\logs\\\\laravel.log\" -Pattern \"IPSec|VPN|vpn\" -SimpleMatch)",
       "Bash(Select-Object -Last 30)",
-      "Bash(ForEach-Object { $_Line })"
+      "Bash(ForEach-Object { $_Line })",
+      "Bash(grep -n \"subnet_id\\\\|device_type\\\\|device_models\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)",
+      "Bash(grep -r \"admin.network\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/routes/*.php)",
+      "Bash(php artisan migrate --force)",
+      "Bash(php artisan config:cache)",
+      "Bash(php -l \"database/migrations/2026_03_11_000011_create_device_models_table.php\")",
+      "Bash(php -l \"database/migrations/2026_03_11_000012_add_device_model_id_to_devices.php\")",
+      "Bash(php -l \"app/Models/DeviceModel.php\")",
+      "Bash(php -l \"app/Http/Controllers/Admin/DeviceModelController.php\")",
+      "Bash(php -l \"app/Http/Controllers/Admin/SyncStatusController.php\")",
+      "Bash(php -l \"app/Jobs/SyncSophosDataJob.php\")",
+      "Bash(php -l \"app/Services/IpamService.php\")",
+      "Bash(php -l \"app/Http/Controllers/Admin/NetworkController.php\")",
+      "Bash(php -l \"app/Http/Controllers/Admin/DeviceController.php\")",
+      "Bash(php -l \"app/Http/Controllers/Admin/IpReservationController.php\")",
+      "Bash(php -l \"app/Http/Controllers/Admin/VpnHubController.php\")",
+      "Bash(php -l \"app/Services/VpnControlService.php\")",
+      "Bash(php -l \"app/Models/Device.php\")",
+      "Bash(php -l \"routes/web.php\")"
     ]
   }
 }

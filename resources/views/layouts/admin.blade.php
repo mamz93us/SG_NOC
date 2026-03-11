@@ -262,6 +262,12 @@
                                     <i class="bi bi-arrow-up-circle me-2"></i>Firmware Tracker
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.devices.models.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.devices.models.index') }}">
+                                    <i class="bi bi-collection me-2"></i>Device Models
+                                </a>
+                            </li>
                             @endcan
                             @can('view-printers')
                             <li>

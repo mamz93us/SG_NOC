@@ -167,6 +167,18 @@ class VpnControlService
         }
 
         $output = $process->getOutput();
+
+        // Detect swanctl not responding (empty combined output)
+        if (empty(trim($output))) {
+            Log::warning('VpnControlService: swanctl returned empty output', ['args' => $args]);
+            return [
+                'status'            => 'unavailable',
+                'swanctl_available' => false,
+                'output'            => '',
+                'message'           => 'swanctl service is not responding. Check that strongSwan is installed and running.',
+            ];
+        }
+
         $decoded = json_decode($output, true);
 
         if ($decoded) {
@@ -175,14 +187,14 @@ class VpnControlService
 
         // Check for raw log delimiters - use more flexible whitespace matching
         if (preg_match('/RAW_LOGS_START\s+(.*)\s+RAW_LOGS_END/s', $output, $matches)) {
-            return ['status' => 'success', 'output' => trim($matches[1])];
+            return ['status' => 'success', 'swanctl_available' => true, 'output' => trim($matches[1])];
         }
 
         // Check for raw output delimiters (used by status action)
         if (preg_match('/RAW_OUTPUT_START\s+(.*)\s+RAW_OUTPUT_END/s', $output, $matches)) {
-            return ['status' => 'success', 'output' => trim($matches[1])];
+            return ['status' => 'success', 'swanctl_available' => true, 'output' => trim($matches[1])];
         }
 
-        return ['status' => 'success', 'output' => $output];
+        return ['status' => 'success', 'swanctl_available' => true, 'output' => $output];
     }
 }

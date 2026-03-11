@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SyncMerakiData;
 use App\Models\ActivityLog;
 use App\Models\Branch;
+use App\Models\DhcpLease;
+use App\Models\IpReservation;
 use App\Models\NetworkClient;
 use App\Models\NetworkEvent;
 use App\Models\NetworkFloor;
@@ -414,14 +416,76 @@ class NetworkController extends Controller
             return response()->json([]);
         }
 
-        $clients = NetworkClient::where('mac', 'like', "%{$q}%")
+        $results = collect();
+
+        // ── 1. Meraki clients ─────────────────────────────────────────
+        NetworkClient::where('mac', 'like', "%{$q}%")
             ->orWhere('ip', 'like', "%{$q}%")
             ->orWhere('hostname', 'like', "%{$q}%")
             ->orderBy('mac')
             ->limit(20)
-            ->get(['mac', 'ip', 'hostname', 'manufacturer', 'switch_serial', 'port_id', 'vlan']);
+            ->get(['mac', 'ip', 'hostname', 'manufacturer', 'switch_serial', 'port_id', 'vlan'])
+            ->each(function ($c) use (&$results) {
+                $results->push([
+                    'mac'          => $c->mac,
+                    'ip'           => $c->ip,
+                    'hostname'     => $c->hostname,
+                    'manufacturer' => $c->manufacturer,
+                    'switch_serial'=> $c->switch_serial,
+                    'port_id'      => $c->port_id,
+                    'vlan'         => $c->vlan,
+                    'source'       => 'meraki',
+                ]);
+            });
 
-        return response()->json($clients);
+        // ── 2. DHCP Leases ────────────────────────────────────────────
+        DhcpLease::where('mac_address', 'like', "%{$q}%")
+            ->orWhere('ip_address', 'like', "%{$q}%")
+            ->orWhere('hostname', 'like', "%{$q}%")
+            ->orderBy('mac_address')
+            ->limit(20)
+            ->get(['mac_address', 'ip_address', 'hostname', 'vendor', 'switch_serial', 'port_id', 'vlan'])
+            ->each(function ($l) use (&$results) {
+                $results->push([
+                    'mac'          => $l->mac_address,
+                    'ip'           => $l->ip_address,
+                    'hostname'     => $l->hostname,
+                    'manufacturer' => $l->vendor,
+                    'switch_serial'=> $l->switch_serial,
+                    'port_id'      => $l->port_id,
+                    'vlan'         => $l->vlan,
+                    'source'       => 'dhcp',
+                ]);
+            });
+
+        // ── 3. IP Reservations ────────────────────────────────────────
+        IpReservation::where('mac_address', 'like', "%{$q}%")
+            ->orWhere('ip_address', 'like', "%{$q}%")
+            ->orWhere('device_name', 'like', "%{$q}%")
+            ->orderBy('mac_address')
+            ->limit(20)
+            ->get(['mac_address', 'ip_address', 'device_name', 'vlan'])
+            ->each(function ($r) use (&$results) {
+                $results->push([
+                    'mac'          => $r->mac_address,
+                    'ip'           => $r->ip_address,
+                    'hostname'     => $r->device_name,
+                    'manufacturer' => null,
+                    'switch_serial'=> null,
+                    'port_id'      => null,
+                    'vlan'         => $r->vlan,
+                    'source'       => 'reservation',
+                ]);
+            });
+
+        // ── Deduplicate by MAC (meraki > dhcp > reservation) ─────────
+        $deduped = $results
+            ->filter(fn($item) => !empty($item['mac']))
+            ->unique('mac')
+            ->values()
+            ->take(20);
+
+        return response()->json($deduped);
     }
 
     // ─────────────────────────────────────────────────────────────

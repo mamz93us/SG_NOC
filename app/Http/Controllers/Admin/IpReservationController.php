@@ -100,7 +100,7 @@ class IpReservationController extends Controller
     {
         $data = $request->validate([
             'branch_id'   => 'required|exists:branches,id',
-            'subnet_id'   => 'nullable|exists:ipam_subnets,id',
+            'subnet_id'   => 'required|exists:ipam_subnets,id',
             'ip_address'  => 'nullable|ip', // nullable because of auto-assign
             'subnet'      => 'nullable|string|max:45',
             'device_type' => 'nullable|string|max:50',
@@ -162,7 +162,7 @@ class IpReservationController extends Controller
     {
         $data = $request->validate([
             'branch_id'   => 'required|exists:branches,id',
-            'subnet_id'   => 'nullable|exists:ipam_subnets,id',
+            'subnet_id'   => 'required|exists:ipam_subnets,id',
             'ip_address'  => 'required|ip',
             'subnet'      => 'nullable|string|max:45',
             'device_type' => 'nullable|string|max:50',

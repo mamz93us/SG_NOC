@@ -172,7 +172,11 @@ function refreshTroubleshoot() {
         })
         .then(data => {
             clearTimeout(timeoutId);
-            logContainer.textContent = data.logs || 'No logs returned from server.';
+            if (data.status === 'unavailable') {
+                logContainer.innerHTML = `<span class="text-warning">${data.logs || 'swanctl service unavailable.'}</span>`;
+            } else {
+                logContainer.textContent = data.logs || 'No logs returned from server.';
+            }
         })
         .catch(err => {
             clearTimeout(timeoutId);
@@ -185,7 +189,20 @@ function refreshTroubleshoot() {
         fetch(`{{ url('admin/network/vpn') }}/${currentTunnelId}/status`)
             .then(r => r.json())
             .then(data => {
+                if (data.swanctl_available === false) {
+                let msg = '⚠️ swanctl is not responding — last known status: ' + (data.last_known_status || 'unknown').toUpperCase() + '\n\n';
+                msg += data.raw_output || '';
+                if (data.sophosVpn) {
+                    msg += '\n\n📡 Sophos Firewall reports:\n';
+                    msg += `  Tunnel: ${data.sophosVpn.name}\n`;
+                    msg += `  Status: ${(data.sophosVpn.status || 'unknown').toUpperCase()}\n`;
+                    msg += `  Remote GW: ${data.sophosVpn.remote_gateway || 'N/A'}\n`;
+                    msg += `  Checked: ${data.sophosVpn.last_checked || 'N/A'}`;
+                }
+                saContainer.textContent = msg;
+            } else {
                 saContainer.textContent = data.raw_output || 'No specific SA info for this tunnel.';
+            }
             })
             .catch(err => {
                 saContainer.textContent = 'Error checking tunnel status: ' + err.message;
@@ -208,7 +225,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 return response.json();
             })
             .then(data => {
-                if (data.is_up) {
+                if (data.swanctl_available === false) {
+                    // swanctl not responding — show last known status with warning
+                    const lastStatus = (data.last_known_status || 'unknown').toUpperCase();
+                    const colorClass = lastStatus === 'UP' ? 'text-success' : (lastStatus === 'DOWN' ? 'text-danger' : 'text-secondary');
+                    container.innerHTML = `
+                        <span class="badge rounded-circle bg-warning p-1 me-1" style="width:10px;height:10px;" title="swanctl not responding"></span>
+                        <span class="${colorClass} small fw-bold" style="cursor:help"
+                              title="swanctl unavailable — last known: ${lastStatus}"
+                              onclick="showTroubleshoot(${id})">${lastStatus}*</span>
+                        <i class="bi bi-exclamation-triangle text-warning ms-1" title="swanctl not responding"></i>
+                    `;
+                } else if (data.is_up) {
                     container.innerHTML = `
                         <span class="badge rounded-circle bg-success p-1 me-2" style="width: 10px; height: 10px;"></span>
                         <span class="text-success small fw-bold" style="cursor:help" title="Click for details" onclick="showTroubleshoot(${id})">UP</span>

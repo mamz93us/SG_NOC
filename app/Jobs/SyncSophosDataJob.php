@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\ServiceSyncLog;
 use App\Models\SophosFirewall;
 use App\Models\SophosFirewallRule;
 use App\Models\SophosInterface;
@@ -33,6 +34,9 @@ class SyncSophosDataJob implements ShouldQueue
 
         Log::info("SyncSophosDataJob: Starting sync for {$this->firewall->name} ({$this->firewall->ip})");
 
+        // Create a running entry in the sync log for the status dashboard
+        $syncLog = ServiceSyncLog::start('sophos');
+
         $errors = [];
 
         try {
@@ -45,9 +49,19 @@ class SyncSophosDataJob implements ShouldQueue
             $vpnCount    = $this->safeSyncVpnTunnels($api, $errors);
             $ruleCount   = $this->safeSyncFirewallRules($api, $errors);
 
+            $totalRecords = $ifaceCount + $objectCount + $vpnCount + $ruleCount;
+            $detail = "{$this->firewall->name}: {$ifaceCount} ifaces, {$objectCount} objects, {$vpnCount} VPN, {$ruleCount} rules";
+
             Log::info("SyncSophosDataJob: Synced {$this->firewall->name} — {$ifaceCount} interfaces, {$objectCount} objects, {$vpnCount} VPN tunnels, {$ruleCount} rules");
 
             $this->firewall->update(['last_synced_at' => now()]);
+
+            // Mark sync log as completed
+            $syncLog->update([
+                'status'         => 'completed',
+                'records_synced' => $totalRecords,
+                'completed_at'   => now(),
+            ]);
 
             // Log to ActivityLog for UI visibility
             \App\Models\ActivityLog::log(
@@ -67,7 +81,7 @@ class SyncSophosDataJob implements ShouldQueue
             // Log any per-entity errors that were caught but didn't kill the sync
             if (!empty($errors)) {
                 Log::warning("SyncSophosDataJob: {$this->firewall->name} completed with " . count($errors) . " warnings", $errors);
-                
+
                 \App\Models\ActivityLog::log(
                     'Sophos Sync Warning',
                     "Sync for '{$this->firewall->name}' had warnings: " . implode(', ', $errors),
@@ -81,6 +95,13 @@ class SyncSophosDataJob implements ShouldQueue
         } catch (\Throwable $e) {
             Log::error("SyncSophosDataJob: Failed for {$this->firewall->name}", [
                 'error' => $e->getMessage(),
+            ]);
+
+            // Mark sync log as failed
+            $syncLog->update([
+                'status'        => 'failed',
+                'error_message' => $e->getMessage(),
+                'completed_at'  => now(),
             ]);
 
             // Create NOC alert for sync failure

@@ -5,12 +5,16 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ServiceSyncLog;
 use App\Models\Setting;
+use App\Models\SophosFirewall;
+use App\Models\SophosFirewallRule;
+use App\Models\SophosInterface;
+use App\Models\SophosNetworkObject;
 use Illuminate\Http\Request;
 use Symfony\Component\Process\PhpExecutableFinder;
 
 class SyncStatusController extends Controller
 {
-    private const SERVICES = ['identity', 'gdms', 'meraki'];
+    private const SERVICES = ['identity', 'gdms', 'meraki', 'sophos', 'ucm'];
 
     public function index()
     {
@@ -29,11 +33,20 @@ class SyncStatusController extends Controller
             ];
         }
 
+        // Sophos counts for the status card
+        $status['sophos']['counts'] = [
+            'firewalls'  => SophosFirewall::where('sync_enabled', true)->count(),
+            'interfaces' => SophosInterface::count(),
+            'objects'    => SophosNetworkObject::count(),
+            'rules'      => SophosFirewallRule::count(),
+        ];
+
         // Resolve intervals (from settings, falling back to defaults)
         $intervals = [
             'identity' => $settings->identity_sync_interval ?? 720,  // minutes — default 12h
             'gdms'     => $settings->gdms_sync_interval     ?? 5,
             'meraki'   => $settings->meraki_polling_interval ?? 5,
+            'sophos'   => $settings->sophos_sync_interval   ?? 15,
         ];
 
         // Recent history (last 20 across all services)
@@ -48,12 +61,14 @@ class SyncStatusController extends Controller
             'identity_sync_interval'  => 'required|integer|min:5|max:10080',
             'gdms_sync_interval'      => 'required|integer|min:5|max:10080',
             'meraki_polling_interval' => 'required|integer|min:5|max:10080',
+            'sophos_sync_interval'    => 'required|integer|min:5|max:10080',
         ]);
 
         $settings = Setting::get();
         $settings->identity_sync_interval  = (int) $request->identity_sync_interval;
         $settings->gdms_sync_interval      = (int) $request->gdms_sync_interval;
         $settings->meraki_polling_interval = (int) $request->meraki_polling_interval;
+        $settings->sophos_sync_interval    = (int) $request->sophos_sync_interval;
         $settings->save();
 
         return redirect()->route('admin.sync-status')
@@ -62,7 +77,7 @@ class SyncStatusController extends Controller
 
     public function triggerSync(Request $request)
     {
-        $request->validate(['service' => 'required|in:identity,gdms,meraki']);
+        $request->validate(['service' => 'required|in:identity,gdms,meraki,sophos']);
 
         $service = $request->service;
 
@@ -70,6 +85,7 @@ class SyncStatusController extends Controller
             'identity' => 'identity:sync',
             'gdms'     => 'gdms:sync-contacts',
             'meraki'   => 'meraki:sync',
+            'sophos'   => 'sophos:sync',
         ];
 
         // Find CLI php binary (not FPM) using Symfony

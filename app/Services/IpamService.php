@@ -52,7 +52,7 @@ class IpamService
 
     /**
      * Build a visual IP grid for a subnet.
-     * Returns array of ['ip' => ..., 'status' => ..., 'device' => ..., 'mac' => ...]
+     * Returns array of cell data including port/switch/manufacturer from Meraki clients.
      */
     public function getIpGrid(IpamSubnet $subnet): array
     {
@@ -76,10 +76,16 @@ class IpamService
             ->get()
             ->keyBy('ip_address');
 
+        // Meraki clients — used as fallback when no reservation/lease
+        $clients = NetworkClient::whereIn('ip', $allIps)
+            ->get()
+            ->keyBy('ip');
+
         $grid = [];
         foreach ($allIps as $ip) {
             $reservation = $reservations->get($ip);
             $lease       = $leases->get($ip);
+            $client      = $clients->get($ip);
 
             if ($reservation && $reservation->status === 'conflict') {
                 $status = 'conflict';
@@ -89,18 +95,23 @@ class IpamService
                 $status = $reservation->status ?: 'static';
             } elseif ($lease) {
                 $status = 'dhcp';
+            } elseif ($client) {
+                $status = 'dhcp';
             } else {
                 $status = 'available';
             }
 
             $grid[] = [
-                'ip'          => $ip,
-                'status'      => $status,
-                'device_name' => $reservation?->device_name ?? $lease?->hostname ?? null,
-                'mac'         => $reservation?->mac_address ?? $lease?->mac_address ?? null,
-                'device_type' => $reservation?->device_type ?? null,
-                'vlan'        => $reservation?->vlan ?? $lease?->vlan ?? null,
-                'source'      => $lease?->source ?? $reservation?->source ?? null,
+                'ip'           => $ip,
+                'status'       => $status,
+                'device_name'  => $reservation?->device_name ?? $lease?->hostname ?? $client?->hostname ?? null,
+                'mac'          => $reservation?->mac_address ?? $lease?->mac_address ?? $client?->mac ?? null,
+                'device_type'  => $reservation?->device_type ?? null,
+                'vlan'         => $reservation?->vlan ?? $lease?->vlan ?? $client?->vlan ?? $subnet->vlan ?? null,
+                'source'       => $lease?->source ?? ($client ? 'meraki' : null) ?? $reservation?->source ?? null,
+                'port'         => $lease?->port_id ?? $client?->port_id ?? null,
+                'switch_serial'=> $lease?->switch_serial ?? $client?->switch_serial ?? null,
+                'manufacturer' => $lease?->vendor ?? $client?->manufacturer ?? null,
             ];
         }
 
@@ -110,7 +121,8 @@ class IpamService
     // ─── Auto-Assign IP ───────────────────────────────────────────
 
     /**
-     * Find the next available IP in a subnet.
+     * Find the next available IP in a subnet, excluding IPs used by
+     * reservations, DHCP leases, AND currently-seen Meraki clients.
      */
     public function autoAssignIp(IpamSubnet $subnet): ?string
     {
@@ -118,9 +130,10 @@ class IpamService
 
         $usedIps = collect()
             ->merge(IpReservation::where('subnet_id', $subnet->id)->pluck('ip_address'))
-            ->merge(DhcpLease::where('subnet_id', $subnet->id)
+            ->merge(DhcpLease::whereIn('ip_address', $allIps)
                 ->where('last_seen', '>=', now()->subHours(24))
                 ->pluck('ip_address'))
+            ->merge(NetworkClient::whereIn('ip', $allIps)->pluck('ip')) // also exclude Meraki-seen IPs
             ->unique()
             ->toArray();
 

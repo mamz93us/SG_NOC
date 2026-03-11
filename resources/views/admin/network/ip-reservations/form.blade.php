@@ -31,9 +31,9 @@
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label fw-semibold">Subnet (IPAM)</label>
-                    <select name="subnet_id" id="subnet_id" class="form-select select2">
-                        <option value="">Select Subnet (Optional)</option>
+                    <label class="form-label fw-semibold">Subnet (IPAM) <span class="text-danger">*</span></label>
+                    <select name="subnet_id" id="subnet_id" class="form-select select2" required>
+                        <option value="">Select Subnet</option>
                         @foreach($subnets as $s)
                         <option value="{{ $s->id }}" data-branch="{{ $s->branch_id }}" data-vlan="{{ $s->vlan }}" {{ old('subnet_id', $reservation->subnet_id ?? '') == $s->id ? 'selected' : '' }}>
                             {{ $s->cidr }} ({{ $s->branch?->name }})
@@ -165,16 +165,20 @@ $(document).ready(function() {
     filterSubnets();
     
     // Auto populate fields based on Device selection
+    // Fields are pre-filled but always remain editable — user can still change them freely
     deviceSelect.on('change', function() {
         if (!$(this).val()) return;
         const selected = $(this).find(':selected');
-        const mac = selected.data('mac');
+        const mac  = selected.data('mac');
         const name = selected.data('name');
         const type = selected.data('type');
-        
-        if (mac && !macInput.val()) macInput.val(mac);
-        if (name && !deviceNameInput.val()) deviceNameInput.val(name);
-        if (type && !typeSelect.val()) typeSelect.val(type);
+
+        // Always overwrite when a device is (re-)selected
+        if (mac)  macInput.val(mac);
+        if (name) deviceNameInput.val(name);
+        if (type) typeSelect.val(type);
+
+        // Fields stay enabled and editable — no disabling here
     });
 
     // Auto Assign IP feature
