@@ -56,29 +56,45 @@ class VpnControlService
             '14' => 'modp2048',
             '15' => 'modp3072',
             '16' => 'modp4096',
+            '18' => 'modp8192',
             '19' => 'ecp256',
+            '20' => 'ecp384',
+            '21' => 'ecp521',
+            '31' => 'curve25519',
         ];
         $dh = $dhMap[$tunnel->dh_group] ?? "modp{$tunnel->dh_group}";
 
+        // Main proposal based on user selection
         $proposal = "{$encryption}-{$hash}-{$dh}";
+        
+        // Build unique proposals list with standard fallbacks
+        $fallbackList = [
+            $proposal,
+            "aes256-sha512-curve25519",
+            "aes256-sha256-curve25519",
+            "aes256-sha512-modp4096",
+            "aes256-sha256-modp2048",
+            "aes256-sha1-modp2048",
+            "aes128-sha1-modp1024"
+        ];
+        $proposals = implode(',', array_unique($fallbackList));
 
         $config = "connections {\n";
         $config .= "    {$tunnel->name} {\n";
         $config .= "        remote_addrs = {$tunnel->remote_public_ip}\n";
         $config .= "        version = " . ($tunnel->ike_version === 'IKEv2' ? '2' : '1') . "\n";
-        $config .= "        proposals = {$proposal}\n";
+        $config .= "        proposals = {$proposals}\n";
         $config .= "        rekey_time = {$tunnel->lifetime}\n";
+        $localId = $tunnel->local_id ?: config('vpn.local_id', 'noc.samirgroup.net');
+        $remoteId = $tunnel->remote_id ?: $tunnel->remote_public_ip;
+
         $config .= "        local {\n";
         $config .= "            auth = psk\n";
-        if ($tunnel->local_id) {
-            $config .= "            id = {$tunnel->local_id}\n";
-        }
+        $config .= "            id = {$localId}\n";
         $config .= "        }\n";
         $config .= "        remote {\n";
         $config .= "            auth = psk\n";
-        if ($tunnel->remote_id) {
-            $config .= "            id = {$tunnel->remote_id}\n";
-        }
+        $config .= "            id = {$remoteId}\n";
         $config .= "        }\n";
         $config .= "        children {\n";
         
@@ -97,7 +113,7 @@ class VpnControlService
                 $config .= "            {$childName} {\n";
                 $config .= "                local_ts = {$localTs}\n";
                 $config .= "                remote_ts = {$remoteTs}\n";
-                $config .= "                esp_proposals = {$proposal}\n";
+                $config .= "                esp_proposals = {$proposals}\n";
                 $config .= "                dpd_action = restart\n";
                 $config .= "                start_action = start\n";
                 $config .= "            }\n";
@@ -111,15 +127,8 @@ class VpnControlService
         
         $config .= "secrets {\n";
         $config .= "    ike-{$tunnel->name} {\n";
-        // Bind PSK to specific identities when IDs are configured.
-        // This matches strongSwan's id-N syntax and prevents PSK ambiguity.
-        if ($tunnel->local_id) {
-            $config .= "        id-0 = {$tunnel->local_id}\n";
-        }
-        if ($tunnel->remote_id) {
-            $idIndex = $tunnel->local_id ? '1' : '0';
-            $config .= "        id-{$idIndex} = {$tunnel->remote_id}\n";
-        }
+        $config .= "        id-0 = {$localId}\n";
+        $config .= "        id-1 = {$remoteId}\n";
         $config .= "        secret = \"{$tunnel->pre_shared_key}\"\n";
         $config .= "    }\n";
         $config .= "}\n";

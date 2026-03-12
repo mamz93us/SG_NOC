@@ -39,6 +39,13 @@
         <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#resetPwModal">
             <i class="bi bi-key me-1"></i>Reset Password
         </button>
+        <form method="POST" action="{{ route('admin.identity.user.destroy', $user->azure_id) }}" class="d-inline">
+            @csrf @method('DELETE')
+            <button type="submit" class="btn btn-sm btn-danger"
+                    onclick="return confirm('PERMANENTLY DELETE this user from Azure AD (Entra)? This cannot be undone!')">
+                <i class="bi bi-trash me-1"></i>Delete User
+            </button>
+        </form>
         @endcan
     </div>
 </div>

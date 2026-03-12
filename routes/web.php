@@ -363,6 +363,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/users/{azureId}/remove-license',         [IdentityController::class, 'removeLicense'])  ->name('user.remove-license');
         Route::post('/users/{azureId}/add-group',                [IdentityController::class, 'addGroup'])       ->name('user.add-group');
         Route::delete('/users/{azureId}/remove-group',           [IdentityController::class, 'removeGroup'])    ->name('user.remove-group');
+        Route::delete('/users/{azureId}/delete',                 [IdentityController::class, 'destroyUser'])    ->name('user.destroy');
     });
     Route::middleware('permission:manage-identity-settings')->prefix('identity')->name('identity.')->group(function () {
         Route::post('/test-connection',  [IdentityController::class, 'testConnection']) ->name('test-connection');

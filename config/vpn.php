@@ -11,4 +11,5 @@ return [
     |
     */
     'local_subnet' => env('VPN_LOCAL_SUBNET', '10.0.0.0/16'),
+    'local_id'     => env('VPN_LOCAL_ID', 'noc.samirgroup.net'),
 ];

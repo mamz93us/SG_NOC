@@ -66,7 +66,7 @@ class GraphService
     // Default timeout for Graph API HTTP calls (seconds).
     // Longer bulk requests (paginate, batch) use GRAPH_TIMEOUT_BULK.
     private const GRAPH_TIMEOUT      = 60;
-    private const GRAPH_TIMEOUT_BULK = 120;
+    private const GRAPH_TIMEOUT_BULK = 300; // Increased to 5 mins for large batch/paginate ops
 
     private function get(string $endpoint, array $query = []): array
     {
@@ -273,31 +273,39 @@ class GraphService
                 ];
             }
 
-            $resp = Http::timeout(self::GRAPH_TIMEOUT_BULK)->withToken($token)
-                ->post($this->baseUrl . '/$batch', ['requests' => $requests]);
-
-            // Retry once on 401 (stale token)
-            if ($resp->status() === 401) {
-                $token = $this->refreshToken();
-                $resp  = Http::timeout(self::GRAPH_TIMEOUT_BULK)->withToken($token)
+            try {
+                $resp = Http::timeout(self::GRAPH_TIMEOUT_BULK)->withToken($token)
                     ->post($this->baseUrl . '/$batch', ['requests' => $requests]);
-            }
 
-            if (!$resp->successful()) {
-                throw new \RuntimeException('Graph batch group-members failed: ' . $resp->body());
-            }
+                // Retry once on 401 (stale token)
+                if ($resp->status() === 401) {
+                    $token = $this->refreshToken();
+                    $resp  = Http::timeout(self::GRAPH_TIMEOUT_BULK)->withToken($token)
+                        ->post($this->baseUrl . '/$batch', ['requests' => $requests]);
+                }
 
-            foreach ($resp->json('responses', []) as $r) {
-                $idx     = (int)$r['id'] - 1;
-                $groupId = $chunk[$idx] ?? null;
-                if (!$groupId) {
+                if (!$resp->successful()) {
+                    Log::warning('Graph batch group-members chunk failed with status ' . $resp->status());
                     continue;
                 }
 
-                if ((int)$r['status'] === 200) {
-                    $result[$groupId] = collect($r['body']['value'] ?? [])->pluck('id')->all();
+                foreach ($resp->json('responses', []) as $r) {
+                    $idx     = (int)$r['id'] - 1;
+                    $groupId = $chunk[$idx] ?? null;
+                    if (!$groupId) {
+                        continue;
+                    }
+
+                    if ((int)$r['status'] === 200) {
+                        $result[$groupId] = collect($r['body']['value'] ?? [])->pluck('id')->all();
+                    }
+                    // 403 = app lacks permission to list this group's members — skip silently
                 }
-                // 403 = app lacks permission to list this group's members — skip silently
+                unset($resp);
+                gc_collect_cycles();
+            } catch (\Throwable $e) {
+                Log::warning('Graph batch group-members chunk exception: ' . $e->getMessage());
+                continue;
             }
         }
 
@@ -320,6 +328,11 @@ class GraphService
     public function disableUser(string $id): void
     {
         $this->patch("/users/{$id}", ['accountEnabled' => false]);
+    }
+
+    public function deleteUser(string $id): void
+    {
+        $this->delete("/users/{$id}");
     }
 
     public function enableUser(string $id): void

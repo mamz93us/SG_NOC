@@ -146,9 +146,9 @@ class IdentityController extends Controller
             return back()->with('error', 'Microsoft Graph credentials are not configured. Go to Settings → Identity (Graph) to set them up.');
         }
 
-        // ── Clean up orphaned "started" logs older than 10 minutes ──
+        // ── Clean up orphaned "started" logs older than 2 hours ──
         IdentitySyncLog::where('status', 'started')
-            ->where('started_at', '<', now()->subMinutes(10))
+            ->where('started_at', '<', now()->subHours(2))
             ->update([
                 'status'        => 'failed',
                 'error_message' => 'Sync aborted — process was interrupted before completion.',
@@ -157,7 +157,7 @@ class IdentityController extends Controller
 
         // ── Prevent double-dispatch if sync is already running ──
         $alreadyRunning = IdentitySyncLog::where('status', 'started')
-            ->where('started_at', '>=', now()->subMinutes(10))
+            ->where('started_at', '>=', now()->subHours(2))
             ->exists();
 
         if ($alreadyRunning) {
@@ -446,6 +446,31 @@ class IdentityController extends Controller
         ]);
 
         return back()->with('success', "Profile updated for {$user->display_name}.");
+    }
+
+    public function destroyUser(string $azureId)
+    {
+        $user  = IdentityUser::where('azure_id', $azureId)->firstOrFail();
+        $graph = new GraphService();
+
+        try {
+            $graph->deleteUser($azureId);
+            
+            ActivityLog::create([
+                'model_type' => 'IdentityUser',
+                'model_id'   => $user->id,
+                'action'     => 'deleted',
+                'changes'    => ['user' => $user->user_principal_name],
+                'user_id'    => Auth::id(),
+            ]);
+
+            $user->delete();
+
+            return redirect()->route('admin.identity.users')
+                ->with('success', "User {$user->display_name} has been deleted from Azure AD.");
+        } catch (\Exception $e) {
+            return back()->with('error', $this->graphFriendlyError($e));
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

@@ -96,6 +96,12 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
                 $this->host->type = 'switch';
                 $this->createSensor('CPU Usage (5m)', '1.3.6.1.4.1.9.9.109.1.1.1.1.8.1', 'gauge', '%', 85, 95, 'system');
                 $this->createSensor('Free Memory', '1.3.6.1.4.1.9.9.48.1.1.1.6.1', 'gauge', 'bytes', null, null, 'system');
+            } elseif (stripos($sysDescr, 'Aruba') !== false || stripos($sysDescr, 'HPE') !== false || (is_string($sysObjectID) && str_contains($sysObjectID, '.1.3.6.1.4.1.11'))) {
+                $discoveredType = 'hp_aruba';
+                $this->host->type = 'switch';
+            } elseif (stripos($sysDescr, 'Switch') !== false && stripos($this->host->type, 'switch') === false) {
+                $discoveredType = 'generic_switch';
+                $this->host->type = 'switch';
             } elseif ($isSophos) {
                 $discoveredType = 'sophos';
                 $this->host->type = 'firewall';

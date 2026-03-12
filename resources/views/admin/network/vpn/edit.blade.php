@@ -55,9 +55,9 @@
                         </div>
 
                         <div class="col-md-12">
-                            <label class="form-label fw-bold">Remote Public IP</label>
+                            <label class="form-label fw-bold">Remote Gateway (IP or DNS)</label>
                             <input type="text" name="remote_public_ip" class="form-control @error('remote_public_ip') is-invalid @enderror" 
-                                   value="{{ old('remote_public_ip', $tunnel->remote_public_ip) }}" placeholder="X.X.X.X" required>
+                                   value="{{ old('remote_public_ip', $tunnel->remote_public_ip) }}" placeholder="e.g. 212.x.x.x or branch.example.com" required>
                             @error('remote_public_ip') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
 
@@ -129,6 +129,7 @@
                                     <option value="15" {{ old('dh_group', $tunnel->dh_group) == 15 ? 'selected' : '' }}>Group 15 (3072-bit)</option>
                                     <option value="16" {{ old('dh_group', $tunnel->dh_group) == 16 ? 'selected' : '' }}>Group 16 (4096-bit)</option>
                                     <option value="19" {{ old('dh_group', $tunnel->dh_group) == 19 ? 'selected' : '' }}>Group 19 (ECP 256)</option>
+                                    <option value="31" {{ old('dh_group', $tunnel->dh_group) == 31 ? 'selected' : '' }}>Group 31 (Curve25519)</option>
                                 </select>
                             </div>
                             <div class="col-md-4">

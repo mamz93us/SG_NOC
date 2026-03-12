@@ -90,6 +90,20 @@ class CollectSnmpMetricsJob implements ShouldQueue
                         $finalValue = $parsedValue;
                         $skipMetric = false;
 
+                        // Normalize Status Values for Boolean Sensors
+                        if ($sensor->data_type === 'boolean') {
+                            if ($sensor->sensor_group === 'interface_status' || str_contains($sensor->oid, '1.3.6.1.2.1.2.2.1.8')) {
+                                // Standard ifOperStatus: 1=up, everything else (2=down, 3=testing, etc.) = down
+                                $finalValue = ($parsedValue == 1) ? 1.0 : 0.0;
+                            } elseif ($sensor->sensor_group === 'VPN') {
+                                // Sophos VPN status: 2=active, 1=connecting, 0=inactive
+                                $finalValue = ($parsedValue >= 1) ? 1.0 : 0.0;
+                            } else {
+                                // Default boolean logic: 1 is up/true, everything else is down/false
+                                $finalValue = ($parsedValue == 1) ? 1.0 : 0.0;
+                            }
+                        }
+
                         if ($sensor->data_type === 'counter') {
                             $isFirstPoll = ($sensor->last_raw_counter === null);
                             $finalValue = $this->calculateCounterRate($sensor, $parsedValue);
@@ -213,17 +227,9 @@ class CollectSnmpMetricsJob implements ShouldQueue
 
     protected function parseValue(string $value): float
     {
-        // Handle standard SNMP Timeticks
-        if (preg_match('/Timeticks:\s*\((\d+)\)/', $value, $matches)) {
+        // Handle numeric values
+        if (preg_match('/(?:INTEGER|Gauge32|Counter32|Counter64|Unsigned32|TimeTicks):\s*(-?\d+)/i', $value, $matches)) {
             return (float) $matches[1];
-        }
-
-        // Handle numeric statuses carefully BEFORE general numeric extraction
-        // Especially for Sophos VPN (2 = Active, 1 = Connecting, 0 = Inactive)
-        if (preg_match('/^INTEGER:\s*(\d+)$/', trim($value), $m)) {
-            $val = (int)$m[1];
-            // 2 is Active, 1 is Connecting. We'll count both as "Up" (1.0) for status sensors.
-            return ($val >= 1) ? 1.0 : 0.0;
         }
 
         // Counter64, Counter32, Gauge32, INTEGER, etc.

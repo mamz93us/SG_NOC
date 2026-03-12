@@ -31,7 +31,8 @@ class VpnHubController extends Controller
     {
         $branches = Branch::orderBy('name')->get();
         $defaultLocalSubnet = config('vpn.local_subnet');
-        return view('admin.network.vpn.create', compact('branches', 'defaultLocalSubnet'));
+        $defaultLocalId = config('vpn.local_id');
+        return view('admin.network.vpn.create', compact('branches', 'defaultLocalSubnet', 'defaultLocalId'));
     }
 
     public function store(Request $request)
@@ -39,7 +40,7 @@ class VpnHubController extends Controller
         $request->validate([
             'branch_id'        => 'required|exists:branches,id',
             'name'             => 'required|string|max:255|unique:vpn_tunnels,name|regex:/^[a-zA-Z0-9_]+$/',
-            'remote_public_ip' => 'required|ip',
+            'remote_public_ip' => 'required|string|max:255',
             'local_id'         => 'nullable|string|max:255',
             'remote_id'        => 'nullable|string|max:255',
             'remote_subnet'    => 'required|string', // Comma separated allowed
@@ -105,7 +106,7 @@ class VpnHubController extends Controller
         $request->validate([
             'branch_id'        => 'required|exists:branches,id',
             'name'             => 'required|string|max:255|unique:vpn_tunnels,name,' . $tunnel->id . '|regex:/^[a-zA-Z0-9_]+$/',
-            'remote_public_ip' => 'required|ip',
+            'remote_public_ip' => 'required|string|max:255',
             'local_id'         => 'nullable|string|max:255',
             'remote_id'        => 'nullable|string|max:255',
             'remote_subnet'    => 'required|string', // Comma separated allowed

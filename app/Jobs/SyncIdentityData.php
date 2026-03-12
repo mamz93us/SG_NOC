@@ -20,7 +20,7 @@ class SyncIdentityData implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 600;
+    public int $timeout = 3600; // Allow it more time since Graph Batching 800+ groups can be slow
     public int $tries   = 1;
 
     public function handle(): void
@@ -38,8 +38,9 @@ class SyncIdentityData implements ShouldQueue
         }
 
         // Clean up any orphaned "started" entries from interrupted previous runs
+        // We only clean up jobs that have been stuck for over 2 hours now
         IdentitySyncLog::where('status', 'started')
-            ->where('started_at', '<', now()->subMinutes(10))
+            ->where('started_at', '<', now()->subHours(2))
             ->update([
                 'status'        => 'failed',
                 'error_message' => 'Sync aborted — process was interrupted before completion.',
@@ -56,11 +57,11 @@ class SyncIdentityData implements ShouldQueue
         // Without this, a fastcgi_read_timeout would silently kill the process mid-sync,
         // leaving the log entry permanently in "started" state.
         ignore_user_abort(true);
-        set_time_limit(600);
+        set_time_limit(3600); // 1 hour
 
-        // Increase memory for the sync job — Graph returns 888+ users and 842+
-        // groups. 256 MB is not enough for Guzzle PSR7 buffering + all datasets.
-        ini_set('memory_limit', '512M');
+        // Increase memory for the sync job — Graph returns 1000+ users and 800+
+        // groups. Some response payloads can be large.
+        ini_set('memory_limit', '2048M');
 
         $graph  = new GraphService();
         $errors = [];
@@ -140,36 +141,53 @@ class SyncIdentityData implements ShouldQueue
         // ── 3. Sync users (non-fatal) ──────────────────────────────
         try {
             $users = $graph->listUsers();
-            DB::transaction(function () use ($users) {
-                foreach ($users as $user) {
-                    $licenseSkus = collect($user['assignedLicenses'] ?? [])->pluck('skuId')->all();
+            
+            // Sync in smaller batches of 100 to avoid table locks and high memory
+            foreach (array_chunk($users, 100) as $userChunk) {
+                DB::transaction(function () use ($userChunk) {
+                    foreach ($userChunk as $u) {
+                        $licenseSkus = collect($u['assignedLicenses'] ?? [])->pluck('skuId')->all();
 
-                    IdentityUser::updateOrCreate(
-                        ['azure_id' => $user['id']],
-                        [
-                            'manager_azure_id'    => $user['manager_id'] ?? null,
-                            'display_name'        => $user['displayName'],
-                            'user_principal_name' => $user['userPrincipalName'],
-                            'mail'                => $user['mail'] ?? null,
-                            'job_title'           => $user['jobTitle'] ?? null,
-                            'department'          => $user['department'] ?? null,
-                            'company_name'        => $user['companyName'] ?? null,
-                            'account_enabled'     => $user['accountEnabled'] ?? true,
-                            'usage_location'      => $user['usageLocation'] ?? null,
-                            'phone_number'        => $user['businessPhones'][0] ?? null,
-                            'mobile_phone'        => $user['mobilePhone'] ?? null,
-                            'office_location'     => $user['officeLocation'] ?? null,
-                            'street_address'      => $user['streetAddress'] ?? null,
-                            'city'                => $user['city'] ?? null,
-                            'postal_code'         => $user['postalCode'] ?? null,
-                            'country'             => $user['country'] ?? null,
+                        // ── Fix UPN Conflicts ──────────────────────────────
+                        // If we are creating a new azure_id record, but its 
+                        // UPN already exists in our DB, we must update the 
+                        // existing record's azure_id instead of inserting a 
+                        // second one (which would fail on the unique UPN index).
+                        $dbUser = IdentityUser::where('azure_id', $u['id'])
+                            ->orWhere('user_principal_name', $u['userPrincipalName'])
+                            ->first();
+
+                        if (!$dbUser) {
+                            $dbUser = new IdentityUser();
+                        }
+
+                        $dbUser->fill([
+                            'azure_id'            => $u['id'],
+                            'manager_azure_id'    => $u['manager_id'] ?? null,
+                            'display_name'        => $u['displayName'],
+                            'user_principal_name' => $u['userPrincipalName'],
+                            'mail'                => $u['mail'] ?? null,
+                            'job_title'           => $u['jobTitle'] ?? null,
+                            'department'          => $u['department'] ?? null,
+                            'company_name'        => $u['companyName'] ?? null,
+                            'account_enabled'     => $u['accountEnabled'] ?? true,
+                            'usage_location'      => $u['usageLocation'] ?? null,
+                            'phone_number'        => $u['businessPhones'][0] ?? null,
+                            'mobile_phone'        => $u['mobilePhone'] ?? null,
+                            'office_location'     => $u['officeLocation'] ?? null,
+                            'street_address'      => $u['streetAddress'] ?? null,
+                            'city'                => $u['city'] ?? null,
+                            'postal_code'         => $u['postalCode'] ?? null,
+                            'country'             => $u['country'] ?? null,
                             'licenses_count'      => count($licenseSkus),
                             'assigned_licenses'   => $licenseSkus,
-                            'raw_data'            => $user,
-                        ]
-                    );
-                }
-            });
+                            'raw_data'            => $u,
+                        ]);
+                        $dbUser->save();
+                    }
+                });
+            }
+            
             $userCount = count($users);
 
             // Remove users no longer in Azure
@@ -200,6 +218,8 @@ class SyncIdentityData implements ShouldQueue
                 });
                 Log::info('SyncIdentityData: manager relationships OK (' . count($managerMap) . ')');
             }
+            unset($managerMap);
+            gc_collect_cycles();
         } catch (\Throwable $e) {
             // Non-fatal — manager data is supplementary
             Log::warning('SyncIdentityData: manager sync skipped — ' . $e->getMessage());
@@ -219,14 +239,19 @@ class SyncIdentityData implements ShouldQueue
                 }
             }
 
-            DB::transaction(function () use ($userMemberOf) {
-                foreach ($userMemberOf as $userId => $groupIds) {
-                    IdentityUser::where('azure_id', $userId)->update([
-                        'member_of'    => $groupIds,
-                        'groups_count' => count($groupIds),
-                    ]);
-                }
-            });
+            // Sync in batches to avoid table locks
+            foreach (collect($userMemberOf)->chunk(100) as $userBatch) {
+                DB::transaction(function () use ($userBatch) {
+                    foreach ($userBatch as $userId => $groupIds) {
+                        IdentityUser::where('azure_id', $userId)->update([
+                            'member_of'    => $groupIds,
+                            'groups_count' => count($groupIds),
+                        ]);
+                    }
+                });
+            }
+            unset($userMemberOf);
+            gc_collect_cycles();
 
             // ── 5. Back-fill members_count on groups ───────────────────
             DB::transaction(function () use ($groupMemberCounts, $allGroupIds) {

@@ -16,7 +16,7 @@ class SyncIdentity extends Command
     {
         // No PHP time limit — this runs as a CLI process, not an HTTP request
         set_time_limit(0);
-        ini_set('memory_limit', '512M');
+        ini_set('memory_limit', '2048M');
 
         $settings = Setting::get();
 

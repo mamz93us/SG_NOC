@@ -509,12 +509,87 @@
 </div>
 @endif
 
+<!-- Switch Port Panel -->
+@if(!empty($groupedSensors['Interfaces']) && ($host->type === 'switch' || count($groupedSensors['Interfaces']) > 4))
+<div class="card shadow-sm border-0 mb-4 glass-card overflow-hidden">
+    <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-ethernet me-2"></i>Switch Port Panel</h6>
+        <div class="small">
+            @php
+                $upCount = 0;
+                $totalPorts = 0;
+                foreach($groupedSensors['Interfaces'] as $iface => $s) {
+                    if (isset($s['Status'])) {
+                        $totalPorts++;
+                        if (($s['Status']->sensorMetrics->first()?->value ?? 0) == 1) $upCount++;
+                    }
+                }
+            @endphp
+            <span class="badge bg-success me-1">{{ $upCount }} UP</span>
+            <span class="badge bg-secondary">{{ $totalPorts }} Total</span>
+        </div>
+    </div>
+    <div class="card-body py-4 bg-light">
+        <div class="d-flex flex-wrap gap-2 justify-content-center" id="snmpPortGrid">
+            @php
+                // Sort interfaces by index if possible
+                $sortedIfaces = collect($groupedSensors['Interfaces'])->sortBy(function($sensors) {
+                    return $sensors['Status']->interface_index ?? 999;
+                });
+            @endphp
+            @foreach($sortedIfaces as $iface => $sensors)
+                @if(isset($sensors['Status']))
+                    @php
+                        $statusSensor = $sensors['Status'];
+                        $latestStatus = $statusSensor->sensorMetrics->first()?->value ?? 0;
+                        $isUp = ($latestStatus == 1);
+                        $colorClass = $isUp ? 'bg-success' : 'bg-secondary opacity-50';
+                        $tooltip = "Port: $iface";
+                        if ($statusSensor->description) {
+                            $tooltip .= "\nDescription: " . $statusSensor->description;
+                        }
+                    @endphp
+                    <div class="port-tile {{ $colorClass }} text-white rounded d-flex flex-column align-items-center justify-content-center position-relative"
+                         style="width: 50px; height: 55px; cursor: pointer; border: 2px solid rgba(0,0,0,0.1); transition: all 0.2s;"
+                         data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" title="{{ nl2br(e($tooltip)) }}"
+                         onclick="scrollToInterface('{{ addslashes($iface) }}')">
+                        <i class="bi bi-ethernet" style="font-size: 1.2rem;"></i>
+                        <span style="font-size: 0.65rem; font-weight: bold; margin-top: 2px;">{{ Str::limit($iface, 6, '') }}</span>
+                        @if($isUp)
+                            <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle" style="z-index: 2;"></span>
+                        @endif
+                    </div>
+                @endif
+            @endforeach
+        </div>
+        <div class="mt-4 text-center text-muted small">
+            <i class="bi bi-info-circle me-1"></i> Click a port to view its real-time traffic graphs and performance metrics below.
+        </div>
+    </div>
+</div>
+
+<script>
+    function scrollToInterface(ifaceId) {
+        const el = document.getElementById('interface-' + btoa(ifaceId).replace(/=/g, ''));
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('border-primary');
+            el.style.boxShadow = '0 0 15px rgba(13, 110, 253, 0.3)';
+            setTimeout(() => {
+                el.classList.remove('border-primary');
+                el.style.boxShadow = '';
+            }, 2000);
+        }
+    }
+</script>
+@endif
+
 <!-- Interface Sensors -->
 @if(!empty($groupedSensors['Interfaces']))
 <h6 class="text-uppercase text-muted fw-bold small mb-3">Network Interfaces</h6>
 <div class="row g-3">
     @foreach($groupedSensors['Interfaces'] as $iface => $sensors)
-        <div class="col-12">
+        <div class="col-12" id="interface-{{ str_replace('=', '', base64_encode($iface)) }}">
             <div class="card shadow-sm border-0 overflow-hidden">
                 <div class="card-body p-0">
                     <div class="row g-0">
