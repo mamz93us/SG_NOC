@@ -182,14 +182,11 @@ class GraphService
 
     public function listUsers(callable $callback): void
     {
-        // Only sync internal Member accounts — skips B2B guests (#EXT#), shared mailboxes,
-        // room/equipment accounts, and service principals that inflate the tenant user count.
-        // NOTE: userType is an advanced-query property — requires ConsistencyLevel + $count=true.
+        // Fetch all users without advanced filters (no ConsistencyLevel needed).
+        // Guest/external users are identified by #EXT# in their UPN — the caller filters them out.
         $this->paginateWithCallback('/users', $callback, [
             '$select' => 'id,displayName,userPrincipalName,mail,jobTitle,department,companyName,accountEnabled,usageLocation,assignedLicenses,businessPhones,mobilePhone,officeLocation,streetAddress,city,postalCode,country',
-            '$filter' => "userType eq 'Member'",
-            '$count'  => 'true',
-        ], ['ConsistencyLevel' => 'eventual']);
+        ]);
     }
 
     public function listGroups(callable $callback): void
@@ -215,17 +212,17 @@ class GraphService
             $this->paginateWithCallback('/users', function($users) use ($callback) {
                 $map = [];
                 foreach ($users as $u) {
+                    // Skip guest/external accounts
+                    if (str_contains($u['userPrincipalName'] ?? '', '#EXT#')) continue;
                     if (!empty($u['id']) && !empty($u['manager']['id'])) {
                         $map[$u['id']] = $u['manager']['id'];
                     }
                 }
                 if (!empty($map)) $callback($map);
             }, [
-                '$select' => 'id',
+                '$select' => 'id,userPrincipalName',
                 '$expand' => 'manager($select=id)',
-                '$filter' => "userType eq 'Member'",
-                '$count'  => 'true',
-            ], ['ConsistencyLevel' => 'eventual']);
+            ]);
         } catch (\Throwable) {
             // Managers are supplementary
         }

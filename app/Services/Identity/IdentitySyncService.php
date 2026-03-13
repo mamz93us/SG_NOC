@@ -121,8 +121,10 @@ class IdentitySyncService
                 }
             });
 
-            // Cleanup stale
-            IdentityLicense::whereNotIn('sku_id', $syncedIds)->delete();
+            // Cleanup stale — only if we got results
+            if (!empty($syncedIds)) {
+                IdentityLicense::whereNotIn('sku_id', $syncedIds)->delete();
+            }
             
             Log::info("IdentitySyncService: Licensed synced (" . count($syncedIds) . ")");
             return count($syncedIds);
@@ -162,8 +164,10 @@ class IdentitySyncService
                 gc_collect_cycles();
             });
 
-            // Cleanup stale
-            IdentityGroup::whereNotIn('azure_id', $activeIds)->delete();
+            // Cleanup stale — only if we actually synced some groups.
+            if ($count > 0) {
+                IdentityGroup::whereNotIn('azure_id', $activeIds)->delete();
+            }
 
             Log::info("IdentitySyncService: Groups synced ({$count})");
             return $count;
@@ -184,10 +188,16 @@ class IdentitySyncService
             $activeIds = [];
 
             $this->graph->listUsers(function($chunk) use (&$count, &$activeIds) {
+                // Filter out guest/external accounts (#EXT# in UPN) client-side.
+                // This avoids needing ConsistencyLevel: eventual for advanced server-side filters.
+                $chunk = array_filter($chunk, fn($u) => !str_contains($u['userPrincipalName'] ?? '', '#EXT#'));
+
+                if (empty($chunk)) return;
+
                 DB::transaction(function () use ($chunk, &$activeIds) {
                     foreach ($chunk as $u) {
                         $licenseSkus = collect($u['assignedLicenses'] ?? [])->pluck('skuId')->all();
-                        
+
                         IdentityUser::updateOrCreate(
                             ['azure_id' => $u['id']],
                             [
@@ -218,8 +228,11 @@ class IdentitySyncService
                 gc_collect_cycles();
             });
 
-            // Cleanup stale
-            IdentityUser::whereNotIn('azure_id', $activeIds)->delete();
+            // Cleanup stale — only if we actually synced some users.
+            // An empty $activeIds would delete ALL users (whereNotIn([]) = all rows).
+            if ($count > 0) {
+                IdentityUser::whereNotIn('azure_id', $activeIds)->delete();
+            }
 
             Log::info("IdentitySyncService: Users synced ({$count})");
             return $count;
