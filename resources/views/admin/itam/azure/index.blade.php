@@ -263,11 +263,6 @@ function azShowDetail(id) {
                 .then(r => r.json())
                 .then(p => {
                     let importForm = '';
-            // Proposed Import Info
-            fetch(azDetailUrl + id + '/preview-import')
-                .then(r => r.json())
-                .then(p => {
-                    let importForm = '';
                     if (d.link_status === 'unlinked' || d.link_status === 'pending') {
                         importForm = `
                         <div class="mt-4 border-top pt-3">
