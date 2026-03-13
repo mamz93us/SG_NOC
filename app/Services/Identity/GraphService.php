@@ -180,8 +180,11 @@ class GraphService
 
     public function listUsers(callable $callback): void
     {
+        // Only sync internal Member accounts — skips B2B guests (#EXT#), shared mailboxes,
+        // room/equipment accounts, and service principals that inflate the tenant user count.
         $this->paginateWithCallback('/users', $callback, [
             '$select' => 'id,displayName,userPrincipalName,mail,jobTitle,department,companyName,accountEnabled,usageLocation,assignedLicenses,businessPhones,mobilePhone,officeLocation,streetAddress,city,postalCode,country',
+            '$filter' => "userType eq 'Member'",
         ]);
     }
 
@@ -216,6 +219,7 @@ class GraphService
             }, [
                 '$select' => 'id',
                 '$expand' => 'manager($select=id)',
+                '$filter' => "userType eq 'Member'",
             ]);
         } catch (\Throwable) {
             // Managers are supplementary
