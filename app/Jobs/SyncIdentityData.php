@@ -61,7 +61,8 @@ class SyncIdentityData implements ShouldQueue
 
         // Increase memory for the sync job — Graph returns 1000+ users and 800+
         // groups. Some response payloads can be large.
-        ini_set('memory_limit', '2048M');
+        ini_set('memory_limit', '1024M');
+        gc_enable(); // Ensure garbage collection is active
 
         $graph  = new GraphService();
         $errors = [];
@@ -181,7 +182,6 @@ class SyncIdentityData implements ShouldQueue
                             'country'             => $u['country'] ?? null,
                             'licenses_count'      => count($licenseSkus),
                             'assigned_licenses'   => $licenseSkus,
-                            'raw_data'            => $u,
                         ]);
                         $dbUser->save();
                     }
@@ -198,6 +198,7 @@ class SyncIdentityData implements ShouldQueue
             }
 
             unset($users); // free ~888 full user objects before manager + group passes
+            gc_collect_cycles();
             Log::info('SyncIdentityData: users OK (' . $userCount . ')');
         } catch (\Throwable $e) {
             $errors[] = 'Users: ' . $e->getMessage();
