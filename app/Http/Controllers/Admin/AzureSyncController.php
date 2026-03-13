@@ -6,6 +6,8 @@ use App\Models\AzureDevice;
 use App\Models\Device;
 use App\Models\AssetHistory;
 use App\Models\ActivityLog;
+use App\Models\Branch;
+use App\Models\AzureBranchMapping;
 use App\Services\AzureDeviceService;
 use Illuminate\Http\Request;
 
@@ -232,6 +234,7 @@ class AzureSyncController extends Controller
                         'status'              => 'active',
                         'source'              => 'azure',
                         'source_id'           => $azureDevice->azure_device_id,
+                        'branch_id'           => $this->detectBranchId($azureDevice),
                         'purchase_date'       => $enrollDate,
                         'warranty_expiry'     => (clone $enrollDate)->addYear(),
                         'depreciation_years'  => 3,
@@ -334,6 +337,7 @@ class AzureSyncController extends Controller
                             'status'              => 'active',
                             'source'              => 'azure',
                             'source_id'           => $azureDevice->azure_device_id,
+                            'branch_id'           => $this->detectBranchId($azureDevice),
                             'purchase_date'       => $enrollDate,
                             'warranty_expiry'     => (clone $enrollDate)->addYear(),
                             'depreciation_years'  => 3,
@@ -385,5 +389,58 @@ class AzureSyncController extends Controller
     private function guessDeviceType(AzureDevice $az): string
     {
         return 'laptop';
+    }
+
+    // --- Branch Mapping Management ---
+
+    public function mappings()
+    {
+        $mappings = AzureBranchMapping::with('branch')->orderBy('keyword')->get();
+        $branches = Branch::orderBy('name')->get();
+        return view('admin.itam.azure.mappings', compact('mappings', 'branches'));
+    }
+
+    public function storeMapping(Request $request)
+    {
+        $request->validate([
+            'keyword'   => 'required|string|max:100',
+            'branch_id' => 'required|exists:branches,id',
+        ]);
+
+        AzureBranchMapping::updateOrCreate(
+            ['keyword' => $request->keyword],
+            ['branch_id' => $request->branch_id]
+        );
+
+        return back()->with('success', 'Mapping saved.');
+    }
+
+    public function deleteMapping(AzureBranchMapping $mapping)
+    {
+        $mapping->delete();
+        return back()->with('success', 'Mapping removed.');
+    }
+
+    private function detectBranchId(AzureDevice $az): ?int
+    {
+        // 1. Try mapping keywords against office/location from Azure
+        // AzureDevice might have these in raw_data
+        $office   = $az->raw_data['officeLocation'] ?? null;
+        $location = $az->raw_data['location'] ?? null; // custom field or metadata
+        
+        $searchStrings = array_filter([$office, $location, $az->display_name]);
+
+        foreach ($searchStrings as $str) {
+            if (!$str) continue;
+            
+            $mappings = AzureBranchMapping::all();
+            foreach ($mappings as $m) {
+                if (stripos($str, $m->keyword) !== false) {
+                    return $m->branch_id;
+                }
+            }
+        }
+
+        return null;
     }
 }

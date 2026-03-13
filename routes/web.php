@@ -744,6 +744,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/{azureDevice}/preview-import', [AzureSyncController::class, 'previewImport'])->name('preview-import');
         Route::post('/{azureDevice}/import',       [AzureSyncController::class, 'importToItam'])->name('import');
         Route::post('/batch-import',               [AzureSyncController::class, 'batchImport'])->name('batch-import');
+        
+        // Branch Mapping
+        Route::get('/mappings',                    [AzureSyncController::class, 'mappings'])->name('mappings');
+        Route::post('/mappings',                   [AzureSyncController::class, 'storeMapping'])->name('mappings.store');
+        Route::delete('/mappings/{mapping}',        [AzureSyncController::class, 'deleteMapping'])->name('mappings.delete');
     });
 
 

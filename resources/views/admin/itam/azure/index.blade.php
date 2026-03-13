@@ -17,6 +17,9 @@
                     <i class="bi bi-arrow-repeat me-1"></i>Sync Now
                 </button>
             </form>
+            <a href="{{ route('admin.itam.azure.mappings') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-geo-alt me-1"></i>Branch Mappings
+            </a>
         </div>
     </div>
 
