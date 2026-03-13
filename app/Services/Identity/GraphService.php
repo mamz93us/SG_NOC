@@ -172,7 +172,12 @@ class GraphService
             }
 
             $body = $response->json();
-            $callback($body['value'] ?? []);
+            $values = $body['value'] ?? [];
+            
+            // Log progress so the user sees something is happening in the debug output
+            Log::debug("Graph: processed page of " . count($values) . " results for {$endpoint}");
+            
+            $callback($values);
             
             $url = $body['@odata.nextLink'] ?? null;
             unset($body);
@@ -228,23 +233,23 @@ class GraphService
      * Returns [userId => managerId] map. Called separately from listUsers() so
      * the heavy core-user query stays fast even on large tenants.
      */
-    public function listUserManagers(): array
+    public function listUserManagers(callable $callback): void
     {
         try {
-            $users = $this->paginate('/users', [
+            $this->paginateWithCallback('/users', function($users) use ($callback) {
+                $map = [];
+                foreach ($users as $u) {
+                    if (!empty($u['id']) && !empty($u['manager']['id'])) {
+                        $map[$u['id']] = $u['manager']['id'];
+                    }
+                }
+                $callback($map);
+            }, [
                 '$select' => 'id',
                 '$expand' => 'manager($select=id)',
             ]);
-
-            $map = [];
-            foreach ($users as $u) {
-                if (!empty($u['id']) && !empty($u['manager']['id'])) {
-                    $map[$u['id']] = $u['manager']['id'];
-                }
-            }
-            return $map;
         } catch (\Throwable) {
-            return []; // non-fatal — manager data is supplementary
+            // non-fatal — manager data is supplementary
         }
     }
 
@@ -259,25 +264,22 @@ class GraphService
      * @param  array  $groupIds  Azure AD group IDs
      * @return array             [groupId => [userId, ...]]
      */
-    public function batchGroupMembers(array $groupIds): array
+    public function batchGroupMembers(array $groupIds, callable $callback): void
     {
         if (empty($groupIds)) {
-            return [];
+            return;
         }
 
-        $token  = $this->getAccessToken();
-        $result = [];
-
-        // Graph Batch API accepts max 20 requests per call, but we use 5 to keep 
-        // the consolidated response body small enough for the memory limit.
+        $token  = $token ?? $this->getAccessToken();
+        
+        // Use very small chunks (5) so the response body is always small
         foreach (array_chunk($groupIds, 5) as $chunk) {
             $requests = [];
             foreach (array_values($chunk) as $i => $gid) {
-                // /microsoft.graph.user cast filters to user-type members only
                 $requests[] = [
                     'id'     => (string)($i + 1),
                     'method' => 'GET',
-                    'url'    => "/groups/{$gid}/members/microsoft.graph.user?\$select=id&\$top=200",
+                    'url'    => "/groups/{$gid}/members/microsoft.graph.user?\$select=id&\$top=500",
                 ];
             }
 
@@ -285,39 +287,30 @@ class GraphService
                 $resp = Http::timeout(self::GRAPH_TIMEOUT_BULK)->withToken($token)
                     ->post($this->baseUrl . '/$batch', ['requests' => $requests]);
 
-                // Retry once on 401 (stale token)
                 if ($resp->status() === 401) {
                     $token = $this->refreshToken();
                     $resp  = Http::timeout(self::GRAPH_TIMEOUT_BULK)->withToken($token)
                         ->post($this->baseUrl . '/$batch', ['requests' => $requests]);
                 }
 
-                if (!$resp->successful()) {
-                    Log::warning('Graph batch group-members chunk failed with status ' . $resp->status());
-                    continue;
-                }
+                if (!$resp->successful()) continue;
 
+                $chunkResult = [];
                 foreach ($resp->json('responses', []) as $r) {
                     $idx     = (int)$r['id'] - 1;
                     $groupId = $chunk[$idx] ?? null;
-                    if (!$groupId) {
-                        continue;
+                    if ($groupId && (int)$r['status'] === 200) {
+                        $chunkResult[$groupId] = collect($r['body']['value'] ?? [])->pluck('id')->all();
                     }
-
-                    if ((int)$r['status'] === 200) {
-                        $result[$groupId] = collect($r['body']['value'] ?? [])->pluck('id')->all();
-                    }
-                    // 403 = app lacks permission to list this group's members — skip silently
                 }
-                unset($resp);
+                
+                $callback($chunkResult);
+                unset($resp, $chunkResult);
                 gc_collect_cycles();
-            } catch (\Throwable $e) {
-                Log::warning('Graph batch group-members chunk exception: ' . $e->getMessage());
+            } catch (\Throwable) {
                 continue;
             }
         }
-
-        return $result; // [groupId => [userId, ...]]
     }
 
     public function getUser(string $id): array
