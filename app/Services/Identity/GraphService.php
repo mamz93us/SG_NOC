@@ -57,7 +57,7 @@ class GraphService
      * Called automatically on 401/403 responses so newly-granted
      * permissions are picked up without waiting for cache expiry.
      */
-    private function refreshToken(): string
+    public function refreshToken(): string
     {
         Cache::forget("graph_token_{$this->clientId}");
         return $this->getAccessToken();

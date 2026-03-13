@@ -104,6 +104,16 @@ class AzureDeviceService
                     '$top'    => 999,
                 ]);
 
+            if ($response->status() === 403) {
+                $token    = $this->graph->refreshToken();
+                $response = \Illuminate\Support\Facades\Http::timeout(120)
+                    ->withToken($token)
+                    ->get('https://graph.microsoft.com/v1.0/devices', [
+                        '$select' => 'id,displayName,operatingSystem,operatingSystemVersion,deviceId,physicalIds',
+                        '$top'    => 999,
+                    ]);
+            }
+
             if (!$response->successful()) {
                 Log::warning('AzureDeviceService: Failed to fetch Azure AD devices: ' . $response->body());
                 return [];
@@ -134,6 +144,16 @@ class AzureDeviceService
                     '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,model,manufacturer',
                     '$top'    => 999,
                 ]);
+
+            if ($response->status() === 403) {
+                $token    = $this->graph->refreshToken();
+                $response = \Illuminate\Support\Facades\Http::timeout(120)
+                    ->withToken($token)
+                    ->get('https://graph.microsoft.com/v1.0/deviceManagement/managedDevices', [
+                        '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,model,manufacturer',
+                        '$top'    => 999,
+                    ]);
+            }
 
             if (!$response->successful()) {
                 Log::warning('AzureDeviceService: Failed to fetch Intune devices: ' . $response->body());
