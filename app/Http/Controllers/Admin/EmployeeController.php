@@ -17,21 +17,26 @@ class EmployeeController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Employee::with('branch', 'department')
-            ->withCount('activeAssets')
-            ->orderBy('name');
+        $query = Employee::query()
+            ->leftJoin('branches', 'employees.branch_id', '=', 'branches.id')
+            ->leftJoin('departments', 'employees.department_id', '=', 'departments.id')
+            ->select('employees.*')
+            ->with('branch', 'department')
+            ->withCount('activeAssets');
 
         if ($request->filled('search')) {
             $s = $request->search;
-            $query->where(fn ($q) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%")->orWhere('job_title', 'like', "%{$s}%"));
+            $query->where(fn ($q) => $q->where('employees.name', 'like', "%{$s}%")
+                ->orWhere('employees.email', 'like', "%{$s}%")
+                ->orWhere('employees.job_title', 'like', "%{$s}%"));
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('employees.status', $request->status);
         }
 
         if ($request->filled('branch_id')) {
-            $query->where('branch_id', $request->branch_id);
+            $query->where('employees.branch_id', $request->branch_id);
         }
 
         if ($request->filled('has_assets')) {
@@ -41,6 +46,23 @@ class EmployeeController extends Controller
                 $query->doesntHave('activeAssets');
             }
         }
+
+        // Sorting
+        $sort = $request->get('sort', 'name');
+        $direction = $request->get('direction', 'asc') === 'desc' ? 'desc' : 'asc';
+        
+        $sortMap = [
+            'name'       => 'employees.name',
+            'branch'     => 'branches.name',
+            'department' => 'departments.name',
+            'job_title'  => 'employees.job_title',
+            'status'     => 'employees.status',
+            'assets'     => 'active_assets_count',
+            'hired'      => 'employees.hired_date',
+        ];
+
+        $orderCol = $sortMap[$sort] ?? 'employees.name';
+        $query->orderBy($orderCol, $direction);
 
         $employees = $query->paginate(25)->withQueryString();
         $branches  = Branch::orderBy('name')->get();
