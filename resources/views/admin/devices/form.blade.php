@@ -31,12 +31,21 @@
                                class="form-control font-monospace @error('asset_code') is-invalid @enderror"
                                value="{{ old('asset_code', $device->asset_code ?? request('asset_code', '')) }}"
                                maxlength="50" placeholder="Auto-generating…"
-                               oninput="dvUpdateQr(this.value)">
+                               oninput="dvUpdateQr(this.value)"
+                               {{ $editing ? 'readonly' : '' }}>
+                        @if(!$editing)
                         <button type="button" class="btn btn-outline-secondary" id="dv_genCode" title="Re-generate code">
                             <i class="bi bi-arrow-repeat"></i>
                         </button>
+                        @endif
                     </div>
-                    <div class="form-text small">Auto-generated based on type. You can override it.</div>
+                    <div class="form-text small">
+                        @if($editing)
+                            Locked after creation.
+                        @else
+                            Auto-generated based on type. You can override it.
+                        @endif
+                    </div>
                     @error('asset_code')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
  
                     {{-- Condition + Status under asset code --}}
@@ -481,9 +490,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Re-generate button
-    document.getElementById('dv_genCode').addEventListener('click', () => {
-        dvGenerateCode(typeSelect ? typeSelect.value : 'other');
-    });
+    const genBtn = document.getElementById('dv_genCode');
+    if (genBtn) {
+        genBtn.addEventListener('click', () => {
+            dvGenerateCode(typeSelect ? typeSelect.value : 'other');
+        });
+    }
 
     // Depreciation years visibility
     const deprMethod = document.getElementById('dv_deprMethod');
