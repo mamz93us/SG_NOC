@@ -2,11 +2,11 @@
 @section('content')
 
 @php
-    // Only treat 'started' entries from the last 15 minutes as genuinely in-progress.
-    // Older ones are orphaned (interrupted sync) and should not block the Sync Now button.
+    // Treat 'started' entries from the last 2 hours as genuinely in-progress.
+    // A full sync of 1000+ users / 800+ groups can take 30-60 min.
     $hasPending = $logs->contains(
         fn($l) => $l->status === 'started'
-               && ($l->started_at ?? $l->created_at)->gt(now()->subMinutes(15))
+               && ($l->started_at ?? $l->created_at)->gt(now()->subHours(2))
     );
 @endphp
 
@@ -21,12 +21,25 @@
         </small>
     </div>
     @can('manage-identity')
-    <form method="POST" action="{{ route('admin.identity.sync') }}">
-        @csrf
-        <button type="submit" class="btn btn-sm btn-outline-primary" {{ $hasPending ? 'disabled' : '' }}>
-            <i class="bi bi-arrow-repeat me-1"></i>Sync Now
-        </button>
-    </form>
+    <div class="d-flex gap-2">
+        @if($hasPending)
+        <form method="POST" action="{{ route('admin.identity.sync') }}">
+            @csrf
+            <input type="hidden" name="force" value="1">
+            <button type="submit" class="btn btn-sm btn-outline-danger"
+                    onclick="return confirm('Force-reset the sync lock and restart? Only do this if the sync appears stuck.')">
+                <i class="bi bi-exclamation-triangle me-1"></i>Force Reset &amp; Restart
+            </button>
+        </form>
+        @else
+        <form method="POST" action="{{ route('admin.identity.sync') }}">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-repeat me-1"></i>Sync Now
+            </button>
+        </form>
+        @endif
+    </div>
     @endcan
 </div>
 

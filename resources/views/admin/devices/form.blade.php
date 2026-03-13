@@ -623,6 +623,57 @@ document.getElementById('dvAmSaveBtn').addEventListener('click', async function(
     document.getElementById('dvAmType').value = '';
 });
 
+// ── Quick-add Supplier (AJAX) ─────────────────────────────────────────
+const dvSupSaveBtn = document.getElementById('dvSupSaveBtn');
+if (dvSupSaveBtn) {
+    dvSupSaveBtn.addEventListener('click', async function() {
+        const name    = document.getElementById('dvSupName').value.trim();
+        const contact = document.getElementById('dvSupContact').value.trim();
+        const email   = document.getElementById('dvSupEmail').value.trim();
+        const phone   = document.getElementById('dvSupPhone').value.trim();
+        const errEl   = document.getElementById('dvSupError');
+        errEl.classList.add('d-none');
+
+        if (!name) {
+            errEl.textContent = 'Supplier name is required.';
+            errEl.classList.remove('d-none');
+            return;
+        }
+
+        try {
+            const res  = await fetch(dv_supplierStore, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': dv_csrf, 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    contact_person: contact || null,
+                    email:          email   || null,
+                    phone:          phone   || null,
+                }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                const msgs = Object.values(data.errors || {}).flat();
+                errEl.textContent = msgs[0] || data.message || 'Error creating supplier.';
+                errEl.classList.remove('d-none');
+                return;
+            }
+
+            // Add new option and select it
+            document.getElementById('dv_supplier').add(new Option(data.name, data.id, true, true));
+            bootstrap.Modal.getInstance(document.getElementById('dvAddSupplierModal')).hide();
+            // Reset fields
+            ['dvSupName','dvSupContact','dvSupEmail','dvSupPhone'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+        } catch (e) {
+            errEl.textContent = 'Network error. Please try again.';
+            errEl.classList.remove('d-none');
+        }
+    });
+}
+
 // ── Quick-add department ──────────────────────────────────────────────
 function dvQuickAddDept() {
     const nameInput = document.getElementById('dvQdName');

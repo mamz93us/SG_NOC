@@ -92,18 +92,21 @@ class SyncGdmsContacts extends Command
             'completed_at'   => now(),
         ]);
 
-if (class_exists(\App\Models\ActivityLog::class)) {
-    \App\Models\ActivityLog::create([
-        'model_type' => User::class,                 // or 'system' if you prefer
-        'model_id'   => 1,                           // some existing user id, or 0
-        'action'     => 'gdms_sync_contacts',
-        'changes'    => json_encode([
-            'processed' => $processed,
-            'source'    => 'gdms',
-            'run_from'  => 'cli',
-        ]),
-        'user_id'    => 1,                           // same system user id
-    ]);
+// Log activity — use the first admin user if one exists, otherwise skip
+$adminUser = \App\Models\User::where('is_admin', true)->first()
+          ?? \App\Models\User::first();
+if ($adminUser) {
+    try {
+        \App\Models\ActivityLog::create([
+            'model_type' => 'System',
+            'model_id'   => 0,
+            'action'     => 'gdms_sync_contacts',
+            'changes'    => ['processed' => $processed, 'source' => 'gdms', 'run_from' => 'cli'],
+            'user_id'    => $adminUser->id,
+        ]);
+    } catch (\Throwable) {
+        // Non-critical — don't let activity log failure break the sync
+    }
 }
 
 

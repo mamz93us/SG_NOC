@@ -46,13 +46,14 @@ class ServiceSyncLog extends Model
      */
     public static function start(string $service): static
     {
-        // Mark any stale 'running' entries as failed
+        // Mark any stale 'running' entries older than 2 hours as failed
+        // (identity sync can take 30-60 min for large tenants)
         static::where('service', $service)
             ->where('status', 'running')
-            ->where('started_at', '<', now()->subMinutes(30))
+            ->where('started_at', '<', now()->subHours(2))
             ->update([
                 'status'        => 'failed',
-                'error_message' => 'Sync process interrupted (timeout).',
+                'error_message' => 'Sync process timed out (exceeded 2-hour window).',
                 'completed_at'  => now(),
             ]);
 

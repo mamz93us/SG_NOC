@@ -13,6 +13,7 @@ use App\Models\Setting;
 use App\Services\Identity\GraphService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\Process\PhpExecutableFinder;
 
 class IdentityController extends Controller
@@ -134,11 +135,11 @@ class IdentityController extends Controller
     // Sync trigger
     // ─────────────────────────────────────────────────────────────
 
-    public function sync()
+    public function sync(Request $request)
     {
         $settings = Setting::get();
 
-        if (!$settings->identity_sync_enabled) {
+        if (! $settings->identity_sync_enabled) {
             return back()->with('error', 'Identity sync is disabled. Enable it under Settings → Identity (Graph).');
         }
 
@@ -146,43 +147,64 @@ class IdentityController extends Controller
             return back()->with('error', 'Microsoft Graph credentials are not configured. Go to Settings → Identity (Graph) to set them up.');
         }
 
-        // ── Clean up orphaned "started" logs older than 30 minutes ──
+        $force = $request->boolean('force');
+
+        // ── Force-reset: clear stale lock + stuck logs ─────────────────────
+        if ($force) {
+            Cache::lock('sync_identity_running')->forceRelease();
+            IdentitySyncLog::where('status', 'started')
+                ->update([
+                    'status'        => 'failed',
+                    'error_message' => 'Force-reset via admin UI.',
+                    'completed_at'  => now(),
+                ]);
+        }
+
+        // ── Clean up orphaned "started" logs older than 2 hours ────────────
+        // (A full sync of 1000+ users / 800+ groups can easily take 30–60 min)
         IdentitySyncLog::where('status', 'started')
-            ->where('started_at', '<', now()->subMinutes(30))
+            ->where('started_at', '<', now()->subHours(2))
             ->update([
                 'status'        => 'failed',
-                'error_message' => 'Sync timed out or hung — process exceeded 30 minute window.',
+                'error_message' => 'Sync timed out — process exceeded 2-hour window.',
                 'completed_at'  => now(),
             ]);
 
-        // ── Prevent double-dispatch if sync is already running ──
-        $alreadyRunning = IdentitySyncLog::where('status', 'started')
+        // ── Prevent double-dispatch: check the real cache lock ─────────────
+        if (! $force && SyncIdentityData::isRunning()) {
+            return redirect()->route('admin.identity.sync-logs')
+                ->with('info', 'A sync is already running. Wait for it to finish, or use Force Reset.');
+        }
+
+        // Also guard against DB log (belt-and-suspenders)
+        $recentStarted = IdentitySyncLog::where('status', 'started')
+            ->where('started_at', '>', now()->subHours(2))
             ->exists();
 
-        if ($alreadyRunning) {
+        if (! $force && $recentStarted) {
             return redirect()->route('admin.identity.sync-logs')
-                ->with('info', 'A sync is already in progress (started within last 30 mins).');
+                ->with('info', 'A sync is already in progress. Use Force Reset if it appears stuck.');
         }
 
         ActivityLog::create([
             'model_type' => 'Identity',
             'model_id'   => 0,
             'action'     => 'synced',
-            'changes'    => ['type' => 'identity_sync_started'],
+            'changes'    => ['type' => 'identity_sync_started', 'forced' => $force],
             'user_id'    => Auth::id(),
         ]);
 
-        // ── Run sync as a background CLI process ──
-        // PHP_BINARY in FPM context = php-fpm binary, NOT the CLI php.
-        // We detect the real CLI binary safely using Symfony.
-        $phpCli = (new PhpExecutableFinder)->find() ?: 'php';
+        // ── Spawn background CLI process ────────────────────────────────────
+        $phpCli  = (new PhpExecutableFinder)->find() ?: 'php';
         $artisan = base_path('artisan');
         $logFile = storage_path('logs/identity-sync.log');
+        $flags   = $force ? ' --force' : '';
 
         $cmd = sprintf(
-            'nohup %s %s identity:sync >> %s 2>&1 &',
+            'nohup %s %s identity:sync%s >> %s 2>&1 &',
             escapeshellarg($phpCli),
             escapeshellarg($artisan),
+            $flags,
             escapeshellarg($logFile)
         );
 
@@ -194,7 +216,7 @@ class IdentityController extends Controller
         }
 
         return redirect()->route('admin.identity.sync-logs')
-            ->with('info', 'Sync started in the background — this page will refresh automatically.');
+            ->with('info', 'Sync started in background — the page auto-refreshes.');
     }
 
     // ─────────────────────────────────────────────────────────────

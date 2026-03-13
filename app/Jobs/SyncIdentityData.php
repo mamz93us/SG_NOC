@@ -2,33 +2,43 @@
 
 namespace App\Jobs;
 
-use App\Models\IdentityGroup;
-use App\Models\IdentityLicense;
 use App\Models\IdentitySyncLog;
-use App\Models\IdentityUser;
 use App\Models\Setting;
-use App\Services\Identity\GraphService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class SyncIdentityData implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 3600; // Allow it more time since Graph Batching 800+ groups can be slow
+    public int $timeout = 7200; // 2 hours max
     public int $tries   = 1;
+
+    /**
+     * Check whether a sync is currently holding the cache lock,
+     * WITHOUT actually acquiring it.
+     */
+    public static function isRunning(): bool
+    {
+        // Lock TTL is 7200s; if it can't be instantly acquired, something is running.
+        $probe = Cache::lock('sync_identity_running', 1);
+        if ($probe->get()) {
+            $probe->release();
+            return false; // lock was free
+        }
+        return true; // lock is held
+    }
 
     public function handle(): void
     {
-        $settings = \App\Models\Setting::get();
+        $settings = Setting::get();
 
-        if (!$settings->identity_sync_enabled) {
+        if (! $settings->identity_sync_enabled) {
             Log::info('SyncIdentityData: disabled — skipping.');
             return;
         }
@@ -38,28 +48,31 @@ class SyncIdentityData implements ShouldQueue
             return;
         }
 
-        Log::info("SyncIdentityData: Job started. Memory: " . ini_get('memory_limit'));
+        Log::info('SyncIdentityData: Job started. Memory: ' . ini_get('memory_limit'));
 
-        // Prevent parallel runs
-        $lock = Cache::lock('sync_identity_running', 3600);
-        if (!$lock->get()) {
-            Log::warning('SyncIdentityData: Another sync process is already running — stopping.');
-            return;
+        // ── Prevent parallel runs ──────────────────────────────────────────
+        // TTL = 7200s (2 h). If the process is killed, the lock auto-expires
+        // after 2 hours so the next scheduled run can proceed.
+        $lock = Cache::lock('sync_identity_running', 7200);
+        if (! $lock->get()) {
+            Log::warning('SyncIdentityData: Another sync process is already running — stopping this one.');
+            // Throw so that callers (e.g. SyncIdentity command) know this was skipped,
+            // not "completed", and can report the correct status.
+            throw new \RuntimeException('sync_already_running');
         }
 
         try {
-            // Memory optimization for large tenants
             ignore_user_abort(true);
-            set_time_limit(3600);
-            ini_set('memory_limit', '1024M');
+            set_time_limit(0);         // CLI — no PHP time limit
+            ini_set('memory_limit', '2048M');
 
-            // Use the Premium Service
             $service = new \App\Services\Identity\IdentitySyncService();
             $service->syncAll();
 
             Log::info('SyncIdentityData: Job completed successfully.');
         } catch (\Throwable $e) {
             Log::error('SyncIdentityData: Job failed: ' . $e->getMessage());
+            throw $e; // re-throw so the command can log it properly
         } finally {
             $lock->release();
         }
