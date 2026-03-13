@@ -38,7 +38,12 @@
             <option value="{{ $branch->id }}" {{ request('branch_id') == $branch->id ? 'selected' : '' }}>{{ $branch->name }}</option>
             @endforeach
         </select>
-        @if(request()->anyFilled(['search','status','branch_id']))
+        <select name="has_assets" class="form-select flex-grow-0" style="max-width:140px" onchange="this.form.submit()">
+            <option value="">All Assets</option>
+            <option value="yes" {{ request('has_assets') === 'yes' ? 'selected' : '' }}>With Assets</option>
+            <option value="no" {{ request('has_assets') === 'no' ? 'selected' : '' }}>No Assets</option>
+        </select>
+        @if(request()->anyFilled(['search','status','branch_id','has_assets']))
         <a href="{{ route('admin.employees.index') }}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
         @endif
     </div>
@@ -60,6 +65,7 @@
                         <th>Department</th>
                         <th>Job Title</th>
                         <th>Status</th>
+                        <th>Assets</th>
                         <th>Hired</th>
                         <th class="pe-3"></th>
                     </tr>
@@ -83,6 +89,13 @@
                         <td>{{ $emp->department?->name ?? '—' }}</td>
                         <td>{{ $emp->job_title ?? '—' }}</td>
                         <td><span class="badge {{ $emp->statusBadgeClass() }}">{{ ucfirst(str_replace('_', ' ', $emp->status)) }}</span></td>
+                        <td>
+                            @if($emp->active_assets_count > 0)
+                                <span class="badge bg-info text-dark">{{ $emp->active_assets_count }}</span>
+                            @else
+                                <span class="text-muted small">0</span>
+                            @endif
+                        </td>
                         <td>{{ $emp->hired_date?->format('d M Y') ?? '—' }}</td>
                         <td class="pe-3">
                             <a href="{{ route('admin.employees.show', $emp->id) }}" class="btn btn-sm btn-outline-primary">

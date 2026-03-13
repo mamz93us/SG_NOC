@@ -17,7 +17,9 @@ class EmployeeController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Employee::with('branch', 'department')->orderBy('name');
+        $query = Employee::with('branch', 'department')
+            ->withCount('activeAssets')
+            ->orderBy('name');
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -30,6 +32,14 @@ class EmployeeController extends Controller
 
         if ($request->filled('branch_id')) {
             $query->where('branch_id', $request->branch_id);
+        }
+
+        if ($request->filled('has_assets')) {
+            if ($request->has_assets === 'yes') {
+                $query->has('activeAssets');
+            } elseif ($request->has_assets === 'no') {
+                $query->doesntHave('activeAssets');
+            }
         }
 
         $employees = $query->paginate(25)->withQueryString();
