@@ -251,55 +251,60 @@ class IdentitySyncService
             $errors[] = 'Managers: ' . $e->getMessage();
         }
 
-        // 2. Group Memberships
+        // 2. Group Memberships — user-centric (800 users = ~40 batch calls vs. thousands for group-centric)
         try {
-            $allGroupIds = IdentityGroup::pluck('azure_id')->all();
-            if (empty($allGroupIds)) return;
+            $allUserIds = IdentityUser::pluck('azure_id')->all();
+            if (empty($allUserIds)) {
+                Log::info('IdentitySyncService: No users to sync memberships for.');
+                return;
+            }
 
             // Reset local state
             IdentityUser::query()->update(['member_of' => '[]', 'groups_count' => 0]);
             IdentityGroup::query()->update(['members_count' => 0]);
 
-            $membershipMap = []; // [userId => [groupIds]]
-            $groupCounts   = []; // [groupId => count]
+            // [userId => [groupId, ...]], [groupId => count]
+            $membershipMap = [];
+            $groupCounts   = [];
 
-            $this->graph->batchGroupMembers($allGroupIds, function($chunk) use (&$membershipMap, &$groupCounts) {
-                foreach ($chunk as $gid => $uids) {
-                    $groupCounts[$gid] = count($uids);
-                    foreach ($uids as $uid) {
-                        $membershipMap[$uid][] = $gid;
+            // Build the set of known (security) group IDs so we only count relevant groups
+            $knownGroupIds = IdentityGroup::pluck('azure_id')->flip()->all(); // id => true
+
+            $this->graph->batchUserMemberships($allUserIds, function($chunk) use (&$membershipMap, &$groupCounts, $knownGroupIds) {
+                foreach ($chunk as $uid => $allGids) {
+                    // Keep only groups that exist in our identity_groups table (security groups)
+                    $gids = array_values(array_filter($allGids, fn($gid) => isset($knownGroupIds[$gid])));
+                    $membershipMap[$uid] = $gids;
+                    foreach ($gids as $gid) {
+                        $groupCounts[$gid] = ($groupCounts[$gid] ?? 0) + 1;
                     }
                 }
             });
 
             // Bulk update users in chunks of 200
-            $uids = array_keys($membershipMap);
-            foreach (array_chunk($uids, 200) as $chunk) {
-                DB::transaction(function() use ($chunk, $membershipMap) {
+            foreach (array_chunk(array_keys($membershipMap), 200) as $chunk) {
+                DB::transaction(function () use ($chunk, $membershipMap) {
                     $users = IdentityUser::whereIn('azure_id', $chunk)->get();
                     foreach ($users as $u) {
                         $groups = $membershipMap[$u->azure_id] ?? [];
-                        $u->update([
-                            'member_of'    => $groups,
-                            'groups_count' => count($groups)
-                        ]);
+                        $u->update(['member_of' => $groups, 'groups_count' => count($groups)]);
                     }
                 });
             }
 
-            // Bulk update group counts
-            foreach (array_chunk($allGroupIds, 100) as $chunk) {
-                DB::transaction(function() use ($chunk, $groupCounts) {
+            // Bulk update group member counts
+            foreach (array_chunk(array_keys($groupCounts), 200) as $chunk) {
+                DB::transaction(function () use ($chunk, $groupCounts) {
                     foreach ($chunk as $gid) {
-                        $c = $groupCounts[$gid] ?? 0;
-                        IdentityGroup::where('azure_id', $gid)->update(['members_count' => $c]);
+                        IdentityGroup::where('azure_id', $gid)->update(['members_count' => $groupCounts[$gid]]);
                     }
                 });
             }
 
-            Log::info('IdentitySyncService: Group memberships synced');
+            Log::info('IdentitySyncService: Group memberships synced (' . count($membershipMap) . ' users processed)');
         } catch (\Throwable $e) {
             $errors[] = 'Memberships: ' . $e->getMessage();
+            Log::error('IdentitySyncService: Membership sync error: ' . $e->getMessage());
         }
     }
 }

@@ -187,8 +187,12 @@ class GraphService
 
     public function listGroups(callable $callback): void
     {
+        // Only sync security-enabled groups (skips M365/Teams/SharePoint/distribution groups).
+        // Tenants can have tens of thousands of non-security groups that are irrelevant for
+        // user-assignment tracking and would make sync take hours.
         $this->paginateWithCallback('/groups', $callback, [
             '$select' => 'id,displayName,description,groupTypes,mailEnabled,securityEnabled',
+            '$filter' => 'securityEnabled eq true',
         ]);
     }
 
@@ -218,6 +222,48 @@ class GraphService
         }
     }
 
+    /**
+     * Batch-fetch each user's group memberships (user-centric direction).
+     *
+     * WHY user-centric instead of group-centric:
+     * A tenant with 800 users needs only ~40 batch API calls (20 users/call).
+     * The old group-centric approach needed N_groups/5 calls — tens of thousands
+     * when the tenant has many security groups.
+     *
+     * $callback receives: [ userId => [groupId, groupId, ...], ... ]
+     * (includes ALL directory objects, not only security groups — the caller filters)
+     */
+    public function batchUserMemberships(array $userIds, callable $callback): void
+    {
+        foreach (array_chunk($userIds, 20) as $chunk) {
+            $requests = [];
+            foreach (array_values($chunk) as $i => $id) {
+                $requests[] = [
+                    'id'     => (string) ($i + 1),
+                    'method' => 'GET',
+                    'url'    => "/users/{$id}/memberOf?\$select=id&\$top=500",
+                ];
+            }
+
+            try {
+                $resp    = $this->post('/$batch', ['requests' => $requests], self::TIMEOUT_BULK);
+                $results = [];
+                foreach ($resp['responses'] ?? [] as $r) {
+                    $idx = (int) $r['id'] - 1;
+                    $uid = $chunk[$idx] ?? null;
+                    if ($uid && (int) $r['status'] === 200) {
+                        $results[$uid] = collect($r['body']['value'] ?? [])->pluck('id')->all();
+                    }
+                }
+                $callback($results);
+                gc_collect_cycles();
+            } catch (\Throwable) { continue; }
+        }
+    }
+
+    /**
+     * @deprecated Use batchUserMemberships() instead — far fewer API calls.
+     */
     public function batchGroupMembers(array $groupIds, callable $callback): void
     {
         foreach (array_chunk($groupIds, 5) as $chunk) {
