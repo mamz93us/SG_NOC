@@ -249,44 +249,54 @@ class SyncIdentityData implements ShouldQueue
             IdentityUser::query()->update(['member_of' => '[]', 'groups_count' => 0]);
             IdentityGroup::query()->update(['members_count' => 0]);
 
-            $processedGroups = 0;
             $totalGroups = count($allGroupIds);
+            $processedGroups = 0;
+            $fullUserMembershipMap = []; // [azure_id => [group_ids]]
 
-            $graph->batchGroupMembers($allGroupIds, function($chunkResult) use (&$processedGroups, $totalGroups) {
-                // $chunkResult is [groupId => [userId, ...]] for 5 groups
+            // Phase 4a: Collect all memberships from Graph in memory
+            Log::info("SyncIdentityData: Fetching memberships for {$totalGroups} groups...");
+            $graph->batchGroupMembers($allGroupIds, function($chunkResult) use (&$processedGroups, $totalGroups, &$fullUserMembershipMap) {
                 $processedGroups += count($chunkResult);
-                Log::debug("SyncIdentityData: membership progress {$processedGroups}/{$totalGroups} groups...");
-
-                $userMap = [];
-                $counts  = [];
                 foreach ($chunkResult as $gid => $uids) {
-                    $counts[$gid] = count($uids);
                     foreach ($uids as $uid) {
-                        $userMap[$uid][] = $gid;
+                        $fullUserMembershipMap[$uid][] = $gid;
                     }
                 }
+                if ($processedGroups % 100 === 0 || $processedGroups === $totalGroups) {
+                    Log::debug("SyncIdentityData: membership collection progress {$processedGroups}/{$totalGroups} groups...");
+                }
+            });
 
-                DB::transaction(function() use ($userMap, $counts) {
-                    // Optimized batch fetch users in this chunk
-                    $uIds = array_keys($userMap);
-                    $users = IdentityUser::whereIn('azure_id', $uIds)->get(['id', 'azure_id', 'member_of', 'groups_count']);
-                    
+            // Phase 4b: Update the local database in chunks of users
+            Log::info("SyncIdentityData: Updating database for " . count($fullUserMembershipMap) . " users...");
+            $allActiveAzureIds = array_keys($fullUserMembershipMap);
+            
+            foreach (array_chunk($allActiveAzureIds, 100) as $userChunk) {
+                DB::transaction(function() use ($userChunk, $fullUserMembershipMap) {
+                    $users = IdentityUser::whereIn('azure_id', $userChunk)->get();
                     foreach ($users as $u) {
-                        $newGroups = $userMap[$u->azure_id];
-                        $current   = $u->member_of ?? [];
-                        $merged    = array_unique(array_merge($current, $newGroups));
+                        $groups = $fullUserMembershipMap[$u->azure_id] ?? [];
                         $u->update([
-                            'member_of'    => $merged,
-                            'groups_count' => count($merged)
+                            'member_of'    => $groups,
+                            'groups_count' => count($groups)
                         ]);
                     }
-
-                    // Update group counts
-                    foreach ($counts as $gid => $c) {
-                        IdentityGroup::where('azure_id', $gid)->increment('members_count', $c);
-                    }
                 });
-                gc_collect_cycles();
+            }
+
+            // Phase 4c: Update group counts
+            Log::info("SyncIdentityData: Finalizing group counts...");
+            DB::transaction(function() use ($allGroupIds, $fullUserMembershipMap) {
+                // Count how many times each group appears in our map
+                $allGidCounts = [];
+                foreach ($fullUserMembershipMap as $uids => $gids) {
+                    foreach ($gids as $gid) {
+                        $allGidCounts[$gid] = ($allGidCounts[$gid] ?? 0) + 1;
+                    }
+                }
+                foreach ($allGroupIds as $gid) {
+                    IdentityGroup::where('azure_id', $gid)->update(['members_count' => $allGidCounts[$gid] ?? 0]);
+                }
             });
 
             Log::info('SyncIdentityData: group memberships OK');
