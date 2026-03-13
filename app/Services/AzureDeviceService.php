@@ -121,7 +121,8 @@ class AzureDeviceService
 
             return collect($response->json('value', []))->map(function ($d) {
                 return [
-                    'azure_device_id' => $d['id'],
+                    'azure_device_id' => $d['deviceId'] ?? $d['id'], // Use hardware deviceId for matching
+                    'graph_id'        => $d['id'],
                     'display_name'    => $d['displayName'] ?? 'Unknown',
                     'os'              => $d['operatingSystem'] ?? null,
                     'os_version'      => $d['operatingSystemVersion'] ?? null,
@@ -141,7 +142,7 @@ class AzureDeviceService
             $response = \Illuminate\Support\Facades\Http::timeout(120)
                 ->withToken($token)
                 ->get('https://graph.microsoft.com/v1.0/deviceManagement/managedDevices', [
-                    '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,model,manufacturer',
+                    '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,model,manufacturer,azureADDeviceId',
                     '$top'    => 999,
                 ]);
 
@@ -150,7 +151,7 @@ class AzureDeviceService
                 $response = \Illuminate\Support\Facades\Http::timeout(120)
                     ->withToken($token)
                     ->get('https://graph.microsoft.com/v1.0/deviceManagement/managedDevices', [
-                        '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,model,manufacturer',
+                        '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,model,manufacturer,azureADDeviceId',
                         '$top'    => 999,
                     ]);
             }
@@ -162,7 +163,8 @@ class AzureDeviceService
 
             return collect($response->json('value', []))->map(function ($d) {
                 return [
-                    'azure_device_id' => $d['id'],
+                    'azure_device_id' => $d['azureADDeviceId'] ?? $d['id'], // Match with Azure AD hardware ID
+                    'intune_id'       => $d['id'],
                     'display_name'    => $d['deviceName'] ?? 'Unknown',
                     'os'              => $d['operatingSystem'] ?? null,
                     'serial_number'   => $d['serialNumber'] ?? null,
