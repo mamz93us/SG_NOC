@@ -45,6 +45,11 @@ use App\Http\Controllers\Admin\PortMapController;
 use App\Http\Controllers\Admin\DhcpLeaseController;
 use App\Http\Controllers\Admin\SophosFirewallController;
 use App\Http\Controllers\Admin\IpamController;
+use App\Http\Controllers\Admin\ItamController;
+use App\Http\Controllers\Admin\SupplierController;
+use App\Http\Controllers\Admin\LicenseController;
+use App\Http\Controllers\Admin\AccessoryController;
+use App\Http\Controllers\Admin\AzureSyncController;
 use App\Http\Controllers\Auth\MicrosoftController;
 use App\Http\Controllers\PhonebookController;
 use App\Http\Controllers\PublicContactController;
@@ -305,10 +310,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:view-assets')->group(function () {
         Route::get('devices',                  [DeviceController::class, 'index'])     ->name('devices.index');
         Route::get('devices/create',           [DeviceController::class, 'create'])    ->name('devices.create');
+        Route::get('devices/scan',             [DeviceController::class, 'scan'])      ->name('devices.scan');
         Route::get('devices/warranty',         [WarrantyTrackerController::class, 'index'])->name('devices.warranty');
         Route::get('devices/firmware',         [DeviceController::class, 'firmware'])  ->name('devices.firmware');
+        Route::get('devices/{device}/label',   [DeviceController::class, 'label'])     ->name('devices.label');
         Route::get('devices/{device}/edit',    [DeviceController::class, 'edit'])      ->name('devices.edit');
-        Route::get('devices/{device}',         [DeviceController::class, 'show'])     ->name('devices.show');
+        Route::get('devices/{device}',         [DeviceController::class, 'show'])      ->name('devices.show');
     });
     Route::middleware('permission:manage-assets')->group(function () {
         Route::post('devices',                 [DeviceController::class, 'store'])   ->name('devices.store');
@@ -679,6 +686,57 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::post('/settings/provisioning', [SettingsController::class, 'updateProvisioning'])->name('settings.provisioning');
     Route::get('/settings/provisioning-licenses',  [SettingsController::class, 'provisioningLicenses'])->name('settings.provisioning-licenses');
     Route::post('/settings/provisioning-licenses', [SettingsController::class, 'setDefaultLicense'])   ->name('settings.provisioning-licenses.save');
+
+    // ─── ITAM ─────────────────────────────────────────────────────
+    Route::middleware('permission:view-itam')->prefix('itam')->name('itam.')->group(function () {
+        Route::get('/',         [ItamController::class, 'dashboard']) ->name('dashboard');
+    });
+
+    // ─── Suppliers ────────────────────────────────────────────────
+    Route::middleware('permission:view-itam')->prefix('itam/suppliers')->name('itam.suppliers.')->group(function () {
+        Route::get('/', [SupplierController::class, 'index'])->name('index');
+    });
+    Route::middleware('permission:manage-itam')->prefix('itam/suppliers')->name('itam.suppliers.')->group(function () {
+        Route::post('/',              [SupplierController::class, 'store'])   ->name('store');
+        Route::put('/{supplier}',     [SupplierController::class, 'update'])  ->name('update');
+        Route::delete('/{supplier}',  [SupplierController::class, 'destroy']) ->name('destroy');
+    });
+
+    // ─── Software Licenses ────────────────────────────────────────
+    Route::middleware('permission:view-licenses')->prefix('itam/licenses')->name('itam.licenses.')->group(function () {
+        Route::get('/', [LicenseController::class, 'index'])->name('index');
+    });
+    Route::middleware('permission:manage-licenses')->prefix('itam/licenses')->name('itam.licenses.')->group(function () {
+        Route::post('/',                          [LicenseController::class, 'store'])    ->name('store');
+        Route::put('/{license}',                  [LicenseController::class, 'update'])   ->name('update');
+        Route::delete('/{license}',               [LicenseController::class, 'destroy'])  ->name('destroy');
+        Route::post('/{license}/assign',          [LicenseController::class, 'assign'])   ->name('assign');
+        Route::delete('/{license}/unassign/{assignment}', [LicenseController::class, 'unassign'])->name('unassign');
+    });
+
+    // ─── Accessories ──────────────────────────────────────────────
+    Route::middleware('permission:view-accessories')->prefix('itam/accessories')->name('itam.accessories.')->group(function () {
+        Route::get('/', [AccessoryController::class, 'index'])->name('index');
+    });
+    Route::middleware('permission:manage-accessories')->prefix('itam/accessories')->name('itam.accessories.')->group(function () {
+        Route::post('/',                              [AccessoryController::class, 'store'])   ->name('store');
+        Route::put('/{accessory}',                    [AccessoryController::class, 'update'])  ->name('update');
+        Route::delete('/{accessory}',                 [AccessoryController::class, 'destroy']) ->name('destroy');
+        Route::post('/{accessory}/assign',            [AccessoryController::class, 'assign'])  ->name('assign');
+        Route::patch('/{accessory}/assignments/{assignment}/return', [AccessoryController::class, 'returnItem'])->name('return');
+    });
+
+    // ─── Azure Device Sync ────────────────────────────────────────
+    Route::middleware('permission:view-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
+        Route::get('/', [AzureSyncController::class, 'index'])->name('index');
+    });
+    Route::middleware('permission:manage-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
+        Route::post('/sync',                   [AzureSyncController::class, 'sync'])         ->name('sync');
+        Route::patch('/{azureDevice}/approve', [AzureSyncController::class, 'approve'])      ->name('approve');
+        Route::patch('/{azureDevice}/reject',  [AzureSyncController::class, 'reject'])       ->name('reject');
+        Route::get('/{azureDevice}/create-device', [AzureSyncController::class, 'createDevice'])->name('create-device');
+    });
+
 
 });
 

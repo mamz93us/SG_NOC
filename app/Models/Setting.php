@@ -58,6 +58,10 @@ class Setting extends Model
         'gdms_org_id',
         'gdms_username',
         'gdms_password_hash',
+        // ITAM
+        'itam_asset_prefix',
+        'itam_code_padding',
+        'itam_company_url',
     ];
 
     protected $casts = [
@@ -73,6 +77,7 @@ class Setting extends Model
         'ext_range_start'              => 'integer',
         'ext_range_end'                => 'integer',
         'graph_default_license_skus'   => 'array',
+        'itam_code_padding'            => 'integer',
     ];
 
     /**

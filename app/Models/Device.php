@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Services\DepreciationService;
 
 class Device extends Model
 {
@@ -30,12 +31,24 @@ class Device extends Model
         'warranty_expiry',
         'firmware_version',
         'latest_firmware',
+        // ── ITAM ──────────────────────────────────────────────────────
+        'asset_code',
+        'purchase_cost',
+        'supplier_id',
+        'condition',
+        'depreciation_method',
+        'depreciation_years',
+        'current_value',
     ];
 
     protected $casts = [
-        'status'          => 'string',
-        'purchase_date'   => 'date',
-        'warranty_expiry' => 'date',
+        'status'             => 'string',
+        'purchase_date'      => 'date',
+        'warranty_expiry'    => 'date',
+        // ITAM
+        'purchase_cost'      => 'decimal:2',
+        'current_value'      => 'decimal:2',
+        'depreciation_years' => 'integer',
     ];
 
     // ─── Relationships ────────────────────────────────────────────
@@ -83,6 +96,29 @@ class Device extends Model
     public function currentAssignment(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(EmployeeAsset::class, 'asset_id')->whereNull('returned_date');
+    }
+
+    // ─── ITAM Relationships ────────────────────────────────────────
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    public function assetHistory(): HasMany
+    {
+        return $this->hasMany(AssetHistory::class)->orderByDesc('created_at');
+    }
+
+    public function licenseAssignments(): HasMany
+    {
+        return $this->hasMany(LicenseAssignment::class, 'assignable_id')
+                    ->where('assignable_type', self::class);
+    }
+
+    public function azureDevice(): HasOne
+    {
+        return $this->hasOne(AzureDevice::class);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────
@@ -198,6 +234,29 @@ class Device extends Model
     {
         if (!$this->firmware_version || !$this->latest_firmware) return false;
         return $this->firmware_version !== $this->latest_firmware;
+    }
+
+    // ─── ITAM Helpers ─────────────────────────────────────────────
+
+    public function conditionBadgeClass(): string
+    {
+        return match ($this->condition ?? 'new') {
+            'new'         => 'bg-success',
+            'used'        => 'bg-info text-dark',
+            'refurbished' => 'bg-warning text-dark',
+            'damaged'     => 'bg-danger',
+            default       => 'bg-secondary',
+        };
+    }
+
+    public function conditionLabel(): string
+    {
+        return ucfirst($this->condition ?? 'new');
+    }
+
+    public function calculateCurrentValue(): float
+    {
+        return (new DepreciationService())->currentValue($this);
     }
 
     /**

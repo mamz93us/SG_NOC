@@ -4,11 +4,17 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\AssetHistory;
 use App\Models\Branch;
 use App\Models\Credential;
 use App\Models\Department;
 use App\Models\Device;
 use App\Models\DeviceModel;
+use App\Models\License;
+use App\Models\LicenseAssignment;
+use App\Models\Supplier;
+use App\Services\AssetCodeService;
+use App\Services\DepreciationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -91,8 +97,12 @@ class DeviceController extends Controller
 
     public function show(Device $device)
     {
-        $device->load(['branch', 'credentials.creator', 'printer']);
-        return view('admin.devices.show', compact('device'));
+        $device->load([
+            'branch', 'credentials.creator', 'printer',
+            'supplier', 'assetHistory.user', 'licenseAssignments.license', 'azureDevice',
+        ]);
+        $depreciation = new DepreciationService();
+        return view('admin.devices.show', compact('device', 'depreciation'));
     }
 
     public function create()
@@ -100,7 +110,8 @@ class DeviceController extends Controller
         $branches     = Branch::orderBy('name')->get(['id', 'name']);
         $departments  = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
         $deviceModels = DeviceModel::orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
-        return view('admin.devices.form', compact('branches', 'departments', 'deviceModels'));
+        $suppliers    = Supplier::orderBy('name')->get(['id', 'name']);
+        return view('admin.devices.form', compact('branches', 'departments', 'deviceModels', 'suppliers'));
     }
 
     public function store(Request $request)
@@ -121,10 +132,33 @@ class DeviceController extends Controller
             'status'               => 'required|in:active,available,assigned,maintenance,retired',
             'purchase_date'        => 'nullable|date',
             'warranty_expiry'      => 'nullable|date',
+            // ITAM fields
+            'asset_code'           => 'nullable|string|max:50|unique:devices,asset_code',
+            'purchase_cost'        => 'nullable|numeric|min:0',
+            'supplier_id'          => 'nullable|exists:suppliers,id',
+            'condition'            => 'nullable|in:new,used,refurbished,damaged',
+            'depreciation_method'  => 'nullable|in:straight_line,none',
+            'depreciation_years'   => 'nullable|integer|min:1|max:30',
         ]);
+
+        // Auto-generate asset_code if blank
+        if (empty($data['asset_code'])) {
+            try {
+                $data['asset_code'] = (new AssetCodeService())->generate($data['type']);
+            } catch (\Throwable) {
+                // Non-fatal — leave null if service fails (e.g. settings not yet configured)
+            }
+        }
 
         $device = Device::create(array_merge($data, ['source' => 'manual']));
 
+        // Calculate initial depreciation value
+        if ($device->purchase_cost && $device->depreciation_method === 'straight_line') {
+            $device->update(['current_value' => (new DepreciationService())->currentValue($device)]);
+        }
+
+        // Log asset history
+        AssetHistory::record($device, 'created', "Device created: {$device->name}");
         ActivityLog::log('created', $device, $data);
 
         return redirect()->route('admin.devices.show', $device)
@@ -175,5 +209,15 @@ class DeviceController extends Controller
 
         return redirect()->route('admin.devices.index')
                          ->with('success', "Device \"{$name}\" deleted.");
+    }
+
+    public function label(Device $device)
+    {
+        return view('admin.devices.label', compact('device'));
+    }
+
+    public function scan()
+    {
+        return view('admin.devices.scan');
     }
 }
