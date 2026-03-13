@@ -77,6 +77,7 @@
                         <th>Status</th>
                         <th>Type</th>
                         <th>Name</th>
+                        <th>Manufacturer</th>
                         <th>Model</th>
                         <th>Branch</th>
                         <th>Assigned To</th>
@@ -100,6 +101,9 @@
                             </span>
                         </td>
                         <td class="fw-semibold">{{ $d->name }}</td>
+                        <td class="text-muted small">
+                            {{ $d->manufacturer ?: '—' }}
+                        </td>
                         <td class="text-muted">
                             {{ $d->deviceModel?->name ?: ($d->model ?: '—') }}
                         </td>

@@ -177,15 +177,27 @@ class AzureSyncController extends Controller
 
         try {
             \Illuminate\Support\Facades\DB::transaction(function () use ($azureDevice, $request) {
-                // Enrollment date is treated as purchase date
-                $enrollDate = $azureDevice->enrolled_at ? \Carbon\Carbon::parse($azureDevice->enrolled_at) : now();
+                // Correctly map from enrolled_date (vps data)
+                $enrollDate = $azureDevice->enrolled_date ? \Carbon\Carbon::parse($azureDevice->enrolled_date) : now();
 
-                // 1. Create the Device
+                // 1. Create or Find the Device Model (so it shows in dropdowns/inventory)
+                $deviceModel = \App\Models\DeviceModel::firstOrCreate(
+                    [
+                        'manufacturer' => $azureDevice->manufacturer ?? 'Unknown', 
+                        'name'         => $azureDevice->model ?? 'Common Model'
+                    ],
+                    [
+                        'device_type'  => $request->type
+                    ]
+                );
+
+                // 2. Create the Device
                 $device = Device::create([
                     'type'                => $request->type,
                     'name'                => $azureDevice->display_name,
                     'manufacturer'        => $azureDevice->manufacturer,
                     'model'               => $azureDevice->model,
+                    'device_model_id'     => $deviceModel->id,
                     'serial_number'       => $azureDevice->serial_number,
                     'asset_code'          => $request->asset_code,
                     'status'              => 'active',
@@ -198,13 +210,13 @@ class AzureSyncController extends Controller
                     'notes'               => "Imported from Azure/Intune sync on " . now()->toDateTimeString(),
                 ]);
 
-                // 2. Link AzureDevice to this record
+                // 3. Link AzureDevice to this record
                 $azureDevice->update([
                     'device_id'   => $device->id,
                     'link_status' => 'linked',
                 ]);
 
-                // 3. Assign to Employee if UPN matches
+                // 4. Assign to Employee if UPN matches
                 $employee = \App\Models\Employee::where('email', $azureDevice->upn)->first();
                 if ($employee) {
                     \App\Models\EmployeeAsset::create([

@@ -88,7 +88,11 @@
             <div class="card-body p-0">
                 <table class="table table-sm table-borderless small mb-0">
                     <tr><th class="text-muted ps-3" style="width:40%">Model</th>
-                        <td>{{ $device->deviceModel?->name ? (($device->deviceModel->manufacturer ? $device->deviceModel->manufacturer . ' ' : '') . $device->deviceModel->name) : ($device->model ?: '—') }}</td></tr>
+                        <td>{{ $device->deviceModel?->name ?: ($device->model ?: '—') }}</td></tr>
+                    @if($device->manufacturer)
+                    <tr><th class="text-muted ps-3">Manufacturer</th>
+                        <td>{{ $device->manufacturer }}</td></tr>
+                    @endif
                     <tr><th class="text-muted ps-3">Serial</th>
                         <td class="font-monospace">{{ $device->serial_number ?: '—' }}</td></tr>
                     <tr><th class="text-muted ps-3">IP</th>
