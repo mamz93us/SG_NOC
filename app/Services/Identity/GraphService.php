@@ -147,11 +147,14 @@ class GraphService
      * Paginate through @odata.nextLink automatically.
      * Uses a longer timeout (120s) — bulk queries can return thousands of records.
      */
-    private function paginate(string $endpoint, array $query = []): array
+    /**
+     * Paginate through results using a callback for each page.
+     * Prevents memory exhaustion on large tenants (1000+ users).
+     */
+    private function paginateWithCallback(string $endpoint, callable $callback, array $query = []): void
     {
-        $results = [];
-        $query   = array_merge(['$top' => 999], $query);
-        $url     = $this->baseUrl . $endpoint;
+        $query = array_merge(['$top' => 999], $query);
+        $url   = $this->baseUrl . $endpoint;
 
         do {
             $token    = $this->getAccessToken();
@@ -169,13 +172,20 @@ class GraphService
             }
 
             $body = $response->json();
-            // array_push with spread avoids the full array copy that array_merge
-            // creates on every iteration — cuts memory from O(n²) to O(n).
-            array_push($results, ...($body['value'] ?? []));
-            $url  = $body['@odata.nextLink'] ?? null;
-            unset($body); // free decoded JSON immediately
+            $callback($body['value'] ?? []);
+            
+            $url = $body['@odata.nextLink'] ?? null;
+            unset($body);
+            gc_collect_cycles();
         } while ($url);
+    }
 
+    private function paginate(string $endpoint, array $query = []): array
+    {
+        $results = [];
+        $this->paginateWithCallback($endpoint, function($values) use (&$results) {
+            array_push($results, ...$values);
+        }, $query);
         return $results;
     }
 
@@ -193,13 +203,15 @@ class GraphService
     // User Operations
     // ─────────────────────────────────────────────────────────────
 
-    public function listUsers(): array
+    public function listUsers(callable $callback): void
     {
-        // Fetch core user data without $expand — adding $expand=manager to a
-        // large tenant (hundreds of users) inflates the response significantly
-        // and causes timeouts. Manager IDs are fetched in a separate lightweight
-        // pass via listUserManagers() during sync.
-        $users = $this->paginate('/users', [
+        $this->paginateWithCallback('/users', function($users) use ($callback) {
+            $mapped = array_map(function (array $user) {
+                $user['manager_id'] = null;
+                return $user;
+            }, $users);
+            $callback($mapped);
+        }, [
             '$select' => implode(',', [
                 'id', 'displayName', 'userPrincipalName', 'mail',
                 'jobTitle', 'department', 'companyName',
@@ -209,11 +221,6 @@ class GraphService
                 'officeLocation', 'streetAddress', 'city', 'postalCode', 'country',
             ]),
         ]);
-
-        return array_map(function (array $user) {
-            $user['manager_id'] = null; // populated separately by listUserManagers()
-            return $user;
-        }, $users);
     }
 
     /**
@@ -439,9 +446,9 @@ class GraphService
     // Group Operations
     // ─────────────────────────────────────────────────────────────
 
-    public function listGroups(): array
+    public function listGroups(callable $callback): void
     {
-        return $this->paginate('/groups', [
+        $this->paginateWithCallback('/groups', $callback, [
             '$select' => 'id,displayName,description,groupTypes,mailEnabled,securityEnabled',
         ]);
     }

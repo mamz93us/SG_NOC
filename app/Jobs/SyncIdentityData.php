@@ -108,31 +108,34 @@ class SyncIdentityData implements ShouldQueue
 
         // ── 2. Sync groups (non-fatal) ─────────────────────────────
         try {
-            $groups = $graph->listGroups();
-            DB::transaction(function () use ($groups) {
-                foreach ($groups as $group) {
-                    IdentityGroup::updateOrCreate(
-                        ['azure_id' => $group['id']],
-                        [
-                            'display_name'     => $group['displayName'],
-                            'description'      => $group['description'] ?? null,
-                            'group_type'       => in_array('Unified', $group['groupTypes'] ?? []) ? 'Unified' : null,
-                            'mail_enabled'     => $group['mailEnabled'] ?? false,
-                            'security_enabled' => $group['securityEnabled'] ?? true,
-                        ]
-                    );
-                }
+            $activeGroupIds = [];
+            $graph->listGroups(function($groupChunk) use (&$activeGroupIds, &$groupCount) {
+                DB::transaction(function () use ($groupChunk, &$activeGroupIds) {
+                    foreach ($groupChunk as $group) {
+                        IdentityGroup::updateOrCreate(
+                            ['azure_id' => $group['id']],
+                            [
+                                'display_name'     => $group['displayName'],
+                                'description'      => $group['description'] ?? null,
+                                'group_type'       => in_array('Unified', $group['groupTypes'] ?? []) ? 'Unified' : null,
+                                'mail_enabled'     => $group['mailEnabled'] ?? false,
+                                'security_enabled' => $group['securityEnabled'] ?? true,
+                            ]
+                        );
+                        $activeGroupIds[] = $group['id'];
+                    }
+                });
+                $groupCount += count($groupChunk);
             });
-            $groupCount = count($groups);
 
             // Remove groups no longer in Azure
-            $activeGroupIds = collect($groups)->pluck('id')->filter()->all();
             if (!empty($activeGroupIds)) {
                 $deletedGroups = IdentityGroup::whereNotIn('azure_id', $activeGroupIds)->delete();
                 if ($deletedGroups) Log::info("SyncIdentityData: removed {$deletedGroups} stale group(s).");
             }
 
-            unset($groups); // free memory before user sync
+            unset($activeGroupIds);
+            gc_collect_cycles();
             Log::info('SyncIdentityData: groups OK (' . $groupCount . ')');
         } catch (\Throwable $e) {
             $errors[] = 'Groups: ' . $e->getMessage();
@@ -141,19 +144,13 @@ class SyncIdentityData implements ShouldQueue
 
         // ── 3. Sync users (non-fatal) ──────────────────────────────
         try {
-            $users = $graph->listUsers();
-            
-            // Sync in smaller batches of 100 to avoid table locks and high memory
-            foreach (array_chunk($users, 100) as $userChunk) {
-                DB::transaction(function () use ($userChunk) {
+            $activeUserIds = [];
+            $graph->listUsers(function($userChunk) use (&$activeUserIds, &$userCount) {
+                DB::transaction(function () use ($userChunk, &$activeUserIds) {
                     foreach ($userChunk as $u) {
+                        $activeUserIds[] = $u['id'];
                         $licenseSkus = collect($u['assignedLicenses'] ?? [])->pluck('skuId')->all();
 
-                        // ── Fix UPN Conflicts ──────────────────────────────
-                        // If we are creating a new azure_id record, but its 
-                        // UPN already exists in our DB, we must update the 
-                        // existing record's azure_id instead of inserting a 
-                        // second one (which would fail on the unique UPN index).
                         $dbUser = IdentityUser::where('azure_id', $u['id'])
                             ->orWhere('user_principal_name', $u['userPrincipalName'])
                             ->first();
@@ -186,18 +183,16 @@ class SyncIdentityData implements ShouldQueue
                         $dbUser->save();
                     }
                 });
-            }
-            
-            $userCount = count($users);
+                $userCount += count($userChunk);
+            });
 
             // Remove users no longer in Azure
-            $activeUserIds = collect($users)->pluck('id')->filter()->all();
             if (!empty($activeUserIds)) {
                 $deletedUsers = IdentityUser::whereNotIn('azure_id', $activeUserIds)->delete();
                 if ($deletedUsers) Log::info("SyncIdentityData: removed {$deletedUsers} stale user(s).");
             }
 
-            unset($users); // free ~888 full user objects before manager + group passes
+            unset($activeUserIds);
             gc_collect_cycles();
             Log::info('SyncIdentityData: users OK (' . $userCount . ')');
         } catch (\Throwable $e) {
