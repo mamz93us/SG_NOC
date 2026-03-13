@@ -70,17 +70,17 @@ class GraphService
     /**
      * Authenticated GET request.
      */
-    private function get(string $endpoint, array $query = [], int $timeout = self::TIMEOUT_STANDARD): array
+    private function get(string $endpoint, array $query = [], int $timeout = self::TIMEOUT_STANDARD, array $headers = []): array
     {
         $token = $this->getAccessToken();
         $url   = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl . $endpoint;
 
-        $response = Http::timeout($timeout)->withToken($token)->get($url, $query);
+        $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
 
         // Auto-refresh token once on 401/403
         if ($response->status() === 401 || $response->status() === 403) {
             $token    = $this->refreshToken();
-            $response = Http::timeout($timeout)->withToken($token)->get($url, $query);
+            $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
         }
 
         if (!$response->successful()) {
@@ -149,19 +149,21 @@ class GraphService
     /**
      * Paginate through results using a callback, maintaining low memory usage.
      */
-    private function paginateWithCallback(string $endpoint, callable $callback, array $query = []): void
+    private function paginateWithCallback(string $endpoint, callable $callback, array $query = [], array $headers = []): void
     {
-        $query = array_merge(['$top' => 500], $query);
-        $url   = $this->baseUrl . $endpoint;
+        $query   = array_merge(['$top' => 500], $query);
+        $baseUrl = $this->baseUrl . $endpoint;
+        $url     = $baseUrl;
 
         do {
-            $body = $this->get($url, $url === $this->baseUrl . $endpoint ? $query : [], self::TIMEOUT_BULK);
+            // On subsequent pages the nextLink already encodes all query params, so pass empty query
+            $body   = $this->get($url, $url === $baseUrl ? $query : [], self::TIMEOUT_BULK, $headers);
             $values = $body['value'] ?? [];
-            
+
             Log::debug("Graph: Processed " . count($values) . " results for " . parse_url($url, PHP_URL_PATH));
-            
+
             $callback($values);
-            
+
             $url = $body['@odata.nextLink'] ?? null;
             unset($body);
             gc_collect_cycles();
@@ -182,10 +184,12 @@ class GraphService
     {
         // Only sync internal Member accounts — skips B2B guests (#EXT#), shared mailboxes,
         // room/equipment accounts, and service principals that inflate the tenant user count.
+        // NOTE: userType is an advanced-query property — requires ConsistencyLevel + $count=true.
         $this->paginateWithCallback('/users', $callback, [
             '$select' => 'id,displayName,userPrincipalName,mail,jobTitle,department,companyName,accountEnabled,usageLocation,assignedLicenses,businessPhones,mobilePhone,officeLocation,streetAddress,city,postalCode,country',
             '$filter' => "userType eq 'Member'",
-        ]);
+            '$count'  => 'true',
+        ], ['ConsistencyLevel' => 'eventual']);
     }
 
     public function listGroups(callable $callback): void
@@ -220,7 +224,8 @@ class GraphService
                 '$select' => 'id',
                 '$expand' => 'manager($select=id)',
                 '$filter' => "userType eq 'Member'",
-            ]);
+                '$count'  => 'true',
+            ], ['ConsistencyLevel' => 'eventual']);
         } catch (\Throwable) {
             // Managers are supplementary
         }
