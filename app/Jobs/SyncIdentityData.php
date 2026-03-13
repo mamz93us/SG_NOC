@@ -15,6 +15,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class SyncIdentityData implements ShouldQueue
 {
@@ -37,13 +38,21 @@ class SyncIdentityData implements ShouldQueue
             return;
         }
 
-        // Detect and prevent parallel runs
-        $alreadyRunning = IdentitySyncLog::where('status', 'started')
+        // Detect and prevent parallel runs using an atomic Cache lock (1 hour)
+        $lock = Cache::lock('sync_identity_running', 3600);
+        if (!$lock->get()) {
+            Log::warning('SyncIdentityData: Another sync process is already running (Cache Lock) — stopping this one.');
+            return;
+        }
+
+        // Also check DB as a secondary safety
+        $alreadyRunningInDb = IdentitySyncLog::where('status', 'started')
             ->where('started_at', '>', now()->subHours(1))
             ->exists();
 
-        if ($alreadyRunning) {
-            Log::warning('SyncIdentityData: Already running — stopping this process to prevent duplication.');
+        if ($alreadyRunningInDb) {
+            $lock->release();
+            Log::warning('SyncIdentityData: Already running in DB — stopping.');
             return;
         }
 
@@ -301,5 +310,8 @@ class SyncIdentityData implements ShouldQueue
         ]);
 
         Log::info("SyncIdentityData: {$status}. Users: {$userCount}, Licenses: {$licenseCount}, Groups: {$groupCount}" . ($errorMessage ? " | Errors: {$errorMessage}" : ''));
+        
+        // Release the lock at the very end
+        $lock->release();
     }
 }
