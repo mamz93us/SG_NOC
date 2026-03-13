@@ -92,11 +92,10 @@ class SyncGdmsContacts extends Command
             'completed_at'   => now(),
         ]);
 
-// Log activity — use the first admin user if one exists, otherwise skip
-$adminUser = \App\Models\User::where('is_admin', true)->first()
-          ?? \App\Models\User::first();
-if ($adminUser) {
-    try {
+// Log activity — use the first user, non-critical if it fails
+try {
+    $adminUser = \App\Models\User::first();
+    if ($adminUser) {
         \App\Models\ActivityLog::create([
             'model_type' => 'System',
             'model_id'   => 0,
@@ -104,9 +103,9 @@ if ($adminUser) {
             'changes'    => ['processed' => $processed, 'source' => 'gdms', 'run_from' => 'cli'],
             'user_id'    => $adminUser->id,
         ]);
-    } catch (\Throwable) {
-        // Non-critical — don't let activity log failure break the sync
     }
+} catch (\Throwable) {
+    // Non-critical — don't let activity log failure break the sync
 }
 
 

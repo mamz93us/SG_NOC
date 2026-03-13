@@ -7,7 +7,6 @@ use App\Models\IdentityGroup;
 use App\Models\IdentityLicense;
 use App\Models\IdentitySyncLog;
 use App\Models\IdentityUser;
-use App\Models\ServiceSyncLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -19,7 +18,6 @@ use Illuminate\Support\Facades\Log;
 class IdentitySyncService
 {
     protected GraphService $graph;
-    protected ?ServiceSyncLog $syncLog = null;
 
     public function __construct(?GraphService $graph = null)
     {
@@ -32,11 +30,7 @@ class IdentitySyncService
     public function syncAll(): array
     {
         Log::info('IdentitySyncService: Starting full sync.');
-        
-        // Use the common ServiceSyncLog for the admin dashboard status bar
-        $this->syncLog = ServiceSyncLog::start('azure');
-        
-        // Also keep the existing detailed IdentitySyncLog for legacy views
+
         $detailedLog = IdentitySyncLog::create([
             'type'       => 'full',
             'status'     => 'started',
@@ -54,17 +48,14 @@ class IdentitySyncService
             // 1. Sync Licenses
             $stats['licenses'] = $this->syncLicenses($stats['errors']);
             $detailedLog->update(['licenses_synced' => $stats['licenses']]);
-            $this->syncLog->update(['records_synced' => $stats['licenses']]);
 
             // 2. Sync Groups
             $stats['groups'] = $this->syncGroups($stats['errors']);
             $detailedLog->update(['groups_synced' => $stats['groups']]);
-            $this->syncLog->update(['records_synced' => $stats['licenses'] + $stats['groups']]);
 
             // 3. Sync Users
             $stats['users'] = $this->syncUsers($stats['errors']);
             $detailedLog->update(['users_synced' => $stats['users']]);
-            $this->syncLog->update(['records_synced' => $stats['licenses'] + $stats['groups'] + $stats['users']]);
 
             // 4. Sync Relationships (Managers and Group Memberships)
             $this->syncRelationships($stats['errors']);
@@ -81,11 +72,6 @@ class IdentitySyncService
                 'completed_at'  => now(),
             ]);
 
-            $this->syncLog->update([
-                'status'       => $status === 'partially_failed' ? 'completed' : $status,
-                'completed_at' => now(),
-            ]);
-
             ActivityLog::log(
                 'Identity Sync',
                 "Full synchronization completed: {$stats['users']} users, {$stats['groups']} groups, {$stats['licenses']} licenses.",
@@ -95,20 +81,12 @@ class IdentitySyncService
         } catch (\Throwable $e) {
             Log::error('IdentitySyncService: Fatal sync error: ' . $e->getMessage());
             $stats['errors'][] = 'Fatal: ' . $e->getMessage();
-            
+
             $detailedLog->update([
                 'status'        => 'failed',
                 'error_message' => $e->getMessage(),
                 'completed_at'  => now(),
             ]);
-
-            if ($this->syncLog) {
-                $this->syncLog->update([
-                    'status'        => 'failed',
-                    'error_message' => $e->getMessage(),
-                    'completed_at'  => now(),
-                ]);
-            }
 
             throw $e;
         }

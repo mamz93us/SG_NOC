@@ -54,15 +54,16 @@ class SyncIdentity extends Command
             (new SyncIdentityData())->handle();
 
             $lastSync = IdentitySyncLog::where('status', 'completed')->latest()->first();
-            $log->update([
-                'status'         => 'completed',
-                'records_synced' => $lastSync?->users_synced ?? 0,
-                'completed_at'   => now(),
-            ]);
 
             $users    = $lastSync?->users_synced    ?? 0;
             $groups   = $lastSync?->groups_synced   ?? 0;
             $licenses = $lastSync?->licenses_synced ?? 0;
+
+            $log->update([
+                'status'         => 'completed',
+                'records_synced' => $users + $groups + $licenses,
+                'completed_at'   => now(),
+            ]);
 
             $this->info("Identity sync completed. Users: {$users} | Groups: {$groups} | Licenses: {$licenses}");
             return self::SUCCESS;
