@@ -320,9 +320,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('devices/{device}',         [DeviceController::class, 'show'])      ->name('devices.show');
     });
     Route::middleware('permission:manage-assets')->group(function () {
-        Route::post('devices',                 [DeviceController::class, 'store'])   ->name('devices.store');
-        Route::put('devices/{device}',         [DeviceController::class, 'update'])  ->name('devices.update');
-        Route::delete('devices/{device}',      [DeviceController::class, 'destroy']) ->name('devices.destroy');
+        Route::post('devices',                     [DeviceController::class, 'store'])       ->name('devices.store');
+        Route::put('devices/{device}',             [DeviceController::class, 'update'])      ->name('devices.update');
+        Route::delete('devices/{device}',          [DeviceController::class, 'destroy'])     ->name('devices.destroy');
+        Route::post('devices/{device}/assign',     [DeviceController::class, 'quickAssign']) ->name('devices.assign');
+        Route::post('devices/{device}/return',     [DeviceController::class, 'quickReturn']) ->name('devices.return');
     });
 
     // ─── Credentials (Password Vault) ─────────────────────────
@@ -734,9 +736,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/{azureDevice}',     [AzureSyncController::class, 'show']) ->name('show');
     });
     Route::middleware('permission:manage-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
-        Route::post('/sync',                   [AzureSyncController::class, 'sync'])         ->name('sync');
-        Route::patch('/{azureDevice}/approve', [AzureSyncController::class, 'approve'])      ->name('approve');
-        Route::patch('/{azureDevice}/reject',  [AzureSyncController::class, 'reject'])       ->name('reject');
+        Route::post('/sync',                       [AzureSyncController::class, 'sync'])        ->name('sync');
+        Route::patch('/{azureDevice}/approve',     [AzureSyncController::class, 'approve'])     ->name('approve');
+        Route::patch('/{azureDevice}/reject',      [AzureSyncController::class, 'reject'])      ->name('reject');
+        Route::post('/{azureDevice}/link-device',  [AzureSyncController::class, 'linkDevice'])  ->name('link-device');
         Route::get('/{azureDevice}/create-device', [AzureSyncController::class, 'createDevice'])->name('create-device');
     });
 

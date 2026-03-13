@@ -79,6 +79,21 @@ class AzureSyncController extends Controller
         return back()->with('success', "Device link rejected.");
     }
 
+    public function linkDevice(Request $request, AzureDevice $azureDevice)
+    {
+        $request->validate(['device_id' => 'required|exists:devices,id']);
+        $azureDevice->update([
+            'device_id'   => $request->device_id,
+            'link_status' => 'pending',
+        ]);
+        $device = Device::find($request->device_id);
+        if ($device) {
+            AssetHistory::record($device, 'note_added', "Azure device linked (pending approval): {$azureDevice->display_name}");
+        }
+        ActivityLog::log("Linked Azure device {$azureDevice->display_name} to device ID {$request->device_id} (pending)");
+        return response()->json(['ok' => true, 'message' => 'Linked — pending approval.']);
+    }
+
     public function show(AzureDevice $azureDevice)
     {
         $azureDevice->load('device.branch');

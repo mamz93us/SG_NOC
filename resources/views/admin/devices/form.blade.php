@@ -256,12 +256,20 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Supplier</label>
-                    <select name="supplier_id" class="form-select">
-                        <option value="">— None —</option>
-                        @foreach($suppliers ?? [] as $s)
-                        <option value="{{ $s->id }}" {{ old('supplier_id', $device->supplier_id ?? '') == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
-                        @endforeach
-                    </select>
+                    <div class="input-group">
+                        <select name="supplier_id" id="dv_supplier" class="form-select">
+                            <option value="">— None —</option>
+                            @foreach($suppliers ?? [] as $s)
+                            <option value="{{ $s->id }}" {{ old('supplier_id', $device->supplier_id ?? '') == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
+                            @endforeach
+                        </select>
+                        @can('manage-suppliers')
+                        <button type="button" class="btn btn-outline-secondary"
+                                data-bs-toggle="modal" data-bs-target="#dvAddSupplierModal" title="Add Supplier">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                        @endcan
+                    </div>
                 </div>
 
                 {{-- ── Depreciation ── --}}
@@ -369,6 +377,45 @@
 </div>
 @endcan
 
+{{-- ── Quick-add Supplier Modal ── --}}
+@can('manage-suppliers')
+<div class="modal fade" id="dvAddSupplierModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-semibold"><i class="bi bi-building me-1"></i>Add Supplier</h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dvSupError" class="alert alert-danger d-none py-2 small"></div>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Name <span class="text-danger">*</span></label>
+                    <input type="text" id="dvSupName" class="form-control form-control-sm" maxlength="255" placeholder="e.g. Al-Jazeera Tech">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Contact Person</label>
+                    <input type="text" id="dvSupContact" class="form-control form-control-sm" maxlength="255">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Email</label>
+                    <input type="email" id="dvSupEmail" class="form-control form-control-sm" maxlength="255">
+                </div>
+                <div>
+                    <label class="form-label small fw-semibold">Phone</label>
+                    <input type="text" id="dvSupPhone" class="form-control form-control-sm" maxlength="30">
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" id="dvSupSaveBtn">
+                    <i class="bi bi-plus-lg me-1"></i>Create &amp; Select
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+@endcan
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script>
@@ -377,8 +424,9 @@ const dv_floorsUrl   = '{{ route("admin.network.floors") }}';
 const dv_officesUrl  = '{{ route("admin.network.offices") }}';
 const dv_macUrl      = '{{ route("admin.network.clients.mac-search") }}';
 const dv_deptStore   = '{{ route("admin.settings.departments.store") }}';
-const dv_modelStore  = '{{ route("admin.devices.models.store") }}';
-const dv_genCodeUrl  = '{{ route("admin.devices.generate-code") }}';
+const dv_modelStore    = '{{ route("admin.devices.models.store") }}';
+const dv_supplierStore = '{{ route("admin.itam.suppliers.store") }}';
+const dv_genCodeUrl    = '{{ route("admin.devices.generate-code") }}';
 const dv_csrf        = document.querySelector('meta[name="csrf-token"]')?.content || '';
 const dv_editing     = {{ $editing ? 'true' : 'false' }};
 

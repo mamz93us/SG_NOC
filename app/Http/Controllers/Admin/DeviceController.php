@@ -10,6 +10,8 @@ use App\Models\Credential;
 use App\Models\Department;
 use App\Models\Device;
 use App\Models\DeviceModel;
+use App\Models\Employee;
+use App\Models\EmployeeAsset;
 use App\Models\License;
 use App\Models\LicenseAssignment;
 use App\Models\Supplier;
@@ -22,7 +24,7 @@ class DeviceController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Device::with(['branch', 'credentials'])
+        $query = Device::with(['branch', 'credentials', 'currentAssignment.employee', 'deviceModel'])
                     ->orderBy('type')
                     ->orderBy('name');
 
@@ -38,7 +40,8 @@ class DeviceController extends Controller
                 $q->where('name',          'like', "%{$s}%")
                   ->orWhere('ip_address',  'like', "%{$s}%")
                   ->orWhere('mac_address', 'like', "%{$s}%")
-                  ->orWhere('serial_number','like',"%{$s}%");
+                  ->orWhere('serial_number','like',"%{$s}%")
+                  ->orWhere('asset_code',  'like', "%{$s}%");
             });
         }
         if ($request->filled('status')) {
@@ -98,11 +101,14 @@ class DeviceController extends Controller
     public function show(Device $device)
     {
         $device->load([
-            'branch', 'credentials.creator', 'printer',
-            'supplier', 'assetHistory.user', 'licenseAssignments.license', 'azureDevice',
+            'branch', 'floor', 'office', 'department',
+            'credentials.creator', 'printer', 'deviceModel',
+            'supplier', 'assetHistory.user', 'licenseAssignments.license',
+            'azureDevice', 'currentAssignment.employee',
         ]);
         $depreciation = new DepreciationService();
-        return view('admin.devices.show', compact('device', 'depreciation'));
+        $employees    = Employee::orderBy('name')->get(['id', 'name', 'employee_id']);
+        return view('admin.devices.show', compact('device', 'depreciation', 'employees'));
     }
 
     public function create()
@@ -220,6 +226,53 @@ class DeviceController extends Controller
     public function scan()
     {
         return view('admin.devices.scan');
+    }
+
+    public function quickAssign(Request $request, Device $device)
+    {
+        $data = $request->validate([
+            'employee_id'   => 'required|exists:employees,id',
+            'assigned_date' => 'required|date',
+            'condition'     => 'required|in:good,fair,poor',
+            'notes'         => 'nullable|string|max:500',
+        ]);
+
+        $existing = EmployeeAsset::where('asset_id', $device->id)->whereNull('returned_date')->first();
+        if ($existing) {
+            return back()->with('error', 'Device is already assigned.');
+        }
+
+        EmployeeAsset::create([
+            'employee_id'   => $data['employee_id'],
+            'asset_id'      => $device->id,
+            'assigned_date' => $data['assigned_date'],
+            'condition'     => $data['condition'],
+            'notes'         => $data['notes'] ?? null,
+        ]);
+        $device->update(['status' => 'assigned']);
+        AssetHistory::record($device, 'assigned', "Assigned to employee ID {$data['employee_id']}");
+
+        return back()->with('success', 'Device assigned successfully.');
+    }
+
+    public function quickReturn(Request $request, Device $device)
+    {
+        $data = $request->validate([
+            'returned_date' => 'required|date',
+            'condition'     => 'required|in:good,fair,poor',
+            'notes'         => 'nullable|string|max:500',
+        ]);
+
+        $assignment = EmployeeAsset::where('asset_id', $device->id)->whereNull('returned_date')->firstOrFail();
+        $assignment->update([
+            'returned_date' => $data['returned_date'],
+            'condition'     => $data['condition'],
+            'notes'         => $data['notes'] ?? null,
+        ]);
+        $device->update(['status' => 'available']);
+        AssetHistory::record($device, 'returned', "Returned from employee {$assignment->employee?->name}");
+
+        return back()->with('success', 'Device returned successfully.');
     }
 
     public function generateCode(Request $request)
