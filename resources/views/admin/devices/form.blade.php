@@ -17,10 +17,72 @@
             @if($editing) @method('PUT') @endif
 
             <div class="row g-3">
-
+ 
+                {{-- ── Asset Identification (Restored to top) ── --}}
+                <div class="col-12">
+                    <p class="fw-semibold small text-muted mb-0">
+                        <i class="bi bi-boxes me-1"></i>Asset Identification
+                    </p>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label fw-semibold">Asset Code</label>
+                    <div class="input-group">
+                        <input type="text" name="asset_code" id="dv_asset_code"
+                               class="form-control font-monospace @error('asset_code') is-invalid @enderror"
+                               value="{{ old('asset_code', $device->asset_code ?? request('asset_code', '')) }}"
+                               maxlength="50" placeholder="Auto-generating…"
+                               oninput="dvUpdateQr(this.value)">
+                        <button type="button" class="btn btn-outline-secondary" id="dv_genCode" title="Re-generate code">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                    </div>
+                    <div class="form-text small">Auto-generated based on type. You can override it.</div>
+                    @error('asset_code')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+ 
+                    {{-- Condition + Status under asset code --}}
+                    <div class="row g-2 mt-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Condition</label>
+                            <select name="condition" class="form-select form-select-sm">
+                                <option value="">— Not specified —</option>
+                                @foreach(['new'=>'New','used'=>'Used','refurbished'=>'Refurbished','damaged'=>'Damaged'] as $v=>$l)
+                                <option value="{{ $v }}" {{ old('condition', $device->condition ?? request('condition', 'new')) == $v ? 'selected' : '' }}>{{ $l }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Status <span class="text-danger">*</span></label>
+                            <select name="status" class="form-select form-select-sm @error('status') is-invalid @enderror" required>
+                                <option value="active"      {{ old('status', $device->status ?? 'active') == 'active'      ? 'selected' : '' }}>Active</option>
+                                <option value="available"   {{ old('status', $device->status ?? '') == 'available'   ? 'selected' : '' }}>Available</option>
+                                <option value="assigned"    {{ old('status', $device->status ?? '') == 'assigned'    ? 'selected' : '' }}>Assigned</option>
+                                <option value="maintenance" {{ old('status', $device->status ?? '') == 'maintenance' ? 'selected' : '' }}>Maintenance</option>
+                                <option value="retired"     {{ old('status', $device->status ?? '') == 'retired'     ? 'selected' : '' }}>Retired</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+ 
+                {{-- QR Code Preview --}}
+                <div class="col-md-5 d-flex flex-column align-items-center justify-content-center">
+                    <div id="dv_qrWrap" class="border rounded p-2 text-center bg-white" style="min-width:130px;min-height:130px">
+                        <canvas id="dv_qrCanvas" style="display:none"></canvas>
+                        <span id="dv_qrPlaceholder" class="text-muted small d-flex align-items-center justify-content-center h-100" style="min-height:100px">
+                            <span><i class="bi bi-qr-code fs-1 text-muted opacity-25 d-block"></i>QR preview</span>
+                        </span>
+                    </div>
+                    @if($editing && ($device->asset_code ?? ''))
+                    <div class="mt-1">
+                        <a href="{{ route('admin.devices.label', $device) }}" target="_blank" class="btn btn-sm btn-outline-secondary mt-1">
+                            <i class="bi bi-printer me-1"></i>Print Label
+                        </a>
+                    </div>
+                    @endif
+                </div>
+ 
+                <div class="col-12"><hr class="my-0"></div>
 
                 {{-- ── Type ── --}}
-                <div class="col-12"><hr class="my-0"></div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
                     <select name="type" id="dv_type" class="form-select @error('type') is-invalid @enderror" required
@@ -80,52 +142,6 @@
                     <label class="form-label">Serial Number</label>
                     <input type="text" name="serial_number" class="form-control font-monospace"
                            value="{{ old('serial_number', $device->serial_number ?? request('serial_number', '')) }}" maxlength="100">
-                </div>
-
-                {{-- ── Asset Identification (Moved) ── --}}
-                <div class="col-12"><hr class="my-1"></div>
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold">Asset Code</label>
-                    <div class="d-flex gap-2 align-items-start">
-                        <div class="flex-grow-1">
-                            <div class="input-group">
-                                <input type="text" name="asset_code" id="dv_asset_code"
-                                       class="form-control font-monospace @error('asset_code') is-invalid @enderror"
-                                       value="{{ old('asset_code', $device->asset_code ?? request('asset_code', '')) }}"
-                                       maxlength="50" placeholder="Auto-generating…"
-                                       oninput="dvUpdateQr(this.value)">
-                                <button type="button" class="btn btn-outline-secondary" id="dv_genCode" title="Re-generate code">
-                                    <i class="bi bi-arrow-repeat"></i>
-                                </button>
-                            </div>
-                            <div class="form-text small">Auto-generated based on type.</div>
-                        </div>
-                        <div id="dv_qrWrap" class="border rounded p-1 text-center bg-white" style="min-width:60px;min-height:60px">
-                            <canvas id="dv_qrCanvas" style="display:none;width:50px;height:50px"></canvas>
-                            <span id="dv_qrPlaceholder" class="text-muted" style="font-size:10px">
-                                <i class="bi bi-qr-code d-block"></i>QR
-                            </span>
-                        </div>
-                    </div>
-                    @error('asset_code')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label fw-semibold">Condition</label>
-                    <select name="condition" class="form-select">
-                        @foreach(['new'=>'New','used'=>'Used','refurbished'=>'Refurbished','damaged'=>'Damaged'] as $v=>$l)
-                        <option value="{{ $v }}" {{ old('condition', $device->condition ?? request('condition', 'new')) == $v ? 'selected' : '' }}>{{ $l }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label fw-semibold">Status <span class="text-danger">*</span></label>
-                    <select name="status" class="form-select @error('status') is-invalid @enderror" required>
-                        <option value="active"      {{ old('status', $device->status ?? 'active') == 'active'      ? 'selected' : '' }}>Active</option>
-                        <option value="available"   {{ old('status', $device->status ?? '') == 'available'   ? 'selected' : '' }}>Available</option>
-                        <option value="assigned"    {{ old('status', $device->status ?? '') == 'assigned'    ? 'selected' : '' }}>Assigned</option>
-                        <option value="maintenance" {{ old('status', $device->status ?? '') == 'maintenance' ? 'selected' : '' }}>Maintenance</option>
-                        <option value="retired"     {{ old('status', $device->status ?? '') == 'retired'     ? 'selected' : '' }}>Retired</option>
-                    </select>
                 </div>
 
                 {{-- ── Azure user hint ── --}}
