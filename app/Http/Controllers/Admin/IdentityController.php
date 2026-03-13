@@ -146,23 +146,22 @@ class IdentityController extends Controller
             return back()->with('error', 'Microsoft Graph credentials are not configured. Go to Settings → Identity (Graph) to set them up.');
         }
 
-        // ── Clean up orphaned "started" logs older than 2 hours ──
+        // ── Clean up orphaned "started" logs older than 30 minutes ──
         IdentitySyncLog::where('status', 'started')
-            ->where('started_at', '<', now()->subHours(2))
+            ->where('started_at', '<', now()->subMinutes(30))
             ->update([
                 'status'        => 'failed',
-                'error_message' => 'Sync aborted — process was interrupted before completion.',
+                'error_message' => 'Sync timed out or hung — process exceeded 30 minute window.',
                 'completed_at'  => now(),
             ]);
 
         // ── Prevent double-dispatch if sync is already running ──
         $alreadyRunning = IdentitySyncLog::where('status', 'started')
-            ->where('started_at', '>=', now()->subHours(2))
             ->exists();
 
         if ($alreadyRunning) {
             return redirect()->route('admin.identity.sync-logs')
-                ->with('info', 'A sync is already in progress. Check back in a moment.');
+                ->with('info', 'A sync is already in progress (started within last 30 mins).');
         }
 
         ActivityLog::create([
