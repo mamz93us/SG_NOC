@@ -25,10 +25,11 @@ return new class extends Migration
             'manual', 'meraki', 'ucm', 'printer', 'azure'
         ) DEFAULT 'manual' NOT NULL");
 
-        if (!Schema::hasColumn('devices', 'manufacturer')) {
-            Schema::table('devices', function (Blueprint $table) {
-                $table->string('manufacturer')->nullable()->after('name');
-            });
+        // Add manufacturer column if it doesn't exist
+        try {
+            DB::statement("ALTER TABLE devices ADD COLUMN manufacturer VARCHAR(255) NULL AFTER name");
+        } catch (\Exception $e) {
+            // If it already exists, just ignore and continue
         }
 
         // 3. Update 'condition' enum for employee_assets to include 'used'
