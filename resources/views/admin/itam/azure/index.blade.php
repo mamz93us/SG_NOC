@@ -209,6 +209,8 @@ function azShowDetail(id) {
                         <tr><td class="text-muted small">OS</td><td>${d.os || '—'}</td></tr>
                         <tr><td class="text-muted small">OS Version</td><td class="font-monospace small">${d.os_version || '—'}</td></tr>
                         <tr><td class="text-muted small">Serial Number</td><td class="font-monospace">${d.serial || '—'}</td></tr>
+                        <tr><td class="text-muted small">Manufacturer</td><td>${d.manufacturer || '—'}</td></tr>
+                        <tr><td class="text-muted small">Model</td><td>${d.model || '—'}</td></tr>
                         <tr><td class="text-muted small">User (UPN)</td><td class="small">${d.upn || '—'}</td></tr>
                         <tr><td class="text-muted small">Enrolled</td><td class="small">${d.enrolled_at || '—'}</td></tr>
                         <tr><td class="text-muted small">Last Sync</td><td class="small">${d.last_sync || '—'}</td></tr>

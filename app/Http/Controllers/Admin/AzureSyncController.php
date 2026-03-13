@@ -105,6 +105,8 @@ class AzureSyncController extends Controller
             'os'           => $azureDevice->os,
             'os_version'   => $azureDevice->os_version,
             'serial'       => $azureDevice->serial_number,
+            'manufacturer' => $azureDevice->manufacturer,
+            'model'        => $azureDevice->model,
             'upn'          => $azureDevice->upn,
             'enrolled_at'  => $azureDevice->enrolled_date?->format('d M Y'),
             'last_sync'    => $azureDevice->last_sync_at?->format('d M Y H:i'),

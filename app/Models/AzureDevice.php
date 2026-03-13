@@ -9,7 +9,7 @@ class AzureDevice extends Model
 {
     protected $fillable = [
         'azure_device_id', 'display_name', 'device_type', 'os', 'os_version',
-        'upn', 'serial_number', 'enrolled_date', 'last_sync_at',
+        'upn', 'serial_number', 'manufacturer', 'model', 'enrolled_date', 'last_sync_at',
         'device_id', 'link_status', 'raw_data',
     ];
 
