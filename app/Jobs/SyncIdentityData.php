@@ -228,6 +228,12 @@ class SyncIdentityData implements ShouldQueue
         // ── 4. Sync group memberships via Graph Batch API (non-fatal) ──
         try {
             $allGroupIds  = IdentityGroup::pluck('azure_id')->all();
+            
+            // Reset all memberships locally before re-syncing from Azure.
+            // This ensures that if a user is removed from ALL groups in Azure,
+            // their local record is correctly cleared.
+            IdentityUser::query()->update(['member_of' => '[]', 'groups_count' => 0]);
+
             $groupMembers = $graph->batchGroupMembers($allGroupIds);
 
             $userMemberOf      = [];
