@@ -153,7 +153,7 @@ class GraphService
      */
     private function paginateWithCallback(string $endpoint, callable $callback, array $query = []): void
     {
-        $query = array_merge(['$top' => 999], $query);
+        $query = array_merge(['$top' => 100], $query);
         $url   = $this->baseUrl . $endpoint;
 
         do {
@@ -268,15 +268,16 @@ class GraphService
         $token  = $this->getAccessToken();
         $result = [];
 
-        // Graph Batch API accepts max 20 requests per call
-        foreach (array_chunk($groupIds, 20) as $chunk) {
+        // Graph Batch API accepts max 20 requests per call, but we use 5 to keep 
+        // the consolidated response body small enough for the memory limit.
+        foreach (array_chunk($groupIds, 5) as $chunk) {
             $requests = [];
             foreach (array_values($chunk) as $i => $gid) {
                 // /microsoft.graph.user cast filters to user-type members only
                 $requests[] = [
                     'id'     => (string)($i + 1),
                     'method' => 'GET',
-                    'url'    => "/groups/{$gid}/members/microsoft.graph.user?\$select=id&\$top=999",
+                    'url'    => "/groups/{$gid}/members/microsoft.graph.user?\$select=id&\$top=200",
                 ];
             }
 

@@ -71,6 +71,8 @@ class SyncIdentityData implements ShouldQueue
         $groupCount   = 0;
         $userCount    = 0;
 
+        Log::info('SyncIdentityData: started. Memory limit: ' . ini_get('memory_limit'));
+
         // ── 1. Sync licenses (non-fatal) ───────────────────────────
         try {
             $skus = $graph->listSubscribedSkus();
