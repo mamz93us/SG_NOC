@@ -37,13 +37,22 @@ class SyncIdentityData implements ShouldQueue
             return;
         }
 
-        // Clean up any orphaned "started" entries from interrupted previous runs
-        // We only clean up jobs that have been stuck for over 2 hours now
+        // Detect and prevent parallel runs
+        $alreadyRunning = IdentitySyncLog::where('status', 'started')
+            ->where('started_at', '>', now()->subHours(1))
+            ->exists();
+
+        if ($alreadyRunning) {
+            Log::warning('SyncIdentityData: Already running — stopping this process to prevent duplication.');
+            return;
+        }
+
+        // Clean up any orphaned "started" entries from interrupted old runs
         IdentitySyncLog::where('status', 'started')
             ->where('started_at', '<', now()->subHours(2))
             ->update([
                 'status'        => 'failed',
-                'error_message' => 'Sync aborted — process was interrupted before completion.',
+                'error_message' => 'Sync aborted — process timed out or was interrupted.',
                 'completed_at'  => now(),
             ]);
 
@@ -231,8 +240,14 @@ class SyncIdentityData implements ShouldQueue
             IdentityUser::query()->update(['member_of' => '[]', 'groups_count' => 0]);
             IdentityGroup::query()->update(['members_count' => 0]);
 
-            $graph->batchGroupMembers($allGroupIds, function($chunkResult) {
+            $processedGroups = 0;
+            $totalGroups = count($allGroupIds);
+
+            $graph->batchGroupMembers($allGroupIds, function($chunkResult) use (&$processedGroups, $totalGroups) {
                 // $chunkResult is [groupId => [userId, ...]] for 5 groups
+                $processedGroups += count($chunkResult);
+                Log::debug("SyncIdentityData: membership progress {$processedGroups}/{$totalGroups} groups...");
+
                 $userMap = [];
                 $counts  = [];
                 foreach ($chunkResult as $gid => $uids) {
