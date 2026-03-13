@@ -146,7 +146,8 @@ class AzureSyncController extends Controller
     public function previewImport(AzureDevice $azureDevice)
     {
         $codeService = new \App\Services\AssetCodeService();
-        $code        = $codeService->generateFromSpecs($azureDevice->manufacturer, $azureDevice->model, $azureDevice->serial_number);
+        $type        = $this->guessDeviceType($azureDevice);
+        $code        = $codeService->generate($type); // Use global sequence (SG-LAP-XXXX)
         $employee    = \App\Models\Employee::where('email', $azureDevice->upn)->first();
 
         return response()->json([
@@ -156,7 +157,7 @@ class AzureSyncController extends Controller
                 'name' => $employee->name,
                 'email' => $employee->email,
             ] : null,
-            'device_type' => $this->guessDeviceType($azureDevice),
+            'device_type' => $type,
         ]);
     }
 
@@ -176,17 +177,25 @@ class AzureSyncController extends Controller
 
         try {
             \Illuminate\Support\Facades\DB::transaction(function () use ($azureDevice, $request) {
+                // Enrollment date is treated as purchase date
+                $enrollDate = $azureDevice->enrolled_at ? \Carbon\Carbon::parse($azureDevice->enrolled_at) : now();
+
                 // 1. Create the Device
                 $device = Device::create([
-                    'type'          => $request->type,
-                    'name'          => $azureDevice->display_name,
-                    'model'         => $azureDevice->model,
-                    'serial_number' => $azureDevice->serial_number,
-                    'asset_code'    => $request->asset_code,
-                    'status'        => 'active',
-                    'source'        => 'azure',
-                    'source_id'     => $azureDevice->azure_device_id,
-                    'notes'         => "Imported from Azure/Intune sync on " . now()->toDateTimeString(),
+                    'type'                => $request->type,
+                    'name'                => $azureDevice->display_name,
+                    'manufacturer'        => $azureDevice->manufacturer,
+                    'model'               => $azureDevice->model,
+                    'serial_number'       => $azureDevice->serial_number,
+                    'asset_code'          => $request->asset_code,
+                    'status'              => 'active',
+                    'source'              => 'azure',
+                    'source_id'           => $azureDevice->azure_device_id,
+                    'purchase_date'       => $enrollDate,
+                    'warranty_expiry'     => (clone $enrollDate)->addYear(), // 1 Year Default
+                    'depreciation_years'  => 3,                               // 3 Years Default
+                    'depreciation_method' => 'straight_line',
+                    'notes'               => "Imported from Azure/Intune sync on " . now()->toDateTimeString(),
                 ]);
 
                 // 2. Link AzureDevice to this record

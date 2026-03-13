@@ -25,6 +25,12 @@ return new class extends Migration
             'manual', 'meraki', 'ucm', 'printer', 'azure'
         ) DEFAULT 'manual' NOT NULL");
 
+        if (!Schema::hasColumn('devices', 'manufacturer')) {
+            Schema::table('devices', function (Blueprint $table) {
+                $table->string('manufacturer')->nullable()->after('name');
+            });
+        }
+
         // 3. Update 'condition' enum for employee_assets to include 'used'
         DB::statement("ALTER TABLE employee_assets MODIFY COLUMN `condition` ENUM(
             'new', 'used', 'refurbished', 'damaged', 'good', 'fair', 'poor'

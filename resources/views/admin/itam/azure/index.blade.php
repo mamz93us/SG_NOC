@@ -213,17 +213,18 @@ function azShowDetail(id) {
                                 <div class="row g-2 align-items-end">
                                     <div class="col-md-4">
                                         <label class="small fw-semibold">Asset Category</label>
-                                        <select name="type" class="form-select form-select-sm">
+                                        <select name="type" id="importTypeSelect" class="form-select form-select-sm" onchange="updateProposedCode(this.value)">
                                             <option value="laptop" ${p.device_type === 'laptop' ? 'selected' : ''}>Laptop</option>
                                             <option value="desktop" ${p.device_type === 'desktop' ? 'selected' : ''}>Desktop</option>
                                             <option value="tablet" ${p.device_type === 'tablet' ? 'selected' : ''}>Tablet</option>
                                             <option value="server" ${p.device_type === 'server' ? 'selected' : ''}>Server</option>
+                                            <option value="monitor">Monitor</option>
                                             <option value="other" ${p.device_type === 'other' ? 'selected' : ''}>Other</option>
                                         </select>
                                     </div>
                                     <div class="col-md-5">
                                         <label class="small fw-semibold">Generated Asset Code</label>
-                                        <input type="text" name="asset_code" value="${p.proposed_code}" class="form-control form-control-sm font-monospace" required>
+                                        <input type="text" name="asset_code" id="importAssetCode" value="${p.proposed_code}" class="form-control form-control-sm font-monospace" required>
                                     </div>
                                     <div class="col-md-3">
                                         <button type="submit" class="btn btn-primary btn-sm w-100">Approve & Add</button>
@@ -267,6 +268,22 @@ function azShowDetail(id) {
         })
         .catch(() => {
             document.getElementById('azDetailBody').innerHTML = '<div class="alert alert-danger">Failed to load device details.</div>';
+        });
+}
+
+function updateProposedCode(type) {
+    const input = document.getElementById('importAssetCode');
+    if (!input) return;
+    
+    // Quick local visual feedback (optional)
+    input.style.opacity = '0.5';
+    
+    // We can use a simple AJAX call to get the sequence-based code from the server
+    fetch(`{{ route('admin.devices.generate-code') }}?type=${type}`)
+        .then(r => r.json())
+        .then(data => {
+            input.value    = data.code;
+            input.style.opacity = '1';
         });
 }
 
