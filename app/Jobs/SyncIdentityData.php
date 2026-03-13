@@ -203,68 +203,63 @@ class SyncIdentityData implements ShouldQueue
         }
 
         // ── 3b. Back-fill manager relationships (non-fatal, separate pass) ──
-        // listUserManagers() fetches only id + manager expand — much lighter
-        // than including it in the main users query.
         try {
-            $managerMap = $graph->listUserManagers();
-            if (!empty($managerMap)) {
-                DB::transaction(function () use ($managerMap) {
-                    foreach ($managerMap as $userId => $managerId) {
-                        IdentityUser::where('azure_id', $userId)
-                            ->update(['manager_azure_id' => $managerId]);
-                    }
-                });
-                Log::info('SyncIdentityData: manager relationships OK (' . count($managerMap) . ')');
-            }
-            unset($managerMap);
-            gc_collect_cycles();
+            $graph->listUserManagers(function($map) {
+                if (!empty($map)) {
+                    DB::transaction(function () use ($map) {
+                        foreach ($map as $userId => $managerId) {
+                            IdentityUser::where('azure_id', $userId)
+                                ->update(['manager_azure_id' => $managerId]);
+                        }
+                    });
+                }
+                gc_collect_cycles();
+            });
+            Log::info('SyncIdentityData: manager relationships OK');
         } catch (\Throwable $e) {
-            // Non-fatal — manager data is supplementary
             Log::warning('SyncIdentityData: manager sync skipped — ' . $e->getMessage());
         }
 
-        // ── 4. Sync group memberships via Graph Batch API (non-fatal) ──
+        // ── 4. Sync group memberships (non-fatal) ──────────────────
         try {
             $allGroupIds  = IdentityGroup::pluck('azure_id')->all();
             
-            // Reset all memberships locally before re-syncing from Azure.
-            // This ensures that if a user is removed from ALL groups in Azure,
-            // their local record is correctly cleared.
+            // Reset all memberships locally before re-syncing.
             IdentityUser::query()->update(['member_of' => '[]', 'groups_count' => 0]);
+            IdentityGroup::query()->update(['members_count' => 0]);
 
-            $groupMembers = $graph->batchGroupMembers($allGroupIds);
-
-            $userMemberOf      = [];
-            $groupMemberCounts = [];
-            foreach ($groupMembers as $groupId => $userIds) {
-                $groupMemberCounts[$groupId] = count($userIds);
-                foreach ($userIds as $uid) {
-                    $userMemberOf[$uid][] = $groupId;
+            $graph->batchGroupMembers($allGroupIds, function($chunkResult) {
+                // $chunkResult is [groupId => [userId, ...]] for 5 groups
+                $userMap = [];
+                $counts  = [];
+                foreach ($chunkResult as $gid => $uids) {
+                    $counts[$gid] = count($uids);
+                    foreach ($uids as $uid) {
+                        $userMap[$uid][] = $gid;
+                    }
                 }
-            }
 
-            // Sync in batches to avoid table locks
-            foreach (collect($userMemberOf)->chunk(100) as $userBatch) {
-                DB::transaction(function () use ($userBatch) {
-                    foreach ($userBatch as $userId => $groupIds) {
-                        IdentityUser::where('azure_id', $userId)->update([
-                            'member_of'    => $groupIds,
-                            'groups_count' => count($groupIds),
-                        ]);
+                DB::transaction(function() use ($userMap, $counts) {
+                    // Update user membership counts and append groups
+                    foreach ($userMap as $uid => $newGroups) {
+                        $u = IdentityUser::where('azure_id', $uid)->first(['id', 'member_of', 'groups_count']);
+                        if ($u) {
+                            $current = $u->member_of ?? [];
+                            $merged  = array_unique(array_merge($current, $newGroups));
+                            $u->update([
+                                'member_of'    => $merged,
+                                'groups_count' => count($merged)
+                            ]);
+                        }
+                    }
+                    // Update group counts
+                    foreach ($counts as $gid => $c) {
+                        IdentityGroup::where('azure_id', $gid)->increment('members_count', $c);
                     }
                 });
-            }
-            unset($userMemberOf);
-            gc_collect_cycles();
-
-            // ── 5. Back-fill members_count on groups ───────────────────
-            DB::transaction(function () use ($groupMemberCounts, $allGroupIds) {
-                foreach ($groupMemberCounts as $gid => $count) {
-                    IdentityGroup::where('azure_id', $gid)->update(['members_count' => $count]);
-                }
-                IdentityGroup::whereNotIn('azure_id', array_keys($groupMemberCounts))
-                    ->update(['members_count' => 0]);
+                gc_collect_cycles();
             });
+
             Log::info('SyncIdentityData: group memberships OK');
         } catch (\Throwable $e) {
             $errors[] = 'Group memberships: ' . $e->getMessage();
