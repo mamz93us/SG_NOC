@@ -79,6 +79,35 @@ class AzureSyncController extends Controller
         return back()->with('success', "Device link rejected.");
     }
 
+    public function show(AzureDevice $azureDevice)
+    {
+        $azureDevice->load('device.branch');
+        return response()->json([
+            'id'           => $azureDevice->id,
+            'display_name' => $azureDevice->display_name,
+            'azure_id'     => $azureDevice->azure_device_id,
+            'device_type'  => $azureDevice->device_type,
+            'os'           => $azureDevice->os,
+            'os_version'   => $azureDevice->os_version,
+            'serial'       => $azureDevice->serial_number,
+            'upn'          => $azureDevice->upn,
+            'enrolled_at'  => $azureDevice->enrolled_date?->format('d M Y'),
+            'last_sync'    => $azureDevice->last_sync_at?->format('d M Y H:i'),
+            'link_status'  => $azureDevice->link_status,
+            'raw_data'     => $azureDevice->raw_data,
+            'linked_device' => $azureDevice->device ? [
+                'id'   => $azureDevice->device->id,
+                'name' => $azureDevice->device->name,
+                'type' => $azureDevice->device->type,
+                'serial'     => $azureDevice->device->serial_number,
+                'model'      => $azureDevice->device->deviceModel?->name,
+                'branch'     => $azureDevice->device->branch?->name,
+                'asset_code' => $azureDevice->device->asset_code,
+                'url'        => route('admin.devices.show', $azureDevice->device),
+            ] : null,
+        ]);
+    }
+
     public function createDevice(AzureDevice $azureDevice)
     {
         // Redirect to device create form with pre-filled params from Azure device data

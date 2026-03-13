@@ -236,14 +236,15 @@
                     </li>
                     @endcan
 
-                    {{-- ── Assets dropdown ── --}}
-                    @canany(['view-assets','view-printers','view-credentials','view-employees'])
+                    {{-- ── Assets + ITAM dropdown ── --}}
+                    @canany(['view-assets','view-printers','view-credentials','view-employees','view-itam','view-licenses','view-accessories'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/devices*','admin/printers*','admin/credentials*','admin/employees*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/devices*','admin/printers*','admin/credentials*','admin/employees*','admin/itam*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-cpu me-1"></i>Assets
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            {{-- ── Device Inventory ── --}}
                             @can('view-assets')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.devices.index') ? 'active' : '' }}"
@@ -295,41 +296,26 @@
                                 </a>
                             </li>
                             @endcan
-                        </ul>
-                    </li>
-                    @endcanany
 
-                    {{-- ── ITAM dropdown ── --}}
-                    @canany(['view-itam','view-licenses','view-accessories'])
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/itam*') ? 'active' : '' }}"
-                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-box-seam me-1"></i>ITAM
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            {{-- ── ITAM section ── --}}
+                            @canany(['view-itam','view-licenses','view-accessories'])
+                            <li><hr class="dropdown-divider"></li>
+                            @endcanany
                             @can('view-itam')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.dashboard') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.dashboard') }}">
-                                    <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                                    <i class="bi bi-speedometer2 me-2"></i>ITAM Dashboard
                                 </a>
                             </li>
-                            <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.suppliers.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.suppliers.index') }}">
                                     <i class="bi bi-shop me-2"></i>Suppliers
                                 </a>
                             </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.itam.azure.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.itam.azure.index') }}">
-                                    <i class="bi bi-microsoft me-2"></i>Azure Devices
-                                </a>
-                            </li>
                             @endcan
                             @can('view-licenses')
-                            <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.licenses.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.licenses.index') }}">
@@ -341,7 +327,24 @@
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.accessories.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.accessories.index') }}">
-                                    <i class="bi bi-headset me-2"></i>Accessories
+                                    <i class="bi bi-box-seam me-2"></i>Accessories
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-itam')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.azure.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.azure.index') }}">
+                                    <i class="bi bi-microsoft me-2"></i>Azure Device Sync
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-assets')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.devices.scan') ? 'active' : '' }}"
+                                   href="{{ route('admin.devices.scan') }}">
+                                    <i class="bi bi-qr-code-scan me-2"></i>QR Scanner
                                 </a>
                             </li>
                             @endcan

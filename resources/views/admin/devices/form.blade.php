@@ -187,6 +187,80 @@
                            value="{{ old('warranty_expiry', isset($device->warranty_expiry) ? $device->warranty_expiry->format('Y-m-d') : '') }}">
                 </div>
 
+                {{-- ── ITAM / Asset Management ── --}}
+                <div class="col-12">
+                    <hr class="my-0">
+                    <p class="fw-semibold small text-muted mb-0 mt-2">
+                        <i class="bi bi-boxes me-1"></i>Asset Management
+                    </p>
+                </div>
+
+                {{-- Asset Code --}}
+                <div class="col-md-6">
+                    <label class="form-label">Asset Code</label>
+                    <div class="input-group">
+                        <input type="text" name="asset_code" id="dv_asset_code"
+                               class="form-control font-monospace @error('asset_code') is-invalid @enderror"
+                               value="{{ old('asset_code', $device->asset_code ?? '') }}"
+                               maxlength="50" placeholder="Auto-generated on save">
+                        <button type="button" class="btn btn-outline-secondary" id="dv_genCode" title="Generate code now">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                    </div>
+                    <div class="form-text">Leave blank to auto-generate when saved.</div>
+                    @error('asset_code')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                </div>
+
+                {{-- Condition --}}
+                <div class="col-md-6">
+                    <label class="form-label">Condition</label>
+                    <select name="condition" class="form-select">
+                        <option value="">— Not specified —</option>
+                        @foreach(['new'=>'New','used'=>'Used','refurbished'=>'Refurbished','damaged'=>'Damaged'] as $v=>$l)
+                        <option value="{{ $v }}" {{ old('condition', $device->condition ?? '') == $v ? 'selected' : '' }}>{{ $l }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Purchase Cost + Supplier --}}
+                <div class="col-md-6">
+                    <label class="form-label">Purchase Cost</label>
+                    <div class="input-group">
+                        <span class="input-group-text">SAR</span>
+                        <input type="number" name="purchase_cost" class="form-control"
+                               value="{{ old('purchase_cost', $device->purchase_cost ?? '') }}"
+                               min="0" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Supplier</label>
+                    <select name="supplier_id" class="form-select">
+                        <option value="">— None —</option>
+                        @foreach($suppliers ?? [] as $s)
+                        <option value="{{ $s->id }}" {{ old('supplier_id', $device->supplier_id ?? '') == $s->id ? 'selected' : '' }}>
+                            {{ $s->name }}
+                        </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Depreciation --}}
+                <div class="col-md-6">
+                    <label class="form-label">Depreciation Method</label>
+                    <select name="depreciation_method" id="dv_deprMethod" class="form-select"
+                            onchange="document.getElementById('dv_deprYearsWrap').classList.toggle('d-none', this.value !== 'straight_line')">
+                        <option value="none"          {{ old('depreciation_method', $device->depreciation_method ?? 'none') == 'none'          ? 'selected' : '' }}>None</option>
+                        <option value="straight_line" {{ old('depreciation_method', $device->depreciation_method ?? '') == 'straight_line' ? 'selected' : '' }}>Straight Line</option>
+                    </select>
+                </div>
+                <div class="col-md-6" id="dv_deprYearsWrap"
+                     class="{{ old('depreciation_method', $device->depreciation_method ?? 'none') !== 'straight_line' ? 'd-none' : '' }}">
+                    <label class="form-label">Useful Life (years)</label>
+                    <input type="number" name="depreciation_years" class="form-control"
+                           value="{{ old('depreciation_years', $device->depreciation_years ?? '') }}"
+                           min="1" max="30" placeholder="e.g. 5">
+                </div>
+
                 {{-- ── Notes ── --}}
                 <div class="col-12">
                     <label class="form-label">Notes</label>
@@ -285,6 +359,31 @@ const dv_macUrl       = '{{ route("admin.network.clients.mac-search") }}';
 const dv_deptStore    = '{{ route("admin.settings.departments.store") }}';
 const dv_modelStore   = '{{ route("admin.devices.models.store") }}';
 const dv_csrf         = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+// ── Depreciation years visibility on load ────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    const deprMethod = document.getElementById('dv_deprMethod');
+    const deprWrap   = document.getElementById('dv_deprYearsWrap');
+    if (deprMethod && deprWrap) {
+        deprWrap.classList.toggle('d-none', deprMethod.value !== 'straight_line');
+    }
+
+    // Asset code generator button
+    const genBtn = document.getElementById('dv_genCode');
+    const codeInput = document.getElementById('dv_asset_code');
+    const typeSelect = document.querySelector('[name="type"]');
+    if (genBtn && codeInput) {
+        genBtn.addEventListener('click', function() {
+            const type = typeSelect ? typeSelect.value : 'other';
+            fetch(`{{ route('admin.devices.generate-code') }}?type=${encodeURIComponent(type)}`, {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': dv_csrf }
+            })
+            .then(r => r.json())
+            .then(d => { if (d.code) codeInput.value = d.code; })
+            .catch(() => {});
+        });
+    }
+});
 
 // ── Add Model (AJAX) ──────────────────────────────────────────────────
 document.getElementById('dvAmSaveBtn').addEventListener('click', async function() {

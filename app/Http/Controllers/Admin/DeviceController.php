@@ -170,8 +170,9 @@ class DeviceController extends Controller
         $branches     = Branch::orderBy('name')->get(['id', 'name']);
         $departments  = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
         $deviceModels = DeviceModel::orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
+        $suppliers    = Supplier::orderBy('name')->get(['id', 'name']);
         $device->load(['floor', 'office']);
-        return view('admin.devices.form', compact('device', 'branches', 'departments', 'deviceModels'));
+        return view('admin.devices.form', compact('device', 'branches', 'departments', 'deviceModels', 'suppliers'));
     }
 
     public function update(Request $request, Device $device)
@@ -219,5 +220,16 @@ class DeviceController extends Controller
     public function scan()
     {
         return view('admin.devices.scan');
+    }
+
+    public function generateCode(Request $request)
+    {
+        $type = $request->query('type', 'other');
+        try {
+            $code = (new AssetCodeService())->generate($type);
+            return response()->json(['code' => $code]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 }

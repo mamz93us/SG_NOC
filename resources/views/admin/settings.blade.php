@@ -831,10 +831,67 @@
     </div>
 </div>
 
+{{-- ── ITAM / Asset Code Settings ── --}}
+<div class="card mt-4" id="itam">
+    <div class="card-body">
+        <h5 class="mb-1">ITAM — Asset Code Settings</h5>
+        <p class="text-muted small mb-3">Configure auto-generated asset codes (e.g. <code>SG-LAP-000001</code>).</p>
+        <form method="POST" action="{{ route('admin.settings.itam') }}">
+            @csrf
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Asset Code Prefix <span class="text-danger">*</span></label>
+                    <input type="text" name="itam_asset_prefix" id="itam_prefix"
+                           class="form-control font-monospace text-uppercase @error('itam_asset_prefix') is-invalid @enderror"
+                           value="{{ old('itam_asset_prefix', $settings->itam_asset_prefix ?? 'SG') }}"
+                           maxlength="10" placeholder="SG" oninput="updateCodePreview()">
+                    <div class="form-text">e.g. <strong>SG</strong> → SG-LAP-000001</div>
+                    @error('itam_asset_prefix')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Sequence Padding <span class="text-danger">*</span></label>
+                    <input type="number" name="itam_code_padding" id="itam_padding"
+                           class="form-control @error('itam_code_padding') is-invalid @enderror"
+                           value="{{ old('itam_code_padding', $settings->itam_code_padding ?? 6) }}"
+                           min="1" max="10" oninput="updateCodePreview()">
+                    <div class="form-text"><code>6</code> → 000001</div>
+                    @error('itam_code_padding')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Company URL <span class="text-muted small">(on labels)</span></label>
+                    <input type="url" name="itam_company_url"
+                           class="form-control @error('itam_company_url') is-invalid @enderror"
+                           value="{{ old('itam_company_url', $settings->itam_company_url ?? '') }}"
+                           placeholder="https://noc.samirgroup.net">
+                    <div class="form-text">Printed on QR asset labels.</div>
+                    @error('itam_company_url')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-12">
+                    <div class="p-2 bg-light rounded border small">
+                        <strong>Preview:</strong> <code id="itam_preview"></code>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Save ITAM Settings</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
 <script>
+function updateCodePreview() {
+    const prefix  = (document.getElementById('itam_prefix')?.value || 'SG').toUpperCase();
+    const padding = parseInt(document.getElementById('itam_padding')?.value || 6);
+    const seq     = String(1).padStart(isNaN(padding) ? 6 : padding, '0');
+    const el = document.getElementById('itam_preview');
+    if (el) el.textContent = `${prefix}-LAP-${seq}`;
+}
+document.addEventListener('DOMContentLoaded', updateCodePreview);
+
 function testGraphConnection() {
     const btn       = document.getElementById('testGraphBtn');
     const result    = document.getElementById('graphTestResult');

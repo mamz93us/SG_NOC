@@ -37,7 +37,8 @@
       "Bash(grep -E \"create_|dropIfExists\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\database\\\\migrations\"/*.php)",
       "Bash(xargs grep -l \"supplier\\\\|Supplier\\\\|asset_code\\\\|depreciation\\\\|cost_center\")",
       "Bash(ls -la \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Services\"\" 2>/dev/null || echo \"Directory does not exist \")",
-      "Bash(php artisan:*)"
+      "Bash(php artisan:*)",
+      "Bash(grep -n \"itam\\\\|asset_prefix\\\\|itam_\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/resources/views/admin/settings*.blade.php)"
     ]
   }
 }

@@ -248,6 +248,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('settings/departments/{department}',        [SettingsController::class, 'destroyDepartment'])->name('settings.departments.destroy');
 
         // ── SMTP / Outgoing Mail ──────────────────────────────────────
+        Route::post('settings/itam',      [SettingsController::class, 'updateItam'])  ->name('settings.itam');
         Route::post('settings/smtp',      [SettingsController::class, 'updateSmtp']) ->name('settings.smtp');
         Route::post('settings/test-smtp', [SettingsController::class, 'testSmtp'])   ->name('settings.test-smtp');
 
@@ -310,7 +311,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:view-assets')->group(function () {
         Route::get('devices',                  [DeviceController::class, 'index'])     ->name('devices.index');
         Route::get('devices/create',           [DeviceController::class, 'create'])    ->name('devices.create');
-        Route::get('devices/scan',             [DeviceController::class, 'scan'])      ->name('devices.scan');
+        Route::get('devices/scan',             [DeviceController::class, 'scan'])         ->name('devices.scan');
+        Route::get('devices/generate-code',    [DeviceController::class, 'generateCode']) ->name('devices.generate-code');
         Route::get('devices/warranty',         [WarrantyTrackerController::class, 'index'])->name('devices.warranty');
         Route::get('devices/firmware',         [DeviceController::class, 'firmware'])  ->name('devices.firmware');
         Route::get('devices/{device}/label',   [DeviceController::class, 'label'])     ->name('devices.label');
@@ -728,7 +730,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ─── Azure Device Sync ────────────────────────────────────────
     Route::middleware('permission:view-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
-        Route::get('/', [AzureSyncController::class, 'index'])->name('index');
+        Route::get('/',                  [AzureSyncController::class, 'index'])->name('index');
+        Route::get('/{azureDevice}',     [AzureSyncController::class, 'show']) ->name('show');
     });
     Route::middleware('permission:manage-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
         Route::post('/sync',                   [AzureSyncController::class, 'sync'])         ->name('sync');

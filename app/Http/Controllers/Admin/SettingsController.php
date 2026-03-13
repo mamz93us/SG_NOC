@@ -508,4 +508,28 @@ class SettingsController extends Controller
             ? "Default provisioning license(s) updated ({$count} selected)."
             : 'Default provisioning license cleared.');
     }
+
+    public function updateItam(Request $request)
+    {
+        $request->validate([
+            'itam_asset_prefix'  => 'required|string|max:10|regex:/^[A-Z0-9]+$/i',
+            'itam_code_padding'  => 'required|integer|min:1|max:10',
+            'itam_company_url'   => 'nullable|url|max:255',
+        ]);
+
+        $settings = Setting::get();
+        $settings->itam_asset_prefix = strtoupper($request->itam_asset_prefix);
+        $settings->itam_code_padding = (int) $request->itam_code_padding;
+        $settings->itam_company_url  = $request->itam_company_url;
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting', 'model_id' => 1,
+            'action'     => 'updated',
+            'changes'    => ['section' => 'itam', 'prefix' => $settings->itam_asset_prefix],
+            'user_id'    => Auth::id(),
+        ]);
+
+        return back()->with('success', 'ITAM settings saved.');
+    }
 }

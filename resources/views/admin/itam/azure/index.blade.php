@@ -118,7 +118,7 @@
                 </thead>
                 <tbody>
                     @forelse($azureDevices as $az)
-                    <tr>
+                    <tr style="cursor:pointer" onclick="azShowDetail({{ $az->id }})">
                         <td class="fw-semibold">{{ $az->display_name }}</td>
                         <td>{{ $az->os }}{{ $az->os_version ? ' '.$az->os_version : '' }}</td>
                         <td class="font-monospace small">{{ $az->serial_number ?: '—' }}</td>
@@ -126,7 +126,7 @@
                         <td><span class="badge bg-{{ $az->linkStatusBadgeClass() }}">{{ $az->linkStatusLabel() }}</span></td>
                         <td>
                             @if($az->device)
-                            <a href="{{ route('admin.devices.show', $az->device) }}" class="text-decoration-none small">{{ $az->device->name }}</a>
+                            <a href="{{ route('admin.devices.show', $az->device) }}" class="text-decoration-none small" onclick="event.stopPropagation()">{{ $az->device->name }}</a>
                             @else
                             <span class="text-muted small">—</span>
                             @endif
@@ -142,4 +142,95 @@
     </div>
     <div class="mt-3">{{ $azureDevices->links() }}</div>
 </div>
+
+{{-- ── Azure Device Detail Modal ──────────────────────────────────── --}}
+<div class="modal fade" id="azDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-semibold" id="azDetailTitle">
+                    <i class="bi bi-microsoft me-1"></i><span id="azDetailName">Loading…</span>
+                </h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="azDetailBody">
+                <div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Loading…</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+const azDetailUrl = '{{ rtrim(route("admin.itam.azure.index"), "/") }}/';
+const azCsrf      = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+function azShowDetail(id) {
+    document.getElementById('azDetailName').textContent = 'Loading…';
+    document.getElementById('azDetailBody').innerHTML   = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Loading…</div>';
+    new bootstrap.Modal(document.getElementById('azDetailModal')).show();
+
+    fetch(azDetailUrl + id, { headers: { 'Accept': 'application/json' } })
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById('azDetailName').textContent = d.display_name;
+
+            const badge = statusBadge(d.link_status);
+            let linked = '';
+            if (d.linked_device) {
+                const dev = d.linked_device;
+                linked = `<a href="${dev.url}" class="text-decoration-none fw-semibold"><i class="bi bi-cpu me-1"></i>${dev.name}</a>
+                          <span class="text-muted small ms-1">${dev.asset_code ? '· ' + dev.asset_code : ''} ${dev.type ? '· ' + dev.type : ''}</span>
+                          ${dev.serial ? '<br><span class="font-monospace small text-muted">SN: ' + dev.serial + '</span>' : ''}
+                          ${dev.model  ? '<br><span class="small text-muted">' + dev.model + '</span>' : ''}
+                          ${dev.branch ? '<br><span class="small text-muted"><i class="bi bi-geo-alt me-1"></i>' + dev.branch + '</span>' : ''}`;
+            } else {
+                linked = '<span class="text-muted">Not linked to any device</span>';
+            }
+
+            // Build raw_data extra info
+            let extra = '';
+            if (d.raw_data && typeof d.raw_data === 'object') {
+                const keys = ['manufacturer', 'model', 'managementType', 'complianceState', 'isManaged', 'trustType', 'approximateLastSignInDateTime'];
+                keys.forEach(k => {
+                    if (d.raw_data[k] !== undefined && d.raw_data[k] !== null && d.raw_data[k] !== '') {
+                        extra += `<tr><td class="text-muted small">${k}</td><td class="small">${d.raw_data[k]}</td></tr>`;
+                    }
+                });
+            }
+
+            document.getElementById('azDetailBody').innerHTML = `
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr><td class="text-muted small">Display Name</td><td class="fw-semibold">${d.display_name}</td></tr>
+                        <tr><td class="text-muted small">Azure Device ID</td><td class="font-monospace small">${d.azure_id || '—'}</td></tr>
+                        <tr><td class="text-muted small">Device Type</td><td>${d.device_type || '—'}</td></tr>
+                        <tr><td class="text-muted small">OS</td><td>${d.os || '—'}</td></tr>
+                        <tr><td class="text-muted small">OS Version</td><td class="font-monospace small">${d.os_version || '—'}</td></tr>
+                        <tr><td class="text-muted small">Serial Number</td><td class="font-monospace">${d.serial || '—'}</td></tr>
+                        <tr><td class="text-muted small">User (UPN)</td><td class="small">${d.upn || '—'}</td></tr>
+                        <tr><td class="text-muted small">Enrolled</td><td class="small">${d.enrolled_at || '—'}</td></tr>
+                        <tr><td class="text-muted small">Last Sync</td><td class="small">${d.last_sync || '—'}</td></tr>
+                        <tr><td class="text-muted small">Status</td><td>${badge}</td></tr>
+                        ${extra}
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <p class="fw-semibold small text-muted mb-1"><i class="bi bi-link-45deg me-1"></i>Linked Asset</p>
+                    <div class="border rounded p-3 bg-light">${linked}</div>
+                </div>
+            </div>`;
+        })
+        .catch(() => {
+            document.getElementById('azDetailBody').innerHTML = '<div class="alert alert-danger">Failed to load device details.</div>';
+        });
+}
+
+function statusBadge(s) {
+    const map = { linked: 'success', pending: 'warning', rejected: 'danger', unlinked: 'secondary' };
+    return `<span class="badge bg-${map[s] || 'secondary'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
+}
+</script>
+@endpush
 @endsection

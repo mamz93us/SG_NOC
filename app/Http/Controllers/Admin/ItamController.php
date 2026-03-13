@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 
 class ItamController extends Controller
 {
-    public function index()
+    public function dashboard()
     {
         // Stats
         $stats = [
