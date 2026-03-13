@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AssetHistory extends Model
 {
+    protected $table = 'asset_history';
+
     public $timestamps = false;
 
     protected $fillable = ['device_id', 'event_type', 'user_id', 'description', 'meta'];

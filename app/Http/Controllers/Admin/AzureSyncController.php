@@ -110,12 +110,16 @@ class AzureSyncController extends Controller
 
     public function createDevice(AzureDevice $azureDevice)
     {
-        // Redirect to device create form with pre-filled params from Azure device data
+        $raw = $azureDevice->raw_data ?? [];
+
         return redirect()->route('admin.devices.create', [
-            'name'          => $azureDevice->display_name,
-            'serial_number' => $azureDevice->serial_number,
-            'type'          => $this->guessDeviceType($azureDevice),
-            'azure_sync_id' => $azureDevice->id,
+            'name'            => $azureDevice->display_name,
+            'serial_number'   => $azureDevice->serial_number,
+            'type'            => $this->guessDeviceType($azureDevice),
+            'az_manufacturer' => $raw['manufacturer'] ?? null,
+            'az_model'        => $raw['model'] ?? null,
+            'az_upn'          => $azureDevice->upn,
+            'azure_sync_id'   => $azureDevice->id,
         ]);
     }
 

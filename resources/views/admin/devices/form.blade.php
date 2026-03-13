@@ -10,7 +10,7 @@
     </h4>
 </div>
 
-<div class="card shadow-sm" style="max-width:720px">
+<div class="card shadow-sm" style="max-width:760px">
     <div class="card-body">
         <form method="POST" action="{{ $editing ? route('admin.devices.update', $device) : route('admin.devices.store') }}">
             @csrf
@@ -18,44 +18,97 @@
 
             <div class="row g-3">
 
-                {{-- ── Type + Status ── --}}
+                {{-- ── Asset Code (top, full row with QR preview) ── --}}
+                <div class="col-12">
+                    <p class="fw-semibold small text-muted mb-0">
+                        <i class="bi bi-boxes me-1"></i>Asset Identification
+                    </p>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label fw-semibold">Asset Code</label>
+                    <div class="input-group">
+                        <input type="text" name="asset_code" id="dv_asset_code"
+                               class="form-control font-monospace @error('asset_code') is-invalid @enderror"
+                               value="{{ old('asset_code', $device->asset_code ?? request('asset_code', '')) }}"
+                               maxlength="50" placeholder="Auto-generating…"
+                               oninput="dvUpdateQr(this.value)">
+                        <button type="button" class="btn btn-outline-secondary" id="dv_genCode" title="Re-generate code">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                    </div>
+                    <div class="form-text">Auto-generated based on device type. You can override it.</div>
+                    @error('asset_code')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+
+                    {{-- Condition + Status under asset code --}}
+                    <div class="row g-2 mt-1">
+                        <div class="col-6">
+                            <label class="form-label">Condition</label>
+                            <select name="condition" class="form-select form-select-sm">
+                                <option value="">— Not specified —</option>
+                                @foreach(['new'=>'New','used'=>'Used','refurbished'=>'Refurbished','damaged'=>'Damaged'] as $v=>$l)
+                                <option value="{{ $v }}" {{ old('condition', $device->condition ?? request('condition', 'new')) == $v ? 'selected' : '' }}>{{ $l }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Status <span class="text-danger">*</span></label>
+                            <select name="status" class="form-select form-select-sm @error('status') is-invalid @enderror" required>
+                                <option value="active"      {{ old('status', $device->status ?? 'active') == 'active'      ? 'selected' : '' }}>Active</option>
+                                <option value="available"   {{ old('status', $device->status ?? '') == 'available'   ? 'selected' : '' }}>Available</option>
+                                <option value="assigned"    {{ old('status', $device->status ?? '') == 'assigned'    ? 'selected' : '' }}>Assigned</option>
+                                <option value="maintenance" {{ old('status', $device->status ?? '') == 'maintenance' ? 'selected' : '' }}>Maintenance</option>
+                                <option value="retired"     {{ old('status', $device->status ?? '') == 'retired'     ? 'selected' : '' }}>Retired</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- QR Code Preview --}}
+                <div class="col-md-5 d-flex flex-column align-items-center justify-content-center">
+                    <div id="dv_qrWrap" class="border rounded p-2 text-center bg-white" style="min-width:130px;min-height:130px">
+                        <canvas id="dv_qrCanvas" style="display:none"></canvas>
+                        <span id="dv_qrPlaceholder" class="text-muted small d-flex align-items-center justify-content-center h-100" style="min-height:100px">
+                            <span><i class="bi bi-qr-code fs-1 text-muted opacity-25 d-block"></i>QR preview</span>
+                        </span>
+                    </div>
+                    <div class="mt-1">
+                        @if($editing && ($device->asset_code ?? ''))
+                        <a href="{{ route('admin.devices.label', $device) }}" target="_blank" class="btn btn-sm btn-outline-secondary mt-1">
+                            <i class="bi bi-printer me-1"></i>Print Label
+                        </a>
+                        @endif
+                    </div>
+                </div>
+
+                {{-- ── Type ── --}}
+                <div class="col-12"><hr class="my-0"></div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
-                    <select name="type" class="form-select @error('type') is-invalid @enderror" required>
+                    <select name="type" id="dv_type" class="form-select @error('type') is-invalid @enderror" required
+                            onchange="dvTypeChanged(this.value)">
                         <optgroup label="Infrastructure">
                         @foreach(['ucm','switch','router','firewall','ap','printer','server','other'] as $t)
-                        <option value="{{ $t }}" {{ old('type', $device->type ?? '') == $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
+                        <option value="{{ $t }}" {{ old('type', $device->type ?? request('type', 'laptop')) == $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
                         @endforeach
                         </optgroup>
                         <optgroup label="User Equipment">
                         @foreach(['laptop','desktop','monitor','keyboard','mouse','headset','tablet'] as $t)
-                        <option value="{{ $t }}" {{ old('type', $device->type ?? '') == $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
+                        <option value="{{ $t }}" {{ old('type', $device->type ?? request('type', 'laptop')) == $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
                         @endforeach
                         </optgroup>
                     </select>
                     @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold">Status <span class="text-danger">*</span></label>
-                    <select name="status" class="form-select @error('status') is-invalid @enderror" required>
-                        <option value="active"      {{ old('status', $device->status ?? 'active') == 'active'      ? 'selected' : '' }}>Active</option>
-                        <option value="available"   {{ old('status', $device->status ?? '') == 'available'   ? 'selected' : '' }}>Available (ready to assign)</option>
-                        <option value="assigned"    {{ old('status', $device->status ?? '') == 'assigned'    ? 'selected' : '' }}>Assigned</option>
-                        <option value="maintenance" {{ old('status', $device->status ?? '') == 'maintenance' ? 'selected' : '' }}>Maintenance</option>
-                        <option value="retired"     {{ old('status', $device->status ?? '') == 'retired'     ? 'selected' : '' }}>Retired</option>
-                    </select>
-                    @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
 
                 {{-- ── Name ── --}}
-                <div class="col-12">
+                <div class="col-md-6">
                     <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
-                           value="{{ old('name', $device->name ?? '') }}" required maxlength="255">
+                           value="{{ old('name', $device->name ?? request('name', '')) }}" required maxlength="255">
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
-                {{-- ── Model + Serial ── --}}
+                {{-- ── Model + Manufacturer ── --}}
                 <div class="col-md-6">
                     <label class="form-label">Model</label>
                     <div class="input-group">
@@ -64,28 +117,45 @@
                             @foreach($deviceModels ?? [] as $dm)
                             <option value="{{ $dm->id }}"
                                     data-type="{{ $dm->device_type ?? '' }}"
-                                {{ old('device_model_id', $device->device_model_id ?? '') == $dm->id ? 'selected' : '' }}>
+                                {{ old('device_model_id', $device->device_model_id ?? request('device_model_id', '')) == $dm->id ? 'selected' : '' }}>
                                 {{ $dm->manufacturer ? $dm->manufacturer . ' ' . $dm->name : $dm->name }}
                             </option>
                             @endforeach
                         </select>
                         <button type="button" class="btn btn-outline-secondary"
-                                title="Add new model"
                                 data-bs-toggle="modal" data-bs-target="#dvAddModelModal">
                             <i class="bi bi-plus"></i>
                         </button>
                     </div>
-                    <div class="form-text text-muted">Select a model or
-                        <a href="#" data-bs-toggle="modal" data-bs-target="#dvAddModelModal">add a new one</a>.
+                    @if(request('az_manufacturer') || request('az_model'))
+                    <div class="form-text text-info">
+                        <i class="bi bi-microsoft me-1"></i>
+                        Azure: <strong>{{ request('az_manufacturer') }} {{ request('az_model') }}</strong>
+                        — select the matching model above or <a href="#" data-bs-toggle="modal" data-bs-target="#dvAddModelModal" id="dv_azPrefillModel">add it</a>.
                     </div>
+                    @else
+                    <div class="form-text">Select a model or <a href="#" data-bs-toggle="modal" data-bs-target="#dvAddModelModal">add a new one</a>.</div>
+                    @endif
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Serial Number</label>
                     <input type="text" name="serial_number" class="form-control font-monospace"
-                           value="{{ old('serial_number', $device->serial_number ?? '') }}" maxlength="100">
+                           value="{{ old('serial_number', $device->serial_number ?? request('serial_number', '')) }}" maxlength="100">
                 </div>
 
+                {{-- ── Azure user hint ── --}}
+                @if(request('az_upn'))
+                <div class="col-12">
+                    <div class="alert alert-info py-2 small mb-0">
+                        <i class="bi bi-microsoft me-1"></i>
+                        <strong>Azure User:</strong> {{ request('az_upn') }}
+                        — assign this device to the matching employee after creation.
+                    </div>
+                </div>
+                @endif
+
                 {{-- ── Network ── --}}
+                <div class="col-12"><hr class="my-0"><p class="fw-semibold small text-muted mb-0 mt-2"><i class="bi bi-ethernet me-1"></i>Network</p></div>
                 <div class="col-md-6">
                     <label class="form-label">IP Address</label>
                     <input type="text" name="ip_address" id="dv_ip" class="form-control font-monospace"
@@ -98,9 +168,7 @@
                            value="{{ old('mac_address', $device->mac_address ?? '') }}" maxlength="20"
                            placeholder="AA:BB:CC:DD:EE:FF"
                            pattern="([0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}"
-                           title="Format: AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF"
-                           autocomplete="off"
-                           list="dv_macList">
+                           autocomplete="off" list="dv_macList">
                     <datalist id="dv_macList"></datalist>
                     <div class="form-text">Type 3+ chars to search Meraki clients by MAC / IP / hostname.</div>
                 </div>
@@ -120,9 +188,7 @@
                             onchange="dvLoadFloors(this.value)">
                         <option value="">— None —</option>
                         @foreach($branches as $b)
-                        <option value="{{ $b->id }}" {{ old('branch_id', $device->branch_id ?? '') == $b->id ? 'selected' : '' }}>
-                            {{ $b->name }}
-                        </option>
+                        <option value="{{ $b->id }}" {{ old('branch_id', $device->branch_id ?? '') == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -138,32 +204,25 @@
                         <option value="">— None —</option>
                     </select>
                 </div>
-
-                {{-- ── Department ── --}}
                 <div class="col-md-6">
                     <label class="form-label">Department</label>
                     <div class="input-group">
                         <select name="department_id" id="dv_dept" class="form-select">
                             <option value="">— None —</option>
                             @foreach($departments as $d)
-                            <option value="{{ $d->id }}" {{ old('department_id', $device->department_id ?? '') == $d->id ? 'selected' : '' }}>
-                                {{ $d->name }}
-                            </option>
+                            <option value="{{ $d->id }}" {{ old('department_id', $device->department_id ?? '') == $d->id ? 'selected' : '' }}>{{ $d->name }}</option>
                             @endforeach
                         </select>
                         @can('manage-settings')
                         <button type="button" class="btn btn-outline-secondary"
-                                data-bs-toggle="modal" data-bs-target="#dvQuickAddDeptModal"
-                                title="Add new department">
+                                data-bs-toggle="modal" data-bs-target="#dvQuickAddDeptModal">
                             <i class="bi bi-plus"></i>
                         </button>
                         @endcan
                     </div>
                 </div>
-
-                {{-- ── Location description (free text, kept for legacy) ── --}}
                 <div class="col-md-6">
-                    <label class="form-label">Location Notes <span class="text-muted small">(optional free text)</span></label>
+                    <label class="form-label">Location Notes <span class="text-muted small">(optional)</span></label>
                     <input type="text" name="location_description" class="form-control"
                            value="{{ old('location_description', $device->location_description ?? '') }}" maxlength="255"
                            placeholder="e.g. Server room, under desk">
@@ -173,78 +232,39 @@
                 <div class="col-12">
                     <hr class="my-0">
                     <p class="fw-semibold small text-muted mb-0 mt-2">
-                        <i class="bi bi-shield-check me-1"></i>Warranty Tracking
+                        <i class="bi bi-shield-check me-1"></i>Warranty &amp; Purchase
                     </p>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <label class="form-label">Purchase Date</label>
                     <input type="date" name="purchase_date" class="form-control"
                            value="{{ old('purchase_date', isset($device->purchase_date) ? $device->purchase_date->format('Y-m-d') : '') }}">
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <label class="form-label">Warranty Expiry</label>
                     <input type="date" name="warranty_expiry" class="form-control"
                            value="{{ old('warranty_expiry', isset($device->warranty_expiry) ? $device->warranty_expiry->format('Y-m-d') : '') }}">
                 </div>
-
-                {{-- ── ITAM / Asset Management ── --}}
-                <div class="col-12">
-                    <hr class="my-0">
-                    <p class="fw-semibold small text-muted mb-0 mt-2">
-                        <i class="bi bi-boxes me-1"></i>Asset Management
-                    </p>
-                </div>
-
-                {{-- Asset Code --}}
-                <div class="col-md-6">
-                    <label class="form-label">Asset Code</label>
-                    <div class="input-group">
-                        <input type="text" name="asset_code" id="dv_asset_code"
-                               class="form-control font-monospace @error('asset_code') is-invalid @enderror"
-                               value="{{ old('asset_code', $device->asset_code ?? '') }}"
-                               maxlength="50" placeholder="Auto-generated on save">
-                        <button type="button" class="btn btn-outline-secondary" id="dv_genCode" title="Generate code now">
-                            <i class="bi bi-arrow-repeat"></i>
-                        </button>
-                    </div>
-                    <div class="form-text">Leave blank to auto-generate when saved.</div>
-                    @error('asset_code')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
-                </div>
-
-                {{-- Condition --}}
-                <div class="col-md-6">
-                    <label class="form-label">Condition</label>
-                    <select name="condition" class="form-select">
-                        <option value="">— Not specified —</option>
-                        @foreach(['new'=>'New','used'=>'Used','refurbished'=>'Refurbished','damaged'=>'Damaged'] as $v=>$l)
-                        <option value="{{ $v }}" {{ old('condition', $device->condition ?? '') == $v ? 'selected' : '' }}>{{ $l }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                {{-- Purchase Cost + Supplier --}}
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <label class="form-label">Purchase Cost</label>
                     <div class="input-group">
-                        <span class="input-group-text">SAR</span>
+                        <span class="input-group-text small">SAR</span>
                         <input type="number" name="purchase_cost" class="form-control"
                                value="{{ old('purchase_cost', $device->purchase_cost ?? '') }}"
                                min="0" step="0.01" placeholder="0.00">
                     </div>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <label class="form-label">Supplier</label>
                     <select name="supplier_id" class="form-select">
                         <option value="">— None —</option>
                         @foreach($suppliers ?? [] as $s)
-                        <option value="{{ $s->id }}" {{ old('supplier_id', $device->supplier_id ?? '') == $s->id ? 'selected' : '' }}>
-                            {{ $s->name }}
-                        </option>
+                        <option value="{{ $s->id }}" {{ old('supplier_id', $device->supplier_id ?? '') == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
                         @endforeach
                     </select>
                 </div>
 
-                {{-- Depreciation --}}
+                {{-- ── Depreciation ── --}}
                 <div class="col-md-6">
                     <label class="form-label">Depreciation Method</label>
                     <select name="depreciation_method" id="dv_deprMethod" class="form-select"
@@ -253,8 +273,7 @@
                         <option value="straight_line" {{ old('depreciation_method', $device->depreciation_method ?? '') == 'straight_line' ? 'selected' : '' }}>Straight Line</option>
                     </select>
                 </div>
-                <div class="col-md-6" id="dv_deprYearsWrap"
-                     class="{{ old('depreciation_method', $device->depreciation_method ?? 'none') !== 'straight_line' ? 'd-none' : '' }}">
+                <div class="col-md-6 {{ old('depreciation_method', $device->depreciation_method ?? 'none') !== 'straight_line' ? 'd-none' : '' }}" id="dv_deprYearsWrap">
                     <label class="form-label">Useful Life (years)</label>
                     <input type="number" name="depreciation_years" class="form-control"
                            value="{{ old('depreciation_years', $device->depreciation_years ?? '') }}"
@@ -264,7 +283,7 @@
                 {{-- ── Notes ── --}}
                 <div class="col-12">
                     <label class="form-label">Notes</label>
-                    <textarea name="notes" class="form-control" rows="3">{{ old('notes', $device->notes ?? '') }}</textarea>
+                    <textarea name="notes" class="form-control" rows="2">{{ old('notes', $device->notes ?? '') }}</textarea>
                 </div>
 
             </div>{{-- /row --}}
@@ -277,7 +296,7 @@
     </div>
 </div>
 
-{{-- ── Add Model Modal ─────────────────────────────────────────── --}}
+{{-- ── Add Model Modal ── --}}
 <div class="modal fade" id="dvAddModelModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -291,19 +310,21 @@
                     <div class="col-md-7">
                         <label class="form-label small fw-semibold">Model Name <span class="text-danger">*</span></label>
                         <input type="text" id="dvAmName" class="form-control form-control-sm"
-                               placeholder="e.g. UCM6510" maxlength="255">
+                               placeholder="e.g. UCM6510" maxlength="255"
+                               value="{{ request('az_model', '') }}">
                     </div>
                     <div class="col-md-5">
                         <label class="form-label small fw-semibold">Manufacturer</label>
                         <input type="text" id="dvAmManufacturer" class="form-control form-control-sm"
-                               placeholder="e.g. Grandstream" maxlength="255">
+                               placeholder="e.g. Lenovo" maxlength="255"
+                               value="{{ request('az_manufacturer', '') }}">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">Device Type</label>
                         <select id="dvAmType" class="form-select form-select-sm">
                             <option value="">— None —</option>
                             @foreach(['ucm','switch','router','firewall','ap','printer','server','laptop','desktop','monitor','keyboard','mouse','headset','tablet','other'] as $t)
-                            <option value="{{ $t }}">{{ ucfirst($t) }}</option>
+                            <option value="{{ $t }}" {{ request('type') == $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -324,7 +345,7 @@
     </div>
 </div>
 
-{{-- ── Quick-add Department Modal ────────────────────────────────── --}}
+{{-- ── Quick-add Department Modal ── --}}
 @can('manage-settings')
 <div class="modal fade" id="dvQuickAddDeptModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
@@ -334,12 +355,10 @@
                 <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-2">
-                    <label class="form-label small fw-semibold">Name <span class="text-danger">*</span></label>
-                    <input type="text" id="dvQdName" class="form-control form-control-sm"
-                           maxlength="100" placeholder="e.g. Finance, HR, IT">
-                </div>
-                <div id="dvQdError" class="text-danger small d-none"></div>
+                <label class="form-label small fw-semibold">Name <span class="text-danger">*</span></label>
+                <input type="text" id="dvQdName" class="form-control form-control-sm"
+                       maxlength="100" placeholder="e.g. Finance, HR, IT">
+                <div id="dvQdError" class="text-danger small d-none mt-1"></div>
             </div>
             <div class="modal-footer py-2">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -351,39 +370,161 @@
 @endcan
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script>
-// ── Server-side URLs ─────────────────────────────────────────────────
-const dv_floorsUrl    = '{{ route("admin.network.floors") }}';
-const dv_officesUrl   = '{{ route("admin.network.offices") }}';
-const dv_macUrl       = '{{ route("admin.network.clients.mac-search") }}';
-const dv_deptStore    = '{{ route("admin.settings.departments.store") }}';
-const dv_modelStore   = '{{ route("admin.devices.models.store") }}';
-const dv_csrf         = document.querySelector('meta[name="csrf-token"]')?.content || '';
+// ── Server-side URLs ──────────────────────────────────────────────────
+const dv_floorsUrl   = '{{ route("admin.network.floors") }}';
+const dv_officesUrl  = '{{ route("admin.network.offices") }}';
+const dv_macUrl      = '{{ route("admin.network.clients.mac-search") }}';
+const dv_deptStore   = '{{ route("admin.settings.departments.store") }}';
+const dv_modelStore  = '{{ route("admin.devices.models.store") }}';
+const dv_genCodeUrl  = '{{ route("admin.devices.generate-code") }}';
+const dv_csrf        = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const dv_editing     = {{ $editing ? 'true' : 'false' }};
 
-// ── Depreciation years visibility on load ────────────────────────────
+// ── QR Code preview ──────────────────────────────────────────────────
+function dvUpdateQr(code) {
+    const canvas = document.getElementById('dv_qrCanvas');
+    const placeholder = document.getElementById('dv_qrPlaceholder');
+    if (!code || code.length < 3) {
+        canvas.style.display = 'none';
+        placeholder.style.display = 'flex';
+        return;
+    }
+    QRCode.toCanvas(canvas, code, { width: 120, margin: 1 }, function(err) {
+        if (!err) {
+            canvas.style.display = 'block';
+            placeholder.style.display = 'none';
+        }
+    });
+}
+
+// ── Auto-generate asset code ──────────────────────────────────────────
+async function dvGenerateCode(type) {
+    try {
+        const r = await fetch(`${dv_genCodeUrl}?type=${encodeURIComponent(type)}`, {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': dv_csrf }
+        });
+        const d = await r.json();
+        if (d.code) {
+            document.getElementById('dv_asset_code').value = d.code;
+            dvUpdateQr(d.code);
+        }
+    } catch(e) {}
+}
+
+function dvTypeChanged(type) {
+    const codeInput = document.getElementById('dv_asset_code');
+    if (!dv_editing && !codeInput.value) {
+        dvGenerateCode(type);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    const codeInput  = document.getElementById('dv_asset_code');
+    const typeSelect = document.getElementById('dv_type');
+
+    // Auto-generate on new device load
+    if (!dv_editing && !codeInput.value) {
+        dvGenerateCode(typeSelect ? typeSelect.value : 'other');
+    } else if (codeInput.value) {
+        dvUpdateQr(codeInput.value);
+    }
+
+    // Re-generate button
+    document.getElementById('dv_genCode').addEventListener('click', () => {
+        dvGenerateCode(typeSelect ? typeSelect.value : 'other');
+    });
+
+    // Depreciation years visibility
     const deprMethod = document.getElementById('dv_deprMethod');
     const deprWrap   = document.getElementById('dv_deprYearsWrap');
     if (deprMethod && deprWrap) {
         deprWrap.classList.toggle('d-none', deprMethod.value !== 'straight_line');
     }
 
-    // Asset code generator button
-    const genBtn = document.getElementById('dv_genCode');
-    const codeInput = document.getElementById('dv_asset_code');
-    const typeSelect = document.querySelector('[name="type"]');
-    if (genBtn && codeInput) {
-        genBtn.addEventListener('click', function() {
-            const type = typeSelect ? typeSelect.value : 'other';
-            fetch(`{{ route('admin.devices.generate-code') }}?type=${encodeURIComponent(type)}`, {
-                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': dv_csrf }
-            })
-            .then(r => r.json())
-            .then(d => { if (d.code) codeInput.value = d.code; })
-            .catch(() => {});
-        });
+    // Location dropdowns restore on edit
+    const branchSel     = document.getElementById('dv_branch');
+    const currentFloor  = branchSel.getAttribute('data-current-floor');
+    const currentOffice = branchSel.getAttribute('data-current-office');
+    if (branchSel.value) {
+        dvLoadFloors(branchSel.value, currentFloor, currentOffice);
+    }
+
+    // Azure: pre-fill Add Model modal
+    const azPrefill = document.getElementById('dv_azPrefillModel');
+    if (azPrefill) {
+        azPrefill.addEventListener('click', e => { e.preventDefault(); });
     }
 });
+
+// ── Cascading location dropdowns ──────────────────────────────────────
+function dvLoadFloors(branchId, keepFloorId, keepOfficeId) {
+    const floorSel  = document.getElementById('dv_floor');
+    const officeSel = document.getElementById('dv_office');
+    floorSel.innerHTML  = '<option value="">— None —</option>';
+    officeSel.innerHTML = '<option value="">— None —</option>';
+    if (!branchId) return;
+    floorSel.disabled = true;
+    fetch(`${dv_floorsUrl}?branch_id=${encodeURIComponent(branchId)}`)
+        .then(r => r.json())
+        .then(floors => {
+            floors.forEach(f => {
+                const sel = keepFloorId && String(f.id) === String(keepFloorId);
+                floorSel.add(new Option(f.name, f.id, sel, sel));
+            });
+            floorSel.disabled = false;
+            if (floorSel.value) dvLoadOffices(floorSel.value, keepOfficeId);
+        })
+        .catch(() => { floorSel.disabled = false; });
+}
+
+function dvLoadOffices(floorId, keepOfficeId) {
+    const officeSel = document.getElementById('dv_office');
+    officeSel.innerHTML = '<option value="">— None —</option>';
+    if (!floorId) return;
+    officeSel.disabled = true;
+    fetch(`${dv_officesUrl}?floor_id=${encodeURIComponent(floorId)}`)
+        .then(r => r.json())
+        .then(offices => {
+            offices.forEach(o => {
+                const sel = keepOfficeId && String(o.id) === String(keepOfficeId);
+                officeSel.add(new Option(o.name, o.id, sel, sel));
+            });
+            officeSel.disabled = false;
+        })
+        .catch(() => { officeSel.disabled = false; });
+}
+
+// ── MAC autocomplete ──────────────────────────────────────────────────
+const dv_macInput = document.getElementById('dv_mac');
+const dv_macList  = document.getElementById('dv_macList');
+const dv_ipInput  = document.getElementById('dv_ip');
+let dv_macTimer;
+
+if (dv_macInput) {
+    dv_macInput.addEventListener('input', function() {
+        clearTimeout(dv_macTimer);
+        const q = this.value.trim();
+        if (q.length < 3) { dv_macList.innerHTML = ''; return; }
+        dv_macTimer = setTimeout(() => {
+            fetch(`${dv_macUrl}?q=${encodeURIComponent(q)}`)
+                .then(r => r.json())
+                .then(clients => {
+                    dv_macList.innerHTML = clients.map(c => {
+                        const label = [c.hostname, c.ip, c.manufacturer].filter(Boolean).join(' – ');
+                        return `<option value="${c.mac}">${c.mac}${label ? '  (' + label + ')' : ''}</option>`;
+                    }).join('');
+                });
+        }, 300);
+    });
+    dv_macInput.addEventListener('change', function() {
+        const opt = Array.from(dv_macList.options).find(o => o.value === this.value);
+        if (opt && dv_ipInput && !dv_ipInput.value) {
+            dv_ipInput.value = opt.getAttribute('data-ip') || '';
+        }
+    });
+}
 
 // ── Add Model (AJAX) ──────────────────────────────────────────────────
 document.getElementById('dvAmSaveBtn').addEventListener('click', async function() {
@@ -413,140 +554,37 @@ document.getElementById('dvAmSaveBtn').addEventListener('click', async function(
         return;
     }
 
-    // Add to select and auto-select
     const select = document.getElementById('dv_model');
-    const opt = new Option(data.name, data.id, true, true);
-    select.add(opt);
+    const label  = data.manufacturer ? `${data.manufacturer} ${data.name}` : data.name;
+    select.add(new Option(label, data.id, true, true));
     bootstrap.Modal.getInstance(document.getElementById('dvAddModelModal')).hide();
-
-    // Clear form
     ['dvAmName','dvAmManufacturer','dvAmFirmware'].forEach(id => { document.getElementById(id).value = ''; });
     document.getElementById('dvAmType').value = '';
 });
 
-// ── Cascading location dropdowns ──────────────────────────────────────
-
-function dvLoadFloors(branchId, keepFloorId, keepOfficeId) {
-    const floorSel  = document.getElementById('dv_floor');
-    const officeSel = document.getElementById('dv_office');
-    floorSel.innerHTML  = '<option value="">— None —</option>';
-    officeSel.innerHTML = '<option value="">— None —</option>';
-    if (!branchId) return;
-
-    floorSel.disabled = true;
-    fetch(`${dv_floorsUrl}?branch_id=${encodeURIComponent(branchId)}`)
-        .then(r => r.json())
-        .then(floors => {
-            floors.forEach(f => {
-                const sel = keepFloorId && String(f.id) === String(keepFloorId);
-                floorSel.add(new Option(f.name, f.id, sel, sel));
-            });
-            floorSel.disabled = false;
-            if (floorSel.value) dvLoadOffices(floorSel.value, keepOfficeId);
-        })
-        .catch(() => { floorSel.disabled = false; });
-}
-
-function dvLoadOffices(floorId, keepOfficeId) {
-    const officeSel = document.getElementById('dv_office');
-    officeSel.innerHTML = '<option value="">— None —</option>';
-    if (!floorId) return;
-
-    officeSel.disabled = true;
-    fetch(`${dv_officesUrl}?floor_id=${encodeURIComponent(floorId)}`)
-        .then(r => r.json())
-        .then(offices => {
-            offices.forEach(o => {
-                const sel = keepOfficeId && String(o.id) === String(keepOfficeId);
-                officeSel.add(new Option(o.name, o.id, sel, sel));
-            });
-            officeSel.disabled = false;
-        })
-        .catch(() => { officeSel.disabled = false; });
-}
-
-// Populate on page load for edit mode
-document.addEventListener('DOMContentLoaded', () => {
-    const branchSel   = document.getElementById('dv_branch');
-    const currentFloor  = branchSel.getAttribute('data-current-floor');
-    const currentOffice = branchSel.getAttribute('data-current-office');
-    if (branchSel.value) {
-        dvLoadFloors(branchSel.value, currentFloor, currentOffice);
-    }
-});
-
-// ── MAC autocomplete ──────────────────────────────────────────────────
-
-const dv_macInput = document.getElementById('dv_mac');
-const dv_macList  = document.getElementById('dv_macList');
-const dv_ipInput  = document.getElementById('dv_ip');
-let dv_macTimer;
-
-if (dv_macInput) {
-    dv_macInput.addEventListener('input', function () {
-        clearTimeout(dv_macTimer);
-        const q = this.value.trim();
-        if (q.length < 3) { dv_macList.innerHTML = ''; return; }
-        dv_macTimer = setTimeout(() => {
-            fetch(`${dv_macUrl}?q=${encodeURIComponent(q)}`)
-                .then(r => r.json())
-                .then(clients => {
-                    dv_macList.innerHTML = clients.map(c => {
-                        const label = [c.hostname, c.ip, c.manufacturer].filter(Boolean).join(' – ');
-                        return `<option value="${c.mac}" data-ip="${c.ip || ''}">${c.mac}${label ? '  (' + label + ')' : ''}</option>`;
-                    }).join('');
-                });
-        }, 300);
-    });
-
-    dv_macInput.addEventListener('change', function () {
-        const opt = Array.from(dv_macList.options).find(o => o.value === this.value);
-        if (opt && dv_ipInput && !dv_ipInput.value) {
-            dv_ipInput.value = opt.getAttribute('data-ip') || '';
-        }
-    });
-}
-
-// ── Quick-add department (AJAX) ────────────────────────────────────────
-
+// ── Quick-add department ──────────────────────────────────────────────
 function dvQuickAddDept() {
     const nameInput = document.getElementById('dvQdName');
     const errEl     = document.getElementById('dvQdError');
     const name      = nameInput.value.trim();
     errEl.classList.add('d-none');
-
-    if (!name) {
-        errEl.textContent = 'Name is required.';
-        errEl.classList.remove('d-none');
-        return;
-    }
+    if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.remove('d-none'); return; }
 
     fetch(dv_deptStore, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': dv_csrf,
-            'Accept': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': dv_csrf, 'Accept': 'application/json' },
         body: JSON.stringify({ name }),
     })
     .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
     .then(({ ok, data }) => {
         if (!ok) {
-            const msgs = Object.values(data.errors || {}).flat();
-            errEl.textContent = msgs[0] || 'Error creating department.';
+            errEl.textContent = Object.values(data.errors || {}).flat()[0] || 'Error.';
             errEl.classList.remove('d-none');
             return;
         }
-        const select = document.getElementById('dv_dept');
-        const opt = new Option(data.name, data.id, true, true);
-        select.add(opt);
+        document.getElementById('dv_dept').add(new Option(data.name, data.id, true, true));
         bootstrap.Modal.getInstance(document.getElementById('dvQuickAddDeptModal')).hide();
         nameInput.value = '';
-    })
-    .catch(() => {
-        errEl.textContent = 'Network error. Please try again.';
-        errEl.classList.remove('d-none');
     });
 }
 </script>
