@@ -741,6 +741,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::patch('/{azureDevice}/reject',      [AzureSyncController::class, 'reject'])      ->name('reject');
         Route::post('/{azureDevice}/link-device',  [AzureSyncController::class, 'linkDevice'])  ->name('link-device');
         Route::get('/{azureDevice}/create-device', [AzureSyncController::class, 'createDevice'])->name('create-device');
+        Route::get('/{azureDevice}/preview-import', [AzureSyncController::class, 'previewImport'])->name('preview-import');
+        Route::post('/{azureDevice}/import',       [AzureSyncController::class, 'importToItam'])->name('import');
     });
 
 

@@ -47,6 +47,22 @@ class AssetCodeService
         };
     }
 
+    /**
+     * Generate a code like LENOVO-T14-PF12345
+     */
+    public function generateFromSpecs(?string $mfg, ?string $model, ?string $sn): string
+    {
+        $mfgStr   = strtoupper(preg_replace('/[^a-zA-Z0-9]/', '', $mfg ?? 'GEN'));
+        $modelStr = strtoupper(preg_replace('/[^a-zA-Z0-9]/', '', $model ?? 'MDL'));
+        $snStr    = strtoupper(preg_replace('/[^a-zA-Z0-9]/', '', $sn ?? 'NOSERIAL'));
+
+        // Shorten MFG and Model if too long
+        $mfgPart   = substr($mfgStr, 0, 4);
+        $modelPart = substr($modelStr, 0, 6);
+
+        return "{$mfgPart}-{$modelPart}-{$snStr}";
+    }
+
     public function nextSequence(string $fullPrefix): int
     {
         // Find highest number currently used for this prefix

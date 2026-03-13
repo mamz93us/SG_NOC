@@ -133,11 +133,90 @@ class AzureSyncController extends Controller
             'name'            => $azureDevice->display_name,
             'serial_number'   => $azureDevice->serial_number,
             'type'            => $this->guessDeviceType($azureDevice),
-            'az_manufacturer' => $raw['manufacturer'] ?? null,
-            'az_model'        => $raw['model'] ?? null,
+            'az_manufacturer' => $azureDevice->manufacturer,
+            'az_model'        => $azureDevice->model,
             'az_upn'          => $azureDevice->upn,
             'azure_sync_id'   => $azureDevice->id,
         ]);
+    }
+
+    /**
+     * Preview the asset code that would be generated.
+     */
+    public function previewImport(AzureDevice $azureDevice)
+    {
+        $codeService = new \App\Services\AssetCodeService();
+        $code        = $codeService->generateFromSpecs($azureDevice->manufacturer, $azureDevice->model, $azureDevice->serial_number);
+        $employee    = \App\Models\Employee::where('email', $azureDevice->upn)->first();
+
+        return response()->json([
+            'proposed_code' => $code,
+            'proposed_user' => $employee ? [
+                'id' => $employee->id,
+                'name' => $employee->name,
+                'email' => $employee->email,
+            ] : null,
+            'device_type' => $this->guessDeviceType($azureDevice),
+        ]);
+    }
+
+    /**
+     * Final approval: Create the asset and link the user.
+     */
+    public function importToItam(Request $request, AzureDevice $azureDevice)
+    {
+        if ($azureDevice->link_status === 'linked') {
+            return back()->with('error', 'Device is already imported/linked.');
+        }
+
+        $request->validate([
+            'type'       => 'required|string',
+            'asset_code' => 'required|string|unique:devices,asset_code',
+        ]);
+
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($azureDevice, $request) {
+                // 1. Create the Device
+                $device = Device::create([
+                    'type'          => $request->type,
+                    'name'          => $azureDevice->display_name,
+                    'model'         => $azureDevice->model,
+                    'serial_number' => $azureDevice->serial_number,
+                    'asset_code'    => $request->asset_code,
+                    'status'        => 'active',
+                    'source'        => 'azure',
+                    'source_id'     => $azureDevice->azure_device_id,
+                    'notes'         => "Imported from Azure/Intune sync on " . now()->toDateTimeString(),
+                ]);
+
+                // 2. Link AzureDevice to this record
+                $azureDevice->update([
+                    'device_id'   => $device->id,
+                    'link_status' => 'linked',
+                ]);
+
+                // 3. Assign to Employee if UPN matches
+                $employee = \App\Models\Employee::where('email', $azureDevice->upn)->first();
+                if ($employee) {
+                    \App\Models\EmployeeAsset::create([
+                        'employee_id'   => $employee->id,
+                        'asset_id'      => $device->id,
+                        'assigned_date' => now(),
+                        'condition'     => 'used',
+                        'notes'         => 'Auto-assigned during Azure import.',
+                    ]);
+                    
+                    $device->update(['status' => 'assigned']);
+                }
+
+                AssetHistory::record($device, 'check_in', "Imported from Azure Sync. Assigned to user: " . ($employee->name ?? 'None'));
+                ActivityLog::log("Imported Azure device {$azureDevice->display_name} as asset {$device->asset_code}");
+            });
+
+            return back()->with('success', "Device successfully imported as asset: {$request->asset_code}");
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Import failed: ' . $e->getMessage());
+        }
     }
 
     private function guessDeviceType(AzureDevice $azureDevice): string

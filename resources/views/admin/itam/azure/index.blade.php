@@ -199,30 +199,71 @@ function azShowDetail(id) {
                 });
             }
 
-            document.getElementById('azDetailBody').innerHTML = `
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <table class="table table-sm table-borderless mb-0">
-                        <tr><td class="text-muted small">Display Name</td><td class="fw-semibold">${d.display_name}</td></tr>
-                        <tr><td class="text-muted small">Azure Device ID</td><td class="font-monospace small">${d.azure_id || '—'}</td></tr>
-                        <tr><td class="text-muted small">Device Type</td><td>${d.device_type || '—'}</td></tr>
-                        <tr><td class="text-muted small">OS</td><td>${d.os || '—'}</td></tr>
-                        <tr><td class="text-muted small">OS Version</td><td class="font-monospace small">${d.os_version || '—'}</td></tr>
-                        <tr><td class="text-muted small">Serial Number</td><td class="font-monospace">${d.serial || '—'}</td></tr>
-                        <tr><td class="text-muted small">Manufacturer</td><td>${d.manufacturer || '—'}</td></tr>
-                        <tr><td class="text-muted small">Model</td><td>${d.model || '—'}</td></tr>
-                        <tr><td class="text-muted small">User (UPN)</td><td class="small">${d.upn || '—'}</td></tr>
-                        <tr><td class="text-muted small">Enrolled</td><td class="small">${d.enrolled_at || '—'}</td></tr>
-                        <tr><td class="text-muted small">Last Sync</td><td class="small">${d.last_sync || '—'}</td></tr>
-                        <tr><td class="text-muted small">Status</td><td>${badge}</td></tr>
-                        ${extra}
-                    </table>
-                </div>
-                <div class="col-md-6">
-                    <p class="fw-semibold small text-muted mb-1"><i class="bi bi-link-45deg me-1"></i>Linked Asset</p>
-                    <div class="border rounded p-3 bg-light">${linked}</div>
-                </div>
-            </div>`;
+            // Proposed Import Info
+            fetch(azDetailUrl + id + '/preview-import')
+                .then(r => r.json())
+                .then(p => {
+                    let importForm = '';
+                    if (d.link_status === 'unlinked') {
+                        importForm = `
+                        <div class="mt-4 border-top pt-3">
+                            <p class="fw-bold text-primary mb-2"><i class="bi bi-box-arrow-in-right me-1"></i>Import & Approve for ITAM</p>
+                            <form action="${azDetailUrl}${id}/import" method="POST" class="bg-primary bg-opacity-10 p-3 rounded">
+                                <input type="hidden" name="_token" value="${azCsrf}">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="small fw-semibold">Asset Category</label>
+                                        <select name="type" class="form-select form-select-sm">
+                                            <option value="laptop" ${p.device_type === 'laptop' ? 'selected' : ''}>Laptop</option>
+                                            <option value="desktop" ${p.device_type === 'desktop' ? 'selected' : ''}>Desktop</option>
+                                            <option value="tablet" ${p.device_type === 'tablet' ? 'selected' : ''}>Tablet</option>
+                                            <option value="server" ${p.device_type === 'server' ? 'selected' : ''}>Server</option>
+                                            <option value="other" ${p.device_type === 'other' ? 'selected' : ''}>Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="small fw-semibold">Generated Asset Code</label>
+                                        <input type="text" name="asset_code" value="${p.proposed_code}" class="form-control form-control-sm font-monospace" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" class="btn btn-primary btn-sm w-100">Approve & Add</button>
+                                    </div>
+                                </div>
+                                <div class="mt-2 small">
+                                    ${p.proposed_user 
+                                        ? `<i class="bi bi-person-check text-success me-1"></i>Matches User: <span class="fw-bold">${p.proposed_user.name}</span>` 
+                                        : '<i class="bi bi-person-x text-warning me-1"></i>No matching user found by Email.'}
+                                </div>
+                            </form>
+                        </div>`;
+                    }
+
+                    document.getElementById('azDetailBody').innerHTML = `
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tr><td class="text-muted small">Display Name</td><td class="fw-semibold">${d.display_name}</td></tr>
+                                <tr><td class="text-muted small">Azure Device ID</td><td class="font-monospace small text-break">${d.azure_id || '—'}</td></tr>
+                                <tr><td class="text-muted small">Device Type</td><td>${d.device_type || '—'}</td></tr>
+                                <tr><td class="text-muted small">OS</td><td>${d.os || '—'}</td></tr>
+                                <tr><td class="text-muted small">OS Version</td><td class="font-monospace small">${d.os_version || '—'}</td></tr>
+                                <tr><td class="text-muted small">Serial Number</td><td class="font-monospace">${d.serial || '—'}</td></tr>
+                                <tr><td class="text-muted small">Manufacturer</td><td>${d.manufacturer || '—'}</td></tr>
+                                <tr><td class="text-muted small">Model</td><td>${d.model || '—'}</td></tr>
+                                <tr><td class="text-muted small">User (UPN)</td><td class="small">${d.upn || '—'}</td></tr>
+                                <tr><td class="text-muted small">Enrolled</td><td class="small">${d.enrolled_at || '—'}</td></tr>
+                                <tr><td class="text-muted small">Last Sync</td><td class="small">${d.last_sync || '—'}</td></tr>
+                                <tr><td class="text-muted small">Status</td><td>${badge}</td></tr>
+                                ${extra}
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="fw-semibold small text-muted mb-1"><i class="bi bi-link-45deg me-1"></i>Linked Asset</p>
+                            <div class="border rounded p-3 bg-light">${linked}</div>
+                        </div>
+                        <div class="col-12">${importForm}</div>
+                    </div>`;
+                });
         })
         .catch(() => {
             document.getElementById('azDetailBody').innerHTML = '<div class="alert alert-danger">Failed to load device details.</div>';
