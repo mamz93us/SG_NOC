@@ -63,93 +63,91 @@ class GraphService
         return $this->getAccessToken();
     }
 
-    // Default timeout for Graph API HTTP calls (seconds).
-    // Longer bulk requests (paginate, batch) use GRAPH_TIMEOUT_BULK.
-    private const GRAPH_TIMEOUT      = 60;
-    private const GRAPH_TIMEOUT_BULK = 300; // Increased to 5 mins for large batch/paginate ops
+    // Default timeouts in seconds
+    private const TIMEOUT_STANDARD = 60;
+    private const TIMEOUT_BULK     = 300;
 
-    private function get(string $endpoint, array $query = []): array
+    /**
+     * Authenticated GET request.
+     */
+    private function get(string $endpoint, array $query = [], int $timeout = self::TIMEOUT_STANDARD): array
     {
-        $token    = $this->getAccessToken();
-        $response = Http::timeout(self::GRAPH_TIMEOUT)->withToken($token)
-            ->get($this->baseUrl . $endpoint, $query);
+        $token = $this->getAccessToken();
+        $url   = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl . $endpoint;
 
-        if ($response->status() === 401) {
+        $response = Http::timeout($timeout)->withToken($token)->get($url, $query);
+
+        // Auto-refresh token once on 401/403
+        if ($response->status() === 401 || $response->status() === 403) {
             $token    = $this->refreshToken();
-            $response = Http::timeout(self::GRAPH_TIMEOUT)->withToken($token)
-                ->get($this->baseUrl . $endpoint, $query);
+            $response = Http::timeout($timeout)->withToken($token)->get($url, $query);
         }
 
         if (!$response->successful()) {
-            throw new \RuntimeException("Graph GET {$endpoint} failed: " . $response->body());
+            throw new \RuntimeException("Graph GET {$endpoint} failed [{$response->status()}]: " . $response->body());
         }
 
         return $response->json();
     }
 
-    private function patch(string $endpoint, array $data): void
+    /**
+     * Authenticated POST request.
+     */
+    private function post(string $endpoint, array $data, int $timeout = self::TIMEOUT_STANDARD): array
     {
         $token    = $this->getAccessToken();
-        $response = Http::timeout(self::GRAPH_TIMEOUT)->withToken($token)
-            ->patch($this->baseUrl . $endpoint, $data);
-
-        // On 401 or 403 force a token refresh and retry once.
-        // 403 is also retried because a newly granted application permission
-        // (e.g. User.ReadWrite.All) is only reflected in a fresh access token.
-        if ($response->status() === 401 || $response->status() === 403) {
-            $token    = $this->refreshToken();
-            $response = Http::timeout(self::GRAPH_TIMEOUT)->withToken($token)
-                ->patch($this->baseUrl . $endpoint, $data);
-        }
-
-        if (!$response->successful()) {
-            throw new \RuntimeException("Graph PATCH {$endpoint} failed: " . $response->body());
-        }
-    }
-
-    private function post(string $endpoint, array $data): array
-    {
-        $token    = $this->getAccessToken();
-        $response = Http::timeout(self::GRAPH_TIMEOUT)->withToken($token)
-            ->post($this->baseUrl . $endpoint, $data);
+        $response = Http::timeout($timeout)->withToken($token)->post($this->baseUrl . $endpoint, $data);
 
         if ($response->status() === 401 || $response->status() === 403) {
             $token    = $this->refreshToken();
-            $response = Http::timeout(self::GRAPH_TIMEOUT)->withToken($token)
-                ->post($this->baseUrl . $endpoint, $data);
+            $response = Http::timeout($timeout)->withToken($token)->post($this->baseUrl . $endpoint, $data);
         }
 
         if (!$response->successful()) {
-            throw new \RuntimeException("Graph POST {$endpoint} failed: " . $response->body());
+            throw new \RuntimeException("Graph POST {$endpoint} failed [{$response->status()}]: " . $response->body());
         }
 
         return $response->json() ?? [];
     }
 
-    private function delete(string $endpoint): void
+    /**
+     * Authenticated PATCH request.
+     */
+    private function patch(string $endpoint, array $data): void
     {
         $token    = $this->getAccessToken();
-        $response = Http::timeout(self::GRAPH_TIMEOUT)->withToken($token)
-            ->delete($this->baseUrl . $endpoint);
+        $response = Http::timeout(self::TIMEOUT_STANDARD)->withToken($token)->patch($this->baseUrl . $endpoint, $data);
 
         if ($response->status() === 401 || $response->status() === 403) {
             $token    = $this->refreshToken();
-            $response = Http::timeout(self::GRAPH_TIMEOUT)->withToken($token)
-                ->delete($this->baseUrl . $endpoint);
+            $response = Http::timeout(self::TIMEOUT_STANDARD)->withToken($token)->patch($this->baseUrl . $endpoint, $data);
         }
 
         if (!$response->successful()) {
-            throw new \RuntimeException("Graph DELETE {$endpoint} failed: " . $response->body());
+            throw new \RuntimeException("Graph PATCH {$endpoint} failed [{$response->status()}]: " . $response->body());
         }
     }
 
     /**
-     * Paginate through @odata.nextLink automatically.
-     * Uses a longer timeout (120s) — bulk queries can return thousands of records.
+     * Authenticated DELETE request.
      */
+    private function delete(string $endpoint): void
+    {
+        $token    = $this->getAccessToken();
+        $response = Http::timeout(self::TIMEOUT_STANDARD)->withToken($token)->delete($this->baseUrl . $endpoint);
+
+        if ($response->status() === 401 || $response->status() === 403) {
+            $token    = $this->refreshToken();
+            $response = Http::timeout(self::TIMEOUT_STANDARD)->withToken($token)->delete($this->baseUrl . $endpoint);
+        }
+
+        if (!$response->successful()) {
+            throw new \RuntimeException("Graph DELETE {$endpoint} failed [{$response->status()}]: " . $response->body());
+        }
+    }
+
     /**
-     * Paginate through results using a callback for each page.
-     * Prevents memory exhaustion on large tenants (1000+ users).
+     * Paginate through results using a callback, maintaining low memory usage.
      */
     private function paginateWithCallback(string $endpoint, callable $callback, array $query = []): void
     {
@@ -157,25 +155,10 @@ class GraphService
         $url   = $this->baseUrl . $endpoint;
 
         do {
-            $token    = $this->getAccessToken();
-            $response = Http::timeout(self::GRAPH_TIMEOUT_BULK)->withToken($token)
-                ->get($url, $url === $this->baseUrl . $endpoint ? $query : []);
-
-            if ($response->status() === 401) {
-                $token    = $this->refreshToken();
-                $response = Http::timeout(self::GRAPH_TIMEOUT_BULK)->withToken($token)
-                    ->get($url, $url === $this->baseUrl . $endpoint ? $query : []);
-            }
-
-            if (!$response->successful()) {
-                throw new \RuntimeException("Graph paginate {$endpoint} failed: " . $response->body());
-            }
-
-            $body = $response->json();
+            $body = $this->get($url, $url === $this->baseUrl . $endpoint ? $query : [], self::TIMEOUT_BULK);
             $values = $body['value'] ?? [];
             
-            // Log progress so the user sees something is happening in the debug output
-            Log::debug("Graph: processed page of " . count($values) . " results for {$endpoint}");
+            Log::debug("Graph: Processed " . count($values) . " results for " . parse_url($url, PHP_URL_PATH));
             
             $callback($values);
             
@@ -185,54 +168,36 @@ class GraphService
         } while ($url);
     }
 
-    private function paginate(string $endpoint, array $query = []): array
-    {
-        $results = [];
-        $this->paginateWithCallback($endpoint, function($values) use (&$results) {
-            array_push($results, ...$values);
-        }, $query);
-        return $results;
-    }
-
     // ─────────────────────────────────────────────────────────────
-    // Test Connection
+    // Domain Operations
     // ─────────────────────────────────────────────────────────────
 
     public function testConnection(): string
     {
-        $org = $this->get('/organization');
-        return $org['value'][0]['displayName'] ?? 'Connected';
+        $res = $this->get('/organization');
+        return $res['value'][0]['displayName'] ?? 'Connected';
     }
-
-    // ─────────────────────────────────────────────────────────────
-    // User Operations
-    // ─────────────────────────────────────────────────────────────
 
     public function listUsers(callable $callback): void
     {
-        $this->paginateWithCallback('/users', function($users) use ($callback) {
-            $mapped = array_map(function (array $user) {
-                $user['manager_id'] = null;
-                return $user;
-            }, $users);
-            $callback($mapped);
-        }, [
-            '$select' => implode(',', [
-                'id', 'displayName', 'userPrincipalName', 'mail',
-                'jobTitle', 'department', 'companyName',
-                'accountEnabled', 'usageLocation',
-                'assignedLicenses',
-                'businessPhones', 'mobilePhone',
-                'officeLocation', 'streetAddress', 'city', 'postalCode', 'country',
-            ]),
+        $this->paginateWithCallback('/users', $callback, [
+            '$select' => 'id,displayName,userPrincipalName,mail,jobTitle,department,companyName,accountEnabled,usageLocation,assignedLicenses,businessPhones,mobilePhone,officeLocation,streetAddress,city,postalCode,country',
         ]);
     }
 
-    /**
-     * Fetch manager relationships for all users in one lightweight paginated call.
-     * Returns [userId => managerId] map. Called separately from listUsers() so
-     * the heavy core-user query stays fast even on large tenants.
-     */
+    public function listGroups(callable $callback): void
+    {
+        $this->paginateWithCallback('/groups', $callback, [
+            '$select' => 'id,displayName,description,groupTypes,mailEnabled,securityEnabled',
+        ]);
+    }
+
+    public function listSubscribedSkus(): array
+    {
+        $res = $this->get('/subscribedSkus');
+        return $res['value'] ?? [];
+    }
+
     public function listUserManagers(callable $callback): void
     {
         try {
@@ -243,225 +208,51 @@ class GraphService
                         $map[$u['id']] = $u['manager']['id'];
                     }
                 }
-                $callback($map);
+                if (!empty($map)) $callback($map);
             }, [
                 '$select' => 'id',
                 '$expand' => 'manager($select=id)',
             ]);
         } catch (\Throwable) {
-            // non-fatal — manager data is supplementary
+            // Managers are supplementary
         }
     }
 
-    /**
-     * Fetch the user members of multiple groups in one Graph Batch request.
-     *
-     * Graph Batch API allows up to 20 sub-requests per call and processes
-     * them in parallel on Microsoft's side — far faster than iterating over
-     * users with $expand=memberOf (which limits pages to ~100 and blocks on
-     * each HTTP roundtrip).
-     *
-     * @param  array  $groupIds  Azure AD group IDs
-     * @return array             [groupId => [userId, ...]]
-     */
     public function batchGroupMembers(array $groupIds, callable $callback): void
     {
-        if (empty($groupIds)) {
-            return;
-        }
-
-        $token  = $token ?? $this->getAccessToken();
-        
-        // Use very small chunks (5) so the response body is always small
         foreach (array_chunk($groupIds, 5) as $chunk) {
             $requests = [];
-            foreach (array_values($chunk) as $i => $gid) {
+            foreach (array_values($chunk) as $i => $id) {
                 $requests[] = [
-                    'id'     => (string)($i + 1),
+                    'id'     => (string) ($i + 1),
                     'method' => 'GET',
-                    'url'    => "/groups/{$gid}/members/microsoft.graph.user?\$select=id&\$top=500",
+                    'url'    => "/groups/{$id}/members/microsoft.graph.user?\$select=id&\$top=500",
                 ];
             }
 
             try {
-                $resp = Http::timeout(self::GRAPH_TIMEOUT_BULK)->withToken($token)
-                    ->post($this->baseUrl . '/$batch', ['requests' => $requests]);
-
-                if ($resp->status() === 401) {
-                    $token = $this->refreshToken();
-                    $resp  = Http::timeout(self::GRAPH_TIMEOUT_BULK)->withToken($token)
-                        ->post($this->baseUrl . '/$batch', ['requests' => $requests]);
-                }
-
-                if (!$resp->successful()) continue;
-
-                $chunkResult = [];
-                foreach ($resp->json('responses', []) as $r) {
-                    $idx     = (int)$r['id'] - 1;
-                    $groupId = $chunk[$idx] ?? null;
-                    if ($groupId && (int)$r['status'] === 200) {
-                        $chunkResult[$groupId] = collect($r['body']['value'] ?? [])->pluck('id')->all();
+                $resp = $this->post('/$batch', ['requests' => $requests], self::TIMEOUT_BULK);
+                $results = [];
+                foreach ($resp['responses'] ?? [] as $r) {
+                    $idx = (int) $r['id'] - 1;
+                    $gid = $chunk[$idx] ?? null;
+                    if ($gid && (int) $r['status'] === 200) {
+                        $results[$gid] = collect($r['body']['value'] ?? [])->pluck('id')->all();
                     }
                 }
-                
-                $callback($chunkResult);
-                unset($resp, $chunkResult);
+                $callback($results);
                 gc_collect_cycles();
-            } catch (\Throwable) {
-                continue;
-            }
+            } catch (\Throwable) { continue; }
         }
     }
 
-    public function getUser(string $id): array
-    {
-        return $this->get("/users/{$id}", [
-            '$select' => 'id,displayName,userPrincipalName,mail,jobTitle,department,accountEnabled,assignedLicenses,memberOf,usageLocation',
-            '$expand' => 'memberOf',
-        ]);
-    }
-
-    public function updateUser(string $id, array $data): void
-    {
-        $this->patch("/users/{$id}", $data);
-    }
-
-    public function disableUser(string $id): void
-    {
-        $this->patch("/users/{$id}", ['accountEnabled' => false]);
-    }
-
-    public function deleteUser(string $id): void
-    {
-        $this->delete("/users/{$id}");
-    }
-
-    public function enableUser(string $id): void
-    {
-        $this->patch("/users/{$id}", ['accountEnabled' => true]);
-    }
-
-    public function resetPassword(string $id, string $newPassword, bool $forceChange = true): void
-    {
-        $this->patch("/users/{$id}", [
-            'passwordProfile' => [
-                'password'                      => $newPassword,
-                'forceChangePasswordNextSignIn' => $forceChange,
-            ],
-        ]);
-    }
-
-    /**
-     * Create a new Azure AD user and return the full user object (including 'id').
-     *
-     * Required fields in $data:
-     *   displayName, userPrincipalName, mailNickname, password
-     * Optional:
-     *   accountEnabled (default true), usageLocation (default 'EG'),
-     *   jobTitle, department
-     */
-    public function createUser(array $data): array
-    {
-        $body = [
-            'accountEnabled'    => $data['accountEnabled'] ?? true,
-            'displayName'       => $data['displayName'],
-            'mailNickname'      => $data['mailNickname'],
-            'userPrincipalName' => $data['userPrincipalName'],
-            'passwordProfile'   => [
-                'forceChangePasswordNextSignIn' => true,
-                'password'                      => $data['password'],
-            ],
-            'usageLocation'     => $data['usageLocation'] ?? 'EG',
-        ];
-
-        // Only include optional fields when they have a value — the Graph API
-        // rejects null for these properties.
-        if (!empty($data['jobTitle']))  {
-            $body['jobTitle']   = $data['jobTitle'];
-        }
-        if (!empty($data['department'])) {
-            $body['department'] = $data['department'];
-        }
-
-        return $this->post('/users', $body);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // License Operations
-    // ─────────────────────────────────────────────────────────────
-
-    public function listSubscribedSkus(): array
-    {
-        $result = $this->get('/subscribedSkus');
-        return $result['value'] ?? [];
-    }
-
-    public function assignLicense(string $userId, string $skuId): void
-    {
-        $this->post("/users/{$userId}/assignLicense", [
-            'addLicenses'    => [['skuId' => $skuId, 'disabledPlans' => []]],
-            'removeLicenses' => [],
-        ]);
-    }
-
-    public function removeLicense(string $userId, string $skuId): void
-    {
-        $this->post("/users/{$userId}/assignLicense", [
-            'addLicenses'    => [],
-            'removeLicenses' => [$skuId],
-        ]);
-    }
-
-    public function getUserLicenses(string $userId): array
-    {
-        $user = $this->get("/users/{$userId}", ['$select' => 'assignedLicenses']);
-        return $user['assignedLicenses'] ?? [];
-    }
-
-    /**
-     * Return a cached map of [ skuId => skuPartNumber ] for quick name lookups.
-     * Cached for 5 minutes so provisioning-preview AJAX calls are fast.
-     */
-    public function getSkuNameMap(): array
-    {
-        $cacheKey = "graph_sku_name_map_{$this->clientId}";
-        return Cache::remember($cacheKey, 300, function () {
-            $map = [];
-            foreach ($this->listSubscribedSkus() as $sku) {
-                if (!empty($sku['skuId'])) {
-                    $map[$sku['skuId']] = $sku['skuPartNumber'] ?? $sku['skuId'];
-                }
-            }
-            return $map;
-        });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Group Operations
-    // ─────────────────────────────────────────────────────────────
-
-    public function listGroups(callable $callback): void
-    {
-        $this->paginateWithCallback('/groups', $callback, [
-            '$select' => 'id,displayName,description,groupTypes,mailEnabled,securityEnabled',
-        ]);
-    }
-
-    public function listUserGroups(string $userId): array
-    {
-        $result = $this->get("/users/{$userId}/memberOf", ['$select' => 'id,displayName']);
-        return $result['value'] ?? [];
-    }
-
-    public function addUserToGroup(string $userId, string $groupId): void
-    {
-        $this->post("/groups/{$groupId}/members/\$ref", [
-            '@odata.id' => "https://graph.microsoft.com/v1.0/directoryObjects/{$userId}",
-        ]);
-    }
-
-    public function removeUserFromGroup(string $userId, string $groupId): void
-    {
-        $this->delete("/groups/{$groupId}/members/{$userId}/\$ref");
-    }
+    // Provisioning Methods
+    public function getUser(string $id): array { return $this->get("/users/{$id}", ['$expand' => 'memberOf']); }
+    public function updateUser(string $id, array $data): void { $this->patch("/users/{$id}", $data); }
+    public function createUser(array $data): array { return $this->post('/users', $data); }
+    public function deleteUser(string $id): void { $this->delete("/users/{$id}"); }
+    public function assignLicense(string $userId, string $skuId): void { $this->post("/users/{$userId}/assignLicense", ['addLicenses' => [['skuId' => $skuId]], 'removeLicenses' => []]); }
+    public function removeLicense(string $userId, string $skuId): void { $this->post("/users/{$userId}/assignLicense", ['addLicenses' => [], 'removeLicenses' => [$skuId]]); }
+    public function addUserToGroup(string $userId, string $groupId): void { $this->post("/groups/{$groupId}/members/\$ref", ['@odata.id' => "{$this->baseUrl}/directoryObjects/{$userId}"]); }
+    public function removeUserFromGroup(string $userId, string $groupId): void { $this->delete("/groups/{$groupId}/members/{$userId}/\$ref"); }
 }
