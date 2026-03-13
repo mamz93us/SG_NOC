@@ -108,7 +108,11 @@
                                     {{ $emp->initials() }}
                                 </div>
                                 <div>
-                                    <div class="fw-semibold">{{ $emp->name }}</div>
+                                    <div class="fw-semibold">
+                                        <a href="{{ route('admin.employees.show', $emp->id) }}" class="text-decoration-none text-dark">
+                                            {{ $emp->name }}
+                                        </a>
+                                    </div>
                                     <div class="text-muted" style="font-size:.75rem">{{ $emp->email }}</div>
                                 </div>
                             </div>

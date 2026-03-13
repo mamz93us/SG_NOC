@@ -29,7 +29,11 @@ class ActivityLog extends Model
      */
     public static function log(string $action, $arg2 = null, $arg3 = null, $arg4 = null): self
     {
-        $userId = Auth::id() ?? 1;
+        $userId = Auth::id();
+        if (!$userId) {
+            $user = User::orderBy('id', 'asc')->first();
+            $userId = $user ? $user->id : null;
+        }
         $modelType = 'System';
         $modelId   = 0;
         $changes   = null;

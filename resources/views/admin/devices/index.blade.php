@@ -100,7 +100,11 @@
                                 <i class="bi {{ $d->typeIcon() }} me-1"></i>{{ $d->typeLabel() }}
                             </span>
                         </td>
-                        <td class="fw-semibold">{{ $d->name }}</td>
+                        <td class="fw-semibold">
+                            <a href="{{ route('admin.devices.show', $d) }}" class="text-decoration-none">
+                                {{ $d->name }}
+                            </a>
+                        </td>
                         <td class="text-muted small">
                             {{ $d->manufacturer ?: '—' }}
                         </td>
@@ -110,7 +114,9 @@
                         <td>{{ $d->branch?->name ?: '—' }}</td>
                         <td>
                             @if($assignment)
-                            <span class="text-primary fw-semibold">{{ $assignment->employee->name }}</span>
+                            <a href="{{ route('admin.employees.show', $assignment->employee_id) }}" class="text-primary fw-semibold text-decoration-none">
+                                {{ $assignment->employee->name }}
+                            </a>
                             @else
                             <span class="text-muted">—</span>
                             @endif

@@ -206,7 +206,13 @@
                             <tr class="{{ $a->returned_date ? 'table-light text-muted' : '' }}">
                                 <td class="ps-3 fw-semibold">
                                     <i class="bi {{ $a->device?->typeIcon() ?? 'bi-cpu' }} me-1 text-muted"></i>
-                                    {{ $a->device?->name ?? 'Unknown' }}
+                                    @if($a->device)
+                                        <a href="{{ route('admin.devices.show', $a->device->id) }}" class="text-decoration-none">
+                                            {{ $a->device->name }}
+                                        </a>
+                                    @else
+                                        Unknown
+                                    @endif
                                 </td>
                                 <td>
                                     @if($a->device)<span class="badge {{ $a->device->typeBadgeClass() }}">{{ $a->device->typeLabel() }}</span>

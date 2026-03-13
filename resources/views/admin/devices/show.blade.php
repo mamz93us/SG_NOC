@@ -53,7 +53,10 @@
             <i class="bi bi-person-fill-check text-{{ $assigned ? 'primary' : 'muted' }} fs-5"></i>
             @if($assigned)
             <span>
-                Assigned to <strong>{{ $assigned->employee->name }}</strong>
+                Assigned to 
+                <a href="{{ route('admin.employees.show', $assigned->employee->id) }}" class="text-decoration-none fw-bold">
+                    {{ $assigned->employee->name }}
+                </a>
                 since {{ $assigned->assigned_date->format('d M Y') }}
             </span>
             @else
