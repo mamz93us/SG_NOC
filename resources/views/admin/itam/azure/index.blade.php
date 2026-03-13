@@ -163,7 +163,7 @@
                     @forelse($azureDevices as $az)
                     <tr style="cursor:pointer" onclick="azShowDetail({{ $az->id }})">
                         <td onclick="event.stopPropagation()">
-                            @if($az->link_status === 'unlinked')
+                            @if($az->link_status !== 'linked')
                             <input type="checkbox" name="ids[]" value="{{ $az->id }}" class="form-check-input az-checkbox" form="batchImportForm">
                             @endif
                         </td>
@@ -398,13 +398,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (selectAll) {
         selectAll.addEventListener('change', function() {
-            checkboxes.forEach(cb => cb.checked = this.checked);
+            const allCbs = document.querySelectorAll('.az-checkbox');
+            allCbs.forEach(cb => cb.checked = this.checked);
             updateActionBar();
         });
     }
 
-    checkboxes.forEach(cb => {
-        cb.addEventListener('change', updateActionBar);
+    // Delegation to handle individual clicks better
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('az-checkbox')) {
+            updateActionBar();
+        }
     });
 });
 </script>
