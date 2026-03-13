@@ -240,14 +240,100 @@ class AzureSyncController extends Controller
         }
     }
 
-    private function guessDeviceType(AzureDevice $azureDevice): string
+    /**
+     * Batch import multiple devices at once.
+     */
+    public function batchImport(Request $request)
     {
-        $os = strtolower($azureDevice->os ?? '');
-        if (str_contains($os, 'windows')) return 'laptop';
-        if (str_contains($os, 'mac'))     return 'laptop';
-        if (str_contains($os, 'android')) return 'tablet';
-        if (str_contains($os, 'ios'))     return 'tablet';
-        if (str_contains($os, 'linux'))   return 'server';
-        return 'other';
+        $ids = $request->input('ids');
+        if (empty($ids) || !is_array($ids)) {
+            return back()->with('error', 'No devices selected for batch import.');
+        }
+
+        $successCount = 0;
+        $errorCount   = 0;
+        $codeService  = new \App\Services\AssetCodeService();
+
+        foreach ($ids as $id) {
+            try {
+                $azureDevice = AzureDevice::find($id);
+                if (!$azureDevice || $azureDevice->link_status === 'linked') continue;
+
+                \Illuminate\Support\Facades\DB::transaction(function () use ($azureDevice, $codeService, &$successCount) {
+                    $type = $this->guessDeviceType($azureDevice);
+                    $code = $codeService->generate($type);
+                    
+                    // Enrollment date is treated as purchase date
+                    $enrollDate = $azureDevice->enrolled_date ? \Carbon\Carbon::parse($azureDevice->enrolled_date) : now();
+
+                    // 1. Create or Find the Device Model
+                    $deviceModel = \App\Models\DeviceModel::firstOrCreate(
+                        [
+                            'manufacturer' => $azureDevice->manufacturer ?? 'Unknown', 
+                            'name'         => $azureDevice->model ?? 'Common Model'
+                        ],
+                        [
+                            'device_type'  => $type
+                        ]
+                    );
+
+                    // 2. Create the Device
+                    $device = Device::create([
+                        'type'                => $type,
+                        'name'                => $azureDevice->display_name,
+                        'manufacturer'        => $azureDevice->manufacturer,
+                        'model'               => $azureDevice->model,
+                        'device_model_id'     => $deviceModel->id,
+                        'serial_number'       => $azureDevice->serial_number,
+                        'asset_code'          => $code,
+                        'status'              => 'active',
+                        'source'              => 'azure',
+                        'source_id'           => $azureDevice->azure_device_id,
+                        'purchase_date'       => $enrollDate,
+                        'warranty_expiry'     => (clone $enrollDate)->addYear(),
+                        'depreciation_years'  => 3,
+                        'depreciation_method' => 'straight_line',
+                        'notes'               => "Batch imported from Azure/Intune sync on " . now()->toDateTimeString(),
+                    ]);
+
+                    // 3. Link AzureDevice
+                    $azureDevice->update([
+                        'device_id'   => $device->id,
+                        'link_status' => 'linked',
+                    ]);
+
+                    // 4. Assign to Employee if UPN matches
+                    $employee = \App\Models\Employee::where('email', $azureDevice->upn)->first();
+                    if ($employee) {
+                        \App\Models\EmployeeAsset::create([
+                            'employee_id'   => $employee->id,
+                            'asset_id'      => $device->id,
+                            'assigned_date' => now(),
+                            'condition'     => 'used',
+                            'notes'         => 'Auto-assigned during batch import.',
+                        ]);
+                        $device->update(['status' => 'assigned']);
+                    }
+
+                    AssetHistory::record($device, 'assigned', "Batch imported. Assigned to user: " . ($employee->name ?? 'None'));
+                    ActivityLog::log("Imported Azure device {$azureDevice->display_name} as asset {$device->asset_code}");
+                });
+            } catch (\Exception $e) {
+                \Log::error("Batch import failed for Azure Device ID {$id}: " . $e->getMessage());
+                $errorCount++;
+            }
+        }
+
+        ActivityLog::log("Performed batch import of {$successCount} Azure devices to itam.");
+
+        $msg = "Successfully imported {$successCount} devices.";
+        if ($errorCount > 0) $msg .= " Failed to import {$errorCount} devices. Check logs for details.";
+
+        return back()->with($errorCount > 0 ? 'warning' : 'success', $msg);
+    }
+
+    private function guessDeviceType(AzureDevice $az): string
+    {
+        return 'laptop';
     }
 }

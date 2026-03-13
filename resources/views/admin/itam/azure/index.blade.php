@@ -10,12 +10,14 @@
             <small class="text-muted">Last sync: {{ \Carbon\Carbon::parse($lastSync)->diffForHumans() }}</small>
             @endif
         </div>
-        <form action="{{ route('admin.itam.azure.sync') }}" method="POST">
-            @csrf
-            <button type="submit" class="btn btn-primary btn-sm">
-                <i class="bi bi-arrow-repeat me-1"></i>Sync Now
-            </button>
-        </form>
+        <div class="d-flex gap-1">
+            <form action="{{ route('admin.itam.azure.sync') }}" method="POST">
+                @csrf
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-arrow-repeat me-1"></i>Sync Now
+                </button>
+            </form>
+        </div>
     </div>
 
     @if(session('success'))<div class="alert alert-success py-2">{{ session('success') }}</div>@endif
@@ -88,10 +90,10 @@
         <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
             <span class="fw-semibold">All Azure Devices</span>
         </div>
-        <div class="card-body border-bottom pb-3">
+        <div class="card-body border-bottom pb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <form method="GET" class="d-flex gap-2 flex-wrap">
-                <input type="text" name="search" class="form-control form-control-sm" placeholder="Search..." value="{{ request('search') }}" style="max-width:250px">
-                <select name="status" class="form-select form-select-sm" style="max-width:150px">
+                <input type="text" name="search" class="form-control form-control-sm" placeholder="Search..." value="{{ request('search') }}" style="max-width:200px">
+                <select name="status" class="form-select form-select-sm" style="max-width:130px">
                     <option value="">All Status</option>
                     @foreach($statuses as $s)
                     <option value="{{ $s }}" {{ request('status')===$s ? 'selected' : '' }}>{{ ucfirst($s) }}</option>
@@ -102,11 +104,24 @@
                 <a href="{{ route('admin.itam.azure.index') }}" class="btn btn-outline-secondary btn-sm">Clear</a>
                 @endif
             </form>
+
+            <div id="batchActionBar" class="d-none animate__animated animate__fadeIn">
+                <form id="batchImportForm" action="{{ route('admin.itam.azure.batch-import') }}" method="POST" class="d-flex align-items-center gap-2 bg-light p-2 rounded border">
+                    @csrf
+                    <span class="small fw-bold text-primary"><span id="selectedCount">0</span> selected</span>
+                    <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Import selected devices as ITAM assets?')">
+                        <i class="bi bi-box-arrow-in-right me-1"></i>Batch Import
+                    </button>
+                </form>
+            </div>
         </div>
         <div class="card-body p-0">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
+                        <th style="width:40px">
+                            <input type="checkbox" class="form-check-input" id="selectAllAz">
+                        </th>
                         <th>Device Name</th>
                         <th>OS</th>
                         <th>Serial</th>
@@ -119,6 +134,11 @@
                 <tbody>
                     @forelse($azureDevices as $az)
                     <tr style="cursor:pointer" onclick="azShowDetail({{ $az->id }})">
+                        <td onclick="event.stopPropagation()">
+                            @if($az->link_status === 'unlinked')
+                            <input type="checkbox" name="ids[]" value="{{ $az->id }}" class="form-check-input az-checkbox" form="batchImportForm">
+                            @endif
+                        </td>
                         <td class="fw-semibold">{{ $az->display_name }}</td>
                         <td>{{ $az->os }}{{ $az->os_version ? ' '.$az->os_version : '' }}</td>
                         <td class="font-monospace small">{{ $az->serial_number ?: '—' }}</td>
@@ -287,10 +307,38 @@ function updateProposedCode(type) {
         });
 }
 
-function statusBadge(s) {
-    const map = { linked: 'success', pending: 'warning', rejected: 'danger', unlinked: 'secondary' };
-    return `<span class="badge bg-${map[s] || 'secondary'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
+function azConfirmLink(id) {
+    // ... logic if needed
 }
+
+// Batch selection logic
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('selectAllAz');
+    const checkboxes = document.querySelectorAll('.az-checkbox');
+    const actionBar = document.getElementById('batchActionBar');
+    const countSpan = document.getElementById('selectedCount');
+
+    function updateActionBar() {
+        const checked = document.querySelectorAll('.az-checkbox:checked');
+        if (checked.length > 0) {
+            actionBar.classList.remove('d-none');
+            countSpan.textContent = checked.length;
+        } else {
+            actionBar.classList.add('d-none');
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => cb.checked = this.checked);
+            updateActionBar();
+        });
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateActionBar);
+    });
+});
 </script>
 @endpush
 @endsection

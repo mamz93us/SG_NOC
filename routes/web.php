@@ -743,6 +743,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/{azureDevice}/create-device', [AzureSyncController::class, 'createDevice'])->name('create-device');
         Route::get('/{azureDevice}/preview-import', [AzureSyncController::class, 'previewImport'])->name('preview-import');
         Route::post('/{azureDevice}/import',       [AzureSyncController::class, 'importToItam'])->name('import');
+        Route::post('/batch-import',               [AzureSyncController::class, 'batchImport'])->name('batch-import');
     });
 
 
