@@ -733,6 +733,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── Azure Device Sync ────────────────────────────────────────
     Route::middleware('permission:view-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
         Route::get('/mappings',          [AzureSyncController::class, 'mappings'])->name('mappings');
+        
+        // These specific ID routes must come before the general /{azureDevice}
+        Route::get('/{azureDevice}/create-device', [AzureSyncController::class, 'createDevice'])->name('create-device');
+        Route::get('/{azureDevice}/preview-import', [AzureSyncController::class, 'previewImport'])->name('preview-import');
+        
         Route::get('/',                  [AzureSyncController::class, 'index'])->name('index');
         Route::get('/{azureDevice}',     [AzureSyncController::class, 'show']) ->name('show');
     });
@@ -741,8 +746,6 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::patch('/{azureDevice}/approve',     [AzureSyncController::class, 'approve'])     ->name('approve');
         Route::patch('/{azureDevice}/reject',      [AzureSyncController::class, 'reject'])      ->name('reject');
         Route::post('/{azureDevice}/link-device',  [AzureSyncController::class, 'linkDevice'])  ->name('link-device');
-        Route::get('/{azureDevice}/create-device', [AzureSyncController::class, 'createDevice'])->name('create-device');
-        Route::get('/{azureDevice}/preview-import', [AzureSyncController::class, 'previewImport'])->name('preview-import');
         Route::post('/{azureDevice}/import',       [AzureSyncController::class, 'importToItam'])->name('import');
         Route::post('/batch-import',               [AzureSyncController::class, 'batchImport'])->name('batch-import');
         
