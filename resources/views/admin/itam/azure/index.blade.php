@@ -263,11 +263,16 @@ function azShowDetail(id) {
                 .then(r => r.json())
                 .then(p => {
                     let importForm = '';
-                    if (d.link_status === 'unlinked') {
+            // Proposed Import Info
+            fetch(azDetailUrl + id + '/preview-import')
+                .then(r => r.json())
+                .then(p => {
+                    let importForm = '';
+                    if (d.link_status === 'unlinked' || d.link_status === 'pending') {
                         importForm = `
                         <div class="mt-4 border-top pt-3">
                             <p class="fw-bold text-primary mb-2"><i class="bi bi-box-arrow-in-right me-1"></i>Import & Approve for ITAM</p>
-                            <form action="${azDetailUrl}${id}/import" method="POST" class="bg-primary bg-opacity-10 p-3 rounded">
+                            <form action="${azDetailUrl}${id}/import" method="POST" class="bg-primary bg-opacity-10 p-3 rounded shadow-sm">
                                 <input type="hidden" name="_token" value="${azCsrf}">
                                 <div class="row g-2 align-items-end">
                                     <div class="col-md-4">
@@ -289,12 +294,36 @@ function azShowDetail(id) {
                                         <button type="submit" class="btn btn-primary btn-sm w-100">Approve & Add</button>
                                     </div>
                                 </div>
-                                <div class="mt-2 small">
-                                    ${p.proposed_user 
-                                        ? `<i class="bi bi-person-check text-success me-1"></i>Matches User: <span class="fw-bold">${p.proposed_user.name}</span>` 
-                                        : '<i class="bi bi-person-x text-warning me-1"></i>No matching user found by Email.'}
+                                <div class="mt-2 small d-flex justify-content-between align-items-center">
+                                    <span>
+                                        ${p.proposed_user 
+                                            ? `<i class="bi bi-person-check text-success me-1"></i>User: <strong>${p.proposed_user.name}</strong>` 
+                                            : '<i class="bi bi-person-x text-warning me-1"></i>No user match'}
+                                    </span>
+                                    <span>
+                                        ${p.proposed_branch 
+                                            ? `<i class="bi bi-geo-alt-fill text-success me-1"></i>Branch: <strong>${p.proposed_branch}</strong>` 
+                                            : '<i class="bi bi-geo-alt text-danger me-1"></i>No Branch Mapping Found'}
+                                    </span>
                                 </div>
                             </form>
+                        </div>`;
+                    } else if (d.link_status === 'linked') {
+                        importForm = `
+                        <div class="mt-4 border-top pt-3">
+                             <p class="fw-bold text-success mb-2 small"><i class="bi bi-check-circle me-1"></i>Already Linked to ITAM</p>
+                             <div class="bg-light p-3 rounded d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="small text-muted">Auto-detected Branch:</span><br>
+                                    <strong class="${p.proposed_branch ? 'text-dark' : 'text-danger'}">${p.proposed_branch || 'None'}</strong>
+                                </div>
+                                <form action="${azDetailUrl}${id}/sync-branch" method="POST">
+                                    <input type="hidden" name="_token" value="${azCsrf}">
+                                    <button type="submit" class="btn btn-sm btn-outline-success">
+                                        <i class="bi bi-arrow-repeat me-1"></i>Sync Branch Now
+                                    </button>
+                                </form>
+                             </div>
                         </div>`;
                     }
 

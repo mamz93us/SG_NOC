@@ -747,11 +747,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::patch('/{azureDevice}/reject',      [AzureSyncController::class, 'reject'])      ->name('reject');
         Route::post('/{azureDevice}/link-device',  [AzureSyncController::class, 'linkDevice'])  ->name('link-device');
         Route::post('/{azureDevice}/import',       [AzureSyncController::class, 'importToItam'])->name('import');
+        Route::post('/{azureDevice}/sync-branch',  [AzureSyncController::class, 'reDetectBranch'])->name('sync-branch');
         Route::post('/batch-import',               [AzureSyncController::class, 'batchImport'])->name('batch-import');
         
         // Branch Mapping
+        Route::get('/mappings',                    [AzureSyncController::class, 'mappings'])->name('mappings');
         Route::post('/mappings',                   [AzureSyncController::class, 'storeMapping'])->name('mappings.store');
         Route::delete('/mappings/{mapping}',        [AzureSyncController::class, 'deleteMapping'])->name('mappings.delete');
+        Route::post('/mappings/sync-all',          [AzureSyncController::class, 'bulkSyncBranches'])->name('mappings.sync-all');
     });
 
 

@@ -159,9 +159,6 @@ class AzureSyncController extends Controller
         ]);
     }
 
-    /**
-     * Preview the asset code that would be generated.
-     */
     public function previewImport(AzureDevice $azureDevice)
     {
         $codeService = new \App\Services\AssetCodeService();
@@ -169,14 +166,20 @@ class AzureSyncController extends Controller
         $code        = $codeService->generate($type); // Use global sequence (SG-LAP-XXXX)
         $employee    = \App\Models\Employee::where('email', $azureDevice->upn)->first();
 
+        // Detect Branch
+        $branchId = $this->detectBranchId($azureDevice);
+        $branch   = $branchId ? \App\Models\Branch::find($branchId) : null;
+
         return response()->json([
-            'proposed_code' => $code,
-            'proposed_user' => $employee ? [
-                'id' => $employee->id,
-                'name' => $employee->name,
+            'proposed_code'   => $code,
+            'proposed_user'   => $employee ? [
+                'id'    => $employee->id,
+                'name'  => $employee->name,
                 'email' => $employee->email,
             ] : null,
-            'device_type' => $type,
+            'device_type'     => $type,
+            'proposed_branch' => $branch ? $branch->name : null,
+            'proposed_branch_id' => $branchId,
         ]);
     }
 
@@ -423,17 +426,32 @@ class AzureSyncController extends Controller
 
     private function detectBranchId(AzureDevice $az): ?int
     {
-        // 1. Try mapping keywords against office/location from Azure
-        // AzureDevice might have these in raw_data
-        $office   = $az->raw_data['officeLocation'] ?? null;
-        $location = $az->raw_data['location'] ?? null; // custom field or metadata
+        $mappings = AzureBranchMapping::all();
+        if ($mappings->isEmpty()) return null;
+
+        // Collect all possible strings to search in
+        $searchStrings = [];
         
-        $searchStrings = array_filter([$office, $location, $az->display_name]);
+        // From Device Data
+        if ($az->display_name) $searchStrings[] = $az->display_name;
+        if (!empty($az->raw_data['officeLocation'])) $searchStrings[] = $az->raw_data['officeLocation'];
+        if (!empty($az->raw_data['location'])) $searchStrings[] = $az->raw_data['location'];
+        
+        // From Associated User Data (Most reliable for branch/office)
+        if ($az->upn) {
+            $user = \App\Models\IdentityUser::where('user_principal_name', $az->upn)
+                ->orWhere('mail', $az->upn)
+                ->first();
+            
+            if ($user) {
+                if ($user->office_location) $searchStrings[] = $user->office_location;
+                if ($user->city) $searchStrings[] = $user->city;
+                if ($user->department) $searchStrings[] = $user->department;
+            }
+        }
 
         foreach ($searchStrings as $str) {
             if (!$str) continue;
-            
-            $mappings = AzureBranchMapping::all();
             foreach ($mappings as $m) {
                 if (stripos($str, $m->keyword) !== false) {
                     return $m->branch_id;
@@ -442,5 +460,48 @@ class AzureSyncController extends Controller
         }
 
         return null;
+    }
+
+    public function reDetectBranch(AzureDevice $azureDevice)
+    {
+        $branchId = $this->detectBranchId($azureDevice);
+        if (!$branchId) {
+            return back()->with('error', 'Could not detect a matching branch based on current keywords.');
+        }
+
+        if (!$azureDevice->device_id) {
+            return back()->with('error', 'This device is not linked to an ITAM asset yet.');
+        }
+
+        $device = Device::find($azureDevice->device_id);
+        if ($device) {
+            $device->update(['branch_id' => $branchId]);
+            $branch = Branch::find($branchId);
+            return back()->with('success', "Branch updated to: " . ($branch->name ?? 'Unknown'));
+        }
+
+        return back()->with('error', 'Linked ITAM asset not found.');
+    }
+
+    /**
+     * Bulk update branches for all linked Azure devices based on current mappings.
+     */
+    public function bulkSyncBranches()
+    {
+        $linked = AzureDevice::where('link_status', 'linked')->whereNotNull('device_id')->get();
+        $updated = 0;
+
+        foreach ($linked as $az) {
+            $branchId = $this->detectBranchId($az);
+            if ($branchId) {
+                $device = Device::find($az->device_id);
+                if ($device && $device->branch_id != $branchId) {
+                    $device->update(['branch_id' => $branchId]);
+                    $updated++;
+                }
+            }
+        }
+
+        return back()->with('success', "Branch sync complete. Updated {$updated} devices based on mappings.");
     }
 }

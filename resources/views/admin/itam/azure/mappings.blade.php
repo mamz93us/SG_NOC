@@ -8,9 +8,17 @@
             <h4 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Azure Branch Mapping</h4>
             <p class="text-muted small mb-0">Map Azure "Office Location" keywords to system Branches</p>
         </div>
-        <a href="{{ route('admin.itam.azure.index') }}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left me-1"></i>Back to Sync
-        </a>
+        <div class="d-flex gap-2">
+            <form action="{{ route('admin.itam.azure.mappings.sync-all') }}" method="POST">
+                @csrf
+                <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Search and update branches for ALL linked devices based on these keywords?')">
+                    <i class="bi bi-arrow-repeat me-1"></i>Sync Branches Now
+                </button>
+            </form>
+            <a href="{{ route('admin.itam.azure.index') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to Sync
+            </a>
+        </div>
     </div>
 
     @if(session('success'))<div class="alert alert-success py-2">{{ session('success') }}</div>@endif
