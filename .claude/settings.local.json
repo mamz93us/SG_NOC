@@ -36,7 +36,8 @@
       "Bash(scp -i \"c:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" -o StrictHostKeyChecking=no \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Services\\\\VpnControlService.php\" azureuser@noc.samirgroup.net:/home/azureuser/phonebook2/app/Services/VpnControlService.php)",
       "Bash(grep -E \"create_|dropIfExists\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\database\\\\migrations\"/*.php)",
       "Bash(xargs grep -l \"supplier\\\\|Supplier\\\\|asset_code\\\\|depreciation\\\\|cost_center\")",
-      "Bash(ls -la \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Services\"\" 2>/dev/null || echo \"Directory does not exist \")"
+      "Bash(ls -la \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Services\"\" 2>/dev/null || echo \"Directory does not exist \")",
+      "Bash(php artisan:*)"
     ]
   }
 }

@@ -90,6 +90,15 @@ class RolePermission extends Model
                 'manage-license-monitors'   => 'Manage License Inventory Monitors',
                 'manage-allowed-domains'    => 'Manage Allowed Domains',
             ],
+            'ITAM' => [
+                'view-itam'           => 'View ITAM Dashboard',
+                'manage-itam'         => 'Manage ITAM (Azure Sync)',
+                'manage-suppliers'    => 'Manage Suppliers',
+                'view-licenses'       => 'View Software Licenses',
+                'manage-licenses'     => 'Create / Edit / Delete Licenses & Assign',
+                'view-accessories'    => 'View Accessories',
+                'manage-accessories'  => 'Create / Edit / Delete Accessories & Assign',
+            ],
         ];
     }
 
