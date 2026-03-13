@@ -209,7 +209,7 @@ class AzureSyncController extends Controller
                     $device->update(['status' => 'assigned']);
                 }
 
-                AssetHistory::record($device, 'check_in', "Imported from Azure Sync. Assigned to user: " . ($employee->name ?? 'None'));
+                AssetHistory::record($device, 'assigned', "Imported from Azure Sync. Assigned to user: " . ($employee->name ?? 'None'));
                 ActivityLog::log("Imported Azure device {$azureDevice->display_name} as asset {$device->asset_code}");
             });
 

@@ -25,10 +25,17 @@ return new class extends Migration
             'manual', 'meraki', 'ucm', 'printer', 'azure'
         ) DEFAULT 'manual' NOT NULL");
 
-        // 3. Employee Assets: Add 'new', 'used', etc.
+        // 3. Update 'condition' enum for employee_assets to include 'used'
         DB::statement("ALTER TABLE employee_assets MODIFY COLUMN `condition` ENUM(
             'new', 'used', 'refurbished', 'damaged', 'good', 'fair', 'poor'
         ) DEFAULT 'good' NOT NULL");
+
+        // 4. Update 'event_type' enum for asset_history
+        DB::statement("ALTER TABLE asset_history MODIFY COLUMN event_type ENUM(
+            'created', 'assigned', 'returned', 'maintenance', 'repair', 'retired', 'disposed',
+            'license_assigned', 'license_removed', 'note_added', 'check_in', 'check_out',
+            'checkout', 'checkin'
+        ) NOT NULL");
     }
 
     /**
