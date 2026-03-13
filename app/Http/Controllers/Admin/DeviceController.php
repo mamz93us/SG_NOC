@@ -200,9 +200,21 @@ class DeviceController extends Controller
             'status'               => 'required|in:active,available,assigned,maintenance,retired',
             'purchase_date'        => 'nullable|date',
             'warranty_expiry'      => 'nullable|date',
+            // ITAM fields
+            'asset_code'           => 'nullable|string|max:50|unique:devices,asset_code,' . $device->id,
+            'purchase_cost'        => 'nullable|numeric|min:0',
+            'supplier_id'          => 'nullable|exists:suppliers,id',
+            'condition'            => 'nullable|in:new,used,refurbished,damaged',
+            'depreciation_method'  => 'nullable|in:straight_line,none',
+            'depreciation_years'   => 'nullable|integer|min:1|max:30',
         ]);
 
         $device->update($data);
+
+        // Recalculate depreciation if cost or method changed
+        if ($device->purchase_cost && $device->depreciation_method === 'straight_line') {
+            $device->update(['current_value' => (new DepreciationService())->currentValue($device)]);
+        }
 
         ActivityLog::log('updated', $device, $data);
 

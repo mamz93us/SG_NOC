@@ -41,7 +41,13 @@
                     <tr>
                         <td class="fw-semibold">{{ $supplier->name }}</td>
                         <td>{{ $supplier->contact_person ?: '—' }}</td>
-                        <td>{{ $supplier->email ? "<a href='mailto:{$supplier->email}'>{$supplier->email}</a>" : '—' }}</td>
+                        <td>
+                            @if($supplier->email)
+                                <a href="mailto:{{ $supplier->email }}">{{ $supplier->email }}</a>
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td class="font-monospace">{{ $supplier->phone ?: '—' }}</td>
                         <td class="text-center">
                             <span class="badge bg-primary">{{ $supplier->devices_count }}</span>
