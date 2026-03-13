@@ -124,7 +124,7 @@
                 <thead class="table-light">
                     <tr>
                         <th style="width:40px">
-                            <input type="checkbox" class="form-check-input" id="selectAllAz">
+                            <input type="checkbox" class="form-check-input" id="selectAllAz" onchange="azSelectAll(this)">
                         </th>
                         <th>
                             <a href="{{ request()->fullUrlWithQuery(['sort' => 'display_name', 'direction' => request('sort') == 'display_name' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
@@ -380,14 +380,12 @@ function azConfirmLink(id) {
 }
 
 // Batch selection logic
-document.addEventListener('DOMContentLoaded', function() {
-    const selectAll = document.getElementById('selectAllAz');
-    const checkboxes = document.querySelectorAll('.az-checkbox');
+function updateActionBar() {
     const actionBar = document.getElementById('batchActionBar');
     const countSpan = document.getElementById('selectedCount');
-
-    function updateActionBar() {
-        const checked = document.querySelectorAll('.az-checkbox:checked');
+    const checked = document.querySelectorAll('.az-checkbox:checked');
+    
+    if (actionBar && countSpan) {
         if (checked.length > 0) {
             actionBar.classList.remove('d-none');
             countSpan.textContent = checked.length;
@@ -395,21 +393,34 @@ document.addEventListener('DOMContentLoaded', function() {
             actionBar.classList.add('d-none');
         }
     }
+}
 
-    if (selectAll) {
-        selectAll.addEventListener('change', function() {
-            const allCbs = document.querySelectorAll('.az-checkbox');
-            allCbs.forEach(cb => cb.checked = this.checked);
-            updateActionBar();
-        });
-    }
-
-    // Delegation to handle individual clicks better
-    document.addEventListener('change', function(e) {
-        if (e.target.classList.contains('az-checkbox')) {
-            updateActionBar();
-        }
+function azSelectAll(master) {
+    const checkboxes = document.querySelectorAll('.az-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = master.checked;
     });
+    updateActionBar();
+}
+
+// Delegation to handle individual clicks
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.classList.contains('az-checkbox')) {
+        updateActionBar();
+        
+        // If one is unchecked, uncheck the master
+        const master = document.getElementById('selectAllAz');
+        if (master) {
+            if (!e.target.checked) {
+                master.checked = false;
+            } else {
+                // If all are checked, check the master
+                const all = document.querySelectorAll('.az-checkbox');
+                const checked = document.querySelectorAll('.az-checkbox:checked');
+                master.checked = (all.length === checked.length);
+            }
+        }
+    }
 });
 </script>
 @endpush
