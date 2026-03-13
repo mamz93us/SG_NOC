@@ -54,9 +54,6 @@
             @if($assigned)
             <span>
                 Assigned to <strong>{{ $assigned->employee->name }}</strong>
-                @if($assigned->employee->employee_id)
-                <span class="text-muted">({{ $assigned->employee->employee_id }})</span>
-                @endif
                 since {{ $assigned->assigned_date->format('d M Y') }}
             </span>
             @else
@@ -360,7 +357,7 @@
                         <select name="employee_id" class="form-select" required>
                             <option value="">— Select Employee —</option>
                             @foreach($employees as $emp)
-                            <option value="{{ $emp->id }}">{{ $emp->name }}{{ $emp->employee_id ? ' ('.$emp->employee_id.')' : '' }}</option>
+                            <option value="{{ $emp->id }}">{{ $emp->name }}</option>
                             @endforeach
                         </select>
                     </div>

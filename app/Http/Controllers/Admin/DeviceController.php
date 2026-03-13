@@ -48,12 +48,13 @@ class DeviceController extends Controller
             $query->where('status', $request->status);
         }
 
-        $devices  = $query->paginate(50)->withQueryString();
-        $branches = Branch::orderBy('name')->get(['id', 'name']);
-        $types    = ['ucm', 'switch', 'router', 'firewall', 'ap', 'printer', 'server',
-                     'laptop', 'desktop', 'monitor', 'keyboard', 'mouse', 'headset', 'tablet', 'other'];
+        $devices   = $query->paginate(50)->withQueryString();
+        $branches  = Branch::orderBy('name')->get(['id', 'name']);
+        $employees = Employee::orderBy('name')->get(['id', 'name']);
+        $types     = ['ucm', 'switch', 'router', 'firewall', 'ap', 'printer', 'server',
+                      'laptop', 'desktop', 'monitor', 'keyboard', 'mouse', 'headset', 'tablet', 'other'];
 
-        return view('admin.devices.index', compact('devices', 'branches', 'types'));
+        return view('admin.devices.index', compact('devices', 'branches', 'employees', 'types'));
     }
 
     public function firmware(Request $request)
@@ -107,7 +108,7 @@ class DeviceController extends Controller
             'azureDevice', 'currentAssignment.employee',
         ]);
         $depreciation = new DepreciationService();
-        $employees    = Employee::orderBy('name')->get(['id', 'name', 'employee_id']);
+        $employees    = Employee::orderBy('name')->get(['id', 'name']);
         return view('admin.devices.show', compact('device', 'depreciation', 'employees'));
     }
 

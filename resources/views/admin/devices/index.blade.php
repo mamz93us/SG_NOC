@@ -164,7 +164,7 @@
                         <select name="employee_id" class="form-select" required>
                             <option value="">— Select Employee —</option>
                             @foreach($employees ?? [] as $emp)
-                            <option value="{{ $emp->id }}">{{ $emp->name }}{{ $emp->employee_id ? ' ('.$emp->employee_id.')' : '' }}</option>
+                            <option value="{{ $emp->id }}">{{ $emp->name }}</option>
                             @endforeach
                         </select>
                     </div>
