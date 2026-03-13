@@ -102,6 +102,7 @@ class SyncIdentityData implements ShouldQueue
             }
 
             unset($skus); // free memory
+            $log->update(['licenses_synced' => $licenseCount]);
             Log::info('SyncIdentityData: licenses OK (' . $licenseCount . ')');
         } catch (\Throwable $e) {
             $errors[] = 'Licenses: ' . $e->getMessage();
@@ -138,6 +139,7 @@ class SyncIdentityData implements ShouldQueue
 
             unset($activeGroupIds);
             gc_collect_cycles();
+            $log->update(['groups_synced' => $groupCount]);
             Log::info('SyncIdentityData: groups OK (' . $groupCount . ')');
         } catch (\Throwable $e) {
             $errors[] = 'Groups: ' . $e->getMessage();
@@ -196,6 +198,7 @@ class SyncIdentityData implements ShouldQueue
 
             unset($activeUserIds);
             gc_collect_cycles();
+            $log->update(['users_synced' => $userCount]);
             Log::info('SyncIdentityData: users OK (' . $userCount . ')');
         } catch (\Throwable $e) {
             $errors[] = 'Users: ' . $e->getMessage();
@@ -240,18 +243,20 @@ class SyncIdentityData implements ShouldQueue
                 }
 
                 DB::transaction(function() use ($userMap, $counts) {
-                    // Update user membership counts and append groups
-                    foreach ($userMap as $uid => $newGroups) {
-                        $u = IdentityUser::where('azure_id', $uid)->first(['id', 'member_of', 'groups_count']);
-                        if ($u) {
-                            $current = $u->member_of ?? [];
-                            $merged  = array_unique(array_merge($current, $newGroups));
-                            $u->update([
-                                'member_of'    => $merged,
-                                'groups_count' => count($merged)
-                            ]);
-                        }
+                    // Optimized batch fetch users in this chunk
+                    $uIds = array_keys($userMap);
+                    $users = IdentityUser::whereIn('azure_id', $uIds)->get(['id', 'azure_id', 'member_of', 'groups_count']);
+                    
+                    foreach ($users as $u) {
+                        $newGroups = $userMap[$u->azure_id];
+                        $current   = $u->member_of ?? [];
+                        $merged    = array_unique(array_merge($current, $newGroups));
+                        $u->update([
+                            'member_of'    => $merged,
+                            'groups_count' => count($merged)
+                        ]);
                     }
+
                     // Update group counts
                     foreach ($counts as $gid => $c) {
                         IdentityGroup::where('azure_id', $gid)->increment('members_count', $c);

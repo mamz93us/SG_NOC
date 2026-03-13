@@ -153,7 +153,7 @@ class GraphService
      */
     private function paginateWithCallback(string $endpoint, callable $callback, array $query = []): void
     {
-        $query = array_merge(['$top' => 100], $query);
+        $query = array_merge(['$top' => 500], $query);
         $url   = $this->baseUrl . $endpoint;
 
         do {
