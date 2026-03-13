@@ -213,6 +213,17 @@
 const azDetailUrl = '{{ rtrim(route("admin.itam.azure.index"), "/") }}/';
 const azCsrf      = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
+function statusBadge(status) {
+    const classes = {
+        'linked': 'success',
+        'pending': 'warning',
+        'rejected': 'danger',
+        'unlinked': 'secondary'
+    };
+    const cls = classes[status] || 'secondary';
+    return `<span class="badge bg-${cls}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
+}
+
 function azShowDetail(id) {
     document.getElementById('azDetailName').textContent = 'Loading…';
     document.getElementById('azDetailBody').innerHTML   = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Loading…</div>';
