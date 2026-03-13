@@ -92,7 +92,8 @@
         </div>
         <div class="card-body border-bottom pb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <form method="GET" class="d-flex gap-2 flex-wrap">
-                <input type="text" name="search" class="form-control form-control-sm" placeholder="Search..." value="{{ request('search') }}" style="max-width:200px">
+                <input type="text" name="search" class="form-control form-control-sm" placeholder="Search (General)..." value="{{ request('search') }}" style="max-width:200px">
+                <input type="text" name="upn" class="form-control form-control-sm" placeholder="UPN / Email..." value="{{ request('upn') }}" style="max-width:200px">
                 <select name="status" class="form-select form-select-sm" style="max-width:130px">
                     <option value="">All Status</option>
                     @foreach($statuses as $s)
@@ -100,7 +101,7 @@
                     @endforeach
                 </select>
                 <button type="submit" class="btn btn-outline-secondary btn-sm">Filter</button>
-                @if(request()->anyFilled(['search','status']))
+                @if(request()->anyFilled(['search','upn','status']))
                 <a href="{{ route('admin.itam.azure.index') }}" class="btn btn-outline-secondary btn-sm">Clear</a>
                 @endif
             </form>
@@ -122,13 +123,37 @@
                         <th style="width:40px">
                             <input type="checkbox" class="form-check-input" id="selectAllAz">
                         </th>
-                        <th>Device Name</th>
-                        <th>OS</th>
-                        <th>Serial</th>
-                        <th>UPN</th>
-                        <th>Status</th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'display_name', 'direction' => request('sort') == 'display_name' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Device Name {!! request('sort') == 'display_name' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'os', 'direction' => request('sort') == 'os' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                OS {!! request('sort') == 'os' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'serial_number', 'direction' => request('sort') == 'serial_number' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Serial {!! request('sort') == 'serial_number' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'upn', 'direction' => request('sort') == 'upn' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                UPN {!! request('sort') == 'upn' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'link_status', 'direction' => request('sort') == 'link_status' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Status {!! request('sort') == 'link_status' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
                         <th>Linked Asset</th>
-                        <th>Last Sync</th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'last_sync_at', 'direction' => request('sort') == 'last_sync_at' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Last Sync {!! request('sort') == 'last_sync_at' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>

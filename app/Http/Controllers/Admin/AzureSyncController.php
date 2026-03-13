@@ -18,11 +18,9 @@ class AzureSyncController extends Controller
             ->orderBy('display_name')
             ->get();
 
-        $query = AzureDevice::with('device')->orderBy('display_name');
+        $query = AzureDevice::with('device');
 
-        if ($request->filled('status')) {
-            $query->where('link_status', $request->status);
-        }
+        // Search (Global)
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
@@ -32,7 +30,26 @@ class AzureSyncController extends Controller
             });
         }
 
-        $azureDevices = $query->paginate(30)->withQueryString();
+        // Specific Filters
+        if ($request->filled('status')) {
+            $query->where('link_status', $request->status);
+        }
+        if ($request->filled('upn')) {
+            $query->where('upn', 'like', "%{$request->upn}%");
+        }
+
+        // Sorting
+        $sort      = $request->get('sort', 'display_name');
+        $direction = $request->get('direction', 'asc');
+        $allowed   = ['display_name', 'os', 'serial_number', 'upn', 'link_status', 'last_sync_at'];
+        
+        if (in_array($sort, $allowed)) {
+            $query->orderBy($sort, $direction === 'desc' ? 'desc' : 'asc');
+        } else {
+            $query->orderBy('display_name', 'asc');
+        }
+
+        $azureDevices = $query->paginate(50)->withQueryString();
         $lastSync     = AzureDevice::max('last_sync_at');
         $statuses     = AzureDevice::LINK_STATUSES;
 
@@ -180,61 +197,77 @@ class AzureSyncController extends Controller
                 // Correctly map from enrolled_date (vps data)
                 $enrollDate = $azureDevice->enrolled_date ? \Carbon\Carbon::parse($azureDevice->enrolled_date) : now();
 
-                // 1. Create or Find the Device Model (so it shows in dropdowns/inventory)
-                $deviceModel = \App\Models\DeviceModel::firstOrCreate(
-                    [
-                        'manufacturer' => $azureDevice->manufacturer ?? 'Unknown', 
-                        'name'         => $azureDevice->model ?? 'Common Model'
-                    ],
-                    [
-                        'device_type'  => $request->type
-                    ]
-                );
+                // 1. Check if an asset with this Azure ID already exists (maybe created manually)
+                $device = Device::where('source', 'azure')
+                                ->where('source_id', $azureDevice->azure_device_id)
+                                ->first();
 
-                // 2. Create the Device
-                $device = Device::create([
-                    'type'                => $request->type,
-                    'name'                => $azureDevice->display_name,
-                    'manufacturer'        => $azureDevice->manufacturer,
-                    'model'               => $azureDevice->model,
-                    'device_model_id'     => $deviceModel->id,
-                    'serial_number'       => $azureDevice->serial_number,
-                    'asset_code'          => $request->asset_code,
-                    'status'              => 'active',
-                    'source'              => 'azure',
-                    'source_id'           => $azureDevice->azure_device_id,
-                    'purchase_date'       => $enrollDate,
-                    'warranty_expiry'     => (clone $enrollDate)->addYear(), // 1 Year Default
-                    'depreciation_years'  => 3,                               // 3 Years Default
-                    'depreciation_method' => 'straight_line',
-                    'notes'               => "Imported from Azure/Intune sync on " . now()->toDateTimeString(),
-                ]);
+                if ($device) {
+                    // Just link it and we're done
+                    $azureDevice->update([
+                        'device_id'   => $device->id,
+                        'link_status' => 'linked',
+                    ]);
+                } else {
+                    // 2. Create or Find the Device Model
+                    $deviceModel = \App\Models\DeviceModel::firstOrCreate(
+                        [
+                            'manufacturer' => $azureDevice->manufacturer ?? 'Unknown', 
+                            'name'         => $azureDevice->model ?? 'Common Model'
+                        ],
+                        [
+                            'device_type'  => $request->type
+                        ]
+                    );
 
-                // 3. Link AzureDevice to this record
-                $azureDevice->update([
-                    'device_id'   => $device->id,
-                    'link_status' => 'linked',
-                ]);
+                    // 3. Create the Device
+                    $device = Device::create([
+                        'type'                => $request->type,
+                        'name'                => $azureDevice->display_name,
+                        'manufacturer'        => $azureDevice->manufacturer,
+                        'model'               => $azureDevice->model,
+                        'device_model_id'     => $deviceModel->id,
+                        'serial_number'       => $azureDevice->serial_number,
+                        'asset_code'          => $request->asset_code,
+                        'status'              => 'active',
+                        'source'              => 'azure',
+                        'source_id'           => $azureDevice->azure_device_id,
+                        'purchase_date'       => $enrollDate,
+                        'warranty_expiry'     => (clone $enrollDate)->addYear(),
+                        'depreciation_years'  => 3,
+                        'depreciation_method' => 'straight_line',
+                        'notes'               => "Imported from Azure/Intune sync on " . now()->toDateTimeString(),
+                    ]);
 
-                // 4. Assign to Employee if UPN matches
+                    // 4. Link AzureDevice
+                    $azureDevice->update([
+                        'device_id'   => $device->id,
+                        'link_status' => 'linked',
+                    ]);
+                }
+
+                // 5. Assign to Employee if UPN matches
                 $employee = \App\Models\Employee::where('email', $azureDevice->upn)->first();
                 if ($employee) {
-                    \App\Models\EmployeeAsset::create([
-                        'employee_id'   => $employee->id,
-                        'asset_id'      => $device->id,
-                        'assigned_date' => now(),
-                        'condition'     => 'used',
-                        'notes'         => 'Auto-assigned during Azure import.',
-                    ]);
+                    \App\Models\EmployeeAsset::updateOrCreate(
+                        ['employee_id' => $employee->id, 'asset_id' => $device->id],
+                        [
+                            'assigned_date' => now(),
+                            'condition'     => 'used',
+                            'notes'         => 'Assigned during Azure import.',
+                        ]
+                    );
                     
                     $device->update(['status' => 'assigned']);
                 }
 
                 AssetHistory::record($device, 'assigned', "Imported from Azure Sync. Assigned to user: " . ($employee->name ?? 'None'));
-                ActivityLog::log("Imported Azure device {$azureDevice->display_name} as asset {$device->asset_code}");
+                if (class_exists('App\Models\ActivityLog')) {
+                    \App\Models\ActivityLog::log("Imported Azure device {$azureDevice->display_name} as asset {$device->asset_code}");
+                }
             });
 
-            return back()->with('success', "Device successfully imported as asset: {$request->asset_code}");
+            return back()->with('success', "Device successfully imported/linked.");
         } catch (\Throwable $e) {
             return back()->with('error', 'Import failed: ' . $e->getMessage());
         }
@@ -261,64 +294,81 @@ class AzureSyncController extends Controller
 
                 \Illuminate\Support\Facades\DB::transaction(function () use ($azureDevice, $codeService, &$successCount) {
                     $type = $this->guessDeviceType($azureDevice);
-                    $code = $codeService->generate($type);
                     
                     // Enrollment date is treated as purchase date
                     $enrollDate = $azureDevice->enrolled_date ? \Carbon\Carbon::parse($azureDevice->enrolled_date) : now();
 
-                    // 1. Create or Find the Device Model
-                    $deviceModel = \App\Models\DeviceModel::firstOrCreate(
-                        [
-                            'manufacturer' => $azureDevice->manufacturer ?? 'Unknown', 
-                            'name'         => $azureDevice->model ?? 'Common Model'
-                        ],
-                        [
-                            'device_type'  => $type
-                        ]
-                    );
+                    // 1. Check if already exists in devices table
+                    $device = Device::where('source', 'azure')
+                                    ->where('source_id', $azureDevice->azure_device_id)
+                                    ->first();
 
-                    // 2. Create the Device
-                    $device = Device::create([
-                        'type'                => $type,
-                        'name'                => $azureDevice->display_name,
-                        'manufacturer'        => $azureDevice->manufacturer,
-                        'model'               => $azureDevice->model,
-                        'device_model_id'     => $deviceModel->id,
-                        'serial_number'       => $azureDevice->serial_number,
-                        'asset_code'          => $code,
-                        'status'              => 'active',
-                        'source'              => 'azure',
-                        'source_id'           => $azureDevice->azure_device_id,
-                        'purchase_date'       => $enrollDate,
-                        'warranty_expiry'     => (clone $enrollDate)->addYear(),
-                        'depreciation_years'  => 3,
-                        'depreciation_method' => 'straight_line',
-                        'notes'               => "Batch imported from Azure/Intune sync on " . now()->toDateTimeString(),
-                    ]);
+                    if ($device) {
+                        $azureDevice->update([
+                            'device_id'   => $device->id,
+                            'link_status' => 'linked',
+                        ]);
+                    } else {
+                        $code = $codeService->generate($type);
 
-                    // 3. Link AzureDevice
-                    $azureDevice->update([
-                        'device_id'   => $device->id,
-                        'link_status' => 'linked',
-                    ]);
+                        // 2. Create or Find the Device Model
+                        $deviceModel = \App\Models\DeviceModel::firstOrCreate(
+                            [
+                                'manufacturer' => $azureDevice->manufacturer ?? 'Unknown', 
+                                'name'         => $azureDevice->model ?? 'Common Model'
+                            ],
+                            [
+                                'device_type'  => $type
+                            ]
+                        );
 
-                    // 4. Assign to Employee if UPN matches
+                        // 3. Create the Device
+                        $device = Device::create([
+                            'type'                => $type,
+                            'name'                => $azureDevice->display_name,
+                            'manufacturer'        => $azureDevice->manufacturer,
+                            'model'               => $azureDevice->model,
+                            'device_model_id'     => $deviceModel->id,
+                            'serial_number'       => $azureDevice->serial_number,
+                            'asset_code'          => $code,
+                            'status'              => 'active',
+                            'source'              => 'azure',
+                            'source_id'           => $azureDevice->azure_device_id,
+                            'purchase_date'       => $enrollDate,
+                            'warranty_expiry'     => (clone $enrollDate)->addYear(),
+                            'depreciation_years'  => 3,
+                            'depreciation_method' => 'straight_line',
+                            'notes'               => "Batch imported from Azure/Intune sync on " . now()->toDateTimeString(),
+                        ]);
+
+                        // 4. Link AzureDevice
+                        $azureDevice->update([
+                            'device_id'   => $device->id,
+                            'link_status' => 'linked',
+                        ]);
+                    }
+
+                    // 5. Assign to Employee
                     $employee = \App\Models\Employee::where('email', $azureDevice->upn)->first();
                     if ($employee) {
-                        \App\Models\EmployeeAsset::create([
-                            'employee_id'   => $employee->id,
-                            'asset_id'      => $device->id,
-                            'assigned_date' => now(),
-                            'condition'     => 'used',
-                            'notes'         => 'Auto-assigned during batch import.',
-                        ]);
+                        \App\Models\EmployeeAsset::updateOrCreate(
+                            ['employee_id' => $employee->id, 'asset_id' => $device->id],
+                            [
+                                'assigned_date' => now(),
+                                'condition'     => 'used',
+                                'notes'         => 'Assigned during batch import.',
+                            ]
+                        );
                         $device->update(['status' => 'assigned']);
                     }
 
-                    AssetHistory::record($device, 'assigned', "Batch imported. Assigned to user: " . ($employee->name ?? 'None'));
-                    ActivityLog::log("Imported Azure device {$azureDevice->display_name} as asset {$device->asset_code}");
+                    AssetHistory::record($device, 'assigned', "Imported from Azure Sync. Assigned to user: " . ($employee->name ?? 'None'));
+                    if (class_exists('App\Models\ActivityLog')) {
+                        \App\Models\ActivityLog::log("Imported Azure device {$azureDevice->display_name} as asset {$device->asset_code}");
+                    }
+                    $successCount++;
                 });
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 \Log::error("Batch import failed for Azure Device ID {$id}: " . $e->getMessage());
                 $errorCount++;
             }
