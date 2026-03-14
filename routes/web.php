@@ -114,8 +114,13 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
 
-    // Dashboard (all authenticated users)
-    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    // Home page — NOC Command Center (fallback to old dashboard if no permission)
+    Route::get('/', function () {
+        if (auth()->user() && auth()->user()->can('view-noc')) {
+            return app(\App\Http\Controllers\Admin\NocController::class)->dashboard();
+        }
+        return app(\App\Http\Controllers\Admin\DashboardController::class)->index();
+    })->name('dashboard');
 
     // XML preview (all authenticated)
     Route::get('xml-preview', [PhonebookController::class, 'preview'])
@@ -584,7 +589,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/alerts',     [\App\Http\Controllers\Admin\AlertFeedController::class, 'index'])->name('alerts');
         Route::get('/alerts/{id}/timeline', [\App\Http\Controllers\Admin\AlertFeedController::class, 'timeline'])->name('alerts.timeline');
 
-        // Wallboard + Extension Grid API
+        // Extensions page + Wallboard + Extension Grid API
+        Route::get('/extensions',     [NocController::class, 'extensionsPage'])->name('extensions');
         Route::get('/wallboard',      [NocController::class, 'wallboard'])     ->name('wallboard');
         Route::get('/wallboard-data', [NocController::class, 'wallboardData']) ->name('wallboard.data');
         Route::get('/extension-grid', [NocController::class, 'extensionGrid']) ->name('extension-grid');

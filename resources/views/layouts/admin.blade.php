@@ -32,7 +32,7 @@
 
     <!-- NAVBAR -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
-        <div class="container">
+        <div class="container-fluid px-3 px-lg-4">
             @php $__settings = \App\Models\Setting::get(); @endphp
             <a class="navbar-brand d-flex align-items-center gap-2 fw-bold py-1" href="/admin">
                 @if($__settings->company_logo)
@@ -436,9 +436,23 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.extensions') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.extensions') }}">
+                                    <i class="bi bi-telephone-fill me-2"></i>Extension Grid
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.noc.events') ? 'active' : '' }}"
                                    href="{{ route('admin.noc.events') }}">
                                     <i class="bi bi-clock-history me-2"></i>Events Log
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.wallboard') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.wallboard') }}" target="_blank">
+                                    <i class="bi bi-display me-2"></i>Wallboard
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
                                 </a>
                             </li>
                             @canany(['view-incidents','manage-incidents'])
@@ -711,7 +725,7 @@
     </nav>
 
     <!-- PAGE CONTENT -->
-    <div class="container mt-4 mb-5">
+    <div class="container-fluid px-3 px-lg-4 mt-4 mb-5">
         @if(session('success'))
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 {{ session('success') }}

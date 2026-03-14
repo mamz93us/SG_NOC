@@ -204,6 +204,13 @@ class NocController extends Controller
         return back()->with('success', 'Event resolved.');
     }
 
+    // ── Extensions Page ─────────────────────────────────────────────
+
+    public function extensionsPage()
+    {
+        return view('admin.noc.extensions');
+    }
+
     // ── Extension Grid (AJAX) ────────────────────────────────────────
 
     public function extensionGrid()
