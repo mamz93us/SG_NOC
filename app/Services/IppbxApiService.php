@@ -47,7 +47,16 @@ class IppbxApiService
                 $general    = $api->getSystemGeneralStatus();
                 $network    = $api->getNetworkStatus();
                 $extensions = $api->listExtensions(1, 2000);
-                $trunks     = $api->listVoIPTrunks();
+
+                // Trunk listing can fail on some firmware — don't let it break the whole status
+                $trunks = [];
+                $trunkError = null;
+                try {
+                    $trunks = $api->listVoIPTrunks();
+                } catch (\Exception $te) {
+                    $trunkError = $te->getMessage();
+                    \Log::warning("UCM {$server->name}: listVoIPTrunks failed — {$trunkError}");
+                }
 
                 // Format the uptime with days
                 if (!empty($system['up-time'])) {
