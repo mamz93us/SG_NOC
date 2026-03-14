@@ -495,6 +495,16 @@
                     </li>
                     @endcan
 
+                    {{-- ── Admin Tools ── --}}
+                    @can('view-admin-links')
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('admin/admin-links*') ? 'active' : '' }}"
+                           href="{{ route('admin.admin-links.index') }}">
+                            <i class="bi bi-grid-3x3-gap-fill me-1"></i>Admin Tools
+                        </a>
+                    </li>
+                    @endcan
+
                     {{-- ── Settings dropdown ── --}}
                     @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains'])
                     <li class="nav-item dropdown">

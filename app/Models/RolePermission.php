@@ -99,6 +99,10 @@ class RolePermission extends Model
                 'view-accessories'    => 'View Accessories',
                 'manage-accessories'  => 'Create / Edit / Delete Accessories & Assign',
             ],
+            'Admin Tools' => [
+                'view-admin-links'   => 'View Admin Tools / Quick Links',
+                'manage-admin-links' => 'Create / Edit / Delete Admin Links',
+            ],
         ];
     }
 
@@ -128,7 +132,7 @@ class RolePermission extends Model
             'view-extensions', 'view-trunks',
             'view-network', 'view-assets', 'view-printers',
             'view-workflows', 'view-employees', 'view-noc',
-            'view-dhcp-leases', 'view-sophos',
+            'view-dhcp-leases', 'view-sophos', 'view-admin-links',
         ];
 
         return [

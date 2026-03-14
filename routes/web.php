@@ -50,6 +50,7 @@ use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\LicenseController;
 use App\Http\Controllers\Admin\AccessoryController;
 use App\Http\Controllers\Admin\AzureSyncController;
+use App\Http\Controllers\Admin\AdminLinkController;
 use App\Http\Controllers\Auth\MicrosoftController;
 use App\Http\Controllers\PhonebookController;
 use App\Http\Controllers\PublicContactController;
@@ -758,6 +759,25 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/mappings',                   [AzureSyncController::class, 'storeMapping'])->name('mappings.store');
         Route::delete('/mappings/{mapping}',        [AzureSyncController::class, 'deleteMapping'])->name('mappings.delete');
         Route::post('/mappings/sync-all',          [AzureSyncController::class, 'bulkSyncBranches'])->name('mappings.sync-all');
+    });
+
+
+    // ── Admin Tools / Quick Links ──────────────────────────────────
+    Route::middleware('permission:view-admin-links')->prefix('admin-links')->name('admin-links.')->group(function () {
+        Route::get('/',                        [AdminLinkController::class, 'index'])         ->name('index');
+        Route::get('/{adminLink}/go',          [AdminLinkController::class, 'trackClick'])    ->name('go');
+        Route::post('/{adminLink}/favorite',   [AdminLinkController::class, 'toggleFavorite'])->name('favorite');
+    });
+    Route::middleware('permission:manage-admin-links')->prefix('admin-links')->name('admin-links.')->group(function () {
+        Route::get('/manage',                  [AdminLinkController::class, 'manage'])          ->name('manage');
+        Route::get('/create',                  [AdminLinkController::class, 'create'])          ->name('create');
+        Route::post('/',                       [AdminLinkController::class, 'store'])           ->name('store');
+        Route::get('/{adminLink}/edit',        [AdminLinkController::class, 'edit'])            ->name('edit');
+        Route::put('/{adminLink}',             [AdminLinkController::class, 'update'])          ->name('update');
+        Route::delete('/{adminLink}',          [AdminLinkController::class, 'destroy'])         ->name('destroy');
+        Route::post('/categories',             [AdminLinkController::class, 'storeCategory'])   ->name('categories.store');
+        Route::put('/categories/{category}',   [AdminLinkController::class, 'updateCategory'])  ->name('categories.update');
+        Route::delete('/categories/{category}',[AdminLinkController::class, 'destroyCategory']) ->name('categories.destroy');
     });
 
 

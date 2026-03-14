@@ -331,4 +331,38 @@
     </div>
 </div>
 
+{{-- ═══════════════════════════════════════════════════════════════════
+     QUICK ADMIN LINKS WIDGET
+══════════════════════════════════════════════════════════════════════ --}}
+@can('view-admin-links')
+@if($quickAdminLinks->count() > 0)
+<h5 class="fw-semibold mb-3 mt-4"><i class="bi bi-grid-3x3-gap-fill me-2 text-primary"></i>Quick Admin Links</h5>
+<div class="row g-3 mb-3">
+    @foreach($quickAdminLinks as $alink)
+    <div class="col-6 col-md-3 col-lg-2">
+        <a href="{{ route('admin.admin-links.go', $alink) }}" target="_blank" rel="noopener noreferrer"
+           class="card border-0 shadow-sm h-100 text-decoration-none">
+            <div class="card-body text-center py-3 px-2">
+                @if($alink->icon)
+                    <i class="bi bi-{{ $alink->icon }} fs-3 text-primary d-block mb-1"></i>
+                @else
+                    <i class="bi bi-box-arrow-up-right fs-3 text-primary d-block mb-1"></i>
+                @endif
+                <div class="small fw-semibold text-dark">{{ $alink->name }}</div>
+            </div>
+        </a>
+    </div>
+    @endforeach
+    <div class="col-6 col-md-3 col-lg-2">
+        <a href="{{ route('admin.admin-links.index') }}" class="card border-0 shadow-sm h-100 text-decoration-none bg-light">
+            <div class="card-body text-center py-3 px-2 d-flex flex-column align-items-center justify-content-center">
+                <i class="bi bi-arrow-right-circle fs-3 text-muted d-block mb-1"></i>
+                <div class="small fw-semibold text-muted">View All</div>
+            </div>
+        </a>
+    </div>
+</div>
+@endif
+@endcan
+
 @endsection

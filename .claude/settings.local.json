@@ -42,7 +42,8 @@
       "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/routes -type f -name *.php)",
       "Bash(if not:*)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(php -r \":*)"
     ]
   }
 }

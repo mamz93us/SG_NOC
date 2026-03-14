@@ -7,6 +7,8 @@ use App\Models\Branch;
 use App\Models\Contact;
 use App\Models\PhoneRequestLog;
 use App\Models\Setting;
+use App\Models\AdminLink;
+use App\Models\AdminLinkClick;
 use App\Models\UcmServer;
 use App\Services\IppbxApiService;
 use Illuminate\Support\Facades\Cache;
@@ -53,6 +55,20 @@ class DashboardController extends Controller
 
         $settings = Setting::get();
 
+        // ── Quick Admin Links (top 5 most clicked) ──────────────────────
+        $quickAdminLinks = AdminLinkClick::selectRaw('link_id, COUNT(*) as click_count')
+            ->groupBy('link_id')
+            ->orderByDesc('click_count')
+            ->limit(5)
+            ->with('link')
+            ->get()
+            ->filter(fn ($c) => $c->link && $c->link->is_active)
+            ->map(fn ($c) => $c->link);
+
+        if ($quickAdminLinks->isEmpty()) {
+            $quickAdminLinks = AdminLink::active()->orderBy('sort_order')->limit(5)->get();
+        }
+
         return view('admin.dashboard', compact(
             'branchCount',
             'contactCount',
@@ -67,7 +83,8 @@ class DashboardController extends Controller
             'totalTrunks',
             'totalReachable',
             'totalUnreachable',
-            'settings'
+            'settings',
+            'quickAdminLinks'
         ));
     }
 }
