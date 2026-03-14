@@ -8,7 +8,11 @@ use App\Models\Device;
 use App\Models\IdentityUser;
 use App\Models\NetworkSwitch;
 use App\Models\NocEvent;
+use App\Models\PhonePortMap;
 use App\Models\Printer;
+use App\Models\UcmActiveCall;
+use App\Models\UcmExtensionCache;
+use App\Models\UcmTrunkCache;
 use App\Services\HealthScoringService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -198,5 +202,135 @@ class NocController extends Controller
         ]);
 
         return back()->with('success', 'Event resolved.');
+    }
+
+    // ── Extension Grid (AJAX) ────────────────────────────────────────
+
+    public function extensionGrid()
+    {
+        $extensions = UcmExtensionCache::with('ucmServer')
+            ->orderBy('extension')
+            ->get();
+
+        $portMaps = PhonePortMap::all()->keyBy(fn ($m) => $m->ucm_server_id . '-' . $m->extension);
+
+        $data = $extensions->map(function ($ext) use ($portMaps) {
+            $key = $ext->ucm_id . '-' . $ext->extension;
+            $map = $portMaps[$key] ?? null;
+
+            return [
+                'extension'    => $ext->extension,
+                'name'         => $ext->name ?: '-',
+                'status'       => $ext->status,
+                'status_badge' => $ext->statusBadgeClass(),
+                'ip'           => $ext->ip_address ?: '-',
+                'switch_name'  => $map?->switch_name ?: '-',
+                'switch_port'  => $map?->switch_port ? 'Port ' . $map->switch_port : '-',
+                'location'     => $map?->locationLabel() ?: '-',
+                'vlan'         => $map?->vlan ?: '-',
+                'mac'          => $map?->phone_mac ?: '-',
+                'server'       => $ext->ucmServer?->name ?: '-',
+            ];
+        });
+
+        $activeCalls = UcmActiveCall::with('ucmServer')->orderByDesc('start_time')->get()->map(fn ($c) => [
+            'caller'   => $c->caller,
+            'callee'   => $c->callee,
+            'duration' => $c->durationFormatted(),
+            'server'   => $c->ucmServer?->name ?: '-',
+        ]);
+
+        return response()->json([
+            'extensions'   => $data,
+            'active_calls' => $activeCalls,
+        ]);
+    }
+
+    // ── Wallboard ────────────────────────────────────────────────────
+
+    public function wallboard()
+    {
+        return view('admin.noc.wallboard', $this->getWallboardData());
+    }
+
+    public function wallboardData()
+    {
+        return response()->json($this->getWallboardData());
+    }
+
+    private function getWallboardData(): array
+    {
+        // Global stats
+        $totalSwitches   = NetworkSwitch::count();
+        $onlineSwitches  = NetworkSwitch::where('status', 'online')->count();
+        $totalExtensions = UcmExtensionCache::count();
+        $registeredExt   = UcmExtensionCache::whereIn('status', ['idle', 'inuse', 'busy', 'ringing'])->count();
+        $activeCalls     = UcmActiveCall::count();
+        $vpnUp           = \App\Models\VpnTunnel::where('status', 'up')->count();
+        $vpnTotal        = \App\Models\VpnTunnel::count();
+        $openAlerts      = NocEvent::open()->count();
+        $criticalAlerts  = NocEvent::open()->where('severity', 'critical')->count();
+
+        // Extensions with port mapping
+        $extensions = UcmExtensionCache::orderBy('extension')->get();
+        $portMaps = PhonePortMap::all()->keyBy(fn ($m) => $m->ucm_server_id . '-' . $m->extension);
+
+        $extensionGrid = $extensions->map(function ($ext) use ($portMaps) {
+            $key = $ext->ucm_id . '-' . $ext->extension;
+            $map = $portMaps[$key] ?? null;
+            return [
+                'extension'    => $ext->extension,
+                'name'         => $ext->name ?: '-',
+                'status'       => $ext->status,
+                'status_badge' => $ext->statusBadgeClass(),
+                'location'     => $map?->locationLabel() ?: '-',
+            ];
+        });
+
+        // Active calls
+        $calls = UcmActiveCall::orderByDesc('start_time')->get()->map(fn ($c) => [
+            'caller'   => $c->caller,
+            'callee'   => $c->callee,
+            'duration' => $c->durationFormatted(),
+        ]);
+
+        // Trunks
+        $trunks = UcmTrunkCache::orderBy('trunk_name')->get()->map(fn ($t) => [
+            'name'         => $t->trunk_name,
+            'host'         => $t->host ?: '-',
+            'status'       => $t->status,
+            'status_badge' => $t->statusBadgeClass(),
+        ]);
+
+        // Switches
+        $switches = NetworkSwitch::orderBy('name')->get()->map(fn ($s) => [
+            'name'   => $s->name,
+            'status' => $s->status,
+            'ip'     => $s->lan_ip ?: '-',
+        ]);
+
+        // Recent alerts
+        $alerts = NocEvent::open()->orderByDesc('severity')->orderByDesc('last_seen')->limit(10)->get()->map(fn ($e) => [
+            'title'    => $e->title,
+            'severity' => $e->severity,
+            'module'   => $e->module,
+            'time'     => $e->last_seen?->diffForHumans() ?: '-',
+        ]);
+
+        return [
+            'stats' => [
+                'switches_online' => "{$onlineSwitches}/{$totalSwitches}",
+                'extensions'      => "{$registeredExt}/{$totalExtensions}",
+                'active_calls'    => $activeCalls,
+                'vpn'             => "{$vpnUp}/{$vpnTotal}",
+                'alerts'          => $openAlerts,
+                'critical'        => $criticalAlerts,
+            ],
+            'extension_grid' => $extensionGrid,
+            'active_calls'   => $calls,
+            'trunks'         => $trunks,
+            'switches'       => $switches,
+            'alerts'         => $alerts,
+        ];
     }
 }

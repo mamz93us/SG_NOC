@@ -579,6 +579,36 @@ class IppbxApiService
     }
 
     // ─────────────────────────────────────────────
+    // Active Calls
+    // ─────────────────────────────────────────────
+
+    /**
+     * List active (in-progress) calls from the UCM.
+     * Uses the Grandstream listActiveCalls API action.
+     */
+    public function listActiveCalls(): array
+    {
+        $this->ensureCookie();
+
+        $resp = $this->post([
+            'action'   => 'listActiveCalls',
+            'cookie'   => $this->cookie,
+            'item_num' => '200',
+            'page'     => '1',
+            'sidx'     => 'caller_id',
+            'sord'     => 'asc',
+        ]);
+
+        // Some UCM firmware may not support this action — gracefully return empty
+        if (($resp['status'] ?? -1) !== 0) {
+            Log::debug('IppbxApiService: listActiveCalls returned status ' . ($resp['status'] ?? 'null'));
+            return [];
+        }
+
+        return $resp['response']['active_calls'] ?? $resp['response']['activecall'] ?? [];
+    }
+
+    // ─────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────
 

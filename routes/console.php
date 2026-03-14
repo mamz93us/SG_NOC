@@ -172,3 +172,28 @@ Schedule::call(function () {
         \Illuminate\Support\Facades\Log::error("DHCP conflict detection failed: " . $e->getMessage());
     }
 })->name('detect-dhcp-conflicts')->withoutOverlapping(10)->everyTenMinutes();
+
+// ──────────────────────────────────────────────────────────────────────
+// UCM Extension / Trunk / Active Call Sync + Phone-Port Correlation
+// ──────────────────────────────────────────────────────────────────────
+
+// UCM Extensions + Trunks — every 20 seconds (runs inline to avoid queue dependency)
+Schedule::call(function () {
+    try { (new \App\Jobs\SyncUcmExtensionsJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error("UCM extension sync failed: " . $e->getMessage());
+    }
+})->name('sync-ucm-extensions')->withoutOverlapping(15)->everyFifteenSeconds();
+
+// UCM Active Calls — every 15 seconds (runs inline)
+Schedule::call(function () {
+    try { (new \App\Jobs\SyncUcmActiveCallsJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error("UCM active calls sync failed: " . $e->getMessage());
+    }
+})->name('sync-ucm-active-calls')->withoutOverlapping(10)->everyFifteenSeconds();
+
+// Phone-Port MAC Correlation — every 60 seconds (runs inline)
+Schedule::call(function () {
+    try { (new \App\Jobs\SyncPhonePortMappingJob)->handle(app(\App\Services\PhonePortDetectionService::class)); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error("Phone-port mapping failed: " . $e->getMessage());
+    }
+})->name('sync-phone-port-map')->withoutOverlapping(30)->everyMinute();

@@ -526,4 +526,113 @@
     </div>
 </div>
 
+{{-- ═══════════════════════════════════════════════════════════════════
+     LIVE EXTENSION GRID + ACTIVE CALLS (AJAX-loaded)
+══════════════════════════════════════════════════════════════════════ --}}
+<div class="row g-3 mt-2">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex align-items-center">
+                <h5 class="mb-0 fw-semibold"><i class="bi bi-telephone-fill me-2 text-primary"></i>Extension Grid</h5>
+                <div class="ms-auto d-flex gap-2">
+                    <a href="{{ route('admin.noc.wallboard') }}" target="_blank" class="btn btn-sm btn-outline-dark" title="Open Wallboard">
+                        <i class="bi bi-display me-1"></i>Wallboard
+                    </a>
+                    <button class="btn btn-sm btn-outline-primary" id="refreshExtGrid">
+                        <i class="bi bi-arrow-repeat me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {{-- Active Calls --}}
+                <div id="activeCallsSection" class="d-none">
+                    <div class="px-3 pt-3 pb-1">
+                        <h6 class="fw-semibold text-danger mb-2"><i class="bi bi-telephone-forward-fill me-1"></i>Active Calls <span id="callCount" class="badge bg-danger">0</span></h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-2">
+                            <thead class="table-light">
+                                <tr><th class="small fw-semibold">Caller</th><th class="small fw-semibold">Destination</th><th class="small fw-semibold">Duration</th><th class="small fw-semibold">Server</th></tr>
+                            </thead>
+                            <tbody id="activeCallsBody"></tbody>
+                        </table>
+                    </div>
+                    <hr class="my-0">
+                </div>
+
+                {{-- Extension Table --}}
+                <div class="table-responsive" style="max-height:500px;overflow-y:auto;">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th class="small fw-semibold">Ext</th>
+                                <th class="small fw-semibold">User</th>
+                                <th class="small fw-semibold text-center">Status</th>
+                                <th class="small fw-semibold">IP</th>
+                                <th class="small fw-semibold">Switch / Port</th>
+                                <th class="small fw-semibold text-center">VLAN</th>
+                                <th class="small fw-semibold">MAC</th>
+                            </tr>
+                        </thead>
+                        <tbody id="extGridBody">
+                            <tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-hourglass-split me-1"></i>Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function loadExtensionGrid() {
+    fetch('{{ route("admin.noc.extension-grid") }}')
+        .then(r => r.json())
+        .then(data => {
+            // Extensions
+            const tbody = document.getElementById('extGridBody');
+            if (data.extensions && data.extensions.length > 0) {
+                tbody.innerHTML = data.extensions.map(e =>
+                    `<tr>
+                        <td class="fw-semibold font-monospace small">${e.extension}</td>
+                        <td class="small">${e.name}</td>
+                        <td class="text-center"><span class="badge ${e.status_badge} rounded-pill">${e.status}</span></td>
+                        <td class="small font-monospace">${e.ip}</td>
+                        <td class="small">${e.location}</td>
+                        <td class="text-center small">${e.vlan}</td>
+                        <td class="small font-monospace">${e.mac}</td>
+                    </tr>`
+                ).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No extensions synced yet. UCM sync runs every 20 seconds.</td></tr>';
+            }
+
+            // Active calls
+            const callsSection = document.getElementById('activeCallsSection');
+            const callsBody = document.getElementById('activeCallsBody');
+            const callCount = document.getElementById('callCount');
+            if (data.active_calls && data.active_calls.length > 0) {
+                callsSection.classList.remove('d-none');
+                callCount.textContent = data.active_calls.length;
+                callsBody.innerHTML = data.active_calls.map(c =>
+                    `<tr>
+                        <td class="fw-semibold font-monospace small">${c.caller}</td>
+                        <td class="fw-semibold font-monospace small">${c.callee}</td>
+                        <td class="small">${c.duration}</td>
+                        <td class="small text-muted">${c.server}</td>
+                    </tr>`
+                ).join('');
+            } else {
+                callsSection.classList.add('d-none');
+            }
+        })
+        .catch(() => {
+            document.getElementById('extGridBody').innerHTML = '<tr><td colspan="7" class="text-center text-danger py-3">Failed to load extension data.</td></tr>';
+        });
+}
+
+document.addEventListener('DOMContentLoaded', loadExtensionGrid);
+document.getElementById('refreshExtGrid').addEventListener('click', loadExtensionGrid);
+</script>
+
 @endsection

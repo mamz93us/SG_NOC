@@ -583,6 +583,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/events',     [NocController::class, 'events'])    ->name('events');
         Route::get('/alerts',     [\App\Http\Controllers\Admin\AlertFeedController::class, 'index'])->name('alerts');
         Route::get('/alerts/{id}/timeline', [\App\Http\Controllers\Admin\AlertFeedController::class, 'timeline'])->name('alerts.timeline');
+
+        // Wallboard + Extension Grid API
+        Route::get('/wallboard',      [NocController::class, 'wallboard'])     ->name('wallboard');
+        Route::get('/wallboard-data', [NocController::class, 'wallboardData']) ->name('wallboard.data');
+        Route::get('/extension-grid', [NocController::class, 'extensionGrid']) ->name('extension-grid');
     });
     Route::middleware('permission:manage-noc')->prefix('noc')->name('noc.')->group(function () {
         Route::post('/events/{id}/acknowledge', [NocController::class, 'acknowledge']) ->name('events.acknowledge');
