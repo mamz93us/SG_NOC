@@ -97,7 +97,8 @@ class NocController extends Controller
         $sophosAll    = \App\Models\SophosFirewall::all();
         $sophosTotal  = $sophosAll->count();
         $sophosSynced = $sophosAll->filter(fn($f) => $f->last_synced_at !== null)->count();
-        $sophosVpnUp  = \App\Models\SophosVpnTunnel::where('status', 'up')->count();
+        $sophosVpnTunnels = \App\Models\SophosVpnTunnel::with('firewall.branch')->get();
+        $sophosVpnUp  = $sophosVpnTunnels->where('status', 'up')->count();
 
         // Top Subnets by Utilization
         $topSubnets = \App\Models\IpamSubnet::withCount(['ipReservations', 'dhcpLeases'])
@@ -115,7 +116,7 @@ class NocController extends Controller
             'vpnTunnels', 'vpnOnline',
             'monitoredHosts', 'hostsUp', 'hostsDown',
             'dhcpTotal', 'dhcpConflicts', 'dhcpBySource',
-            'sophosTotal', 'sophosSynced', 'sophosVpnUp',
+            'sophosTotal', 'sophosSynced', 'sophosVpnUp', 'sophosVpnTunnels',
             'topSubnets'
         ));
     }
@@ -147,12 +148,13 @@ class NocController extends Controller
         $dhcpLeases       = \App\Models\DhcpLease::where('branch_id', $branch->id)->latest('last_seen')->limit(10)->get();
         $subnets          = \App\Models\IpamSubnet::where('branch_id', $branch->id)->get();
         $sophosFirewalls  = \App\Models\SophosFirewall::where('branch_id', $branch->id)->get();
+        $sophosVpnTunnels = \App\Models\SophosVpnTunnel::whereIn('firewall_id', $sophosFirewalls->pluck('id'))->get();
 
         return view('admin.noc.branch', compact(
             'branch', 'score', 'switches', 'devices', 'printers',
             'vpnTunnels', 'ispConns', 'monitorHosts', 'landlines',
             'ipCount', 'employees', 'openAlerts', 'openIncidents',
-            'dhcpLeases', 'subnets', 'sophosFirewalls'
+            'dhcpLeases', 'subnets', 'sophosFirewalls', 'sophosVpnTunnels'
         ));
     }
 

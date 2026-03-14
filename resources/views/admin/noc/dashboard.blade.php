@@ -250,6 +250,44 @@
 </div>
 @endif
 
+{{-- Sophos SNMP VPN Tunnel Detail Widget --}}
+@if($sophosVpnTunnels->count() > 0)
+<h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-shield-shaded me-2"></i>Sophos S2S VPN Tunnels (SNMP)</h6>
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex gap-4 mb-3">
+                    <div class="text-center">
+                        <div class="fs-3 fw-bold text-success">{{ $sophosVpnTunnels->where('status', 'up')->count() }}</div>
+                        <small class="text-muted">Up</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="fs-3 fw-bold text-danger">{{ $sophosVpnTunnels->where('status', 'down')->count() }}</div>
+                        <small class="text-muted">Down</small>
+                    </div>
+                </div>
+                <div class="row g-2">
+                    @foreach($sophosVpnTunnels->sortBy('status') as $t)
+                    <div class="col-md-4 col-lg-3">
+                        <div class="d-flex align-items-center gap-2 p-2 rounded border {{ $t->status === 'down' ? 'border-danger bg-danger bg-opacity-10' : 'border-success bg-success bg-opacity-10' }}">
+                            <i class="bi {{ $t->status === 'up' ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger' }}"></i>
+                            <div class="text-truncate">
+                                <div class="small fw-semibold text-truncate" title="{{ $t->name }}">{{ $t->name }}</div>
+                                <div style="font-size:10px" class="text-muted text-truncate">
+                                    {{ $t->firewall?->name }} ({{ $t->firewall?->branch?->name ?: 'No branch' }})
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- DHCP / IPAM / Sophos Row --}}
 <h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-hdd-rack me-2"></i>DHCP & Firewall Overview</h6>
 <div class="row g-3 mb-4">

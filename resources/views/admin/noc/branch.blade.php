@@ -73,6 +73,35 @@
                 @endforelse
             </div>
         </div>
+        @endif
+
+        {{-- 2b. Sophos VPN Tunnels (SNMP) --}}
+        @if(($sophosVpnTunnels ?? collect())->count() > 0)
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-shield-shaded me-1"></i>Sophos S2S VPN ({{ $sophosVpnTunnels->count() }})</strong>
+                @php
+                    $sVpnUp = $sophosVpnTunnels->where('status', 'up')->count();
+                    $sVpnDown = $sophosVpnTunnels->where('status', 'down')->count();
+                @endphp
+                <span>
+                    <span class="badge bg-success">{{ $sVpnUp }} Up</span>
+                    @if($sVpnDown > 0)<span class="badge bg-danger">{{ $sVpnDown }} Down</span>@endif
+                </span>
+            </div>
+            <div class="card-body p-0">
+                @foreach($sophosVpnTunnels as $st)
+                <div class="d-flex align-items-center px-3 py-2 {{ !$loop->last ? 'border-bottom' : '' }} small">
+                    <span class="badge {{ $st->status === 'up' ? 'bg-success' : 'bg-danger' }} me-2" style="font-size:10px">
+                        <i class="bi bi-circle-fill me-1" style="font-size:6px"></i>{{ ucfirst($st->status) }}
+                    </span>
+                    <span class="fw-semibold me-2">{{ $st->name }}</span>
+                    <span class="text-muted ms-auto">{{ $st->firewall?->name }}</span>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
 
         {{-- 3. ISP Connections --}}
         <div class="card shadow-sm border-0 mb-4">
