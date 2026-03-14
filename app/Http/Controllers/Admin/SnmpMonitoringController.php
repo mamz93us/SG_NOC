@@ -154,6 +154,55 @@ class SnmpMonitoringController extends Controller
         ));
     }
 
+    public function pollAll()
+    {
+        $hosts = MonitoredHost::where('snmp_enabled', true)
+            ->where('status', '!=', 'down')
+            ->get();
+
+        $polled = 0;
+        $errors = 0;
+
+        foreach ($hosts as $host) {
+            try {
+                \App\Jobs\CollectSnmpMetricsJob::dispatch($host);
+                $polled++;
+            } catch (\Throwable $e) {
+                $errors++;
+                \Log::error("Poll dispatch failed for {$host->name}: " . $e->getMessage());
+            }
+        }
+
+        $msg = "Dispatched SNMP polling for {$polled} host(s).";
+        if ($errors > 0) {
+            $msg .= " {$errors} failed to dispatch.";
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    public function pollAllSync()
+    {
+        $hosts = MonitoredHost::where('snmp_enabled', true)
+            ->where('status', '!=', 'down')
+            ->get();
+
+        $polled = 0;
+        $errors = 0;
+
+        foreach ($hosts as $host) {
+            try {
+                \App\Jobs\CollectSnmpMetricsJob::dispatchSync($host);
+                $polled++;
+            } catch (\Throwable $e) {
+                $errors++;
+                \Log::error("Poll sync failed for {$host->name}: " . $e->getMessage());
+            }
+        }
+
+        return back()->with('success', "Synchronous SNMP polling completed for {$polled} host(s). {$errors} error(s).");
+    }
+
     public function storeMibSensors(Request $request, MonitoredHost $host)
     {
         $request->validate([

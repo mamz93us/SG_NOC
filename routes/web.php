@@ -468,6 +468,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/hosts/{host}/mib-sensors', [SnmpMonitoringController::class, 'storeMibSensors'])->name('hosts.mib-sensors.store');
         Route::get('/hosts/{host}/metrics', [SnmpMonitoringController::class, 'metrics'])->name('hosts.metrics');
         Route::get('/health', [SnmpMonitoringController::class, 'snmpHealth'])->name('health');
+        Route::post('/poll-all', [SnmpMonitoringController::class, 'pollAll'])->name('poll-all');
+        Route::post('/poll-all-sync', [SnmpMonitoringController::class, 'pollAllSync'])->name('poll-all-sync');
     });
 
     // ─── Workers Dashboard ─────────────────────────────────────────
