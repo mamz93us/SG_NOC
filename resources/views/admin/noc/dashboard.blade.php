@@ -318,8 +318,8 @@
                         <small class="text-muted">Pending</small>
                     </div>
                     <div class="text-center">
-                        <div class="fs-5 fw-bold text-info">{{ $sophosVpnUp }}</div>
-                        <small class="text-muted">S2S VPN Up</small>
+                        <div class="fs-5 fw-bold text-info">{{ $sophosVpnTotal }}</div>
+                        <small class="text-muted">S2S VPN Tunnels</small>
                     </div>
                 </div>
                 @else
@@ -656,20 +656,17 @@ function renderSophosVpn(tunnels, summary) {
         </div>
     </div>`;
 
-    // Table view for Sophos VPN — more detailed than cards
+    // Table view for Sophos VPN — sourced from SNMP monitoring
     const tableHtml = `<div class="table-responsive">
         <table class="table table-hover table-sm mb-0">
             <thead class="table-light">
                 <tr>
                     <th class="ps-3 small fw-semibold">Status</th>
                     <th class="small fw-semibold">Tunnel Name</th>
-                    <th class="small fw-semibold">Type</th>
-                    <th class="small fw-semibold">Remote Gateway</th>
-                    <th class="small fw-semibold">Local Subnet</th>
-                    <th class="small fw-semibold">Remote Subnet</th>
                     <th class="small fw-semibold">Firewall</th>
+                    <th class="small fw-semibold">Firewall IP</th>
                     <th class="small fw-semibold">Branch</th>
-                    <th class="small fw-semibold">Last Check</th>
+                    <th class="small fw-semibold">Last Polled</th>
                 </tr>
             </thead>
             <tbody>
@@ -679,11 +676,8 @@ function renderSophosVpn(tunnels, summary) {
                     return `<tr class="${t.status === 'down' ? 'table-danger' : ''}">
                         <td class="ps-3"><i class="bi ${icon} me-1"></i><span class="badge ${badgeCls} rounded-pill">${t.status}</span></td>
                         <td class="small fw-semibold">${t.name}</td>
-                        <td class="small text-muted">${t.connection_type}</td>
-                        <td class="small font-monospace">${t.remote_gateway}</td>
-                        <td class="small font-monospace">${t.local_subnet}</td>
-                        <td class="small font-monospace">${t.remote_subnet}</td>
                         <td class="small">${t.firewall}</td>
+                        <td class="small font-monospace">${t.firewall_ip}</td>
                         <td class="small">${t.branch}</td>
                         <td class="small text-muted">${t.last_checked}</td>
                     </tr>`;

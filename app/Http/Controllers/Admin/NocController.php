@@ -76,9 +76,11 @@ class NocController extends Controller
         $dhcpBySource  = \App\Models\DhcpLease::selectRaw("source, count(*) as cnt")->groupBy('source')->pluck('cnt', 'source')->toArray();
 
         // Sophos summary (COUNT queries only)
-        $sophosTotal  = \App\Models\SophosFirewall::count();
-        $sophosSynced = \App\Models\SophosFirewall::whereNotNull('last_synced_at')->count();
-        $sophosVpnUp  = \App\Models\SophosVpnTunnel::where('status', 'up')->count();
+        $sophosTotal    = \App\Models\SophosFirewall::count();
+        $sophosSynced   = \App\Models\SophosFirewall::whereNotNull('last_synced_at')->count();
+        // S2S VPN total tunnels from SNMP sensors (fast COUNT — detailed up/down loaded via AJAX)
+        $sophosVpnTotal = \App\Models\SnmpSensor::where('sensor_group', 'VPN')
+            ->where('name', 'like', 'VPN:%- Connection')->count();
 
         // Top Subnets (1 query, limit 5)
         $topSubnets = \App\Models\IpamSubnet::withCount(['ipReservations', 'dhcpLeases'])
@@ -97,7 +99,7 @@ class NocController extends Controller
             'vpnTotal', 'vpnOnline',
             'hostsUp', 'hostsDown',
             'dhcpTotal', 'dhcpConflicts', 'dhcpBySource',
-            'sophosTotal', 'sophosSynced', 'sophosVpnUp',
+            'sophosTotal', 'sophosSynced', 'sophosVpnTotal',
             'topSubnets'
         ));
     }
@@ -143,18 +145,34 @@ class NocController extends Controller
             'branch' => $t->branch?->name ?: 'No branch',
         ]);
 
-        // Sophos VPN Tunnels (with firewall + branch)
-        $sophosVpnTunnels = \App\Models\SophosVpnTunnel::with('firewall.branch')->orderBy('status')->get()->map(fn ($t) => [
-            'name'            => $t->name,
-            'status'          => $t->status,
-            'connection_type' => $t->connection_type ?: 'IPsec',
-            'remote_gateway'  => $t->remote_gateway ?: '-',
-            'local_subnet'    => $t->local_subnet ?: '-',
-            'remote_subnet'   => $t->remote_subnet ?: '-',
-            'firewall'        => $t->firewall?->name ?: '-',
-            'branch'          => $t->firewall?->branch?->name ?: 'No branch',
-            'last_checked'    => $t->last_checked_at?->diffForHumans() ?: '-',
-        ]);
+        // Sophos S2S VPN Tunnels — from SNMP sensors (sensor_group='VPN')
+        // Each tunnel has 2 sensors: "VPN: {name} - Active" and "VPN: {name} - Connection"
+        // Connection sensor value: 1.0 = connected, 0.0 = disconnected
+        $vpnSensors = \App\Models\SnmpSensor::with(['host.branch'])
+            ->where('sensor_group', 'VPN')
+            ->where('name', 'like', 'VPN:%- Connection')
+            ->get();
+
+        $sophosVpnTunnels = $vpnSensors->map(function ($sensor) {
+            // Extract tunnel name from "VPN: TunnelName - Connection"
+            $tunnelName = trim(str_replace(['VPN:', '- Connection'], '', $sensor->name));
+
+            // Get latest metric value for connection status
+            $latestMetric = $sensor->sensorMetrics()
+                ->orderByDesc('recorded_at')
+                ->first();
+
+            $isConnected = $latestMetric && $latestMetric->value >= 1.0;
+
+            return [
+                'name'         => $tunnelName,
+                'status'       => $isConnected ? 'up' : 'down',
+                'firewall'     => $sensor->host?->name ?: '-',
+                'firewall_ip'  => $sensor->host?->ip ?: '-',
+                'branch'       => $sensor->host?->branch?->name ?: 'No branch',
+                'last_checked' => $latestMetric?->recorded_at?->diffForHumans() ?: ($sensor->last_recorded_at?->diffForHumans() ?: '-'),
+            ];
+        })->sortBy('status')->values();
 
         return response()->json([
             'ucm_stats'          => $ucmStats,
