@@ -47,7 +47,8 @@
       "Bash(grep -l \"class VpnHubController\\\\|class NetworkController\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Http/Controllers/Admin/*.php)",
       "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC -path *migrations*noc* -type f)",
       "Bash(xargs -I {} basename {})",
-      "Bash(grep -l \"noc_events\\\\|monitored_hosts\\\\|snmp\\\\|vpn_tunnels\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)"
+      "Bash(grep -l \"noc_events\\\\|monitored_hosts\\\\|snmp\\\\|vpn_tunnels\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)",
+      "Bash(grep -E \"Models.*\\\\.php$\")"
     ]
   }
 }

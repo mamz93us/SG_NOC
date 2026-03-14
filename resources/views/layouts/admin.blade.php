@@ -13,9 +13,32 @@
 
     <style>
         body { background: #f8f9fa; }
+        /* ── Compact navbar ────────────────────────────── */
+        .navbar-nav .nav-link {
+            font-size: 0.85rem;
+            padding-left: 0.45rem;
+            padding-right: 0.45rem;
+        }
         .nav-link.active {
             font-weight: bold;
             background: rgba(255, 255, 255, 0.1);
+        }
+        /* ── Scrollable dropdowns ──────────────────────── */
+        .navbar .dropdown-menu {
+            max-height: 75vh;
+            overflow-y: auto;
+            font-size: 0.84rem;
+        }
+        /* ── Mega menu (multi-column for long dropdowns) ─ */
+        @media (min-width: 992px) {
+            .dropdown-menu.dropdown-mega {
+                min-width: 440px;
+                columns: 2;
+                column-gap: 0;
+            }
+            .dropdown-menu.dropdown-mega > li {
+                break-inside: avoid;
+            }
         }
         .avatar-circle {
             width: 32px; height: 32px;
@@ -117,7 +140,7 @@
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-diagram-3-fill me-1"></i>Network
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-mega shadow">
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.overview') ? 'active' : '' }}"
                                    href="{{ route('admin.network.overview') }}">
@@ -243,7 +266,7 @@
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-cpu me-1"></i>Assets
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-mega shadow">
                             {{-- ── Device Inventory ── --}}
                             @can('view-assets')
                             <li>
@@ -526,7 +549,7 @@
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-gear-fill me-1"></i>Settings
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-mega shadow">
                             @can('manage-settings')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.settings.index') ? 'active' : '' }}"
