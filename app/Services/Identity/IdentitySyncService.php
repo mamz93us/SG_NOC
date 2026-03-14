@@ -10,11 +10,6 @@ use App\Models\IdentityUser;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Premium Identity Sync Service
- * Handles bulk synchronization of Users, Groups, and Licenses from Entra ID (Azure AD).
- * Architected for reliability on resource-constrained systems (VPS).
- */
 class IdentitySyncService
 {
     protected GraphService $graph;
@@ -24,24 +19,21 @@ class IdentitySyncService
         $this->graph = $graph ?? new GraphService();
     }
 
-    /**
-     * Run the full synchronization process.
-     */
     public function syncAll(): array
     {
         Log::info('IdentitySyncService: Starting full sync.');
 
         $detailedLog = IdentitySyncLog::create([
-            'type'       => 'full',
-            'status'     => 'started',
+            'type' => 'full',
+            'status' => 'started',
             'started_at' => now(),
         ]);
 
         $stats = [
-            'users'    => 0,
-            'groups'   => 0,
+            'users' => 0,
+            'groups' => 0,
             'licenses' => 0,
-            'errors'   => [],
+            'errors' => [],
         ];
 
         try {
@@ -57,47 +49,39 @@ class IdentitySyncService
             $stats['users'] = $this->syncUsers($stats['errors']);
             $detailedLog->update(['users_synced' => $stats['users']]);
 
-            // 4. Sync Relationships (Managers and Group Memberships)
+            // 4. Sync Relationships (Group Memberships)
             $this->syncRelationships($stats['errors']);
 
-            // Finalize
-            $status = empty($stats['errors']) ? 'completed' : 'partially_failed';
-            if ($stats['users'] === 0 && $stats['groups'] === 0 && !empty($stats['errors'])) {
-                $status = 'failed';
-            }
+            $status = count($stats['errors']) > 0 ? 'partially_failed' : 'completed';
 
             $detailedLog->update([
-                'status'        => $status === 'partially_failed' ? 'completed' : $status,
-                'error_message' => empty($stats['errors']) ? null : implode('; ', $stats['errors']),
-                'completed_at'  => now(),
+                'status' => $status,
+                'error_message' => empty($stats['errors']) ? null : implode("\n", $stats['errors']),
+                'completed_at' => now(),
             ]);
 
             ActivityLog::log(
                 'Identity Sync',
                 "Full synchronization completed: {$stats['users']} users, {$stats['groups']} groups, {$stats['licenses']} licenses.",
-                $status === 'completed' ? 'success' : 'warning'
+                ['stats' => $stats]
             );
 
+            return $stats;
         } catch (\Throwable $e) {
             Log::error('IdentitySyncService: Fatal sync error: ' . $e->getMessage());
             $stats['errors'][] = 'Fatal: ' . $e->getMessage();
 
             $detailedLog->update([
-                'status'        => 'failed',
+                'status' => 'failed',
                 'error_message' => $e->getMessage(),
-                'completed_at'  => now(),
+                'completed_at' => now(),
             ]);
 
             throw $e;
         }
-
-        return $stats;
     }
 
-    /**
-     * Sync Subscribed SKUs (Licenses).
-     */
-    protected function syncLicenses(array &$errors): int
+    public function syncLicenses(array &$errors): int
     {
         try {
             $skus = $this->graph->listSubscribedSkus();
@@ -108,12 +92,12 @@ class IdentitySyncService
                     IdentityLicense::updateOrCreate(
                         ['sku_id' => $sku['skuId']],
                         [
-                            'sku_part_number'   => $sku['skuPartNumber'],
-                            'display_name'      => $sku['skuPartNumber'],
-                            'total'             => $sku['prepaidUnits']['enabled'] ?? 0,
-                            'consumed'          => $sku['consumedUnits'] ?? 0,
-                            'available'         => max(0, ($sku['prepaidUnits']['enabled'] ?? 0) - ($sku['consumedUnits'] ?? 0)),
-                            'applies_to'        => $sku['appliesTo'] ?? null,
+                            'sku_part_number' => $sku['skuPartNumber'],
+                            'display_name' => $sku['skuPartNumber'], // Default to part number as name
+                            'total' => $sku['prepaidUnits']['enabled'] ?? 0,
+                            'consumed' => $sku['consumedUnits'] ?? 0,
+                            'available' => max(0, ($sku['prepaidUnits']['enabled'] ?? 0) - ($sku['consumedUnits'] ?? 0)),
+                            'applies_to' => $sku['appliesTo'] ?? null,
                             'capability_status' => $sku['capabilityStatus'] ?? 'Enabled',
                         ]
                     );
@@ -121,39 +105,34 @@ class IdentitySyncService
                 }
             });
 
-            // Cleanup stale — only if we got results
             if (!empty($syncedIds)) {
                 IdentityLicense::whereNotIn('sku_id', $syncedIds)->delete();
             }
-            
-            Log::info("IdentitySyncService: Licensed synced (" . count($syncedIds) . ")");
+
             return count($syncedIds);
         } catch (\Throwable $e) {
             $errors[] = 'Licenses: ' . $e->getMessage();
-            Log::error('IdentitySyncService: License sync error: ' . $e->getMessage());
             return 0;
         }
     }
 
-    /**
-     * Sync Groups.
-     */
-    protected function syncGroups(array &$errors): int
+    public function syncGroups(array &$errors): int
     {
         try {
             $count = 0;
             $activeIds = [];
 
+            // We use the callback to process chunks and keep memory low
             $this->graph->listGroups(function($chunk) use (&$count, &$activeIds) {
                 DB::transaction(function () use ($chunk, &$activeIds) {
                     foreach ($chunk as $g) {
                         IdentityGroup::updateOrCreate(
                             ['azure_id' => $g['id']],
                             [
-                                'display_name'     => $g['displayName'],
-                                'description'      => $g['description'] ?? null,
-                                'group_type'       => in_array('Unified', $g['groupTypes'] ?? []) ? 'Unified' : null,
-                                'mail_enabled'     => $g['mailEnabled'] ?? false,
+                                'display_name' => $g['displayName'] ?? 'Unknown Group',
+                                'description' => $g['description'] ?? null,
+                                'group_type' => in_array('Unified', $g['groupTypes'] ?? []) ? 'Unified' : null,
+                                'mail_enabled' => $g['mailEnabled'] ?? false,
                                 'security_enabled' => $g['securityEnabled'] ?? true,
                             ]
                         );
@@ -164,34 +143,26 @@ class IdentitySyncService
                 gc_collect_cycles();
             });
 
-            // Cleanup stale — only if we actually synced some groups.
             if ($count > 0) {
                 IdentityGroup::whereNotIn('azure_id', $activeIds)->delete();
             }
 
-            Log::info("IdentitySyncService: Groups synced ({$count})");
             return $count;
         } catch (\Throwable $e) {
             $errors[] = 'Groups: ' . $e->getMessage();
-            Log::error('IdentitySyncService: Group sync error: ' . $e->getMessage());
             return 0;
         }
     }
 
-    /**
-     * Sync Users.
-     */
-    protected function syncUsers(array &$errors): int
+    public function syncUsers(array &$errors): int
     {
         try {
             $count = 0;
             $activeIds = [];
 
             $this->graph->listUsers(function($chunk) use (&$count, &$activeIds) {
-                // Filter out guest/external accounts (#EXT# in UPN) client-side.
-                // This avoids needing ConsistencyLevel: eventual for advanced server-side filters.
+                // Filter out external users if necessary (matching high-level logic)
                 $chunk = array_filter($chunk, fn($u) => !str_contains($u['userPrincipalName'] ?? '', '#EXT#'));
-
                 if (empty($chunk)) return;
 
                 DB::transaction(function () use ($chunk, &$activeIds) {
@@ -201,24 +172,24 @@ class IdentitySyncService
                         IdentityUser::updateOrCreate(
                             ['azure_id' => $u['id']],
                             [
+                                'display_name' => $u['displayName'],
                                 'user_principal_name' => $u['userPrincipalName'],
-                                'display_name'        => $u['displayName'],
-                                'mail'                => $u['mail'] ?? null,
-                                'job_title'           => $u['jobTitle'] ?? null,
-                                'department'          => $u['department'] ?? null,
-                                'company_name'        => $u['companyName'] ?? null,
-                                'account_enabled'     => $u['accountEnabled'] ?? true,
-                                'usage_location'      => $u['usageLocation'] ?? null,
-                                'phone_number'        => $u['businessPhones'][0] ?? null,
-                                'mobile_phone'        => $u['mobilePhone'] ?? null,
-                                'office_location'     => $u['officeLocation'] ?? null,
-                                'street_address'      => $u['streetAddress'] ?? null,
-                                'city'                => $u['city'] ?? null,
-                                'postal_code'         => $u['postalCode'] ?? null,
-                                'country'             => $u['country'] ?? null,
-                                'licenses_count'      => count($licenseSkus),
-                                'assigned_licenses'   => $licenseSkus,
-                                'raw_data'            => $u,
+                                'mail' => $u['mail'] ?? null,
+                                'job_title' => $u['jobTitle'] ?? null,
+                                'department' => $u['department'] ?? null,
+                                'company_name' => $u['companyName'] ?? null,
+                                'account_enabled' => $u['accountEnabled'] ?? true,
+                                'usage_location' => $u['usageLocation'] ?? null,
+                                'phone_number' => $u['businessPhones'][0] ?? null,
+                                'mobile_phone' => $u['mobilePhone'] ?? null,
+                                'office_location' => $u['officeLocation'] ?? null,
+                                'street_address' => $u['streetAddress'] ?? null,
+                                'city' => $u['city'] ?? null,
+                                'postal_code' => $u['postalCode'] ?? null,
+                                'country' => $u['country'] ?? null,
+                                'licenses_count' => count($licenseSkus),
+                                'assigned_licenses' => $licenseSkus,
+                                'raw_data' => $u,
                             ]
                         );
                         $activeIds[] = $u['id'];
@@ -228,93 +199,65 @@ class IdentitySyncService
                 gc_collect_cycles();
             });
 
-            // Cleanup stale — only if we actually synced some users.
-            // An empty $activeIds would delete ALL users (whereNotIn([]) = all rows).
             if ($count > 0) {
                 IdentityUser::whereNotIn('azure_id', $activeIds)->delete();
             }
 
-            Log::info("IdentitySyncService: Users synced ({$count})");
             return $count;
         } catch (\Throwable $e) {
             $errors[] = 'Users: ' . $e->getMessage();
-            Log::error('IdentitySyncService: User sync error: ' . $e->getMessage());
             return 0;
         }
     }
 
-    /**
-     * Sync Relationships (Bulk Manager and Group Membership updates).
-     * This uses a high-performance in-memory mapping to avoid disk thrashing.
-     */
-    protected function syncRelationships(array &$errors): void
+    public function syncRelationships(array &$errors): void
     {
-        // 1. Managers
+        // 1. Group Memberships
         try {
-            $this->graph->listUserManagers(function($map) {
-                if (empty($map)) return;
-                DB::transaction(function () use ($map) {
-                    foreach ($map as $userId => $mgrId) {
-                        IdentityUser::where('azure_id', $userId)->update(['manager_azure_id' => $mgrId]);
-                    }
-                });
-            });
-            Log::info('IdentitySyncService: Managers synced');
-        } catch (\Throwable $e) {
-            $errors[] = 'Managers: ' . $e->getMessage();
-        }
+            $allGroupIds = IdentityGroup::pluck('azure_id')->all();
+            if (empty($allGroupIds)) return;
 
-        // 2. Group Memberships — user-centric (800 users = ~40 batch calls vs. thousands for group-centric)
-        try {
-            $allUserIds = IdentityUser::pluck('azure_id')->all();
-            if (empty($allUserIds)) {
-                Log::info('IdentitySyncService: No users to sync memberships for.');
-                return;
-            }
-
-            // Reset local state
+            // Reset memberships for refresh
             IdentityUser::query()->update(['member_of' => '[]', 'groups_count' => 0]);
-            IdentityGroup::query()->update(['members_count' => 0]);
 
-            // [userId => [groupId, ...]], [groupId => count]
-            $membershipMap = [];
-            $groupCounts   = [];
+            // Fetch memberships in batches using the Graph Batch API (Group-centric as per user's preferred version)
+            $groupMembers = $this->graph->batchGroupMembers($allGroupIds);
 
-            // Build the set of known (security) group IDs so we only count relevant groups
-            $knownGroupIds = IdentityGroup::pluck('azure_id')->flip()->all(); // id => true
-
-            $this->graph->batchUserMemberships($allUserIds, function($chunk) use (&$membershipMap, &$groupCounts, $knownGroupIds) {
-                foreach ($chunk as $uid => $allGids) {
-                    // Keep only groups that exist in our identity_groups table (security groups)
-                    $gids = array_values(array_filter($allGids, fn($gid) => isset($knownGroupIds[$gid])));
-                    $membershipMap[$uid] = $gids;
-                    foreach ($gids as $gid) {
-                        $groupCounts[$gid] = ($groupCounts[$gid] ?? 0) + 1;
-                    }
+            // Build inverse map: userId → [groupId, ...]
+            $userMemberOf = [];
+            $groupMemberCounts = [];
+            foreach ($groupMembers as $groupId => $userIds) {
+                $groupMemberCounts[$groupId] = count($userIds);
+                foreach ($userIds as $uid) {
+                    $userMemberOf[$uid][] = $groupId;
                 }
-            });
+            }
 
-            // Bulk update users in chunks of 200
-            foreach (array_chunk(array_keys($membershipMap), 200) as $chunk) {
-                DB::transaction(function () use ($chunk, $membershipMap) {
-                    $users = IdentityUser::whereIn('azure_id', $chunk)->get();
-                    foreach ($users as $u) {
-                        $groups = $membershipMap[$u->azure_id] ?? [];
-                        $u->update(['member_of' => $groups, 'groups_count' => count($groups)]);
+            // Bulk update users
+            foreach (array_chunk(array_keys($userMemberOf), 200) as $chunk) {
+                DB::transaction(function () use ($chunk, $userMemberOf) {
+                    foreach ($chunk as $uid) {
+                        $gids = $userMemberOf[$uid] ?? [];
+                        IdentityUser::where('azure_id', $uid)->update([
+                            'member_of' => $gids,
+                            'groups_count' => count($gids)
+                        ]);
                     }
                 });
             }
 
-            // Bulk update group member counts
-            foreach (array_chunk(array_keys($groupCounts), 200) as $chunk) {
-                DB::transaction(function () use ($chunk, $groupCounts) {
+            // Bulk update group counts
+            foreach (array_chunk($allGroupIds, 200) as $chunk) {
+                DB::transaction(function () use ($chunk, $groupMemberCounts) {
                     foreach ($chunk as $gid) {
-                        IdentityGroup::where('azure_id', $gid)->update(['members_count' => $groupCounts[$gid]]);
+                        IdentityGroup::where('azure_id', $gid)->update([
+                            'members_count' => $groupMemberCounts[$gid] ?? 0
+                        ]);
                     }
                 });
             }
 
-            Log::info('IdentitySyncService: Group memberships synced (' . count($membershipMap) . ' users processed)');
+            Log::info('IdentitySyncService: Memberships synced.');
         } catch (\Throwable $e) {
             $errors[] = 'Memberships: ' . $e->getMessage();
             Log::error('IdentitySyncService: Membership sync error: ' . $e->getMessage());
