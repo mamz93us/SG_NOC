@@ -589,6 +589,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/alerts',     [\App\Http\Controllers\Admin\AlertFeedController::class, 'index'])->name('alerts');
         Route::get('/alerts/{id}/timeline', [\App\Http\Controllers\Admin\AlertFeedController::class, 'timeline'])->name('alerts.timeline');
 
+        // AJAX endpoint for heavy dashboard sections (UCM, Branch Health, VPN details)
+        Route::get('/dashboard-data', [NocController::class, 'dashboardHeavyData'])->name('dashboard.data');
+
         // Extensions page + Wallboard + Extension Grid API
         Route::get('/extensions',     [NocController::class, 'extensionsPage'])->name('extensions');
         Route::get('/wallboard',      [NocController::class, 'wallboard'])     ->name('wallboard');

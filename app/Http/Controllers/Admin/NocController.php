@@ -23,9 +23,12 @@ class NocController extends Controller
 
     public function dashboard()
     {
-        // Global Identity summary
+        // ── FAST QUERIES ONLY ──────────────────────────────────────────
+        // Heavy sections (UCM, Branch Health, VPN details, Sophos VPN)
+        // are loaded via AJAX from dashboardHeavyData() to speed up initial paint.
+
+        // Global Identity summary (3 fast COUNT queries)
         $identityQuery = IdentityUser::query();
-        
         $allowedDomains = \App\Models\AllowedDomain::getList();
         if (!empty($allowedDomains)) {
             $identityQuery->where(function ($q) use ($allowedDomains) {
@@ -34,95 +37,140 @@ class NocController extends Controller
                 }
             });
         }
+        $totalUsers      = (clone $identityQuery)->count();
+        $licensedUsers   = (clone $identityQuery)->whereNotNull('assigned_licenses')->where('assigned_licenses', '!=', '[]')->where('assigned_licenses', '!=', 'null')->count();
+        $licensedPercent = $totalUsers > 0 ? (int) round($licensedUsers / $totalUsers * 100) : 0;
 
-        $totalUsers       = (clone $identityQuery)->count();
-        $licensedUsers    = (clone $identityQuery)->whereNotNull('assigned_licenses')->where('assigned_licenses', '!=', '[]')->where('assigned_licenses', '!=', 'null')->count();
-        $disabledUsers    = (clone $identityQuery)->where('account_enabled', false)->count();
-        $licensedPercent  = $totalUsers > 0 ? (int) round($licensedUsers / $totalUsers * 100) : 0;
-
-        // Global Network summary
+        // Network summary (2 COUNT queries)
         $totalSwitches  = NetworkSwitch::count();
         $onlineSwitches = NetworkSwitch::where('status', 'online')->count();
         $onlinePercent  = $totalSwitches > 0 ? (int) round($onlineSwitches / $totalSwitches * 100) : 0;
 
-        // Global Assets summary
-        $totalDevices     = Device::count();
-        $assignedDevices  = Device::where('status', 'assigned')->count();
-        $missingCreds     = Device::whereDoesntHave('credentials')->count();
+        // Assets summary (2 COUNT queries + 1 subquery)
+        $totalDevices    = Device::count();
+        $missingCreds    = Device::whereDoesntHave('credentials')->count();
+        $printersOverdue = Printer::whereNotNull('service_interval_days')
+            ->where('service_interval_days', '>', 0)
+            ->whereRaw("DATE_ADD(COALESCE(last_service_date, created_at), INTERVAL service_interval_days DAY) < NOW()")
+            ->count();
 
-        // Printers overdue service
-        $printersOverdue = Printer::all()->filter(fn ($p) => $p->isMaintenanceDue())->count();
-
-        // Branch health scores
-        $branches = $this->health->allBranches();
-
-        // Open NOC events
-        $openEvents = NocEvent::open()->orderByDesc('severity')->orderByDesc('last_seen')->limit(10)->get();
-
-        // ── Main Dashboard Metrics Merged ────────────────────────────────
-
-        // Phones & Contacts
+        // Phones & Contacts (3 COUNT queries)
         $contactCount      = \App\Models\Contact::count();
         $phoneRequestCount = \App\Models\PhoneRequestLog::distinct('mac')->whereNotNull('mac')->count();
         $totalXmlRequests  = \App\Models\PhoneRequestLog::count();
 
-        // UCM Stats (Cached)
-        $ucmServers = \App\Models\UcmServer::orderBy('name')->get();
-        $ucmStats   = [];
-        foreach ($ucmServers as $server) {
-            $stats = \App\Services\IppbxApiService::getCachedStats($server);
-            $ucmStats[] = ['server' => $server, 'stats' => $stats];
-        }
+        // VoIP quick counts from cache tables (fast COUNTs — no API calls)
+        $totalExt   = UcmExtensionCache::count();
+        $totalIdle  = UcmExtensionCache::where('status', 'idle')->count();
+        $totalInUse = UcmExtensionCache::whereIn('status', ['inuse', 'busy', 'ringing'])->count();
 
-        $ucmOnline         = collect($ucmStats)->where('stats.online', true)->count();
-        $totalExt          = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['total']        ?? 0);
-        $totalIdle         = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['idle']         ?? 0);
-        $totalInUse        = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['inuse']        ?? 0);
-        $totalUnavail      = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['unavailable']  ?? 0);
-        $totalTrunks       = collect($ucmStats)->sum(fn ($u) => $u['stats']['trunk_counts']['total']      ?? 0);
-        $totalReachable    = collect($ucmStats)->sum(fn ($u) => $u['stats']['trunk_counts']['reachable']  ?? 0);
-        $totalUnreachable  = collect($ucmStats)->sum(fn ($u) => $u['stats']['trunk_counts']['unreachable']?? 0);
+        // VPN / Hosts summary (4 COUNT queries — no ::all())
+        $vpnTotal  = \App\Models\VpnTunnel::count();
+        $vpnOnline = \App\Models\VpnTunnel::where('status', 'up')->count();
+        $hostsUp   = \App\Models\MonitoredHost::where('status', 'up')->count();
+        $hostsDown = \App\Models\MonitoredHost::where('status', 'down')->count();
 
-        // VPN Status
-        $vpnTunnels = \App\Models\VpnTunnel::all();
-        $vpnOnline = $vpnTunnels->where('status', 'up')->count();
-
-        // Monitored Hosts
-        $monitoredHosts = \App\Models\MonitoredHost::all();
-        $hostsUp = $monitoredHosts->where('status', 'up')->count();
-        $hostsDown = $monitoredHosts->where('status', 'down')->count();
-
-        // DHCP Lease Overview
+        // DHCP (3 COUNT queries)
         $dhcpTotal     = \App\Models\DhcpLease::count();
         $dhcpConflicts = \App\Models\DhcpLease::where('is_conflict', true)->count();
         $dhcpBySource  = \App\Models\DhcpLease::selectRaw("source, count(*) as cnt")->groupBy('source')->pluck('cnt', 'source')->toArray();
 
-        // Sophos Firewall Overview
-        $sophosAll    = \App\Models\SophosFirewall::all();
-        $sophosTotal  = $sophosAll->count();
-        $sophosSynced = $sophosAll->filter(fn($f) => $f->last_synced_at !== null)->count();
-        $sophosVpnTunnels = \App\Models\SophosVpnTunnel::with('firewall.branch')->get();
-        $sophosVpnUp  = $sophosVpnTunnels->where('status', 'up')->count();
+        // Sophos summary (COUNT queries only)
+        $sophosTotal  = \App\Models\SophosFirewall::count();
+        $sophosSynced = \App\Models\SophosFirewall::whereNotNull('last_synced_at')->count();
+        $sophosVpnUp  = \App\Models\SophosVpnTunnel::where('status', 'up')->count();
 
-        // Top Subnets by Utilization
+        // Top Subnets (1 query, limit 5)
         $topSubnets = \App\Models\IpamSubnet::withCount(['ipReservations', 'dhcpLeases'])
-            ->orderByDesc('ip_reservations_count')
-            ->limit(5)
-            ->get();
+            ->orderByDesc('ip_reservations_count')->limit(5)->get();
+
+        // Open events (1 query, limit 10)
+        $openEvents = NocEvent::open()->orderByDesc('severity')->orderByDesc('last_seen')->limit(10)->get();
 
         return view('admin.noc.dashboard', compact(
-            'totalUsers', 'licensedUsers', 'disabledUsers', 'licensedPercent',
+            'totalUsers', 'licensedUsers', 'licensedPercent',
             'totalSwitches', 'onlineSwitches', 'onlinePercent',
-            'totalDevices', 'assignedDevices', 'missingCreds', 'printersOverdue',
-            'branches', 'openEvents',
+            'totalDevices', 'missingCreds', 'printersOverdue',
+            'openEvents',
             'contactCount', 'phoneRequestCount', 'totalXmlRequests',
-            'ucmStats', 'ucmOnline', 'totalExt', 'totalIdle', 'totalInUse', 'totalUnavail', 'totalTrunks', 'totalReachable', 'totalUnreachable',
-            'vpnTunnels', 'vpnOnline',
-            'monitoredHosts', 'hostsUp', 'hostsDown',
+            'totalExt', 'totalIdle', 'totalInUse',
+            'vpnTotal', 'vpnOnline',
+            'hostsUp', 'hostsDown',
             'dhcpTotal', 'dhcpConflicts', 'dhcpBySource',
-            'sophosTotal', 'sophosSynced', 'sophosVpnUp', 'sophosVpnTunnels',
+            'sophosTotal', 'sophosSynced', 'sophosVpnUp',
             'topSubnets'
         ));
+    }
+
+    // ── AJAX Heavy Data ──────────────────────────────────────────────
+
+    public function dashboardHeavyData()
+    {
+        // UCM PBX Stats (the N+1 loop that was slowing the page)
+        $ucmServers = \App\Models\UcmServer::orderBy('name')->get();
+        $ucmStats = $ucmServers->map(function ($server) {
+            $stats = \App\Services\IppbxApiService::getCachedStats($server);
+            return [
+                'name'     => $server->name,
+                'host'     => parse_url($server->url, PHP_URL_HOST) ?? $server->url,
+                'online'   => $stats['online'] ?? false,
+                'uptime'   => $stats['uptime'] ?? null,
+                'error'    => $stats['error'] ?? null,
+                'model'    => $stats['model'] ?? null,
+                'firmware' => $stats['firmware'] ?? null,
+                'ext'      => $stats['extensions'] ?? [],
+                'trunks'   => $stats['trunk_counts'] ?? [],
+            ];
+        });
+
+        // Branch Health (heaviest — calls HealthScoringService for each branch)
+        $branches = $this->health->allBranches()->map(fn ($b) => [
+            'id'     => $b->id,
+            'name'   => $b->name,
+            'health' => $b->health,
+            'color'  => [
+                'total'    => HealthScoringService::healthColorStatic($b->health['total'] ?? 0),
+                'identity' => HealthScoringService::healthColorStatic($b->health['identity'] ?? 0),
+                'network'  => HealthScoringService::healthColorStatic($b->health['network'] ?? 0),
+                'asset'    => HealthScoringService::healthColorStatic($b->health['asset'] ?? 0),
+            ],
+        ]);
+
+        // VPN Tunnel Details (was loading ::all() for the detail grid)
+        $vpnTunnels = \App\Models\VpnTunnel::with('branch')->orderBy('status')->get()->map(fn ($t) => [
+            'name'   => $t->name,
+            'status' => $t->status,
+            'branch' => $t->branch?->name ?: 'No branch',
+        ]);
+
+        // Sophos VPN Tunnels (with firewall + branch)
+        $sophosVpnTunnels = \App\Models\SophosVpnTunnel::with('firewall.branch')->orderBy('status')->get()->map(fn ($t) => [
+            'name'            => $t->name,
+            'status'          => $t->status,
+            'connection_type' => $t->connection_type ?: 'IPsec',
+            'remote_gateway'  => $t->remote_gateway ?: '-',
+            'local_subnet'    => $t->local_subnet ?: '-',
+            'remote_subnet'   => $t->remote_subnet ?: '-',
+            'firewall'        => $t->firewall?->name ?: '-',
+            'branch'          => $t->firewall?->branch?->name ?: 'No branch',
+            'last_checked'    => $t->last_checked_at?->diffForHumans() ?: '-',
+        ]);
+
+        return response()->json([
+            'ucm_stats'          => $ucmStats,
+            'branches'           => $branches,
+            'vpn_tunnels'        => $vpnTunnels,
+            'vpn_summary'        => [
+                'up'         => $vpnTunnels->where('status', 'up')->count(),
+                'connecting' => $vpnTunnels->where('status', 'connecting')->count(),
+                'down'       => $vpnTunnels->where('status', 'down')->count(),
+            ],
+            'sophos_vpn_tunnels' => $sophosVpnTunnels,
+            'sophos_vpn_summary' => [
+                'up'   => $sophosVpnTunnels->where('status', 'up')->count(),
+                'down' => $sophosVpnTunnels->where('status', 'down')->count(),
+            ],
+        ]);
     }
 
     public function branch(Branch $branch)

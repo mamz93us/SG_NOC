@@ -38,7 +38,7 @@
         <a href="{{ route('admin.noc.events') }}" class="btn btn-outline-secondary btn-sm shadow-sm">
             <i class="bi bi-exclamation-triangle me-1"></i>All Events
         </a>
-        <button class="btn btn-primary btn-sm shadow-sm" onclick="location.reload()">
+        <button class="btn btn-primary btn-sm shadow-sm" id="dashRefreshBtn" onclick="loadHeavyData(); loadExtensionGrid(); this.innerHTML='<span class=\'spinner-border spinner-border-sm me-1\'></span>Refreshing...'; setTimeout(()=>this.innerHTML='<i class=\'bi bi-arrow-repeat me-1\'></i>Refresh', 3000)">
             <i class="bi bi-arrow-repeat me-1"></i>Refresh
         </button>
     </div>
@@ -85,7 +85,7 @@
                     <span class="{{ $missingCreds > 0 ? 'text-danger fw-bold' : 'text-success' }}">{{ $missingCreds }}</span>
                 </div>
                 <div class="d-flex justify-content-between small text-muted">
-                    <span>Printers Overdue</span>
+                    <span>Maintenance Overdue</span>
                     <span class="{{ $printersOverdue > 0 ? 'text-warning fw-bold' : 'text-success' }}">{{ $printersOverdue }}</span>
                 </div>
             </div>
@@ -120,7 +120,7 @@
         <div class="card shadow-sm noc-card h-100 p-3">
             <div class="d-flex justify-content-between align-items-start mb-3">
                 <div>
-                    <h6 class="text-muted text-uppercase small mb-1">Phone Requests</h6>
+                    <h6 class="text-muted text-uppercase small mb-1">Phone Provisioning</h6>
                     <h3 class="mb-0 fw-bold text-secondary">{{ number_format($phoneRequestCount) }}</h3>
                 </div>
                 <div class="icon-box bg-secondary bg-opacity-10 text-secondary">
@@ -171,7 +171,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="mb-0 fw-bold text-dark">IPsec VPN Tunnels</h6>
-                    @php $vpnTotal = $vpnTunnels->count(); $vpnPct = $vpnTotal > 0 ? round(($vpnOnline/$vpnTotal)*100) : 0; @endphp
+                    @php $vpnPct = $vpnTotal > 0 ? round(($vpnOnline/$vpnTotal)*100) : 0; @endphp
                     <span class="badge {{ $vpnOnline == $vpnTotal && $vpnTotal > 0 ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning' }}">{{ $vpnOnline }}/{{ $vpnTotal }} Established</span>
                 </div>
                 <div class="progress" style="height:8px">
@@ -193,7 +193,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="mb-0 fw-bold text-dark">Monitored Hosts</h6>
-                    @php $hostTotal = $hostsUp + $hostsDown; $hostPct = $hostTotal > 0 ? round(($hostsUp/$hostTotal)*100) : 0; @endphp
+                    @php $hostTotal = $hostsUp + $hostsDown; $hostPct = $hostTotal > 0 ? (int)round(($hostsUp/$hostTotal)*100) : 0; @endphp
                     <span class="badge {{ $hostsDown == 0 ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger' }}">{{ $hostsUp }}/{{ $hostTotal }} Up</span>
                 </div>
                 <div class="progress" style="height:8px">
@@ -210,83 +210,33 @@
     </div>
 </div>
 
-{{-- VPN Tunnel Detail Widget --}}
-@if($vpnTunnels->count() > 0)
+{{-- VPN Tunnel Detail Widget (AJAX-loaded) --}}
 <h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-shield-lock-fill me-2"></i>VPN Tunnel Status</h6>
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4" id="vpnTunnelSection">
     <div class="col-12">
         <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex gap-4 mb-3">
-                    <div class="text-center">
-                        <div class="fs-3 fw-bold text-success">{{ $vpnTunnels->where('status', 'up')->count() }}</div>
-                        <small class="text-muted">Up</small>
-                    </div>
-                    <div class="text-center">
-                        <div class="fs-3 fw-bold text-warning">{{ $vpnTunnels->where('status', 'connecting')->count() }}</div>
-                        <small class="text-muted">Connecting</small>
-                    </div>
-                    <div class="text-center">
-                        <div class="fs-3 fw-bold text-danger">{{ $vpnTunnels->where('status', 'down')->count() }}</div>
-                        <small class="text-muted">Down</small>
-                    </div>
-                </div>
-                <div class="row g-2">
-                    @foreach($vpnTunnels->sortBy('status') as $t)
-                    <div class="col-md-4 col-lg-3">
-                        <div class="d-flex align-items-center gap-2 p-2 rounded border {{ $t->status === 'down' ? 'border-danger bg-danger bg-opacity-10' : ($t->status === 'connecting' ? 'border-warning bg-warning bg-opacity-10' : 'border-success bg-success bg-opacity-10') }}">
-                            <i class="bi {{ $t->status === 'up' ? 'bi-check-circle-fill text-success' : ($t->status === 'connecting' ? 'bi-arrow-repeat text-warning' : 'bi-x-circle-fill text-danger') }}"></i>
-                            <div>
-                                <div class="small fw-semibold">{{ $t->name }}</div>
-                                <div style="font-size:10px" class="text-muted">{{ $t->branch?->name ?: 'No branch' }}</div>
-                            </div>
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
+            <div class="card-body text-center py-4" id="vpnTunnelLoader">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span class="text-muted small">Loading VPN tunnels...</span>
             </div>
+            <div class="card-body d-none" id="vpnTunnelContent"></div>
         </div>
     </div>
 </div>
-@endif
 
-{{-- Sophos SNMP VPN Tunnel Detail Widget --}}
-@if($sophosVpnTunnels->count() > 0)
-<h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-shield-shaded me-2"></i>Sophos S2S VPN Tunnels (SNMP)</h6>
-<div class="row g-3 mb-4">
+{{-- Sophos Site-to-Site VPN Tunnels (AJAX-loaded) --}}
+<h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-shield-shaded me-2"></i>Sophos Site-to-Site VPN Connections</h6>
+<div class="row g-3 mb-4" id="sophosVpnSection">
     <div class="col-12">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body">
-                <div class="d-flex gap-4 mb-3">
-                    <div class="text-center">
-                        <div class="fs-3 fw-bold text-success">{{ $sophosVpnTunnels->where('status', 'up')->count() }}</div>
-                        <small class="text-muted">Up</small>
-                    </div>
-                    <div class="text-center">
-                        <div class="fs-3 fw-bold text-danger">{{ $sophosVpnTunnels->where('status', 'down')->count() }}</div>
-                        <small class="text-muted">Down</small>
-                    </div>
-                </div>
-                <div class="row g-2">
-                    @foreach($sophosVpnTunnels->sortBy('status') as $t)
-                    <div class="col-md-4 col-lg-3">
-                        <div class="d-flex align-items-center gap-2 p-2 rounded border {{ $t->status === 'down' ? 'border-danger bg-danger bg-opacity-10' : 'border-success bg-success bg-opacity-10' }}">
-                            <i class="bi {{ $t->status === 'up' ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger' }}"></i>
-                            <div class="text-truncate">
-                                <div class="small fw-semibold text-truncate" title="{{ $t->name }}">{{ $t->name }}</div>
-                                <div style="font-size:10px" class="text-muted text-truncate">
-                                    {{ $t->firewall?->name }} ({{ $t->firewall?->branch?->name ?: 'No branch' }})
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center py-4" id="sophosVpnLoader">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span class="text-muted small">Loading Sophos VPN tunnels...</span>
             </div>
+            <div class="card-body d-none p-0" id="sophosVpnContent"></div>
         </div>
     </div>
 </div>
-@endif
 
 {{-- DHCP / IPAM / Sophos Row --}}
 <h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-hdd-rack me-2"></i>DHCP & Firewall Overview</h6>
@@ -355,21 +305,21 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="mb-0 fw-bold text-dark">Sophos Firewalls</h6>
-                    <span class="badge {{ ($sophosTotal ?? 0) > 0 ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $sophosSynced ?? 0 }}/{{ $sophosTotal ?? 0 }} Synced</span>
+                    <span class="badge {{ $sophosTotal > 0 ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $sophosSynced }}/{{ $sophosTotal }} Synced</span>
                 </div>
-                @if(($sophosTotal ?? 0) > 0)
+                @if($sophosTotal > 0)
                 <div class="d-flex gap-3 mb-2">
                     <div class="text-center">
-                        <div class="fs-5 fw-bold text-success">{{ $sophosSynced ?? 0 }}</div>
+                        <div class="fs-5 fw-bold text-success">{{ $sophosSynced }}</div>
                         <small class="text-muted">Synced</small>
                     </div>
                     <div class="text-center">
-                        <div class="fs-5 fw-bold text-warning">{{ ($sophosTotal ?? 0) - ($sophosSynced ?? 0) }}</div>
+                        <div class="fs-5 fw-bold text-warning">{{ $sophosTotal - $sophosSynced }}</div>
                         <small class="text-muted">Pending</small>
                     </div>
                     <div class="text-center">
-                        <div class="fs-5 fw-bold text-info">{{ $sophosVpnUp ?? 0 }}</div>
-                        <small class="text-muted">VPN Up</small>
+                        <div class="fs-5 fw-bold text-info">{{ $sophosVpnUp }}</div>
+                        <small class="text-muted">S2S VPN Up</small>
                     </div>
                 </div>
                 @else
@@ -381,11 +331,15 @@
     </div>
 </div>
 
-{{-- UCM Unified PBX Status --}}
+{{-- UCM Unified PBX Status (AJAX-loaded) --}}
 <h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-server me-2"></i>Unified PBX Health</h6>
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="text-center py-4" id="ucmLoader">
+            <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+            <span class="text-muted small">Loading UCM server status...</span>
+        </div>
+        <div class="table-responsive d-none" id="ucmContent">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
@@ -396,59 +350,7 @@
                         <th>SIP Trunks</th>
                     </tr>
                 </thead>
-                <tbody>
-                    @foreach($ucmStats as $s)
-                        @php $server = $s['server']; $stats = $s['stats']; @endphp
-                        <tr>
-                            <td class="ps-4">
-                                <div class="fw-bold text-dark">{{ $server->name }}</div>
-                                <div class="small text-muted font-monospace">{{ parse_url($server->url, PHP_URL_HOST) ?? $server->url }}</div>
-                            </td>
-                            <td>
-                                @if($stats['online'])
-                                    <span class="badge bg-success-subtle text-success border border-success"><div class="status-pulse bg-success me-1"></div>Online</span>
-                                    <div class="small text-muted mt-1">{{ $stats['uptime'] ?? 'Up' }}</div>
-                                @else
-                                    <span class="badge bg-danger-subtle text-danger border border-danger"><i class="bi bi-x-circle-fill me-1"></i>Offline</span>
-                                    <div class="small text-danger mt-1 text-truncate" style="max-width: 150px;" title="{{ $stats['error'] ?? 'Unreachable' }}">{{ $stats['error'] ?? 'Unreachable' }}</div>
-                                @endif
-                            </td>
-                            <td>
-                                @if($stats['online'])
-                                    <div class="text-dark small"><i class="bi bi-cpu me-1"></i>{{ $stats['model'] ?? '-' }}</div>
-                                    <div class="text-muted small">v{{ $stats['firmware'] ?? '-' }}</div>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if($stats['online'])
-                                    @php $ext = $stats['extensions'] ?? []; @endphp
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="fw-bold">{{ $ext['total'] ?? 0 }}</div>
-                                        <div class="d-flex gap-1" style="font-size: 0.75rem;">
-                                            <span class="badge bg-success" title="Idle">{{ $ext['idle'] ?? 0 }}</span>
-                                            <span class="badge bg-warning text-dark" title="In Use">{{ $ext['inuse'] ?? 0 }}</span>
-                                            <span class="badge bg-danger" title="Unavailable">{{ $ext['unavailable'] ?? 0 }}</span>
-                                        </div>
-                                    </div>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if($stats['online'])
-                                    @php $trunk = $stats['trunk_counts'] ?? []; @endphp
-                                    <span class="badge {{ ($trunk['unreachable'] ?? 0) > 0 ? 'bg-danger' : 'bg-success' }}">
-                                        {{ $trunk['reachable'] ?? 0 }}/{{ $trunk['total'] ?? 0 }} Up
-                                    </span>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
+                <tbody id="ucmBody"></tbody>
             </table>
         </div>
     </div>
@@ -499,28 +401,11 @@
         <h6 class="text-muted fw-bold text-uppercase small mb-3"><i class="bi bi-building me-2"></i>Branch Health Map</h6>
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body p-0">
-                @if($branches->isEmpty())
-                    <div class="text-center py-4 text-muted small">No branches found.</div>
-                @else
-                    <div class="list-group list-group-flush">
-                        @foreach($branches as $branch)
-                        @php $h = $branch->health ?? ['total'=>0,'identity'=>0,'voice'=>0,'network'=>0,'asset'=>0]; @endphp
-                        <a href="{{ route('admin.noc.branch', $branch->id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-bottom-0 border-top">
-                            <div>
-                                <h6 class="mb-1 fw-bold text-dark">{{ $branch->name }}</h6>
-                                <div class="d-flex gap-2 small">
-                                    <span class="badge bg-{{ \App\Services\HealthScoringService::healthColorStatic($h['identity']) }}-subtle text-{{ \App\Services\HealthScoringService::healthColorStatic($h['identity']) }}">ID: {{ $h['identity'] }}</span>
-                                    <span class="badge bg-{{ \App\Services\HealthScoringService::healthColorStatic($h['network']) }}-subtle text-{{ \App\Services\HealthScoringService::healthColorStatic($h['network']) }}">NW: {{ $h['network'] }}</span>
-                                    <span class="badge bg-{{ \App\Services\HealthScoringService::healthColorStatic($h['asset']) }}-subtle text-{{ \App\Services\HealthScoringService::healthColorStatic($h['asset']) }}">IT: {{ $h['asset'] }}</span>
-                                </div>
-                            </div>
-                            <div class="text-end">
-                                <div class="display-6 fw-bold text-{{ \App\Services\HealthScoringService::healthColorStatic($h['total']) }} mb-0" style="font-size: 1.5rem;">{{ $h['total'] }}%</div>
-                            </div>
-                        </a>
-                        @endforeach
-                    </div>
-                @endif
+                <div class="text-center py-4" id="branchLoader">
+                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                    <span class="text-muted small">Calculating health scores...</span>
+                </div>
+                <div class="list-group list-group-flush d-none" id="branchContent"></div>
             </div>
         </div>
     </div>
@@ -585,11 +470,11 @@
 </div>
 
 <script>
+// ── Extension Grid (AJAX) ──────────────────────────────────────────
 function loadExtensionGrid() {
     fetch('{{ route("admin.noc.extension-grid") }}')
         .then(r => r.json())
         .then(data => {
-            // Extensions
             const tbody = document.getElementById('extGridBody');
             if (data.extensions && data.extensions.length > 0) {
                 tbody.innerHTML = data.extensions.map(e =>
@@ -606,8 +491,6 @@ function loadExtensionGrid() {
             } else {
                 tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No extensions synced yet. UCM sync runs every 20 seconds.</td></tr>';
             }
-
-            // Active calls
             const callsSection = document.getElementById('activeCallsSection');
             const callsBody = document.getElementById('activeCallsBody');
             const callCount = document.getElementById('callCount');
@@ -631,7 +514,192 @@ function loadExtensionGrid() {
         });
 }
 
-document.addEventListener('DOMContentLoaded', loadExtensionGrid);
+// ── Heavy Dashboard Data (AJAX) ────────────────────────────────────
+function loadHeavyData() {
+    fetch('{{ route("admin.noc.dashboard.data") }}')
+        .then(r => r.json())
+        .then(data => {
+            renderUcmStats(data.ucm_stats || []);
+            renderBranchHealth(data.branches || []);
+            renderVpnTunnels(data.vpn_tunnels || [], data.vpn_summary || {});
+            renderSophosVpn(data.sophos_vpn_tunnels || [], data.sophos_vpn_summary || {});
+        })
+        .catch(() => {
+            document.getElementById('ucmLoader').innerHTML = '<span class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>Failed to load UCM data</span>';
+            document.getElementById('branchLoader').innerHTML = '<span class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>Failed to load branch data</span>';
+            document.getElementById('vpnTunnelLoader').innerHTML = '<span class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>Failed to load VPN data</span>';
+            document.getElementById('sophosVpnLoader').innerHTML = '<span class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>Failed to load Sophos VPN data</span>';
+        });
+}
+
+function renderUcmStats(servers) {
+    document.getElementById('ucmLoader').classList.add('d-none');
+    const content = document.getElementById('ucmContent');
+    const body = document.getElementById('ucmBody');
+    content.classList.remove('d-none');
+
+    if (servers.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No UCM servers configured</td></tr>';
+        return;
+    }
+
+    body.innerHTML = servers.map(s => {
+        const ext = s.ext || {};
+        const trunk = s.trunks || {};
+        const statusHtml = s.online
+            ? `<span class="badge bg-success-subtle text-success border border-success"><span class="status-pulse bg-success me-1"></span>Online</span>
+               <div class="small text-muted mt-1">${s.uptime || 'Up'}</div>`
+            : `<span class="badge bg-danger-subtle text-danger border border-danger"><i class="bi bi-x-circle-fill me-1"></i>Offline</span>
+               <div class="small text-danger mt-1 text-truncate" style="max-width:150px" title="${s.error || 'Unreachable'}">${s.error || 'Unreachable'}</div>`;
+        const modelHtml = s.online
+            ? `<div class="text-dark small"><i class="bi bi-cpu me-1"></i>${s.model || '-'}</div><div class="text-muted small">v${s.firmware || '-'}</div>`
+            : '<span class="text-muted">-</span>';
+        const extHtml = s.online
+            ? `<div class="d-flex align-items-center gap-2"><div class="fw-bold">${ext.total || 0}</div>
+               <div class="d-flex gap-1" style="font-size:.75rem">
+                   <span class="badge bg-success" title="Idle">${ext.idle || 0}</span>
+                   <span class="badge bg-warning text-dark" title="In Use">${ext.inuse || 0}</span>
+                   <span class="badge bg-danger" title="Unavailable">${ext.unavailable || 0}</span>
+               </div></div>`
+            : '<span class="text-muted">-</span>';
+        const trunkHtml = s.online
+            ? `<span class="badge ${(trunk.unreachable || 0) > 0 ? 'bg-danger' : 'bg-success'}">${trunk.reachable || 0}/${trunk.total || 0} Up</span>`
+            : '<span class="text-muted">-</span>';
+
+        return `<tr>
+            <td class="ps-4"><div class="fw-bold text-dark">${s.name}</div><div class="small text-muted font-monospace">${s.host}</div></td>
+            <td>${statusHtml}</td>
+            <td>${modelHtml}</td>
+            <td>${extHtml}</td>
+            <td>${trunkHtml}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderBranchHealth(branches) {
+    document.getElementById('branchLoader').classList.add('d-none');
+    const content = document.getElementById('branchContent');
+    content.classList.remove('d-none');
+
+    if (branches.length === 0) {
+        content.innerHTML = '<div class="text-center py-4 text-muted small">No branches found.</div>';
+        return;
+    }
+
+    content.innerHTML = branches.map(b => {
+        const h = b.health || {};
+        const c = b.color || {};
+        return `<a href="/admin/noc/branch/${b.id}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-bottom-0 border-top">
+            <div>
+                <h6 class="mb-1 fw-bold text-dark">${b.name}</h6>
+                <div class="d-flex gap-2 small">
+                    <span class="badge bg-${c.identity}-subtle text-${c.identity}">ID: ${h.identity || 0}</span>
+                    <span class="badge bg-${c.network}-subtle text-${c.network}">NW: ${h.network || 0}</span>
+                    <span class="badge bg-${c.asset}-subtle text-${c.asset}">IT: ${h.asset || 0}</span>
+                </div>
+            </div>
+            <div class="text-end">
+                <div class="display-6 fw-bold text-${c.total} mb-0" style="font-size:1.5rem">${h.total || 0}%</div>
+            </div>
+        </a>`;
+    }).join('');
+}
+
+function renderVpnTunnels(tunnels, summary) {
+    document.getElementById('vpnTunnelLoader').classList.add('d-none');
+    const content = document.getElementById('vpnTunnelContent');
+    content.classList.remove('d-none');
+
+    if (tunnels.length === 0) {
+        content.innerHTML = '<div class="text-center text-muted small py-2">No VPN tunnels configured</div>';
+        return;
+    }
+
+    const summaryHtml = `<div class="d-flex gap-4 mb-3">
+        <div class="text-center"><div class="fs-3 fw-bold text-success">${summary.up || 0}</div><small class="text-muted">Up</small></div>
+        <div class="text-center"><div class="fs-3 fw-bold text-warning">${summary.connecting || 0}</div><small class="text-muted">Connecting</small></div>
+        <div class="text-center"><div class="fs-3 fw-bold text-danger">${summary.down || 0}</div><small class="text-muted">Down</small></div>
+    </div>`;
+
+    const gridHtml = tunnels.map(t => {
+        const cls = t.status === 'down' ? 'border-danger bg-danger bg-opacity-10' : (t.status === 'connecting' ? 'border-warning bg-warning bg-opacity-10' : 'border-success bg-success bg-opacity-10');
+        const icon = t.status === 'up' ? 'bi-check-circle-fill text-success' : (t.status === 'connecting' ? 'bi-arrow-repeat text-warning' : 'bi-x-circle-fill text-danger');
+        return `<div class="col-md-4 col-lg-3">
+            <div class="d-flex align-items-center gap-2 p-2 rounded border ${cls}">
+                <i class="bi ${icon}"></i>
+                <div><div class="small fw-semibold">${t.name}</div><div style="font-size:10px" class="text-muted">${t.branch}</div></div>
+            </div>
+        </div>`;
+    }).join('');
+
+    content.innerHTML = summaryHtml + '<div class="row g-2">' + gridHtml + '</div>';
+}
+
+function renderSophosVpn(tunnels, summary) {
+    document.getElementById('sophosVpnLoader').classList.add('d-none');
+    const content = document.getElementById('sophosVpnContent');
+    content.classList.remove('d-none');
+
+    if (tunnels.length === 0) {
+        content.className = content.className.replace('p-0', '');
+        content.classList.add('p-3');
+        content.innerHTML = '<div class="text-center text-muted small">No Sophos S2S VPN tunnels configured</div>';
+        return;
+    }
+
+    // Summary counts
+    const summaryHtml = `<div class="px-3 pt-3 pb-2">
+        <div class="d-flex gap-4 mb-2">
+            <div class="text-center"><div class="fs-3 fw-bold text-success">${summary.up || 0}</div><small class="text-muted">Up</small></div>
+            <div class="text-center"><div class="fs-3 fw-bold text-danger">${summary.down || 0}</div><small class="text-muted">Down</small></div>
+            <div class="text-center"><div class="fs-3 fw-bold text-primary">${tunnels.length}</div><small class="text-muted">Total</small></div>
+        </div>
+    </div>`;
+
+    // Table view for Sophos VPN — more detailed than cards
+    const tableHtml = `<div class="table-responsive">
+        <table class="table table-hover table-sm mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3 small fw-semibold">Status</th>
+                    <th class="small fw-semibold">Tunnel Name</th>
+                    <th class="small fw-semibold">Type</th>
+                    <th class="small fw-semibold">Remote Gateway</th>
+                    <th class="small fw-semibold">Local Subnet</th>
+                    <th class="small fw-semibold">Remote Subnet</th>
+                    <th class="small fw-semibold">Firewall</th>
+                    <th class="small fw-semibold">Branch</th>
+                    <th class="small fw-semibold">Last Check</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tunnels.map(t => {
+                    const badgeCls = t.status === 'up' ? 'bg-success' : 'bg-danger';
+                    const icon = t.status === 'up' ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger';
+                    return `<tr class="${t.status === 'down' ? 'table-danger' : ''}">
+                        <td class="ps-3"><i class="bi ${icon} me-1"></i><span class="badge ${badgeCls} rounded-pill">${t.status}</span></td>
+                        <td class="small fw-semibold">${t.name}</td>
+                        <td class="small text-muted">${t.connection_type}</td>
+                        <td class="small font-monospace">${t.remote_gateway}</td>
+                        <td class="small font-monospace">${t.local_subnet}</td>
+                        <td class="small font-monospace">${t.remote_subnet}</td>
+                        <td class="small">${t.firewall}</td>
+                        <td class="small">${t.branch}</td>
+                        <td class="small text-muted">${t.last_checked}</td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>
+    </div>`;
+
+    content.innerHTML = summaryHtml + tableHtml;
+}
+
+// ── Init ────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    loadExtensionGrid();
+    loadHeavyData();
+});
 document.getElementById('refreshExtGrid').addEventListener('click', loadExtensionGrid);
 </script>
 
