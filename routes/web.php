@@ -547,6 +547,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/search',   [IpamController::class, 'search'])->name('search');
         Route::post('/',        [IpamController::class, 'store'])->name('store')->middleware('permission:manage-network-settings');
         Route::get('/{subnet}', [IpamController::class, 'show'])->name('show');
+        Route::get('/{subnet}/edit', [IpamController::class, 'edit'])->name('edit')->middleware('permission:manage-network-settings');
+        Route::put('/{subnet}', [IpamController::class, 'update'])->name('update')->middleware('permission:manage-network-settings');
+        Route::delete('/{subnet}', [IpamController::class, 'destroy'])->name('destroy')->middleware('permission:manage-network-settings');
     });
 
     // ─── Sophos Firewalls ───────────────────────────────────────

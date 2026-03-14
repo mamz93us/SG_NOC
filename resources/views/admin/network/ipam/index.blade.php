@@ -69,9 +69,16 @@
                         </td>
                         <td>{{ $subnet->ip_reservations_count + $subnet->dhcp_leases_count }} / {{ $subnet->total_ips }}</td>
                         <td>
-                            <a href="{{ route('admin.network.ipam.show', $subnet) }}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-grid-3x3"></i> Grid
-                            </a>
+                            <div class="btn-group">
+                                <a href="{{ route('admin.network.ipam.show', $subnet) }}" class="btn btn-sm btn-outline-primary" title="View Grid">
+                                    <i class="bi bi-grid-3x3"></i>
+                                </a>
+                                @can('manage-network-settings')
+                                <a href="{{ route('admin.network.ipam.edit', $subnet) }}" class="btn btn-sm btn-outline-secondary" title="Edit Subnet">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                @endcan
+                            </div>
                         </td>
                     </tr>
                 @endforeach

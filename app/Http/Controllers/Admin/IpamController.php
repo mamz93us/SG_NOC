@@ -55,6 +55,46 @@ class IpamController extends Controller
             ->with('success', "Subnet {$subnet->cidr} created.");
     }
 
+    public function edit(IpamSubnet $subnet)
+    {
+        $branches = Branch::orderBy('name')->get();
+        return view('admin.network.ipam.edit', compact('subnet', 'branches'));
+    }
+
+    public function update(Request $request, IpamSubnet $subnet)
+    {
+        $validated = $request->validate([
+            'branch_id'   => 'required|exists:branches,id',
+            'cidr'        => [
+                'required', 
+                'string', 
+                'regex:/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/',
+                'unique:ipam_subnets,cidr,' . $subnet->id . ',id,branch_id,' . $request->branch_id
+            ],
+            'vlan'        => 'nullable|integer|min:1|max:4094',
+            'gateway'     => 'nullable|ip',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $subnet->update($validated);
+
+        ActivityLog::log('updated', $subnet, $validated);
+
+        return redirect()->route('admin.network.ipam.index')
+            ->with('success', "Subnet {$subnet->cidr} updated.");
+    }
+
+    public function destroy(IpamSubnet $subnet)
+    {
+        $cidr = $subnet->cidr;
+        $subnet->delete();
+
+        ActivityLog::log('deleted', null, ['cidr' => $cidr]);
+
+        return redirect()->route('admin.network.ipam.index')
+            ->with('success', "Subnet {$cidr} deleted.");
+    }
+
     public function search(Request $request)
     {
         $query   = $request->input('q', '');

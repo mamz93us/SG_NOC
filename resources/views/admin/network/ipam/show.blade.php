@@ -8,9 +8,16 @@
             <i class="bi bi-grid-3x3 me-2"></i>IP Grid: <code>{{ $subnet->cidr }}</code>
             @if($subnet->vlan) <span class="badge bg-info ms-2">VLAN {{ $subnet->vlan }}</span> @endif
         </h4>
-        <a href="{{ route('admin.network.ipam.index') }}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left"></i> Back
-        </a>
+        <div class="d-flex gap-2">
+            @can('manage-network-settings')
+            <a href="{{ route('admin.network.ipam.edit', $subnet) }}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil"></i> Edit Subnet
+            </a>
+            @endcan
+            <a href="{{ route('admin.network.ipam.index') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
     </div>
 
     {{-- Subnet Info --}}
