@@ -56,10 +56,7 @@ class IdentitySyncService
             // 4. Sync Group Memberships (batch API)
             $this->syncRelationships($stats['errors']);
 
-            // 5. Sync Managers (paginated with $expand)
-            $this->syncManagers($stats['errors']);
-
-            $status = count($stats['errors']) > 0 ? 'completed' : 'completed';
+            $status = 'completed';
 
             $detailedLog->update([
                 'status'        => $status,
@@ -187,7 +184,14 @@ class IdentitySyncService
 
                 DB::transaction(function () use ($chunk, &$activeIds) {
                     foreach ($chunk as $u) {
-                        $licenseSkus = collect($u['assignedLicenses'] ?? [])->pluck('skuId')->all();
+                        // Extract skuIds from assignedLicenses array of objects
+                        $rawLicenses = $u['assignedLicenses'] ?? [];
+                        $licenseSkus = [];
+                        foreach ($rawLicenses as $lic) {
+                            if (is_array($lic) && !empty($lic['skuId'])) {
+                                $licenseSkus[] = $lic['skuId'];
+                            }
+                        }
 
                         IdentityUser::updateOrCreate(
                             ['azure_id' => $u['id']],
@@ -291,30 +295,4 @@ class IdentitySyncService
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Step 5: Manager Relationships
-    // ─────────────────────────────────────────────────────────────
-
-    public function syncManagers(array &$errors): void
-    {
-        try {
-            $this->graph->listUsersWithManager(function ($chunk) {
-                foreach ($chunk as $u) {
-                    $managerId = $u['manager']['id'] ?? null;
-
-                    if ($managerId) {
-                        IdentityUser::where('azure_id', $u['id'])
-                            ->update(['manager_azure_id' => $managerId]);
-                    }
-                }
-                gc_collect_cycles();
-            });
-
-            Log::info('IdentitySyncService: Manager relationships synced.');
-        } catch (\Throwable $e) {
-            // Manager sync is non-fatal — some tenants restrict $expand=manager
-            $errors[] = 'Managers: ' . $e->getMessage();
-            Log::warning('IdentitySyncService: Manager sync failed (non-fatal): ' . $e->getMessage());
-        }
-    }
 }

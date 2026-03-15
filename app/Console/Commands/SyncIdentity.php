@@ -86,11 +86,6 @@ class SyncIdentity extends Command
             $service->syncRelationships($errors);
             $this->info('✓ done');
 
-            // 6. Managers
-            $this->output->write('  → Syncing manager relationships... ');
-            $service->syncManagers($errors);
-            $this->info('✓ done');
-
             // Show errors if any
             if (! empty($errors)) {
                 $this->newLine();
