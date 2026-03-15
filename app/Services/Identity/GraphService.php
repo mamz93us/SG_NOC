@@ -143,7 +143,7 @@ class GraphService
 
     private function paginateWithCallback(string $endpoint, callable $callback, array $query = [], array $headers = []): void
     {
-        $query   = array_merge(['$top' => 999], $query);
+        $query   = array_merge(['$top' => 999], $query); // caller's $top overrides default
         $baseUrl = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl . $endpoint;
         $url     = $baseUrl;
 
@@ -203,8 +203,10 @@ class GraphService
      */
     public function listUsersWithManager(callable $callback): void
     {
+        // $expand=manager is slow on large tenants — use smaller pages
         $this->paginateWithCallback('/users', $callback, [
-            '$select' => 'id,displayName,userPrincipalName',
+            '$top'    => 100,
+            '$select' => 'id',
             '$expand' => 'manager($select=id)',
         ]);
     }
