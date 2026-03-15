@@ -60,15 +60,14 @@ class AzureSyncController extends Controller
 
     public function sync(Request $request)
     {
-        try {
+        // Dispatch as a queued job to avoid 504 Gateway Timeout
+        dispatch(function () {
             $service = new AzureDeviceService();
             $result  = $service->syncDevices();
             ActivityLog::log("Azure device sync completed: {$result['synced']} synced, {$result['new']} new, {$result['auto_linked']} auto-linked");
+        })->onQueue('default');
 
-            return back()->with('success', "Sync complete: {$result['synced']} devices synced, {$result['new']} new, {$result['auto_linked']} auto-linked.");
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Sync failed: ' . $e->getMessage());
-        }
+        return back()->with('success', 'Azure device sync started in background. Refresh in a minute to see results.');
     }
 
     public function approve(Request $request, AzureDevice $azureDevice)
