@@ -19,6 +19,14 @@ class SyncIdentityData implements ShouldQueue
     public int $timeout = 7200; // 2 hours
     public int $tries   = 1;
 
+    /**
+     * Check if a sync is currently running (used by the controller to prevent double-dispatch).
+     */
+    public static function isRunning(): bool
+    {
+        return ! Cache::lock('sync_identity_running')->get();
+    }
+
     public function handle(): void
     {
         $settings = Setting::get();

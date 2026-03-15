@@ -48,7 +48,11 @@
       "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC -path *migrations*noc* -type f)",
       "Bash(xargs -I {} basename {})",
       "Bash(grep -l \"noc_events\\\\|monitored_hosts\\\\|snmp\\\\|vpn_tunnels\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)",
-      "Bash(grep -E \"Models.*\\\\.php$\")"
+      "Bash(grep -E \"Models.*\\\\.php$\")",
+      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOC -type f \\\\\\(-name .env* -o -name *settings* \\\\\\))",
+      "Bash(grep -r \"identity\\\\|Identity\" C:UsersMohamedZahranDownloadsphonebookSG_NOC/routes --include=*.php)",
+      "Bash(grep -n \"$graph->\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\\\\Admin\\\\IdentityController.php\")",
+      "Bash(grep \"$graph\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC/app/Http/Controllers/Admin/IdentityController.php\")"
     ]
   }
 }
