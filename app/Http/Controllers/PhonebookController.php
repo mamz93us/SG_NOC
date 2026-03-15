@@ -99,12 +99,16 @@ class PhonebookController extends Controller
             $mac = strtolower(str_replace(':', '', $m[1]));
         }
 
-        PhoneRequestLog::create([
-            'ip'         => $ip,
-            'user_agent' => $userAgent,
-            'mac'        => $mac,
-            'model'      => $model,
-        ]);
+        try {
+            PhoneRequestLog::create([
+                'ip'         => $ip ?? '0.0.0.0',
+                'user_agent' => $userAgent,
+                'mac'        => $mac,
+                'model'      => $model,
+            ]);
+        } catch (\Throwable) {
+            // Don't let logging break the phonebook XML response
+        }
 
         // Build XML phonebook
         $xmlString = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
