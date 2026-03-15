@@ -2,10 +2,11 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\SyncIdentityData;
 use App\Models\IdentitySyncLog;
 use App\Models\ServiceSyncLog;
 use App\Models\Setting;
+use App\Services\Identity\GraphService;
+use App\Services\Identity\IdentitySyncService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 
@@ -31,61 +32,83 @@ class SyncIdentity extends Command
             return self::FAILURE;
         }
 
-        // ── Force-release stale lock if --force flag given ─────────────────
+        // ── Force-release stale lock if --force flag given ─────────────
         if ($this->option('force')) {
             Cache::lock('sync_identity_running')->forceRelease();
-            // Mark any stuck 'started' DB logs as failed
             IdentitySyncLog::where('status', 'started')
-                ->update(['status' => 'failed', 'error_message' => 'Manually force-reset via --force flag.', 'completed_at' => now()]);
-            $this->info('Stale lock cleared. Starting fresh sync...');
+                ->update([
+                    'status'        => 'failed',
+                    'error_message' => 'Manually force-reset via --force flag.',
+                    'completed_at'  => now(),
+                ]);
+            $this->info('Stale lock cleared.');
         }
 
-        // ── Guard: don't start if already running ──────────────────────────
-        if (SyncIdentityData::isRunning()) {
+        // ── Lock ───────────────────────────────────────────────────────
+        $lock = Cache::lock('sync_identity_running', 7200);
+
+        if (! $lock->get()) {
             $this->warn('A sync is already running. Use --force to override.');
             return self::FAILURE;
         }
 
         $this->info('Starting identity sync…');
-
         $log = ServiceSyncLog::start('identity');
 
         try {
-            (new SyncIdentityData())->handle();
+            // 1. Test connection
+            $this->output->write('  → Authenticating with Microsoft Graph... ');
+            $graph   = new GraphService();
+            $orgName = $graph->testConnection();
+            $this->info("✓ Connected to: {$orgName}");
 
-            $lastSync = IdentitySyncLog::where('status', 'completed')->latest()->first();
+            $service = new IdentitySyncService($graph);
 
-            $users    = $lastSync?->users_synced    ?? 0;
-            $groups   = $lastSync?->groups_synced   ?? 0;
-            $licenses = $lastSync?->licenses_synced ?? 0;
+            $errors = [];
 
-            $log->update([
-                'status'         => 'completed',
-                'records_synced' => $users + $groups + $licenses,
-                'completed_at'   => now(),
-            ]);
+            // 2. Licenses
+            $this->output->write('  → Syncing licenses... ');
+            $licenseCount = $service->syncLicenses($errors);
+            $this->info("✓ {$licenseCount} licenses");
 
-            $this->info("Identity sync completed. Users: {$users} | Groups: {$groups} | Licenses: {$licenses}");
-            return self::SUCCESS;
+            // 3. Groups
+            $this->output->write('  → Syncing groups... ');
+            $groupCount = $service->syncGroups($errors);
+            $this->info("✓ {$groupCount} groups");
 
-        } catch (\RuntimeException $e) {
-            if ($e->getMessage() === 'sync_already_running') {
-                $log->update([
-                    'status'        => 'failed',
-                    'error_message' => 'Another sync process was already running.',
-                    'completed_at'  => now(),
-                ]);
-                $this->warn('Sync skipped — another process is already running.');
-                return self::FAILURE;
+            // 4. Users (heaviest)
+            $this->output->write('  → Syncing users... ');
+            $userCount = $service->syncUsers($errors);
+            $this->info("✓ {$userCount} users");
+
+            // 5. Group Memberships
+            $this->output->write('  → Syncing group memberships... ');
+            $service->syncRelationships($errors);
+            $this->info('✓ done');
+
+            // 6. Managers
+            $this->output->write('  → Syncing manager relationships... ');
+            $service->syncManagers($errors);
+            $this->info('✓ done');
+
+            // Show errors if any
+            if (! empty($errors)) {
+                $this->newLine();
+                $this->warn('Non-fatal errors:');
+                foreach ($errors as $err) {
+                    $this->line("  ⚠ {$err}");
+                }
             }
 
             $log->update([
-                'status'        => 'failed',
-                'error_message' => $e->getMessage(),
-                'completed_at'  => now(),
+                'status'         => 'completed',
+                'records_synced' => $userCount + $groupCount + $licenseCount,
+                'completed_at'   => now(),
             ]);
-            $this->error('Identity sync failed: ' . $e->getMessage());
-            return self::FAILURE;
+
+            $this->newLine();
+            $this->info("✅ Identity sync completed. Users: {$userCount} | Groups: {$groupCount} | Licenses: {$licenseCount}");
+            return self::SUCCESS;
 
         } catch (\Throwable $e) {
             $log->update([
@@ -95,6 +118,9 @@ class SyncIdentity extends Command
             ]);
             $this->error('Identity sync failed: ' . $e->getMessage());
             return self::FAILURE;
+
+        } finally {
+            $lock->release();
         }
     }
 }
