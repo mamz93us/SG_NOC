@@ -120,7 +120,7 @@ class IdentitySyncService
                 IdentityLicense::whereNotIn('sku_id', $syncedIds)->delete();
             }
 
-            Log::info("IdentitySyncService: Synced {$count = count($syncedIds)} licenses.");
+            Log::info('IdentitySyncService: Synced ' . count($syncedIds) . ' licenses.');
             return count($syncedIds);
         } catch (\Throwable $e) {
             $errors[] = 'Licenses: ' . $e->getMessage();
