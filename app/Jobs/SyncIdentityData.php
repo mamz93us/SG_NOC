@@ -20,11 +20,17 @@ class SyncIdentityData implements ShouldQueue
     public int $tries   = 1;
 
     /**
-     * Check if a sync is currently running (used by the controller to prevent double-dispatch).
+     * Check if a sync is currently running (non-destructive — does NOT acquire the lock).
      */
     public static function isRunning(): bool
     {
-        return ! Cache::lock('sync_identity_running')->get();
+        // Try to acquire, then immediately release if we got it
+        $lock = Cache::lock('sync_identity_running', 7200);
+        if ($lock->get()) {
+            $lock->release();
+            return false; // We got the lock → nothing else is running
+        }
+        return true; // Couldn't get the lock → something is running
     }
 
     public function handle(): void
@@ -50,7 +56,7 @@ class SyncIdentityData implements ShouldQueue
 
         try {
             ignore_user_abort(true);
-            set_time_limit(0); 
+            set_time_limit(0);
             ini_set('memory_limit', '2048M');
 
             Log::info('SyncIdentityData: Job started.');
