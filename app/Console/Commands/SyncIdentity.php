@@ -55,6 +55,13 @@ class SyncIdentity extends Command
         $this->info('Starting identity sync…');
         $log = ServiceSyncLog::start('identity');
 
+        // Create IdentitySyncLog entry (shown in the Identity Sync Logs page)
+        $detailedLog = IdentitySyncLog::create([
+            'type'       => 'full',
+            'status'     => 'started',
+            'started_at' => now(),
+        ]);
+
         try {
             // 1. Test connection
             $this->output->write('  → Authenticating with Microsoft Graph... ');
@@ -101,12 +108,26 @@ class SyncIdentity extends Command
                 'completed_at'   => now(),
             ]);
 
+            $detailedLog->update([
+                'status'           => 'completed',
+                'users_synced'     => $userCount,
+                'groups_synced'    => $groupCount,
+                'licenses_synced'  => $licenseCount,
+                'error_message'    => empty($errors) ? null : implode("\n", $errors),
+                'completed_at'     => now(),
+            ]);
+
             $this->newLine();
             $this->info("✅ Identity sync completed. Users: {$userCount} | Groups: {$groupCount} | Licenses: {$licenseCount}");
             return self::SUCCESS;
 
         } catch (\Throwable $e) {
             $log->update([
+                'status'        => 'failed',
+                'error_message' => $e->getMessage(),
+                'completed_at'  => now(),
+            ]);
+            $detailedLog->update([
                 'status'        => 'failed',
                 'error_message' => $e->getMessage(),
                 'completed_at'  => now(),
