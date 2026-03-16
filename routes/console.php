@@ -88,15 +88,20 @@ Schedule::call(function () {
     }
 })->name('check-host-ping')->withoutOverlapping(2)->everyMinute();
 
-// SNMP Metrics Collection — dispatched to queue for parallel processing
+// SNMP Metrics Collection — runs inline (NOT queued) to avoid flooding the queue
+// Each host takes ~40-50s, so we run them sequentially every 2 minutes
 Schedule::call(function () {
     $hosts = \App\Models\MonitoredHost::where('snmp_enabled', true)
         ->where('status', '!=', 'down')
         ->get();
     foreach ($hosts as $host) {
-        \App\Jobs\CollectSnmpMetricsJob::dispatch($host);
+        try {
+            (new \App\Jobs\CollectSnmpMetricsJob($host))->handle();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("SNMP metrics failed for {$host->ip}: " . $e->getMessage());
+        }
     }
-})->name('collect-snmp-metrics')->everyMinute();
+})->name('collect-snmp-metrics')->withoutOverlapping(5)->everyTwoMinutes();
 
 // ISP SLA Link Checks — every 5 minutes (runs inline)
 Schedule::call(function () {
