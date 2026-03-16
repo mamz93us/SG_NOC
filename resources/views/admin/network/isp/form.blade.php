@@ -89,6 +89,24 @@
                     <input type="number" name="monthly_cost" class="form-control" value="{{ old('monthly_cost', $isp->monthly_cost ?? '') }}" min="0" step="0.01">
                 </div>
 
+                {{-- ── Renewal Reminder ── --}}
+                <div class="col-12 mt-2">
+                    <hr class="my-2">
+                    <h6 class="fw-semibold text-primary"><i class="bi bi-bell me-1"></i>Renewal Reminder</h6>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Renewal Date</label>
+                    <input type="date" name="renewal_date" class="form-control" value="{{ old('renewal_date', isset($isp) && $isp->renewal_date ? $isp->renewal_date->format('Y-m-d') : '') }}">
+                    <small class="text-muted">When this ISP contract is due for renewal</small>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Remind Before (Days)</label>
+                    <input type="number" name="renewal_remind_days" class="form-control" value="{{ old('renewal_remind_days', $isp->renewal_remind_days ?? 2) }}" min="1" max="90">
+                    <small class="text-muted">Send email reminder this many days before renewal</small>
+                </div>
+
                 <div class="col-12">
                     <label class="form-label fw-semibold">Notes</label>
                     <textarea name="notes" class="form-control" rows="2">{{ old('notes', $isp->notes ?? '') }}</textarea>

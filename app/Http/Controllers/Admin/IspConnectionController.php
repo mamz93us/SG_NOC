@@ -60,9 +60,11 @@ class IspConnectionController extends Controller
             'subnet'           => 'nullable|string|max:45',
             'router_device_id' => 'nullable|exists:devices,id',
             'contract_start'   => 'nullable|date',
-            'contract_end'     => 'nullable|date|after_or_equal:contract_start',
-            'monthly_cost'     => 'nullable|numeric|min:0',
-            'notes'            => 'nullable|string',
+            'contract_end'        => 'nullable|date|after_or_equal:contract_start',
+            'renewal_date'        => 'nullable|date',
+            'renewal_remind_days' => 'nullable|integer|min:1|max:90',
+            'monthly_cost'        => 'nullable|numeric|min:0',
+            'notes'               => 'nullable|string',
         ]);
 
         $isp = IspConnection::create($data);
@@ -93,9 +95,11 @@ class IspConnectionController extends Controller
             'subnet'           => 'nullable|string|max:45',
             'router_device_id' => 'nullable|exists:devices,id',
             'contract_start'   => 'nullable|date',
-            'contract_end'     => 'nullable|date|after_or_equal:contract_start',
-            'monthly_cost'     => 'nullable|numeric|min:0',
-            'notes'            => 'nullable|string',
+            'contract_end'        => 'nullable|date|after_or_equal:contract_start',
+            'renewal_date'        => 'nullable|date',
+            'renewal_remind_days' => 'nullable|integer|min:1|max:90',
+            'monthly_cost'        => 'nullable|numeric|min:0',
+            'notes'               => 'nullable|string',
         ]);
 
         $isp->update($data);

@@ -50,6 +50,7 @@ class NotificationRule extends Model
             'noc_alert'          => 'NOC Alert',
             'printer_maintenance'=> 'Printer Maintenance',
             'license_alert'      => 'License Alert',
+            'isp_renewal'        => 'ISP Renewal Reminder',
         ];
     }
 }

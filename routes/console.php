@@ -197,3 +197,67 @@ Schedule::call(function () {
         \Illuminate\Support\Facades\Log::error("Phone-port mapping failed: " . $e->getMessage());
     }
 })->name('sync-phone-port-map')->withoutOverlapping(30)->everyMinute();
+
+// ──────────────────────────────────────────────────────────────────────
+// ISP Renewal Reminders — daily at 8 AM
+// ──────────────────────────────────────────────────────────────────────
+Schedule::call(function () {
+    $isps = \App\Models\IspConnection::whereNotNull('renewal_date')->get();
+
+    foreach ($isps as $isp) {
+        if (!$isp->needsRenewalReminder()) {
+            continue;
+        }
+
+        // Find recipients from notification rules, or fall back to admins
+        $recipients = collect();
+
+        $rules = \App\Models\NotificationRule::active()
+            ->forEvent('isp_renewal')
+            ->where('send_email', true)
+            ->get();
+
+        foreach ($rules as $rule) {
+            if ($rule->recipient_type === 'user' && $rule->recipientUser) {
+                $recipients->push($rule->recipientUser);
+            } elseif ($rule->recipient_type === 'role' && $rule->recipient_role) {
+                $users = \App\Models\User::role($rule->recipient_role)->get();
+                $recipients = $recipients->merge($users);
+            }
+        }
+
+        // Fallback: notify all admins if no rules configured
+        if ($recipients->isEmpty()) {
+            $recipients = \App\Models\User::role('admin')->get();
+        }
+
+        // Fallback: notify first user if no admins
+        if ($recipients->isEmpty()) {
+            $first = \App\Models\User::first();
+            if ($first) $recipients->push($first);
+        }
+
+        $recipients->unique('id')->each(function ($user) use ($isp) {
+            try {
+                $user->notify(new \App\Notifications\IspRenewalReminderNotification($isp));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("ISP renewal notification failed for ISP #{$isp->id}: " . $e->getMessage());
+            }
+        });
+
+        // Mark as reminded so we don't spam
+        $isp->update(['renewal_reminded_at' => now()]);
+
+        // Also create in-app notification
+        try {
+            \App\Models\Notification::create([
+                'user_id'  => $recipients->first()?->id,
+                'type'     => 'system_alert',
+                'severity' => $isp->isRenewalDue() ? 'critical' : 'warning',
+                'title'    => "ISP Renewal: {$isp->provider}",
+                'message'  => "ISP contract for {$isp->provider} (" . ($isp->branch?->name ?: 'N/A') . ") is due for renewal on {$isp->renewal_date->format('M d, Y')}.",
+                'link'     => '/admin/network/isp',
+            ]);
+        } catch (\Throwable) {}
+    }
+})->name('check-isp-renewals')->withoutOverlapping(60)->dailyAt('08:00');

@@ -51,6 +51,7 @@
                         <th>Gateway</th>
                         <th>Router</th>
                         <th>Contract</th>
+                        <th>Renewal</th>
                         <th>Cost</th>
                         <th></th>
                     </tr>
@@ -69,6 +70,14 @@
                             <span class="badge {{ $c->contractStatusBadge() }}">{{ $c->contractStatusLabel() }}</span>
                             @if($c->contract_end)
                             <div class="text-muted" style="font-size:10px">{{ $c->contract_end->format('M d, Y') }}</div>
+                            @endif
+                        </td>
+                        <td>
+                            @if($c->renewal_date)
+                            <span class="badge {{ $c->renewalStatusBadge() }}">{{ $c->renewalStatusLabel() }}</span>
+                            <div class="text-muted" style="font-size:10px">{{ $c->renewal_date->format('M d, Y') }}</div>
+                            @else
+                            <span class="text-muted">—</span>
                             @endif
                         </td>
                         <td>{{ $c->monthly_cost ? number_format($c->monthly_cost, 2) : '—' }}</td>
