@@ -47,49 +47,48 @@ class PhoneRequestLogController extends Controller
     }
 
     /**
-     * Trigger a full GDMS device-account sync.
+     * Trigger a full GDMS device-account sync (queued).
      */
     public function sync()
     {
-        set_time_limit(0);
+        $userId = Auth::id();
 
-        Artisan::call('gdms:sync-device-accounts');
+        dispatch(function () use ($userId) {
+            Artisan::call('gdms:sync-device-accounts');
 
-        ActivityLog::create([
-            'model_type' => 'PhoneRequestLog',
-            'model_id'   => 0,
-            'action'     => 'synced',
-            'changes'    => ['type' => 'full_sync'],
-            'user_id'    => Auth::id(),
-        ]);
+            ActivityLog::create([
+                'model_type' => 'PhoneRequestLog',
+                'model_id'   => 0,
+                'action'     => 'synced',
+                'changes'    => ['type' => 'full_sync'],
+                'user_id'    => $userId,
+            ]);
+        })->onQueue('default');
 
         return redirect()->route('admin.phone-logs.index')
-            ->with('success', 'SIP accounts synced successfully from GDMS.');
+            ->with('success', 'GDMS device-account sync started in background. Refresh in a minute to see results.');
     }
 
     /**
-     * Sync only devices that have no entries in phone_accounts yet.
+     * Sync only devices that have no entries in phone_accounts yet (queued).
      */
     public function syncUnsynced()
     {
-        set_time_limit(0);
+        $userId = Auth::id();
 
-        Artisan::call('gdms:sync-device-accounts', ['--unsynced' => true]);
+        dispatch(function () use ($userId) {
+            Artisan::call('gdms:sync-device-accounts', ['--unsynced' => true]);
 
-        $output  = Artisan::output();
-        $message = str_contains($output, 'Nothing to do')
-            ? 'All devices were already synced — nothing to do.'
-            : 'Unsynced devices fetched from GDMS successfully.';
-
-        ActivityLog::create([
-            'model_type' => 'PhoneRequestLog',
-            'model_id'   => 0,
-            'action'     => 'synced',
-            'changes'    => ['type' => 'unsynced_only', 'result' => $message],
-            'user_id'    => Auth::id(),
-        ]);
+            ActivityLog::create([
+                'model_type' => 'PhoneRequestLog',
+                'model_id'   => 0,
+                'action'     => 'synced',
+                'changes'    => ['type' => 'unsynced_only'],
+                'user_id'    => $userId,
+            ]);
+        })->onQueue('default');
 
         return redirect()->route('admin.phone-logs.index')
-            ->with('success', $message);
+            ->with('success', 'Unsynced device sync started in background. Refresh in a minute to see results.');
     }
 }
