@@ -281,41 +281,33 @@ class EmployeeController extends Controller
 
     /**
      * Auto-link all employees to contacts by matching email addresses.
+     * Uses raw SQL join-update for performance (handles thousands of rows instantly).
      */
     public function autoLinkContacts()
     {
         $this->authorize('manage-employees');
 
-        $employees = Employee::whereNull('contact_id')
-            ->whereNotNull('email')
-            ->where('email', '!=', '')
-            ->get();
+        // Step 1: Link contact_id by matching email (single UPDATE … JOIN)
+        $linked = \Illuminate\Support\Facades\DB::update("
+            UPDATE employees e
+            INNER JOIN contacts c ON LOWER(TRIM(c.email)) = LOWER(TRIM(e.email))
+            SET e.contact_id = c.id
+            WHERE e.contact_id IS NULL
+              AND e.email IS NOT NULL
+              AND e.email != ''
+              AND c.email IS NOT NULL
+              AND c.email != ''
+        ");
 
-        $contacts = \App\Models\Contact::whereNotNull('email')
-            ->where('email', '!=', '')
-            ->get()
-            ->keyBy(fn ($c) => strtolower(trim($c->email)));
-
-        $linked = 0;
-        $extensionsFilled = 0;
-
-        foreach ($employees as $emp) {
-            $email   = strtolower(trim($emp->email));
-            $contact = $contacts[$email] ?? null;
-
-            if ($contact) {
-                $emp->contact_id = $contact->id;
-
-                // Auto-fill extension from contact phone if missing
-                if (!$emp->extension_number && $contact->phone) {
-                    $emp->extension_number = $contact->phone;
-                    $extensionsFilled++;
-                }
-
-                $emp->save();
-                $linked++;
-            }
-        }
+        // Step 2: Auto-fill extension_number from linked contact's phone where missing
+        $extensionsFilled = \Illuminate\Support\Facades\DB::update("
+            UPDATE employees e
+            INNER JOIN contacts c ON c.id = e.contact_id
+            SET e.extension_number = c.phone
+            WHERE (e.extension_number IS NULL OR e.extension_number = '')
+              AND c.phone IS NOT NULL
+              AND c.phone != ''
+        ");
 
         $msg = "Auto-linked {$linked} employee(s) to contacts by email.";
         if ($extensionsFilled > 0) {
