@@ -7,9 +7,14 @@
         <small class="text-muted">All managed assets across branches</small>
     </div>
     @can('manage-assets')
-    <a href="{{ route('admin.devices.create') }}" class="btn btn-primary btn-sm">
-        <i class="bi bi-plus-lg me-1"></i>Add Device
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{{ route('admin.devices.batch-create') }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-boxes me-1"></i>Batch Add
+        </a>
+        <a href="{{ route('admin.devices.create') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Device
+        </a>
+    </div>
     @endcan
 </div>
 

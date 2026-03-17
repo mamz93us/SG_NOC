@@ -172,6 +172,80 @@ class DeviceController extends Controller
                          ->with('success', "Device \"{$device->name}\" created.");
     }
 
+    public function batchCreate()
+    {
+        $branches     = Branch::orderBy('name')->get(['id', 'name']);
+        $deviceModels = DeviceModel::where('device_type', 'monitor')->orderBy('name')->get(['id', 'name', 'manufacturer']);
+        if ($deviceModels->isEmpty()) {
+            $deviceModels = DeviceModel::orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
+        }
+        $suppliers    = Supplier::orderBy('name')->get(['id', 'name']);
+        return view('admin.devices.batch', compact('branches', 'deviceModels', 'suppliers'));
+    }
+
+    public function batchStore(Request $request)
+    {
+        $request->validate([
+            'type'            => 'required|string',
+            'prefix'          => 'required|string|max:50',
+            'device_model_id' => 'nullable|exists:device_models,id',
+            'branch_id'       => 'nullable|exists:branches,id',
+            'status'          => 'required|string',
+            'serials'         => 'required|string', // newline separated
+            'purchase_date'   => 'nullable|date',
+            'purchase_cost'   => 'nullable|numeric',
+            'supplier_id'     => 'nullable|exists:suppliers,id',
+            'condition'       => 'required|string',
+        ]);
+
+        $serials = array_filter(array_map('trim', explode("\n", $request->serials)));
+        $count   = 0;
+        $errors  = [];
+
+        foreach ($serials as $index => $sn) {
+            if (empty($sn)) continue;
+
+            // Check if SN already exists
+            if (Device::where('serial_number', $sn)->exists()) {
+                $errors[] = "Serial number \"{$sn}\" already exists. Skipped.";
+                continue;
+            }
+
+            $name = $request->prefix . ' ' . ($index + 1);
+            $type = $request->type;
+
+            $data = [
+                'type'            => $type,
+                'name'            => $name,
+                'device_model_id' => $request->device_model_id,
+                'serial_number'   => $sn,
+                'branch_id'       => $request->branch_id,
+                'status'          => $request->status,
+                'purchase_date'   => $request->purchase_date,
+                'purchase_cost'   => $request->purchase_cost,
+                'supplier_id'     => $request->supplier_id,
+                'condition'       => $request->condition,
+                'source'          => 'manual',
+            ];
+
+            // Auto-generate asset_code
+            try {
+                $data['asset_code'] = (new AssetCodeService())->generate($type);
+            } catch (\Throwable) {}
+
+            $device = Device::create($data);
+            AssetHistory::record($device, 'created', "Batch created device: {$device->name}");
+            $count++;
+        }
+
+        $msg = "Successfully added {$count} devices.";
+        if (!empty($errors)) {
+            $msg .= " " . implode(" ", $errors);
+        }
+
+        return redirect()->route('admin.devices.index')->with($count > 0 ? 'success' : 'error', $msg);
+    }
+
     public function edit(Device $device)
     {
         $branches     = Branch::orderBy('name')->get(['id', 'name']);

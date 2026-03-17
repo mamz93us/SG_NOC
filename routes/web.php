@@ -321,12 +321,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('devices/generate-code',    [DeviceController::class, 'generateCode']) ->name('devices.generate-code');
         Route::get('devices/warranty',         [WarrantyTrackerController::class, 'index'])->name('devices.warranty');
         Route::get('devices/firmware',         [DeviceController::class, 'firmware'])  ->name('devices.firmware');
+        Route::get('devices/batch-create',     [DeviceController::class, 'batchCreate'])->name('devices.batch-create');
         Route::get('devices/{device}/label',   [DeviceController::class, 'label'])     ->name('devices.label');
         Route::get('devices/{device}/edit',    [DeviceController::class, 'edit'])      ->name('devices.edit');
         Route::get('devices/{device}',         [DeviceController::class, 'show'])      ->name('devices.show');
     });
     Route::middleware('permission:manage-assets')->group(function () {
         Route::post('devices',                     [DeviceController::class, 'store'])       ->name('devices.store');
+        Route::post('devices/batch-store',         [DeviceController::class, 'batchStore'])  ->name('devices.batch-store');
         Route::put('devices/{device}',             [DeviceController::class, 'update'])      ->name('devices.update');
         Route::delete('devices/{device}',          [DeviceController::class, 'destroy'])     ->name('devices.destroy');
         Route::post('devices/{device}/assign',     [DeviceController::class, 'quickAssign']) ->name('devices.assign');
