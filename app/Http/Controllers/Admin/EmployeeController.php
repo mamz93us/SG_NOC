@@ -287,6 +287,14 @@ class EmployeeController extends Controller
     {
         $this->authorize('manage-employees');
 
+        // Diagnostics: count potential matches
+        $empWithEmail = \Illuminate\Support\Facades\DB::table('employees')
+            ->whereNull('contact_id')
+            ->whereNotNull('email')->where('email', '!=', '')->count();
+
+        $contactsWithEmail = \Illuminate\Support\Facades\DB::table('contacts')
+            ->whereNotNull('email')->where('email', '!=', '')->count();
+
         // Step 1: Link contact_id by matching email (single UPDATE … JOIN)
         $linked = \Illuminate\Support\Facades\DB::update("
             UPDATE employees e
@@ -313,6 +321,7 @@ class EmployeeController extends Controller
         if ($extensionsFilled > 0) {
             $msg .= " {$extensionsFilled} extension number(s) auto-filled.";
         }
+        $msg .= " (Scanned: {$empWithEmail} employees with email, {$contactsWithEmail} contacts with email)";
 
         return back()->with('success', $msg);
     }
