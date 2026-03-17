@@ -652,7 +652,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('employees',             [EmployeeController::class, 'store'])      ->name('employees.store');
     });
     Route::middleware('permission:view-employees')->group(function () {
-        Route::get('employees/{employee}',   [EmployeeController::class, 'show'])       ->name('employees.show');
+        Route::get('employees/{employee}',        [EmployeeController::class, 'show'])   ->name('employees.show');
+        Route::get('employees/{employee}/report', [EmployeeController::class, 'report']) ->name('employees.report');
     });
     Route::middleware('permission:manage-employees')->group(function () {
         Route::get('employees/{employee}/edit',            [EmployeeController::class, 'edit'])         ->name('employees.edit');

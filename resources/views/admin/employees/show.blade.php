@@ -7,6 +7,9 @@
         <small class="text-muted">Employee Profile</small>
     </div>
     <div class="d-flex gap-2">
+        <a href="{{ route('admin.employees.report', $employee) }}" class="btn btn-outline-success btn-sm" target="_blank" title="Print Asset Report">
+            <i class="bi bi-printer me-1"></i>Print Report
+        </a>
         <a href="{{ route('admin.employees.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
         @can('manage-employees')
         <a href="{{ route('admin.employees.edit', $employee->id) }}" class="btn btn-outline-primary btn-sm">

@@ -219,6 +219,26 @@ class EmployeeController extends Controller
         return back()->with('success', 'Asset returned successfully.');
     }
 
+    public function report(Employee $employee)
+    {
+        $employee->load([
+            'branch', 'department', 'manager',
+            'assetAssignments.device',
+            'activeItems',
+            'accessoryAssignments.accessory',
+            'identityUser',
+        ]);
+
+        $licenseAssignments = \App\Models\LicenseAssignment::with('license')
+            ->where('assignable_type', Employee::class)
+            ->where('assignable_id', $employee->id)
+            ->get();
+
+        $settings = \App\Models\Setting::first();
+
+        return view('admin.employees.report', compact('employee', 'licenseAssignments', 'settings'));
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Azure Sync
     // ─────────────────────────────────────────────────────────────
