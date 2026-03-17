@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAsset;
 use App\Models\AllowedDomain;
 use App\Models\IdentityUser;
+use App\Services\PhoneDeviceLookup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -105,9 +106,19 @@ class EmployeeController extends Controller
             ->where('assignable_id', $employee->id)
             ->get();
 
+        // Resolve linked phone device from extension
+        $phoneInfo = null;
+        if ($employee->extension_number) {
+            $ucmServerId = $employee->ucm_server_id
+                ?? $employee->branch?->ucmServer?->id;
+            $phoneInfo = PhoneDeviceLookup::findByExtension(
+                $employee->extension_number, $ucmServerId
+            );
+        }
+
         return view('admin.employees.show', compact(
             'employee', 'availableDevices', 'availableAccessories',
-            'availableLicenses', 'licenseAssignments'
+            'availableLicenses', 'licenseAssignments', 'phoneInfo'
         ));
     }
 

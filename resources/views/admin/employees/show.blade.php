@@ -113,6 +113,68 @@
         </div>
         @endif
 
+        @if(!empty($phoneInfo))
+        <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #198754!important">
+            <div class="card-header bg-transparent py-2">
+                <strong><i class="bi bi-phone me-1 text-success"></i>Phone Device</strong>
+                @if($phoneInfo['source'] ?? false)
+                <span class="badge bg-light text-muted float-end small">{{ $phoneInfo['source'] }}</span>
+                @endif
+            </div>
+            <div class="card-body small">
+                <dl class="row mb-0">
+                    @if($phoneInfo['mac'] ?? false)
+                    <dt class="col-5 text-muted">MAC</dt>
+                    <dd class="col-7 font-monospace">{{ strtoupper(implode(':', str_split($phoneInfo['mac'], 2))) }}</dd>
+                    @endif
+
+                    @if(!empty($phoneInfo['device']))
+                    <dt class="col-5 text-muted">Device</dt>
+                    <dd class="col-7">
+                        <a href="{{ route('admin.devices.show', $phoneInfo['device']->id) }}" class="text-decoration-none fw-semibold">
+                            {{ $phoneInfo['device']->name }}
+                        </a>
+                    </dd>
+                    @endif
+
+                    @if($phoneInfo['model'] ?? false)
+                    <dt class="col-5 text-muted">Model</dt>
+                    <dd class="col-7">{{ $phoneInfo['model'] }}</dd>
+                    @endif
+
+                    @if($phoneInfo['ip'] ?? false)
+                    <dt class="col-5 text-muted">IP Address</dt>
+                    <dd class="col-7">
+                        <a href="https://{{ $phoneInfo['ip'] }}" target="_blank" class="text-decoration-none" title="Open phone web settings">
+                            {{ $phoneInfo['ip'] }} <i class="bi bi-box-arrow-up-right small"></i>
+                        </a>
+                    </dd>
+                    @endif
+
+                    @if($phoneInfo['status'] ?? false)
+                    <dt class="col-5 text-muted">Status</dt>
+                    <dd class="col-7">
+                        @php
+                            $st = strtolower($phoneInfo['status']);
+                            $cls = match(true) {
+                                in_array($st, ['registered', 'idle']) => 'bg-success',
+                                in_array($st, ['inuse', 'busy', 'ringing']) => 'bg-warning text-dark',
+                                default => 'bg-secondary',
+                            };
+                        @endphp
+                        <span class="badge {{ $cls }}">{{ ucfirst($phoneInfo['status']) }}</span>
+                    </dd>
+                    @endif
+
+                    @if($phoneInfo['switch_location'] ?? false)
+                    <dt class="col-5 text-muted">Switch Port</dt>
+                    <dd class="col-7">{{ $phoneInfo['switch_location'] }}</dd>
+                    @endif
+                </dl>
+            </div>
+        </div>
+        @endif
+
         @if($employee->identityUser)
         <div class="card shadow-sm border-0">
             <div class="card-header bg-transparent"><strong><i class="bi bi-microsoft me-1"></i>Azure AD</strong></div>
