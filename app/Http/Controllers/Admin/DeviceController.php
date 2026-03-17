@@ -331,8 +331,9 @@ class DeviceController extends Controller
             ->first();
 
         if ($activeAssignment) {
+            $assigneeName = $activeAssignment->employee?->name ?? 'an employee';
             return back()->with('error',
-                "Cannot delete \"{$device->name}\" — it is currently assigned to {$activeAssignment->employee?->name ?? 'an employee'}. Return the device first."
+                "Cannot delete \"{$device->name}\" — it is currently assigned to {$assigneeName}. Return the device first."
             );
         }
 
