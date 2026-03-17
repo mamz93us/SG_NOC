@@ -72,8 +72,8 @@ class PrinterController extends Controller
             'serial_number'  => 'nullable|string|max:100',
             'mac_address'    => 'nullable|string|max:20',
             'ip_address'     => 'nullable|ip',
-            'branch_id'      => 'nullable|exists:branches,id',
-            'floor_id'       => 'nullable|exists:network_floors,id',
+            'branch_id'      => 'required|exists:branches,id',
+            'floor_id'       => 'required|exists:network_floors,id',
             'office_id'      => 'nullable|exists:network_offices,id',
             'department_id'  => 'nullable|exists:departments,id',
             'floor'          => 'nullable|string|max:50',
@@ -84,6 +84,11 @@ class PrinterController extends Controller
             'snmp_version'   => 'nullable|in:v1,v2c,v3',
             'notes'          => 'nullable|string',
         ]);
+
+        // Ensure snmp_version is never null for the DB (column may not be nullable yet)
+        if (empty($data['snmp_version'])) {
+            unset($data['snmp_version']);
+        }
 
         DB::transaction(function () use ($data, $request) {
             // Create unified device record first
@@ -138,8 +143,8 @@ class PrinterController extends Controller
             'serial_number'  => 'nullable|string|max:100',
             'mac_address'    => 'nullable|string|max:20',
             'ip_address'     => 'nullable|ip',
-            'branch_id'      => 'nullable|exists:branches,id',
-            'floor_id'       => 'nullable|exists:network_floors,id',
+            'branch_id'      => 'required|exists:branches,id',
+            'floor_id'       => 'required|exists:network_floors,id',
             'office_id'      => 'nullable|exists:network_offices,id',
             'department_id'  => 'nullable|exists:departments,id',
             'floor'          => 'nullable|string|max:50',
@@ -150,6 +155,11 @@ class PrinterController extends Controller
             'snmp_version'   => 'nullable|in:v1,v2c,v3',
             'notes'          => 'nullable|string',
         ]);
+
+        // Ensure snmp_version is never null for the DB (column may not be nullable yet)
+        if (empty($data['snmp_version'])) {
+            unset($data['snmp_version']);
+        }
 
         DB::transaction(function () use ($data, $printer) {
             $printer->update($data);

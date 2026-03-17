@@ -41,10 +41,16 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Model</label>
-                    <input type="text" name="model" id="pb_model" class="form-control"
-                           value="{{ old('model', $printer->model ?? '') }}" maxlength="100"
-                           placeholder="e.g. LaserJet Pro M404n"
-                           list="modelList" autocomplete="off">
+                    <div class="input-group">
+                        <input type="text" name="model" id="pb_model" class="form-control"
+                               value="{{ old('model', $printer->model ?? '') }}" maxlength="100"
+                               placeholder="e.g. LaserJet Pro M404n"
+                               list="modelList" autocomplete="off">
+                        <button type="button" class="btn btn-outline-secondary" title="Add new model"
+                                data-bs-toggle="modal" data-bs-target="#quickAddModelModal">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
                     <datalist id="modelList">
                         @foreach(($deviceModels ?? collect()) as $dm)
                         <option value="{{ $dm->name }}" data-mfg="{{ $dm->manufacturer }}">
@@ -94,25 +100,27 @@
                     </p>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Branch</label>
-                    <select name="branch_id" id="pb_branch" class="form-select"
+                    <label class="form-label">Branch <span class="text-danger">*</span></label>
+                    <select name="branch_id" id="pb_branch" class="form-select @error('branch_id') is-invalid @enderror" required
                             data-current-floor="{{ old('floor_id', $printer->floor_id ?? '') }}"
                             data-current-office="{{ old('office_id', $printer->office_id ?? '') }}"
                             onchange="pbLoadFloors(this.value)">
-                        <option value="">— None —</option>
+                        <option value="">— Select —</option>
                         @foreach($branches as $b)
                         <option value="{{ $b->id }}" {{ old('branch_id', $printer->branch_id ?? '') == $b->id ? 'selected' : '' }}>
                             {{ $b->name }}
                         </option>
                         @endforeach
                     </select>
+                    @error('branch_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Floor</label>
-                    <select name="floor_id" id="pb_floor" class="form-select" onchange="pbLoadOffices(this.value)">
-                        <option value="">— None —</option>
+                    <label class="form-label">Floor <span class="text-danger">*</span></label>
+                    <select name="floor_id" id="pb_floor" class="form-select @error('floor_id') is-invalid @enderror" required onchange="pbLoadOffices(this.value)">
+                        <option value="">— Select —</option>
                         {{-- Pre-populated via JS on DOMContentLoaded --}}
                     </select>
+                    @error('floor_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Office / Room</label>
@@ -203,6 +211,35 @@
 </div>
 @endcan
 
+{{-- ── Quick-add Device Model Modal ────────────────────────────────── --}}
+<div class="modal fade" id="quickAddModelModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-semibold"><i class="bi bi-plus-circle me-1"></i>Add Printer Model</h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Manufacturer <span class="text-danger">*</span></label>
+                    <input type="text" id="qmMfg" class="form-control form-control-sm"
+                           maxlength="100" placeholder="e.g. HP, Canon, Epson" list="mfgList">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Model Name <span class="text-danger">*</span></label>
+                    <input type="text" id="qmName" class="form-control form-control-sm"
+                           maxlength="100" placeholder="e.g. LaserJet Pro M404n">
+                </div>
+                <div id="qmError" class="text-danger small d-none"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="pbQuickAddModel()">Add</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 // ── Server-side URLs ─────────────────────────────────────────────────
@@ -210,6 +247,7 @@ const pb_floorsUrl  = '{{ route("admin.network.floors") }}';
 const pb_officesUrl = '{{ route("admin.network.offices") }}';
 const pb_macUrl     = '{{ route("admin.network.clients.mac-search") }}';
 const pb_deptStore  = '{{ route("admin.settings.departments.store") }}';
+const pb_modelStore = '{{ route("admin.devices.models.store") }}';
 const pb_csrf       = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
 // ── Cascading location dropdowns ──────────────────────────────────────
@@ -364,6 +402,73 @@ function pbQuickAddDept() {
         const opt = new Option(data.name, data.id, true, true);
         select.add(opt);
         bootstrap.Modal.getInstance(document.getElementById('quickAddDeptModal')).hide();
+        nameInput.value = '';
+    })
+    .catch(() => {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.classList.remove('d-none');
+    });
+}
+
+// ── Quick-add device model (AJAX) ────────────────────────────────────
+
+// Pre-fill manufacturer in quick-add model modal from the main form
+document.getElementById('quickAddModelModal')?.addEventListener('show.bs.modal', function () {
+    const mfg = pb_mfgInput?.value?.trim();
+    if (mfg) document.getElementById('qmMfg').value = mfg;
+});
+
+function pbQuickAddModel() {
+    const mfgInput  = document.getElementById('qmMfg');
+    const nameInput = document.getElementById('qmName');
+    const errEl     = document.getElementById('qmError');
+    const mfg  = mfgInput.value.trim();
+    const name = nameInput.value.trim();
+    errEl.classList.add('d-none');
+
+    if (!mfg || !name) {
+        errEl.textContent = 'Both manufacturer and model name are required.';
+        errEl.classList.remove('d-none');
+        return;
+    }
+
+    fetch(pb_modelStore, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': pb_csrf,
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify({ manufacturer: mfg, name: name, device_type: 'printer' }),
+    })
+    .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+    .then(({ ok, data }) => {
+        if (!ok) {
+            const msgs = Object.values(data.errors || {}).flat();
+            errEl.textContent = msgs[0] || 'Error creating model.';
+            errEl.classList.remove('d-none');
+            return;
+        }
+        // Add to datalists
+        const mfgOpt = document.createElement('option');
+        mfgOpt.value = mfg;
+        document.getElementById('mfgList').appendChild(mfgOpt);
+
+        const modelOpt = document.createElement('option');
+        modelOpt.value = name;
+        modelOpt.setAttribute('data-mfg', mfg);
+        pb_modelList.appendChild(modelOpt);
+
+        // Also add to the JS array for filtering
+        pb_allModels.push({ name: name, manufacturer: mfg });
+
+        // Fill the form fields
+        pb_mfgInput.value   = mfg;
+        pb_modelInput.value = name;
+
+        // Close modal
+        bootstrap.Modal.getInstance(document.getElementById('quickAddModelModal')).hide();
+        mfgInput.value  = '';
         nameInput.value = '';
     })
     .catch(() => {
