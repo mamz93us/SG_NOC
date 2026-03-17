@@ -114,7 +114,17 @@
                             {{ $d->manufacturer ?: '—' }}
                         </td>
                         <td class="text-muted">
-                            {{ $d->deviceModel?->name ?: ($d->model ?: '—') }}
+                            @if($d->device_model_id)
+                                <a href="{{ route('admin.devices.index', ['model_id' => $d->device_model_id]) }}" class="text-decoration-none">
+                                    {{ $d->deviceModel->name }}
+                                </a>
+                            @elseif($d->model)
+                                <a href="{{ route('admin.devices.index', ['search' => $d->model]) }}" class="text-decoration-none">
+                                    {{ $d->model }}
+                                </a>
+                            @else
+                                —
+                            @endif
                         </td>
                         <td>{{ $d->branch?->name ?: '—' }}</td>
                         <td>

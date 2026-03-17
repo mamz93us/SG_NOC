@@ -18,7 +18,7 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Device Type</label>
-                            <select name="type" class="form-select @error('type') is-invalid @enderror" required>
+                            <select name="type" id="batch_type" class="form-select @error('type') is-invalid @enderror" required onchange="filterModels(this.value)">
                                 <option value="monitor" selected>Monitor</option>
                                 <option value="laptop">Laptop</option>
                                 <option value="desktop">Desktop</option>
@@ -41,10 +41,12 @@
 
                         <div class="col-md-6">
                             <label class="form-label">Model</label>
-                            <select name="device_model_id" class="form-select">
+                            <select name="device_model_id" id="batch_model" class="form-select">
                                 <option value="">— None —</option>
                                 @foreach($deviceModels as $dm)
-                                <option value="{{ $dm->id }}" {{ old('device_model_id') == $dm->id ? 'selected' : '' }}>
+                                <option value="{{ $dm->id }}" 
+                                        data-type="{{ $dm->device_type ?? '' }}"
+                                        {{ old('device_model_id') == $dm->id ? 'selected' : '' }}>
                                     {{ $dm->manufacturer ? $dm->manufacturer . ' ' . $dm->name : $dm->name }}
                                 </option>
                                 @endforeach
@@ -146,5 +148,35 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+function filterModels(type) {
+    const modelSel = document.getElementById('batch_model');
+    const options  = modelSel.querySelectorAll('option');
+    let firstFound = false;
+
+    options.forEach(opt => {
+        if (!opt.value) return; // Keep "None"
+        const optType = opt.getAttribute('data-type');
+        if (!optType || optType === type) {
+            opt.style.display = '';
+            if (!firstFound) {
+                // opt.selected = true; // Optional: auto-select first matching
+                firstFound = true;
+            }
+        } else {
+            opt.style.display = 'none';
+            if (opt.selected) modelSel.value = '';
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const type = document.getElementById('batch_type').value;
+    if (type) filterModels(type);
+});
+</script>
+@endpush
 
 @endsection

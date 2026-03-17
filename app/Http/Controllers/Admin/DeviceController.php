@@ -47,6 +47,9 @@ class DeviceController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
+        if ($request->filled('model_id')) {
+            $query->where('device_model_id', $request->model_id);
+        }
 
         $devices   = $query->paginate(50)->withQueryString();
         $branches  = Branch::orderBy('name')->get(['id', 'name']);
@@ -157,6 +160,15 @@ class DeviceController extends Controller
             }
         }
 
+        // Sync manufacturer/model strings from DeviceModel for backward compatibility
+        if (!empty($data['device_model_id'])) {
+            $dm = DeviceModel::find($data['device_model_id']);
+            if ($dm) {
+                $data['manufacturer'] = $dm->manufacturer;
+                $data['model']        = $dm->name;
+            }
+        }
+
         $device = Device::create(array_merge($data, ['source' => 'manual']));
 
         // Calculate initial depreciation value
@@ -228,6 +240,15 @@ class DeviceController extends Controller
                 'source'          => 'manual',
             ];
 
+            // Sync manufacturer/model strings from DeviceModel
+            if (!empty($data['device_model_id'])) {
+                $dm = DeviceModel::find($data['device_model_id']);
+                if ($dm) {
+                    $data['manufacturer'] = $dm->manufacturer;
+                    $data['model']        = $dm->name;
+                }
+            }
+
             // Auto-generate asset_code
             try {
                 $data['asset_code'] = (new AssetCodeService())->generate($type);
@@ -282,6 +303,15 @@ class DeviceController extends Controller
             'depreciation_method'  => 'nullable|in:straight_line,none',
             'depreciation_years'   => 'nullable|integer|min:1|max:30',
         ]);
+
+        // Sync manufacturer/model strings from DeviceModel
+        if (!empty($data['device_model_id'])) {
+            $dm = DeviceModel::find($data['device_model_id']);
+            if ($dm) {
+                $data['manufacturer'] = $dm->manufacturer;
+                $data['model']        = $dm->name;
+            }
+        }
 
         $device->update($data);
 
