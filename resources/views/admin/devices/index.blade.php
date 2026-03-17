@@ -78,15 +78,43 @@
             <table class="table table-hover align-middle mb-0 small">
                 <thead class="table-light">
                     <tr>
-                        <th>Asset Code</th>
-                        <th>Status</th>
-                        <th>Type</th>
-                        <th>Name</th>
-                        <th>Manufacturer</th>
-                        <th>Model</th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'asset_code', 'direction' => request('sort') == 'asset_code' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Asset Code {!! request('sort') == 'asset_code' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'status', 'direction' => request('sort') == 'status' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Status {!! request('sort') == 'status' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'type', 'direction' => request('sort') == 'type' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Type {!! request('sort') == 'type' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'name', 'direction' => request('sort') == 'name' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Name {!! request('sort') == 'name' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'manufacturer', 'direction' => request('sort') == 'manufacturer' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Manufacturer {!! request('sort') == 'manufacturer' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'model', 'direction' => request('sort') == 'model' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Model {!! request('sort') == 'model' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
                         <th>Branch</th>
                         <th>Assigned To</th>
-                        <th>Updated</th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'updated_at', 'direction' => request('sort') == 'updated_at' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Updated {!! request('sort') == 'updated_at' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
                         <th></th>
                     </tr>
                 </thead>

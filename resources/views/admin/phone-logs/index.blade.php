@@ -42,11 +42,27 @@
         <table class="table table-hover table-bordered mb-0 align-middle" id="logs-table">
             <thead class="table-dark">
                 <tr>
-                    <th class="px-3">MAC Address</th>
-                    <th>Model</th>
+                    <th class="px-3">
+                        <a href="{{ request()->fullUrlWithQuery(['sort' => 'mac', 'direction' => request('sort') == 'mac' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-white text-decoration-none">
+                            MAC Address {!! request('sort') == 'mac' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small opacity-50"></i>' !!}
+                        </a>
+                    </th>
+                    <th>
+                        <a href="{{ request()->fullUrlWithQuery(['sort' => 'model', 'direction' => request('sort') == 'model' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-white text-decoration-none">
+                            Model {!! request('sort') == 'model' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small opacity-50"></i>' !!}
+                        </a>
+                    </th>
                     <th>SIP Accounts (from GDMS)</th>
-                    <th>Last Request</th>
-                    <th class="text-center">Total Requests</th>
+                    <th>
+                        <a href="{{ request()->fullUrlWithQuery(['sort' => 'last_request_at', 'direction' => request('sort') == 'last_request_at' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-white text-decoration-none">
+                            Last Request {!! request('sort') == 'last_request_at' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small opacity-50"></i>' !!}
+                        </a>
+                    </th>
+                    <th class="text-center">
+                        <a href="{{ request()->fullUrlWithQuery(['sort' => 'total_requests', 'direction' => request('sort') == 'total_requests' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-white text-decoration-none">
+                            Total Requests {!! request('sort') == 'total_requests' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small opacity-50"></i>' !!}
+                        </a>
+                    </th>
                 </tr>
             </thead>
             <tbody>

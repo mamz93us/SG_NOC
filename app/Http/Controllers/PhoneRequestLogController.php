@@ -6,13 +6,18 @@ use App\Jobs\SyncGdmsDeviceAccountsJob;
 use App\Models\Contact;
 use App\Models\PhoneAccount;
 use App\Models\PhoneRequestLog;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class PhoneRequestLogController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $allowed = ['mac', 'model', 'last_request_at', 'total_requests'];
+        $sort    = in_array($request->sort, $allowed) ? $request->sort : 'last_request_at';
+        $dir     = $request->direction === 'asc' ? 'asc' : 'desc';
+
         $logs = PhoneRequestLog::select(
                 'mac',
                 'model',
@@ -21,7 +26,7 @@ class PhoneRequestLogController extends Controller
             )
             ->whereNotNull('mac')
             ->groupBy('mac', 'model')
-            ->orderByDesc('last_request_at')
+            ->orderBy($sort, $dir)
             ->get();
 
         // Load SIP accounts for all MACs, grouped by MAC

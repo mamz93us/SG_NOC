@@ -24,9 +24,17 @@ class DeviceController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Device::with(['branch', 'credentials', 'currentAssignment.employee', 'deviceModel'])
-                    ->orderBy('type')
-                    ->orderBy('name');
+        $allowed = ['asset_code', 'status', 'type', 'name', 'manufacturer', 'model', 'updated_at'];
+        $sort    = in_array($request->sort, $allowed) ? $request->sort : null;
+        $dir     = $request->direction === 'asc' ? 'asc' : 'desc';
+
+        $query = Device::with(['branch', 'credentials', 'currentAssignment.employee', 'deviceModel']);
+
+        if ($sort) {
+            $query->orderBy($sort, $dir);
+        } else {
+            $query->orderBy('type')->orderBy('name');
+        }
 
         if ($request->filled('branch')) {
             $query->where('branch_id', $request->branch);
