@@ -187,10 +187,7 @@ class DeviceController extends Controller
     public function batchCreate()
     {
         $branches     = Branch::orderBy('name')->get(['id', 'name']);
-        $deviceModels = DeviceModel::where('device_type', 'monitor')->orderBy('name')->get(['id', 'name', 'manufacturer']);
-        if ($deviceModels->isEmpty()) {
-            $deviceModels = DeviceModel::orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
-        }
+        $deviceModels = DeviceModel::orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
         $suppliers    = Supplier::orderBy('name')->get(['id', 'name']);
         return view('admin.devices.batch', compact('branches', 'deviceModels', 'suppliers'));
     }

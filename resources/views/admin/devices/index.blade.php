@@ -111,12 +111,12 @@
                             </a>
                         </td>
                         <td class="text-muted small">
-                            {{ $d->manufacturer ?: '—' }}
+                            {{ $d->deviceModel?->manufacturer ?: ($d->manufacturer ?: '—') }}
                         </td>
                         <td class="text-muted">
                             @if($d->device_model_id)
                                 <a href="{{ route('admin.devices.index', ['model_id' => $d->device_model_id]) }}" class="text-decoration-none">
-                                    {{ $d->deviceModel->name }}
+                                    {{ $d->deviceModel->displayName() }}
                                 </a>
                             @elseif($d->model)
                                 <a href="{{ route('admin.devices.index', ['search' => $d->model]) }}" class="text-decoration-none">

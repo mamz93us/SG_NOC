@@ -91,8 +91,8 @@
             <div class="card-body p-0">
                 <table class="table table-sm table-borderless small mb-0">
                     <tr><th class="text-muted ps-3" style="width:40%">Model</th>
-                        <td>{{ $device->deviceModel?->name ?: ($device->model ?: '—') }}</td></tr>
-                    @if($device->manufacturer)
+                        <td>{{ $device->deviceModel ? $device->deviceModel->displayName() : ($device->model ?: '—') }}</td></tr>
+                    @if(!$device->device_model_id && $device->manufacturer)
                     <tr><th class="text-muted ps-3">Manufacturer</th>
                         <td>{{ $device->manufacturer }}</td></tr>
                     @endif
