@@ -55,9 +55,12 @@ class PrinterController extends Controller
 
     public function create()
     {
-        $branches    = Branch::orderBy('name')->get(['id', 'name']);
-        $departments = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
-        return view('admin.printers.form', compact('branches', 'departments'));
+        $branches     = Branch::orderBy('name')->get(['id', 'name']);
+        $departments  = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
+        $deviceModels = \App\Models\DeviceModel::where('device_type', 'printer')
+            ->orderBy('manufacturer')->orderBy('name')
+            ->get(['id', 'name', 'manufacturer']);
+        return view('admin.printers.form', compact('branches', 'departments', 'deviceModels'));
     }
 
     public function store(Request $request)
@@ -117,10 +120,13 @@ class PrinterController extends Controller
 
     public function edit(Printer $printer)
     {
-        $branches    = Branch::orderBy('name')->get(['id', 'name']);
-        $departments = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
+        $branches     = Branch::orderBy('name')->get(['id', 'name']);
+        $departments  = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
+        $deviceModels = \App\Models\DeviceModel::where('device_type', 'printer')
+            ->orderBy('manufacturer')->orderBy('name')
+            ->get(['id', 'name', 'manufacturer']);
         $printer->load(['networkFloor', 'office']);
-        return view('admin.printers.form', compact('printer', 'branches', 'departments'));
+        return view('admin.printers.form', compact('printer', 'branches', 'departments', 'deviceModels'));
     }
 
     public function update(Request $request, Printer $printer)

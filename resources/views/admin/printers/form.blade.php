@@ -29,15 +29,27 @@
                 {{-- ── Manufacturer + Model ── --}}
                 <div class="col-md-6">
                     <label class="form-label">Manufacturer</label>
-                    <input type="text" name="manufacturer" class="form-control"
+                    <input type="text" name="manufacturer" id="pb_mfg" class="form-control"
                            value="{{ old('manufacturer', $printer->manufacturer ?? '') }}" maxlength="100"
-                           placeholder="e.g. HP, Canon, Epson">
+                           placeholder="e.g. HP, Canon, Epson"
+                           list="mfgList" autocomplete="off">
+                    <datalist id="mfgList">
+                        @foreach(($deviceModels ?? collect())->pluck('manufacturer')->filter()->unique()->sort() as $mfg)
+                        <option value="{{ $mfg }}">
+                        @endforeach
+                    </datalist>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Model</label>
-                    <input type="text" name="model" class="form-control"
+                    <input type="text" name="model" id="pb_model" class="form-control"
                            value="{{ old('model', $printer->model ?? '') }}" maxlength="100"
-                           placeholder="e.g. LaserJet Pro M404n">
+                           placeholder="e.g. LaserJet Pro M404n"
+                           list="modelList" autocomplete="off">
+                    <datalist id="modelList">
+                        @foreach(($deviceModels ?? collect()) as $dm)
+                        <option value="{{ $dm->name }}" data-mfg="{{ $dm->manufacturer }}">
+                        @endforeach
+                    </datalist>
                 </div>
 
                 {{-- ── Serial + Toner ── --}}
@@ -250,6 +262,39 @@ document.addEventListener('DOMContentLoaded', () => {
         pbLoadFloors(branchSel.value, currentFloor, currentOffice);
     }
 });
+
+// ── Manufacturer ↔ Model filtering ───────────────────────────────────
+const pb_allModels = @json(($deviceModels ?? collect())->map(fn($dm) => ['name' => $dm->name, 'manufacturer' => $dm->manufacturer]));
+const pb_mfgInput   = document.getElementById('pb_mfg');
+const pb_modelInput = document.getElementById('pb_model');
+const pb_modelList  = document.getElementById('modelList');
+
+// When manufacturer changes → filter model datalist to matching manufacturer
+if (pb_mfgInput) {
+    pb_mfgInput.addEventListener('change', function () {
+        const mfg = this.value.trim().toLowerCase();
+        pb_modelList.innerHTML = '';
+        const filtered = mfg
+            ? pb_allModels.filter(m => (m.manufacturer || '').toLowerCase() === mfg)
+            : pb_allModels;
+        filtered.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.name;
+            opt.setAttribute('data-mfg', m.manufacturer || '');
+            pb_modelList.appendChild(opt);
+        });
+    });
+}
+
+// When model is selected from datalist → auto-fill manufacturer
+if (pb_modelInput) {
+    pb_modelInput.addEventListener('change', function () {
+        const match = pb_allModels.find(m => m.name === this.value);
+        if (match && match.manufacturer && pb_mfgInput && !pb_mfgInput.value) {
+            pb_mfgInput.value = match.manufacturer;
+        }
+    });
+}
 
 // ── MAC autocomplete ──────────────────────────────────────────────────
 

@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('printers', function (Blueprint $table) {
-            $table->string('snmp_version', 10)->default('v2c')->change();
+            $table->string('snmp_version', 10)->nullable()->default('v2c')->change();
         });
     }
 
