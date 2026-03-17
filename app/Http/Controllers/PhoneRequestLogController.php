@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ActivityLog;
+use App\Jobs\SyncGdmsDeviceAccountsJob;
 use App\Models\Contact;
 use App\Models\PhoneAccount;
 use App\Models\PhoneRequestLog;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -47,26 +46,14 @@ class PhoneRequestLogController extends Controller
     }
 
     /**
-     * Trigger a full GDMS device-account sync (queued).
+     * Trigger a full GDMS device-account sync (queued with 30-min timeout).
      */
     public function sync()
     {
-        $userId = Auth::id();
-
-        dispatch(function () use ($userId) {
-            Artisan::call('gdms:sync-device-accounts');
-
-            ActivityLog::create([
-                'model_type' => 'PhoneRequestLog',
-                'model_id'   => 0,
-                'action'     => 'synced',
-                'changes'    => ['type' => 'full_sync'],
-                'user_id'    => $userId,
-            ]);
-        })->onQueue('default');
+        SyncGdmsDeviceAccountsJob::dispatch(Auth::id(), false);
 
         return redirect()->route('admin.phone-logs.index')
-            ->with('success', 'GDMS device-account sync started in background. Refresh in a minute to see results.');
+            ->with('success', 'GDMS device-account sync started in background. Refresh in a few minutes to see results.');
     }
 
     /**
@@ -74,21 +61,9 @@ class PhoneRequestLogController extends Controller
      */
     public function syncUnsynced()
     {
-        $userId = Auth::id();
-
-        dispatch(function () use ($userId) {
-            Artisan::call('gdms:sync-device-accounts', ['--unsynced' => true]);
-
-            ActivityLog::create([
-                'model_type' => 'PhoneRequestLog',
-                'model_id'   => 0,
-                'action'     => 'synced',
-                'changes'    => ['type' => 'unsynced_only'],
-                'user_id'    => $userId,
-            ]);
-        })->onQueue('default');
+        SyncGdmsDeviceAccountsJob::dispatch(Auth::id(), true);
 
         return redirect()->route('admin.phone-logs.index')
-            ->with('success', 'Unsynced device sync started in background. Refresh in a minute to see results.');
+            ->with('success', 'Unsynced device sync started in background. Refresh in a few minutes to see results.');
     }
 }
