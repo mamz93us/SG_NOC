@@ -97,27 +97,47 @@ class AccessoryController extends Controller
             'notes'         => 'nullable|string',
         ]);
 
-        // Validate the assignable actually exists
-        if ($data['assign_to'] === 'employee') {
-            if (!\App\Models\Employee::find($data['assignable_id'])) {
-                return back()->with('error', 'Employee not found. Please select a valid employee.');
-            }
-        } else {
-            if (!\App\Models\Device::find($data['assignable_id'])) {
-                return back()->with('error', 'Device not found. Please select a valid device.');
-            }
+        // 1. Prevent duplicate submissions within 15 seconds (debounce)
+        $exists = AccessoryAssignment::where('accessory_id', $accessory->id)
+            ->where(function($q) use ($data) {
+                if ($data['assign_to'] === 'employee') {
+                    $q->where('employee_id', $data['assignable_id']);
+                } else {
+                    $q->where('device_id', $data['assignable_id']);
+                }
+            })
+            ->whereNull('returned_date')
+            ->where('created_at', '>=', now()->subSeconds(15))
+            ->exists();
+
+        if ($exists) {
+            return back()->with('warning', 'A recent assignment for this item was already processed. Please refresh if you need to add another.');
         }
 
-        AccessoryAssignment::create([
-            'accessory_id'  => $accessory->id,
-            'employee_id'   => $data['assign_to'] === 'employee' ? $data['assignable_id'] : null,
-            'device_id'     => $data['assign_to'] === 'device'   ? $data['assignable_id'] : null,
-            'assigned_date' => $data['assigned_date'],
-            'notes'         => $data['notes'] ?? null,
-        ]);
+        // 2. Wrap in transaction for atomicity
+        \Illuminate\Support\Facades\DB::transaction(function() use ($accessory, $data) {
+            // Validate the assignable actually exists (inside transaction for safety)
+            if ($data['assign_to'] === 'employee') {
+                if (!\App\Models\Employee::where('id', $data['assignable_id'])->exists()) {
+                    throw new \RuntimeException('Employee not found.');
+                }
+            } else {
+                if (!\App\Models\Device::where('id', $data['assignable_id'])->exists()) {
+                    throw new \RuntimeException('Device not found.');
+                }
+            }
 
-        // Decrement available quantity
-        $accessory->decrement('quantity_available');
+            AccessoryAssignment::create([
+                'accessory_id'  => $accessory->id,
+                'employee_id'   => $data['assign_to'] === 'employee' ? $data['assignable_id'] : null,
+                'device_id'     => $data['assign_to'] === 'device'   ? $data['assignable_id'] : null,
+                'assigned_date' => $data['assigned_date'],
+                'notes'         => $data['notes'] ?? null,
+            ]);
+
+            // Decrement available quantity
+            $accessory->decrement('quantity_available');
+        });
 
         ActivityLog::log("Assigned accessory '{$accessory->name}'");
 

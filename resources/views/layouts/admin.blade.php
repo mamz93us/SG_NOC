@@ -872,5 +872,28 @@
     })();
     </script>
 
+    {{-- Global Modal Form Debounce (Double-Click Protection) --}}
+    <script>
+    document.addEventListener('submit', function (e) {
+        const modal = e.target.closest('.modal');
+        if (modal) {
+            const form = e.target;
+            const submitBtn = form.querySelector('[type="submit"]');
+            if (submitBtn && !submitBtn.disabled) {
+                submitBtn.disabled = true;
+                const originalHtml = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+
+                // If the form fails validation or doesn't cause a page reload, 
+                // we want a safety to re-enable it (though typically Laravel redirects/reloads)
+                window.addEventListener('pageshow', function() {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalHtml;
+                });
+            }
+        }
+    });
+    </script>
+
 </body>
 </html>
