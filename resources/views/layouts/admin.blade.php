@@ -294,6 +294,20 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('manage-assets')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.devices.phone-auto-assign') ? 'active' : '' }}"
+                                   href="{{ route('admin.devices.phone-auto-assign') }}">
+                                    <i class="bi bi-telephone-plus me-2"></i>Phone Auto-Assign
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.devices.import') ? 'active' : '' }}"
+                                   href="{{ route('admin.devices.import') }}">
+                                    <i class="bi bi-file-earmark-spreadsheet me-2"></i>Import MAC/Serial
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-printers')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/printers*') ? 'active' : '' }}"

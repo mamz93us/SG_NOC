@@ -7,7 +7,13 @@
         <small class="text-muted">All managed assets across branches</small>
     </div>
     @can('manage-assets')
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ route('admin.devices.phone-auto-assign') }}" class="btn btn-outline-success btn-sm">
+            <i class="bi bi-telephone-plus me-1"></i>Phone Auto-Assign
+        </a>
+        <a href="{{ route('admin.devices.import') }}" class="btn btn-outline-info btn-sm">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Import MAC/Serial
+        </a>
         <a href="{{ route('admin.devices.batch-create') }}" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-boxes me-1"></i>Batch Add
         </a>
