@@ -60,20 +60,39 @@ class DeviceImportController extends Controller
             return back()->with('error', 'Could not find MAC and Serial columns in the header row. Make sure the header contains "MAC" and "Serial".');
         }
 
-        $preview = [];
+        // First pass: extract and normalize all MACs
+        $parsedRows = [];
+        $allMacs = [];
         foreach ($data as $row) {
             $rawMac = trim($row[$macCol] ?? '');
             $serial = trim($row[$serialCol] ?? '');
-
-            // Normalize MAC: strip all non-hex characters, lowercase
             $mac = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $rawMac));
+            if (!$mac) continue;
+            $parsedRows[] = ['mac' => $mac, 'serial' => $serial];
+            $allMacs[] = $mac;
+        }
 
-            if (!$mac) {
-                continue;
-            }
+        if (empty($allMacs)) {
+            return back()->with('error', 'No valid MAC addresses found in the file.');
+        }
 
-            $existingDevice = Device::where('mac_address', $mac)->first();
-            $phoneLog       = PhoneRequestLog::where('mac', $mac)->latest()->first();
+        // Batch lookup: all devices and phone logs in 2 queries
+        $devicesByMac = Device::whereIn('mac_address', $allMacs)
+            ->get()
+            ->keyBy('mac_address');
+
+        $phoneLogsByMac = PhoneRequestLog::whereIn('mac', $allMacs)
+            ->select('mac', 'model', DB::raw('MAX(created_at) as last_at'))
+            ->groupBy('mac', 'model')
+            ->get()
+            ->keyBy('mac');
+
+        $preview = [];
+        foreach ($parsedRows as $parsed) {
+            $mac    = $parsed['mac'];
+            $serial = $parsed['serial'];
+            $existingDevice = $devicesByMac[$mac] ?? null;
+            $phoneLog       = $phoneLogsByMac[$mac] ?? null;
 
             $preview[] = [
                 'mac'             => $mac,
