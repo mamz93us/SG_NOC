@@ -336,14 +336,21 @@
 </div>{{-- /row --}}
 
 @can('manage-assets')
-<div class="mt-2">
-    <form method="POST" action="{{ route('admin.devices.destroy', $device) }}"
-          onsubmit="return confirm('Delete device \'{{ addslashes($device->name) }}\'? This cannot be undone.')">
-        @csrf @method('DELETE')
-        <button type="submit" class="btn btn-sm btn-outline-danger">
+<div class="mt-2 d-flex align-items-center gap-2">
+    @if($assigned)
+        <button class="btn btn-sm btn-outline-danger" disabled title="Cannot delete — device is assigned to {{ $assigned->employee?->name }}">
             <i class="bi bi-trash me-1"></i>Delete Device
         </button>
-    </form>
+        <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Return the device before deleting.</small>
+    @else
+        <form method="POST" action="{{ route('admin.devices.destroy', $device) }}"
+              onsubmit="return confirm('Delete device \'{{ addslashes($device->name) }}\'? This cannot be undone.')">
+            @csrf @method('DELETE')
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash me-1"></i>Delete Device
+            </button>
+        </form>
+    @endif
 </div>
 @endcan
 

@@ -324,6 +324,40 @@ class DeviceController extends Controller
 
     public function destroy(Device $device)
     {
+        // Block deletion if device is currently assigned to someone
+        $activeAssignment = EmployeeAsset::where('asset_id', $device->id)
+            ->whereNull('returned_date')
+            ->with('employee')
+            ->first();
+
+        if ($activeAssignment) {
+            return back()->with('error',
+                "Cannot delete \"{$device->name}\" — it is currently assigned to {$activeAssignment->employee?->name ?? 'an employee'}. Return the device first."
+            );
+        }
+
+        // Block if device has active accessory assignments
+        $activeAccessories = \App\Models\AccessoryAssignment::where('device_id', $device->id)
+            ->whereNull('returned_date')
+            ->exists();
+
+        if ($activeAccessories) {
+            return back()->with('error',
+                "Cannot delete \"{$device->name}\" — it has active accessory assignments. Return accessories first."
+            );
+        }
+
+        // Block if device has active license assignments
+        $activeLicenses = LicenseAssignment::where('assignable_type', Device::class)
+            ->where('assignable_id', $device->id)
+            ->exists();
+
+        if ($activeLicenses) {
+            return back()->with('error',
+                "Cannot delete \"{$device->name}\" — it has active license assignments. Unassign licenses first."
+            );
+        }
+
         $name = $device->name;
         ActivityLog::log('deleted device: ' . $name, $device);
         $device->delete();
