@@ -41,6 +41,7 @@
                         <th>Supplier</th>
                         <th class="text-center">Total</th>
                         <th class="text-center">Available</th>
+                        <th class="text-center">Assigned</th>
                         <th>Cost</th>
                         <th class="text-end">Actions</th>
                     </tr>
@@ -54,6 +55,15 @@
                         <td class="text-center">{{ $acc->quantity_total }}</td>
                         <td class="text-center">
                             <span class="badge bg-{{ $acc->availabilityBadgeClass() }}">{{ $acc->quantity_available }}</span>
+                        </td>
+                        <td class="text-center">
+                            @if($acc->active_assignments_count > 0)
+                            <button class="btn btn-sm btn-link text-decoration-none p-0" onclick="toggleAccAssignments({{ $acc->id }})" title="View assignments">
+                                <span class="badge bg-info">{{ $acc->active_assignments_count }}</span>
+                            </button>
+                            @else
+                            <span class="text-muted">0</span>
+                            @endif
                         </td>
                         <td class="font-monospace">${{ $acc->purchase_cost ? number_format($acc->purchase_cost, 0) : '—' }}</td>
                         <td class="text-end">
@@ -77,8 +87,60 @@
                             @endcan
                         </td>
                     </tr>
+                    {{-- Expandable assignment detail row --}}
+                    <tr id="accAssignRow{{ $acc->id }}" class="d-none">
+                        <td colspan="8" class="bg-light p-0">
+                            <div class="p-3">
+                                <h6 class="fw-semibold small mb-2"><i class="bi bi-people me-1"></i>Active Assignments for {{ $acc->name }}</h6>
+                                @if($acc->activeAssignments && $acc->activeAssignments->count() > 0)
+                                <table class="table table-sm table-bordered mb-0 bg-white">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Assigned To</th>
+                                            <th>Type</th>
+                                            <th>Date</th>
+                                            <th>Notes</th>
+                                            <th class="text-end">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($acc->activeAssignments as $asgn)
+                                        <tr>
+                                            <td>
+                                                @if($asgn->employee)
+                                                    <a href="{{ route('admin.employees.show', $asgn->employee) }}">{{ $asgn->employee->name }}</a>
+                                                @elseif($asgn->device)
+                                                    <a href="{{ route('admin.devices.show', $asgn->device) }}">{{ $asgn->device->name }}</a>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td><span class="badge bg-secondary">{{ $asgn->employee_id ? 'Employee' : 'Device' }}</span></td>
+                                            <td class="small">{{ $asgn->assigned_date?->format('d M Y') }}</td>
+                                            <td class="small text-muted">{{ $asgn->notes ?: '—' }}</td>
+                                            <td class="text-end">
+                                                @can('manage-accessories')
+                                                <form action="{{ route('admin.itam.accessories.return', [$acc, $asgn]) }}" method="POST" class="d-inline"
+                                                      onsubmit="return confirm('Return this accessory?')">
+                                                    @csrf @method('PATCH')
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Return">
+                                                        <i class="bi bi-arrow-return-left"></i> Return
+                                                    </button>
+                                                </form>
+                                                @endcan
+                                            </td>
+                                        </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                                @else
+                                <p class="text-muted small mb-0">No active assignments.</p>
+                                @endif
+                            </div>
+                        </td>
+                    </tr>
                     @empty
-                    <tr><td colspan="7" class="text-center text-muted py-4">No accessories found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">No accessories found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -212,6 +274,11 @@ document.getElementById('accSearchInput').addEventListener('input', function() {
     const q = this.value;
     accSearchTimer = setTimeout(() => accLoadAssignables(type, q), 300);
 });
+
+function toggleAccAssignments(id) {
+    const row = document.getElementById('accAssignRow' + id);
+    if (row) row.classList.toggle('d-none');
+}
 
 function editAccessory(a) {
     const form = document.getElementById('editAccessoryForm');

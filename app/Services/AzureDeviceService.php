@@ -39,17 +39,18 @@ class AzureDeviceService
                 $azDev = AzureDevice::updateOrCreate(
                     ['azure_device_id' => $data['azure_device_id']],
                     [
-                        'display_name'  => $data['display_name'],
-                        'device_type'   => $data['device_type'] ?? null,
-                        'os'            => $data['os'] ?? null,
-                        'os_version'    => $data['os_version'] ?? null,
-                        'upn'           => $data['upn'] ?? null,
-                        'serial_number' => $data['serial_number'] ?? null,
-                        'manufacturer'  => $data['manufacturer'] ?? null,
-                        'model'         => $data['model'] ?? null,
-                        'enrolled_date' => $data['enrolled_date'] ?? null,
-                        'last_sync_at'  => now(),
-                        'raw_data'      => $data,
+                        'display_name'     => $data['display_name'],
+                        'device_type'      => $data['device_type'] ?? null,
+                        'os'               => $data['os'] ?? null,
+                        'os_version'       => $data['os_version'] ?? null,
+                        'upn'              => $data['upn'] ?? null,
+                        'serial_number'    => $data['serial_number'] ?? null,
+                        'manufacturer'     => $data['manufacturer'] ?? null,
+                        'model'            => $data['model'] ?? null,
+                        'enrolled_date'    => $data['enrolled_date'] ?? null,
+                        'last_activity_at' => $data['last_activity'] ?? null,
+                        'last_sync_at'     => now(),
+                        'raw_data'         => $data,
                     ]
                 );
 
@@ -100,7 +101,7 @@ class AzureDeviceService
             $response = \Illuminate\Support\Facades\Http::timeout(120)
                 ->withToken($token)
                 ->get('https://graph.microsoft.com/v1.0/devices', [
-                    '$select' => 'id,displayName,operatingSystem,operatingSystemVersion,deviceId,physicalIds',
+                    '$select' => 'id,displayName,operatingSystem,operatingSystemVersion,deviceId,physicalIds,approximateLastSignInDateTime',
                     '$top'    => 999,
                 ]);
 
@@ -109,7 +110,7 @@ class AzureDeviceService
                 $response = \Illuminate\Support\Facades\Http::timeout(120)
                     ->withToken($token)
                     ->get('https://graph.microsoft.com/v1.0/devices', [
-                        '$select' => 'id,displayName,operatingSystem,operatingSystemVersion,deviceId,physicalIds',
+                        '$select' => 'id,displayName,operatingSystem,operatingSystemVersion,deviceId,physicalIds,approximateLastSignInDateTime',
                         '$top'    => 999,
                     ]);
             }
@@ -127,6 +128,7 @@ class AzureDeviceService
                     'os'              => $d['operatingSystem'] ?? null,
                     'os_version'      => $d['operatingSystemVersion'] ?? null,
                     'serial_number'   => $this->extractSerial($d['physicalIds'] ?? []),
+                    'last_activity'   => $d['approximateLastSignInDateTime'] ?? null,
                 ];
             })->toArray();
         } catch (\Throwable $e) {
@@ -142,7 +144,7 @@ class AzureDeviceService
             $response = \Illuminate\Support\Facades\Http::timeout(120)
                 ->withToken($token)
                 ->get('https://graph.microsoft.com/v1.0/deviceManagement/managedDevices', [
-                    '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,model,manufacturer,azureADDeviceId',
+                    '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,lastSyncDateTime,model,manufacturer,azureADDeviceId',
                     '$top'    => 999,
                 ]);
 
@@ -151,7 +153,7 @@ class AzureDeviceService
                 $response = \Illuminate\Support\Facades\Http::timeout(120)
                     ->withToken($token)
                     ->get('https://graph.microsoft.com/v1.0/deviceManagement/managedDevices', [
-                        '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,model,manufacturer,azureADDeviceId',
+                        '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,lastSyncDateTime,model,manufacturer,azureADDeviceId',
                         '$top'    => 999,
                     ]);
             }
@@ -172,6 +174,7 @@ class AzureDeviceService
                     'model'           => $d['model'] ?? null,
                     'upn'             => $d['userPrincipalName'] ?? null,
                     'enrolled_date'   => $d['enrolledDateTime'] ?? null,
+                    'last_activity'   => $d['lastSyncDateTime'] ?? null,
                     'device_type'     => null,
                 ];
             })->toArray();

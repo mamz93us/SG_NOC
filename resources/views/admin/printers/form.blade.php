@@ -26,19 +26,7 @@
                     @error('printer_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
-                {{-- ── Manufacturer + Model ── --}}
-                <div class="col-md-6">
-                    <label class="form-label">Manufacturer</label>
-                    <input type="text" name="manufacturer" id="pb_mfg" class="form-control"
-                           value="{{ old('manufacturer', $printer->manufacturer ?? '') }}" maxlength="100"
-                           placeholder="e.g. HP, Canon, Epson"
-                           list="mfgList" autocomplete="off">
-                    <datalist id="mfgList">
-                        @foreach(($deviceModels ?? collect())->pluck('manufacturer')->filter()->unique()->sort() as $mfg)
-                        <option value="{{ $mfg }}">
-                        @endforeach
-                    </datalist>
-                </div>
+                {{-- ── Model (auto-fills manufacturer) ── --}}
                 <div class="col-md-6">
                     <label class="form-label">Model</label>
                     <div class="input-group">
@@ -53,7 +41,18 @@
                     </div>
                     <datalist id="modelList">
                         @foreach(($deviceModels ?? collect()) as $dm)
-                        <option value="{{ $dm->name }}" data-mfg="{{ $dm->manufacturer }}">
+                        <option value="{{ $dm->name }}" data-mfg="{{ $dm->manufacturer }}">{{ $dm->manufacturer }} — {{ $dm->name }}</option>
+                        @endforeach
+                    </datalist>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Manufacturer <span class="text-muted small">(auto-filled from model)</span></label>
+                    <input type="text" name="manufacturer" id="pb_mfg" class="form-control bg-light"
+                           value="{{ old('manufacturer', $printer->manufacturer ?? '') }}" maxlength="100"
+                           placeholder="Selected automatically" readonly>
+                    <datalist id="mfgList">
+                        @foreach(($deviceModels ?? collect())->pluck('manufacturer')->filter()->unique()->sort() as $mfg)
+                        <option value="{{ $mfg }}">
                         @endforeach
                     </datalist>
                 </div>
@@ -301,37 +300,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// ── Manufacturer ↔ Model filtering ───────────────────────────────────
+// ── Model → Manufacturer auto-fill ──────────────────────────────────
 const pb_allModels = @json(($deviceModels ?? collect())->map(fn($dm) => ['name' => $dm->name, 'manufacturer' => $dm->manufacturer]));
 const pb_mfgInput   = document.getElementById('pb_mfg');
 const pb_modelInput = document.getElementById('pb_model');
 const pb_modelList  = document.getElementById('modelList');
 
-// When manufacturer changes → filter model datalist to matching manufacturer
-if (pb_mfgInput) {
-    pb_mfgInput.addEventListener('change', function () {
-        const mfg = this.value.trim().toLowerCase();
-        pb_modelList.innerHTML = '';
-        const filtered = mfg
-            ? pb_allModels.filter(m => (m.manufacturer || '').toLowerCase() === mfg)
-            : pb_allModels;
-        filtered.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m.name;
-            opt.setAttribute('data-mfg', m.manufacturer || '');
-            pb_modelList.appendChild(opt);
-        });
-    });
-}
-
-// When model is selected from datalist → auto-fill manufacturer
+// When model is typed/selected → auto-fill manufacturer from the matched model
 if (pb_modelInput) {
-    pb_modelInput.addEventListener('change', function () {
-        const match = pb_allModels.find(m => m.name === this.value);
-        if (match && match.manufacturer && pb_mfgInput && !pb_mfgInput.value) {
+    function pbAutoFillMfg() {
+        const val = pb_modelInput.value.trim();
+        const match = pb_allModels.find(m => m.name === val);
+        if (match && match.manufacturer) {
             pb_mfgInput.value = match.manufacturer;
+        } else if (!val) {
+            pb_mfgInput.value = '';
         }
-    });
+    }
+    pb_modelInput.addEventListener('change', pbAutoFillMfg);
+    pb_modelInput.addEventListener('input', pbAutoFillMfg);
 }
 
 // ── MAC autocomplete ──────────────────────────────────────────────────

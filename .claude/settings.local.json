@@ -54,7 +54,11 @@
       "Bash(grep -n \"$graph->\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\\\\Admin\\\\IdentityController.php\")",
       "Bash(grep \"$graph\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC/app/Http/Controllers/Admin/IdentityController.php\")",
       "Bash(grep -E \"\\\\.\\(php|js\\)$\")",
-      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOC -name *license*migration* -type f)"
+      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOC -name *license*migration* -type f)",
+      "Bash(ls -la /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*azure*)",
+      "Bash(grep -n \"last_seen\\\\|last_activity\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/2026_03_*.php)",
+      "Bash(grep -n \"Schema::table.*devices\\\\|Schema::create.*devices\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)",
+      "Bash(grep -r \"SyncGdmsDeviceAccountsJob\\\\|AzureDeviceService\\\\|syncDevices\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Console --include=*.php)"
     ]
   }
 }

@@ -153,6 +153,11 @@
                         </th>
                         <th>Linked Asset</th>
                         <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'last_activity_at', 'direction' => request('sort') == 'last_activity_at' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                Last Seen {!! request('sort') == 'last_activity_at' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
                             <a href="{{ request()->fullUrlWithQuery(['sort' => 'last_sync_at', 'direction' => request('sort') == 'last_sync_at' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
                                 Last Sync {!! request('sort') == 'last_sync_at' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
                             </a>
@@ -179,10 +184,17 @@
                             <span class="text-muted small">—</span>
                             @endif
                         </td>
+                        <td class="text-muted small">
+                            @if($az->last_activity_at)
+                                <span title="{{ $az->last_activity_at->format('d M Y H:i') }}">{{ $az->last_activity_at->diffForHumans() }}</span>
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td class="text-muted small">{{ $az->last_sync_at?->diffForHumans() }}</td>
                     </tr>
                     @empty
-                    <tr><td colspan="7" class="text-center text-muted py-4">No Azure devices synced yet. Click "Sync Now" to begin.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">No Azure devices synced yet. Click "Sync Now" to begin.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -336,6 +348,7 @@ function azShowDetail(id) {
                                 <tr><td class="text-muted small">Model</td><td>${d.model || '—'}</td></tr>
                                 <tr><td class="text-muted small">User (UPN)</td><td class="small">${d.upn || '—'}</td></tr>
                                 <tr><td class="text-muted small">Enrolled</td><td class="small">${d.enrolled_at || '—'}</td></tr>
+                                <tr><td class="text-muted small">Last Seen (Activity)</td><td class="small fw-semibold ${d.last_activity ? 'text-success' : 'text-muted'}">${d.last_activity || '—'}</td></tr>
                                 <tr><td class="text-muted small">Last Sync</td><td class="small">${d.last_sync || '—'}</td></tr>
                                 <tr><td class="text-muted small">Status</td><td>${badge}</td></tr>
                                 ${extra}

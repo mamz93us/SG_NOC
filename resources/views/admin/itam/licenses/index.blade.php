@@ -47,6 +47,7 @@
                         <th>Vendor</th>
                         <th>Type</th>
                         <th>Seats Used</th>
+                        <th class="text-center">Assigned To</th>
                         <th>Expiry</th>
                         <th>Cost</th>
                         <th class="text-end">Actions</th>
@@ -66,6 +67,15 @@
                                 </div>
                                 <small class="text-muted">{{ $lic->usedSeats() }}/{{ $lic->seats }}</small>
                             </div>
+                        </td>
+                        <td class="text-center">
+                            @if($lic->assignments_count > 0)
+                            <button class="btn btn-sm btn-link text-decoration-none p-0" onclick="toggleLicAssignments({{ $lic->id }})" title="View assignments">
+                                <span class="badge bg-info">{{ $lic->assignments_count }}</span>
+                            </button>
+                            @else
+                            <span class="text-muted">0</span>
+                            @endif
                         </td>
                         <td>
                             @if($lic->expiry_date)
@@ -96,8 +106,64 @@
                             @endcan
                         </td>
                     </tr>
+                    {{-- Expandable assignment detail row --}}
+                    <tr id="licAssignRow{{ $lic->id }}" class="d-none">
+                        <td colspan="8" class="bg-light p-0">
+                            <div class="p-3">
+                                <h6 class="fw-semibold small mb-2"><i class="bi bi-people me-1"></i>Assignments for {{ $lic->license_name }}</h6>
+                                @if($lic->assignments->count() > 0)
+                                <table class="table table-sm table-bordered mb-0 bg-white">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Assigned To</th>
+                                            <th>Type</th>
+                                            <th>Date</th>
+                                            <th>Notes</th>
+                                            <th class="text-end">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($lic->assignments as $asgn)
+                                        <tr>
+                                            <td>
+                                                @if($asgn->assignable instanceof \App\Models\Employee)
+                                                    <a href="{{ route('admin.employees.show', $asgn->assignable) }}">{{ $asgn->assignable->name }}</a>
+                                                @elseif($asgn->assignable instanceof \App\Models\Device)
+                                                    <a href="{{ route('admin.devices.show', $asgn->assignable) }}">{{ $asgn->assignable->name }}</a>
+                                                @else
+                                                    <span class="text-muted">— (deleted)</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary">
+                                                    {{ $asgn->assignable instanceof \App\Models\Employee ? 'Employee' : 'Device' }}
+                                                </span>
+                                            </td>
+                                            <td class="small">{{ $asgn->assigned_date?->format('d M Y') }}</td>
+                                            <td class="small text-muted">{{ $asgn->notes ?: '—' }}</td>
+                                            <td class="text-end">
+                                                @can('manage-licenses')
+                                                <form action="{{ route('admin.itam.licenses.unassign', [$lic, $asgn]) }}" method="POST" class="d-inline"
+                                                      onsubmit="return confirm('Unassign this license?')">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Unassign">
+                                                        <i class="bi bi-x-lg"></i> Unassign
+                                                    </button>
+                                                </form>
+                                                @endcan
+                                            </td>
+                                        </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                                @else
+                                <p class="text-muted small mb-0">No assignments.</p>
+                                @endif
+                            </div>
+                        </td>
+                    </tr>
                     @empty
-                    <tr><td colspan="7" class="text-center text-muted py-4">No licenses found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">No licenses found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -239,6 +305,11 @@ document.getElementById('licSearchInput').addEventListener('input', function() {
     const q = this.value;
     licSearchTimer = setTimeout(() => loadAssignables(type, q), 300);
 });
+
+function toggleLicAssignments(id) {
+    const row = document.getElementById('licAssignRow' + id);
+    if (row) row.classList.toggle('d-none');
+}
 
 function editLicense(lic) {
     const form = document.getElementById('editLicenseForm');

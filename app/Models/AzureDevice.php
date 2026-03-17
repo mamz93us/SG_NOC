@@ -10,13 +10,14 @@ class AzureDevice extends Model
     protected $fillable = [
         'azure_device_id', 'display_name', 'device_type', 'os', 'os_version',
         'upn', 'serial_number', 'manufacturer', 'model', 'enrolled_date', 'last_sync_at',
-        'device_id', 'link_status', 'raw_data',
+        'last_activity_at', 'device_id', 'link_status', 'raw_data',
     ];
 
     protected $casts = [
-        'enrolled_date' => 'datetime',
-        'last_sync_at'  => 'datetime',
-        'raw_data'      => 'array',
+        'enrolled_date'    => 'datetime',
+        'last_sync_at'     => 'datetime',
+        'last_activity_at' => 'datetime',
+        'raw_data'         => 'array',
     ];
 
     const LINK_STATUSES = ['unlinked', 'linked', 'pending', 'rejected'];

@@ -14,7 +14,7 @@ class LicenseController extends Controller
 {
     public function index(Request $request)
     {
-        $query = License::withCount('assignments');
+        $query = License::with(['assignments.assignable'])->withCount('assignments');
 
         if ($request->filled('search')) {
             $s = $request->search;

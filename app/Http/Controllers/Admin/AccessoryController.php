@@ -14,7 +14,8 @@ class AccessoryController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Accessory::with('supplier')->withCount(['assignments', 'activeAssignments']);
+        $query = Accessory::with(['supplier', 'activeAssignments.employee', 'activeAssignments.device'])
+            ->withCount(['assignments', 'activeAssignments']);
 
         if ($request->filled('search')) {
             $s = $request->search;

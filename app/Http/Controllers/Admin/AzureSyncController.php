@@ -43,7 +43,7 @@ class AzureSyncController extends Controller
         // Sorting
         $sort      = $request->get('sort', 'display_name');
         $direction = $request->get('direction', 'asc');
-        $allowed   = ['display_name', 'os', 'serial_number', 'upn', 'link_status', 'last_sync_at'];
+        $allowed   = ['display_name', 'os', 'serial_number', 'upn', 'link_status', 'last_activity_at', 'last_sync_at'];
         
         if (in_array($sort, $allowed)) {
             $query->orderBy($sort, $direction === 'desc' ? 'desc' : 'asc');
@@ -126,8 +126,9 @@ class AzureSyncController extends Controller
             'manufacturer' => $azureDevice->manufacturer,
             'model'        => $azureDevice->model,
             'upn'          => $azureDevice->upn,
-            'enrolled_at'  => $azureDevice->enrolled_date?->format('d M Y'),
-            'last_sync'    => $azureDevice->last_sync_at?->format('d M Y H:i'),
+            'enrolled_at'    => $azureDevice->enrolled_date?->format('d M Y'),
+            'last_activity'  => $azureDevice->last_activity_at?->format('d M Y H:i'),
+            'last_sync'      => $azureDevice->last_sync_at?->format('d M Y H:i'),
             'link_status'  => $azureDevice->link_status,
             'raw_data'     => $azureDevice->raw_data,
             'linked_device' => $azureDevice->device ? [
