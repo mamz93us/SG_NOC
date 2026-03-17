@@ -107,25 +107,39 @@ class LicenseController extends Controller
             'notes'           => 'nullable|string',
         ]);
 
+        $assignableClass = $data['assignable_type'] === 'device' ? Device::class : Employee::class;
+
+        // 1. Prevent double-click submissions (debounce)
+        $exists = LicenseAssignment::where('license_id', $license->id)
+            ->where('assignable_type', $assignableClass)
+            ->where('assignable_id', $data['assignable_id'])
+            ->where('created_at', '>=', now()->subSeconds(15))
+            ->exists();
+
+        if ($exists) {
+            return back()->with('warning', 'A recent assignment for this license was already processed.');
+        }
+
         if ($license->availableSeats() <= 0) {
             return back()->with('error', 'No available seats for this license.');
         }
 
-        $assignableClass = $data['assignable_type'] === 'device' ? Device::class : Employee::class;
-        $assignable      = $assignableClass::findOrFail($data['assignable_id']);
+        $assignable = $assignableClass::findOrFail($data['assignable_id']);
 
-        $assignment = LicenseAssignment::create([
-            'license_id'      => $license->id,
-            'assignable_type' => $assignableClass,
-            'assignable_id'   => $data['assignable_id'],
-            'assigned_date'   => $data['assigned_date'],
-            'notes'           => $data['notes'] ?? null,
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function() use ($license, $assignable, $assignableClass, $data) {
+            $assignment = LicenseAssignment::create([
+                'license_id'      => $license->id,
+                'assignable_type' => $assignableClass,
+                'assignable_id'   => $data['assignable_id'],
+                'assigned_date'   => $data['assigned_date'],
+                'notes'           => $data['notes'] ?? null,
+            ]);
 
-        // Log asset history if assigned to a device
-        if ($data['assignable_type'] === 'device') {
-            AssetHistory::record($assignable, 'license_assigned', "License '{$license->license_name}' assigned");
-        }
+            // Log asset history if assigned to a device
+            if ($data['assignable_type'] === 'device') {
+                AssetHistory::record($assignable, 'license_assigned', "License '{$license->license_name}' assigned");
+            }
+        });
 
         ActivityLog::log("Assigned license '{$license->license_name}' to {$data['assignable_type']} #{$data['assignable_id']}");
 

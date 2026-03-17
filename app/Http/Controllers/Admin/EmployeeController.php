@@ -184,18 +184,31 @@ class EmployeeController extends Controller
             'notes'         => 'nullable|string|max:500',
         ]);
 
-        // Check not already assigned
-        $existing = EmployeeAsset::where('asset_id', $validated['asset_id'])
+        // 1. Prevent double-click submissions (debounce)
+        $exists = EmployeeAsset::where('asset_id', $validated['asset_id'])
+            ->where('employee_id', $employee->id)
+            ->whereNull('returned_date')
+            ->where('created_at', '>=', now()->subSeconds(15))
+            ->exists();
+
+        if ($exists) {
+            return back()->with('warning', 'Recent assignment detected. Please refresh.');
+        }
+
+        // 2. Check not already assigned to anyone else
+        $activeAssignment = EmployeeAsset::where('asset_id', $validated['asset_id'])
             ->whereNull('returned_date')
             ->first();
 
-        if ($existing) {
-            return back()->with('error', 'This asset is already assigned to another employee.');
+        if ($activeAssignment) {
+            return back()->with('error', 'This asset is already assigned to ' . ($activeAssignment->employee?->name ?? 'someone else') . '.');
         }
 
-        EmployeeAsset::create(array_merge($validated, ['employee_id' => $employee->id]));
-
-        Device::where('id', $validated['asset_id'])->update(['status' => 'assigned']);
+        // 3. Update status and create record atomically
+        \Illuminate\Support\Facades\DB::transaction(function() use ($validated, $employee) {
+            EmployeeAsset::create(array_merge($validated, ['employee_id' => $employee->id]));
+            Device::where('id', $validated['asset_id'])->update(['status' => 'assigned']);
+        });
 
         return back()->with('success', 'Asset assigned successfully.');
     }
