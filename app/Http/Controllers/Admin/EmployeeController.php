@@ -82,6 +82,7 @@ class EmployeeController extends Controller
             'activeItems',
             'items',
             'identityUser',
+            'accessoryAssignments.accessory',
         ]);
 
         // Only show user-equipment types in the assign modal (laptops, monitors, etc.)
@@ -91,7 +92,23 @@ class EmployeeController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('admin.employees.show', compact('employee', 'availableDevices'));
+        // Available accessories for the assign modal
+        $availableAccessories = \App\Models\Accessory::where('quantity_available', '>', 0)
+            ->orderBy('name')->get();
+
+        // Available licenses (with seats remaining) for the assign modal
+        $availableLicenses = \App\Models\License::all()->filter(fn($l) => $l->availableSeats() > 0)->values();
+
+        // License assignments for this employee (morphMany)
+        $licenseAssignments = \App\Models\LicenseAssignment::with('license')
+            ->where('assignable_type', Employee::class)
+            ->where('assignable_id', $employee->id)
+            ->get();
+
+        return view('admin.employees.show', compact(
+            'employee', 'availableDevices', 'availableAccessories',
+            'availableLicenses', 'licenseAssignments'
+        ));
     }
 
     public function create()

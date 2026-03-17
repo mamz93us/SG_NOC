@@ -758,22 +758,26 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
         if ($type === 'employee') {
             $items = \App\Models\Employee::query()
-                ->when($query, fn($q) => $q->where('name', 'like', "%{$query}%")
-                    ->orWhere('email', 'like', "%{$query}%")
-                    ->orWhere('employee_id', 'like', "%{$query}%"))
+                ->when($query, fn($q) => $q->where(function ($sub) use ($query) {
+                    $sub->where('name', 'like', "%{$query}%")
+                        ->orWhere('email', 'like', "%{$query}%")
+                        ->orWhere('job_title', 'like', "%{$query}%");
+                }))
                 ->orderBy('name')
                 ->limit(50)
-                ->get(['id', 'name', 'email', 'employee_id'])
+                ->get(['id', 'name', 'email', 'job_title'])
                 ->map(fn($e) => [
                     'id'   => $e->id,
-                    'name' => $e->name . ($e->email ? " ({$e->email})" : '') . ($e->employee_id ? " [#{$e->employee_id}]" : ''),
+                    'name' => $e->name . ($e->email ? " ({$e->email})" : '') . ($e->job_title ? " — {$e->job_title}" : ''),
                 ]);
         } else {
             $items = \App\Models\Device::query()
-                ->when($query, fn($q) => $q->where('name', 'like', "%{$query}%")
-                    ->orWhere('ip_address', 'like', "%{$query}%")
-                    ->orWhere('serial_number', 'like', "%{$query}%")
-                    ->orWhere('asset_code', 'like', "%{$query}%"))
+                ->when($query, fn($q) => $q->where(function ($sub) use ($query) {
+                    $sub->where('name', 'like', "%{$query}%")
+                        ->orWhere('ip_address', 'like', "%{$query}%")
+                        ->orWhere('serial_number', 'like', "%{$query}%")
+                        ->orWhere('asset_code', 'like', "%{$query}%");
+                }))
                 ->orderBy('name')
                 ->limit(50)
                 ->get(['id', 'name', 'type', 'ip_address', 'asset_code'])

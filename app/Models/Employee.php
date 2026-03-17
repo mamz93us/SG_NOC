@@ -84,6 +84,22 @@ class Employee extends Model
         return $this->hasMany(\App\Models\EmployeeItem::class)->whereNull('returned_date');
     }
 
+    public function accessoryAssignments(): HasMany
+    {
+        return $this->hasMany(AccessoryAssignment::class);
+    }
+
+    public function activeAccessoryAssignments(): HasMany
+    {
+        return $this->hasMany(AccessoryAssignment::class)->whereNull('returned_date');
+    }
+
+    public function licenseAssignments()
+    {
+        return LicenseAssignment::where('assignable_type', Employee::class)
+            ->where('assignable_id', $this->id);
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────

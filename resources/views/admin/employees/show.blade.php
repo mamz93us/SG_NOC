@@ -172,6 +172,24 @@
                             @endif
                         </button>
                     </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-semibold" id="accessories-tab"
+                                data-bs-toggle="tab" data-bs-target="#accessories" type="button">
+                            <i class="bi bi-box-seam me-1"></i>Accessories
+                            @if($employee->accessoryAssignments->whereNull('returned_date')->count())
+                            <span class="badge bg-info ms-1">{{ $employee->accessoryAssignments->whereNull('returned_date')->count() }}</span>
+                            @endif
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-semibold" id="licenses-tab"
+                                data-bs-toggle="tab" data-bs-target="#licenses" type="button">
+                            <i class="bi bi-key me-1"></i>Licenses
+                            @if(($licenseAssignments ?? collect())->count())
+                            <span class="badge bg-warning text-dark ms-1">{{ $licenseAssignments->count() }}</span>
+                            @endif
+                        </button>
+                    </li>
                 </ul>
             </div>
 
@@ -316,6 +334,111 @@
                     @endif
                 </div>
 
+                {{-- Tab 3: Accessories --}}
+                <div class="tab-pane fade" id="accessories" role="tabpanel">
+                    <div class="px-3 py-2 border-bottom d-flex justify-content-end">
+                        @can('manage-employees')
+                        <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#assignAccessoryModal">
+                            <i class="bi bi-plus-lg me-1"></i>Assign Accessory
+                        </button>
+                        @endcan
+                    </div>
+                    @if($employee->accessoryAssignments->isEmpty())
+                    <div class="text-center py-5 text-muted small">
+                        <i class="bi bi-box-seam d-block display-5 mb-2 opacity-25"></i>No accessories assigned.
+                    </div>
+                    @else
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Accessory</th><th>Category</th>
+                                    <th>Assigned</th><th>Status</th><th class="pe-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach($employee->accessoryAssignments as $aa)
+                            <tr class="{{ $aa->returned_date ? 'table-light text-muted' : '' }}">
+                                <td class="ps-3 fw-semibold">
+                                    <i class="bi bi-box-seam me-1 text-muted"></i>{{ $aa->accessory?->name ?? 'Unknown' }}
+                                </td>
+                                <td><span class="badge bg-secondary">{{ $aa->accessory?->category ?? '—' }}</span></td>
+                                <td>{{ $aa->assigned_date?->format('d M Y') ?? '—' }}</td>
+                                <td>
+                                    @if($aa->returned_date)
+                                    <span class="badge bg-success">Returned {{ $aa->returned_date->format('d M Y') }}</span>
+                                    @else<span class="badge bg-info">Active</span>
+                                    @endif
+                                </td>
+                                <td class="pe-3">
+                                    @if(!$aa->returned_date && $aa->accessory)
+                                    @can('manage-employees')
+                                    <form method="POST" action="{{ route('admin.itam.accessories.return', [$aa->accessory_id, $aa->id]) }}" class="d-inline"
+                                          onsubmit="return confirm('Return this accessory?')">
+                                        @csrf @method('PATCH')
+                                        <button class="btn btn-sm btn-outline-secondary">Return</button>
+                                    </form>
+                                    @endcan
+                                    @endif
+                                </td>
+                            </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @endif
+                </div>
+
+                {{-- Tab 4: Licenses --}}
+                <div class="tab-pane fade" id="licenses" role="tabpanel">
+                    <div class="px-3 py-2 border-bottom d-flex justify-content-end">
+                        @can('manage-employees')
+                        <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#assignLicenseModal">
+                            <i class="bi bi-plus-lg me-1"></i>Assign License
+                        </button>
+                        @endcan
+                    </div>
+                    @if(($licenseAssignments ?? collect())->isEmpty())
+                    <div class="text-center py-5 text-muted small">
+                        <i class="bi bi-key d-block display-5 mb-2 opacity-25"></i>No licenses assigned.
+                    </div>
+                    @else
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">License</th><th>Vendor</th><th>Type</th>
+                                    <th>Assigned</th><th class="pe-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach($licenseAssignments as $la)
+                            <tr>
+                                <td class="ps-3 fw-semibold">
+                                    <i class="bi bi-key me-1 text-muted"></i>{{ $la->license?->license_name ?? 'Unknown' }}
+                                </td>
+                                <td>{{ $la->license?->vendor ?? '—' }}</td>
+                                <td><span class="badge bg-secondary">{{ ucfirst($la->license?->license_type ?? '—') }}</span></td>
+                                <td>{{ $la->assigned_date?->format('d M Y') ?? '—' }}</td>
+                                <td class="pe-3">
+                                    @if($la->license)
+                                    @can('manage-employees')
+                                    <form method="POST" action="{{ route('admin.itam.licenses.unassign', [$la->license_id, $la->id]) }}" class="d-inline"
+                                          onsubmit="return confirm('Unassign this license?')">
+                                        @csrf @method('DELETE')
+                                        <button class="btn btn-sm btn-outline-danger">Unassign</button>
+                                    </form>
+                                    @endcan
+                                    @endif
+                                </td>
+                            </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @endif
+                </div>
+
             </div>{{-- /tab-content --}}
         </div>{{-- /unified equipment --}}
 
@@ -430,6 +553,104 @@
     </div>
 </div>
 @endforeach
+
+{{-- Assign Accessory --}}
+<div class="modal fade" id="assignAccessoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="assignAccForm" method="POST" action="">
+                @csrf
+                <input type="hidden" name="assign_to" value="employee">
+                <input type="hidden" name="assignable_id" value="{{ $employee->id }}">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title"><i class="bi bi-box-seam me-2"></i>Assign Accessory</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    @if(($availableAccessories ?? collect())->isEmpty())
+                    <div class="alert alert-warning small py-2 mb-0">
+                        <i class="bi bi-exclamation-triangle me-1"></i>No accessories with available stock. Add accessories to inventory first.
+                    </div>
+                    @else
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Select Accessory <span class="text-danger">*</span></label>
+                        <select name="accessory_id" id="empAccSelect" class="form-select form-select-sm" required
+                                onchange="document.getElementById('assignAccForm').action='/admin/itam/accessories/'+this.value+'/assign'">
+                            <option value="">— Select —</option>
+                            @foreach($availableAccessories as $acc)
+                            <option value="{{ $acc->id }}">{{ $acc->name }} ({{ $acc->category }}) — {{ $acc->quantity_available }} available</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Assigned Date <span class="text-danger">*</span></label>
+                        <input type="date" name="assigned_date" class="form-control form-control-sm" value="{{ date('Y-m-d') }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Notes</label>
+                        <textarea name="notes" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                    @endif
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info btn-sm" {{ ($availableAccessories ?? collect())->isEmpty() ? 'disabled' : '' }}>
+                        <i class="bi bi-check-lg me-1"></i>Assign
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Assign License --}}
+<div class="modal fade" id="assignLicenseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="assignLicForm" method="POST" action="">
+                @csrf
+                <input type="hidden" name="assignable_type" value="employee">
+                <input type="hidden" name="assignable_id" value="{{ $employee->id }}">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title"><i class="bi bi-key me-2"></i>Assign License</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    @if(($availableLicenses ?? collect())->isEmpty())
+                    <div class="alert alert-warning small py-2 mb-0">
+                        <i class="bi bi-exclamation-triangle me-1"></i>No licenses with available seats. Add licenses first.
+                    </div>
+                    @else
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Select License <span class="text-danger">*</span></label>
+                        <select name="license_id" id="empLicSelect" class="form-select form-select-sm" required
+                                onchange="document.getElementById('assignLicForm').action='/admin/itam/licenses/'+this.value+'/assign'">
+                            <option value="">— Select —</option>
+                            @foreach($availableLicenses as $lic)
+                            <option value="{{ $lic->id }}">{{ $lic->license_name }} ({{ $lic->vendor }}) — {{ $lic->availableSeats() }} seats free</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Assigned Date <span class="text-danger">*</span></label>
+                        <input type="date" name="assigned_date" class="form-control form-control-sm" value="{{ date('Y-m-d') }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Notes</label>
+                        <textarea name="notes" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                    @endif
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning btn-sm" {{ ($availableLicenses ?? collect())->isEmpty() ? 'disabled' : '' }}>
+                        <i class="bi bi-check-lg me-1"></i>Assign
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 {{-- Add Personal Item --}}
 <div class="modal fade" id="addItemModal" tabindex="-1">
