@@ -124,7 +124,7 @@ class AccessoryController extends Controller
         return back()->with('success', "Accessory '{$accessory->name}' assigned.");
     }
 
-    public function return(Request $request, Accessory $accessory, AccessoryAssignment $assignment)
+    public function returnItem(Request $request, Accessory $accessory, AccessoryAssignment $assignment)
     {
         $assignment->update(['returned_date' => now()->toDateString()]);
         $accessory->increment('quantity_available');
