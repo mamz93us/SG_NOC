@@ -96,6 +96,17 @@ class AccessoryController extends Controller
             'notes'         => 'nullable|string',
         ]);
 
+        // Validate the assignable actually exists
+        if ($data['assign_to'] === 'employee') {
+            if (!\App\Models\Employee::find($data['assignable_id'])) {
+                return back()->with('error', 'Employee not found. Please select a valid employee.');
+            }
+        } else {
+            if (!\App\Models\Device::find($data['assignable_id'])) {
+                return back()->with('error', 'Device not found. Please select a valid device.');
+            }
+        }
+
         AccessoryAssignment::create([
             'accessory_id'  => $accessory->id,
             'employee_id'   => $data['assign_to'] === 'employee' ? $data['assignable_id'] : null,

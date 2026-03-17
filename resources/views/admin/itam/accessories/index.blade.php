@@ -145,14 +145,17 @@
                     <p class="text-muted small">Accessory: <strong id="assignName"></strong></p>
                     <div class="mb-3">
                         <label class="form-label">Assign To</label>
-                        <select name="assign_to" class="form-select" required>
+                        <select name="assign_to" id="accAssignTo" class="form-select" required onchange="accLoadAssignables(this.value)">
                             <option value="employee">Employee</option>
                             <option value="device">Device</option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">ID</label>
-                        <input type="number" name="assignable_id" class="form-control" placeholder="Enter employee or device ID" required>
+                        <label class="form-label">Select <span id="accAssignLabel">Employee</span></label>
+                        <input type="text" id="accSearchInput" class="form-control mb-1" placeholder="Type to search by name, email, IP..." autocomplete="off">
+                        <select name="assignable_id" id="accAssignableSelect" class="form-select" required size="5" style="min-height:120px">
+                            <option value="">Select type above, then search...</option>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Date</label>
@@ -175,10 +178,40 @@
 
 @push('scripts')
 <script>
+let accSearchTimer = null;
+
 function openAssign(id, name) {
     document.getElementById('assignName').textContent = name;
     document.getElementById('assignForm').action = `/admin/itam/accessories/${id}/assign`;
+    document.getElementById('accSearchInput').value = '';
+    accLoadAssignables('employee');
 }
+
+async function accLoadAssignables(type, search = '') {
+    document.getElementById('accAssignLabel').textContent = type === 'device' ? 'Device' : 'Employee';
+    const select = document.getElementById('accAssignableSelect');
+    select.innerHTML = '<option>Loading...</option>';
+    try {
+        const resp = await fetch(`/admin/api/search-assignables?type=${type}&q=${encodeURIComponent(search)}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await resp.json();
+        if (data.length === 0) {
+            select.innerHTML = '<option value="">No results found</option>';
+        } else {
+            select.innerHTML = data.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+        }
+    } catch(e) {
+        select.innerHTML = '<option value="">Error loading</option>';
+    }
+}
+
+document.getElementById('accSearchInput').addEventListener('input', function() {
+    clearTimeout(accSearchTimer);
+    const type = document.getElementById('accAssignTo').value;
+    const q = this.value;
+    accSearchTimer = setTimeout(() => accLoadAssignables(type, q), 300);
+});
 
 function editAccessory(a) {
     const form = document.getElementById('editAccessoryForm');

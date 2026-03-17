@@ -53,7 +53,8 @@
       "Bash(grep -r \"identity\\\\|Identity\" C:UsersMohamedZahranDownloadsphonebookSG_NOC/routes --include=*.php)",
       "Bash(grep -n \"$graph->\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\\\\Admin\\\\IdentityController.php\")",
       "Bash(grep \"$graph\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC/app/Http/Controllers/Admin/IdentityController.php\")",
-      "Bash(grep -E \"\\\\.\\(php|js\\)$\")"
+      "Bash(grep -E \"\\\\.\\(php|js\\)$\")",
+      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOC -name *license*migration* -type f)"
     ]
   }
 }

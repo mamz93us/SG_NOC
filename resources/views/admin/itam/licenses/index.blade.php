@@ -172,8 +172,9 @@
                     </div>
                     <div class="mb-3" id="assignableIdGroup" style="display:none">
                         <label class="form-label">Select <span id="assignableTypeLabel">Item</span></label>
-                        <select name="assignable_id" class="form-select" id="assignableId" required>
-                            <option value="">Loading...</option>
+                        <input type="text" id="licSearchInput" class="form-control mb-1" placeholder="Type to search by name, email, IP..." autocomplete="off">
+                        <select name="assignable_id" class="form-select" id="assignableId" required size="5" style="min-height:120px">
+                            <option value="">Select type above...</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -198,6 +199,7 @@
 @push('scripts')
 <script>
 let currentLicenseId = null;
+let licSearchTimer = null;
 
 function openAssign(licenseId, name, available) {
     currentLicenseId = licenseId;
@@ -206,23 +208,37 @@ function openAssign(licenseId, name, available) {
     document.getElementById('assignForm').action = `/admin/itam/licenses/${licenseId}/assign`;
     document.getElementById('assignableType').value = '';
     document.getElementById('assignableIdGroup').style.display = 'none';
+    document.getElementById('licSearchInput').value = '';
 }
 
-async function loadAssignables(type) {
+async function loadAssignables(type, search = '') {
     if (!type) { document.getElementById('assignableIdGroup').style.display = 'none'; return; }
     document.getElementById('assignableTypeLabel').textContent = type === 'device' ? 'Device' : 'Employee';
     document.getElementById('assignableIdGroup').style.display = '';
     const select = document.getElementById('assignableId');
     select.innerHTML = '<option>Loading...</option>';
-    const endpoint = type === 'device' ? '/admin/devices' : '/admin/employees';
     try {
-        const resp = await fetch(endpoint + '?format=json', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const resp = await fetch(`/admin/api/search-assignables?type=${type}&q=${encodeURIComponent(search)}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
         const data = await resp.json();
-        select.innerHTML = '<option value="">Select...</option>' + (data.items || data).map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+        if (data.length === 0) {
+            select.innerHTML = '<option value="">No results found</option>';
+        } else {
+            select.innerHTML = data.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+        }
     } catch(e) {
-        select.innerHTML = '<option value="">Error loading — enter ID manually</option>';
+        select.innerHTML = '<option value="">Error loading</option>';
     }
 }
+
+document.getElementById('licSearchInput').addEventListener('input', function() {
+    clearTimeout(licSearchTimer);
+    const type = document.getElementById('assignableType').value;
+    if (!type) return;
+    const q = this.value;
+    licSearchTimer = setTimeout(() => loadAssignables(type, q), 300);
+});
 
 function editLicense(lic) {
     const form = document.getElementById('editLicenseForm');

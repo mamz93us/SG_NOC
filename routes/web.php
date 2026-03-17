@@ -750,6 +750,42 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::patch('/{accessory}/assignments/{assignment}/return', [AccessoryController::class, 'returnItem'])->name('return');
     });
 
+    // ─── Assignable Search API (for license/accessory assign modals) ──
+    Route::get('/api/search-assignables', function (\Illuminate\Http\Request $request) {
+        $type  = $request->input('type', 'employee');
+        $query = $request->input('q', '');
+        $items = [];
+
+        if ($type === 'employee') {
+            $items = \App\Models\Employee::query()
+                ->when($query, fn($q) => $q->where('name', 'like', "%{$query}%")
+                    ->orWhere('email', 'like', "%{$query}%")
+                    ->orWhere('employee_id', 'like', "%{$query}%"))
+                ->orderBy('name')
+                ->limit(50)
+                ->get(['id', 'name', 'email', 'employee_id'])
+                ->map(fn($e) => [
+                    'id'   => $e->id,
+                    'name' => $e->name . ($e->email ? " ({$e->email})" : '') . ($e->employee_id ? " [#{$e->employee_id}]" : ''),
+                ]);
+        } else {
+            $items = \App\Models\Device::query()
+                ->when($query, fn($q) => $q->where('name', 'like', "%{$query}%")
+                    ->orWhere('ip_address', 'like', "%{$query}%")
+                    ->orWhere('serial_number', 'like', "%{$query}%")
+                    ->orWhere('asset_code', 'like', "%{$query}%"))
+                ->orderBy('name')
+                ->limit(50)
+                ->get(['id', 'name', 'type', 'ip_address', 'asset_code'])
+                ->map(fn($d) => [
+                    'id'   => $d->id,
+                    'name' => $d->name . " ({$d->type})" . ($d->ip_address ? " — {$d->ip_address}" : '') . ($d->asset_code ? " [{$d->asset_code}]" : ''),
+                ]);
+        }
+
+        return response()->json($items);
+    })->name('api.search-assignables');
+
     // ─── Azure Device Sync ────────────────────────────────────────
     Route::middleware('permission:view-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
         Route::get('/mappings',          [AzureSyncController::class, 'mappings'])->name('mappings');

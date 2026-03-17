@@ -261,7 +261,7 @@ class NetworkController extends Controller
     {
         $request->validate([
             'branch_id'   => 'required|exists:branches,id',
-            'name'        => 'required|string|max:100',
+            'name'        => 'required|string|max:100|unique:network_floors,name,NULL,id,branch_id,' . $request->branch_id,
             'description' => 'nullable|string|max:255',
             'sort_order'  => 'nullable|integer|min:0',
         ]);
