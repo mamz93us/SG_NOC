@@ -92,7 +92,51 @@
             </div>
         </div>
 
-        @if($employee->extension_number)
+        {{-- Linked Contact --}}
+        <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #6f42c1!important">
+            <div class="card-header bg-transparent py-2 d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-person-lines-fill me-1 text-purple"></i>Linked Contact</strong>
+                @can('manage-employees')
+                @if($employee->contact)
+                <form method="POST" action="{{ route('admin.employees.unlink-contact', $employee) }}" class="d-inline">
+                    @csrf @method('DELETE')
+                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="Unlink contact">
+                        <i class="bi bi-x-lg" style="font-size:.7rem"></i>
+                    </button>
+                </form>
+                @endif
+                @endcan
+            </div>
+            <div class="card-body small">
+                @if($employee->contact)
+                <dl class="row mb-0">
+                    <dt class="col-5 text-muted">Name</dt>
+                    <dd class="col-7 fw-semibold">{{ $employee->contact->first_name }} {{ $employee->contact->last_name }}</dd>
+                    @if($employee->contact->phone)
+                    <dt class="col-5 text-muted">Phone/Ext</dt>
+                    <dd class="col-7"><code>{{ $employee->contact->phone }}</code></dd>
+                    @endif
+                    @if($employee->contact->email)
+                    <dt class="col-5 text-muted">Email</dt>
+                    <dd class="col-7">{{ $employee->contact->email }}</dd>
+                    @endif
+                    @if($employee->contact->branch)
+                    <dt class="col-5 text-muted">Branch</dt>
+                    <dd class="col-7">{{ $employee->contact->branch->name }}</dd>
+                    @endif
+                </dl>
+                @else
+                <p class="text-muted mb-2">No contact linked yet.</p>
+                @can('manage-employees')
+                <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#linkContactModal">
+                    <i class="bi bi-link-45deg me-1"></i>Link Contact
+                </button>
+                @endcan
+                @endif
+            </div>
+        </div>
+
+        @if($employee->extension_number || ($employee->contact && $employee->contact->phone))
         <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #0d6efd!important">
             <div class="card-header bg-transparent"><strong><i class="bi bi-telephone-fill me-1 text-primary"></i>Extension</strong></div>
             <div class="card-body small">
@@ -102,7 +146,11 @@
                         <i class="bi bi-telephone-fill text-primary fs-5"></i>
                     </div>
                     <div>
-                        <div class="fw-bold fs-4 lh-1">{{ $employee->extension_number }}</div>
+                        <div class="fw-bold fs-4 lh-1">{{ $employee->extension_number ?: $employee->contact?->phone }}
+                            @if(!$employee->extension_number && $employee->contact?->phone)
+                            <span class="badge bg-light text-muted fw-normal" style="font-size:.6rem">from contact</span>
+                            @endif
+                        </div>
                         @php $ucm = $employee->branch?->ucmServer ?? $employee->ucmServer ?? null; @endphp
                         @if($ucm)
                         <div class="text-muted mt-1"><i class="bi bi-server me-1"></i>{{ $ucm->name }}</div>
@@ -782,6 +830,63 @@
     </div>
 </div>
 
+@endcan
+
+{{-- ── Link Contact Modal ── --}}
+@can('manage-employees')
+@if(!$employee->contact)
+<div class="modal fade" id="linkContactModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ route('admin.employees.link-contact', $employee) }}">
+                @csrf
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-semibold"><i class="bi bi-link-45deg me-1"></i>Link Contact to {{ $employee->name }}</h6>
+                    <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Search Contact</label>
+                        <input type="text" id="contactSearch" class="form-control form-control-sm" placeholder="Type name, email, or phone to filter..." autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Select Contact <span class="text-danger">*</span></label>
+                        <select name="contact_id" id="contactSelect" class="form-select form-select-sm" required size="8">
+                            @php
+                                $allContacts = \App\Models\Contact::orderBy('first_name')->get();
+                            @endphp
+                            @foreach($allContacts as $c)
+                            <option value="{{ $c->id }}" data-search="{{ strtolower($c->first_name . ' ' . $c->last_name . ' ' . $c->email . ' ' . $c->phone) }}"
+                                {{ $employee->email && strtolower($c->email) === strtolower($employee->email) ? 'selected' : '' }}>
+                                {{ $c->first_name }} {{ $c->last_name }} — {{ $c->phone }} {{ $c->email ? "({$c->email})" : '' }}
+                            </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Contacts matching the employee's email are pre-selected.</small>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Link Contact</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+document.getElementById('contactSearch')?.addEventListener('input', function() {
+    const term = this.value.toLowerCase().trim();
+    const options = document.querySelectorAll('#contactSelect option');
+    options.forEach(opt => {
+        const match = !term || opt.getAttribute('data-search').includes(term);
+        opt.style.display = match ? '' : 'none';
+    });
+});
+</script>
+@endpush
+@endif
 @endcan
 
 @endsection

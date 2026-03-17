@@ -58,7 +58,14 @@
       "Bash(ls -la /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*azure*)",
       "Bash(grep -n \"last_seen\\\\|last_activity\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/2026_03_*.php)",
       "Bash(grep -n \"Schema::table.*devices\\\\|Schema::create.*devices\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)",
-      "Bash(grep -r \"SyncGdmsDeviceAccountsJob\\\\|AzureDeviceService\\\\|syncDevices\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Console --include=*.php)"
+      "Bash(grep -r \"SyncGdmsDeviceAccountsJob\\\\|AzureDeviceService\\\\|syncDevices\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Console --include=*.php)",
+      "Bash(php -l app/Services/PhoneDeviceLookup.php)",
+      "Bash(php -l app/Http/Controllers/Admin/PhoneAutoAssignController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/DeviceImportController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/EmployeeController.php)",
+      "Bash(php -l app/Models/Employee.php)",
+      "Bash(php -l database/migrations/2026_03_17_000001_add_contact_id_to_employees.php)",
+      "Bash(php -l routes/web.php)"
     ]
   }
 }

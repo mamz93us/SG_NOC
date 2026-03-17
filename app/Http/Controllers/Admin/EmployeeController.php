@@ -84,6 +84,7 @@ class EmployeeController extends Controller
             'items',
             'identityUser',
             'accessoryAssignments.accessory',
+            'contact',
         ]);
 
         // Only show user-equipment types in the assign modal (laptops, monitors, etc.)
@@ -106,13 +107,16 @@ class EmployeeController extends Controller
             ->where('assignable_id', $employee->id)
             ->get();
 
-        // Resolve linked phone device from extension
+        // Resolve linked phone device from extension or linked contact's phone
         $phoneInfo = null;
-        if ($employee->extension_number) {
+        $extensionToLookup = $employee->extension_number
+            ?: ($employee->contact?->phone ?? null);
+
+        if ($extensionToLookup) {
             $ucmServerId = $employee->ucm_server_id
                 ?? $employee->branch?->ucmServer?->id;
             $phoneInfo = PhoneDeviceLookup::findByExtension(
-                $employee->extension_number, $ucmServerId
+                $extensionToLookup, $ucmServerId
             );
         }
 
@@ -241,6 +245,84 @@ class EmployeeController extends Controller
         Device::where('id', $asset->asset_id)->update(['status' => 'available']);
 
         return back()->with('success', 'Asset returned successfully.');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Contact Linking
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Link an employee to a contact (by contact_id).
+     */
+    public function linkContact(Request $request, Employee $employee)
+    {
+        $request->validate(['contact_id' => 'required|exists:contacts,id']);
+
+        $contact = \App\Models\Contact::findOrFail($request->contact_id);
+        $employee->update(['contact_id' => $contact->id]);
+
+        // Auto-fill extension_number from contact's phone if employee doesn't have one
+        if (!$employee->extension_number && $contact->phone) {
+            $employee->update(['extension_number' => $contact->phone]);
+        }
+
+        return back()->with('success', "Linked to contact: {$contact->first_name} {$contact->last_name}");
+    }
+
+    /**
+     * Unlink the contact from an employee.
+     */
+    public function unlinkContact(Employee $employee)
+    {
+        $employee->update(['contact_id' => null]);
+
+        return back()->with('success', 'Contact unlinked.');
+    }
+
+    /**
+     * Auto-link all employees to contacts by matching email addresses.
+     */
+    public function autoLinkContacts()
+    {
+        $this->authorize('manage-employees');
+
+        $employees = Employee::whereNull('contact_id')
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->get();
+
+        $contacts = \App\Models\Contact::whereNotNull('email')
+            ->where('email', '!=', '')
+            ->get()
+            ->keyBy(fn ($c) => strtolower(trim($c->email)));
+
+        $linked = 0;
+        $extensionsFilled = 0;
+
+        foreach ($employees as $emp) {
+            $email   = strtolower(trim($emp->email));
+            $contact = $contacts[$email] ?? null;
+
+            if ($contact) {
+                $emp->contact_id = $contact->id;
+
+                // Auto-fill extension from contact phone if missing
+                if (!$emp->extension_number && $contact->phone) {
+                    $emp->extension_number = $contact->phone;
+                    $extensionsFilled++;
+                }
+
+                $emp->save();
+                $linked++;
+            }
+        }
+
+        $msg = "Auto-linked {$linked} employee(s) to contacts by email.";
+        if ($extensionsFilled > 0) {
+            $msg .= " {$extensionsFilled} extension number(s) auto-filled.";
+        }
+
+        return back()->with('success', $msg);
     }
 
     public function report(Employee $employee)

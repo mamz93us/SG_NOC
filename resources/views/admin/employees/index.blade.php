@@ -7,7 +7,13 @@
         <small class="text-muted">{{ number_format($total) }} total employees</small>
     </div>
     @can('manage-employees')
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+        <form method="POST" action="{{ route('admin.employees.auto-link-contacts') }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-outline-success btn-sm">
+                <i class="bi bi-link-45deg me-1"></i>Auto-Link Contacts
+            </button>
+        </form>
         <a href="{{ route('admin.employees.sync') }}" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-cloud-arrow-down me-1"></i>Sync from Azure
         </a>

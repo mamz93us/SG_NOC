@@ -21,18 +21,27 @@ class PhoneAutoAssignController extends Controller
     {
         $this->authorize('manage-assets');
 
-        $employees = Employee::whereNotNull('extension_number')
-            ->where('extension_number', '!=', '')
-            ->where('status', 'active')
-            ->with(['branch.ucmServer', 'ucmServer', 'activeAssets.device'])
+        // Include employees with extension_number OR a linked contact with phone
+        $employees = Employee::where('status', 'active')
+            ->where(function ($q) {
+                $q->where(function ($q2) {
+                    $q2->whereNotNull('extension_number')->where('extension_number', '!=', '');
+                })->orWhereHas('contact', function ($q2) {
+                    $q2->whereNotNull('phone')->where('phone', '!=', '');
+                });
+            })
+            ->with(['branch.ucmServer', 'ucmServer', 'activeAssets.device', 'contact'])
             ->orderBy('name')
             ->get();
 
         $results = [];
 
         foreach ($employees as $emp) {
+            $extension   = $emp->extension_number ?: ($emp->contact?->phone ?? null);
+            if (!$extension) continue;
+
             $ucmServerId = $emp->ucm_server_id ?? $emp->branch?->ucmServer?->id;
-            $lookup      = PhoneDeviceLookup::findByExtension($emp->extension_number, $ucmServerId);
+            $lookup      = PhoneDeviceLookup::findByExtension($extension, $ucmServerId);
             $device      = $lookup['device'] ?? null;
             $status      = 'not_found';
 

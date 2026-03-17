@@ -90,7 +90,11 @@
                                 </a>
                             </td>
                             <td>
-                                <span class="badge bg-primary bg-opacity-75">{{ $r['employee']->extension_number }}</span>
+                                @php $ext = $r['employee']->extension_number ?: ($r['employee']->contact?->phone ?? '—'); @endphp
+                                <span class="badge bg-primary bg-opacity-75">{{ $ext }}</span>
+                                @if(!$r['employee']->extension_number && $r['employee']->contact?->phone)
+                                <span class="badge bg-light text-muted" style="font-size:.6rem">contact</span>
+                                @endif
                             </td>
                             <td>
                                 @if($r['device'])

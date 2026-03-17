@@ -658,6 +658,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('employees/create',       [EmployeeController::class, 'create'])     ->name('employees.create');
         Route::get('employees/sync',         [EmployeeController::class, 'showSync'])   ->name('employees.sync');
         Route::post('employees/sync',        [EmployeeController::class, 'doSync'])     ->name('employees.sync.do');
+        Route::post('employees/auto-link-contacts', [EmployeeController::class, 'autoLinkContacts'])->name('employees.auto-link-contacts');
         Route::post('employees',             [EmployeeController::class, 'store'])      ->name('employees.store');
     });
     Route::middleware('permission:view-employees')->group(function () {
@@ -667,6 +668,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:manage-employees')->group(function () {
         Route::get('employees/{employee}/edit',            [EmployeeController::class, 'edit'])         ->name('employees.edit');
         Route::put('employees/{employee}',                 [EmployeeController::class, 'update'])        ->name('employees.update');
+        Route::post('employees/{employee}/link-contact',    [EmployeeController::class, 'linkContact'])    ->name('employees.link-contact');
+        Route::delete('employees/{employee}/unlink-contact', [EmployeeController::class, 'unlinkContact']) ->name('employees.unlink-contact');
         Route::post('employees/{employee}/assets',         [EmployeeController::class, 'assignAsset'])   ->name('employees.assets.assign');
         Route::patch('employees/{employee}/assets/{asset}/return', [EmployeeController::class, 'returnAsset']) ->name('employees.assets.return');
         // Employee items (standalone equipment)

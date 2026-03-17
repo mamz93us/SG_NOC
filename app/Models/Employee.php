@@ -22,6 +22,7 @@ class Employee extends Model
         'notes',
         'extension_number',
         'ucm_server_id',
+        'contact_id',
     ];
 
     protected $casts = [
@@ -72,6 +73,11 @@ class Employee extends Model
     public function ucmServer()
     {
         return $this->belongsTo(\App\Models\UcmServer::class, 'ucm_server_id');
+    }
+
+    public function contact(): BelongsTo
+    {
+        return $this->belongsTo(Contact::class);
     }
 
     public function items()
