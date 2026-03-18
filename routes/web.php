@@ -255,6 +255,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::put('settings/departments/{department}',           [SettingsController::class, 'updateDepartment'])->name('settings.departments.update');
         Route::delete('settings/departments/{department}',        [SettingsController::class, 'destroyDepartment'])->name('settings.departments.destroy');
 
+        // ── Asset Types ──────────────────────────────────────────────
+        Route::get('settings/asset-types',                        [\App\Http\Controllers\Admin\AssetTypeController::class, 'index'])         ->name('settings.asset-types');
+        Route::post('settings/asset-types',                       [\App\Http\Controllers\Admin\AssetTypeController::class, 'store'])         ->name('settings.asset-types.store');
+        Route::put('settings/asset-types/{assetType}',            [\App\Http\Controllers\Admin\AssetTypeController::class, 'update'])        ->name('settings.asset-types.update');
+        Route::delete('settings/asset-types/{assetType}',         [\App\Http\Controllers\Admin\AssetTypeController::class, 'destroy'])       ->name('settings.asset-types.destroy');
+        Route::post('settings/asset-types/settings',              [\App\Http\Controllers\Admin\AssetTypeController::class, 'updateSettings'])->name('settings.asset-types.settings');
+
         // ── SMTP / Outgoing Mail ──────────────────────────────────────
         Route::post('settings/itam',      [SettingsController::class, 'updateItam'])  ->name('settings.itam');
         Route::post('settings/smtp',      [SettingsController::class, 'updateSmtp']) ->name('settings.smtp');

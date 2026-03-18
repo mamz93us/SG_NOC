@@ -62,8 +62,7 @@ class DeviceController extends Controller
         $devices   = $query->paginate(50)->withQueryString();
         $branches  = Branch::orderBy('name')->get(['id', 'name']);
         $employees = Employee::orderBy('name')->get(['id', 'name']);
-        $types     = ['ucm', 'switch', 'router', 'firewall', 'ap', 'printer', 'server',
-                      'laptop', 'desktop', 'monitor', 'keyboard', 'mouse', 'headset', 'tablet', 'other'];
+        $types     = \App\Models\AssetType::allSlugs();
 
         return view('admin.devices.index', compact('devices', 'branches', 'employees', 'types'));
     }
@@ -135,7 +134,7 @@ class DeviceController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'type'                 => 'required|in:ucm,switch,router,firewall,ap,printer,server,laptop,desktop,monitor,keyboard,mouse,headset,tablet,other',
+            'type'                 => 'required|in:' . implode(',', \App\Models\AssetType::allSlugs()),
             'name'                 => 'required|string|max:255',
             'device_model_id'      => 'nullable|exists:device_models,id',
             'serial_number'        => 'nullable|string|max:100',
@@ -285,7 +284,7 @@ class DeviceController extends Controller
     public function update(Request $request, Device $device)
     {
         $data = $request->validate([
-            'type'                 => 'required|in:ucm,switch,router,firewall,ap,printer,server,laptop,desktop,monitor,keyboard,mouse,headset,tablet,other',
+            'type'                 => 'required|in:' . implode(',', \App\Models\AssetType::allSlugs()),
             'name'                 => 'required|string|max:255',
             'device_model_id'      => 'nullable|exists:device_models,id',
             'serial_number'        => 'nullable|string|max:100',

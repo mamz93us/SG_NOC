@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\AssetType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -124,89 +125,43 @@ class Device extends Model
 
     // ─── Helpers ──────────────────────────────────────────────────
 
-    /** Types that represent personal user equipment (assignable to employees) */
-    public const USER_EQUIPMENT_TYPES = [
-        'laptop', 'desktop', 'monitor', 'keyboard', 'mouse', 'headset', 'tablet', 'phone',
-    ];
+    /** Types that represent personal user equipment (assignable to employees) — dynamic from DB */
+    public static function userEquipmentTypes(): array
+    {
+        return AssetType::userEquipmentSlugs();
+    }
+
+    /** Resolve the AssetType record for this device (cached) */
+    public function assetType(): ?AssetType
+    {
+        return AssetType::findBySlug($this->type);
+    }
 
     public function typeLabel(): string
     {
-        return match ($this->type) {
-            // ── Infrastructure ────────────────────────────────────
-            'ucm'      => 'UCM / IPPBX',
-            'switch'   => 'Network Switch',
-            'router'   => 'Router',
-            'firewall' => 'Firewall',
-            'ap'       => 'Access Point',
-            'printer'  => 'Printer',
-            'server'   => 'Server',
-            // ── User Equipment ────────────────────────────────────
-            'laptop'   => 'Laptop',
-            'desktop'  => 'Desktop',
-            'monitor'  => 'Monitor',
-            'keyboard' => 'Keyboard',
-            'mouse'    => 'Mouse',
-            'headset'  => 'Headset',
-            'tablet'   => 'Tablet',
-            'phone'    => 'IP Phone',
-            default    => 'Other',
-        };
+        return $this->assetType()?->label ?? ucfirst($this->type ?? 'Other');
     }
 
     public function typeIcon(): string
     {
-        return match ($this->type) {
-            // ── Infrastructure ────────────────────────────────────
-            'ucm'      => 'bi-telephone-fill',
-            'switch'   => 'bi-hdd-network',
-            'router'   => 'bi-router-fill',
-            'firewall' => 'bi-shield-lock-fill',
-            'ap'       => 'bi-wifi',
-            'printer'  => 'bi-printer-fill',
-            'server'   => 'bi-server',
-            // ── User Equipment ────────────────────────────────────
-            'laptop'   => 'bi-laptop',
-            'desktop'  => 'bi-pc-display',
-            'monitor'  => 'bi-display',
-            'keyboard' => 'bi-keyboard',
-            'mouse'    => 'bi-mouse',
-            'headset'  => 'bi-headset',
-            'tablet'   => 'bi-tablet',
-            'phone'    => 'bi-telephone',
-            default    => 'bi-cpu',
-        };
+        return $this->assetType()?->icon ?? 'bi-cpu';
     }
 
     public function typeBadgeClass(): string
     {
-        return match ($this->type) {
-            // ── Infrastructure ────────────────────────────────────
-            'ucm'      => 'bg-primary',
-            'switch'   => 'bg-info text-dark',
-            'router'   => 'bg-warning text-dark',
-            'firewall' => 'bg-danger',
-            'ap'       => 'bg-success',
-            'printer'  => 'bg-secondary',
-            'server'   => 'bg-dark',
-            // ── User Equipment ────────────────────────────────────
-            'laptop', 'desktop'              => 'bg-primary',
-            'monitor', 'tablet'              => 'bg-info text-dark',
-            'keyboard', 'mouse', 'headset'   => 'bg-secondary',
-            'phone'    => 'bg-success',
-            default    => 'bg-secondary',
-        };
+        return $this->assetType()?->badge_class ?? 'bg-secondary';
     }
 
     /** Scope: only user-equipment types (for employee assignment) */
     public function scopeUserEquipment($query)
     {
-        return $query->whereIn('type', self::USER_EQUIPMENT_TYPES);
+        return $query->whereIn('type', self::userEquipmentTypes());
     }
 
     /** Is this device assignable to employees? */
     public function isUserEquipment(): bool
     {
-        return in_array($this->type, self::USER_EQUIPMENT_TYPES);
+        return $this->assetType()?->is_user_equipment ?? false;
     }
 
     public function statusBadgeClass(): string

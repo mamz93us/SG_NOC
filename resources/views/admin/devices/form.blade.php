@@ -96,16 +96,13 @@
                     <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
                     <select name="type" id="dv_type" class="form-select @error('type') is-invalid @enderror" required
                             onchange="dvTypeChanged(this.value)">
-                        <optgroup label="Infrastructure">
-                        @foreach(['ucm','switch','router','firewall','ap','printer','server','other'] as $t)
-                        <option value="{{ $t }}" {{ old('type', $device->type ?? request('type', 'laptop')) == $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
+                        @foreach(\App\Models\AssetType::grouped() as $group => $groupTypes)
+                        <optgroup label="{{ str_replace('_', ' ', ucfirst($group)) }}">
+                        @foreach($groupTypes as $at)
+                        <option value="{{ $at->slug }}" {{ old('type', $device->type ?? request('type', 'laptop')) == $at->slug ? 'selected' : '' }}>{{ $at->label }}</option>
                         @endforeach
                         </optgroup>
-                        <optgroup label="User Equipment">
-                        @foreach(['laptop','desktop','monitor','keyboard','mouse','headset','tablet','phone'] as $t)
-                        <option value="{{ $t }}" {{ old('type', $device->type ?? request('type', 'laptop')) == $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
                         @endforeach
-                        </optgroup>
                     </select>
                     @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
@@ -341,8 +338,8 @@
                         <label class="form-label small fw-semibold">Device Type</label>
                         <select id="dvAmType" class="form-select form-select-sm">
                             <option value="">— None —</option>
-                            @foreach(['ucm','switch','router','firewall','ap','printer','server','laptop','desktop','monitor','keyboard','mouse','headset','tablet','other'] as $t)
-                            <option value="{{ $t }}" {{ request('type') == $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
+                            @foreach(\App\Models\AssetType::cached() as $at)
+                            <option value="{{ $at->slug }}" {{ request('type') == $at->slug ? 'selected' : '' }}>{{ $at->label }}</option>
                             @endforeach
                         </select>
                     </div>

@@ -597,6 +597,12 @@
                                     <i class="bi bi-globe me-2"></i>Allowed Domains
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.settings.asset-types') ? 'active' : '' }}"
+                                   href="{{ route('admin.settings.asset-types') }}">
+                                    <i class="bi bi-tags-fill me-2"></i>Asset Types & Codes
+                                </a>
+                            </li>
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-cloud-check me-1"></i>Provisioning</h6></li>
                             <li>

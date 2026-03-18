@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AssetType;
 use App\Models\Device;
 use App\Models\Setting;
 
@@ -28,23 +29,8 @@ class AssetCodeService
 
     public function categoryCode(string $deviceType): string
     {
-        return match (strtolower($deviceType)) {
-            'laptop'              => 'LAP',
-            'desktop'             => 'DSK',
-            'server'              => 'SRV',
-            'switch'              => 'NET',
-            'router'              => 'RTR',
-            'firewall'            => 'FWL',
-            'ap'                  => 'WAP',
-            'printer'             => 'PRN',
-            'monitor'             => 'MON',
-            'tablet'              => 'TAB',
-            'phone', 'ucm'        => 'PHN',
-            'keyboard'            => 'KBD',
-            'mouse'               => 'MOU',
-            'headset'             => 'HDT',
-            default               => 'OTH',
-        };
+        $assetType = AssetType::findBySlug(strtolower($deviceType));
+        return $assetType?->category_code ?? 'OTH';
     }
 
     /**

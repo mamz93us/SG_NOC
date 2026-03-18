@@ -33,8 +33,8 @@
     <div class="col-auto">
         <select name="type" class="form-select form-select-sm">
             <option value="">All Types</option>
-            @foreach($types as $t)
-            <option value="{{ $t }}" {{ request('type') == $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
+            @foreach(\App\Models\AssetType::cached() as $at)
+            <option value="{{ $at->slug }}" {{ request('type') == $at->slug ? 'selected' : '' }}>{{ $at->label }}</option>
             @endforeach
         </select>
     </div>

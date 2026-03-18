@@ -20,6 +20,19 @@ class PhoneDeviceLookup
      *                      'switch_location' => string|null]
      */
     /**
+     * Return the IP only if it's a private/local address (10.x, 172.16-31.x, 192.168.x).
+     */
+    private static function privateIp(?string $ip): ?string
+    {
+        if (!$ip) return null;
+        // FILTER_FLAG_NO_PRIV_RANGE fails for private IPs, so if it passes → it's public → reject
+        if (filter_var($ip, FILTER_VALIDATE_IP) && !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE)) {
+            return $ip;
+        }
+        return null;
+    }
+
+    /**
      * Normalize a MAC address to lowercase 12-char hex (strip colons, dashes, dots, spaces).
      */
     private static function normalizeMac(?string $raw): ?string
@@ -43,7 +56,7 @@ class PhoneDeviceLookup
             $result = [
                 'device'          => $device,
                 'mac'             => $mac,
-                'ip'              => $device?->ip_address,
+                'ip'              => self::privateIp($device?->ip_address),
                 'status'          => $phoneAccount->account_status,
                 'source'          => 'PhoneAccount',
                 'model'           => $device?->model,
@@ -60,7 +73,7 @@ class PhoneDeviceLookup
                     ->when($ucmServerId, fn ($q) => $q->where('ucm_server_id', $ucmServerId))
                     ->first();
                 if ($portMap) {
-                    $result['ip']              = $portMap->phone_ip;
+                    $result['ip']              = self::privateIp($portMap->phone_ip);
                     $result['switch_location'] = $portMap->locationLabel();
                 }
             }
@@ -83,7 +96,7 @@ class PhoneDeviceLookup
                 $result = [
                     'device'          => $device,
                     'mac'             => $mac,
-                    'ip'              => $device?->ip_address ?? $portMap?->phone_ip ?? $ucmExt->ip_address,
+                    'ip'              => self::privateIp($device?->ip_address) ?? self::privateIp($portMap?->phone_ip) ?? self::privateIp($ucmExt->ip_address),
                     'status'          => $ucmExt->status,
                     'source'          => 'UcmCache',
                     'model'           => $device?->model,
@@ -101,7 +114,7 @@ class PhoneDeviceLookup
             $prl = PhoneRequestLog::where('mac', $result['mac'])->latest()->first();
             if ($prl) {
                 $result['model'] = $result['model'] ?: $prl->model;
-                $result['ip']    = $result['ip'] ?: $prl->ip;
+                $result['ip']    = $result['ip'] ?: self::privateIp($prl->ip);
             }
         }
 

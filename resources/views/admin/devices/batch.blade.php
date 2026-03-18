@@ -181,8 +181,8 @@
                         <label class="form-label small fw-semibold">Device Type</label>
                         <select id="dvAmType" class="form-select form-select-sm">
                             <option value="">— None —</option>
-                            @foreach(['ucm','switch','router','firewall','ap','printer','server','laptop','desktop','monitor','keyboard','mouse','headset','tablet','other'] as $t)
-                            <option value="{{ $t }}">{{ ucfirst($t) }}</option>
+                            @foreach(\App\Models\AssetType::cached() as $at)
+                            <option value="{{ $at->slug }}">{{ $at->label }}</option>
                             @endforeach
                         </select>
                     </div>

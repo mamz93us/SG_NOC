@@ -121,11 +121,13 @@ class PhoneAutoAssignController extends Controller
             $device = $mac ? ($devicesByMac[$mac] ?? null) : null;
             $prl    = $mac ? ($phoneLogs[$mac] ?? null) : null;
 
-            // Resolve IP
-            $ip = $device?->ip_address
-                ?? $pm?->phone_ip
-                ?? $ucm?->ip_address
-                ?? $prl?->ip;
+            // Resolve IP — only keep private/local IPs (10.x, 172.16-31.x, 192.168.x)
+            $ip = collect([
+                $device?->ip_address,
+                $pm?->phone_ip,
+                $ucm?->ip_address,
+                $prl?->ip,
+            ])->first(fn ($v) => $v && filter_var($v, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE) && !filter_var($v, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE));
 
             // Resolve model
             $model = $device?->model ?? $prl?->model;

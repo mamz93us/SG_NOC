@@ -24,8 +24,7 @@ class DeviceModelController extends Controller
         }
 
         $models = $query->paginate(30)->withQueryString();
-        $types  = ['ucm','switch','router','firewall','ap','printer','server',
-                   'laptop','desktop','monitor','keyboard','mouse','headset','tablet','other'];
+        $types  = \App\Models\AssetType::allSlugs();
 
         return view('admin.devices.models.index', compact('models', 'types'));
     }
