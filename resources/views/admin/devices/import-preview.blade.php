@@ -27,7 +27,7 @@
     <div class="col-auto">
         <div class="card px-3 py-2 text-center border-primary">
             <div class="fw-bold fs-5 text-primary">{{ $updates }}</div>
-            <small class="text-muted">Update Serial</small>
+            <small class="text-muted">Update Existing</small>
         </div>
     </div>
     <div class="col-auto">
@@ -51,9 +51,10 @@
                             </th>
                             <th>MAC Address</th>
                             <th>Serial Number</th>
+                            <th>Model</th>
                             <th>Existing Device</th>
                             <th>Current Serial</th>
-                            <th>Model (from logs)</th>
+                            <th>Current Model</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -66,6 +67,7 @@
                             </td>
                             <td class="font-monospace">{{ $row['mac_display'] }}</td>
                             <td class="fw-semibold">{{ $row['serial'] ?: '—' }}</td>
+                            <td>{{ $row['model'] ?: '—' }}</td>
                             <td>
                                 @if($row['existing_device'])
                                 <a href="{{ route('admin.devices.show', $row['existing_device']['id']) }}" class="text-decoration-none">
@@ -78,12 +80,14 @@
                             <td class="text-muted">
                                 {{ $row['existing_device']['current_serial'] ?? '—' }}
                             </td>
-                            <td>{{ $row['model_from_log'] ?: '—' }}</td>
+                            <td class="text-muted">
+                                {{ $row['existing_device']['current_model'] ?? '—' }}
+                            </td>
                             <td>
                                 @if($row['action'] === 'update')
-                                <span class="badge bg-primary"><i class="bi bi-pencil me-1"></i>Update Serial</span>
+                                <span class="badge bg-primary"><i class="bi bi-pencil me-1"></i>Update</span>
                                 @else
-                                <span class="badge bg-success"><i class="bi bi-plus-lg me-1"></i>Create Device</span>
+                                <span class="badge bg-success"><i class="bi bi-plus-lg me-1"></i>Create</span>
                                 @endif
                             </td>
                         </tr>

@@ -340,6 +340,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('devices/phone-auto-assign',   [PhoneAutoAssignController::class, 'store'])->name('devices.phone-auto-assign.store');
         Route::post('devices/import/preview',      [DeviceImportController::class, 'preview'])->name('devices.import.preview');
         Route::post('devices/import/apply',        [DeviceImportController::class, 'apply'])->name('devices.import.apply');
+        Route::post('devices/import/manual',       [DeviceImportController::class, 'manualStore'])->name('devices.import.manual');
+        Route::post('devices/import/batch',        [DeviceImportController::class, 'batchStore'])->name('devices.import.batch');
     });
 
     // ─── Credentials (Password Vault) ─────────────────────────
