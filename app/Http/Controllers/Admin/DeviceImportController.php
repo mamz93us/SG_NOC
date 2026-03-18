@@ -26,7 +26,6 @@ class DeviceImportController extends Controller
 
     /**
      * Parse uploaded Excel and show preview.
-     * Optimized: uses batch queries, processes in chunks, set_time_limit for large files.
      */
     public function preview(Request $request)
     {
@@ -46,14 +45,14 @@ class DeviceImportController extends Controller
 
         $header = array_shift($data);
 
-        // Find MAC, Serial and Model columns by header name (case-insensitive)
-        // Also strip non-breaking spaces and other invisible chars
+        // Find columns by header name (case-insensitive, strip invisible chars)
         $macCol    = null;
         $serialCol = null;
         $modelCol  = null;
+        $ipCol     = null;
         foreach ($header as $i => $h) {
             $h = strtolower(trim(preg_replace('/[\x00-\x1F\x7F\xA0]/u', '', $h ?? '')));
-            if ($macCol === null && (str_contains($h, 'mac') || str_contains($h, 'address'))) {
+            if ($macCol === null && str_contains($h, 'mac')) {
                 $macCol = $i;
             }
             if ($serialCol === null && str_contains($h, 'serial')) {
@@ -62,55 +61,89 @@ class DeviceImportController extends Controller
             if ($modelCol === null && str_contains($h, 'model')) {
                 $modelCol = $i;
             }
+            if ($ipCol === null && str_contains($h, 'ip')) {
+                $ipCol = $i;
+            }
         }
 
-        if ($macCol === null) {
-            return back()->with('error', 'Could not find a MAC address column in the header row. Make sure the header contains "MAC".');
+        if ($macCol === null && $ipCol === null) {
+            return back()->with('error', 'Could not find a MAC or IP column in the header row. Make sure the header contains "MAC" or "IP".');
         }
 
-        // First pass: extract and normalize all MACs
+        // First pass: extract and normalize
         $parsedRows = [];
         $allMacs = [];
+        $allIps  = [];
         foreach ($data as $row) {
-            $rawMac = trim($row[$macCol] ?? '');
+            $rawMac = $macCol !== null ? trim($row[$macCol] ?? '') : '';
             $serial = $serialCol !== null ? trim($row[$serialCol] ?? '') : '';
             $model  = $modelCol !== null ? trim($row[$modelCol] ?? '') : '';
+            $ip     = $ipCol !== null ? trim($row[$ipCol] ?? '') : '';
+
             $mac = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $rawMac));
-            if (!$mac || strlen($mac) < 12) continue;
-            $mac = substr($mac, 0, 12); // ensure exactly 12 hex chars
-            $parsedRows[] = ['mac' => $mac, 'serial' => $serial, 'model' => $model];
-            $allMacs[] = $mac;
+            if ($mac && strlen($mac) >= 12) {
+                $mac = substr($mac, 0, 12);
+            } else {
+                $mac = '';
+            }
+
+            // Validate IP
+            if ($ip && !filter_var($ip, FILTER_VALIDATE_IP)) {
+                $ip = '';
+            }
+
+            // Skip rows with neither MAC nor IP
+            if (!$mac && !$ip) continue;
+
+            $parsedRows[] = ['mac' => $mac, 'serial' => $serial, 'model' => $model, 'ip' => $ip];
+            if ($mac) $allMacs[] = $mac;
+            if ($ip) $allIps[] = $ip;
         }
 
-        if (empty($allMacs)) {
-            return back()->with('error', 'No valid MAC addresses found in the file.');
+        if (empty($parsedRows)) {
+            return back()->with('error', 'No valid MAC addresses or IP addresses found in the file.');
         }
 
-        // Batch lookup: all devices and phone logs in 2 queries
-        $devicesByMac = Device::whereIn('mac_address', $allMacs)
-            ->get()
-            ->keyBy('mac_address');
+        // Batch lookup: devices by MAC and by IP
+        $devicesByMac = !empty($allMacs)
+            ? Device::whereIn('mac_address', $allMacs)->get()->keyBy('mac_address')
+            : collect();
 
-        $phoneLogsByMac = PhoneRequestLog::whereIn('mac', $allMacs)
-            ->select('mac', 'model', DB::raw('MAX(created_at) as last_at'))
-            ->groupBy('mac', 'model')
-            ->get()
-            ->keyBy('mac');
+        $devicesByIp = !empty($allIps)
+            ? Device::whereIn('ip_address', $allIps)->get()->keyBy('ip_address')
+            : collect();
+
+        $phoneLogsByMac = !empty($allMacs)
+            ? PhoneRequestLog::whereIn('mac', $allMacs)
+                ->select('mac', 'model', DB::raw('MAX(created_at) as last_at'))
+                ->groupBy('mac', 'model')
+                ->get()
+                ->keyBy('mac')
+            : collect();
 
         $preview = [];
         foreach ($parsedRows as $parsed) {
             $mac    = $parsed['mac'];
             $serial = $parsed['serial'];
             $model  = $parsed['model'];
-            $existingDevice = $devicesByMac[$mac] ?? null;
-            $phoneLog       = $phoneLogsByMac[$mac] ?? null;
+            $ip     = $parsed['ip'];
 
-            // Model priority: Excel file > phone logs
+            // Find existing device: MAC first, then IP fallback
+            $existingDevice = null;
+            if ($mac) {
+                $existingDevice = $devicesByMac[$mac] ?? null;
+            }
+            if (!$existingDevice && $ip) {
+                $existingDevice = $devicesByIp[$ip] ?? null;
+            }
+
+            $phoneLog = $mac ? ($phoneLogsByMac[$mac] ?? null) : null;
             $finalModel = $model ?: ($phoneLog?->model ?? '');
 
             $preview[] = [
                 'mac'             => $mac,
-                'mac_display'     => strtoupper(implode(':', str_split($mac, 2))),
+                'mac_display'     => $mac ? strtoupper(implode(':', str_split($mac, 2))) : '',
+                'ip'              => $ip,
                 'serial'          => $serial,
                 'model'           => $finalModel,
                 'existing_device' => $existingDevice ? [
@@ -125,7 +158,7 @@ class DeviceImportController extends Controller
         }
 
         if (empty($preview)) {
-            return back()->with('error', 'No valid MAC addresses found in the file.');
+            return back()->with('error', 'No valid data found in the file.');
         }
 
         session(['device_import_preview' => $preview]);
@@ -181,6 +214,16 @@ class DeviceImportController extends Controller
                             $updates['model'] = $row['model'];
                             $notes[] = "Model: {$row['model']}";
                         }
+                        // Update MAC if provided and device doesn't have one
+                        if ($row['mac'] && !$device->mac_address) {
+                            $updates['mac_address'] = $row['mac'];
+                            $notes[] = "MAC: {$row['mac']}";
+                        }
+                        // Update IP if provided and device doesn't have one
+                        if (($row['ip'] ?? '') && !$device->ip_address) {
+                            $updates['ip_address'] = $row['ip'];
+                            $notes[] = "IP: {$row['ip']}";
+                        }
                         // Fix type/manufacturer for previously imported phones
                         if ($device->type !== 'phone') {
                             $updates['type'] = 'phone';
@@ -203,6 +246,7 @@ class DeviceImportController extends Controller
                         }
                         $results[] = [
                             'mac_display' => $row['mac_display'],
+                            'ip'          => $row['ip'] ?? '',
                             'serial'      => $row['serial'],
                             'model'       => $row['model'],
                             'action'      => 'updated',
@@ -213,7 +257,7 @@ class DeviceImportController extends Controller
                     }
                 } else {
                     $name = $row['model']
-                        ?: ($row['model_from_log'] ?? ('Phone ' . strtoupper(substr($row['mac'], -4))));
+                        ?: ($row['model_from_log'] ?? ('Phone ' . strtoupper(substr($row['mac'] ?: 'NOMC', -4))));
 
                     $assetCode = $assetCodeSvc->generate('phone');
 
@@ -222,7 +266,8 @@ class DeviceImportController extends Controller
                         'name'          => $name,
                         'manufacturer'  => 'Grandstream',
                         'model'         => $row['model'] ?: $row['model_from_log'],
-                        'mac_address'   => $row['mac'],
+                        'mac_address'   => $row['mac'] ?: null,
+                        'ip_address'    => $row['ip'] ?? null,
                         'serial_number' => $row['serial'],
                         'asset_code'    => $assetCode,
                         'status'        => 'active',
@@ -233,6 +278,7 @@ class DeviceImportController extends Controller
                         "Created via MAC/Serial import");
                     $results[] = [
                         'mac_display' => $row['mac_display'],
+                        'ip'          => $row['ip'] ?? '',
                         'serial'      => $row['serial'],
                         'model'       => $row['model'] ?: $row['model_from_log'],
                         'action'      => 'created',
@@ -264,19 +310,40 @@ class DeviceImportController extends Controller
         $this->authorize('manage-assets');
 
         $request->validate([
-            'mac_address'   => 'required|string|min:12',
+            'mac_address'   => 'nullable|string',
+            'ip_address'    => 'nullable|ip',
             'serial_number' => 'nullable|string|max:100',
             'model'         => 'nullable|string|max:100',
         ]);
 
-        $mac = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $request->mac_address));
-        if (strlen($mac) < 12) {
-            return back()->with('error', 'Invalid MAC address.');
+        // At least MAC or IP required
+        if (!$request->mac_address && !$request->ip_address) {
+            return back()->with('error', 'Please provide at least a MAC address or IP address.');
         }
-        $mac = substr($mac, 0, 12);
 
-        $macDisplay = strtoupper(implode(':', str_split($mac, 2)));
-        $existing = Device::where('mac_address', $mac)->first();
+        $mac = '';
+        $macDisplay = '';
+        if ($request->mac_address) {
+            $mac = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $request->mac_address));
+            if (strlen($mac) >= 12) {
+                $mac = substr($mac, 0, 12);
+                $macDisplay = strtoupper(implode(':', str_split($mac, 2)));
+            } else {
+                $mac = '';
+            }
+        }
+
+        $ip = $request->ip_address ?: '';
+
+        // Find existing: MAC first, then IP
+        $existing = null;
+        if ($mac) {
+            $existing = Device::where('mac_address', $mac)->first();
+        }
+        if (!$existing && $ip) {
+            $existing = Device::where('ip_address', $ip)->first();
+        }
+
         $results = [];
 
         if ($existing) {
@@ -289,6 +356,14 @@ class DeviceImportController extends Controller
             if ($request->model && $request->model !== $existing->model) {
                 $updates['model'] = $request->model;
                 $notes[] = "Model: {$request->model}";
+            }
+            if ($mac && !$existing->mac_address) {
+                $updates['mac_address'] = $mac;
+                $notes[] = "MAC: {$mac}";
+            }
+            if ($ip && !$existing->ip_address) {
+                $updates['ip_address'] = $ip;
+                $notes[] = "IP: {$ip}";
             }
             if ($existing->type !== 'phone') {
                 $updates['type'] = 'phone';
@@ -308,7 +383,8 @@ class DeviceImportController extends Controller
                 AssetHistory::record($existing, 'note_added', "Updated manually: " . implode(', ', $notes));
             }
             $results[] = [
-                'mac_display' => $macDisplay,
+                'mac_display' => $macDisplay ?: strtoupper(implode(':', str_split($existing->mac_address ?? '', 2))),
+                'ip'          => $ip ?: $existing->ip_address,
                 'serial'      => $request->serial_number,
                 'model'       => $request->model,
                 'action'      => 'updated',
@@ -321,22 +397,24 @@ class DeviceImportController extends Controller
         }
 
         $assetCodeSvc = new AssetCodeService();
-        $name = $request->model ?: ('Phone ' . strtoupper(substr($mac, -4)));
+        $name = $request->model ?: ('Phone ' . ($mac ? strtoupper(substr($mac, -4)) : $ip));
         $device = Device::create([
             'type'          => 'phone',
             'name'          => $name,
             'manufacturer'  => 'Grandstream',
             'model'         => $request->model,
-            'mac_address'   => $mac,
+            'mac_address'   => $mac ?: null,
+            'ip_address'    => $ip ?: null,
             'serial_number' => $request->serial_number,
             'asset_code'    => $assetCodeSvc->generate('phone'),
             'status'        => 'active',
             'source'        => 'manual',
         ]);
         AssetHistory::record($device, 'created', "Created manually");
-        ActivityLog::log("Device created manually: MAC {$mac}");
+        ActivityLog::log("Device created manually: " . ($mac ? "MAC {$mac}" : "IP {$ip}"));
         $results[] = [
             'mac_display' => $macDisplay,
+            'ip'          => $ip,
             'serial'      => $request->serial_number,
             'model'       => $request->model,
             'action'      => 'created',
@@ -366,9 +444,10 @@ class DeviceImportController extends Controller
         $updated = 0;
         $skipped = 0;
 
-        // First pass: parse all lines and collect MACs
+        // First pass: parse all lines and collect MACs + IPs
         $parsedLines = [];
         $allMacs = [];
+        $allIps  = [];
         foreach ($lines as $line) {
             $line = trim($line);
             if (!$line) continue;
@@ -378,32 +457,65 @@ class DeviceImportController extends Controller
             $rawMac = trim($parts[0] ?? '');
             $serial = trim($parts[1] ?? '');
             $model  = trim($parts[2] ?? '');
+            $ip     = trim($parts[3] ?? '');
 
             $mac = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $rawMac));
-            if (strlen($mac) < 12) {
+            if ($mac && strlen($mac) >= 12) {
+                $mac = substr($mac, 0, 12);
+            } else {
+                $mac = '';
+            }
+
+            // Validate IP
+            if ($ip && !filter_var($ip, FILTER_VALIDATE_IP)) {
+                $ip = '';
+            }
+
+            // Check if column 1 is actually an IP (no MAC column)
+            if (!$mac && !$ip && filter_var($rawMac, FILTER_VALIDATE_IP)) {
+                $ip = $rawMac;
+                // Shift columns: serial=parts[1], model=parts[2]
+            }
+
+            if (!$mac && !$ip) {
                 $skipped++;
                 continue;
             }
-            $mac = substr($mac, 0, 12);
-            $parsedLines[] = compact('mac', 'serial', 'model');
-            $allMacs[] = $mac;
+
+            $parsedLines[] = compact('mac', 'serial', 'model', 'ip');
+            if ($mac) $allMacs[] = $mac;
+            if ($ip) $allIps[] = $ip;
         }
 
-        if (empty($allMacs)) {
-            return back()->with('error', 'No valid MAC addresses found in the pasted data.');
+        if (empty($parsedLines)) {
+            return back()->with('error', 'No valid MAC addresses or IP addresses found in the pasted data.');
         }
 
-        // Batch lookup existing devices
-        $existingDevices = Device::whereIn('mac_address', $allMacs)->get()->keyBy('mac_address');
+        // Batch lookup existing devices by MAC and IP
+        $existingByMac = !empty($allMacs)
+            ? Device::whereIn('mac_address', $allMacs)->get()->keyBy('mac_address')
+            : collect();
+
+        $existingByIp = !empty($allIps)
+            ? Device::whereIn('ip_address', $allIps)->get()->keyBy('ip_address')
+            : collect();
 
         $results = [];
 
         $assetCodeSvc = new AssetCodeService();
 
-        DB::transaction(function () use ($parsedLines, $existingDevices, &$created, &$updated, &$results, $assetCodeSvc) {
+        DB::transaction(function () use ($parsedLines, $existingByMac, $existingByIp, &$created, &$updated, &$results, $assetCodeSvc) {
             foreach ($parsedLines as $row) {
-                $macDisplay = strtoupper(implode(':', str_split($row['mac'], 2)));
-                $existing = $existingDevices[$row['mac']] ?? null;
+                $macDisplay = $row['mac'] ? strtoupper(implode(':', str_split($row['mac'], 2))) : '';
+
+                // Find existing: MAC first, then IP
+                $existing = null;
+                if ($row['mac']) {
+                    $existing = $existingByMac[$row['mac']] ?? null;
+                }
+                if (!$existing && $row['ip']) {
+                    $existing = $existingByIp[$row['ip']] ?? null;
+                }
 
                 if ($existing) {
                     $updates = [];
@@ -415,6 +527,14 @@ class DeviceImportController extends Controller
                     if ($row['model'] && $row['model'] !== $existing->model) {
                         $updates['model'] = $row['model'];
                         $notes[] = "Model: {$row['model']}";
+                    }
+                    if ($row['mac'] && !$existing->mac_address) {
+                        $updates['mac_address'] = $row['mac'];
+                        $notes[] = "MAC: {$row['mac']}";
+                    }
+                    if ($row['ip'] && !$existing->ip_address) {
+                        $updates['ip_address'] = $row['ip'];
+                        $notes[] = "IP: {$row['ip']}";
                     }
                     if ($existing->type !== 'phone') {
                         $updates['type'] = 'phone';
@@ -434,6 +554,7 @@ class DeviceImportController extends Controller
                     }
                     $results[] = [
                         'mac_display' => $macDisplay,
+                        'ip'          => $row['ip'],
                         'serial'      => $row['serial'],
                         'model'       => $row['model'],
                         'action'      => 'updated',
@@ -442,13 +563,14 @@ class DeviceImportController extends Controller
                     ];
                     $updated++;
                 } else {
-                    $name = $row['model'] ?: ('Phone ' . strtoupper(substr($row['mac'], -4)));
+                    $name = $row['model'] ?: ('Phone ' . ($row['mac'] ? strtoupper(substr($row['mac'], -4)) : $row['ip']));
                     $device = Device::create([
                         'type'          => 'phone',
                         'name'          => $name,
                         'manufacturer'  => 'Grandstream',
                         'model'         => $row['model'] ?: null,
-                        'mac_address'   => $row['mac'],
+                        'mac_address'   => $row['mac'] ?: null,
+                        'ip_address'    => $row['ip'] ?: null,
                         'serial_number' => $row['serial'] ?: null,
                         'asset_code'    => $assetCodeSvc->generate('phone'),
                         'status'        => 'active',
@@ -457,6 +579,7 @@ class DeviceImportController extends Controller
                     AssetHistory::record($device, 'created', "Created via batch add");
                     $results[] = [
                         'mac_display' => $macDisplay,
+                        'ip'          => $row['ip'],
                         'serial'      => $row['serial'],
                         'model'       => $row['model'],
                         'action'      => 'created',

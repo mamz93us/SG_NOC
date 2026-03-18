@@ -75,14 +75,17 @@
                                 <tr><th>Column</th><th>Required</th><th>Example</th></tr>
                             </thead>
                             <tbody>
-                                <tr><td><code>MAC</code></td><td><span class="badge bg-danger">Required</span></td><td>EC:74:D7:80:04:74</td></tr>
+                                <tr><td><code>MAC</code></td><td><span class="badge bg-warning text-dark">MAC or IP</span></td><td>EC:74:D7:80:04:74</td></tr>
                                 <tr><td><code>Serial</code></td><td><span class="badge bg-secondary">Optional</span></td><td>353015D8DC</td></tr>
                                 <tr><td><code>Model</code></td><td><span class="badge bg-secondary">Optional</span></td><td>GRP2614</td></tr>
+                                <tr><td><code>IP</code></td><td><span class="badge bg-warning text-dark">MAC or IP</span></td><td>10.1.8.140</td></tr>
                             </tbody>
                         </table>
                         <ul class="mb-0 small">
+                            <li>At least <strong>MAC</strong> or <strong>IP</strong> column is required</li>
                             <li>MAC exists → <span class="text-primary fw-semibold">serial &amp; model updated</span></li>
                             <li>MAC new → <span class="text-success fw-semibold">device created</span></li>
+                            <li>If MAC not found, IP is used as fallback to match devices</li>
                             <li>All MAC formats accepted (colons, dashes, or plain)</li>
                             <li>You'll see a preview before anything is saved</li>
                         </ul>
@@ -102,10 +105,16 @@
                         <form method="POST" action="{{ route('admin.devices.import.manual') }}">
                             @csrf
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">MAC Address <span class="text-danger">*</span></label>
+                                <label class="form-label fw-semibold">MAC Address</label>
                                 <input type="text" name="mac_address" class="form-control font-monospace"
-                                       placeholder="EC:74:D7:80:04:74" required value="{{ old('mac_address') }}">
+                                       placeholder="EC:74:D7:80:04:74" value="{{ old('mac_address') }}">
                                 <div class="form-text">Any format: colons, dashes, or plain hex</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">IP Address</label>
+                                <input type="text" name="ip_address" class="form-control font-monospace"
+                                       placeholder="10.1.8.140" value="{{ old('ip_address') }}">
+                                <div class="form-text">Local/private IP (e.g. 10.x.x.x). Used as fallback if MAC not provided</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold">Serial Number</label>
@@ -129,9 +138,11 @@
                     <div class="card-header bg-transparent"><strong><i class="bi bi-info-circle me-1 text-info"></i>Info</strong></div>
                     <div class="card-body small">
                         <ul class="mb-0">
-                            <li>If a device with this MAC already exists, its serial and model will be <strong>updated</strong></li>
+                            <li>Provide at least a <strong>MAC address</strong> or <strong>IP address</strong></li>
+                            <li>If a device with this MAC/IP exists, its serial and model will be <strong>updated</strong></li>
                             <li>Otherwise a new device will be <strong>created</strong></li>
                             <li>MAC addresses are stored as lowercase hex without separators</li>
+                            <li>If both MAC and IP provided, MAC is used first for matching</li>
                         </ul>
                     </div>
                 </div>
@@ -151,9 +162,9 @@
                             <div class="mb-3">
                                 <label class="form-label fw-semibold">Paste Data <span class="text-danger">*</span></label>
                                 <textarea name="batch_data" class="form-control font-monospace" rows="12"
-                                          placeholder="EC:74:D7:80:03:94  353015D8DC  GRP2614
+                                          placeholder="EC:74:D7:80:03:94  353015D8DC  GRP2614  10.1.8.140
 EC:74:D7:80:04:74  3530155BC9  GRP2614
-EC:74:D7:7E:14:BC  35205G19B0  GRP2612" required>{{ old('batch_data') }}</textarea>
+                                 35205G19B0  GRP2612  10.1.8.142" required>{{ old('batch_data') }}</textarea>
                             </div>
                             <button type="submit" class="btn btn-success">
                                 <i class="bi bi-check-lg me-1"></i>Process Batch
@@ -167,14 +178,16 @@ EC:74:D7:7E:14:BC  35205G19B0  GRP2612" required>{{ old('batch_data') }}</textar
                     <div class="card-header bg-transparent"><strong><i class="bi bi-info-circle me-1 text-info"></i>Format</strong></div>
                     <div class="card-body small">
                         <p class="mb-2">One device per line. Columns separated by <strong>tab</strong>, <strong>comma</strong>, <strong>semicolon</strong>, or <strong>2+ spaces</strong>:</p>
-                        <pre class="bg-light p-2 rounded small mb-2">MAC_ADDRESS    SERIAL    MODEL
-EC:74:D7:80:03:94  353015D8DC  GRP2614
-EC:74:D7:80:04:74  3530155BC9</pre>
+                        <pre class="bg-light p-2 rounded small mb-2">MAC_ADDRESS    SERIAL    MODEL    IP
+EC:74:D7:80:03:94  353015D8DC  GRP2614  10.1.8.140
+EC:74:D7:80:04:74  3530155BC9
+               35205G19B0  GRP2612  10.1.8.142</pre>
                         <ul class="mb-0">
-                            <li><strong>Column 1</strong>: MAC address (required)</li>
+                            <li><strong>Column 1</strong>: MAC address (or empty if IP provided)</li>
                             <li><strong>Column 2</strong>: Serial number (optional)</li>
                             <li><strong>Column 3</strong>: Model (optional)</li>
-                            <li>Existing devices get updated, new MACs create devices</li>
+                            <li><strong>Column 4</strong>: IP address (optional, used if MAC missing)</li>
+                            <li>Existing devices matched by MAC first, then IP fallback</li>
                             <li>No header row needed — just paste the data</li>
                         </ul>
                     </div>

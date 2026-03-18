@@ -59,6 +59,7 @@
                     <tr>
                         <th class="ps-3">#</th>
                         <th>MAC Address</th>
+                        <th>IP Address</th>
                         <th>Serial Number</th>
                         <th>Model</th>
                         <th>Device</th>
@@ -69,7 +70,8 @@
                     @foreach($results as $i => $row)
                     <tr class="{{ $row['action'] === 'created' ? 'table-success' : 'table-info' }} bg-opacity-25">
                         <td class="ps-3 text-muted">{{ $i + 1 }}</td>
-                        <td class="font-monospace">{{ $row['mac_display'] }}</td>
+                        <td class="font-monospace">{{ $row['mac_display'] ?: '—' }}</td>
+                        <td class="font-monospace">{{ $row['ip'] ?? '—' }}</td>
                         <td class="fw-semibold">{{ $row['serial'] ?: '—' }}</td>
                         <td>{{ $row['model'] ?: '—' }}</td>
                         <td>

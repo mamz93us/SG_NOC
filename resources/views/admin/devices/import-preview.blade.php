@@ -50,6 +50,7 @@
                                 <input type="checkbox" class="form-check-input" id="selectAll" checked>
                             </th>
                             <th>MAC Address</th>
+                            <th>IP Address</th>
                             <th>Serial Number</th>
                             <th>Model</th>
                             <th>Existing Device</th>
@@ -65,7 +66,8 @@
                                 <input type="checkbox" class="form-check-input import-cb"
                                        name="selected[]" value="{{ $idx }}" checked>
                             </td>
-                            <td class="font-monospace">{{ $row['mac_display'] }}</td>
+                            <td class="font-monospace">{{ $row['mac_display'] ?: '—' }}</td>
+                            <td class="font-monospace">{{ $row['ip'] ?? '—' }}</td>
                             <td class="fw-semibold">{{ $row['serial'] ?: '—' }}</td>
                             <td>{{ $row['model'] ?: '—' }}</td>
                             <td>
