@@ -155,8 +155,9 @@ class DeviceImportController extends Controller
         $selectedIndices = $request->selected;
         $updated = 0;
         $created = 0;
+        $results = [];
 
-        DB::transaction(function () use ($preview, $selectedIndices, &$updated, &$created) {
+        DB::transaction(function () use ($preview, $selectedIndices, &$updated, &$created, &$results) {
             foreach ($selectedIndices as $idx) {
                 $row = $preview[$idx] ?? null;
                 if (!$row) {
@@ -183,6 +184,14 @@ class DeviceImportController extends Controller
                             AssetHistory::record($device, 'note_added',
                                 "Updated via import: " . implode(', ', $notes));
                         }
+                        $results[] = [
+                            'mac_display' => $row['mac_display'],
+                            'serial'      => $row['serial'],
+                            'model'       => $row['model'],
+                            'action'      => 'updated',
+                            'device_id'   => $device->id,
+                            'device_name' => $device->name,
+                        ];
                         $updated++;
                     }
                 } else {
@@ -201,6 +210,14 @@ class DeviceImportController extends Controller
 
                     AssetHistory::record($device, 'created',
                         "Created via MAC/Serial import");
+                    $results[] = [
+                        'mac_display' => $row['mac_display'],
+                        'serial'      => $row['serial'],
+                        'model'       => $row['model'] ?: $row['model_from_log'],
+                        'action'      => 'created',
+                        'device_id'   => $device->id,
+                        'device_name' => $device->name,
+                    ];
                     $created++;
                 }
             }
@@ -210,8 +227,12 @@ class DeviceImportController extends Controller
 
         ActivityLog::log("Device import: {$updated} updated, {$created} created");
 
-        return redirect()->route('admin.devices.import')
-            ->with('success', "Import complete: {$updated} device(s) updated, {$created} device(s) created.");
+        return view('admin.devices.import-results', [
+            'results' => $results,
+            'updated' => $updated,
+            'created' => $created,
+            'source'  => 'Excel Import',
+        ]);
     }
 
     /**
@@ -233,8 +254,10 @@ class DeviceImportController extends Controller
         }
         $mac = substr($mac, 0, 12);
 
-        // Check if device already exists
+        $macDisplay = strtoupper(implode(':', str_split($mac, 2)));
         $existing = Device::where('mac_address', $mac)->first();
+        $results = [];
+
         if ($existing) {
             $updates = [];
             $notes = [];
@@ -250,7 +273,17 @@ class DeviceImportController extends Controller
                 $existing->update($updates);
                 AssetHistory::record($existing, 'note_added', "Updated manually: " . implode(', ', $notes));
             }
-            return back()->with('success', "Device updated: MAC " . strtoupper(implode(':', str_split($mac, 2))));
+            $results[] = [
+                'mac_display' => $macDisplay,
+                'serial'      => $request->serial_number,
+                'model'       => $request->model,
+                'action'      => 'updated',
+                'device_id'   => $existing->id,
+                'device_name' => $existing->name,
+            ];
+            return view('admin.devices.import-results', [
+                'results' => $results, 'updated' => 1, 'created' => 0, 'source' => 'Manual Add',
+            ]);
         }
 
         $name = $request->model ?: ('Phone ' . strtoupper(substr($mac, -4)));
@@ -265,8 +298,18 @@ class DeviceImportController extends Controller
         ]);
         AssetHistory::record($device, 'created', "Created manually");
         ActivityLog::log("Device created manually: MAC {$mac}");
+        $results[] = [
+            'mac_display' => $macDisplay,
+            'serial'      => $request->serial_number,
+            'model'       => $request->model,
+            'action'      => 'created',
+            'device_id'   => $device->id,
+            'device_name' => $device->name,
+        ];
 
-        return back()->with('success', "Device created: MAC " . strtoupper(implode(':', str_split($mac, 2))));
+        return view('admin.devices.import-results', [
+            'results' => $results, 'updated' => 0, 'created' => 1, 'source' => 'Manual Add',
+        ]);
     }
 
     /**
@@ -316,8 +359,11 @@ class DeviceImportController extends Controller
         // Batch lookup existing devices
         $existingDevices = Device::whereIn('mac_address', $allMacs)->get()->keyBy('mac_address');
 
-        DB::transaction(function () use ($parsedLines, $existingDevices, &$created, &$updated) {
+        $results = [];
+
+        DB::transaction(function () use ($parsedLines, $existingDevices, &$created, &$updated, &$results) {
             foreach ($parsedLines as $row) {
+                $macDisplay = strtoupper(implode(':', str_split($row['mac'], 2)));
                 $existing = $existingDevices[$row['mac']] ?? null;
 
                 if ($existing) {
@@ -335,6 +381,14 @@ class DeviceImportController extends Controller
                         $existing->update($updates);
                         AssetHistory::record($existing, 'note_added', "Updated via batch: " . implode(', ', $notes));
                     }
+                    $results[] = [
+                        'mac_display' => $macDisplay,
+                        'serial'      => $row['serial'],
+                        'model'       => $row['model'],
+                        'action'      => 'updated',
+                        'device_id'   => $existing->id,
+                        'device_name' => $existing->name,
+                    ];
                     $updated++;
                 } else {
                     $name = $row['model'] ?: ('Phone ' . strtoupper(substr($row['mac'], -4)));
@@ -348,6 +402,14 @@ class DeviceImportController extends Controller
                         'source'        => 'manual',
                     ]);
                     AssetHistory::record($device, 'created', "Created via batch add");
+                    $results[] = [
+                        'mac_display' => $macDisplay,
+                        'serial'      => $row['serial'],
+                        'model'       => $row['model'],
+                        'action'      => 'created',
+                        'device_id'   => $device->id,
+                        'device_name' => $device->name,
+                    ];
                     $created++;
                 }
             }
@@ -355,6 +417,12 @@ class DeviceImportController extends Controller
 
         ActivityLog::log("Device batch add: {$updated} updated, {$created} created, {$skipped} skipped");
 
-        return back()->with('success', "Batch complete: {$created} created, {$updated} updated" . ($skipped ? ", {$skipped} skipped (invalid MAC)" : ""));
+        return view('admin.devices.import-results', [
+            'results' => $results,
+            'updated' => $updated,
+            'created' => $created,
+            'skipped' => $skipped,
+            'source'  => 'Batch Add',
+        ]);
     }
 }
