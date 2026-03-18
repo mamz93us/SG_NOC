@@ -19,6 +19,16 @@ class PhoneDeviceLookup
      *                      'status' => string|null, 'source' => string, 'model' => string|null,
      *                      'switch_location' => string|null]
      */
+    /**
+     * Normalize a MAC address to lowercase 12-char hex (strip colons, dashes, dots, spaces).
+     */
+    private static function normalizeMac(?string $raw): ?string
+    {
+        if (!$raw) return null;
+        $mac = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $raw));
+        return strlen($mac) >= 12 ? substr($mac, 0, 12) : null;
+    }
+
     public static function findByExtension(string $extension, ?int $ucmServerId = null): ?array
     {
         $result = null;
@@ -27,8 +37,8 @@ class PhoneDeviceLookup
         $phoneAccount = PhoneAccount::where('sip_user_id', $extension)->first();
 
         if ($phoneAccount && $phoneAccount->mac) {
-            $mac    = strtolower($phoneAccount->mac);
-            $device = Device::where('mac_address', $mac)->first();
+            $mac    = self::normalizeMac($phoneAccount->mac);
+            $device = $mac ? Device::where('mac_address', $mac)->first() : null;
 
             $result = [
                 'device'          => $device,
@@ -41,8 +51,12 @@ class PhoneDeviceLookup
             ];
 
             // Enrich IP from PhonePortMap if device has no IP
-            if (!$result['ip']) {
-                $portMap = PhonePortMap::where('phone_mac', $mac)
+            if (!$result['ip'] && $mac) {
+                // Try both normalized and original MAC format for port map lookup
+                $portMap = PhonePortMap::where(function ($q) use ($mac, $phoneAccount) {
+                        $q->where('phone_mac', $mac)
+                          ->orWhere('phone_mac', $phoneAccount->mac);
+                    })
                     ->when($ucmServerId, fn ($q) => $q->where('ucm_server_id', $ucmServerId))
                     ->first();
                 if ($portMap) {
@@ -63,7 +77,7 @@ class PhoneDeviceLookup
                     ->when($ucmServerId, fn ($q) => $q->where('ucm_server_id', $ucmServerId))
                     ->first();
 
-                $mac    = $portMap?->phone_mac ? strtolower($portMap->phone_mac) : ($result['mac'] ?? null);
+                $mac    = $portMap?->phone_mac ? self::normalizeMac($portMap->phone_mac) : ($result['mac'] ?? null);
                 $device = $mac ? Device::where('mac_address', $mac)->first() : ($result['device'] ?? null);
 
                 $result = [

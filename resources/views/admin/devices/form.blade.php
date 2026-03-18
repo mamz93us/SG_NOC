@@ -102,7 +102,7 @@
                         @endforeach
                         </optgroup>
                         <optgroup label="User Equipment">
-                        @foreach(['laptop','desktop','monitor','keyboard','mouse','headset','tablet'] as $t)
+                        @foreach(['laptop','desktop','monitor','keyboard','mouse','headset','tablet','phone'] as $t)
                         <option value="{{ $t }}" {{ old('type', $device->type ?? request('type', 'laptop')) == $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
                         @endforeach
                         </optgroup>

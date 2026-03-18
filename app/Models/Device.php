@@ -126,7 +126,7 @@ class Device extends Model
 
     /** Types that represent personal user equipment (assignable to employees) */
     public const USER_EQUIPMENT_TYPES = [
-        'laptop', 'desktop', 'monitor', 'keyboard', 'mouse', 'headset', 'tablet',
+        'laptop', 'desktop', 'monitor', 'keyboard', 'mouse', 'headset', 'tablet', 'phone',
     ];
 
     public function typeLabel(): string
@@ -148,6 +148,7 @@ class Device extends Model
             'mouse'    => 'Mouse',
             'headset'  => 'Headset',
             'tablet'   => 'Tablet',
+            'phone'    => 'IP Phone',
             default    => 'Other',
         };
     }
@@ -171,6 +172,7 @@ class Device extends Model
             'mouse'    => 'bi-mouse',
             'headset'  => 'bi-headset',
             'tablet'   => 'bi-tablet',
+            'phone'    => 'bi-telephone',
             default    => 'bi-cpu',
         };
     }
@@ -190,6 +192,7 @@ class Device extends Model
             'laptop', 'desktop'              => 'bg-primary',
             'monitor', 'tablet'              => 'bg-info text-dark',
             'keyboard', 'mouse', 'headset'   => 'bg-secondary',
+            'phone'    => 'bg-success',
             default    => 'bg-secondary',
         };
     }

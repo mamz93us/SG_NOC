@@ -68,15 +68,18 @@ class PhoneAutoAssignController extends Controller
             ->get()
             ->keyBy('extension');
 
+        // Helper: normalize MAC to lowercase 12-char hex (strip colons, dashes, dots)
+        $normalizeMac = fn($raw) => strtolower(preg_replace('/[^a-fA-F0-9]/', '', $raw ?? ''));
+
         // 5. Collect all MACs we found
         $allMacs = collect();
         foreach ($extensions as $ext) {
             $pa = $phoneAccounts[$ext] ?? null;
             $pm = $portMaps[$ext] ?? null;
-            if ($pa && $pa->mac) $allMacs->push(strtolower($pa->mac));
-            if ($pm && $pm->phone_mac) $allMacs->push(strtolower($pm->phone_mac));
+            if ($pa && $pa->mac) $allMacs->push($normalizeMac($pa->mac));
+            if ($pm && $pm->phone_mac) $allMacs->push($normalizeMac($pm->phone_mac));
         }
-        $allMacs = $allMacs->unique()->values();
+        $allMacs = $allMacs->filter(fn($m) => strlen($m) >= 12)->unique()->values();
 
         // 6. Batch: Load all devices by MAC (with current assignment)
         $devicesByMac = $allMacs->isNotEmpty()
@@ -102,16 +105,18 @@ class PhoneAutoAssignController extends Controller
             $pm  = $portMaps[$ext] ?? null;
             $ucm = $ucmCaches[$ext] ?? null;
 
-            // Resolve MAC: PhoneAccount first, then PhonePortMap
+            // Resolve MAC: PhoneAccount first, then PhonePortMap (normalize to plain hex)
             $mac = null;
             $source = null;
             if ($pa && $pa->mac) {
-                $mac = strtolower($pa->mac);
+                $mac = $normalizeMac($pa->mac);
                 $source = 'PhoneAccount';
             } elseif ($pm && $pm->phone_mac) {
-                $mac = strtolower($pm->phone_mac);
+                $mac = $normalizeMac($pm->phone_mac);
                 $source = 'PhonePortMap';
             }
+            // Ensure valid 12-char MAC
+            if ($mac && strlen($mac) < 12) $mac = null;
 
             $device = $mac ? ($devicesByMac[$mac] ?? null) : null;
             $prl    = $mac ? ($phoneLogs[$mac] ?? null) : null;

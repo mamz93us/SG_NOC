@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\AssetHistory;
 use App\Models\Device;
 use App\Models\PhoneRequestLog;
+use App\Services\AssetCodeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
@@ -157,7 +158,9 @@ class DeviceImportController extends Controller
         $created = 0;
         $results = [];
 
-        DB::transaction(function () use ($preview, $selectedIndices, &$updated, &$created, &$results) {
+        $assetCodeSvc = new AssetCodeService();
+
+        DB::transaction(function () use ($preview, $selectedIndices, &$updated, &$created, &$results, $assetCodeSvc) {
             foreach ($selectedIndices as $idx) {
                 $row = $preview[$idx] ?? null;
                 if (!$row) {
@@ -177,6 +180,20 @@ class DeviceImportController extends Controller
                         if ($row['model'] && $row['model'] !== $device->model) {
                             $updates['model'] = $row['model'];
                             $notes[] = "Model: {$row['model']}";
+                        }
+                        // Fix type/manufacturer for previously imported phones
+                        if ($device->type !== 'phone') {
+                            $updates['type'] = 'phone';
+                            $notes[] = "Type: phone";
+                        }
+                        if (!$device->manufacturer || $device->manufacturer !== 'Grandstream') {
+                            $updates['manufacturer'] = 'Grandstream';
+                            $notes[] = "Manufacturer: Grandstream";
+                        }
+                        // Auto-generate asset code if missing
+                        if (!$device->asset_code) {
+                            $updates['asset_code'] = $assetCodeSvc->generate($updates['type'] ?? $device->type);
+                            $notes[] = "Asset code: {$updates['asset_code']}";
                         }
 
                         if (!empty($updates)) {
@@ -198,12 +215,16 @@ class DeviceImportController extends Controller
                     $name = $row['model']
                         ?: ($row['model_from_log'] ?? ('Phone ' . strtoupper(substr($row['mac'], -4))));
 
+                    $assetCode = $assetCodeSvc->generate('phone');
+
                     $device = Device::create([
-                        'type'          => 'other',
+                        'type'          => 'phone',
                         'name'          => $name,
+                        'manufacturer'  => 'Grandstream',
                         'model'         => $row['model'] ?: $row['model_from_log'],
                         'mac_address'   => $row['mac'],
                         'serial_number' => $row['serial'],
+                        'asset_code'    => $assetCode,
                         'status'        => 'active',
                         'source'        => 'manual',
                     ]);
@@ -269,6 +290,19 @@ class DeviceImportController extends Controller
                 $updates['model'] = $request->model;
                 $notes[] = "Model: {$request->model}";
             }
+            if ($existing->type !== 'phone') {
+                $updates['type'] = 'phone';
+                $notes[] = "Type: phone";
+            }
+            if (!$existing->manufacturer || $existing->manufacturer !== 'Grandstream') {
+                $updates['manufacturer'] = 'Grandstream';
+                $notes[] = "Manufacturer: Grandstream";
+            }
+            if (!$existing->asset_code) {
+                $assetCodeSvc = new AssetCodeService();
+                $updates['asset_code'] = $assetCodeSvc->generate($updates['type'] ?? $existing->type);
+                $notes[] = "Asset code: {$updates['asset_code']}";
+            }
             if (!empty($updates)) {
                 $existing->update($updates);
                 AssetHistory::record($existing, 'note_added', "Updated manually: " . implode(', ', $notes));
@@ -286,13 +320,16 @@ class DeviceImportController extends Controller
             ]);
         }
 
+        $assetCodeSvc = new AssetCodeService();
         $name = $request->model ?: ('Phone ' . strtoupper(substr($mac, -4)));
         $device = Device::create([
-            'type'          => 'other',
+            'type'          => 'phone',
             'name'          => $name,
+            'manufacturer'  => 'Grandstream',
             'model'         => $request->model,
             'mac_address'   => $mac,
             'serial_number' => $request->serial_number,
+            'asset_code'    => $assetCodeSvc->generate('phone'),
             'status'        => 'active',
             'source'        => 'manual',
         ]);
@@ -361,7 +398,9 @@ class DeviceImportController extends Controller
 
         $results = [];
 
-        DB::transaction(function () use ($parsedLines, $existingDevices, &$created, &$updated, &$results) {
+        $assetCodeSvc = new AssetCodeService();
+
+        DB::transaction(function () use ($parsedLines, $existingDevices, &$created, &$updated, &$results, $assetCodeSvc) {
             foreach ($parsedLines as $row) {
                 $macDisplay = strtoupper(implode(':', str_split($row['mac'], 2)));
                 $existing = $existingDevices[$row['mac']] ?? null;
@@ -376,6 +415,18 @@ class DeviceImportController extends Controller
                     if ($row['model'] && $row['model'] !== $existing->model) {
                         $updates['model'] = $row['model'];
                         $notes[] = "Model: {$row['model']}";
+                    }
+                    if ($existing->type !== 'phone') {
+                        $updates['type'] = 'phone';
+                        $notes[] = "Type: phone";
+                    }
+                    if (!$existing->manufacturer || $existing->manufacturer !== 'Grandstream') {
+                        $updates['manufacturer'] = 'Grandstream';
+                        $notes[] = "Manufacturer: Grandstream";
+                    }
+                    if (!$existing->asset_code) {
+                        $updates['asset_code'] = $assetCodeSvc->generate($updates['type'] ?? $existing->type);
+                        $notes[] = "Asset code: {$updates['asset_code']}";
                     }
                     if (!empty($updates)) {
                         $existing->update($updates);
@@ -393,11 +444,13 @@ class DeviceImportController extends Controller
                 } else {
                     $name = $row['model'] ?: ('Phone ' . strtoupper(substr($row['mac'], -4)));
                     $device = Device::create([
-                        'type'          => 'other',
+                        'type'          => 'phone',
                         'name'          => $name,
+                        'manufacturer'  => 'Grandstream',
                         'model'         => $row['model'] ?: null,
                         'mac_address'   => $row['mac'],
                         'serial_number' => $row['serial'] ?: null,
+                        'asset_code'    => $assetCodeSvc->generate('phone'),
                         'status'        => 'active',
                         'source'        => 'manual',
                     ]);
