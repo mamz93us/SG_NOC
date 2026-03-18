@@ -9,8 +9,13 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // First, add 'phone' to the type ENUM (it was missing)
+        DB::statement("ALTER TABLE devices MODIFY COLUMN type ENUM(
+            'ucm', 'switch', 'router', 'firewall', 'ap', 'printer', 'server',
+            'laptop', 'desktop', 'monitor', 'keyboard', 'mouse', 'headset', 'tablet', 'phone', 'other'
+        ) NOT NULL");
+
         // Fix all devices imported via manual/import that are type 'other' but are actually phones
-        // These were imported via the MAC/Serial import feature before the phone type was added
         $devices = Device::where('source', 'manual')
             ->where(function ($q) {
                 $q->where('type', 'other')
