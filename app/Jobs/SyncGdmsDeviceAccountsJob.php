@@ -29,15 +29,27 @@ class SyncGdmsDeviceAccountsJob implements ShouldQueue
 
     public function handle(): void
     {
-        $args = $this->unsyncedOnly ? ['--unsynced' => true] : [];
+        if ($this->unsyncedOnly) {
+            $syncedMacs = \App\Models\PhoneAccount::distinct()->pluck('mac');
+            $macs = \App\Models\PhoneRequestLog::whereNotNull('mac')
+                ->whereNotIn('mac', $syncedMacs)
+                ->distinct()
+                ->pluck('mac');
+        } else {
+            $macs = \App\Models\PhoneRequestLog::whereNotNull('mac')
+                ->distinct()
+                ->pluck('mac');
+        }
 
-        Artisan::call('gdms:sync-device-accounts', $args);
+        foreach ($macs as $mac) {
+            SyncSingleGdmsDeviceAccountJob::dispatch($mac)->onQueue('default');
+        }
 
         ActivityLog::create([
             'model_type' => 'PhoneRequestLog',
             'model_id'   => 0,
             'action'     => 'synced',
-            'changes'    => ['type' => $this->unsyncedOnly ? 'unsynced_only' : 'full_sync'],
+            'changes'    => ['type' => $this->unsyncedOnly ? 'unsynced_only' : 'full_sync', 'count' => $macs->count()],
             'user_id'    => $this->userId,
         ]);
     }

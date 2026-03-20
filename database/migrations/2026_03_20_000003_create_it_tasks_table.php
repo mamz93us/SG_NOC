@@ -17,7 +17,8 @@ return new class extends Migration
             $table->enum('status', ['todo', 'in_progress', 'blocked', 'on_hold', 'done'])->default('todo');
             $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('created_by')->constrained('users');
-            $table->foreignId('branch_id')->nullable()->constrained('branches')->nullOnDelete();
+            $table->unsignedInteger('branch_id')->nullable();
+            $table->foreign('branch_id')->references('id')->on('branches')->nullOnDelete();
             $table->date('due_date')->nullable();
             $table->decimal('estimated_hours', 5, 1)->unsigned()->nullable();
             $table->decimal('logged_hours', 5, 1)->unsigned()->default(0);
