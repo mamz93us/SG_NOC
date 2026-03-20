@@ -298,7 +298,7 @@
 <h6 class="text-uppercase text-muted fw-bold small mb-3"><i class="bi bi-cpu-fill me-2"></i>System & Performance Sensors</h6>
 <div class="row g-4 mb-5">
     @foreach($groupedSensors['General'] as $sensor)
-        @php $latest = $sensor->sensorMetrics->first(); @endphp
+        @php $latest = $sensor->latestMetric; @endphp
         <div class="col-md-6 col-lg-4">
             <div class="card shadow-sm border-0 glass-card h-100">
                 <div class="card-body d-flex flex-column">
@@ -384,7 +384,7 @@
                     </div>
 
                     @if($sensor->graph_enabled)
-                        <div class="mt-3" style="height: 60px;">
+                        <div class="mt-3" style="height: 60px;" data-chart-sensor="{{ $sensor->id }}">
                             <canvas id="chart-sensor-{{ $sensor->id }}"></canvas>
                         </div>
                     @endif
@@ -414,7 +414,7 @@
                         </thead>
                         <tbody>
                             @foreach($groupedSensors['Extensions'] as $sensor)
-                                @php $latest = $sensor->sensorMetrics->first(); @endphp
+                                @php $latest = $sensor->latestMetric; @endphp
                                 <tr>
                                     <td class="ps-3 fw-bold">{{ $sensor->name }}</td>
                                     <td>
@@ -455,7 +455,7 @@
                         </thead>
                         <tbody>
                             @foreach($groupedSensors['Trunks'] as $sensor)
-                                @php $latest = $sensor->sensorMetrics->first(); @endphp
+                                @php $latest = $sensor->latestMetric; @endphp
                                 <tr>
                                     <td class="ps-3 fw-bold">{{ $sensor->name }}</td>
                                     <td>
@@ -507,8 +507,8 @@
                                 @php 
                                     $active = $sensors['Active'] ?? null;
                                     $conn = $sensors['Connection'] ?? null;
-                                    $activeLatest = $active ? $active->sensorMetrics->first() : null;
-                                    $connLatest = $conn ? $conn->sensorMetrics->first() : null;
+                                    $activeLatest = $active ? $active->latestMetric : null;
+                                    $connLatest = $conn ? $conn->latestMetric : null;
                                 @endphp
                                 <tr>
                                     <td class="ps-4 py-3">
@@ -567,7 +567,7 @@
                 foreach($groupedSensors['Interfaces'] as $iface => $s) {
                     if (isset($s['Status'])) {
                         $totalPorts++;
-                        if (($s['Status']->sensorMetrics->first()?->value ?? 0) == 1) $upCount++;
+                        if (($s['Status']->latestMetric?->value ?? 0) == 1) $upCount++;
                     }
                 }
             @endphp
@@ -587,7 +587,7 @@
                 @if(isset($sensors['Status']))
                     @php
                         $statusSensor = $sensors['Status'];
-                        $latestStatus = $statusSensor->sensorMetrics->first()?->value ?? 0;
+                        $latestStatus = $statusSensor->latestMetric?->value ?? 0;
                         $isUp = ($latestStatus == 1);
                         $colorClass = $isUp ? 'bg-success' : 'bg-secondary opacity-50';
                         $tooltip = "Port: $iface";
@@ -642,7 +642,7 @@
                         <div class="col-md-3 bg-light p-4 border-end d-flex flex-column justify-content-center">
                             <h5 class="fw-bold mb-1 text-dark">{{ $iface }}</h5>
                             @if(isset($sensors['Status']))
-                                @php $statusVal = $sensors['Status']->sensorMetrics->first()?->value; @endphp
+                                @php $statusVal = $sensors['Status']->latestMetric?->value; @endphp
                                 <span class="badge bg-{{ $statusVal == 1 ? 'success' : 'danger' }}-subtle text-{{ $statusVal == 1 ? 'success' : 'danger' }} d-inline-block align-self-start mb-3">
                                     <i class="bi bi-circle-fill me-1 small"></i> {{ $statusVal == 1 ? 'UP' : 'DOWN' }}
                                 </span>
@@ -650,7 +650,7 @@
                             <div class="mt-auto">
                                 @if(isset($sensors['Traffic In']))
                                     @php
-                                        $inValBytes = $sensors['Traffic In']->sensorMetrics->first()?->value ?? 0;
+                                        $inValBytes = $sensors['Traffic In']->latestMetric?->value ?? 0;
                                         $inValBits = $inValBytes * 8;
                                         $inFormatted = $inValBits > 1000000 ? number_format($inValBits / 1000000, 2) . ' Mbps' : ($inValBits > 1000 ? number_format($inValBits / 1000, 2) . ' Kbps' : number_format($inValBits, 0) . ' bps');
                                     @endphp
@@ -661,7 +661,7 @@
                                 @endif
                                 @if(isset($sensors['Traffic Out']))
                                     @php
-                                        $outValBytes = $sensors['Traffic Out']->sensorMetrics->first()?->value ?? 0;
+                                        $outValBytes = $sensors['Traffic Out']->latestMetric?->value ?? 0;
                                         $outValBits = $outValBytes * 8;
                                         $outFormatted = $outValBits > 1000000 ? number_format($outValBits / 1000000, 2) . ' Mbps' : ($outValBits > 1000 ? number_format($outValBits / 1000, 2) . ' Kbps' : number_format($outValBits, 0) . ' bps');
                                     @endphp
@@ -677,7 +677,7 @@
                                 @if(isset($sensors['Traffic In']))
                                 <div class="col-md-6">
                                     <div class="text-muted small mb-2 fw-bold text-uppercase">Inbound Traffic</div>
-                                    <div style="height: 100px;">
+                                    <div style="height: 100px;" data-chart-sensor="{{ $sensors['Traffic In']->id }}">
                                         <canvas id="chart-sensor-{{ $sensors['Traffic In']->id }}"></canvas>
                                     </div>
                                 </div>
@@ -685,7 +685,7 @@
                                 @if(isset($sensors['Traffic Out']))
                                 <div class="col-md-6">
                                     <div class="text-muted small mb-2 fw-bold text-uppercase">Outbound Traffic</div>
-                                    <div style="height: 100px;">
+                                    <div style="height: 100px;" data-chart-sensor="{{ $sensors['Traffic Out']->id }}">
                                         <canvas id="chart-sensor-{{ $sensors['Traffic Out']->id }}"></canvas>
                                     </div>
                                 </div>
@@ -740,11 +740,11 @@
                                 $outDisc = $interfaceErrorSensors[$idx]['Out Discards'] ?? null;
                                 $duplexS = $interfaceDuplexSensors[$idx] ?? null;
 
-                                $inErrVal   = $inErr   ? ($inErr->sensorMetrics->first()?->value   ?? null) : null;
-                                $outErrVal  = $outErr  ? ($outErr->sensorMetrics->first()?->value  ?? null) : null;
-                                $inDiscVal  = $inDisc  ? ($inDisc->sensorMetrics->first()?->value  ?? null) : null;
-                                $outDiscVal = $outDisc ? ($outDisc->sensorMetrics->first()?->value ?? null) : null;
-                                $duplexVal  = $duplexS ? ($duplexS->sensorMetrics->first()?->value ?? null) : null;
+                                $inErrVal   = $inErr   ? ($inErr->latestMetric?->value   ?? null) : null;
+                                $outErrVal  = $outErr  ? ($outErr->latestMetric?->value  ?? null) : null;
+                                $inDiscVal  = $inDisc  ? ($inDisc->latestMetric?->value  ?? null) : null;
+                                $outDiscVal = $outDisc ? ($outDisc->latestMetric?->value ?? null) : null;
+                                $duplexVal  = $duplexS ? ($duplexS->latestMetric?->value ?? null) : null;
 
                                 // Determine CSS class for an error/discard rate value
                                 $errClass = function($v) {
@@ -778,7 +778,7 @@
                                 $lastPolled = null;
                                 foreach ([$inErr, $outErr, $inDisc, $outDisc, $duplexS] as $s) {
                                     if ($s) {
-                                        $ts = $s->sensorMetrics->first()?->recorded_at;
+                                        $ts = $s->latestMetric?->recorded_at;
                                         if ($ts && ($lastPolled === null || $ts->gt($lastPolled))) {
                                             $lastPolled = $ts;
                                         }
@@ -975,97 +975,66 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 2. Sensor Metric Charts with threshold annotations
+    // 2. Sensor Metric Charts — lazy loaded via AJAX after page render
+    //    Charts are built per-sensor using the /admin/sensors/{id}/history endpoint.
+    //    This avoids N inline PHP DB queries at render time (was 1 query per sensor).
+    const sensorChartMeta = {
 @foreach($host->snmpSensors->where('graph_enabled', true) as $sensor)
-        (function() {
-            const ctx = document.getElementById('chart-sensor-{{ $sensor->id }}');
-            if (!ctx) return;
+        {{ $sensor->id }}: {
+            warn: {{ $sensor->warning_threshold !== null ? $sensor->warning_threshold : 'null' }},
+            crit: {{ $sensor->critical_threshold !== null ? $sensor->critical_threshold : 'null' }},
+            color: '{{ str_contains($sensor->name, "Out") ? "#6610f2" : "#0dcaf0" }}'
+        },
+@endforeach
+    };
 
-            @php
-                $metrics = $sensor->sensorMetrics()
-                    ->orderBy('recorded_at', 'desc')
-                    ->limit(150)
-                    ->get()
-                    ->reverse()
-                    ->map(fn($m) => ['t' => $m->recorded_at->toIso8601String(), 'y' => $m->value]);
-            @endphp
-            const sensorData = @json($metrics->values());
-            const color = '{{ str_contains($sensor->name, "Out") ? "#6610f2" : "#0dcaf0" }}';
-            const warnThreshold = {{ $sensor->warning_threshold !== null ? $sensor->warning_threshold : 'null' }};
-            const critThreshold = {{ $sensor->critical_threshold !== null ? $sensor->critical_threshold : 'null' }};
+    const chartInstances = {};
 
-            // Build threshold annotations
+    async function loadSensorChart(sensorId) {
+        const meta = sensorChartMeta[sensorId];
+        if (!meta) return;
+        const ctx = document.getElementById('chart-sensor-' + sensorId);
+        if (!ctx) return;
+
+        // Show spinner
+        ctx.parentElement.innerHTML = '<div class="text-center py-2"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
+
+        try {
+            const resp = await fetch(`/admin/sensors/${sensorId}/history?days=1`);
+            const json = await resp.json();
+            const points = (json.data || []).map(d => ({ x: new Date(d.ts), y: d.v }));
+
+            // Re-create canvas (spinner replaced the element)
+            const wrapper = document.querySelector(`[data-chart-sensor="${sensorId}"]`);
+            if (!wrapper) return;
+            wrapper.innerHTML = '<canvas style="height:60px"></canvas>';
+            const newCtx = wrapper.querySelector('canvas');
+
             const annotations = {};
-            if (warnThreshold !== null) {
-                annotations.warningLine = {
-                    type: 'line',
-                    yMin: warnThreshold,
-                    yMax: warnThreshold,
-                    borderColor: 'rgba(255, 193, 7, 0.6)',
-                    borderWidth: 1,
-                    borderDash: [4, 4],
-                    label: {
-                        display: false
-                    }
-                };
-                annotations.warningBox = {
-                    type: 'box',
-                    yMin: warnThreshold,
-                    yMax: critThreshold !== null ? critThreshold : undefined,
-                    backgroundColor: 'rgba(255, 193, 7, 0.05)',
-                    borderWidth: 0
-                };
+            if (meta.warn !== null) {
+                annotations.warnLine = { type:'line', yMin:meta.warn, yMax:meta.warn, borderColor:'rgba(255,193,7,0.5)', borderWidth:1, borderDash:[4,4] };
             }
-            if (critThreshold !== null) {
-                annotations.criticalLine = {
-                    type: 'line',
-                    yMin: critThreshold,
-                    yMax: critThreshold,
-                    borderColor: 'rgba(220, 53, 69, 0.6)',
-                    borderWidth: 1,
-                    borderDash: [4, 4],
-                    label: {
-                        display: false
-                    }
-                };
-                annotations.criticalBox = {
-                    type: 'box',
-                    yMin: critThreshold,
-                    backgroundColor: 'rgba(220, 53, 69, 0.05)',
-                    borderWidth: 0
-                };
+            if (meta.crit !== null) {
+                annotations.critLine = { type:'line', yMin:meta.crit, yMax:meta.crit, borderColor:'rgba(220,53,69,0.5)', borderWidth:1, borderDash:[4,4] };
             }
 
-            new Chart(ctx.getContext('2d'), {
+            chartInstances[sensorId] = new Chart(newCtx.getContext('2d'), {
                 type: 'line',
                 data: {
                     datasets: [{
-                        data: sensorData.map(d => ({x: new Date(d.t), y: d.y})),
-                        borderColor: color,
-                        backgroundColor: (c) => {
-                            const chart = c.chart;
-                            const {ctx, chartArea} = chart;
-                            if (!chartArea) return null;
-                            const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-                            gradient.addColorStop(0, 'rgba(255,255,255,0)');
-                            gradient.addColorStop(1, color + '22');
-                            return gradient;
-                        },
-                        fill: true,
-                        borderWidth: 2,
-                        tension: 0.4,
-                        pointRadius: 0
+                        data: points,
+                        borderColor: meta.color,
+                        backgroundColor: meta.color + '18',
+                        fill: true, borderWidth: 2, tension: 0.4, pointRadius: 0
                     }]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
+                    animation: { duration: 400 },
                     plugins: {
                         legend: { display: false },
                         tooltip: { enabled: true },
-                        annotation: {
-                            annotations: annotations
-                        }
+                        annotation: { annotations }
                     },
                     scales: {
                         y: { display: false, beginAtZero: true },
@@ -1073,8 +1042,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             });
-        })();
-    @endforeach
+        } catch(e) {
+            const wrapper = document.querySelector(`[data-chart-sensor="${sensorId}"]`);
+            if (wrapper) wrapper.innerHTML = '<small class="text-muted">Chart unavailable</small>';
+        }
+    }
+
+    // Use IntersectionObserver to load charts only when they scroll into view
+    const chartObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const sensorId = entry.target.dataset.chartSensor;
+                if (sensorId && !chartInstances[sensorId]) {
+                    loadSensorChart(parseInt(sensorId));
+                }
+                chartObserver.unobserve(entry.target);
+            }
+        });
+    }, { rootMargin: '100px' });
+
+    document.querySelectorAll('[data-chart-sensor]').forEach(el => chartObserver.observe(el));
 });
 </script>
 @endpush

@@ -46,6 +46,16 @@ class SnmpSensor extends Model
         return $this->hasMany(SensorMetric::class, 'sensor_id');
     }
 
+    /**
+     * Latest single metric — uses latestOfMany() which generates ONE subquery
+     * for ALL sensors together, replacing 15-40 N+1 queries per page load.
+     * Eager load with: with('snmpSensors.latestMetric')
+     */
+    public function latestMetric(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(SensorMetric::class, 'sensor_id')->latestOfMany('recorded_at');
+    }
+
     public function hourlyMetrics(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Models\SensorMetricHourly::class, 'sensor_id');
