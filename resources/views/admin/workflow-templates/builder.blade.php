@@ -28,7 +28,7 @@
 @section('content')
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div class="d-flex align-items-center gap-3">
-        <a href="{{ route('workflow-templates.index') }}" class="btn btn-sm btn-outline-secondary">
+        <a href="{{ route('admin.workflow-templates.index') }}" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Back
         </a>
         <div>
@@ -378,7 +378,7 @@ async function saveDefinition() {
 
     try {
         const definition = editor.export();
-        const resp = await fetch('{{ route('workflow-templates.save-definition', $workflowTemplate) }}', {
+        const resp = await fetch('{{ route('admin.workflow-templates.save-definition', $workflowTemplate) }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
             body: JSON.stringify({ definition, trigger_event: document.getElementById('trigger-select').value || null }),
@@ -400,8 +400,8 @@ async function saveDefinition() {
 async function saveTrigger() {
     const val = document.getElementById('trigger-select').value;
     const url = val
-        ? '{{ route('workflow-templates.trigger.set', $workflowTemplate) }}'
-        : '{{ route('workflow-templates.trigger.clear', $workflowTemplate) }}';
+        ? '{{ route('admin.workflow-templates.trigger.set', $workflowTemplate) }}'
+        : '{{ route('admin.workflow-templates.trigger.clear', $workflowTemplate) }}';
 
     const resp = await fetch(url, {
         method: val ? 'POST' : 'DELETE',
@@ -428,7 +428,7 @@ async function loadVersions() {
     const list = document.getElementById('version-list');
     list.innerHTML = '<div class="p-3 text-muted small">Loading...</div>';
     try {
-        const resp = await fetch('{{ route('workflow-templates.versions', $workflowTemplate) }}');
+        const resp = await fetch('{{ route('admin.workflow-templates.versions', $workflowTemplate) }}');
         const versions = await resp.json();
         if (!versions.length) { list.innerHTML = '<div class="p-3 text-muted small">No previous versions.</div>'; return; }
         list.innerHTML = versions.map(v => `
@@ -446,7 +446,7 @@ async function loadVersions() {
 
 async function restoreVersion(version) {
     if (!confirm(`Restore v${version}? Current state will be saved first.`)) return;
-    const resp = await fetch(`{{ route('workflow-templates.restore-version', [$workflowTemplate, '__v__']) }}`.replace('__v__', version), {
+    const resp = await fetch(`{{ route('admin.workflow-templates.restore-version', [$workflowTemplate, '__v__']) }}`.replace('__v__', version), {
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
     });

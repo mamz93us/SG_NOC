@@ -752,12 +752,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::delete('/workflow-templates/{workflowTemplate}', [WorkflowTemplateController::class, 'destroy'])->name('workflow-templates.destroy');
 
     // ── Workflow Builder ──────────────────────────────────────────
-    Route::get('/workflow-templates/{workflowTemplate}/builder', [WorkflowTemplateController::class, 'builder'])->name('workflow-templates.builder');
-    Route::post('/workflow-templates/{workflowTemplate}/definition', [WorkflowTemplateController::class, 'saveDefinition'])->name('workflow-templates.save-definition');
-    Route::get('/workflow-templates/{workflowTemplate}/versions', [WorkflowTemplateController::class, 'versions'])->name('workflow-templates.versions');
-    Route::post('/workflow-templates/{workflowTemplate}/versions/{version}/restore', [WorkflowTemplateController::class, 'restoreVersion'])->name('workflow-templates.restore-version');
-    Route::post('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'store'])->name('workflow-templates.trigger.set');
-    Route::delete('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'destroy'])->name('workflow-templates.trigger.clear');
+    Route::get('/workflow-templates/{workflowTemplate}/builder', [WorkflowTemplateController::class, 'builder'])->name('admin.workflow-templates.builder');
+    Route::post('/workflow-templates/{workflowTemplate}/definition', [WorkflowTemplateController::class, 'saveDefinition'])->name('admin.workflow-templates.save-definition');
+    Route::get('/workflow-templates/{workflowTemplate}/versions', [WorkflowTemplateController::class, 'versions'])->name('admin.workflow-templates.versions');
+    Route::post('/workflow-templates/{workflowTemplate}/versions/{version}/restore', [WorkflowTemplateController::class, 'restoreVersion'])->name('admin.workflow-templates.restore-version');
+    Route::post('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'store'])->name('admin.workflow-templates.trigger.set');
+    Route::delete('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'destroy'])->name('admin.workflow-templates.trigger.clear');
 
     // ── Email Logs ────────────────────────────────────────────────
     Route::get('/notifications/email-log', [EmailLogController::class, 'index'])->name('email-log.index');
