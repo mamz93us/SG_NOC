@@ -34,6 +34,7 @@ use App\Http\Controllers\Admin\EmployeeItemController;
 use App\Http\Controllers\Admin\VpnHubController;
 use App\Http\Controllers\Admin\DiagnosticsController;
 use App\Http\Controllers\Admin\SnmpMonitoringController;
+use App\Http\Controllers\Admin\DeviceMetricsController;
 use App\Http\Controllers\Admin\WorkersDashboardController;
 use App\Http\Controllers\Admin\IpScannerController;
 use App\Http\Controllers\Admin\IspConnectionController;
@@ -513,6 +514,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/health', [SnmpMonitoringController::class, 'snmpHealth'])->name('health');
         Route::post('/poll-all', [SnmpMonitoringController::class, 'pollAll'])->name('poll-all');
         Route::post('/poll-all-sync', [SnmpMonitoringController::class, 'pollAllSync'])->name('poll-all-sync');
+        // ── Device Metrics (ApexCharts AJAX) ──────────────────────────────
+        Route::get('/hosts/{host}/metrics/traffic',    [DeviceMetricsController::class, 'getTrafficData'])->name('hosts.metrics.traffic');
+        Route::get('/hosts/{host}/metrics/cpu',        [DeviceMetricsController::class, 'getCpuData'])->name('hosts.metrics.cpu');
+        Route::get('/hosts/{host}/metrics/memory',     [DeviceMetricsController::class, 'getMemoryData'])->name('hosts.metrics.memory');
+        Route::get('/hosts/{host}/metrics/interfaces', [DeviceMetricsController::class, 'getInterfaceData'])->name('hosts.metrics.interfaces');
     });
 
     // ─── Sensor Chart & History (Phase 7) ──────────────────────────

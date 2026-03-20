@@ -169,6 +169,369 @@
     </div>
 </div>
 
+{{-- ═══════════════════════════════════════════════════════════════════════
+     ApexCharts Monitoring Panel
+     Injected below the latency card. Shows:
+       • Mini sparkline gauges (CPU / Memory / Storage)
+       • Duplex traffic area chart (all interfaces combined)
+       • CPU % area chart with 80% threshold annotation
+       • Memory progress bars + stacked chart
+       • Toner ink levels (printers only)
+═══════════════════════════════════════════════════════════════════════ --}}
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.0/dist/apexcharts.min.js"></script>
+@endpush
+
+<style>
+.apex-mini-card { border-radius: 12px; }
+.range-btn { font-size: 0.75rem; padding: 0.2rem 0.65rem; }
+.range-btn.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+.toner-bar-wrap { height: 120px; border-radius: 8px; overflow: hidden; border: 2px solid rgba(0,0,0,.1); position: relative; }
+.toner-fill { position: absolute; bottom: 0; width: 100%; transition: height .6s ease; }
+.toner-label { font-size: .65rem; font-weight: 700; letter-spacing: .05em; }
+</style>
+
+{{-- ── 1. Mini Sparkline Gauges ───────────────────────────────────────── --}}
+@php
+    $cpuNow     = $host->latestMetric('cpu')     ?? $host->latestMetric('system');
+    $memNow     = null;
+    $memRaw     = $host->latestMemory();
+    if ($memRaw && !empty($memRaw['physical_used']) && !empty($memRaw['physical_total'])) {
+        $memNow = round($memRaw['physical_used'] / $memRaw['physical_total'] * 100, 1);
+    }
+    $storagePct = $host->latestMetric('storage_pct');
+@endphp
+
+<div class="row g-3 mb-4">
+    {{-- CPU mini gauge --}}
+    <div class="col-4">
+        <div class="card shadow-sm border-0 apex-mini-card p-3">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="small text-muted fw-bold text-uppercase" style="font-size:.7rem"><i class="bi bi-cpu me-1"></i>CPU</span>
+                <span class="fw-bold" id="gauge-cpu-val">{{ $cpuNow !== null ? round($cpuNow,1).'%' : '—' }}</span>
+            </div>
+            <div id="gauge-cpu" style="height:50px;"></div>
+            <div class="progress mt-1" style="height:4px">
+                <div class="progress-bar {{ ($cpuNow??0) > 90 ? 'bg-danger' : (($cpuNow??0) > 70 ? 'bg-warning' : 'bg-success') }}"
+                     style="width:{{ min($cpuNow??0,100) }}%"></div>
+            </div>
+        </div>
+    </div>
+    {{-- Memory mini gauge --}}
+    <div class="col-4">
+        <div class="card shadow-sm border-0 apex-mini-card p-3">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="small text-muted fw-bold text-uppercase" style="font-size:.7rem"><i class="bi bi-memory me-1"></i>Memory</span>
+                <span class="fw-bold" id="gauge-mem-val">{{ $memNow !== null ? $memNow.'%' : '—' }}</span>
+            </div>
+            <div id="gauge-mem" style="height:50px;"></div>
+            <div class="progress mt-1" style="height:4px">
+                <div class="progress-bar {{ ($memNow??0) > 90 ? 'bg-danger' : (($memNow??0) > 75 ? 'bg-warning' : 'bg-info') }}"
+                     style="width:{{ min($memNow??0,100) }}%"></div>
+            </div>
+        </div>
+    </div>
+    {{-- Storage mini gauge --}}
+    <div class="col-4">
+        <div class="card shadow-sm border-0 apex-mini-card p-3">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="small text-muted fw-bold text-uppercase" style="font-size:.7rem"><i class="bi bi-hdd me-1"></i>Storage</span>
+                <span class="fw-bold" id="gauge-sto-val">{{ $storagePct !== null ? round($storagePct,1).'%' : '—' }}</span>
+            </div>
+            <div id="gauge-sto" style="height:50px;"></div>
+            <div class="progress mt-1" style="height:4px">
+                <div class="progress-bar {{ ($storagePct??0) > 90 ? 'bg-danger' : (($storagePct??0) > 80 ? 'bg-warning' : 'bg-primary') }}"
+                     style="width:{{ min($storagePct??0,100) }}%"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ── 2. Traffic + CPU/Memory Charts ─────────────────────────────────── --}}
+<div class="row g-4 mb-4">
+    {{-- Traffic Duplex Chart --}}
+    <div class="col-lg-6">
+        <div class="card shadow-sm border-0 overflow-hidden" x-data="trafficChart()">
+            <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Interface Traffic</h6>
+                <div class="d-flex gap-1">
+                    <template x-for="r in ['1h','6h','24h','7d','30d']">
+                        <button class="btn btn-sm btn-outline-secondary range-btn"
+                                :class="{ active: range === r }"
+                                @click="setRange(r)" x-text="r.toUpperCase()"></button>
+                    </template>
+                </div>
+            </div>
+            <div class="card-body pt-0">
+                <div id="traffic-chart" style="min-height:220px;"></div>
+                <div class="d-flex justify-content-center gap-4 mt-2 small text-muted">
+                    <span><span class="badge bg-primary me-1">&nbsp;</span>Inbound</span>
+                    <span><span class="badge bg-danger me-1">&nbsp;</span>Outbound</span>
+                    <span class="ms-3 fw-bold" x-text="unit" id="traffic-unit"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- CPU Chart --}}
+    <div class="col-lg-6">
+        <div class="card shadow-sm border-0 overflow-hidden" x-data="cpuChart()">
+            <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-cpu me-2 text-danger"></i>CPU Utilisation</h6>
+                <div class="d-flex gap-1">
+                    <template x-for="r in ['1h','6h','24h','7d','30d']">
+                        <button class="btn btn-sm btn-outline-secondary range-btn"
+                                :class="{ active: range === r }"
+                                @click="setRange(r)" x-text="r.toUpperCase()"></button>
+                    </template>
+                </div>
+            </div>
+            <div class="card-body pt-0">
+                <div id="cpu-chart" style="min-height:220px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ── 3. Memory Detail + Toner ────────────────────────────────────────── --}}
+<div class="row g-4 mb-4">
+    {{-- Memory Section --}}
+    <div class="col-lg-{{ $host->isPrinter() ? '8' : '12' }}" x-data="memorySection()">
+        <div class="card shadow-sm border-0 overflow-hidden">
+            <div class="card-header bg-white py-3 border-0">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-memory me-2 text-info"></i>Memory</h6>
+            </div>
+            <div class="card-body" id="memory-section">
+                <template x-if="!available">
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-hourglass-split fs-3 d-block mb-2"></i>No memory sensors available
+                    </div>
+                </template>
+                <template x-if="available">
+                    <div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-sm-6">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span class="text-muted">Physical RAM</span>
+                                    <span class="fw-bold" x-text="physPct + '%'"></span>
+                                </div>
+                                <div class="progress" style="height:10px">
+                                    <div class="progress-bar bg-info" :style="'width:'+physPct+'%'"></div>
+                                </div>
+                                <div class="text-muted x-small mt-1" x-text="physUsedFmt + ' / ' + physTotalFmt"></div>
+                            </div>
+                            <div class="col-sm-6" x-show="virtUsedFmt">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span class="text-muted">Virtual / Swap</span>
+                                    <span class="fw-bold" x-text="virtPct + '%'"></span>
+                                </div>
+                                <div class="progress" style="height:10px">
+                                    <div class="progress-bar bg-warning" :style="'width:'+virtPct+'%'"></div>
+                                </div>
+                                <div class="text-muted x-small mt-1" x-text="virtUsedFmt"></div>
+                            </div>
+                        </div>
+                        {{-- Breakdown pills --}}
+                        <div class="d-flex flex-wrap gap-2 small mt-2">
+                            <template x-if="cachedFmt">
+                                <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1">
+                                    <i class="bi bi-layers me-1"></i>Cached: <span x-text="cachedFmt"></span>
+                                </span>
+                            </template>
+                            <template x-if="buffersFmt">
+                                <span class="badge bg-secondary-subtle text-secondary border px-2 py-1">
+                                    <i class="bi bi-collection me-1"></i>Buffers: <span x-text="buffersFmt"></span>
+                                </span>
+                            </template>
+                            <template x-if="sharedFmt">
+                                <span class="badge bg-light text-dark border px-2 py-1">
+                                    <i class="bi bi-share me-1"></i>Shared: <span x-text="sharedFmt"></span>
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    @if($host->isPrinter())
+    {{-- Toner Ink Levels --}}
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 overflow-hidden">
+            <div class="card-header bg-white py-3 border-0">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-printer me-2 text-secondary"></i>Ink / Toner</h6>
+            </div>
+            <div class="card-body">
+                @php $toner = $host->tonerLevels(); @endphp
+                <div class="d-flex justify-content-around align-items-end" style="height:140px">
+                    @foreach(['K'=>['#212529','Black'],'C'=>['#0dcaf0','Cyan'],'M'=>['#d63384','Magenta'],'Y'=>['#ffc107','Yellow']] as $key => [$color, $label])
+                        @php $level = $toner[$key] ?? null; @endphp
+                        <div class="text-center" style="width:50px">
+                            <div class="small fw-bold mb-1" style="font-size:.75rem">
+                                {{ $level !== null ? $level.'%' : '—' }}
+                            </div>
+                            <div class="toner-bar-wrap mx-auto" style="width:32px;background:#f0f0f0">
+                                @if($level !== null)
+                                <div class="toner-fill" style="height:{{ $level }}%;background:{{ $color }};opacity:.85"></div>
+                                @else
+                                <div class="toner-fill" style="height:0%;background:#ccc"></div>
+                                @endif
+                            </div>
+                            <div class="toner-label mt-1 text-muted">{{ $label }}</div>
+                        </div>
+                    @endforeach
+                </div>
+                @php
+                    $lowToner = array_filter($toner, fn($v) => $v !== null && $v < 15);
+                @endphp
+                @if(count($lowToner))
+                <div class="alert alert-warning border-0 py-2 px-3 mt-3 small mb-0">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    Low toner: {{ implode(', ', array_keys($lowToner)) }}
+                </div>
+                @endif
+            </div>
+        </div>
+    </div>
+    @endif
+</div>
+
+{{-- ── 4. Alpine.js chart components ──────────────────────────────────── --}}
+<script>
+(function() {
+    const URL_TRAFFIC = '{{ route('admin.network.monitoring.hosts.metrics.traffic', $host) }}';
+    const URL_CPU     = '{{ route('admin.network.monitoring.hosts.metrics.cpu', $host) }}';
+    const URL_MEM     = '{{ route('admin.network.monitoring.hosts.metrics.memory', $host) }}';
+
+    const APEX_BASE = {
+        chart:   { toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: true } },
+        stroke:  { curve: 'smooth', width: 2 },
+        grid:    { borderColor: '#e9ecef', strokeDashArray: 4, xaxis: { lines: { show: false } } },
+        xaxis:   { type: 'datetime', labels: { datetimeUTC: false, style: { colors: '#6c757d', fontSize: '11px' } } },
+        yaxis:   { labels: { style: { colors: '#6c757d', fontSize: '11px' } } },
+        tooltip: { x: { format: 'dd MMM HH:mm' }, theme: 'light' },
+        legend:  { show: false },
+    };
+
+    function fmtBytes(b) {
+        if (!b && b !== 0) return '—';
+        const abs = Math.abs(b);
+        if (abs >= 1073741824) return (b / 1073741824).toFixed(2) + ' GB';
+        if (abs >= 1048576)    return (b / 1048576).toFixed(2) + ' MB';
+        if (abs >= 1024)       return (b / 1024).toFixed(1) + ' KB';
+        return b.toFixed(0) + ' B';
+    }
+
+    // ── Traffic chart ────────────────────────────────────────────────────
+    window.trafficChart = function() {
+        let chart = null;
+        return {
+            range: '24h',
+            unit:  '',
+            init() {
+                chart = new ApexCharts(document.getElementById('traffic-chart'), {
+                    ...APEX_BASE,
+                    chart: { ...APEX_BASE.chart, type: 'area', height: 220 },
+                    fill:  { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05 } },
+                    colors: ['#0d6efd', '#dc3545'],
+                    series: [{ name: 'Inbound', data: [] }, { name: 'Outbound', data: [] }],
+                });
+                chart.render();
+                this.load();
+            },
+            setRange(r) { this.range = r; this.load(); },
+            async load() {
+                const res  = await fetch(URL_TRAFFIC + '?range=' + this.range);
+                const json = await res.json();
+                chart.updateSeries(json.series || []);
+                this.unit = json.unit || '';
+                document.getElementById('traffic-unit').textContent = json.unit || '';
+                chart.updateOptions({ yaxis: { ...APEX_BASE.yaxis, title: { text: json.unit || '' } } });
+            }
+        };
+    };
+
+    // ── CPU chart ─────────────────────────────────────────────────────────
+    window.cpuChart = function() {
+        let chart = null;
+        return {
+            range: '24h',
+            init() {
+                chart = new ApexCharts(document.getElementById('cpu-chart'), {
+                    ...APEX_BASE,
+                    chart:  { ...APEX_BASE.chart, type: 'area', height: 220 },
+                    fill:   { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
+                    colors: ['#dc3545'],
+                    series: [{ name: 'CPU Usage', data: [] }],
+                    yaxis:  { min: 0, max: 100, labels: { formatter: v => v.toFixed(0) + '%', style: { colors: '#6c757d', fontSize: '11px' } } },
+                    annotations: {
+                        yaxis: [{
+                            y: 80,
+                            borderColor: '#dc3545',
+                            strokeDashArray: 6,
+                            label: { text: '80% threshold', style: { color: '#dc3545', background: '#fff5f5', fontSize: '11px' } }
+                        }]
+                    },
+                });
+                chart.render();
+                this.load();
+            },
+            setRange(r) { this.range = r; this.load(); },
+            async load() {
+                const res  = await fetch(URL_CPU + '?range=' + this.range);
+                const json = await res.json();
+                chart.updateSeries(json.series || []);
+            }
+        };
+    };
+
+    // ── Memory section ─────────────────────────────────────────────────────
+    window.memorySection = function() {
+        return {
+            available: false,
+            physPct: 0, physUsedFmt: '', physTotalFmt: '',
+            virtPct: 0, virtUsedFmt: '',
+            cachedFmt: '', buffersFmt: '', sharedFmt: '',
+            async init() {
+                const res  = await fetch(URL_MEM);
+                const d    = await res.json();
+                if (!d.available) return;
+                this.available = true;
+                const used  = d.physical_used  || 0;
+                const total = d.physical_total || 0;
+                this.physPct       = total ? Math.round(used / total * 100) : 0;
+                this.physUsedFmt   = fmtBytes(used);
+                this.physTotalFmt  = fmtBytes(total);
+                const virt = d.virtual_used || 0;
+                this.virtPct       = total ? Math.round(virt / total * 100) : 0;
+                this.virtUsedFmt   = virt ? fmtBytes(virt) : '';
+                this.cachedFmt     = d.cached  ? fmtBytes(d.cached)  : '';
+                this.buffersFmt    = d.buffers ? fmtBytes(d.buffers) : '';
+                this.sharedFmt     = d.shared  ? fmtBytes(d.shared)  : '';
+            }
+        };
+    };
+
+    // ── Mini sparklines (radial bars) ──────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () {
+        const mkRadial = (el, val, color) => {
+            if (!document.getElementById(el)) return;
+            new ApexCharts(document.getElementById(el), {
+                chart:   { type: 'radialBar', height: 60, sparkline: { enabled: true }, animations: { enabled: false } },
+                series:  [val ?? 0],
+                colors:  [color],
+                plotOptions: { radialBar: { hollow: { size: '55%' }, dataLabels: { show: false }, track: { background: '#f0f0f0' } } },
+            }).render();
+        };
+        mkRadial('gauge-cpu', {{ $cpuNow ?? 'null' }}, '#dc3545');
+        mkRadial('gauge-mem', {{ $memNow ?? 'null' }}, '#0dcaf0');
+        mkRadial('gauge-sto', {{ $storagePct ?? 'null' }}, '#0d6efd');
+    });
+})();
+</script>
+
+{{-- End of ApexCharts Monitoring Panel --}}
 @php
     $groupedSensors = ['General' => [], 'Interfaces' => [], 'Extensions' => [], 'Trunks' => [], 'VPN' => []];
     $vpnGrouped = [];

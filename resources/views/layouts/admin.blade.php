@@ -938,6 +938,37 @@
 
     @stack('scripts')
 
+    {{-- ApexCharts global defaults (available to any page that loads apexcharts.js) --}}
+    <script>
+    window.Apex = {
+        chart: {
+            fontFamily: 'inherit',
+            toolbar: { show: false },
+            zoom:    { enabled: false },
+            animations: { easing: 'easeinout', speed: 400 }
+        },
+        grid: {
+            borderColor: '#e9ecef',
+            strokeDashArray: 4,
+            xaxis: { lines: { show: false } }
+        },
+        stroke:  { width: 2, curve: 'smooth' },
+        tooltip: { theme: 'light', x: { format: 'dd MMM HH:mm' } },
+        xaxis:   {
+            type: 'datetime',
+            labels: { datetimeUTC: false, style: { colors: '#6c757d', fontSize: '11px' } },
+            axisBorder: { show: false },
+            axisTicks:  { show: false }
+        },
+        yaxis:   { labels: { style: { colors: '#6c757d', fontSize: '11px' } } },
+        legend:  { position: 'top', horizontalAlign: 'left', fontSize: '12px', markers: { radius: 3 } },
+        colors:  ['#0d6efd','#dc3545','#198754','#ffc107','#0dcaf0','#6f42c1'],
+        fill:    { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05 } },
+        dataLabels: { enabled: false },
+        noData:  { text: 'No data available', style: { color: '#adb5bd', fontSize: '13px' } }
+    };
+    </script>
+
     {{-- Notification Bell Polling --}}
     <script>
     (function () {

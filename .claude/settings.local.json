@@ -103,7 +103,12 @@
       "Bash(php -l app/Jobs/Azure/CreateAzureUserJob.php)",
       "Bash(php -l app/Jobs/Ucm/CreateUcmExtensionJob.php)",
       "Bash(php -l app/Services/Workflow/WorkflowStepRegistry.php)",
-      "Bash(xargs php:*)"
+      "Bash(xargs php:*)",
+      "Bash(grep -l sensor_metrics C:UsersMohamedZahranDownloadsphonebookSG_NOCdatabasemigrations/*.php)",
+      "Bash(grep -l \"sensorMetric\\\\|sensor_metric\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\database\\\\migrations\"/*)",
+      "Bash(head -40 grep -n \"toner\\\\|ink\\\\|sensor_group\" \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Jobs/PollPrinterSnmpJob.php\")",
+      "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\\\\Admin\\\\DeviceMetricsController.php\")",
+      "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\components\\\\toner-gauge.blade.php\")"
     ]
   }
 }

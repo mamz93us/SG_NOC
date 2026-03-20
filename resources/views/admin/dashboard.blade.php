@@ -443,4 +443,192 @@
 @endif
 @endcan
 
+{{-- ═══════════════════════════════════════════════════════════════════
+     Network Monitoring Overview Charts
+     3-column row:
+       1. Device Status Donut
+       2. Alert Frequency Bar (last 7 days)
+       3. Host Type Breakdown Donut
+═══════════════════════════════════════════════════════════════════════ --}}
+@can('manage-network-settings')
+@php
+    use App\Models\MonitoredHost;
+    use App\Models\HostCheck;
+    use Illuminate\Support\Facades\DB;
+
+    // ── Device status donut ──────────────────────────────────────────────
+    $hostStatuses = MonitoredHost::select('status', DB::raw('count(*) as total'))
+        ->groupBy('status')
+        ->pluck('total', 'status')
+        ->toArray();
+
+    $statusLabels = array_keys($hostStatuses);
+    $statusCounts = array_values($hostStatuses);
+    $statusColors = array_map(fn($s) => match($s) {
+        'up'       => '#198754',
+        'down'     => '#dc3545',
+        'degraded' => '#ffc107',
+        default    => '#6c757d',
+    }, $statusLabels);
+
+    // ── Alert frequency — count of 'down' host-checks per day last 7 days ──
+    $alertDays = HostCheck::select(
+            DB::raw("DATE(checked_at) as day"),
+            DB::raw("SUM(CASE WHEN status='down' THEN 1 ELSE 0 END) as downs")
+        )
+        ->where('checked_at', '>=', now()->subDays(6)->startOfDay())
+        ->groupBy('day')
+        ->orderBy('day')
+        ->get()
+        ->keyBy('day');
+
+    $alertLabels = [];
+    $alertValues = [];
+    for ($i = 6; $i >= 0; $i--) {
+        $day = now()->subDays($i)->format('Y-m-d');
+        $alertLabels[] = now()->subDays($i)->format('D d');
+        $alertValues[] = (int) ($alertDays[$day]->downs ?? 0);
+    }
+
+    // ── Host type breakdown ───────────────────────────────────────────────
+    $typeBreakdown = MonitoredHost::select('type', DB::raw('count(*) as total'))
+        ->groupBy('type')
+        ->pluck('total', 'type')
+        ->toArray();
+    $typeLabels = array_map('ucfirst', array_keys($typeBreakdown));
+    $typeCounts = array_values($typeBreakdown);
+
+    $totalHosts    = array_sum($statusCounts);
+    $upHosts       = $hostStatuses['up'] ?? 0;
+    $downHosts     = $hostStatuses['down'] ?? 0;
+@endphp
+
+@if($totalHosts > 0)
+<div class="mt-5 mb-2">
+    <h5 class="fw-bold mb-1"><i class="bi bi-hdd-network me-2 text-primary"></i>Network Device Overview</h5>
+    <p class="text-muted small mb-4">Real-time summary from SNMP-monitored hosts</p>
+</div>
+
+{{-- Summary KPIs --}}
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm text-center py-3">
+            <div class="h3 fw-bold text-primary mb-0">{{ $totalHosts }}</div>
+            <div class="small text-muted">Total Devices</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm text-center py-3">
+            <div class="h3 fw-bold text-success mb-0">{{ $upHosts }}</div>
+            <div class="small text-muted">Online</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm text-center py-3">
+            <div class="h3 fw-bold text-danger mb-0">{{ $downHosts }}</div>
+            <div class="small text-muted">Offline / Down</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm text-center py-3">
+            <div class="h3 fw-bold mb-0 {{ $totalHosts > 0 ? 'text-dark' : 'text-muted' }}">
+                {{ $totalHosts > 0 ? round($upHosts / $totalHosts * 100) : 0 }}<span class="fs-6 text-muted">%</span>
+            </div>
+            <div class="small text-muted">Uptime Rate</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-5">
+    {{-- 1. Device Status Donut --}}
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 py-3">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-pie-chart-fill me-2 text-primary"></i>Device Status</h6>
+            </div>
+            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                <div id="dash-status-donut" style="min-height:220px;width:100%;"></div>
+            </div>
+        </div>
+    </div>
+
+    {{-- 2. Alert Frequency Bar Chart --}}
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 py-3">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-bar-chart-fill me-2 text-danger"></i>Down Events — Last 7 Days</h6>
+            </div>
+            <div class="card-body">
+                <div id="dash-alert-bar" style="min-height:220px;"></div>
+            </div>
+        </div>
+    </div>
+
+    {{-- 3. Host Type Donut --}}
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 py-3">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-diagram-3-fill me-2 text-success"></i>Device Types</h6>
+            </div>
+            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                <div id="dash-type-donut" style="min-height:220px;width:100%;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.0/dist/apexcharts.min.js"></script>
+<script>
+(function () {
+    // 1. Status Donut
+    new ApexCharts(document.getElementById('dash-status-donut'), {
+        chart:  { type: 'donut', height: 220, animations: { speed: 400 } },
+        series: @json($statusCounts),
+        labels: @json(array_map('ucfirst', $statusLabels)),
+        colors: @json($statusColors),
+        legend: { position: 'bottom', fontSize: '12px' },
+        dataLabels: { enabled: true, style: { fontSize: '11px' } },
+        plotOptions: { pie: { donut: { size: '60%', labels: {
+            show: true,
+            total: { show: true, label: 'Total', color: '#6c757d', fontSize: '12px',
+                     formatter: () => '{{ $totalHosts }}' }
+        }}}},
+        tooltip: { theme: 'light' },
+    }).render();
+
+    // 2. Alert Frequency Bar
+    new ApexCharts(document.getElementById('dash-alert-bar'), {
+        chart:  { type: 'bar', height: 220, toolbar: { show: false }, animations: { speed: 400 } },
+        series: [{ name: 'Down Events', data: @json($alertValues) }],
+        xaxis:  { categories: @json($alertLabels), labels: { style: { colors: '#6c757d', fontSize: '11px' } } },
+        yaxis:  { min: 0, tickAmount: 4, labels: { style: { colors: '#6c757d', fontSize: '11px' }, formatter: v => Math.round(v) } },
+        colors: ['#dc3545'],
+        fill:   { type: 'solid', opacity: .85 },
+        dataLabels: { enabled: false },
+        plotOptions: { bar: { borderRadius: 4, columnWidth: '55%' } },
+        tooltip: { theme: 'light' },
+        grid:   { borderColor: '#e9ecef', strokeDashArray: 4 },
+    }).render();
+
+    // 3. Device Types Donut
+    new ApexCharts(document.getElementById('dash-type-donut'), {
+        chart:  { type: 'donut', height: 220, animations: { speed: 400 } },
+        series: @json($typeCounts),
+        labels: @json($typeLabels),
+        legend: { position: 'bottom', fontSize: '12px' },
+        dataLabels: { enabled: true, style: { fontSize: '11px' } },
+        plotOptions: { pie: { donut: { size: '60%', labels: {
+            show: true,
+            total: { show: true, label: 'Types', color: '#6c757d', fontSize: '12px',
+                     formatter: () => '{{ count($typeLabels) }}' }
+        }}}},
+        tooltip: { theme: 'light' },
+    }).render();
+})();
+</script>
+@endpush
+@endif
+@endcan
+
 @endsection
