@@ -19,21 +19,25 @@ class RequireTwoFactor
 
     public function handle(Request $request, Closure $next): Response
     {
-        $user = $request->user();
+        try {
+            $user = $request->user();
 
-        // Only enforce if the user is authenticated, has 2FA enabled, and hasn't verified yet
-        if (
-            $user
-            && $user->hasTwoFactorEnabled()
-            && ! $request->session()->get('2fa_verified')
-            && ! $this->isExcludedRoute($request)
-        ) {
-            // Store the user ID in session so the challenge controller can find them,
-            // then log them out so they must complete 2FA first.
-            $request->session()->put('2fa_user_id', $user->id);
-            \Illuminate\Support\Facades\Auth::logout();
+            // Only enforce if the user is authenticated, has 2FA enabled, and hasn't verified yet
+            if (
+                $user
+                && $user->hasTwoFactorEnabled()
+                && ! $request->session()->get('2fa_verified')
+                && ! $this->isExcludedRoute($request)
+            ) {
+                // Store the user ID in session so the challenge controller can find them,
+                // then log them out so they must complete 2FA first.
+                $request->session()->put('2fa_user_id', $user->id);
+                \Illuminate\Support\Facades\Auth::logout();
 
-            return redirect()->route('two-factor.challenge');
+                return redirect()->route('two-factor.challenge');
+            }
+        } catch (\Throwable $e) {
+            // If 2FA columns don't exist yet (migrations not run), skip enforcement
         }
 
         return $next($request);

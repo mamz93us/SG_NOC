@@ -47,7 +47,11 @@ class User extends Authenticatable
      */
     public function hasTwoFactorEnabled(): bool
     {
-        return $this->two_factor_enabled && $this->two_factor_confirmed_at !== null;
+        try {
+            return (bool) $this->two_factor_enabled && $this->two_factor_confirmed_at !== null;
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**

@@ -91,7 +91,10 @@
       "Bash(ls /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/config/*.php)",
       "Bash(grep -l \"snmp\\\\|SNMP\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/routes/*.php)",
       "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Services -type f -name *.php)",
-      "Bash(grep -l \"monitored_hosts\\\\|snmp_sensors\\\\|SnmpSensor\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)"
+      "Bash(grep -l \"monitored_hosts\\\\|snmp_sensors\\\\|SnmpSensor\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)",
+      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOCresourcesviewsadmin -name *.blade.php -newer C:UsersMohamedZahranDownloadsphonebookSG_NOCappPollingOSBaseOS.php)",
+      "Bash(ls \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\database\\\\migrations\\\\2026_03_20\"*.php)",
+      "Bash(composer show:*)"
     ]
   }
 }
