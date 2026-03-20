@@ -16,8 +16,10 @@
     .node-type-condition  { border-left: 4px solid #ffc107; }
     .node-type-notification { border-left: 4px solid #0dcaf0; }
     .node-type-wait       { border-left: 4px solid #6f42c1; }
-    .drag-item { cursor: grab; user-select: none; }
+    .drag-item { cursor: grab; user-select: none; touch-action: none; }
     .drag-item:active { cursor: grabbing; }
+    .node-drag-ghost { pointer-events: none; z-index: 9999; opacity: .85; transition: none; min-width: 160px; }
+    .drop-target-active { outline: 2px dashed #0d6efd; outline-offset: -4px; }
     .prop-panel { height: calc(100vh - 130px); overflow-y: auto; }
     .drawflow .connection .main-path { stroke: #0d6efd; stroke-width: 2.5; }
     [data-bs-theme="dark"] #drawflow { background: #1a1d21; }
@@ -65,48 +67,68 @@
             <div class="card-body p-3">
                 <p class="text-uppercase text-muted fw-bold small mb-2">Step Types</p>
 
-                <div class="d-flex flex-column gap-2 mb-4">
+                <div class="d-flex flex-column gap-2 mb-4" id="node-palette">
                     <div class="drag-item card border-start border-primary border-3 p-2 shadow-sm"
-                         draggable="true" ondragstart="dragStart(event, 'approval')">
+                         data-node-type="approval">
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi bi-person-check-fill text-primary fs-5"></i>
-                            <div><div class="fw-semibold small">Approval</div><div class="text-muted" style="font-size:11px">Human review</div></div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold small">Approval</div>
+                                <div class="text-muted" style="font-size:11px">Human review</div>
+                            </div>
+                            <button class="btn btn-sm btn-link p-0 text-primary add-node-btn" title="Click to add" onclick="addNodeCenter('approval')"><i class="bi bi-plus-circle-fill"></i></button>
                         </div>
                     </div>
 
                     <div class="drag-item card border-start border-success border-3 p-2 shadow-sm"
-                         draggable="true" ondragstart="dragStart(event, 'action')">
+                         data-node-type="action">
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi bi-gear-fill text-success fs-5"></i>
-                            <div><div class="fw-semibold small">Action</div><div class="text-muted" style="font-size:11px">Run a job</div></div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold small">Action</div>
+                                <div class="text-muted" style="font-size:11px">Run a job</div>
+                            </div>
+                            <button class="btn btn-sm btn-link p-0 text-success add-node-btn" title="Click to add" onclick="addNodeCenter('action')"><i class="bi bi-plus-circle-fill"></i></button>
                         </div>
                     </div>
 
                     <div class="drag-item card border-start border-warning border-3 p-2 shadow-sm"
-                         draggable="true" ondragstart="dragStart(event, 'condition')">
+                         data-node-type="condition">
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi bi-signpost-split-fill text-warning fs-5"></i>
-                            <div><div class="fw-semibold small">Condition</div><div class="text-muted" style="font-size:11px">Branch on value</div></div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold small">Condition</div>
+                                <div class="text-muted" style="font-size:11px">Branch on value</div>
+                            </div>
+                            <button class="btn btn-sm btn-link p-0 text-warning add-node-btn" title="Click to add" onclick="addNodeCenter('condition')"><i class="bi bi-plus-circle-fill"></i></button>
                         </div>
                     </div>
 
                     <div class="drag-item card border-start border-info border-3 p-2 shadow-sm"
-                         draggable="true" ondragstart="dragStart(event, 'notification')">
+                         data-node-type="notification">
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi bi-bell-fill text-info fs-5"></i>
-                            <div><div class="fw-semibold small">Notification</div><div class="text-muted" style="font-size:11px">Email / Webhook</div></div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold small">Notification</div>
+                                <div class="text-muted" style="font-size:11px">Email / Webhook</div>
+                            </div>
+                            <button class="btn btn-sm btn-link p-0 text-info add-node-btn" title="Click to add" onclick="addNodeCenter('notification')"><i class="bi bi-plus-circle-fill"></i></button>
                         </div>
                     </div>
 
                     <div class="drag-item card border-start border-3 p-2 shadow-sm"
-                         style="border-color:#6f42c1 !important" draggable="true"
-                         ondragstart="dragStart(event, 'wait')">
+                         style="border-color:#6f42c1 !important" data-node-type="wait">
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi bi-hourglass-split fs-5" style="color:#6f42c1"></i>
-                            <div><div class="fw-semibold small">Wait</div><div class="text-muted" style="font-size:11px">Pause X hours</div></div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold small">Wait</div>
+                                <div class="text-muted" style="font-size:11px">Pause X hours</div>
+                            </div>
+                            <button class="btn btn-sm btn-link p-0 add-node-btn" style="color:#6f42c1" title="Click to add" onclick="addNodeCenter('wait')"><i class="bi bi-plus-circle-fill"></i></button>
                         </div>
                     </div>
                 </div>
+                <p class="text-muted" style="font-size:10px"><i class="bi bi-info-circle me-1"></i>Drag onto canvas or click <i class="bi bi-plus-circle-fill"></i></p>
 
                 <hr>
                 <p class="text-uppercase text-muted fw-bold small mb-2">Event Trigger</p>
@@ -125,9 +147,7 @@
 
     {{-- Center: Drawflow Canvas --}}
     <div class="col" id="drawflow-wrap">
-        <div id="drawflow"
-             ondragover="event.preventDefault()"
-             ondrop="dropNode(event)"></div>
+        <div id="drawflow"></div>
     </div>
 
     {{-- Right: Properties Panel --}}
@@ -405,37 +425,84 @@ const nodeDefaults = {
     wait:         { label: 'Wait', hours: 24 },
 };
 
-// ── Drag & Drop ─────────────────────────────────────────────────
-let _dragType = null;
-function dragStart(e, type) {
-    _dragType = type;
-    e.dataTransfer.setData('text/plain', type);
-    e.dataTransfer.effectAllowed = 'copy';
-}
-
-function dropNode(e) {
-    e.preventDefault();
-    const type = _dragType || e.dataTransfer.getData('text/plain');
-    _dragType = null;
+// ── Node placement helper ────────────────────────────────────────
+function placeNode(type, clientX, clientY) {
     if (!type || !nodeTemplates[type]) return;
-
-    // Use precanvas bounding rect — this correctly accounts for pan+zoom
     const preRect = editor.precanvas.getBoundingClientRect();
     const zoom    = editor.zoom || 1;
-    const pos_x   = (e.clientX - preRect.x) / zoom;
-    const pos_y   = (e.clientY - preRect.y) / zoom;
-
-    const data = { ...nodeDefaults[type] };
-    editor.addNode(
-        type,
-        nodeInputs[type],
-        nodeOutputs[type],
-        pos_x, pos_y,
-        type,
-        data,
-        nodeTemplates[type](data)
-    );
+    const pos_x   = (clientX - preRect.x) / zoom;
+    const pos_y   = (clientY - preRect.y) / zoom;
+    const data    = { ...nodeDefaults[type] };
+    editor.addNode(type, nodeInputs[type], nodeOutputs[type], pos_x, pos_y, type, data, nodeTemplates[type](data));
 }
+
+// ── Click-to-add (most reliable: add to canvas center) ──────────
+function addNodeCenter(type) {
+    const rect   = dfEl.getBoundingClientRect();
+    const centerX = rect.left + rect.width  / 2;
+    const centerY = rect.top  + rect.height / 2;
+    // Spread out so repeated clicks don't stack exactly
+    const jitter = () => (Math.random() - 0.5) * 80;
+    placeNode(type, centerX + jitter(), centerY + jitter());
+}
+
+// ── Pointer-events drag (works everywhere, no HTML5 DnD quirks) ─
+let _dragType    = null;
+let _ghostEl     = null;
+let _dragStarted = false;
+
+function _cleanupDrag() {
+    if (_ghostEl) { _ghostEl.remove(); _ghostEl = null; }
+    dfEl.classList.remove('drop-target-active');
+    document.removeEventListener('pointermove', _onPointerMove);
+    document.removeEventListener('pointerup',   _onPointerUp);
+    _dragType    = null;
+    _dragStarted = false;
+}
+
+function _onPointerMove(e) {
+    if (!_ghostEl) return;
+    _ghostEl.style.left = (e.clientX + 12) + 'px';
+    _ghostEl.style.top  = (e.clientY - 20) + 'px';
+
+    // Highlight canvas when cursor is over it
+    const dfRect = dfEl.getBoundingClientRect();
+    const over = e.clientX >= dfRect.left && e.clientX <= dfRect.right &&
+                 e.clientY >= dfRect.top  && e.clientY <= dfRect.bottom;
+    dfEl.classList.toggle('drop-target-active', over);
+}
+
+function _onPointerUp(e) {
+    const type = _dragType;
+    _cleanupDrag();
+
+    const dfRect = dfEl.getBoundingClientRect();
+    const inside = e.clientX >= dfRect.left && e.clientX <= dfRect.right &&
+                   e.clientY >= dfRect.top  && e.clientY <= dfRect.bottom;
+    if (inside && type) {
+        placeNode(type, e.clientX, e.clientY);
+    }
+}
+
+// Attach pointer-down to every palette item
+document.querySelectorAll('#node-palette .drag-item').forEach(el => {
+    el.addEventListener('pointerdown', e => {
+        // Ignore clicks on the + button itself
+        if (e.target.closest('.add-node-btn')) return;
+        e.preventDefault();
+        _dragType    = el.dataset.nodeType;
+        _dragStarted = true;
+
+        // Clone the card as a floating ghost
+        _ghostEl = el.cloneNode(true);
+        _ghostEl.className = 'card node-drag-ghost position-fixed shadow-lg';
+        _ghostEl.style.cssText = `left:${e.clientX + 12}px; top:${e.clientY - 20}px; width:160px; pointer-events:none; z-index:9999; opacity:.9;`;
+        document.body.appendChild(_ghostEl);
+
+        document.addEventListener('pointermove', _onPointerMove);
+        document.addEventListener('pointerup',   _onPointerUp);
+    });
+});
 
 // ── Load existing definition ──────────────────────────────────
 @if($workflowTemplate->definition)
