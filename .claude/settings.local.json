@@ -97,7 +97,13 @@
       "Bash(composer show:*)",
       "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC -type f -name *orkflow*)",
       "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOCresourcesjs -type f -name *.js -o -name *.jsx -o -name *.ts -o -name *.tsx -o -name *.vue)",
-      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOCresourcesviews -name *.blade.php -type f)"
+      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOCresourcesviews -name *.blade.php -type f)",
+      "Bash(/dev/null:*)",
+      "Bash(php create_job_stubs.php)",
+      "Bash(php -l app/Jobs/Azure/CreateAzureUserJob.php)",
+      "Bash(php -l app/Jobs/Ucm/CreateUcmExtensionJob.php)",
+      "Bash(php -l app/Services/Workflow/WorkflowStepRegistry.php)",
+      "Bash(xargs php:*)"
     ]
   }
 }

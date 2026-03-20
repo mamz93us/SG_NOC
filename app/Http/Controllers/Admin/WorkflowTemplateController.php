@@ -87,7 +87,7 @@ class WorkflowTemplateController extends Controller
     {
         $this->authorize('manage-workflow-templates');
 
-        $jobRegistry = WorkflowStepRegistry::available();
+        $jobRegistry = WorkflowStepRegistry::grouped();
         $triggerEvents = [
             'employee.created' => 'New Employee Created',
             'host.down'        => 'Host Goes Down',
