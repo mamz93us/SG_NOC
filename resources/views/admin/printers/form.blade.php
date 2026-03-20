@@ -152,6 +152,12 @@
                 </div>
 
                 {{-- ── SNMP ── --}}
+                <div class="col-12">
+                    <hr class="my-0">
+                    <p class="fw-semibold small text-muted mb-0 mt-2">
+                        <i class="bi bi-activity me-1"></i>SNMP Monitoring
+                    </p>
+                </div>
                 <div class="col-md-3">
                     <label class="form-label">SNMP Community</label>
                     <input type="text" name="snmp_community" class="form-control font-monospace"
@@ -166,6 +172,22 @@
                         <option value="{{ $v }}" {{ old('snmp_version', $printer->snmp_version ?? '') == $v ? 'selected' : '' }}>{{ $v }}</option>
                         @endforeach
                     </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Enable Monitoring</label>
+                    <div class="form-check form-switch mt-2">
+                        <input type="hidden" name="snmp_enabled" value="0">
+                        <input type="checkbox" name="snmp_enabled" value="1"
+                               class="form-check-input" id="snmpEnabled"
+                               {{ old('snmp_enabled', $printer->snmp_enabled ?? false) ? 'checked' : '' }}>
+                        <label class="form-check-label small" for="snmpEnabled">Enable SNMP polling</label>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Toner Warning %</label>
+                    <input type="number" name="toner_warning_threshold" class="form-control"
+                           value="{{ old('toner_warning_threshold', $printer->toner_warning_threshold ?? 20) }}"
+                           min="1" max="100" step="1" placeholder="20">
                 </div>
 
                 {{-- ── Notes ── --}}

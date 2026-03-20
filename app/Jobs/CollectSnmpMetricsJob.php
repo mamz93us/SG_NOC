@@ -12,6 +12,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class CollectSnmpMetricsJob implements ShouldQueue
@@ -54,6 +55,19 @@ class CollectSnmpMetricsJob implements ShouldQueue
     {
         if ($host->snmpSensors->isEmpty()) {
             return;
+        }
+
+        // Redis cache lock: skip if this host was recently polled
+        try {
+            if (Cache::store('redis')->has("snmp_lock_{$host->id}")) {
+                Log::debug("CollectSnmpMetricsJob: Skipping host {$host->ip} (ID: {$host->id}) — cache lock active.");
+                return;
+            }
+        } catch (\Throwable $e) {
+            // Redis unavailable — continue polling regardless
+            Log::debug("CollectSnmpMetricsJob: Redis cache check failed for host {$host->id}, continuing poll.", [
+                'error' => $e->getMessage(),
+            ]);
         }
 
         $client = null;
@@ -133,6 +147,16 @@ class CollectSnmpMetricsJob implements ShouldQueue
                     $host->status = 'up';
                 }
                 $host->save();
+
+                // Set Redis cache lock after successful poll (240 second TTL)
+                try {
+                    Cache::store('redis')->put("snmp_lock_{$host->id}", true, 240);
+                } catch (\Throwable $e) {
+                    // Redis unavailable — continue without lock
+                    Log::debug("CollectSnmpMetricsJob: Failed to set Redis cache lock for host {$host->id}.", [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
         } catch (\Exception $e) {

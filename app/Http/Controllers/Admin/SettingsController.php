@@ -36,14 +36,19 @@ class SettingsController extends Controller
     public function update(Request $request)
     {
         $request->validate([
-            'company_name' => 'required|string|max:255',
-            'company_logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'company_name'          => 'required|string|max:255',
+            'company_logo'          => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'metrics_retention_days' => 'nullable|integer|min:1|max:3650',
         ]);
 
         $settings = Setting::get();
-        $old = ['company_name' => $settings->company_name];
+        $old = [
+            'company_name'          => $settings->company_name,
+            'metrics_retention_days' => $settings->metrics_retention_days,
+        ];
 
-        $settings->company_name = $request->company_name;
+        $settings->company_name          = $request->company_name;
+        $settings->metrics_retention_days = (int) ($request->metrics_retention_days ?: 90);
 
         // Handle logo upload
         if ($request->hasFile('company_logo')) {
@@ -62,7 +67,11 @@ class SettingsController extends Controller
             'action'     => 'updated',
             'changes'    => [
                 'old' => $old,
-                'new' => ['company_name' => $settings->company_name, 'logo_changed' => $request->hasFile('company_logo')],
+                'new' => [
+                    'company_name'          => $settings->company_name,
+                    'metrics_retention_days' => $settings->metrics_retention_days,
+                    'logo_changed'           => $request->hasFile('company_logo'),
+                ],
             ],
             'user_id' => Auth::id(),
         ]);

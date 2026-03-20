@@ -66,7 +66,21 @@
       "Bash(php -l app/Models/Employee.php)",
       "Bash(php -l database/migrations/2026_03_17_000001_add_contact_id_to_employees.php)",
       "Bash(php -l routes/web.php)",
-      "Bash(python3 -c \":*)"
+      "Bash(python3 -c \":*)",
+      "Bash(npm list:*)",
+      "Bash(npm install:*)",
+      "Bash(node generate-doc.js)",
+      "Bash(node generate-doc.cjs)",
+      "Bash(python scripts/office/validate.py SG_NOC_System_Documentation.docx)",
+      "WebSearch",
+      "Bash(grep -n \"create_vpn_tunnels_table\\\\|create_vpn_hub\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)",
+      "Bash(ls -1 /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:community.librenms.org)",
+      "WebFetch(domain:docs.opsramp.com)",
+      "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC -type f -name *printer*)",
+      "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/resources/views/admin/network -type f -name *.blade.php)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

@@ -117,6 +117,209 @@
     </div>
 </div>
 
+{{-- SNMP Live Status --}}
+@if($printer->snmp_enabled && $printer->snmp_last_polled_at)
+<div class="card shadow-sm border-0 mt-3">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-activity me-2"></i>SNMP Live Status</strong>
+        <div class="d-flex align-items-center gap-2">
+            <small class="text-muted">
+                <i class="bi bi-clock me-1"></i>Polled {{ $printer->snmp_last_polled_at->diffForHumans() }}
+            </small>
+            <form method="POST" action="{{ route('admin.printers.snmp.poll', $printer) }}" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-outline-success">
+                    <i class="bi bi-arrow-repeat me-1"></i>Poll Now
+                </button>
+            </form>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            {{-- Printer Status --}}
+            <div class="col-md-4">
+                <div class="text-center mb-3">
+                    <span class="badge {{ $printer->statusBadgeClass() }} fs-6 px-3 py-2">
+                        <i class="bi bi-printer me-1"></i>{{ $printer->statusLabel() }}
+                    </span>
+                    @if($printer->error_state && $printer->error_state !== 'normal')
+                    <div class="mt-2">
+                        <span class="badge {{ $printer->errorBadgeClass() }}">{{ $printer->errorLabel() }}</span>
+                    </div>
+                    @endif
+                </div>
+
+                @if($printer->snmp_model || $printer->snmp_serial)
+                <table class="table table-sm table-borderless small mb-0">
+                    @if($printer->snmp_model)
+                    <tr><th class="text-muted" style="width:40%">SNMP Model</th><td>{{ $printer->snmp_model }}</td></tr>
+                    @endif
+                    @if($printer->snmp_serial)
+                    <tr><th class="text-muted">SNMP Serial</th><td class="font-monospace">{{ $printer->snmp_serial }}</td></tr>
+                    @endif
+                </table>
+                @endif
+            </div>
+
+            {{-- Toner Gauges --}}
+            <div class="col-md-4">
+                <h6 class="fw-semibold small text-muted mb-2"><i class="bi bi-droplet-half me-1"></i>Toner Levels</h6>
+                @foreach($printer->tonerLevels() as $color => $level)
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <div style="width:14px;height:14px;border-radius:50%;background:{{ \App\Models\Printer::tonerColor($color) }};flex-shrink:0;border:1px solid rgba(0,0,0,0.15)"></div>
+                    <small class="text-muted fw-semibold" style="width:60px">{{ $color }}</small>
+                    <div class="progress flex-grow-1" style="height:18px">
+                        @if($level !== null && $level >= 0)
+                        <div class="progress-bar {{ \App\Models\Printer::tonerBarClass($level) }}"
+                             style="width:{{ $level }}%">
+                            <span class="fw-bold" style="font-size:0.7rem">{{ $level }}%</span>
+                        </div>
+                        @else
+                        <div class="progress-bar bg-secondary" style="width:100%">
+                            <span style="font-size:0.7rem">N/A</span>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+                @endforeach
+
+                @if($printer->toner_waste !== null)
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <div style="width:14px;height:14px;border-radius:50%;background:#6c757d;flex-shrink:0;border:1px solid rgba(0,0,0,0.15)"></div>
+                    <small class="text-muted fw-semibold" style="width:60px">Waste</small>
+                    <div class="progress flex-grow-1" style="height:18px">
+                        <div class="progress-bar {{ $printer->toner_waste >= 80 ? 'bg-danger' : ($printer->toner_waste >= 60 ? 'bg-warning' : 'bg-info') }}"
+                             style="width:{{ $printer->toner_waste }}%">
+                            <span class="fw-bold" style="font-size:0.7rem">{{ $printer->toner_waste }}%</span>
+                        </div>
+                    </div>
+                </div>
+                @endif
+            </div>
+
+            {{-- Paper Trays & Consumables --}}
+            <div class="col-md-4">
+                @if($printer->paper_trays && count($printer->paper_trays) > 0)
+                <h6 class="fw-semibold small text-muted mb-2"><i class="bi bi-layers me-1"></i>Paper Trays</h6>
+                @foreach($printer->paper_trays as $tray)
+                @php $trayPct = ($tray['max'] ?? 0) > 0 ? round(($tray['current'] ?? 0) / $tray['max'] * 100) : 0; @endphp
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <small class="text-muted fw-semibold" style="width:60px">{{ $tray['name'] ?? 'Tray' }}</small>
+                    <div class="progress flex-grow-1" style="height:16px">
+                        <div class="progress-bar {{ $trayPct <= 10 ? 'bg-danger' : ($trayPct <= 30 ? 'bg-warning' : 'bg-info') }}"
+                             style="width:{{ $trayPct }}%">
+                            <span style="font-size:0.65rem">{{ $tray['current'] ?? 0 }}/{{ $tray['max'] ?? '?' }}</span>
+                        </div>
+                    </div>
+                </div>
+                @endforeach
+                @endif
+
+                @if($printer->drum_black !== null || $printer->fuser_level !== null)
+                <h6 class="fw-semibold small text-muted mb-2 mt-3"><i class="bi bi-gear me-1"></i>Consumables</h6>
+                @if($printer->drum_black !== null)
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <small class="text-muted fw-semibold" style="width:60px">Drum</small>
+                    <div class="progress flex-grow-1" style="height:16px">
+                        <div class="progress-bar bg-secondary" style="width:{{ $printer->drum_black }}%">
+                            <span style="font-size:0.65rem">{{ $printer->drum_black }}%</span>
+                        </div>
+                    </div>
+                </div>
+                @endif
+                @if($printer->fuser_level !== null)
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <small class="text-muted fw-semibold" style="width:60px">Fuser</small>
+                    <div class="progress flex-grow-1" style="height:16px">
+                        <div class="progress-bar bg-secondary" style="width:{{ $printer->fuser_level }}%">
+                            <span style="font-size:0.65rem">{{ $printer->fuser_level }}%</span>
+                        </div>
+                    </div>
+                </div>
+                @endif
+                @endif
+            </div>
+        </div>
+
+        {{-- Page Counters Row --}}
+        @if($printer->page_count_total)
+        <div class="border-top pt-3 mt-3">
+            <h6 class="fw-semibold small text-muted mb-2"><i class="bi bi-bar-chart me-1"></i>Page Counters</h6>
+            <div class="row g-2 text-center">
+                <div class="col">
+                    <div class="card bg-light py-2">
+                        <div class="fw-bold">{{ number_format($printer->page_count_total) }}</div>
+                        <small class="text-muted">Total</small>
+                    </div>
+                </div>
+                @if($printer->page_count_color !== null)
+                <div class="col">
+                    <div class="card bg-light py-2">
+                        <div class="fw-bold text-primary">{{ number_format($printer->page_count_color) }}</div>
+                        <small class="text-muted">Color</small>
+                    </div>
+                </div>
+                @endif
+                @if($printer->page_count_mono !== null)
+                <div class="col">
+                    <div class="card bg-light py-2">
+                        <div class="fw-bold">{{ number_format($printer->page_count_mono) }}</div>
+                        <small class="text-muted">Mono</small>
+                    </div>
+                </div>
+                @endif
+                @if($printer->page_count_print !== null)
+                <div class="col">
+                    <div class="card bg-light py-2">
+                        <div class="fw-bold">{{ number_format($printer->page_count_print) }}</div>
+                        <small class="text-muted">Print</small>
+                    </div>
+                </div>
+                @endif
+                @if($printer->page_count_copy !== null)
+                <div class="col">
+                    <div class="card bg-light py-2">
+                        <div class="fw-bold">{{ number_format($printer->page_count_copy) }}</div>
+                        <small class="text-muted">Copy</small>
+                    </div>
+                </div>
+                @endif
+                @if($printer->page_count_scan !== null)
+                <div class="col">
+                    <div class="card bg-light py-2">
+                        <div class="fw-bold">{{ number_format($printer->page_count_scan) }}</div>
+                        <small class="text-muted">Scan</small>
+                    </div>
+                </div>
+                @endif
+                @if($printer->page_count_fax !== null)
+                <div class="col">
+                    <div class="card bg-light py-2">
+                        <div class="fw-bold">{{ number_format($printer->page_count_fax) }}</div>
+                        <small class="text-muted">Fax</small>
+                    </div>
+                </div>
+                @endif
+            </div>
+        </div>
+        @endif
+    </div>
+</div>
+@elseif(!$printer->snmp_enabled && $printer->ip_address && $printer->snmp_community)
+<div class="card shadow-sm border-0 mt-3">
+    <div class="card-body text-center py-3">
+        <i class="bi bi-activity text-muted fs-4"></i>
+        <p class="text-muted mb-2 small">SNMP monitoring is available but not enabled.</p>
+        <form method="POST" action="{{ route('admin.printers.snmp.toggle', $printer) }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-toggle-on me-1"></i>Enable SNMP Monitoring
+            </button>
+        </form>
+    </div>
+</div>
+@endif
+
 {{-- Maintenance History --}}
 <div class="card shadow-sm border-0 mt-3">
     <div class="card-header bg-transparent d-flex justify-content-between align-items-center">

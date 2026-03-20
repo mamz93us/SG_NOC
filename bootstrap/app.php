@@ -14,7 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role'       => \App\Http\Middleware\EnsureRole::class,
             'permission' => \App\Http\Middleware\EnsurePermission::class,
+            '2fa'        => \App\Http\Middleware\RequireTwoFactor::class,
         ]);
+
+        $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

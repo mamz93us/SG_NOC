@@ -62,6 +62,8 @@ class Setting extends Model
         'itam_asset_prefix',
         'itam_code_padding',
         'itam_company_url',
+        // Metrics
+        'metrics_retention_days',
     ];
 
     protected $casts = [
@@ -78,6 +80,7 @@ class Setting extends Model
         'ext_range_end'                => 'integer',
         'graph_default_license_skus'   => 'array',
         'itam_code_padding'            => 'integer',
+        'metrics_retention_days'       => 'integer',
     ];
 
     /**

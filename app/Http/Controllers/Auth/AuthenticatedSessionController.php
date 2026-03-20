@@ -27,6 +27,17 @@ public function store(LoginRequest $request): RedirectResponse
 {
     $request->authenticate();
 
+    $user = Auth::user();
+
+    // If user has 2FA enabled, log them out and redirect to the challenge page
+    if ($user && $user->hasTwoFactorEnabled()) {
+        $request->session()->put('2fa_user_id', $user->id);
+        $request->session()->put('2fa_remember', $request->boolean('remember'));
+        Auth::logout();
+
+        return redirect()->route('two-factor.challenge');
+    }
+
     $request->session()->regenerate();
 
     return redirect()->route('admin.dashboard');

@@ -121,10 +121,47 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
                 } catch (\Throwable $e) {
                     Log::warning("DiscoverSnmpDeviceJob: ARP collection failed for {$this->host->ip}: " . $e->getMessage());
                 }
-            } elseif (stripos($sysDescr, 'Printer') !== false || stripos($sysDescr, 'HP LaserJet') !== false || stripos($sysDescr, 'Lexmark') !== false) {
+            } elseif (stripos($sysDescr, 'Printer') !== false || stripos($sysDescr, 'HP LaserJet') !== false || stripos($sysDescr, 'Lexmark') !== false
+                     || stripos($sysDescr, 'RICOH') !== false || stripos($sysDescr, 'Ricoh') !== false
+                     || stripos($sysDescr, 'NRG') !== false || stripos($sysDescr, 'Lanier') !== false
+                     || (is_string($sysObjectID) && str_contains($sysObjectID, '1.3.6.1.4.1.367'))) {
                 $discoveredType = 'printer';
                 $this->host->type = 'printer';
-                $this->createSensor('Page Count', '1.3.6.1.2.1.43.10.2.1.4.1.1', 'counter', 'pages', null, null, 'system');
+
+                // Standard Printer MIB sensors
+                $this->createSensor('Page Count', '1.3.6.1.2.1.43.10.2.1.4.1.1', 'counter', 'pages', null, null, 'Printer');
+                $this->createSensor('Printer Status', '1.3.6.1.2.1.25.3.5.1.1.1', 'gauge', null, null, null, 'Printer');
+
+                // Standard toner levels (works with most printers)
+                $this->createSensor('Black Toner', '1.3.6.1.2.1.43.11.1.1.9.1.1', 'gauge', '%', 20, 5, 'Toner');
+
+                // Ricoh-specific enhanced sensors
+                $isRicoh = stripos($sysDescr, 'RICOH') !== false || stripos($sysDescr, 'Ricoh') !== false
+                        || stripos($sysDescr, 'NRG') !== false || stripos($sysDescr, 'Lanier') !== false
+                        || (is_string($sysObjectID) && str_contains($sysObjectID, '1.3.6.1.4.1.367'));
+
+                if ($isRicoh) {
+                    $discoveredType = 'ricoh_printer';
+
+                    // Ricoh Private MIB: Toner levels
+                    $this->createSensor('Ricoh Black Toner', '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.1', 'gauge', '%', 20, 5, 'Toner');
+                    $this->createSensor('Ricoh Cyan Toner', '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.2', 'gauge', '%', 20, 5, 'Toner');
+                    $this->createSensor('Ricoh Magenta Toner', '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.3', 'gauge', '%', 20, 5, 'Toner');
+                    $this->createSensor('Ricoh Yellow Toner', '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.4', 'gauge', '%', 20, 5, 'Toner');
+
+                    // Ricoh Private MIB: Page counters
+                    $this->createSensor('Total Counter', '1.3.6.1.4.1.367.3.2.1.2.19.1.0', 'counter', 'pages', null, null, 'Counters');
+                    $this->createSensor('Print Counter', '1.3.6.1.4.1.367.3.2.1.2.19.2.0', 'counter', 'pages', null, null, 'Counters');
+                    $this->createSensor('Fax Counter', '1.3.6.1.4.1.367.3.2.1.2.19.3.0', 'counter', 'pages', null, null, 'Counters');
+                    $this->createSensor('Copy Counter', '1.3.6.1.4.1.367.3.2.1.2.19.4.0', 'counter', 'pages', null, null, 'Counters');
+                    $this->createSensor('Color Pages', '1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.21', 'counter', 'pages', null, null, 'Counters');
+                    $this->createSensor('Mono Pages', '1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.22', 'counter', 'pages', null, null, 'Counters');
+                    $this->createSensor('Scan Counter', '1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.27', 'counter', 'pages', null, null, 'Counters');
+
+                    // Ricoh Private MIB: Tray status
+                    $this->createSensor('Tray Status', '1.3.6.1.4.1.367.3.2.1.2.20.2.2.1.11.2', 'gauge', null, null, null, 'Paper');
+                    $this->createSensor('Tray Level', '1.3.6.1.4.1.367.3.2.1.2.20.2.2.1.10.2', 'gauge', null, null, null, 'Paper');
+                }
             } elseif (stripos($sysDescr, 'Grandstream') !== false || stripos($sysDescr, 'UCM') !== false || stripos($sysName, 'UCM') !== false) {
                 $discoveredType = 'grandstream';
                 $this->host->type = 'server';

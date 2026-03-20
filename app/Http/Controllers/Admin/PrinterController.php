@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\PollPrinterSnmpJob;
 use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\Department;
@@ -82,8 +83,14 @@ class PrinterController extends Controller
             'toner_model'    => 'nullable|string|max:100',
             'snmp_community' => 'nullable|string|max:100',
             'snmp_version'   => 'nullable|in:v1,v2c,v3',
+            'snmp_enabled'   => 'nullable|boolean',
+            'toner_warning_threshold'  => 'nullable|integer|min:1|max:100',
+            'toner_critical_threshold' => 'nullable|integer|min:1|max:100',
+            'paper_warning_threshold'  => 'nullable|integer|min:1|max:100',
             'notes'          => 'nullable|string',
         ]);
+
+        $data['snmp_enabled'] = $request->boolean('snmp_enabled');
 
         // Ensure snmp_version is never null for the DB (column may not be nullable yet)
         if (empty($data['snmp_version'])) {
@@ -153,8 +160,14 @@ class PrinterController extends Controller
             'toner_model'    => 'nullable|string|max:100',
             'snmp_community' => 'nullable|string|max:100',
             'snmp_version'   => 'nullable|in:v1,v2c,v3',
+            'snmp_enabled'   => 'nullable|boolean',
+            'toner_warning_threshold'  => 'nullable|integer|min:1|max:100',
+            'toner_critical_threshold' => 'nullable|integer|min:1|max:100',
+            'paper_warning_threshold'  => 'nullable|integer|min:1|max:100',
             'notes'          => 'nullable|string',
         ]);
+
+        $data['snmp_enabled'] = $request->boolean('snmp_enabled');
 
         // Ensure snmp_version is never null for the DB (column may not be nullable yet)
         if (empty($data['snmp_version'])) {
@@ -202,5 +215,64 @@ class PrinterController extends Controller
 
         return redirect()->route('admin.printers.index')
                          ->with('success', "Printer \"{$name}\" deleted.");
+    }
+
+    // ─── SNMP Dashboard ─────────────────────────────────────────
+
+    public function snmpStatus(Request $request)
+    {
+        $query = Printer::with('branch')
+            ->where('snmp_enabled', true)
+            ->orderBy('printer_name');
+
+        if ($request->filled('branch')) {
+            $query->where('branch_id', $request->branch);
+        }
+        if ($request->filled('status')) {
+            $query->where('printer_status', $request->status);
+        }
+        if ($request->filled('low_toner')) {
+            $query->where(function ($q) {
+                $q->where('toner_black', '<=', 20)
+                  ->orWhere('toner_cyan', '<=', 20)
+                  ->orWhere('toner_magenta', '<=', 20)
+                  ->orWhere('toner_yellow', '<=', 20);
+            });
+        }
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('printer_name', 'like', "%{$s}%")
+                  ->orWhere('ip_address', 'like', "%{$s}%")
+                  ->orWhere('model', 'like', "%{$s}%");
+            });
+        }
+
+        $printers = $query->get();
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+
+        return view('admin.printers.snmp-status', compact('printers', 'branches'));
+    }
+
+    public function snmpPoll(Printer $printer)
+    {
+        PollPrinterSnmpJob::dispatchSync($printer->id);
+
+        return back()->with('success', "SNMP poll completed for \"{$printer->printer_name}\".");
+    }
+
+    public function snmpPollAll()
+    {
+        PollPrinterSnmpJob::dispatch();
+
+        return back()->with('success', 'SNMP poll job dispatched for all enabled printers.');
+    }
+
+    public function toggleSnmp(Request $request, Printer $printer)
+    {
+        $printer->update(['snmp_enabled' => !$printer->snmp_enabled]);
+
+        $state = $printer->snmp_enabled ? 'enabled' : 'disabled';
+        return back()->with('success', "SNMP monitoring {$state} for \"{$printer->printer_name}\".");
     }
 }

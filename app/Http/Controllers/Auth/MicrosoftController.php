@@ -46,6 +46,14 @@ class MicrosoftController extends Controller
             ]
         );
 
+        // If user has 2FA enabled, redirect to challenge instead of logging in
+        if ($user->hasTwoFactorEnabled()) {
+            session()->put('2fa_user_id', $user->id);
+            session()->put('2fa_remember', true);
+
+            return redirect()->route('two-factor.challenge');
+        }
+
         Auth::login($user, true);
 
         // Use route() directly — intended() can point back to /login if user

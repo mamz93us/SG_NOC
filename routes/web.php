@@ -57,6 +57,9 @@ use App\Http\Controllers\Admin\DeviceImportController;
 use App\Http\Controllers\PhonebookController;
 use App\Http\Controllers\PublicContactController;
 use App\Http\Controllers\PhoneRequestLogController;
+use App\Http\Controllers\Admin\DarkModeController;
+use App\Http\Controllers\Admin\TwoFactorController;
+use App\Http\Controllers\Admin\ItTaskController;
 
 /*
 |--------------------------------------------------------------------------
@@ -123,6 +126,18 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         }
         return app(\App\Http\Controllers\Admin\DashboardController::class)->index();
     })->name('dashboard');
+
+    // Dark mode toggle
+    Route::post('toggle-dark-mode', [DarkModeController::class, 'toggle'])
+        ->name('toggle-dark-mode');
+
+    // Two-Factor Authentication setup (authenticated users)
+    Route::get('two-factor', [TwoFactorController::class, 'setup'])
+        ->name('two-factor.setup');
+    Route::post('two-factor/confirm', [TwoFactorController::class, 'confirm'])
+        ->name('two-factor.confirm');
+    Route::delete('two-factor', [TwoFactorController::class, 'disable'])
+        ->name('two-factor.disable');
 
     // XML preview (all authenticated)
     Route::get('xml-preview', [PhonebookController::class, 'preview'])
@@ -378,6 +393,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('printers',                [PrinterController::class, 'store'])   ->name('printers.store');
         Route::put('printers/{printer}',       [PrinterController::class, 'update'])  ->name('printers.update');
         Route::delete('printers/{printer}',    [PrinterController::class, 'destroy']) ->name('printers.destroy');
+    });
+
+    // ─── Printer SNMP Dashboard ──────────────────────────────
+    Route::middleware('permission:view-printers')->group(function () {
+        Route::get('printers/snmp-status',               [PrinterController::class, 'snmpStatus']) ->name('printers.snmp.status');
+        Route::post('printers/{printer}/snmp-poll',      [PrinterController::class, 'snmpPoll'])   ->name('printers.snmp.poll');
+        Route::post('printers/snmp-poll-all',            [PrinterController::class, 'snmpPollAll'])->name('printers.snmp.poll-all');
+        Route::post('printers/{printer}/snmp-toggle',    [PrinterController::class, 'toggleSnmp']) ->name('printers.snmp.toggle');
     });
 
     // ─── Identity (Entra ID / Graph API) ──────────────────────
@@ -839,6 +862,23 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/mappings/sync-all',          [AzureSyncController::class, 'bulkSyncBranches'])->name('mappings.sync-all');
     });
 
+
+    // ─── IT Tasks ─────────────────────────────────────────────────
+    Route::model('task', \App\Models\ItTask::class);
+    Route::prefix('tasks')->name('tasks.')->group(function () {
+        Route::get('/',                [ItTaskController::class, 'index'])        ->name('index');
+        Route::get('/my-tasks',        [ItTaskController::class, 'myTasks'])      ->name('my-tasks');
+        Route::get('/kanban',          [ItTaskController::class, 'kanban'])       ->name('kanban');
+        Route::get('/create',          [ItTaskController::class, 'create'])       ->name('create');
+        Route::post('/',               [ItTaskController::class, 'store'])        ->name('store');
+        Route::get('/{task}',          [ItTaskController::class, 'show'])         ->name('show');
+        Route::get('/{task}/edit',     [ItTaskController::class, 'edit'])         ->name('edit');
+        Route::put('/{task}',          [ItTaskController::class, 'update'])       ->name('update');
+        Route::delete('/{task}',       [ItTaskController::class, 'destroy'])      ->name('destroy');
+        Route::post('/{task}/comment',       [ItTaskController::class, 'addComment'])    ->name('comment');
+        Route::post('/{task}/log-time',      [ItTaskController::class, 'logTime'])       ->name('log-time');
+        Route::post('/{task}/update-status', [ItTaskController::class, 'updateStatus'])  ->name('update-status');
+    })->where('task', '[0-9]+');
 
     // ── Admin Tools / Quick Links ──────────────────────────────────
     Route::middleware('permission:view-admin-links')->prefix('admin-links')->name('admin-links.')->group(function () {

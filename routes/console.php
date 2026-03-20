@@ -266,3 +266,21 @@ Schedule::call(function () {
         } catch (\Throwable) {}
     }
 })->name('check-isp-renewals')->withoutOverlapping(60)->dailyAt('08:00');
+
+// ─── Printer SNMP Polling — every 5 minutes ─────────────────
+Schedule::call(function () {
+    try {
+        (new \App\Jobs\PollPrinterSnmpJob())->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error("Printer SNMP polling failed: " . $e->getMessage());
+    }
+})->name('poll-printer-snmp')->withoutOverlapping(5)->everyFiveMinutes();
+
+// ─── Prune Old Sensor Metrics — daily at 02:00 AM ───────────
+Schedule::call(function () {
+    try {
+        (new \App\Jobs\PruneOldMetricsJob())->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error("Prune metrics failed: " . $e->getMessage());
+    }
+})->name('prune-old-metrics')->withoutOverlapping(60)->dailyAt('02:00');

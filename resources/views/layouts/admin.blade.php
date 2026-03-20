@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"
+      data-bs-theme="{{ Auth::check() && Auth::user()->dark_mode ? 'dark' : 'light' }}"
+      x-data="{ dark: {{ Auth::check() && Auth::user()->dark_mode ? 'true' : 'false' }} }">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,9 +12,17 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <style>
         body { background: #f8f9fa; }
+        [data-bs-theme="dark"] body { background: #1a1d21; }
+        [data-bs-theme="dark"] .card { background-color: #212529; border-color: #373b3e; }
+        [data-bs-theme="dark"] .table { --bs-table-bg: #212529; }
+        [data-bs-theme="dark"] .avatar-circle { box-shadow: 0 0 0 2px rgba(255,255,255,.15); }
+        .dark-mode-toggle { cursor: pointer; font-size: 1.15rem; transition: transform .2s ease; }
+        .dark-mode-toggle:hover { transform: scale(1.15); }
         /* ── Compact navbar ────────────────────────────── */
         .navbar-nav .nav-link {
             font-size: 0.85rem;
@@ -310,9 +320,15 @@
                             @endcan
                             @can('view-printers')
                             <li>
-                                <a class="dropdown-item {{ request()->is('admin/printers*') ? 'active' : '' }}"
+                                <a class="dropdown-item {{ request()->is('admin/printers') || request()->is('admin/printers/create') ? 'active' : '' }}"
                                    href="{{ route('admin.printers.index') }}">
                                     <i class="bi bi-printer-fill me-2"></i>Printers
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers/snmp-status') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.snmp.status') }}">
+                                    <i class="bi bi-activity me-2 text-success"></i>Printer SNMP Status
                                 </a>
                             </li>
                             @endcan
@@ -508,6 +524,41 @@
                         </ul>
                     </li>
                     @endcan
+
+                    {{-- ── IT Tasks ── --}}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/tasks*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-list-task me-1"></i>Tasks
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.index') ? 'active' : '' }}"
+                                   href="{{ route('admin.tasks.index') }}">
+                                    <i class="bi bi-table me-2"></i>All Tasks
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.my-tasks') ? 'active' : '' }}"
+                                   href="{{ route('admin.tasks.my-tasks') }}">
+                                    <i class="bi bi-person-check me-2"></i>My Tasks
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.kanban') ? 'active' : '' }}"
+                                   href="{{ route('admin.tasks.kanban') }}">
+                                    <i class="bi bi-kanban me-2"></i>Kanban Board
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.create') ? 'active' : '' }}"
+                                   href="{{ route('admin.tasks.create') }}">
+                                    <i class="bi bi-plus-circle me-2"></i>New Task
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
 
                     {{-- ── Identity dropdown ── --}}
                     @can('view-identity')
@@ -723,6 +774,28 @@
                     </li>
                 </ul>
 
+                {{-- ── Dark Mode Toggle ── --}}
+                <ul class="navbar-nav ms-2">
+                    <li class="nav-item d-flex align-items-center">
+                        <button type="button"
+                                class="btn btn-link nav-link dark-mode-toggle px-2"
+                                title="Toggle dark mode"
+                                @click="
+                                    dark = !dark;
+                                    document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+                                    fetch('{{ route('admin.toggle-dark-mode') }}', {
+                                        method: 'POST',
+                                        headers: {
+                                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                                            'Accept': 'application/json'
+                                        }
+                                    });
+                                ">
+                            <i class="bi" :class="dark ? 'bi-sun' : 'bi-moon-stars'"></i>
+                        </button>
+                    </li>
+                </ul>
+
                 {{-- ── Profile dropdown ── --}}
                 <ul class="navbar-nav ms-2">
                     <li class="nav-item dropdown">
@@ -748,6 +821,14 @@
                                 <a class="dropdown-item" href="#"
                                    data-bs-toggle="modal" data-bs-target="#changePasswordModal">
                                     <i class="bi bi-key me-2"></i>Change Password
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('admin.two-factor.setup') }}">
+                                    <i class="bi bi-shield-lock me-2"></i>Two-Factor Auth
+                                    @if(auth()->user()->hasTwoFactorEnabled())
+                                        <span class="badge bg-success ms-1" style="font-size:0.65rem;">ON</span>
+                                    @endif
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>

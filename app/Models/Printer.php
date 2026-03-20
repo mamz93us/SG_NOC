@@ -32,11 +32,48 @@ class Printer extends Model
         'expected_page_yield',
         'last_service_date',
         'service_interval_days',
+        // SNMP Monitoring fields
+        'snmp_enabled',
+        'snmp_last_polled_at',
+        'toner_black',
+        'toner_cyan',
+        'toner_magenta',
+        'toner_yellow',
+        'toner_waste',
+        'drum_black',
+        'drum_color',
+        'fuser_level',
+        'paper_trays',
+        'page_count_total',
+        'page_count_color',
+        'page_count_mono',
+        'page_count_copy',
+        'page_count_print',
+        'page_count_scan',
+        'page_count_fax',
+        'printer_status',
+        'error_state',
+        'snmp_sys_description',
+        'snmp_model',
+        'snmp_serial',
+        'toner_warning_threshold',
+        'toner_critical_threshold',
+        'paper_warning_threshold',
     ];
 
     protected $casts = [
-        'toner_last_changed' => 'date',
-        'last_service_date'  => 'date',
+        'toner_last_changed'   => 'date',
+        'last_service_date'    => 'date',
+        'snmp_enabled'         => 'boolean',
+        'snmp_last_polled_at'  => 'datetime',
+        'paper_trays'          => 'array',
+        'page_count_total'     => 'integer',
+        'page_count_color'     => 'integer',
+        'page_count_mono'      => 'integer',
+        'page_count_copy'      => 'integer',
+        'page_count_print'     => 'integer',
+        'page_count_scan'      => 'integer',
+        'page_count_fax'       => 'integer',
     ];
 
     // ─── Relationships ────────────────────────────────────────────
@@ -150,5 +187,147 @@ class Printer extends Model
         if (!$lastService) return null;
         $dueDate = \Carbon\Carbon::parse($lastService)->addDays($this->service_interval_days);
         return (int) now()->diffInDays($dueDate, false);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // SNMP Monitoring Helpers
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Check if SNMP data is available and recent (within 15 minutes).
+     */
+    public function hasSnmpData(): bool
+    {
+        return $this->snmp_enabled
+            && $this->snmp_last_polled_at
+            && $this->snmp_last_polled_at->diffInMinutes(now()) < 15;
+    }
+
+    /**
+     * Check if this is a color printer (has cyan/magenta/yellow toner data).
+     */
+    public function isColorPrinter(): bool
+    {
+        return $this->toner_cyan !== null
+            || $this->toner_magenta !== null
+            || $this->toner_yellow !== null;
+    }
+
+    /**
+     * Get all toner levels as an array.
+     */
+    public function tonerLevels(): array
+    {
+        $levels = ['Black' => $this->toner_black];
+
+        if ($this->isColorPrinter()) {
+            $levels['Cyan']    = $this->toner_cyan;
+            $levels['Magenta'] = $this->toner_magenta;
+            $levels['Yellow']  = $this->toner_yellow;
+        }
+
+        return $levels;
+    }
+
+    /**
+     * CSS class for toner level gauge color.
+     */
+    public static function tonerBarClass(?int $level): string
+    {
+        if ($level === null || $level < 0) return 'bg-secondary';
+        if ($level <= 5)  return 'bg-danger';
+        if ($level <= 20) return 'bg-warning';
+        return 'bg-success';
+    }
+
+    /**
+     * Color hex for toner by name.
+     */
+    public static function tonerColor(string $name): string
+    {
+        return match (strtolower($name)) {
+            'black'   => '#212529',
+            'cyan'    => '#0dcaf0',
+            'magenta' => '#d63384',
+            'yellow'  => '#ffc107',
+            'waste'   => '#6c757d',
+            default   => '#6c757d',
+        };
+    }
+
+    /**
+     * Human-readable printer status.
+     */
+    public function statusLabel(): string
+    {
+        return match ($this->printer_status) {
+            'idle'     => 'Idle',
+            'printing' => 'Printing',
+            'warmup'   => 'Warming Up',
+            'error'    => 'Error',
+            default    => 'Unknown',
+        };
+    }
+
+    /**
+     * Badge class for printer status.
+     */
+    public function statusBadgeClass(): string
+    {
+        return match ($this->printer_status) {
+            'idle'     => 'bg-success',
+            'printing' => 'bg-primary',
+            'warmup'   => 'bg-info',
+            'error'    => 'bg-danger',
+            default    => 'bg-secondary',
+        };
+    }
+
+    /**
+     * Human-readable error state.
+     */
+    public function errorLabel(): string
+    {
+        if (!$this->error_state || $this->error_state === 'normal') return 'Normal';
+        return ucwords(str_replace('_', ' ', $this->error_state));
+    }
+
+    /**
+     * Badge class for error state.
+     */
+    public function errorBadgeClass(): string
+    {
+        return match ($this->error_state) {
+            'normal', null          => 'bg-success',
+            'low_paper', 'low_toner', 'service_needed' => 'bg-warning text-dark',
+            default                 => 'bg-danger',
+        };
+    }
+
+    /**
+     * Get lowest toner level across all cartridges.
+     */
+    public function lowestTonerLevel(): ?int
+    {
+        $levels = array_filter($this->tonerLevels(), fn($v) => $v !== null && $v >= 0);
+        return !empty($levels) ? min($levels) : null;
+    }
+
+    /**
+     * Get paper tray fill percentage (overall).
+     */
+    public function paperFillPercent(): ?int
+    {
+        $trays = $this->paper_trays;
+        if (empty($trays)) return null;
+
+        $totalCur = 0;
+        $totalMax = 0;
+        foreach ($trays as $tray) {
+            $totalCur += $tray['current'] ?? 0;
+            $totalMax += $tray['max'] ?? 0;
+        }
+
+        return $totalMax > 0 ? (int) round(($totalCur / $totalMax) * 100) : null;
     }
 }
