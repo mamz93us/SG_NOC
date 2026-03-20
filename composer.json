@@ -14,6 +14,7 @@
         "laravel/socialite": "^5.24",
         "laravel/tinker": "^2.10.1",
         "maatwebsite/excel": "^3.1",
+        "pragmarx/google2fa": "*",
         "socialiteproviders/microsoft": "^4.8"
     },
     "require-dev": {

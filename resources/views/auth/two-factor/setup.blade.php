@@ -90,7 +90,7 @@
 
                     {{-- QR Code --}}
                     <div class="text-center my-4">
-                        <img src="https://chart.googleapis.com/chart?chs=200x200&chld=M|0&cht=qr&chl={{ urlencode($qrUrl) }}"
+                        <img src="https://quickchart.io/qr?size=200&text={{ urlencode($qrUrl) }}"
                              alt="QR Code"
                              class="border rounded p-2"
                              width="200"
