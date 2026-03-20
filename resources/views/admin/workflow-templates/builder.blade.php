@@ -180,7 +180,7 @@
                                     <label class="form-label small fw-semibold">Params (JSON)</label>
                                     <textarea class="form-control form-control-sm font-monospace" rows="3"
                                               x-model="data.params_json" @input.debounce.600ms="syncParams()"></textarea>
-                                    <div class="form-text">Use <code>{{payload.field}}</code> for workflow data</div>
+                                    <div class="form-text">Use <code>@{{payload.field}}</code> for workflow data</div>
                                 </div>
                             </div>
                         </template>
