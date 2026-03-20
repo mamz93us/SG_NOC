@@ -124,10 +124,10 @@
     </div>
 
     {{-- Center: Drawflow Canvas --}}
-    <div class="col" id="drawflow-wrap"
-         ondragover="event.preventDefault()"
-         ondrop="dropNode(event)">
-        <div id="drawflow"></div>
+    <div class="col" id="drawflow-wrap">
+        <div id="drawflow"
+             ondragover="event.preventDefault()"
+             ondrop="dropNode(event)"></div>
     </div>
 
     {{-- Right: Properties Panel --}}

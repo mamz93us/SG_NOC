@@ -5,37 +5,6 @@
 @endpush
 
 @section('content')
-<style>
-    .glass-card {
-        background: rgba(255, 255, 255, 0.7);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .glass-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.05) !important;
-    }
-    .sensor-value {
-        font-family: 'Outfit', sans-serif;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-    }
-    .interface-pill {
-        font-size: 0.7rem;
-        padding: 0.2rem 0.5rem;
-    }
-    .sensor-status-dot {
-        display: inline-block;
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        margin-right: 4px;
-    }
-    .sensor-status-active { background-color: #198754; }
-    .sensor-status-unreachable { background-color: #ffc107; }
-    .sensor-status-error { background-color: #dc3545; }
-</style>
 
 @if(isset($snmpLoaded) && !$snmpLoaded)
 <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center mb-3">
@@ -1035,24 +1004,14 @@
                                 @endif
                             </div>
                         </div>
-                        <div class="col-md-9 p-3">
-                            <div class="row g-3">
-                                @if(isset($sensors['Traffic In']))
-                                <div class="col-md-6">
-                                    <div class="text-muted small mb-2 fw-bold text-uppercase">Inbound Traffic</div>
-                                    <div style="height: 100px;" data-chart-sensor="{{ $sensors['Traffic In']->id }}">
-                                        <canvas id="chart-sensor-{{ $sensors['Traffic In']->id }}"></canvas>
-                                    </div>
+                        <div class="col-md-9 p-3 d-flex flex-column justify-content-center">
+                            <div class="apex-iface-chart"
+                                 data-in="{{ $sensors['Traffic In']->id ?? '' }}"
+                                 data-out="{{ $sensors['Traffic Out']->id ?? '' }}"
+                                 style="min-height:110px;">
+                                <div class="text-center py-4 text-muted opacity-50 small">
+                                    <div class="spinner-border spinner-border-sm me-1"></div> Loading chart…
                                 </div>
-                                @endif
-                                @if(isset($sensors['Traffic Out']))
-                                <div class="col-md-6">
-                                    <div class="text-muted small mb-2 fw-bold text-uppercase">Outbound Traffic</div>
-                                    <div style="height: 100px;" data-chart-sensor="{{ $sensors['Traffic Out']->id }}">
-                                        <canvas id="chart-sensor-{{ $sensors['Traffic Out']->id }}"></canvas>
-                                    </div>
-                                </div>
-                                @endif
                             </div>
                         </div>
                     </div>
@@ -1282,7 +1241,6 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     Chart.defaults.font.family = "'Inter', sans-serif";
@@ -1338,9 +1296,65 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 2. Sensor Metric Charts — lazy loaded via AJAX after page render
-    //    Charts are built per-sensor using the /admin/sensors/{id}/history endpoint.
-    //    This avoids N inline PHP DB queries at render time (was 1 query per sensor).
+    // 2. Per-interface ApexCharts — duplex area chart (Inbound above, Outbound mirrored below)
+    const ifaceChartInstances = new Set();
+
+    async function initIfaceChart(el) {
+        const inId  = el.dataset.in;
+        const outId = el.dataset.out;
+        if (!inId && !outId) { el.innerHTML = '<small class="text-muted px-3">No sensors</small>'; return; }
+
+        try {
+            const [inJson, outJson] = await Promise.all([
+                inId  ? fetch('/admin/sensors/' + inId  + '/history?days=1').then(r => r.json()) : Promise.resolve({ data: [] }),
+                outId ? fetch('/admin/sensors/' + outId + '/history?days=1').then(r => r.json()) : Promise.resolve({ data: [] }),
+            ]);
+
+            const toSeries = (json, negate) =>
+                (json.data || []).map(d => [new Date(d.ts).getTime(), negate ? -(+d.v) : +d.v]);
+
+            el.innerHTML = ''; // clear spinner
+
+            new ApexCharts(el, {
+                chart:  { type: 'area', height: 115, toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false }, sparkline: { enabled: false } },
+                series: [
+                    { name: 'Inbound',  data: toSeries(inJson,  false) },
+                    { name: 'Outbound', data: toSeries(outJson, true)  },
+                ],
+                colors: ['#0dcaf0', '#6610f2'],
+                stroke: { curve: 'smooth', width: 1.5 },
+                fill:   { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05 } },
+                xaxis:  { type: 'datetime', labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
+                yaxis:  { labels: { show: true, style: { colors: '#adb5bd', fontSize: '10px' }, formatter: v => Math.abs(v) > 999999 ? (v/1000000).toFixed(1)+'M' : (Math.abs(v) > 999 ? (v/1000).toFixed(0)+'K' : Math.round(v)) } },
+                grid:   { borderColor: '#e9ecef', strokeDashArray: 3, yaxis: { lines: { show: true } }, xaxis: { lines: { show: false } }, padding: { left: 4, right: 4, top: 0, bottom: 0 } },
+                tooltip: { x: { format: 'dd MMM HH:mm' }, theme: 'light', y: { formatter: v => Math.abs(v).toLocaleString() } },
+                legend: { show: true, position: 'top', horizontalAlign: 'right', fontSize: '10px', markers: { size: 4 } },
+                dataLabels: { enabled: false },
+                noData: { text: 'No data', style: { color: '#adb5bd', fontSize: '11px' } },
+            }).render();
+        } catch(e) {
+            el.innerHTML = '<small class="text-muted px-3">Chart error</small>';
+        }
+    }
+
+    // Lazy-load interface charts with IntersectionObserver
+    const ifaceObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const el = entry.target;
+                const key = el.dataset.in + '_' + el.dataset.out;
+                if (!ifaceChartInstances.has(key)) {
+                    ifaceChartInstances.add(key);
+                    initIfaceChart(el);
+                }
+                ifaceObserver.unobserve(el);
+            }
+        });
+    }, { rootMargin: '150px' });
+
+    document.querySelectorAll('.apex-iface-chart').forEach(el => ifaceObserver.observe(el));
+
+    // 3. General sensor sparklines (Chart.js, existing sensors with graph_enabled)
     const sensorChartMeta = {
 @foreach($host->snmpSensors->where('graph_enabled', true) as $sensor)
         {{ $sensor->id }}: {
@@ -1351,80 +1365,58 @@ document.addEventListener('DOMContentLoaded', function() {
 @endforeach
     };
 
-    const chartInstances = {};
+    const genChartInstances = {};
 
     async function loadSensorChart(sensorId) {
         const meta = sensorChartMeta[sensorId];
         if (!meta) return;
-        const ctx = document.getElementById('chart-sensor-' + sensorId);
-        if (!ctx) return;
+        const wrapper = document.querySelector(`[data-chart-sensor="${sensorId}"]`);
+        if (!wrapper) return;
 
-        // Show spinner
-        ctx.parentElement.innerHTML = '<div class="text-center py-2"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
+        wrapper.innerHTML = '<div class="text-center py-1"><div class="spinner-border spinner-border-sm text-secondary" style="width:12px;height:12px"></div></div>';
 
         try {
             const resp = await fetch(`/admin/sensors/${sensorId}/history?days=1`);
             const json = await resp.json();
-            const points = (json.data || []).map(d => ({ x: new Date(d.ts), y: d.v }));
+            const points = (json.data || []).map(d => ({ x: new Date(d.ts).getTime(), v: +d.v }));
 
-            // Re-create canvas (spinner replaced the element)
-            const wrapper = document.querySelector(`[data-chart-sensor="${sensorId}"]`);
-            if (!wrapper) return;
-            wrapper.innerHTML = '<canvas style="height:60px"></canvas>';
-            const newCtx = wrapper.querySelector('canvas');
+            wrapper.innerHTML = '';
 
             const annotations = {};
-            if (meta.warn !== null) {
-                annotations.warnLine = { type:'line', yMin:meta.warn, yMax:meta.warn, borderColor:'rgba(255,193,7,0.5)', borderWidth:1, borderDash:[4,4] };
-            }
-            if (meta.crit !== null) {
-                annotations.critLine = { type:'line', yMin:meta.crit, yMax:meta.crit, borderColor:'rgba(220,53,69,0.5)', borderWidth:1, borderDash:[4,4] };
-            }
+            if (meta.warn !== null) annotations.warnLine = { type:'line', yMin:meta.warn, yMax:meta.warn, borderColor:'rgba(255,193,7,0.5)', borderWidth:1, strokeDashArray: 5 };
+            if (meta.crit !== null) annotations.critLine = { type:'line', yMin:meta.crit, yMax:meta.crit, borderColor:'rgba(220,53,69,0.5)', borderWidth:1, strokeDashArray: 5 };
 
-            chartInstances[sensorId] = new Chart(newCtx.getContext('2d'), {
-                type: 'line',
-                data: {
-                    datasets: [{
-                        data: points,
-                        borderColor: meta.color,
-                        backgroundColor: meta.color + '18',
-                        fill: true, borderWidth: 2, tension: 0.4, pointRadius: 0
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    animation: { duration: 400 },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { enabled: true },
-                        annotation: { annotations }
-                    },
-                    scales: {
-                        y: { display: false, beginAtZero: true },
-                        x: { type: 'time', display: false }
-                    }
-                }
+            genChartInstances[sensorId] = new ApexCharts(wrapper, {
+                chart:       { type: 'area', height: 60, toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false }, sparkline: { enabled: true } },
+                series:      [{ name: json.sensor?.name || 'Value', data: points.map(p => [p.x, p.v]) }],
+                colors:      [meta.color],
+                stroke:      { curve: 'smooth', width: 1.5 },
+                fill:        { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.03 } },
+                xaxis:       { type: 'datetime' },
+                tooltip:     { x: { format: 'dd MMM HH:mm' }, theme: 'light' },
+                dataLabels:  { enabled: false },
+                annotations: { yaxis: Object.values(annotations) },
+                noData:      { text: '—' },
             });
+            genChartInstances[sensorId].render();
         } catch(e) {
-            const wrapper = document.querySelector(`[data-chart-sensor="${sensorId}"]`);
-            if (wrapper) wrapper.innerHTML = '<small class="text-muted">Chart unavailable</small>';
+            if (wrapper) wrapper.innerHTML = '<small class="text-muted" style="font-size:10px">No data</small>';
         }
     }
 
-    // Use IntersectionObserver to load charts only when they scroll into view
-    const chartObserver = new IntersectionObserver((entries) => {
+    const genObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
                 const sensorId = entry.target.dataset.chartSensor;
-                if (sensorId && !chartInstances[sensorId]) {
+                if (sensorId && !genChartInstances[sensorId]) {
                     loadSensorChart(parseInt(sensorId));
                 }
-                chartObserver.unobserve(entry.target);
+                genObserver.unobserve(entry.target);
             }
         });
     }, { rootMargin: '100px' });
 
-    document.querySelectorAll('[data-chart-sensor]').forEach(el => chartObserver.observe(el));
+    document.querySelectorAll('[data-chart-sensor]').forEach(el => genObserver.observe(el));
 });
 </script>
 @endpush

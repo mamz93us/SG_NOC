@@ -108,7 +108,8 @@
       "Bash(grep -l \"sensorMetric\\\\|sensor_metric\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\database\\\\migrations\"/*)",
       "Bash(head -40 grep -n \"toner\\\\|ink\\\\|sensor_group\" \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Jobs/PollPrinterSnmpJob.php\")",
       "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\\\\Admin\\\\DeviceMetricsController.php\")",
-      "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\components\\\\toner-gauge.blade.php\")"
+      "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\components\\\\toner-gauge.blade.php\")",
+      "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\admin\\\\network\\\\monitoring\\\\show.blade.php\")"
     ]
   }
 }
