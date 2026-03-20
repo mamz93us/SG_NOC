@@ -80,7 +80,15 @@
       "WebFetch(domain:docs.opsramp.com)",
       "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC -type f -name *printer*)",
       "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/resources/views/admin/network -type f -name *.blade.php)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(for f:*)",
+      "Bash(do basename:*)",
+      "Bash(done)",
+      "Bash(grep -l \"class.*Command\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Console/Commands/*.php)",
+      "Bash(xargs basename:*)",
+      "Bash(grep -h \"class.*extends\\\\|implements\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Jobs/*.php)",
+      "Bash(grep -v \".php$\")",
+      "Bash(ls /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/config/*.php)"
     ]
   }
 }

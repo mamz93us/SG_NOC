@@ -19,8 +19,8 @@ return new class extends Migration
             $table->foreignId('created_by')->constrained('users');
             $table->foreignId('branch_id')->nullable()->constrained('branches')->nullOnDelete();
             $table->date('due_date')->nullable();
-            $table->unsignedDecimal('estimated_hours', 5, 1)->nullable();
-            $table->unsignedDecimal('logged_hours', 5, 1)->default(0);
+            $table->decimal('estimated_hours', 5, 1)->unsigned()->nullable();
+            $table->decimal('logged_hours', 5, 1)->unsigned()->default(0);
             $table->string('related_type')->nullable();
             $table->unsignedBigInteger('related_id')->nullable();
             $table->timestamp('completed_at')->nullable();
