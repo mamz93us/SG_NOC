@@ -9,6 +9,9 @@ use Illuminate\Pagination\Paginator;
 use App\Models\Contact;
 use App\Models\Branch;
 use App\Models\RolePermission;
+use App\Events\EmployeeCreated;
+use App\Events\HostStatusChanged;
+use App\Listeners\WorkflowTriggerListener;
 use App\Observers\ContactObserver;
 use App\Observers\BranchObserver;
 
@@ -27,6 +30,9 @@ class AppServiceProvider extends ServiceProvider
         // Register observers
         Contact::observe(ContactObserver::class);
         Branch::observe(BranchObserver::class);
+
+        // Workflow event triggers
+        Event::listen([EmployeeCreated::class, HostStatusChanged::class], WorkflowTriggerListener::class);
 
         // Register Microsoft Socialite provider
         Event::listen(

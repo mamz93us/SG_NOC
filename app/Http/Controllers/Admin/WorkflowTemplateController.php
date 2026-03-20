@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\WorkflowTemplate;
+use App\Services\Workflow\WorkflowStepRegistry;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class WorkflowTemplateController extends Controller
 {
@@ -75,5 +77,80 @@ class WorkflowTemplateController extends Controller
         $workflowTemplate->delete();
 
         return back()->with('success', "Workflow template \"{$name}\" deleted.");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Visual Builder
+    // ─────────────────────────────────────────────────────────────
+
+    public function builder(WorkflowTemplate $workflowTemplate)
+    {
+        $this->authorize('manage-workflow-templates');
+
+        $jobRegistry = WorkflowStepRegistry::available();
+        $triggerEvents = [
+            'employee.created' => 'New Employee Created',
+            'host.down'        => 'Host Goes Down',
+            'device.assigned'  => 'Device Assigned to Employee',
+        ];
+
+        return view('admin.workflow-templates.builder', compact('workflowTemplate', 'jobRegistry', 'triggerEvents'));
+    }
+
+    public function saveDefinition(Request $request, WorkflowTemplate $workflowTemplate)
+    {
+        $this->authorize('manage-workflow-templates');
+
+        $request->validate([
+            'definition'    => 'required|array',
+            'trigger_event' => 'nullable|string|max:100',
+        ]);
+
+        // Save version snapshot before overwriting
+        $workflowTemplate->createVersion(Auth::id());
+
+        // Extract approval chain from graph for legacy engine compatibility
+        $workflowTemplate->definition    = $request->input('definition');
+        $workflowTemplate->trigger_event = $request->input('trigger_event') ?: null;
+        $workflowTemplate->approval_chain = $workflowTemplate->extractApprovalChain();
+        $workflowTemplate->save();
+
+        return response()->json([
+            'ok'      => true,
+            'version' => $workflowTemplate->version,
+            'message' => 'Definition saved.',
+        ]);
+    }
+
+    public function versions(WorkflowTemplate $workflowTemplate)
+    {
+        $this->authorize('manage-workflow-templates');
+
+        $versions = $workflowTemplate->versions()
+            ->with('editor:id,name')
+            ->get(['id', 'version', 'changed_by', 'created_at']);
+
+        return response()->json($versions);
+    }
+
+    public function restoreVersion(WorkflowTemplate $workflowTemplate, int $version)
+    {
+        $this->authorize('manage-workflow-templates');
+
+        $snap = $workflowTemplate->versions()->where('version', $version)->firstOrFail();
+
+        // Save current state first
+        $workflowTemplate->createVersion(Auth::id());
+
+        $workflowTemplate->update([
+            'definition'     => $snap->definition,
+            'approval_chain' => $snap->approval_chain ?? $workflowTemplate->extractApprovalChain(),
+        ]);
+
+        return response()->json([
+            'ok'         => true,
+            'version'    => $workflowTemplate->version,
+            'definition' => $workflowTemplate->definition,
+        ]);
     }
 }

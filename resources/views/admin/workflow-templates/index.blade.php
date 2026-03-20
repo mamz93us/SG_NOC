@@ -22,6 +22,7 @@
                     <th>Type Slug</th>
                     <th>Display Name</th>
                     <th>Approval Chain</th>
+                    <th>Trigger / Version</th>
                     <th class="text-center">System</th>
                     <th class="text-center">Active</th>
                     <th class="text-end">Actions</th>
@@ -31,11 +32,26 @@
             @forelse($templates as $tpl)
             <tr>
                 <td><code class="small">{{ $tpl->type_slug }}</code></td>
-                <td class="fw-semibold">{{ $tpl->display_name }}</td>
+                <td class="fw-semibold">
+                    {{ $tpl->display_name }}
+                    @if($tpl->definition)
+                    <span class="badge bg-primary-subtle text-primary ms-1 small" title="Has visual definition">
+                        <i class="bi bi-diagram-3"></i> Graph
+                    </span>
+                    @endif
+                </td>
                 <td>
                     @foreach($tpl->approval_chain ?? [] as $role)
                     <span class="badge bg-secondary me-1 text-capitalize">{{ str_replace('_', ' ', $role) }}</span>
                     @endforeach
+                </td>
+                <td>
+                    @if($tpl->trigger_event)
+                    <span class="badge bg-success"><i class="bi bi-lightning-fill me-1"></i>{{ $tpl->trigger_event }}</span>
+                    @else
+                    <span class="text-muted small">—</span>
+                    @endif
+                    <span class="badge bg-light text-dark border ms-1">v{{ $tpl->version ?? 1 }}</span>
                 </td>
                 <td class="text-center">
                     @if($tpl->is_system)
@@ -53,9 +69,14 @@
                 </td>
                 <td class="text-end">
                     @can('manage-workflow-templates')
-                    <button class="btn btn-outline-primary btn-sm"
+                    <a href="{{ route('workflow-templates.builder', $tpl) }}"
+                       class="btn btn-sm btn-outline-primary" title="Open Visual Builder">
+                        <i class="bi bi-diagram-3"></i>
+                    </a>
+                    <button class="btn btn-outline-secondary btn-sm"
                             data-bs-toggle="modal"
-                            data-bs-target="#editModal{{ $tpl->id }}">
+                            data-bs-target="#editModal{{ $tpl->id }}"
+                            title="Edit chain">
                         <i class="bi bi-pencil"></i>
                     </button>
                     @if(! $tpl->is_system)
@@ -69,7 +90,7 @@
                 </td>
             </tr>
             @empty
-            <tr><td colspan="6" class="text-center text-muted py-4">No workflow templates found.</td></tr>
+            <tr><td colspan="7" class="text-center text-muted py-4">No workflow templates found.</td></tr>
             @endforelse
             </tbody>
         </table>

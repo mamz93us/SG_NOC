@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\NocController;
 use App\Http\Controllers\Admin\WorkflowTemplateController;
+use App\Http\Controllers\Admin\WorkflowTriggerController;
 use App\Http\Controllers\Admin\EmailLogController;
 use App\Http\Controllers\Admin\NotificationRuleController;
 use App\Http\Controllers\Admin\LicenseMonitorController;
@@ -749,6 +750,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::post('/workflow-templates', [WorkflowTemplateController::class, 'store'])->name('workflow-templates.store');
     Route::put('/workflow-templates/{workflowTemplate}', [WorkflowTemplateController::class, 'update'])->name('workflow-templates.update');
     Route::delete('/workflow-templates/{workflowTemplate}', [WorkflowTemplateController::class, 'destroy'])->name('workflow-templates.destroy');
+
+    // ── Workflow Builder ──────────────────────────────────────────
+    Route::get('/workflow-templates/{workflowTemplate}/builder', [WorkflowTemplateController::class, 'builder'])->name('workflow-templates.builder');
+    Route::post('/workflow-templates/{workflowTemplate}/definition', [WorkflowTemplateController::class, 'saveDefinition'])->name('workflow-templates.save-definition');
+    Route::get('/workflow-templates/{workflowTemplate}/versions', [WorkflowTemplateController::class, 'versions'])->name('workflow-templates.versions');
+    Route::post('/workflow-templates/{workflowTemplate}/versions/{version}/restore', [WorkflowTemplateController::class, 'restoreVersion'])->name('workflow-templates.restore-version');
+    Route::post('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'store'])->name('workflow-templates.trigger.set');
+    Route::delete('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'destroy'])->name('workflow-templates.trigger.clear');
 
     // ── Email Logs ────────────────────────────────────────────────
     Route::get('/notifications/email-log', [EmailLogController::class, 'index'])->name('email-log.index');

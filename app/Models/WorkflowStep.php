@@ -16,11 +16,15 @@ class WorkflowStep extends Model
         'acted_by',
         'acted_at',
         'comments',
+        'step_type',
+        'step_config',
+        'node_id',
     ];
 
     protected $casts = [
         'acted_at'    => 'datetime',
         'step_number' => 'integer',
+        'step_config' => 'array',
     ];
 
     // ─────────────────────────────────────────────────────────────
