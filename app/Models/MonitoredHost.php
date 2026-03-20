@@ -23,6 +23,13 @@ class MonitoredHost extends Model
         'snmp_version',
         'snmp_community',
         'snmp_port',
+        'snmp_auth_user',
+        'snmp_auth_password',
+        'snmp_auth_protocol',
+        'snmp_priv_password',
+        'snmp_priv_protocol',
+        'snmp_security_level',
+        'snmp_context_name',
         'mib_id',
         'alert_enabled',
         'status',
@@ -38,6 +45,8 @@ class MonitoredHost extends Model
 
     protected $hidden = [
         'snmp_community',
+        'snmp_auth_password',
+        'snmp_priv_password',
     ];
 
     protected $casts = [
@@ -74,6 +83,38 @@ class MonitoredHost extends Model
     public function setSnmpCommunityAttribute($value)
     {
         $this->attributes['snmp_community'] = encrypt($value);
+    }
+
+    public function getSnmpAuthPasswordAttribute($value)
+    {
+        if (empty($value)) return null;
+        try {
+            return decrypt($value);
+        } catch (\Exception $e) {
+            \Log::warning("Decryption failed for host {$this->id} ({$this->name}) snmp_auth_password. Returning null.");
+            return null;
+        }
+    }
+
+    public function setSnmpAuthPasswordAttribute($value)
+    {
+        $this->attributes['snmp_auth_password'] = !empty($value) ? encrypt($value) : null;
+    }
+
+    public function getSnmpPrivPasswordAttribute($value)
+    {
+        if (empty($value)) return null;
+        try {
+            return decrypt($value);
+        } catch (\Exception $e) {
+            \Log::warning("Decryption failed for host {$this->id} ({$this->name}) snmp_priv_password. Returning null.");
+            return null;
+        }
+    }
+
+    public function setSnmpPrivPasswordAttribute($value)
+    {
+        $this->attributes['snmp_priv_password'] = !empty($value) ? encrypt($value) : null;
     }
 
     public function hostChecks(): HasMany

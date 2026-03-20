@@ -141,6 +141,9 @@ class PollPrinterSnmpJob implements ShouldQueue
         $printer->snmp_last_polled_at = now();
         $printer->save();
 
+        // ─── Normalized Supplies Table ───────────────────────────────
+        $this->syncSupplies($printer, $ip, $community, $version, $port);
+
         // ─── Threshold Alerts ────────────────────────────────────
         $this->checkAlerts($printer);
 
@@ -591,6 +594,150 @@ class PollPrinterSnmpJob implements ShouldQueue
     {
         return (str_contains($desc, 'toner') || str_contains($desc, 'cartridge') || str_contains($desc, 'ink'))
             && str_contains($desc, $color);
+    }
+
+    // ─── Normalized Supplies Sync ────────────────────────────────
+
+    protected function syncSupplies(Printer $printer, string $ip, string $community, int $version, int $port): void
+    {
+        $descrs    = $this->snmpWalk($ip, $community, '1.3.6.1.2.1.43.11.1.1.6.1', $version, $port) ?? [];
+        $types     = $this->snmpWalk($ip, $community, '1.3.6.1.2.1.43.11.1.1.7.1', $version, $port) ?? [];
+        $maxCaps   = $this->snmpWalk($ip, $community, '1.3.6.1.2.1.43.11.1.1.8.1', $version, $port) ?? [];
+        $curLevels = $this->snmpWalk($ip, $community, '1.3.6.1.2.1.43.11.1.1.9.1', $version, $port) ?? [];
+
+        if (empty($descrs) && empty($curLevels)) return;
+
+        // For Ricoh: override with private MIB if available
+        $isRicoh = $this->isRicohPrinter($printer);
+        if ($isRicoh) {
+            $ricohNames  = $this->snmpWalk($ip, $community, '1.3.6.1.4.1.367.3.2.1.2.24.1.1.3', $version, $port) ?? [];
+            $ricohLevels = $this->snmpWalk($ip, $community, '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5', $version, $port) ?? [];
+            if (!empty($ricohLevels)) {
+                // Override standard levels/descriptions with Ricoh private MIB
+                foreach ($ricohLevels as $oid => $level) {
+                    $index = (int) substr($oid, strrpos($oid, '.') + 1);
+                    $curLevels["ricoh.$index"] = $level;
+                    if (isset($ricohNames[$oid])) {
+                        $descrs["ricoh.$index"] = $ricohNames[$oid];
+                    }
+                }
+            }
+        }
+
+        $seenIndexes = [];
+
+        foreach ($descrs as $oid => $descr) {
+            $index = (int) substr($oid, strrpos($oid, '.') + 1);
+            $seenIndexes[] = $index;
+
+            $descr = trim(strip_tags($descr));
+            $descrLower = strtolower($descr);
+
+            // Determine color
+            $color = 'black';
+            if (str_contains($descrLower, 'cyan') || str_contains($descrLower, 'blue')) $color = 'cyan';
+            elseif (str_contains($descrLower, 'magenta') || str_contains($descrLower, 'red')) $color = 'magenta';
+            elseif (str_contains($descrLower, 'yellow')) $color = 'yellow';
+            elseif (str_contains($descrLower, 'waste') || str_contains($descrLower, 'collection')) $color = 'waste';
+
+            // Determine type from prtMarkerSuppliesType integer
+            $typeKey = str_replace('.6.1.', '.7.1.', $oid);
+            $typeInt = isset($types[$typeKey]) ? (int) $types[$typeKey] : 3;
+            $supplyType = match($typeInt) {
+                7  => 'drum',
+                12 => 'fuser',
+                15 => 'waste',
+                default => str_contains($descrLower, 'drum') ? 'drum' :
+                           (str_contains($descrLower, 'fuser') ? 'fuser' :
+                           (str_contains($descrLower, 'waste') ? 'waste' : 'toner'))
+            };
+
+            // Get level OID
+            $levelKey = str_replace('.6.1.', '.9.1.', $oid);
+            $maxKey   = str_replace('.6.1.', '.8.1.', $oid);
+            $rawLevel = isset($curLevels[$levelKey]) ? (int) $curLevels[$levelKey] : null;
+            $rawMax   = isset($maxCaps[$maxKey])   ? (int) $maxCaps[$maxKey]   : null;
+
+            // Also try Ricoh override
+            if (isset($curLevels["ricoh.$index"])) {
+                $rawLevel = (int) $curLevels["ricoh.$index"];
+                $rawMax = 100;
+            }
+
+            // Normalize to percent
+            $percent = null;
+            if ($rawLevel !== null) {
+                if ($rawLevel === -1) $percent = 100; // no restriction
+                elseif ($rawLevel === -2) $percent = null; // unknown
+                elseif ($rawLevel === -3) $percent = 10;  // some remaining
+                elseif ($rawMax !== null && $rawMax > 0) {
+                    $percent = (int) min(100, max(0, round(($rawLevel / $rawMax) * 100)));
+                } elseif ($rawMax === -1) {
+                    $percent = $rawLevel; // already a percentage
+                }
+            }
+
+            // Fetch previous record for consumption rate
+            $existing = \App\Models\PrinterSupply::where('printer_id', $printer->id)
+                            ->where('supply_index', $index)->first();
+
+            $consumptionRate = $existing->consumption_rate ?? null;
+            $estimatedDays = null;
+
+            if ($existing && $existing->supply_percent !== null && $percent !== null
+                && $existing->last_updated_at && $percent < $existing->supply_percent) {
+                $hoursDiff = $existing->last_updated_at->diffInHours(now());
+                if ($hoursDiff > 0) {
+                    $daysDiff = $hoursDiff / 24;
+                    $consumed = $existing->supply_percent - $percent;
+                    $ratePerDay = $consumed / $daysDiff;
+                    // Exponential moving average (alpha=0.3)
+                    $consumptionRate = $consumptionRate !== null
+                        ? 0.3 * $ratePerDay + 0.7 * $consumptionRate
+                        : $ratePerDay;
+                    if ($consumptionRate > 0) {
+                        $estimatedDays = (int) min(9999, $percent / $consumptionRate);
+                    }
+                }
+            } elseif ($existing && $existing->consumption_rate !== null && $percent !== null) {
+                $consumptionRate = $existing->consumption_rate;
+                if ($consumptionRate > 0) {
+                    $estimatedDays = (int) min(9999, $percent / $consumptionRate);
+                }
+            }
+
+            \App\Models\PrinterSupply::updateOrCreate(
+                ['printer_id' => $printer->id, 'supply_index' => $index],
+                [
+                    'supply_oid'           => $levelKey,
+                    'supply_capacity_oid'  => $maxKey,
+                    'supply_type'          => $supplyType,
+                    'supply_color'         => $color,
+                    'supply_descr'         => $descr,
+                    'supply_capacity'      => ($rawMax !== null && $rawMax > 0) ? $rawMax : null,
+                    'supply_current'       => $rawLevel,
+                    'supply_percent'       => $percent,
+                    'warning_threshold'    => $existing->warning_threshold ?? 20,
+                    'critical_threshold'   => $existing->critical_threshold ?? 5,
+                    'consumption_rate'     => $consumptionRate,
+                    'estimated_days_remaining' => $estimatedDays,
+                    'last_updated_at'      => now(),
+                ]
+            );
+        }
+
+        // Remove orphan supplies no longer reported by printer
+        if (!empty($seenIndexes)) {
+            \App\Models\PrinterSupply::where('printer_id', $printer->id)
+                ->whereNotIn('supply_index', $seenIndexes)
+                ->delete();
+        }
+    }
+
+    protected function isRicohPrinter(Printer $printer): bool
+    {
+        $desc = strtolower($printer->snmp_sys_description ?? '');
+        return str_contains($desc, 'ricoh') || str_contains($desc, 'nrg') || str_contains($desc, 'lanier');
     }
 
     protected function parseErrorState(?string $raw): string

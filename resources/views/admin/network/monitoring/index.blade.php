@@ -197,7 +197,7 @@
                         <div id="snmpFields" class="row col-12 g-3">
                             <div class="col-md-4">
                                 <label class="form-label fw-bold small">SNMP Version</label>
-                                <select name="snmp_version" class="form-select">
+                                <select name="snmp_version" id="add-snmpVersion" class="form-select">
                                     <option value="v2c">v2c</option>
                                     <option value="v1">v1</option>
                                     <option value="v3">v3</option>
@@ -207,10 +207,60 @@
                                 <label class="form-label fw-bold small">Port</label>
                                 <input type="number" name="snmp_port" class="form-control" value="161">
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-4" id="add-communityWrapper">
                                 <label class="form-label fw-bold small">Read Community</label>
                                 <input type="password" name="snmp_community" class="form-control" value="public">
                             </div>
+
+                            {{-- SNMPv3 Panel --}}
+                            <div class="col-12" id="add-v3Panel" style="display:none;">
+                                <div class="card border-info border-opacity-50 bg-info bg-opacity-10 rounded-3 p-3 mt-1">
+                                    <h6 class="fw-bold small text-info mb-3"><i class="bi bi-shield-lock me-1"></i> SNMPv3 Authentication & Privacy</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold small">Security Level</label>
+                                            <select name="snmp_security_level" id="add-securityLevel" class="form-select form-select-sm">
+                                                <option value="authPriv">authPriv (Auth + Encryption)</option>
+                                                <option value="authNoPriv">authNoPriv (Auth only)</option>
+                                                <option value="noAuthNoPriv">noAuthNoPriv (No Auth)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold small">Auth Username</label>
+                                            <input type="text" name="snmp_auth_user" class="form-control form-control-sm" placeholder="e.g. snmpv3user">
+                                        </div>
+                                        <div class="col-md-4" id="add-authProtocolWrapper">
+                                            <label class="form-label fw-bold small">Auth Protocol</label>
+                                            <select name="snmp_auth_protocol" class="form-select form-select-sm">
+                                                <option value="sha">SHA</option>
+                                                <option value="md5">MD5</option>
+                                                <option value="sha256">SHA-256</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-8" id="add-authPasswordWrapper">
+                                            <label class="form-label fw-bold small">Auth Password</label>
+                                            <input type="password" name="snmp_auth_password" class="form-control form-control-sm" placeholder="Min 8 characters">
+                                        </div>
+                                        <div class="col-md-4" id="add-privProtocolWrapper">
+                                            <label class="form-label fw-bold small">Privacy Protocol</label>
+                                            <select name="snmp_priv_protocol" class="form-select form-select-sm">
+                                                <option value="aes">AES</option>
+                                                <option value="des">DES</option>
+                                                <option value="aes256">AES-256</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-8" id="add-privPasswordWrapper">
+                                            <label class="form-label fw-bold small">Privacy Password</label>
+                                            <input type="password" name="snmp_priv_password" class="form-control form-control-sm" placeholder="Min 8 characters">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold small">Context Name <span class="text-muted">(Optional)</span></label>
+                                            <input type="text" name="snmp_context_name" class="form-control form-control-sm" placeholder="e.g. bridge">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="col-md-12 mt-3">
                                 <label class="form-label fw-bold small">Vendor MIB (Optional)</label>
                                 <select name="mib_id" class="form-select">
@@ -320,10 +370,60 @@
                                 <label class="form-label fw-bold small">Port</label>
                                 <input type="number" name="snmp_port" id="edit-snmpPort" class="form-control">
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-4" id="edit-communityWrapper">
                                 <label class="form-label fw-bold small">Read Community</label>
                                 <input type="password" name="snmp_community" class="form-control" placeholder="Leave blank to keep">
                             </div>
+
+                            {{-- SNMPv3 Panel --}}
+                            <div class="col-12" id="edit-v3Panel" style="display:none;">
+                                <div class="card border-info border-opacity-50 bg-info bg-opacity-10 rounded-3 p-3 mt-1">
+                                    <h6 class="fw-bold small text-info mb-3"><i class="bi bi-shield-lock me-1"></i> SNMPv3 Authentication & Privacy</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold small">Security Level</label>
+                                            <select name="snmp_security_level" id="edit-securityLevel" class="form-select form-select-sm">
+                                                <option value="authPriv">authPriv (Auth + Encryption)</option>
+                                                <option value="authNoPriv">authNoPriv (Auth only)</option>
+                                                <option value="noAuthNoPriv">noAuthNoPriv (No Auth)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold small">Auth Username</label>
+                                            <input type="text" name="snmp_auth_user" id="edit-authUser" class="form-control form-control-sm" placeholder="e.g. snmpv3user">
+                                        </div>
+                                        <div class="col-md-4" id="edit-authProtocolWrapper">
+                                            <label class="form-label fw-bold small">Auth Protocol</label>
+                                            <select name="snmp_auth_protocol" id="edit-authProtocol" class="form-select form-select-sm">
+                                                <option value="sha">SHA</option>
+                                                <option value="md5">MD5</option>
+                                                <option value="sha256">SHA-256</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-8" id="edit-authPasswordWrapper">
+                                            <label class="form-label fw-bold small">Auth Password</label>
+                                            <input type="password" name="snmp_auth_password" class="form-control form-control-sm" placeholder="Leave blank to keep current">
+                                        </div>
+                                        <div class="col-md-4" id="edit-privProtocolWrapper">
+                                            <label class="form-label fw-bold small">Privacy Protocol</label>
+                                            <select name="snmp_priv_protocol" id="edit-privProtocol" class="form-select form-select-sm">
+                                                <option value="aes">AES</option>
+                                                <option value="des">DES</option>
+                                                <option value="aes256">AES-256</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-8" id="edit-privPasswordWrapper">
+                                            <label class="form-label fw-bold small">Privacy Password</label>
+                                            <input type="password" name="snmp_priv_password" class="form-control form-control-sm" placeholder="Leave blank to keep current">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold small">Context Name <span class="text-muted">(Optional)</span></label>
+                                            <input type="text" name="snmp_context_name" id="edit-contextName" class="form-control form-control-sm" placeholder="e.g. bridge">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="col-md-12 mt-3">
                                 <label class="form-label fw-bold small">Vendor MIB</label>
                                 <select name="mib_id" id="edit-mib" class="form-select">
@@ -348,96 +448,186 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const snmpSwitch = document.getElementById('snmpSwitch');
-    const snmpFields = document.getElementById('snmpFields');
-    
-    snmpSwitch.addEventListener('change', function() {
-        snmpFields.style.display = this.checked ? 'flex' : 'none';
-    });
 
-    // Edit Modal Logic
-    document.querySelectorAll('.edit-host-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const host = JSON.parse(this.getAttribute('data-host'));
-            const form = document.getElementById('editHostForm');
-            
-            form.action = `{{ url('admin/network/monitoring/hosts') }}/${host.id}`;
-            document.getElementById('edit-name').value = host.name;
-            document.getElementById('edit-type').value = host.type;
-            document.getElementById('edit-ip').value = host.ip;
-            document.getElementById('edit-branch').value = host.branch_id || '';
-            document.getElementById('edit-pingSwitch').checked = host.ping_enabled;
-            document.getElementById('edit-snmpSwitch').checked = host.snmp_enabled;
-            
-            document.getElementById('edit-pingInterval').value = host.ping_interval_seconds || 60;
-            document.getElementById('edit-pingPacket').value = host.ping_packet_count || 3;
-            document.getElementById('edit-alertEnabled').checked = host.alert_enabled;
+    // ─── Helpers ────────────────────────────────────────────────────────────────
 
-            const pingVisible = host.ping_enabled ? 'block' : 'none';
-            document.getElementById('edit-pingIntervalDiv').style.display = pingVisible;
-            document.getElementById('edit-pingPacketDiv').style.display = pingVisible;
-            document.getElementById('edit-pingAlertDiv').style.display = pingVisible;
+    /**
+     * Toggle the SNMPv3 panel and the community string row based on the
+     * selected SNMP version inside a given modal context.
+     *
+     * @param {string} version  - The selected snmp_version value ('v1','v2c','v3')
+     * @param {string} prefix   - 'add' or 'edit'
+     */
+    function applySnmpVersionUi(version, prefix) {
+        const isV3         = version === 'v3';
+        const v3Panel      = document.getElementById(prefix + '-v3Panel');
+        const commWrapper  = document.getElementById(prefix + '-communityWrapper');
 
-            document.getElementById('edit-snmpVersion').value = host.snmp_version || 'v2c';
-            document.getElementById('edit-snmpPort').value = host.snmp_port;
-            document.getElementById('edit-mib').value = host.mib_id || '';
-            
-            const snmpFields = document.getElementById('edit-snmpFields');
-            snmpFields.style.display = host.snmp_enabled ? 'flex' : 'none';
-        });
-    });
+        if (v3Panel)     v3Panel.style.display     = isV3 ? 'block' : 'none';
+        if (commWrapper) commWrapper.style.display  = isV3 ? 'none'  : 'block';
 
-    document.getElementById('edit-snmpSwitch').addEventListener('change', function() {
-        document.getElementById('edit-snmpFields').style.display = this.checked ? 'flex' : 'none';
-    });
-});
+        // Also adjust auth/priv sub-sections based on security level when switching version
+        if (isV3) {
+            const secLvlEl = document.getElementById(prefix + '-securityLevel');
+            if (secLvlEl) applySecurityLevelUi(secLvlEl.value, prefix);
+        }
+    }
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Toggle Snmp Fields Create
-    const snmpSwitch = document.getElementById('snmpSwitch');
-    const snmpFields = document.getElementById('snmpFields');
+    /**
+     * Show/hide Auth and Priv sub-sections inside the v3 panel based on security level.
+     */
+    function applySecurityLevelUi(level, prefix) {
+        const authProto  = document.getElementById(prefix + '-authProtocolWrapper');
+        const authPass   = document.getElementById(prefix + '-authPasswordWrapper');
+        const privProto  = document.getElementById(prefix + '-privProtocolWrapper');
+        const privPass   = document.getElementById(prefix + '-privPasswordWrapper');
+
+        const showAuth = level === 'authNoPriv' || level === 'authPriv';
+        const showPriv = level === 'authPriv';
+
+        if (authProto) authProto.style.display = showAuth ? '' : 'none';
+        if (authPass)  authPass.style.display  = showAuth ? '' : 'none';
+        if (privProto) privProto.style.display = showPriv ? '' : 'none';
+        if (privPass)  privPass.style.display  = showPriv ? '' : 'none';
+    }
+
+    // ─── Add Modal ──────────────────────────────────────────────────────────────
+
+    const snmpSwitch  = document.getElementById('snmpSwitch');
+    const snmpFields  = document.getElementById('snmpFields');
+    const addVersion  = document.getElementById('add-snmpVersion');
+    const addSecLevel = document.getElementById('add-securityLevel');
+
     if (snmpSwitch) {
         snmpSwitch.addEventListener('change', function() {
             snmpFields.style.display = this.checked ? 'flex' : 'none';
         });
     }
 
-    // Toggle Snmp Fields Edit
+    if (addVersion) {
+        addVersion.addEventListener('change', function() {
+            applySnmpVersionUi(this.value, 'add');
+        });
+        // Apply on page load in case modal was opened with v3 pre-selected
+        applySnmpVersionUi(addVersion.value, 'add');
+    }
+
+    if (addSecLevel) {
+        addSecLevel.addEventListener('change', function() {
+            applySecurityLevelUi(this.value, 'add');
+        });
+    }
+
+    // ─── Edit Modal ─────────────────────────────────────────────────────────────
+
     const editSnmpSwitch = document.getElementById('edit-snmpSwitch');
     const editSnmpFields = document.getElementById('edit-snmpFields');
-    if(editSnmpSwitch) {
+    const editVersion    = document.getElementById('edit-snmpVersion');
+    const editSecLevel   = document.getElementById('edit-securityLevel');
+
+    if (editSnmpSwitch) {
         editSnmpSwitch.addEventListener('change', function() {
             editSnmpFields.style.display = this.checked ? 'flex' : 'none';
         });
     }
-    
-    // Toggle Ping Interval Create
-    const pingSwitch = document.getElementById('pingSwitch');
+
+    if (editVersion) {
+        editVersion.addEventListener('change', function() {
+            applySnmpVersionUi(this.value, 'edit');
+        });
+    }
+
+    if (editSecLevel) {
+        editSecLevel.addEventListener('change', function() {
+            applySecurityLevelUi(this.value, 'edit');
+        });
+    }
+
+    // Populate Edit modal from data-host JSON
+    document.querySelectorAll('.edit-host-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const host = JSON.parse(this.getAttribute('data-host'));
+            const form = document.getElementById('editHostForm');
+
+            form.action = `{{ url('admin/network/monitoring/hosts') }}/${host.id}`;
+
+            // Basic fields
+            document.getElementById('edit-name').value    = host.name;
+            document.getElementById('edit-type').value    = host.type;
+            document.getElementById('edit-ip').value      = host.ip;
+            document.getElementById('edit-branch').value  = host.branch_id || '';
+
+            // Ping
+            document.getElementById('edit-pingSwitch').checked  = host.ping_enabled;
+            document.getElementById('edit-pingInterval').value  = host.ping_interval_seconds || 60;
+            document.getElementById('edit-pingPacket').value    = host.ping_packet_count || 3;
+            document.getElementById('edit-alertEnabled').checked = host.alert_enabled;
+
+            const pingVisible = host.ping_enabled ? 'block' : 'none';
+            document.getElementById('edit-pingIntervalDiv').style.display = pingVisible;
+            document.getElementById('edit-pingPacketDiv').style.display   = pingVisible;
+            document.getElementById('edit-pingAlertDiv').style.display    = pingVisible;
+
+            // SNMP basics
+            document.getElementById('edit-snmpSwitch').checked  = host.snmp_enabled;
+            document.getElementById('edit-snmpVersion').value   = host.snmp_version || 'v2c';
+            document.getElementById('edit-snmpPort').value      = host.snmp_port || 161;
+            document.getElementById('edit-mib').value           = host.mib_id || '';
+
+            editSnmpFields.style.display = host.snmp_enabled ? 'flex' : 'none';
+
+            // SNMPv3 fields
+            const secLvlEl = document.getElementById('edit-securityLevel');
+            if (secLvlEl) secLvlEl.value = host.snmp_security_level || 'authPriv';
+
+            const authUserEl = document.getElementById('edit-authUser');
+            if (authUserEl) authUserEl.value = host.snmp_auth_user || '';
+
+            const authProtoEl = document.getElementById('edit-authProtocol');
+            if (authProtoEl) authProtoEl.value = host.snmp_auth_protocol || 'sha';
+
+            const privProtoEl = document.getElementById('edit-privProtocol');
+            if (privProtoEl) privProtoEl.value = host.snmp_priv_protocol || 'aes';
+
+            const ctxEl = document.getElementById('edit-contextName');
+            if (ctxEl) ctxEl.value = host.snmp_context_name || '';
+
+            // Passwords are hidden (never sent in JSON), so leave them blank (placeholder text explains)
+
+            // Apply version-based UI (show/hide v3 panel and community wrapper)
+            applySnmpVersionUi(host.snmp_version || 'v2c', 'edit');
+        });
+    });
+
+    // ─── Ping Interval Toggles ───────────────────────────────────────────────────
+
+    const pingSwitch      = document.getElementById('pingSwitch');
     const pingIntervalDiv = document.getElementById('pingIntervalDiv');
-    const pingPacketDiv = document.getElementById('pingPacketDiv');
-    const pingAlertDiv = document.getElementById('pingAlertDiv');
+    const pingPacketDiv   = document.getElementById('pingPacketDiv');
+    const pingAlertDiv    = document.getElementById('pingAlertDiv');
     if (pingSwitch) {
         pingSwitch.addEventListener('change', function() {
             const display = this.checked ? 'block' : 'none';
-            pingIntervalDiv.style.display = display;
-            pingPacketDiv.style.display = display;
-            pingAlertDiv.style.display = display;
+            if (pingIntervalDiv) pingIntervalDiv.style.display = display;
+            if (pingPacketDiv)   pingPacketDiv.style.display   = display;
+            if (pingAlertDiv)    pingAlertDiv.style.display    = display;
         });
     }
-    
-    // Toggle Ping Interval Edit
-    const editPingSwitch = document.getElementById('edit-pingSwitch');
+
+    const editPingSwitch      = document.getElementById('edit-pingSwitch');
     const editPingIntervalDiv = document.getElementById('edit-pingIntervalDiv');
-    const editPingPacketDiv = document.getElementById('edit-pingPacketDiv');
-    const editPingAlertDiv = document.getElementById('edit-pingAlertDiv');
+    const editPingPacketDiv   = document.getElementById('edit-pingPacketDiv');
+    const editPingAlertDiv    = document.getElementById('edit-pingAlertDiv');
     if (editPingSwitch) {
         editPingSwitch.addEventListener('change', function() {
             const display = this.checked ? 'block' : 'none';
-            editPingIntervalDiv.style.display = display;
-            editPingPacketDiv.style.display = display;
-            editPingAlertDiv.style.display = display;
+            if (editPingIntervalDiv) editPingIntervalDiv.style.display = display;
+            if (editPingPacketDiv)   editPingPacketDiv.style.display   = display;
+            if (editPingAlertDiv)    editPingAlertDiv.style.display    = display;
         });
     }
-});</script>
+
+});
+</script>
 @endpush
 @endsection

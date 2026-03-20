@@ -8,7 +8,10 @@ use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Device;
+use App\Models\MonitoredHost;
 use App\Models\Printer;
+use App\Models\SnmpSensor;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -46,7 +49,7 @@ class PrinterController extends Controller
 
     public function show(Printer $printer)
     {
-        $printer->load(['branch', 'device.credentials.creator']);
+        $printer->load(['branch', 'device.credentials.creator', 'supplies']);
         $maintenanceLogs = $printer->maintenanceLogs()
             ->with('performedByUser')
             ->orderByDesc('performed_at')
@@ -221,7 +224,7 @@ class PrinterController extends Controller
 
     public function snmpStatus(Request $request)
     {
-        $query = Printer::with('branch')
+        $query = Printer::with(['branch', 'supplies'])
             ->where('snmp_enabled', true)
             ->orderBy('printer_name');
 
@@ -274,5 +277,60 @@ class PrinterController extends Controller
 
         $state = $printer->snmp_enabled ? 'enabled' : 'disabled';
         return back()->with('success', "SNMP monitoring {$state} for \"{$printer->printer_name}\".");
+    }
+
+    // ─── Toner History (Chart.js API endpoint) ───────────────
+
+    public function tonerHistory(Request $request, Printer $printer)
+    {
+        $days = (int) $request->get('days', 14);
+        $days = min($days, 90);
+
+        $host = MonitoredHost::where('ip', $printer->ip_address)->first();
+
+        $result = [];
+
+        if ($host) {
+            $tonerSensors = SnmpSensor::where('host_id', $host->id)
+                ->where(function ($q) {
+                    $q->where('sensor_group', 'like', '%toner%')
+                      ->orWhere('name', 'like', '%Toner%')
+                      ->orWhere('name', 'like', '%toner%');
+                })
+                ->get();
+
+            $useHourly = class_exists(\App\Models\SensorMetricHourly::class);
+
+            foreach ($tonerSensors as $sensor) {
+                if ($useHourly) {
+                    $points = \App\Models\SensorMetricHourly::where('sensor_id', $sensor->id)
+                        ->where('hour', '>=', now()->subDays($days))
+                        ->orderBy('hour')
+                        ->get(['hour', 'value_avg'])
+                        ->map(fn ($r) => [
+                            'ts' => Carbon::parse($r->hour)->toIso8601String(),
+                            'v'  => round($r->value_avg, 1),
+                        ])
+                        ->toArray();
+                } else {
+                    // Fallback: use raw metrics
+                    $points = \App\Models\SensorMetric::where('sensor_id', $sensor->id)
+                        ->where('recorded_at', '>=', now()->subDays($days))
+                        ->orderBy('recorded_at')
+                        ->get(['recorded_at', 'value'])
+                        ->map(fn ($r) => [
+                            'ts' => Carbon::parse($r->recorded_at)->toIso8601String(),
+                            'v'  => round($r->value, 1),
+                        ])
+                        ->toArray();
+                }
+
+                if (!empty($points)) {
+                    $result[] = ['label' => $sensor->name, 'data' => $points];
+                }
+            }
+        }
+
+        return response()->json($result);
     }
 }

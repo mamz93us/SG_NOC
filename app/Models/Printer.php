@@ -144,6 +144,20 @@ class Printer extends Model
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Supplies relations
+    // ─────────────────────────────────────────────────────────────
+
+    public function supplies(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PrinterSupply::class);
+    }
+
+    public function tonerSupplies(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PrinterSupply::class)->where('supply_type', 'toner');
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // Maintenance relations
     // ─────────────────────────────────────────────────────────────
 

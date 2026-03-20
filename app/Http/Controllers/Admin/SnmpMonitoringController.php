@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Mib;
 use App\Models\MonitoredHost;
+use App\Models\SensorMetric;
 use App\Models\SnmpSensor;
 use App\Models\VpnTunnel;
 use App\Services\Snmp\SnmpClient;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -247,20 +249,27 @@ class SnmpMonitoringController extends Controller
     public function storeHost(Request $request)
     {
         $request->validate([
-            'name'           => 'required|string|max:255',
-            'ip'             => 'required|string',
-            'type'           => 'required|string',
-            'branch_id'      => 'nullable|exists:branches,id',
-            'vpn_id'         => 'nullable|exists:vpn_tunnels,id',
-            'ping_enabled'   => 'boolean',
+            'name'                => 'required|string|max:255',
+            'ip'                  => 'required|string',
+            'type'                => 'required|string',
+            'branch_id'           => 'nullable|exists:branches,id',
+            'vpn_id'              => 'nullable|exists:vpn_tunnels,id',
+            'ping_enabled'        => 'boolean',
             'ping_interval_seconds' => 'nullable|integer|min:10',
-            'ping_packet_count' => 'nullable|integer|min:1|max:20',
-            'alert_enabled'  => 'boolean',
-            'snmp_enabled'   => 'boolean',
-            'snmp_port'      => 'nullable|integer',
-            'snmp_version'   => 'required_if:snmp_enabled,1|in:v1,v2c,v3',
-            'snmp_community' => 'nullable|string',
-            'mib_id'         => 'nullable|exists:mibs,id',
+            'ping_packet_count'   => 'nullable|integer|min:1|max:20',
+            'alert_enabled'       => 'boolean',
+            'snmp_enabled'        => 'boolean',
+            'snmp_port'           => 'nullable|integer',
+            'snmp_version'        => 'required_if:snmp_enabled,1|in:v1,v2c,v3',
+            'snmp_community'      => 'nullable|string',
+            'mib_id'              => 'nullable|exists:mibs,id',
+            'snmp_auth_user'      => 'nullable|string|max:100',
+            'snmp_auth_password'  => 'nullable|string|max:255',
+            'snmp_auth_protocol'  => 'nullable|in:md5,sha,sha256',
+            'snmp_priv_password'  => 'nullable|string|max:255',
+            'snmp_priv_protocol'  => 'nullable|in:des,aes,aes256',
+            'snmp_security_level' => 'nullable|in:noAuthNoPriv,authNoPriv,authPriv',
+            'snmp_context_name'   => 'nullable|string|max:100',
         ]);
 
         $data = $request->except(['_token', '_method']);
@@ -279,6 +288,17 @@ class SnmpMonitoringController extends Controller
             $data['ping_packet_count'] = 3;
         }
 
+        // Clear v3 fields when not using SNMPv3
+        if (($data['snmp_version'] ?? '') !== 'v3') {
+            $data['snmp_auth_user']      = null;
+            $data['snmp_auth_password']  = null;
+            $data['snmp_auth_protocol']  = null;
+            $data['snmp_priv_password']  = null;
+            $data['snmp_priv_protocol']  = null;
+            $data['snmp_security_level'] = null;
+            $data['snmp_context_name']   = null;
+        }
+
         MonitoredHost::create($data);
 
         return redirect()->route('admin.network.monitoring.index')
@@ -288,25 +308,32 @@ class SnmpMonitoringController extends Controller
     public function updateHost(Request $request, MonitoredHost $host)
     {
         $request->validate([
-            'name'           => 'required|string|max:255',
-            'ip'             => 'required|string',
-            'type'           => 'required|string',
-            'branch_id'      => 'nullable|exists:branches,id',
-            'vpn_id'         => 'nullable|exists:vpn_tunnels,id',
-            'ping_enabled'   => 'boolean',
+            'name'                => 'required|string|max:255',
+            'ip'                  => 'required|string',
+            'type'                => 'required|string',
+            'branch_id'           => 'nullable|exists:branches,id',
+            'vpn_id'              => 'nullable|exists:vpn_tunnels,id',
+            'ping_enabled'        => 'boolean',
             'ping_interval_seconds' => 'nullable|integer|min:10',
-            'ping_packet_count' => 'nullable|integer|min:1|max:20',
-            'alert_enabled'  => 'boolean',
-            'snmp_enabled'   => 'boolean',
-            'snmp_port'      => 'nullable|integer',
-            'snmp_version'   => 'required_if:snmp_enabled,1|in:v1,v2c,v3',
-            'snmp_community' => 'nullable|string',
-            'mib_id'         => 'nullable|exists:mibs,id',
+            'ping_packet_count'   => 'nullable|integer|min:1|max:20',
+            'alert_enabled'       => 'boolean',
+            'snmp_enabled'        => 'boolean',
+            'snmp_port'           => 'nullable|integer',
+            'snmp_version'        => 'required_if:snmp_enabled,1|in:v1,v2c,v3',
+            'snmp_community'      => 'nullable|string',
+            'mib_id'              => 'nullable|exists:mibs,id',
+            'snmp_auth_user'      => 'nullable|string|max:100',
+            'snmp_auth_password'  => 'nullable|string|max:255',
+            'snmp_auth_protocol'  => 'nullable|in:md5,sha,sha256',
+            'snmp_priv_password'  => 'nullable|string|max:255',
+            'snmp_priv_protocol'  => 'nullable|in:des,aes,aes256',
+            'snmp_security_level' => 'nullable|in:noAuthNoPriv,authNoPriv,authPriv',
+            'snmp_context_name'   => 'nullable|string|max:100',
         ]);
 
         $data = $request->except(['_token', '_method']);
-        $data['ping_enabled'] = $request->boolean('ping_enabled', false);
-        $data['snmp_enabled'] = $request->boolean('snmp_enabled', false);
+        $data['ping_enabled']  = $request->boolean('ping_enabled', false);
+        $data['snmp_enabled']  = $request->boolean('snmp_enabled', false);
         $data['alert_enabled'] = $request->boolean('alert_enabled', false);
 
         // Ensure snmp_community is always a string
@@ -322,6 +349,27 @@ class SnmpMonitoringController extends Controller
         }
         if (empty($data['ping_packet_count'])) {
             $data['ping_packet_count'] = 3;
+        }
+
+        // Clear v3 fields when not using SNMPv3
+        if (($data['snmp_version'] ?? '') !== 'v3') {
+            $data['snmp_auth_user']      = null;
+            $data['snmp_auth_password']  = null;
+            $data['snmp_auth_protocol']  = null;
+            $data['snmp_priv_password']  = null;
+            $data['snmp_priv_protocol']  = null;
+            $data['snmp_security_level'] = null;
+            $data['snmp_context_name']   = null;
+        }
+
+        // If v3 passwords are left blank on edit, keep existing encrypted values
+        if (($data['snmp_version'] ?? '') === 'v3') {
+            if (empty($data['snmp_auth_password'])) {
+                unset($data['snmp_auth_password']);
+            }
+            if (empty($data['snmp_priv_password'])) {
+                unset($data['snmp_priv_password']);
+            }
         }
 
         $host->update($data);
@@ -411,6 +459,50 @@ class SnmpMonitoringController extends Controller
         $host->update(['mib_id' => $request->mib_id]);
 
         return back()->with('success', 'MIB assigned to host successfully.');
+    }
+
+    public function sensorHistory(Request $request, SnmpSensor $sensor): JsonResponse
+    {
+        $days = (int) $request->get('days', 7);
+        $days = min($days, 90); // cap at 90
+
+        $useHourly = class_exists(\App\Models\SensorMetricHourly::class);
+        $useDaily  = class_exists(\App\Models\SensorMetricDaily::class);
+
+        if ($days <= 3) {
+            // Raw metrics (5-min resolution)
+            $data = SensorMetric::where('sensor_id', $sensor->id)
+                ->where('recorded_at', '>=', now()->subDays($days))
+                ->orderBy('recorded_at')
+                ->get(['recorded_at as ts', 'value'])
+                ->map(fn ($r) => ['ts' => Carbon::parse($r->ts)->toIso8601String(), 'v' => round($r->value, 2)]);
+        } elseif ($days <= 14 && $useHourly) {
+            // Hourly rollups
+            $data = \App\Models\SensorMetricHourly::where('sensor_id', $sensor->id)
+                ->where('hour', '>=', now()->subDays($days))
+                ->orderBy('hour')
+                ->get(['hour as ts', 'value_avg as v'])
+                ->map(fn ($r) => ['ts' => Carbon::parse($r->ts)->toIso8601String(), 'v' => round($r->v, 2)]);
+        } elseif ($days > 14 && $useDaily) {
+            // Daily rollups
+            $data = \App\Models\SensorMetricDaily::where('sensor_id', $sensor->id)
+                ->where('date', '>=', now()->subDays($days)->toDateString())
+                ->orderBy('date')
+                ->get(['date as ts', 'value_avg as v'])
+                ->map(fn ($r) => ['ts' => $r->ts, 'v' => round($r->v, 2)]);
+        } else {
+            // Fallback: raw metrics for any range
+            $data = SensorMetric::where('sensor_id', $sensor->id)
+                ->where('recorded_at', '>=', now()->subDays($days))
+                ->orderBy('recorded_at')
+                ->get(['recorded_at as ts', 'value'])
+                ->map(fn ($r) => ['ts' => Carbon::parse($r->ts)->toIso8601String(), 'v' => round($r->value, 2)]);
+        }
+
+        return response()->json([
+            'sensor' => ['name' => $sensor->name, 'unit' => $sensor->unit],
+            'data'   => $data,
+        ]);
     }
 
     public function discoverDevice(MonitoredHost $host)

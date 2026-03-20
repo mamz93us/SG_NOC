@@ -162,8 +162,50 @@
             </div>
 
             {{-- Toner Gauges --}}
+            @php
+                $tonerSupplies = $printer->supplies->where('supply_type', 'toner');
+                $otherSupplies = $printer->supplies->whereNotIn('supply_type', ['toner']);
+            @endphp
             <div class="col-md-4">
                 <h6 class="fw-semibold small text-muted mb-2"><i class="bi bi-droplet-half me-1"></i>Toner Levels</h6>
+                @forelse($tonerSupplies as $supply)
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <div style="width:14px;height:14px;border-radius:50%;background:{{ $supply->colorDot() }};flex-shrink:0;border:1px solid rgba(0,0,0,0.15)"></div>
+                    <small class="text-muted fw-semibold text-truncate" style="width:60px" title="{{ $supply->supply_descr }}">
+                        {{ ucfirst($supply->supply_color ?? 'N/A') }}
+                    </small>
+                    <div class="progress flex-grow-1" style="height:18px">
+                        @if($supply->supply_percent !== null)
+                        <div class="progress-bar bg-{{ $supply->colorClass() }}"
+                             style="width:{{ $supply->supply_percent }}%">
+                            <span class="fw-bold" style="font-size:0.7rem">{{ $supply->supply_percent }}%</span>
+                        </div>
+                        @else
+                        <div class="progress-bar bg-secondary" style="width:100%">
+                            <span style="font-size:0.7rem">N/A</span>
+                        </div>
+                        @endif
+                    </div>
+                    @if($supply->isCritical())
+                    <span class="badge bg-danger">Critical</span>
+                    @elseif($supply->isLow())
+                    <span class="badge bg-warning text-dark">Low</span>
+                    @endif
+                </div>
+                @if($supply->estimated_days_remaining !== null)
+                <div class="ms-5 mb-1">
+                    <small class="text-muted">
+                        <i class="bi bi-calendar me-1"></i>
+                        @if($supply->estimated_days_remaining <= 14)
+                        <span class="text-{{ $supply->colorClass() }} fw-semibold">~{{ $supply->estimated_days_remaining }}d remaining</span>
+                        @else
+                        ~{{ $supply->estimated_days_remaining }}d remaining
+                        @endif
+                    </small>
+                </div>
+                @endif
+                @empty
+                {{-- Fallback to legacy flat columns if no supply rows yet --}}
                 @foreach($printer->tonerLevels() as $color => $level)
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <div style="width:14px;height:14px;border-radius:50%;background:{{ \App\Models\Printer::tonerColor($color) }};flex-shrink:0;border:1px solid rgba(0,0,0,0.15)"></div>
@@ -182,19 +224,18 @@
                     </div>
                 </div>
                 @endforeach
+                @endforelse
 
-                @if($printer->toner_waste !== null)
-                <div class="d-flex align-items-center gap-2 mb-2">
-                    <div style="width:14px;height:14px;border-radius:50%;background:#6c757d;flex-shrink:0;border:1px solid rgba(0,0,0,0.15)"></div>
-                    <small class="text-muted fw-semibold" style="width:60px">Waste</small>
-                    <div class="progress flex-grow-1" style="height:18px">
-                        <div class="progress-bar {{ $printer->toner_waste >= 80 ? 'bg-danger' : ($printer->toner_waste >= 60 ? 'bg-warning' : 'bg-info') }}"
-                             style="width:{{ $printer->toner_waste }}%">
-                            <span class="fw-bold" style="font-size:0.7rem">{{ $printer->toner_waste }}%</span>
-                        </div>
+                {{-- Toner History Chart (Phase 7) --}}
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-outline-secondary" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#tonerHistoryChart">
+                        <i class="bi bi-graph-down-arrow me-1"></i>Toner History
+                    </button>
+                    <div class="collapse mt-2" id="tonerHistoryChart">
+                        <canvas id="tonerChart" height="80"></canvas>
                     </div>
                 </div>
-                @endif
             </div>
 
             {{-- Paper Trays & Consumables --}}
@@ -215,8 +256,43 @@
                 @endforeach
                 @endif
 
-                @if($printer->drum_black !== null || $printer->fuser_level !== null)
-                <h6 class="fw-semibold small text-muted mb-2 mt-3"><i class="bi bi-gear me-1"></i>Consumables</h6>
+                @if($otherSupplies->isNotEmpty())
+                <h6 class="fw-semibold small text-muted mb-2 {{ $printer->paper_trays ? 'mt-3' : '' }}"><i class="bi bi-gear me-1"></i>Supplies</h6>
+                @foreach($otherSupplies as $supply)
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi {{ $supply->typeIcon() }} text-muted" style="font-size:0.8rem;width:14px"></i>
+                    <small class="text-muted fw-semibold text-truncate" style="width:60px" title="{{ $supply->supply_descr }}">
+                        {{ ucfirst($supply->supply_type) }}
+                    </small>
+                    <div class="progress flex-grow-1" style="height:16px">
+                        @if($supply->supply_percent !== null)
+                        <div class="progress-bar bg-{{ $supply->colorClass() }}"
+                             style="width:{{ $supply->supply_percent }}%">
+                            <span style="font-size:0.65rem">{{ $supply->supply_percent }}%</span>
+                        </div>
+                        @else
+                        <div class="progress-bar bg-secondary" style="width:100%">
+                            <span style="font-size:0.65rem">N/A</span>
+                        </div>
+                        @endif
+                    </div>
+                    @if($supply->isCritical())
+                    <span class="badge bg-danger" style="font-size:0.6rem">Critical</span>
+                    @elseif($supply->isLow())
+                    <span class="badge bg-warning text-dark" style="font-size:0.6rem">Low</span>
+                    @endif
+                </div>
+                @if($supply->estimated_days_remaining !== null && $supply->estimated_days_remaining <= 14)
+                <div class="ms-5 mb-1">
+                    <small class="text-{{ $supply->colorClass() }} fw-semibold">
+                        <i class="bi bi-calendar me-1"></i>~{{ $supply->estimated_days_remaining }}d remaining
+                    </small>
+                </div>
+                @endif
+                @endforeach
+                @elseif($printer->drum_black !== null || $printer->fuser_level !== null)
+                {{-- Fallback to legacy drum/fuser columns --}}
+                <h6 class="fw-semibold small text-muted mb-2 {{ $printer->paper_trays ? 'mt-3' : '' }}"><i class="bi bi-gear me-1"></i>Consumables</h6>
                 @if($printer->drum_black !== null)
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <small class="text-muted fw-semibold" style="width:60px">Drum</small>
@@ -382,4 +458,84 @@
     </form>
 </div>
 @endcan
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    let tonerChart = null;
+    let tonerLoaded = false;
+
+    document.getElementById('tonerHistoryChart').addEventListener('show.bs.collapse', function () {
+        if (tonerLoaded) return;
+        tonerLoaded = true;
+
+        fetch('/admin/printers/{{ $printer->id }}/toner-history?days=14')
+            .then(r => r.json())
+            .then(datasets => {
+                if (!datasets || !datasets.length) {
+                    document.getElementById('tonerChart').insertAdjacentHTML('afterend',
+                        '<p class="text-muted small text-center mt-2">No toner history data available yet.</p>');
+                    return;
+                }
+
+                const colorMap = {
+                    'black':   '#343a40',
+                    'cyan':    '#17a2b8',
+                    'magenta': '#e83e8c',
+                    'yellow':  '#ffc107',
+                };
+
+                function resolveColor(label) {
+                    const lower = label.toLowerCase();
+                    for (const [key, val] of Object.entries(colorMap)) {
+                        if (lower.includes(key)) return val;
+                    }
+                    return '#6c757d';
+                }
+
+                tonerChart = new Chart(document.getElementById('tonerChart'), {
+                    type: 'line',
+                    data: {
+                        labels: datasets[0].data.map(d => new Date(d.ts).toLocaleDateString()),
+                        datasets: datasets.map(ds => ({
+                            label: ds.label,
+                            data: ds.data.map(d => d.v),
+                            borderColor: resolveColor(ds.label),
+                            backgroundColor: 'transparent',
+                            fill: false,
+                            tension: 0.3,
+                            pointRadius: ds.data.length > 100 ? 0 : 3,
+                            borderWidth: 2,
+                        }))
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                min: 0,
+                                max: 100,
+                                title: { display: true, text: '%' },
+                                ticks: { callback: v => v + '%' },
+                            },
+                            x: {
+                                ticks: { maxTicksLimit: 10, maxRotation: 0 },
+                                grid: { display: false },
+                            }
+                        },
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}%` }
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(err => console.error('Toner history load failed:', err));
+    });
+})();
+</script>
+@endpush
 @endsection

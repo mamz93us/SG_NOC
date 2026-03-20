@@ -365,4 +365,82 @@
 @endif
 @endcan
 
+{{-- ═══════════════════════════════════════════════════════════════════
+     TONER RISK WIDGET (Phase 7)
+══════════════════════════════════════════════════════════════════════ --}}
+@can('view-printers')
+@php
+    $tonerRiskWidget = null;
+    try {
+        if (\Illuminate\Support\Facades\Schema::hasTable('printer_supplies')) {
+            $tonerRiskWidget = \App\Models\PrinterSupply::where('supply_type', 'toner')
+                ->where('estimated_days_remaining', '<=', 14)
+                ->whereNotNull('estimated_days_remaining')
+                ->with('printer')
+                ->orderBy('estimated_days_remaining')
+                ->limit(10)
+                ->get();
+        }
+    } catch (\Throwable $e) {
+        $tonerRiskWidget = null;
+    }
+@endphp
+@if($tonerRiskWidget && $tonerRiskWidget->count() > 0)
+<div class="card border-warning mb-4 mt-4">
+    <div class="card-header bg-warning text-dark d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <strong>Toner Risk</strong>
+        <span class="ms-1">— {{ $tonerRiskWidget->count() }} printer(s) running low</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Printer</th>
+                    <th>Supply</th>
+                    <th>Level</th>
+                    <th class="pe-3">Est. Days</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($tonerRiskWidget as $supply)
+                <tr class="{{ $supply->estimated_days_remaining <= 3 ? 'table-danger' : 'table-warning' }}">
+                    <td class="ps-3">
+                        @if($supply->printer)
+                        <a href="{{ route('admin.printers.show', $supply->printer) }}" class="text-decoration-none fw-semibold">
+                            {{ $supply->printer->printer_name }}
+                        </a>
+                        @else
+                        <span class="text-muted">Unknown Printer</span>
+                        @endif
+                    </td>
+                    <td>{{ $supply->supply_descr }}</td>
+                    <td>
+                        @if($supply->supply_percent !== null)
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="progress flex-grow-1" style="height:14px;min-width:60px">
+                                <div class="progress-bar bg-{{ $supply->estimated_days_remaining <= 3 ? 'danger' : 'warning' }}"
+                                     style="width:{{ $supply->supply_percent }}%">
+                                    <span style="font-size:0.65rem">{{ $supply->supply_percent }}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        @else
+                        <span class="text-muted">—</span>
+                        @endif
+                    </td>
+                    <td class="pe-3">
+                        <strong class="text-{{ $supply->estimated_days_remaining <= 3 ? 'danger' : 'dark' }}">
+                            {{ $supply->estimated_days_remaining }}d
+                        </strong>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
+@endcan
+
 @endsection

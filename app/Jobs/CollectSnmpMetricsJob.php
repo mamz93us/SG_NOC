@@ -131,6 +131,7 @@ class CollectSnmpMetricsJob implements ShouldQueue
                                 'recorded_at' => now(),
                             ]);
                             $this->checkThresholds($host, $sensor, $finalValue);
+                            $this->checkDuplexAlert($host, $sensor, $finalValue);
                         }
 
                         $sensor->update(['status' => 'active', 'consecutive_failures' => 0]);
@@ -276,6 +277,47 @@ class CollectSnmpMetricsJob implements ShouldQueue
 
         Log::debug("parseValue: Could not parse value, defaulting to 0", ['raw' => $value]);
         return 0;
+    }
+
+    protected function checkDuplexAlert(MonitoredHost $host, SnmpSensor $sensor, float $value): void
+    {
+        if ($sensor->sensor_group !== 'interface_duplex') {
+            return;
+        }
+
+        $sensorName = $sensor->name ?: $sensor->description ?: $sensor->oid;
+        $eventTitle = "Half-Duplex Detected: {$host->name} - {$sensorName}";
+
+        if ((int) $value === 2) {
+            // Value 2 = half-duplex — possible duplex mismatch
+            $existingEvent = NocEvent::where('source_id', $host->id)
+                ->where('event_type', 'snmp_threshold')
+                ->where('status', 'active')
+                ->where('title', $eventTitle)
+                ->first();
+
+            if (!$existingEvent) {
+                NocEvent::create([
+                    'event_type'  => 'snmp_threshold',
+                    'source_id'   => $host->id,
+                    'title'       => $eventTitle,
+                    'description' => "Interface {$sensorName} is operating in half-duplex mode — possible duplex mismatch",
+                    'severity'    => 'warning',
+                    'status'      => 'active',
+                    'detected_at' => now(),
+                ]);
+            }
+        } else {
+            // Value is no longer 2 (full-duplex or unknown) — auto-resolve
+            NocEvent::where('source_id', $host->id)
+                ->where('event_type', 'snmp_threshold')
+                ->where('status', 'active')
+                ->where('title', $eventTitle)
+                ->update([
+                    'status'      => 'resolved',
+                    'resolved_at' => now(),
+                ]);
+        }
     }
 
     protected function checkThresholds(MonitoredHost $host, SnmpSensor $sensor, float $value): void

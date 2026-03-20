@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\MonitoredHost;
 use App\Models\SnmpSensor;
+use App\Polling\OS\OsFactory;
 use App\Services\Snmp\SnmpClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -84,112 +85,23 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
 
             $sysObjectID = $client->get('1.3.6.1.2.1.1.2.0');
 
-            // --- Vendor Detection based on sysDescr and sysObjectID ---
-            $discoveredType = 'generic';
+            // --- Vendor Detection via OS Factory (LibreNMS-inspired) ---
+            $sysObjectIDStr = is_string($sysObjectID) ? $this->cleanString($sysObjectID) ?? '' : '';
+            $os = OsFactory::make($this->host, $client, $sysDescr, $sysObjectIDStr);
 
-            $isSophos = (stripos($sysDescr, 'Sophos') !== false || 
-                         stripos($sysDescr, 'SFOS') !== false || 
-                         (is_string($sysObjectID) && str_contains($sysObjectID, '2604')));
+            $this->host->type           = $os->hostType();
+            $this->host->discovered_type = $os->discoveredType();
 
-            if (stripos($sysDescr, 'Cisco') !== false || stripos($sysDescr, 'IOS') !== false) {
-                $discoveredType = 'cisco';
-                $this->host->type = 'switch';
-                $this->createSensor('CPU Usage (5m)', '1.3.6.1.4.1.9.9.109.1.1.1.1.8.1', 'gauge', '%', 85, 95, 'system');
-                $this->createSensor('Free Memory', '1.3.6.1.4.1.9.9.48.1.1.1.6.1', 'gauge', 'bytes', null, null, 'system');
-            } elseif (stripos($sysDescr, 'Aruba') !== false || stripos($sysDescr, 'HPE') !== false || (is_string($sysObjectID) && str_contains($sysObjectID, '.1.3.6.1.4.1.11'))) {
-                $discoveredType = 'hp_aruba';
-                $this->host->type = 'switch';
-            } elseif (stripos($sysDescr, 'Switch') !== false && stripos($this->host->type, 'switch') === false) {
-                $discoveredType = 'generic_switch';
-                $this->host->type = 'switch';
-            } elseif ($isSophos) {
-                $discoveredType = 'sophos';
-                $this->host->type = 'firewall';
-                
-                // Add Sophos System Sensors
-                // .1.3.6.1.4.1.2604.5.1.2.4.1.0 = Memory Total (KB)
-                // .1.3.6.1.4.1.2604.5.1.2.4.2.0 = Memory Used (%)
-                $this->createSensor('Memory Usage', '1.3.6.1.4.1.2604.5.1.2.4.2.0', 'gauge', '%', 80, 95, 'system');
-                // .1.3.6.1.4.1.2604.5.1.2.1.1.0 (sometimes) or .1.3.6.1.4.1.2604.5.1.2.6.0 = CPU Load
-                $this->createSensor('CPU Load', '1.3.6.1.4.1.2604.5.1.2.6.0', 'gauge', '%', 80, 95, 'system');
-                
-                $this->discoverSophosVpns($client);
+            // Create vendor-specific sensors
+            $os->discoverSensors();
 
-                // Also collect ARP table for DHCP lease tracking
-                try {
-                    CollectArpTableJob::dispatchSync($this->host);
-                } catch (\Throwable $e) {
-                    Log::warning("DiscoverSnmpDeviceJob: ARP collection failed for {$this->host->ip}: " . $e->getMessage());
-                }
-            } elseif (stripos($sysDescr, 'Printer') !== false || stripos($sysDescr, 'HP LaserJet') !== false || stripos($sysDescr, 'Lexmark') !== false
-                     || stripos($sysDescr, 'RICOH') !== false || stripos($sysDescr, 'Ricoh') !== false
-                     || stripos($sysDescr, 'NRG') !== false || stripos($sysDescr, 'Lanier') !== false
-                     || (is_string($sysObjectID) && str_contains($sysObjectID, '1.3.6.1.4.1.367'))) {
-                $discoveredType = 'printer';
-                $this->host->type = 'printer';
+            // Post-discovery actions (VPN walk, UCM extension walk, ARP table, etc.)
+            $os->postDiscover();
 
-                // Standard Printer MIB sensors
-                $this->createSensor('Page Count', '1.3.6.1.2.1.43.10.2.1.4.1.1', 'counter', 'pages', null, null, 'Printer');
-                $this->createSensor('Printer Status', '1.3.6.1.2.1.25.3.5.1.1.1', 'gauge', null, null, null, 'Printer');
-
-                // Standard toner levels (works with most printers)
-                $this->createSensor('Black Toner', '1.3.6.1.2.1.43.11.1.1.9.1.1', 'gauge', '%', 20, 5, 'Toner');
-
-                // Ricoh-specific enhanced sensors
-                $isRicoh = stripos($sysDescr, 'RICOH') !== false || stripos($sysDescr, 'Ricoh') !== false
-                        || stripos($sysDescr, 'NRG') !== false || stripos($sysDescr, 'Lanier') !== false
-                        || (is_string($sysObjectID) && str_contains($sysObjectID, '1.3.6.1.4.1.367'));
-
-                if ($isRicoh) {
-                    $discoveredType = 'ricoh_printer';
-
-                    // Ricoh Private MIB: Toner levels
-                    $this->createSensor('Ricoh Black Toner', '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.1', 'gauge', '%', 20, 5, 'Toner');
-                    $this->createSensor('Ricoh Cyan Toner', '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.2', 'gauge', '%', 20, 5, 'Toner');
-                    $this->createSensor('Ricoh Magenta Toner', '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.3', 'gauge', '%', 20, 5, 'Toner');
-                    $this->createSensor('Ricoh Yellow Toner', '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.4', 'gauge', '%', 20, 5, 'Toner');
-
-                    // Ricoh Private MIB: Page counters
-                    $this->createSensor('Total Counter', '1.3.6.1.4.1.367.3.2.1.2.19.1.0', 'counter', 'pages', null, null, 'Counters');
-                    $this->createSensor('Print Counter', '1.3.6.1.4.1.367.3.2.1.2.19.2.0', 'counter', 'pages', null, null, 'Counters');
-                    $this->createSensor('Fax Counter', '1.3.6.1.4.1.367.3.2.1.2.19.3.0', 'counter', 'pages', null, null, 'Counters');
-                    $this->createSensor('Copy Counter', '1.3.6.1.4.1.367.3.2.1.2.19.4.0', 'counter', 'pages', null, null, 'Counters');
-                    $this->createSensor('Color Pages', '1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.21', 'counter', 'pages', null, null, 'Counters');
-                    $this->createSensor('Mono Pages', '1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.22', 'counter', 'pages', null, null, 'Counters');
-                    $this->createSensor('Scan Counter', '1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.27', 'counter', 'pages', null, null, 'Counters');
-
-                    // Ricoh Private MIB: Tray status
-                    $this->createSensor('Tray Status', '1.3.6.1.4.1.367.3.2.1.2.20.2.2.1.11.2', 'gauge', null, null, null, 'Paper');
-                    $this->createSensor('Tray Level', '1.3.6.1.4.1.367.3.2.1.2.20.2.2.1.10.2', 'gauge', null, null, null, 'Paper');
-                }
-            } elseif (stripos($sysDescr, 'Grandstream') !== false || stripos($sysDescr, 'UCM') !== false || stripos($sysName, 'UCM') !== false) {
-                $discoveredType = 'grandstream';
-                $this->host->type = 'server';
-                // Grandstream specific sensors from GS-UCM63XX-SNMP-MIB
-                $this->createSensor('Concurrent Calls', '1.3.6.1.4.1.12581.2.2.9.0', 'gauge', 'calls');
-                $this->createSensor('CPU Usage', '1.3.6.1.4.1.12581.2.2.8.0', 'gauge', '%', 85, 95);
-                $this->createSensor('Memory Usage', '1.3.6.1.4.1.12581.2.2.7.0', 'gauge', '%', 85, 95);
-                $this->createSensor('Disk Usage', '1.3.6.1.4.1.12581.2.2.6.0', 'gauge', '%', 85, 95);
-            } elseif (stripos($sysDescr, 'Linux') !== false) {
-                $discoveredType = 'linux';
-                $this->host->type = 'server';
-                $this->createSensor('Load Average 1m', '1.3.6.1.4.1.2021.10.1.3.1', 'gauge', null, null, null, 'system');
-                $this->createSensor('CPU Idle', '1.3.6.1.4.1.2021.11.11.0', 'gauge', '%', null, null, 'system');
-            } elseif (stripos($sysDescr, 'Windows') !== false) {
-                $discoveredType = 'windows';
-                $this->host->type = 'server';
-            }
-
-            $this->host->discovered_type = $discoveredType;
             $this->host->save();
 
-            // Grandstream specific table discovery
-            if ($discoveredType === 'grandstream') {
-                $this->discoverUcmResources($client);
-            }
-
             Log::info("SNMP Discovery completed for {$this->host->ip}", [
-                'discovered_type' => $discoveredType,
+                'discovered_type' => $os->discoveredType(),
                 'sysName' => $sysName,
             ]);
 
@@ -205,69 +117,6 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
             ]);
         } finally {
             $client?->close();
-        }
-    }
-
-    protected function discoverSophosVpns(SnmpClient $client): void
-    {
-        Log::info("Discovering Sophos VPNs on {$this->host->ip}");
-
-        // Walk IPSec Tunnel Names: .1.3.6.1.4.1.2604.5.1.6.1.1.1.1.2
-        $vpnNames = $client->walk('1.3.6.1.4.1.2604.5.1.6.1.1.1.1.2');
-
-        if ($vpnNames) {
-            foreach ($vpnNames as $fullOid => $vpnNameRaw) {
-                $vpnName = $this->cleanString($vpnNameRaw);
-                if (preg_match('/\.(\d+)$/', $fullOid, $m)) {
-                    $index = $m[1];
-                    
-                    // 1. Active Status (Administrative)
-                    // .6: (2 = Active/Enabled, 0 = Disabled)
-                    $activeOid = "1.3.6.1.4.1.2604.5.1.6.1.1.1.1.6.{$index}";
-                    $this->createSensor("VPN: {$vpnName} - Active", $activeOid, 'boolean', null, null, null, 'VPN');
-
-                    // 2. Connection Status (Operational)
-                    // .9: (1 = Connected, 0 = Disconnected)
-                    $connOid = "1.3.6.1.4.1.2604.5.1.6.1.1.1.1.9.{$index}";
-                    $this->createSensor("VPN: {$vpnName} - Connection", $connOid, 'boolean', null, null, null, 'VPN');
-                }
-            }
-        }
-    }
-
-    protected function discoverUcmResources(SnmpClient $client): void
-    {
-        Log::info("Discovering UCM Extensions and Trunks on {$this->host->ip}");
-
-        // 1. Extensions Table
-        // OID for sExternsionsNum (Extension list)
-        $extNums = $client->walk('1.3.6.1.4.1.12581.2.4.1.1.2');
-        if ($extNums) {
-            foreach ($extNums as $fullOid => $extNumRaw) {
-                $extNum = $this->cleanString($extNumRaw);
-                // Extract index from OID (last part)
-                if (preg_match('/\.(\d+)$/', $fullOid, $m)) {
-                    $index = $m[1];
-                    // Status OID: .1.3.6.1.4.1.12581.2.4.1.1.3.[index]
-                    $statusOid = "1.3.6.1.4.1.12581.2.4.1.1.3.{$index}";
-                    $this->createSensor("Ext {$extNum} - Status", $statusOid, 'boolean', null, null, null, 'Extensions');
-                }
-            }
-        }
-
-        // 2. Trunks Table
-        // OID for sTrunksName (Trunk list)
-        $trunkNames = $client->walk('1.3.6.1.4.1.12581.2.5.1.1.2');
-        if ($trunkNames) {
-            foreach ($trunkNames as $fullOid => $trunkNameRaw) {
-                $trunkName = $this->cleanString($trunkNameRaw);
-                if (preg_match('/\.(\d+)$/', $fullOid, $m)) {
-                    $index = $m[1];
-                    // Status OID: .1.3.6.1.4.1.12581.2.5.1.1.4.[index]
-                    $statusOid = "1.3.6.1.4.1.12581.2.5.1.1.4.{$index}";
-                    $this->createSensor("Trunk {$trunkName} - Status", $statusOid, 'boolean', null, null, null, 'Trunks');
-                }
-            }
         }
     }
 

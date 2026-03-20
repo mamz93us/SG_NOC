@@ -276,11 +276,25 @@ Schedule::call(function () {
     }
 })->name('poll-printer-snmp')->withoutOverlapping(5)->everyFiveMinutes();
 
-// ─── Prune Old Sensor Metrics — daily at 02:00 AM ───────────
+// ─── Metrics Rollup (hourly → daily) + Tiered Pruning ───────
+// Rolls raw sensor_metrics into hourly/daily rollup tables.
+// Also prunes: raw data >7 days, hourly data >90 days.
+// Runs inline (not queued) to avoid queue-worker dependency on shared hosting.
+Schedule::call(function () {
+    try {
+        (new \App\Jobs\RollupMetricsJob())->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error("Metrics rollup failed: " . $e->getMessage());
+    }
+})->name('rollup-metrics')->withoutOverlapping(30)->hourly();
+
+// ─── Prune Old Sensor Metrics — weekly safety net at 02:00 AM ──
+// Kept as a fallback in case RollupMetricsJob is missed. Uses the
+// configurable metrics_retention_days setting from the DB.
 Schedule::call(function () {
     try {
         (new \App\Jobs\PruneOldMetricsJob())->handle();
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error("Prune metrics failed: " . $e->getMessage());
     }
-})->name('prune-old-metrics')->withoutOverlapping(60)->dailyAt('02:00');
+})->name('prune-old-metrics')->withoutOverlapping(60)->weeklyOn(0, '02:00');

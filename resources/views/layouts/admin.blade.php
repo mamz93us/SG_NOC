@@ -521,6 +521,17 @@
                                 </a>
                             </li>
                             @endcanany
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.alerts.dashboard') || request()->routeIs('admin.alert-rules.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.alerts.dashboard') }}">
+                                    <i class="bi bi-shield-exclamation me-2"></i>Alert Rules
+                                    @php $__activeAlerts = \App\Models\AlertState::where('state','alerted')->count(); @endphp
+                                    @if($__activeAlerts > 0)
+                                    <span class="badge bg-danger ms-1">{{ $__activeAlerts }}</span>
+                                    @endif
+                                </a>
+                            </li>
                         </ul>
                     </li>
                     @endcan

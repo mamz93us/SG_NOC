@@ -88,7 +88,10 @@
       "Bash(xargs basename:*)",
       "Bash(grep -h \"class.*extends\\\\|implements\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Jobs/*.php)",
       "Bash(grep -v \".php$\")",
-      "Bash(ls /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/config/*.php)"
+      "Bash(ls /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/config/*.php)",
+      "Bash(grep -l \"snmp\\\\|SNMP\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/routes/*.php)",
+      "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Services -type f -name *.php)",
+      "Bash(grep -l \"monitored_hosts\\\\|snmp_sensors\\\\|SnmpSensor\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)"
     ]
   }
 }

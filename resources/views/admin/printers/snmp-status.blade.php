@@ -128,6 +128,10 @@
                 @endif
 
                 {{-- Toner Gauges --}}
+                @php
+                    $tonerSupplies = $printer->supplies->where('supply_type', 'toner');
+                    $otherSupplies = $printer->supplies->whereNotIn('supply_type', ['toner']);
+                @endphp
                 <div class="mb-2">
                     <div class="d-flex align-items-center justify-content-between mb-1">
                         <small class="fw-semibold text-muted">Toner Levels</small>
@@ -138,6 +142,33 @@
                         @endif
                     </div>
 
+                    @forelse($tonerSupplies as $supply)
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <div style="width:12px;height:12px;border-radius:50%;background:{{ $supply->colorDot() }};flex-shrink:0;border:1px solid rgba(0,0,0,0.15)"></div>
+                        <small class="text-muted text-truncate" style="width:55px" title="{{ $supply->supply_descr }}">
+                            {{ ucfirst($supply->supply_color ?? 'N/A') }}
+                        </small>
+                        <div class="progress flex-grow-1" style="height:14px">
+                            @if($supply->supply_percent !== null)
+                            <div class="progress-bar bg-{{ $supply->colorClass() }}"
+                                 role="progressbar" style="width:{{ $supply->supply_percent }}%"
+                                 aria-valuenow="{{ $supply->supply_percent }}" aria-valuemin="0" aria-valuemax="100">
+                                <small class="fw-bold" style="font-size:0.65rem">{{ $supply->supply_percent }}%</small>
+                            </div>
+                            @else
+                            <div class="progress-bar bg-secondary" role="progressbar" style="width:100%">
+                                <small style="font-size:0.65rem">N/A</small>
+                            </div>
+                            @endif
+                        </div>
+                        @if($supply->estimated_days_remaining !== null && $supply->estimated_days_remaining <= 14)
+                        <span class="badge bg-{{ $supply->colorClass() }} text-nowrap" style="font-size:0.6rem">
+                            ~{{ $supply->estimated_days_remaining }}d
+                        </span>
+                        @endif
+                    </div>
+                    @empty
+                    {{-- Fallback to legacy flat columns if no supply rows yet --}}
                     @foreach($printer->tonerLevels() as $color => $level)
                     <div class="d-flex align-items-center gap-2 mb-1">
                         <div style="width:12px;height:12px;border-radius:50%;background:{{ \App\Models\Printer::tonerColor($color) }};flex-shrink:0;border:1px solid rgba(0,0,0,0.15)"></div>
@@ -157,19 +188,7 @@
                         </div>
                     </div>
                     @endforeach
-
-                    @if($printer->toner_waste !== null)
-                    <div class="d-flex align-items-center gap-2 mb-1">
-                        <div style="width:12px;height:12px;border-radius:50%;background:#6c757d;flex-shrink:0;border:1px solid rgba(0,0,0,0.15)"></div>
-                        <small class="text-muted" style="width:55px">Waste</small>
-                        <div class="progress flex-grow-1" style="height:14px">
-                            <div class="progress-bar {{ $printer->toner_waste >= 80 ? 'bg-danger' : ($printer->toner_waste >= 60 ? 'bg-warning' : 'bg-info') }}"
-                                 role="progressbar" style="width:{{ $printer->toner_waste }}%">
-                                <small class="fw-bold" style="font-size:0.65rem">{{ $printer->toner_waste }}%</small>
-                            </div>
-                        </div>
-                    </div>
-                    @endif
+                    @endforelse
                 </div>
 
                 {{-- Paper Trays --}}
@@ -194,8 +213,38 @@
                 </div>
                 @endif
 
-                {{-- Drum / Fuser --}}
-                @if($printer->drum_black !== null || $printer->fuser_level !== null)
+                {{-- Drum / Fuser / Waste (from supplies table) --}}
+                @if($otherSupplies->isNotEmpty())
+                <div class="mb-2">
+                    <small class="fw-semibold text-muted d-block mb-1">Supplies</small>
+                    @foreach($otherSupplies as $supply)
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <i class="bi {{ $supply->typeIcon() }} text-muted" style="width:12px;font-size:0.7rem"></i>
+                        <small class="text-muted text-truncate" style="width:55px" title="{{ $supply->supply_descr }}">
+                            {{ ucfirst($supply->supply_type) }}
+                        </small>
+                        <div class="progress flex-grow-1" style="height:12px">
+                            @if($supply->supply_percent !== null)
+                            <div class="progress-bar bg-{{ $supply->colorClass() }}"
+                                 style="width:{{ $supply->supply_percent }}%">
+                                <small style="font-size:0.6rem">{{ $supply->supply_percent }}%</small>
+                            </div>
+                            @else
+                            <div class="progress-bar bg-secondary" style="width:100%">
+                                <small style="font-size:0.6rem">N/A</small>
+                            </div>
+                            @endif
+                        </div>
+                        @if($supply->estimated_days_remaining !== null && $supply->estimated_days_remaining <= 14)
+                        <span class="badge bg-{{ $supply->colorClass() }} text-nowrap" style="font-size:0.6rem">
+                            ~{{ $supply->estimated_days_remaining }}d
+                        </span>
+                        @endif
+                    </div>
+                    @endforeach
+                </div>
+                @elseif($printer->drum_black !== null || $printer->fuser_level !== null)
+                {{-- Fallback to legacy drum/fuser columns --}}
                 <div class="mb-2">
                     <small class="fw-semibold text-muted d-block mb-1">Consumables</small>
                     @if($printer->drum_black !== null)

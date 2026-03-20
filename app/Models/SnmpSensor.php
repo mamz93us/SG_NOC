@@ -45,4 +45,35 @@ class SnmpSensor extends Model
     {
         return $this->hasMany(SensorMetric::class, 'sensor_id');
     }
+
+    public function hourlyMetrics(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\SensorMetricHourly::class, 'sensor_id');
+    }
+
+    public function dailyMetrics(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\SensorMetricDaily::class, 'sensor_id');
+    }
+
+    /**
+     * Get the best available data points for graphing.
+     * Returns hourly data for the last 7 days, daily data beyond that.
+     */
+    public function getGraphData(int $days = 30): array
+    {
+        if ($days <= 7) {
+            return $this->hourlyMetrics()
+                ->where('hour', '>=', now()->subDays($days))
+                ->orderBy('hour')
+                ->get(['hour as ts', 'value_avg as value', 'value_min', 'value_max'])
+                ->toArray();
+        }
+
+        return $this->dailyMetrics()
+            ->where('date', '>=', now()->subDays($days)->toDateString())
+            ->orderBy('date')
+            ->get(['date as ts', 'value_avg as value', 'value_min', 'value_max'])
+            ->toArray();
+    }
 }

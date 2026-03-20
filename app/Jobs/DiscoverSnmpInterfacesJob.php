@@ -122,6 +122,52 @@ class DiscoverSnmpInterfacesJob implements ShouldQueue
                 // Port Status (ifOperStatus)
                 $this->createSensor($cleanName . ' - Status', "1.3.6.1.2.1.2.2.1.8.{$index}", 'boolean', 'status', $index, 'interface_status', $description);
 
+                // Error counter sensors (ifInErrors, ifOutErrors, ifInDiscards, ifOutDiscards)
+                $errorSensors = [
+                    ['name' => $cleanName . ' In Errors',    'oid' => "1.3.6.1.2.1.2.2.1.14.{$index}", 'group' => 'interface_errors'],
+                    ['name' => $cleanName . ' Out Errors',   'oid' => "1.3.6.1.2.1.2.2.1.20.{$index}", 'group' => 'interface_errors'],
+                    ['name' => $cleanName . ' In Discards',  'oid' => "1.3.6.1.2.1.2.2.1.13.{$index}", 'group' => 'interface_errors'],
+                    ['name' => $cleanName . ' Out Discards', 'oid' => "1.3.6.1.2.1.2.2.1.19.{$index}", 'group' => 'interface_errors'],
+                ];
+
+                foreach ($errorSensors as $es) {
+                    $this->host->snmpSensors()->updateOrCreate(
+                        ['oid' => $es['oid']],
+                        [
+                            'name'              => $es['name'],
+                            'description'       => $description,
+                            'data_type'         => 'counter',
+                            'unit'              => 'errors/sec',
+                            'poll_interval'     => 60,
+                            'sensor_group'      => $es['group'],
+                            'interface_index'   => $index,
+                            'warning_threshold' => 10,
+                            'critical_threshold'=> 100,
+                            'graph_enabled'     => true,
+                            'status'            => 'active',
+                        ]
+                    );
+                }
+
+                // Duplex sensor (dot3StatsDuplexStatus — 1=unknown, 2=half-duplex, 3=full-duplex)
+                $this->host->snmpSensors()->updateOrCreate(
+                    ['oid' => "1.3.6.1.2.1.10.7.2.1.19.{$index}"],
+                    [
+                        'name'              => $cleanName . ' Duplex',
+                        'description'       => '1=unknown, 2=half-duplex, 3=full-duplex',
+                        'data_type'         => 'gauge',
+                        'unit'              => 'duplex',
+                        'poll_interval'     => 60,
+                        'sensor_group'      => 'interface_duplex',
+                        'interface_index'   => $index,
+                        // warning_threshold is set slightly above 2 so that value == 2 (half-duplex) triggers warning
+                        'warning_threshold' => 2.5,
+                        'critical_threshold'=> null,
+                        'graph_enabled'     => false,
+                        'status'            => 'active',
+                    ]
+                );
+
                 $discoveredIndices[] = $index;
                 $discoveredCount++;
             }
@@ -129,7 +175,7 @@ class DiscoverSnmpInterfacesJob implements ShouldQueue
             // Cleanup: remove interface sensors that are no longer part of the physical set
             if (!empty($discoveredIndices)) {
                 $this->host->snmpSensors()
-                    ->whereIn('sensor_group', ['interface_traffic', 'interface_status'])
+                    ->whereIn('sensor_group', ['interface_traffic', 'interface_status', 'interface_errors', 'interface_duplex'])
                     ->whereNotIn('interface_index', $discoveredIndices)
                     ->delete();
             }

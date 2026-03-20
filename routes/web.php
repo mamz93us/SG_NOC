@@ -60,6 +60,7 @@ use App\Http\Controllers\PhoneRequestLogController;
 use App\Http\Controllers\Admin\DarkModeController;
 use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\ItTaskController;
+use App\Http\Controllers\Admin\AlertRuleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -513,6 +514,21 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/poll-all-sync', [SnmpMonitoringController::class, 'pollAllSync'])->name('poll-all-sync');
     });
 
+    // ─── Sensor Chart & History (Phase 7) ──────────────────────────
+    Route::middleware(['auth', 'permission:manage-network-settings'])->group(function () {
+        Route::get('sensors/{sensor}/history', [SnmpMonitoringController::class, 'sensorHistory'])
+            ->name('sensors.history');
+        Route::get('sensors/{sensor}/chart', function (\App\Models\SnmpSensor $sensor) {
+            return view('admin.sensors.chart', compact('sensor'));
+        })->name('sensors.chart');
+    });
+
+    // ─── Printer Toner History API (Phase 7) ───────────────────────
+    Route::middleware('permission:view-printers')->group(function () {
+        Route::get('printers/{printer}/toner-history', [PrinterController::class, 'tonerHistory'])
+            ->name('printers.toner-history');
+    });
+
     // ─── Workers Dashboard ─────────────────────────────────────────
     Route::middleware(['auth', 'permission:manage-network-settings'])->prefix('network/workers')->name('network.workers.')->group(function () {
         Route::get('/',                                   [WorkersDashboardController::class, 'index'])               ->name('index');
@@ -659,6 +675,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/{incident}/comment', [\App\Http\Controllers\Admin\IncidentController::class, 'addComment'])->name('comment');
         Route::get('/from-event/{eventId}', [\App\Http\Controllers\Admin\IncidentController::class, 'createFromEvent'])->name('from-event');
     });
+
+    // ─── Alert Rule Engine ───────────────────────────────────
+    Route::resource('alert-rules', AlertRuleController::class);
+    Route::get('alert-rules/{alertRule}/states',        [AlertRuleController::class, 'states'])     ->name('alert-rules.states');
+    Route::post('alert-states/{alertState}/acknowledge',[AlertRuleController::class, 'acknowledge']) ->name('alert-states.acknowledge');
+    Route::get('alerts/dashboard',                      [AlertRuleController::class, 'alerts'])      ->name('alerts.dashboard');
 
     // ─── Workflows ────────────────────────────────────────────
     Route::middleware('permission:view-workflows')->group(function () {

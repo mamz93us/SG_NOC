@@ -172,10 +172,37 @@
 @php
     $groupedSensors = ['General' => [], 'Interfaces' => [], 'Extensions' => [], 'Trunks' => [], 'VPN' => []];
     $vpnGrouped = [];
+    // interface_errors: keyed by interface_index, each entry holds In Errors/Out Errors/In Discards/Out Discards sensors
+    // interface_duplex: keyed by interface_index, holds duplex sensor
+    $interfaceErrorSensors = [];  // [ index => [ 'In Errors' => sensor, 'Out Errors' => sensor, ... ] ]
+    $interfaceDuplexSensors = []; // [ index => sensor ]
 
     foreach($host->snmpSensors as $sensor) {
         $name = $sensor->name ?: $sensor->oid;
-        
+
+        // Collect error counter sensors separately for the Interface Errors table
+        if ($sensor->sensor_group === 'interface_errors') {
+            $idx = $sensor->interface_index ?? 0;
+            // Determine the column key from the sensor name suffix
+            if (str_ends_with($name, ' In Errors')) {
+                $interfaceErrorSensors[$idx]['In Errors'] = $sensor;
+            } elseif (str_ends_with($name, ' Out Errors')) {
+                $interfaceErrorSensors[$idx]['Out Errors'] = $sensor;
+            } elseif (str_ends_with($name, ' In Discards')) {
+                $interfaceErrorSensors[$idx]['In Discards'] = $sensor;
+            } elseif (str_ends_with($name, ' Out Discards')) {
+                $interfaceErrorSensors[$idx]['Out Discards'] = $sensor;
+            }
+            continue;
+        }
+
+        // Collect duplex sensors separately
+        if ($sensor->sensor_group === 'interface_duplex') {
+            $idx = $sensor->interface_index ?? 0;
+            $interfaceDuplexSensors[$idx] = $sensor;
+            continue;
+        }
+
         // Group by explicitly set sensor_group first
         if ($sensor->sensor_group && isset($groupedSensors[$sensor->sensor_group])) {
             if ($sensor->sensor_group === 'VPN') {
@@ -204,6 +231,19 @@
             $groupedSensors['General'][] = $sensor;
         }
     }
+
+    // Build a combined per-interface error table: merge error sensors with duplex sensors by index
+    // We need interface names — pull them from the interface traffic sensors
+    $interfaceNamesByIndex = [];
+    foreach ($groupedSensors['Interfaces'] as $ifaceName => $sensors) {
+        $firstSensor = reset($sensors);
+        if ($firstSensor && $firstSensor->interface_index) {
+            $interfaceNamesByIndex[$firstSensor->interface_index] = $ifaceName;
+        }
+    }
+    // Gather all indexes that have error or duplex data
+    $errorIndexes = array_unique(array_merge(array_keys($interfaceErrorSensors), array_keys($interfaceDuplexSensors)));
+    sort($errorIndexes);
 @endphp
 
 <style>
@@ -270,13 +310,19 @@
                             </h6>
                             <span class="badge bg-light text-muted fw-normal interface-pill border">{{ $sensor->data_type }}</span>
                         </div>
-                        @if($latest)
-                            <div class="text-end">
+                        <div class="d-flex flex-column align-items-end gap-1">
+                            @if($latest)
                                 <div class="text-muted x-small">Last polled: {{ $latest->recorded_at->diffForHumans() }}</div>
-                            </div>
-                        @else
-                            <span class="badge bg-secondary-subtle text-secondary small">No Data</span>
-                        @endif
+                            @else
+                                <span class="badge bg-secondary-subtle text-secondary small">No Data</span>
+                            @endif
+                            <a href="{{ route('admin.sensors.chart', $sensor) }}"
+                               class="btn btn-outline-secondary py-0 px-1"
+                               style="font-size:0.7rem;line-height:1.4"
+                               title="View historical chart">
+                                <i class="bi bi-graph-up"></i>
+                            </a>
+                        </div>
                     </div>
                     
                     <div class="mt-auto">
@@ -651,6 +697,137 @@
             </div>
         </div>
     @endforeach
+</div>
+@endif
+
+<!-- Interface Errors & Duplex -->
+@if(!empty($errorIndexes))
+<style>
+    .err-cell-zero    { color: #6c757d; }
+    .err-cell-warn    { color: #856404; background-color: #fff3cd; border-radius: 4px; padding: 2px 6px; }
+    .err-cell-crit    { color: #842029; background-color: #f8d7da; border-radius: 4px; padding: 2px 6px; }
+    .duplex-full      { background-color: #d1e7dd; color: #0f5132; }
+    .duplex-half      { background-color: #f8d7da; color: #842029; }
+    .duplex-unknown   { background-color: #e2e3e5; color: #41464b; }
+</style>
+<div class="mt-5 mb-4">
+    <h6 class="text-uppercase text-muted fw-bold small mb-3">
+        <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Interface Errors &amp; Duplex Status
+    </h6>
+    <div class="card shadow-sm border-0 glass-card overflow-hidden">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 small">
+                    <thead class="bg-dark text-white sticky-top">
+                        <tr>
+                            <th class="ps-4 py-3" style="min-width:130px;">Interface</th>
+                            <th class="text-center py-3">In Errors/s</th>
+                            <th class="text-center py-3">Out Errors/s</th>
+                            <th class="text-center py-3">In Discards/s</th>
+                            <th class="text-center py-3">Out Discards/s</th>
+                            <th class="text-center py-3">Duplex</th>
+                            <th class="text-end pe-4 py-3">Last Polled</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($errorIndexes as $idx)
+                            @php
+                                $ifName = $interfaceNamesByIndex[$idx] ?? ('Index ' . $idx);
+
+                                $inErr   = $interfaceErrorSensors[$idx]['In Errors']    ?? null;
+                                $outErr  = $interfaceErrorSensors[$idx]['Out Errors']   ?? null;
+                                $inDisc  = $interfaceErrorSensors[$idx]['In Discards']  ?? null;
+                                $outDisc = $interfaceErrorSensors[$idx]['Out Discards'] ?? null;
+                                $duplexS = $interfaceDuplexSensors[$idx] ?? null;
+
+                                $inErrVal   = $inErr   ? ($inErr->sensorMetrics->first()?->value   ?? null) : null;
+                                $outErrVal  = $outErr  ? ($outErr->sensorMetrics->first()?->value  ?? null) : null;
+                                $inDiscVal  = $inDisc  ? ($inDisc->sensorMetrics->first()?->value  ?? null) : null;
+                                $outDiscVal = $outDisc ? ($outDisc->sensorMetrics->first()?->value ?? null) : null;
+                                $duplexVal  = $duplexS ? ($duplexS->sensorMetrics->first()?->value ?? null) : null;
+
+                                // Determine CSS class for an error/discard rate value
+                                $errClass = function($v) {
+                                    if ($v === null) return 'text-muted';
+                                    if ($v >= 10)  return 'err-cell-crit fw-bold';
+                                    if ($v >= 1)   return 'err-cell-warn fw-bold';
+                                    return 'err-cell-zero';
+                                };
+
+                                $fmt = function($v) {
+                                    if ($v === null) return '—';
+                                    return number_format($v, $v < 1 ? 2 : 0);
+                                };
+
+                                // Duplex badge
+                                if ($duplexVal === null) {
+                                    $duplexLabel = '—';
+                                    $duplexClass = '';
+                                } elseif ((int)$duplexVal === 3) {
+                                    $duplexLabel = 'Full';
+                                    $duplexClass = 'duplex-full';
+                                } elseif ((int)$duplexVal === 2) {
+                                    $duplexLabel = 'Half';
+                                    $duplexClass = 'duplex-half';
+                                } else {
+                                    $duplexLabel = 'Unknown';
+                                    $duplexClass = 'duplex-unknown';
+                                }
+
+                                // Last polled: pick the most recent sensorMetrics timestamp among error sensors
+                                $lastPolled = null;
+                                foreach ([$inErr, $outErr, $inDisc, $outDisc, $duplexS] as $s) {
+                                    if ($s) {
+                                        $ts = $s->sensorMetrics->first()?->recorded_at;
+                                        if ($ts && ($lastPolled === null || $ts->gt($lastPolled))) {
+                                            $lastPolled = $ts;
+                                        }
+                                    }
+                                }
+                            @endphp
+                            <tr>
+                                <td class="ps-4 py-3 fw-bold text-dark">{{ $ifName }}</td>
+                                <td class="text-center py-3">
+                                    <span class="{{ $errClass($inErrVal) }}">{{ $fmt($inErrVal) }}</span>
+                                </td>
+                                <td class="text-center py-3">
+                                    <span class="{{ $errClass($outErrVal) }}">{{ $fmt($outErrVal) }}</span>
+                                </td>
+                                <td class="text-center py-3">
+                                    <span class="{{ $errClass($inDiscVal) }}">{{ $fmt($inDiscVal) }}</span>
+                                </td>
+                                <td class="text-center py-3">
+                                    <span class="{{ $errClass($outDiscVal) }}">{{ $fmt($outDiscVal) }}</span>
+                                </td>
+                                <td class="text-center py-3">
+                                    @if($duplexVal !== null)
+                                        <span class="badge px-3 py-1 rounded-pill {{ $duplexClass }}">
+                                            @if((int)$duplexVal === 2)
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                            @elseif((int)$duplexVal === 3)
+                                                <i class="bi bi-check-circle-fill me-1"></i>
+                                            @endif
+                                            {{ $duplexLabel }}
+                                        </span>
+                                    @else
+                                        <span class="text-muted small">—</span>
+                                    @endif
+                                </td>
+                                <td class="text-end pe-4 py-3 text-muted x-small">
+                                    {{ $lastPolled ? $lastPolled->diffForHumans() : 'Never' }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-transparent border-0 text-muted small py-2 px-4">
+            <i class="bi bi-info-circle me-1"></i>
+            Error/discard values are rates (per second). Color thresholds: <span class="err-cell-warn fw-bold px-1">1–9 = warning</span>, <span class="err-cell-crit fw-bold px-1">10+ = critical</span>.
+            Duplex: <span class="badge duplex-full px-2">Full</span> = normal, <span class="badge duplex-half px-2">Half</span> = possible mismatch.
+        </div>
+    </div>
 </div>
 @endif
 

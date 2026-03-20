@@ -1,0 +1,59 @@
+<?php
+
+namespace App\Polling\OS;
+
+/**
+ * Ricoh Printer OS — Ricoh Private MIB (enterprise OID 1.3.6.1.4.1.367)
+ * Also covers NRG and Lanier (rebranded Ricoh devices).
+ *
+ * Ricoh Private MIB structure:
+ *   - Toner names:  1.3.6.1.4.1.367.3.2.1.2.24.1.1.3.{index}
+ *   - Toner levels: 1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.{index}
+ *   - Page counters: 1.3.6.1.4.1.367.3.2.1.2.19.*
+ */
+class RicohPrinterOS extends BaseOS
+{
+    public function discoveredType(): string { return 'ricoh_printer'; }
+    public function hostType(): string       { return 'printer'; }
+
+    public static function detect(string $sysDescr, string $sysObjectID): bool
+    {
+        return stripos($sysDescr, 'RICOH') !== false
+            || stripos($sysDescr, 'Ricoh') !== false
+            || stripos($sysDescr, 'NRG') !== false
+            || stripos($sysDescr, 'Lanier') !== false
+            || str_contains($sysObjectID, '1.3.6.1.4.1.367');
+    }
+
+    public function discoverSensors(): void
+    {
+        // Standard Printer-MIB fallback sensors (always created for compatibility)
+        $this->createSensor('Page Count',     '1.3.6.1.2.1.43.10.2.1.4.1.1', 'counter', 'pages', null, null, 'Printer');
+        $this->createSensor('Printer Status', '1.3.6.1.2.1.25.3.5.1.1.1',    'gauge', null, null, null, 'Printer',
+            '3=idle, 4=printing, 5=warmup');
+
+        // Ricoh Private MIB — Toner levels (indices 1-4: Black, Cyan, Magenta, Yellow)
+        $this->createSensor('Ricoh Black Toner',   '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.1', 'gauge', '%', 20, 5, 'Toner');
+        $this->createSensor('Ricoh Cyan Toner',    '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.2', 'gauge', '%', 20, 5, 'Toner');
+        $this->createSensor('Ricoh Magenta Toner', '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.3', 'gauge', '%', 20, 5, 'Toner');
+        $this->createSensor('Ricoh Yellow Toner',  '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.4', 'gauge', '%', 20, 5, 'Toner');
+
+        // Ricoh Private MIB — Page counters
+        $this->createSensor('Total Counter',  '1.3.6.1.4.1.367.3.2.1.2.19.1.0',      'counter', 'pages', null, null, 'Counters');
+        $this->createSensor('Print Counter',  '1.3.6.1.4.1.367.3.2.1.2.19.2.0',      'counter', 'pages', null, null, 'Counters');
+        $this->createSensor('Fax Counter',    '1.3.6.1.4.1.367.3.2.1.2.19.3.0',      'counter', 'pages', null, null, 'Counters');
+        $this->createSensor('Copy Counter',   '1.3.6.1.4.1.367.3.2.1.2.19.4.0',      'counter', 'pages', null, null, 'Counters');
+        $this->createSensor('Color Pages',    '1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.21', 'counter', 'pages', null, null, 'Counters');
+        $this->createSensor('Mono Pages',     '1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.22', 'counter', 'pages', null, null, 'Counters');
+        $this->createSensor('Scan Counter',   '1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.27', 'counter', 'pages', null, null, 'Counters');
+
+        // Ricoh Private MIB — Paper tray
+        $this->createSensor('Tray Status', '1.3.6.1.4.1.367.3.2.1.2.20.2.2.1.11.2', 'gauge', null, null, null, 'Paper');
+        $this->createSensor('Tray Level',  '1.3.6.1.4.1.367.3.2.1.2.20.2.2.1.10.2', 'gauge', null, null, null, 'Paper');
+
+        // Ricoh — Drum and fuser (walk-discovered, fixed common OIDs for IMC series)
+        $this->createSensor('Drum Remaining', '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5.5', 'gauge', '%', 20, 5, 'Consumables');
+
+        $this->log('Ricoh printer sensors discovered');
+    }
+}

@@ -38,11 +38,40 @@ class SnmpClient
             default => \SNMP::VERSION_2c,
         };
 
-        $community = $this->host->snmp_community ?? 'public';
         $port = (int) ($this->host->snmp_port ?? 161);
         $target = $this->host->ip . ':' . $port;
 
-        $this->session = new \SNMP($version, $target, $community, $this->timeout, $this->retries);
+        if ($version === \SNMP::VERSION_3) {
+            $securityName   = $this->host->snmp_auth_user ?? '';
+            $securityLevel  = $this->host->snmp_security_level ?? 'authPriv';
+            $authProtocol   = strtoupper($this->host->snmp_auth_protocol ?? 'sha');
+            $authPassphrase = '';
+            $privProtocol   = strtoupper($this->host->snmp_priv_protocol ?? 'aes');
+            $privPassphrase = '';
+
+            if (in_array($securityLevel, ['authNoPriv', 'authPriv'])) {
+                $authPassphrase = $this->host->snmp_auth_password ?? '';
+            }
+            if ($securityLevel === 'authPriv') {
+                $privPassphrase = $this->host->snmp_priv_password ?? '';
+            }
+
+            $this->session = new \SNMP(
+                \SNMP::VERSION_3,
+                $target,
+                $securityName,
+                $authProtocol,
+                $authPassphrase,
+                $privProtocol,
+                $privPassphrase,
+                $this->timeout,
+                $this->retries
+            );
+        } else {
+            $community = $this->host->snmp_community ?? 'public';
+            $this->session = new \SNMP($version, $target, $community, $this->timeout, $this->retries);
+        }
+
         $this->session->exceptions_enabled = \SNMP::ERRNO_ANY;
         $this->session->valueretrieval = \SNMP_VALUE_LIBRARY;
 
@@ -238,18 +267,36 @@ class SnmpClient
 
     protected function buildCliCommand(string $tool, string $oids): string
     {
-        $version = match ($this->host->snmp_version) {
-            'v1' => '1',
-            'v3' => '3',
-            default => '2c',
-        };
-
-        $community = escapeshellarg($this->host->snmp_community ?? '');
         $port = (int) ($this->host->snmp_port ?? 161);
-        $ip = escapeshellarg($this->host->ip);
+        $ip   = escapeshellarg($this->host->ip);
 
-        $args = "-v {$version} -c {$community}";
-        
+        if ($this->host->snmp_version === 'v3') {
+            $securityName  = escapeshellarg($this->host->snmp_auth_user ?? '');
+            $securityLevel = escapeshellarg($this->host->snmp_security_level ?? 'authPriv');
+            $authProtocol  = escapeshellarg(strtoupper($this->host->snmp_auth_protocol ?? 'SHA'));
+            $privProtocol  = escapeshellarg(strtoupper($this->host->snmp_priv_protocol ?? 'AES'));
+
+            $authPassword = '';
+            $privPassword = '';
+            $level = $this->host->snmp_security_level ?? 'authPriv';
+
+            if (in_array($level, ['authNoPriv', 'authPriv'])) {
+                $authPassword = escapeshellarg($this->host->snmp_auth_password ?? '');
+            }
+            if ($level === 'authPriv') {
+                $privPassword = escapeshellarg($this->host->snmp_priv_password ?? '');
+            }
+
+            $args = "-v 3 -u {$securityName} -l {$securityLevel} -a {$authProtocol} -A {$authPassword} -x {$privProtocol} -X {$privPassword}";
+        } else {
+            $version   = match ($this->host->snmp_version) {
+                'v1'    => '1',
+                default => '2c',
+            };
+            $community = escapeshellarg($this->host->snmp_community ?? '');
+            $args = "-v {$version} -c {$community}";
+        }
+
         // Handle OID output format in CLI (-On for numeric)
         // 3 is usually numeric
         if ($this->oidOutputFormat == 3) {
