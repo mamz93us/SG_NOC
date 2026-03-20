@@ -8,6 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::dropIfExists('it_tasks');
+        
         Schema::create('it_tasks', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->string('title', 255);
