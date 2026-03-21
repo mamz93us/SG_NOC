@@ -57,14 +57,15 @@ class WorkflowRequest extends Model
     public function statusBadgeClass(): string
     {
         return match ($this->status) {
-            'draft'     => 'bg-secondary',
-            'pending'   => 'bg-warning text-dark',
-            'approved'  => 'bg-info text-dark',
-            'rejected'  => 'bg-danger',
-            'executing' => 'bg-primary',
-            'completed' => 'bg-success',
-            'failed'    => 'bg-danger',
-            default     => 'bg-secondary',
+            'draft'                  => 'bg-secondary',
+            'pending'                => 'bg-warning text-dark',
+            'manager_input_pending'  => 'bg-warning text-dark',
+            'approved'               => 'bg-info text-dark',
+            'rejected'               => 'bg-danger',
+            'executing'              => 'bg-primary',
+            'completed'              => 'bg-success',
+            'failed'                 => 'bg-danger',
+            default                  => 'bg-secondary',
         };
     }
 
@@ -72,8 +73,10 @@ class WorkflowRequest extends Model
     {
         return match ($this->type) {
             'create_user', 'extension_create', 'asset_assign' => 'bg-success',
-            'delete_user', 'extension_delete', 'asset_return' => 'bg-danger',
+            'delete_user', 'extension_delete', 'asset_return',
+            'employee_offboarding'                            => 'bg-danger',
             'license_change', 'license_purchase'              => 'bg-info text-dark',
+            'group_assignment'                                => 'bg-primary',
             default                                           => 'bg-secondary',
         };
     }
@@ -81,15 +84,17 @@ class WorkflowRequest extends Model
     public function typeLabel(): string
     {
         return match ($this->type) {
-            'create_user'       => 'Create User',
-            'delete_user'       => 'Delete User',
-            'license_change'    => 'License Change',
-            'license_purchase'  => 'License Purchase',
-            'asset_assign'      => 'Asset Assignment',
-            'asset_return'      => 'Asset Return',
-            'extension_create'  => 'Create Extension',
-            'extension_delete'  => 'Delete Extension',
-            default             => ucfirst(str_replace('_', ' ', $this->type)),
+            'create_user'          => 'Create User',
+            'delete_user'          => 'Delete User',
+            'license_change'       => 'License Change',
+            'license_purchase'     => 'License Purchase',
+            'asset_assign'         => 'Asset Assignment',
+            'asset_return'         => 'Asset Return',
+            'extension_create'     => 'Create Extension',
+            'extension_delete'     => 'Delete Extension',
+            'employee_offboarding' => 'Employee Offboarding',
+            'group_assignment'     => 'Group Assignment',
+            default                => ucfirst(str_replace('_', ' ', $this->type)),
         };
     }
 

@@ -109,7 +109,22 @@
       "Bash(head -40 grep -n \"toner\\\\|ink\\\\|sensor_group\" \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Jobs/PollPrinterSnmpJob.php\")",
       "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\\\\Admin\\\\DeviceMetricsController.php\")",
       "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\components\\\\toner-gauge.blade.php\")",
-      "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\admin\\\\network\\\\monitoring\\\\show.blade.php\")"
+      "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\admin\\\\network\\\\monitoring\\\\show.blade.php\")",
+      "Bash(\"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/.env.example\")",
+      "Bash(php -l app/Http/Middleware/HrApiKeyMiddleware.php)",
+      "Bash(php -l app/Http/Controllers/Api/HrOnboardingController.php)",
+      "Bash(php -l app/Http/Controllers/Api/HrOffboardingController.php)",
+      "Bash(php -l app/Http/Controllers/Api/HrGroupAssignmentController.php)",
+      "Bash(php -l app/Services/Workflow/UserProvisioningService.php)",
+      "Bash(php -l app/Services/Identity/GraphService.php)",
+      "Bash(php -l app/Http/Controllers/Admin/BranchDepartmentGroupController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/PrinterDeployController.php)",
+      "Bash(php -l app/Http/Controllers/Public/OffboardingFormController.php)",
+      "Bash(php -l app/Models/OffboardingToken.php)",
+      "Bash(php -l app/Models/BranchDepartmentGroupMapping.php)",
+      "Bash(php -l app/Models/PrinterDeployToken.php)",
+      "Bash(php -l app/Jobs/SendHrFeedbackEmailJob.php)",
+      "Bash(php -l app/Jobs/SendOffboardingManagerRequestJob.php)"
     ]
   }
 }

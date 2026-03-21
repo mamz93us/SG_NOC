@@ -171,6 +171,27 @@ class UserProvisioningService
             }
         }
 
+        // ── Step 3b: Assign Azure AD groups based on branch + dept ─
+        $deptId   = isset($payload['department_id']) ? (int) $payload['department_id'] : null;
+        $mappings = \App\Models\BranchDepartmentGroupMapping::getGroupsFor($workflow->branch_id, $deptId);
+
+        if ($mappings->isNotEmpty()) {
+            $this->engine->logEvent($workflow, 'info', "Assigning {$mappings->count()} Azure group(s) from branch/dept mapping.");
+            foreach ($mappings as $mapping) {
+                try {
+                    $graph->addUserToGroup($azureId, $mapping->azure_group_id);
+                    $this->engine->logEvent($workflow, 'success', "Added to group: {$mapping->azure_group_name}");
+                } catch (\Throwable $e) {
+                    // 409 = already a member — not an error
+                    if (str_contains($e->getMessage(), '409')) {
+                        $this->engine->logEvent($workflow, 'info', "Already in group: {$mapping->azure_group_name}");
+                    } else {
+                        $this->engine->logEvent($workflow, 'warning', "Group assignment failed for '{$mapping->azure_group_name}' (non-fatal): " . $e->getMessage());
+                    }
+                }
+            }
+        }
+
         // ── Step 4: Create UCM extension (branch-aware) ──────────
         // Branch UCM + range take priority; global settings are the fallback.
         $extension = null;
@@ -379,5 +400,87 @@ class UserProvisioningService
         }
 
         $this->engine->logEvent($workflow, 'success', 'User deprovisioning complete.');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Full offboarding (HR-initiated — manager-approved)
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Full offboarding sequence triggered after manager approval:
+     * 1. Disable Azure account
+     * 2. Archive mailbox (log intent for Exchange Online PS)
+     * 3. Downgrade to Exchange-only license
+     * 4. Forward mailbox (log intent) if forward_to specified
+     * 5. Update employee record to terminated
+     * 6. Flag active assets for return
+     */
+    public function deprovisionUserFull(WorkflowRequest $workflow): void
+    {
+        $payload = $workflow->payload ?? [];
+        $azureId = $payload['azure_id'] ?? null;
+
+        $this->engine->logEvent($workflow, 'info', 'Starting full offboarding deprovisioning.');
+
+        $graph = new \App\Services\Identity\GraphService();
+
+        if ($azureId) {
+            // Step 1: Disable Azure account
+            try {
+                $graph->disableUser($azureId);
+                $this->engine->logEvent($workflow, 'success', 'Azure account disabled.');
+            } catch (\Throwable $e) {
+                $this->engine->logEvent($workflow, 'warning', 'Azure disable failed (non-fatal): ' . $e->getMessage());
+            }
+
+            // Step 2: Archive mailbox
+            try {
+                $graph->archiveMailbox($azureId);
+                $this->engine->logEvent($workflow, 'info', 'Mailbox archive intent logged.');
+            } catch (\Throwable $e) {
+                $this->engine->logEvent($workflow, 'warning', 'Mailbox archive failed (non-fatal): ' . $e->getMessage());
+            }
+
+            // Step 3: Downgrade to Exchange-only license
+            try {
+                $graph->downgradeToExchangeOnly($azureId);
+                $this->engine->logEvent($workflow, 'info', 'License downgraded to Exchange-only.');
+            } catch (\Throwable $e) {
+                $this->engine->logEvent($workflow, 'warning', 'License downgrade failed (non-fatal): ' . $e->getMessage());
+            }
+
+            // Step 4: Set forwarding if requested
+            if (! empty($payload['forward_to'])) {
+                try {
+                    $graph->forwardMailbox($azureId, $payload['forward_to']);
+                    $this->engine->logEvent($workflow, 'info', "Mailbox forwarding intent logged to: {$payload['forward_to']}.");
+                } catch (\Throwable $e) {
+                    $this->engine->logEvent($workflow, 'warning', 'Mailbox forward failed (non-fatal): ' . $e->getMessage());
+                }
+            }
+        }
+
+        // Step 5: Update employee record
+        $employee = null;
+        if ($azureId) {
+            $employee = \App\Models\Employee::where('azure_id', $azureId)->first();
+        } elseif (! empty($payload['employee_id'])) {
+            $employee = \App\Models\Employee::find($payload['employee_id']);
+        }
+
+        if ($employee) {
+            $employee->update([
+                'status'          => 'terminated',
+                'terminated_date' => $payload['last_day'] ?? now()->toDateString(),
+            ]);
+            $this->engine->logEvent($workflow, 'success', 'Employee record updated to terminated.');
+
+            // Step 6: Flag active assets
+            $employee->activeAssets()->update(['notes' => 'PENDING RETURN — employee offboarded']);
+            $this->engine->logEvent($workflow, 'info', 'Active asset assignments flagged for return.');
+            $employee->activeItems()->update(['notes'  => 'PENDING RETURN — employee offboarded']);
+        }
+
+        $this->engine->logEvent($workflow, 'success', 'Full offboarding deprovisioning complete.');
     }
 }

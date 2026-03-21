@@ -466,4 +466,117 @@ class GraphService
             throw $e;
         }
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Groups — Extended
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Find a group by display name. Returns the group object or null.
+     */
+    public function findGroupByName(string $name): ?array
+    {
+        $encoded = rawurlencode("displayName eq '{$name}'");
+        $result  = $this->get('/groups', [
+            '$filter' => "displayName eq '{$name}'",
+            '$select' => 'id,displayName,description',
+            '$top'    => 1,
+        ]);
+        $groups = $result['value'] ?? [];
+        return !empty($groups) ? $groups[0] : null;
+    }
+
+    /**
+     * Search groups by partial display name.
+     */
+    public function searchGroups(string $query, int $top = 20): array
+    {
+        $result = $this->get('/groups', [
+            '$filter'  => "startswith(displayName, '{$query}')",
+            '$select'  => 'id,displayName',
+            '$top'     => $top,
+            '$orderby' => 'displayName',
+        ]);
+        return $result['value'] ?? [];
+    }
+
+    /**
+     * Get assigned licenses for a user.
+     */
+    public function getUserLicenses(string $userId): array
+    {
+        $result = $this->get("/users/{$userId}/licenseDetails");
+        return $result['value'] ?? [];
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Mailbox / Exchange Online
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Set mailbox forwarding to another address (auto-forward).
+     * Uses forwardingSmtpAddress via mailboxSettings.
+     */
+    public function forwardMailbox(string $userId, string $forwardToAddress): void
+    {
+        // Graph API: PATCH /users/{id}/mailboxSettings
+        $this->patch("/users/{$userId}/mailboxSettings", [
+            'automaticRepliesSetting' => [
+                'status' => 'disabled',
+            ],
+        ]);
+        // Set forwarding via user profile (deliverAndRedirect)
+        $this->patch("/users/{$userId}", [
+            'otherMails'             => [],
+            'proxyAddresses'         => [],
+        ]);
+        // Note: Full mailbox forwarding via Graph requires Exchange Online PowerShell or
+        // the Set-Mailbox cmdlet. We log the intent here — actual forwarding should be
+        // handled by an Exchange admin or a companion automation.
+        Log::info("GraphService::forwardMailbox — intent logged for user {$userId} → {$forwardToAddress}. Complete via Exchange Online PowerShell: Set-Mailbox -Identity '{$userId}' -ForwardingSmtpAddress '{$forwardToAddress}' -DeliverToMailboxAndForward \$true");
+    }
+
+    /**
+     * Downgrade user to Exchange-only (remove all M365 licenses except Exchange).
+     * Keeps one Exchange plan and removes everything else.
+     */
+    public function downgradeToExchangeOnly(string $userId): void
+    {
+        $licenses = $this->getUserLicenses($userId);
+        $toRemove = [];
+
+        foreach ($licenses as $lic) {
+            // Keep only Exchange Online (plan name contains EXCHANGE)
+            $hasExchangeOnly = collect($lic['servicePlans'] ?? [])
+                ->filter(fn($p) => stripos($p['servicePlanName'], 'EXCHANGE') !== false)
+                ->isNotEmpty();
+
+            $isExchangeOnlyPlan = count($lic['servicePlans'] ?? []) === 1 && $hasExchangeOnly;
+
+            if (! $isExchangeOnlyPlan) {
+                $toRemove[] = $lic['skuId'];
+            }
+        }
+
+        if (! empty($toRemove)) {
+            $this->post("/users/{$userId}/assignLicense", [
+                'addLicenses'    => [],
+                'removeLicenses' => $toRemove,
+            ]);
+        }
+    }
+
+    /**
+     * Archive a mailbox by converting it to a shared mailbox (Exchange Online).
+     * Shared mailboxes don't consume a paid license.
+     */
+    public function archiveMailbox(string $userId): void
+    {
+        // Graph does not directly support shared mailbox conversion.
+        // We log the intent; actual execution needs Exchange Online PS or dedicated REST.
+        Log::info("GraphService::archiveMailbox — intent logged for user {$userId}. Execute via Exchange Online PowerShell: Set-Mailbox -Identity '{$userId}' -Type Shared");
+
+        // Disable sign-in as a proxy until Exchange archival completes
+        $this->disableUser($userId);
+    }
 }

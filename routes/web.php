@@ -917,6 +917,20 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/{task}/update-status', [ItTaskController::class, 'updateStatus'])  ->name('update-status');
     })->where('task', '[0-9]+');
 
+    // ── Branch / Department → Azure Group Mappings ───────────────
+    Route::prefix('identity/group-mappings')->name('admin.identity.group-mappings.')->middleware('permission:manage-identity')->group(function () {
+        Route::get('/',              [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'index'])       ->name('index');
+        Route::post('/',             [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'store'])       ->name('store');
+        Route::delete('/{mapping}',  [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'destroy'])     ->name('destroy');
+        Route::get('/preview',       [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'preview'])     ->name('preview');
+        Route::get('/search-azure',  [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'searchAzure'])->name('search-azure');
+    });
+
+    // ── Printer Deployment ────────────────────────────────────────
+    Route::post('printers/{printer}/deploy', [\App\Http\Controllers\Admin\PrinterDeployController::class, 'deploy'])
+        ->name('printers.deploy')
+        ->middleware('permission:manage-printers');
+
     // ── Admin Tools / Quick Links ──────────────────────────────────
     Route::middleware('permission:view-admin-links')->prefix('admin-links')->name('admin-links.')->group(function () {
         Route::get('/',                        [AdminLinkController::class, 'index'])         ->name('index');
@@ -936,6 +950,39 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
 
+});
+
+/*
+|--------------------------------------------------------------------------
+| Public Routes (no auth required)
+|--------------------------------------------------------------------------
+*/
+
+use App\Http\Controllers\Public\OffboardingFormController;
+use App\Http\Controllers\Public\PrinterSetupController;
+
+// Offboarding manager approval form
+Route::get('/offboarding/respond',  [OffboardingFormController::class, 'show'])  ->name('offboarding.form');
+Route::post('/offboarding/respond', [OffboardingFormController::class, 'submit'])->name('offboarding.submit');
+
+// Printer self-service setup
+Route::get('/printer-setup',        [PrinterSetupController::class, 'show'])          ->name('printer-setup.show');
+Route::get('/printer-setup/script', [PrinterSetupController::class, 'downloadScript'])->name('printer-setup.script');
+
+/*
+|--------------------------------------------------------------------------
+| HR API Routes (token-authenticated, no session)
+|--------------------------------------------------------------------------
+*/
+
+use App\Http\Controllers\Api\HrOnboardingController;
+use App\Http\Controllers\Api\HrOffboardingController;
+use App\Http\Controllers\Api\HrGroupAssignmentController;
+
+Route::prefix('api/hr')->middleware('hr.api_key')->group(function () {
+    Route::post('/onboarding',       [HrOnboardingController::class,      'store'])->name('api.hr.onboarding');
+    Route::post('/offboarding',      [HrOffboardingController::class,     'store'])->name('api.hr.offboarding');
+    Route::post('/group-assignment', [HrGroupAssignmentController::class, 'store'])->name('api.hr.group-assignment');
 });
 
 /*

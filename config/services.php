@@ -42,4 +42,8 @@ return [
         'org_id'        => env('GDMS_ORG_ID'),
     ],
 
+    'hr_api' => [
+        'key' => env('HR_API_KEY'),
+    ],
+
 ];
