@@ -8,6 +8,7 @@ use App\Models\PrinterDeployToken;
 use App\Models\PrinterDriver;
 use App\Services\PrinterScriptService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -76,15 +77,12 @@ class PrinterSetupController extends Controller
         if ($request->os === 'windows') {
             $driver = PrinterDriver::findForPrinter($printer, 'windows_x64');
 
+            $driverDownloadUrl = null;
             if ($driver && $driver->driver_file_path) {
-                // Full zip with driver + install.bat + README
-                $zipPath = $service->buildWindowsZip($printer, $driver);
-                $zipName = Str::slug($printer->printer_name) . '-setup-with-driver.zip';
-                return response()->download($zipPath, $zipName)->deleteFileAfterSend(true);
+                $driverDownloadUrl = url('/printer-setup/driver?token=' . $token->token . '&driver_id=' . $driver->id);
             }
 
-            // Script only
-            $bat      = $service->generateWindowsBat($printer, $driver);
+            $bat      = $service->generateWindowsBat($printer, $driver, $driverDownloadUrl);
             $filename = 'install-' . Str::slug($printer->printer_name) . '.bat';
             return response($bat, 200, [
                 'Content-Type'        => 'application/octet-stream',
@@ -100,5 +98,35 @@ class PrinterSetupController extends Controller
             'Content-Type'        => 'application/octet-stream',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
+    }
+
+    /**
+     * GET /printer-setup/driver?token=xxx&driver_id=5
+     * Serve a private driver zip file, validated via deploy token.
+     */
+    public function downloadDriver(Request $request)
+    {
+        $request->validate([
+            'token'     => 'required|string',
+            'driver_id' => 'required|exists:printer_drivers,id',
+        ]);
+
+        $token = PrinterDeployToken::where('token', $request->token)
+            ->valid()
+            ->first();
+
+        if (! $token) {
+            abort(404, 'This link is invalid or has expired.');
+        }
+
+        $driver = PrinterDriver::findOrFail($request->driver_id);
+
+        if (! $driver->driver_file_path || ! Storage::disk('private')->exists($driver->driver_file_path)) {
+            abort(404, 'Driver file not found.');
+        }
+
+        $filename = $driver->original_filename ?? basename($driver->driver_file_path);
+
+        return Storage::disk('private')->download($driver->driver_file_path, $filename);
     }
 }

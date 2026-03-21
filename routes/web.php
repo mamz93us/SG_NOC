@@ -1005,9 +1005,10 @@ Route::get('/offboarding/respond',  [OffboardingFormController::class, 'show']) 
 Route::post('/offboarding/respond', [OffboardingFormController::class, 'submit'])->name('offboarding.submit');
 
 // Printer self-service setup
-Route::get('/printer-setup',        [PrinterSetupController::class, 'show'])          ->name('printer.setup');
-Route::get('/printer-setup/script', [PrinterSetupController::class, 'downloadScript'])->name('printer.setup.script');
-Route::get('/printer-setup/download',[PrinterSetupController::class, 'downloadScript'])->name('printer.setup.download');
+Route::get('/printer-setup',         [PrinterSetupController::class, 'show'])           ->name('printer.setup');
+Route::get('/printer-setup/script',  [PrinterSetupController::class, 'downloadScript']) ->name('printer.setup.script');
+Route::get('/printer-setup/download',[PrinterSetupController::class, 'downloadScript']) ->name('printer.setup.download');
+Route::get('/printer-setup/driver',  [PrinterSetupController::class, 'downloadDriver']) ->name('printer.setup.driver');
 
 /*
 |--------------------------------------------------------------------------
