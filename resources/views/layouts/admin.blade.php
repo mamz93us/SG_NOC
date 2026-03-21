@@ -459,15 +459,13 @@
                                     <i class="bi bi-diagram-3 me-2"></i>Workflow Templates
                                 </a>
                             </li>
-                            @if(\Illuminate\Support\Facades\Route::has('admin.workflow-templates.builder'))
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.workflow-templates.builder') ? 'active' : '' }}"
-                                   href="{{ route('admin.workflow-templates.index') }}#builder"
+                                <a class="dropdown-item {{ request()->is('admin/workflow-templates/*/builder') ? 'active' : '' }}"
+                                   href="/admin/workflow-templates"
                                    title="Open visual builder from any template row">
                                     <i class="bi bi-node-plus me-2"></i>Visual Builder
                                 </a>
                             </li>
-                            @endif
                             @endcan
                         </ul>
                     </li>
@@ -613,15 +611,13 @@
                                 </a>
                             </li>
                             @can('manage-identity')
-                            @if(\Illuminate\Support\Facades\Route::has('admin.identity.group-mappings.index'))
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.identity.group-mappings.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.identity.group-mappings.index') }}">
+                                <a class="dropdown-item {{ request()->is('admin/identity/group-mappings*') ? 'active' : '' }}"
+                                   href="/admin/identity/group-mappings">
                                     <i class="bi bi-diagram-3 me-2"></i>Group Auto-Assignments
                                 </a>
                             </li>
-                            @endif
                             @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>
@@ -635,14 +631,12 @@
                     @endcan
 
                     {{-- ── My Printers (SSO auto-assign) ── --}}
-                    @if(\Illuminate\Support\Facades\Route::has('admin.my-printers'))
                     <li class="nav-item">
                         <a class="nav-link {{ request()->is('admin/my-printers*') ? 'active' : '' }}"
-                           href="{{ route('admin.my-printers') }}">
+                           href="/admin/my-printers">
                             <i class="bi bi-printer-fill me-1"></i>My Printers
                         </a>
                     </li>
-                    @endif
 
                     {{-- ── Admin Tools ── --}}
                     @can('view-admin-links')
@@ -709,14 +703,12 @@
                                     <i class="bi bi-patch-check-fill me-2"></i>Provisioning Licenses
                                 </a>
                             </li>
-                            @if(\Illuminate\Support\Facades\Route::has('admin.api-docs'))
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.api-docs') ? 'active' : '' }}"
-                                   href="{{ route('admin.api-docs') }}">
+                                <a class="dropdown-item {{ request()->is('admin/api-docs*') ? 'active' : '' }}"
+                                   href="/admin/api-docs">
                                     <i class="bi bi-code-slash me-2"></i>HR API Docs & Keys
                                 </a>
                             </li>
-                            @endif
                             <li><hr class="dropdown-divider"></li>
                             @endcan
                             @can('manage-users')
