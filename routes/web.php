@@ -931,6 +931,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         ->name('admin.printer-deploy.deploy')
         ->middleware('permission:manage-employees');
 
+    // ── My Printers (SSO auto-assign — any authenticated user) ───────
+    Route::get('my-printers', [\App\Http\Controllers\Admin\MyPrintersController::class, 'index'])
+        ->name('admin.my-printers');
+
+    // ── API Documentation ─────────────────────────────────────────────
+    Route::get('api-docs', [\App\Http\Controllers\Admin\ApiDocsController::class, 'index'])
+        ->name('admin.api-docs')
+        ->middleware('permission:manage-settings');
+
     // ── Admin Tools / Quick Links ──────────────────────────────────
     Route::middleware('permission:view-admin-links')->prefix('admin-links')->name('admin-links.')->group(function () {
         Route::get('/',                        [AdminLinkController::class, 'index'])         ->name('index');

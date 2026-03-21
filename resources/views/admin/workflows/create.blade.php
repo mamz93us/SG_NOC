@@ -117,6 +117,81 @@
                         </div>
                     </div>
 
+                    {{-- Employee Offboarding fields --}}
+                    <div id="employee_offboarding_fields" class="mt-4 d-none">
+                        <hr>
+                        <h6 class="fw-semibold text-danger"><i class="bi bi-person-dash-fill me-1"></i>Employee Offboarding Details</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Employee Name <span class="text-danger">*</span></label>
+                                <input type="text" name="employee_name" class="form-control form-control-sm" value="{{ old('employee_name') }}" placeholder="Full display name">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Employee UPN / Email</label>
+                                <input type="email" name="upn" class="form-control form-control-sm" value="{{ old('upn') }}" placeholder="employee@company.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Azure Object ID</label>
+                                <input type="text" name="azure_id" class="form-control form-control-sm font-monospace" value="{{ old('azure_id') }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Last Working Day</label>
+                                <input type="date" name="last_day" class="form-control form-control-sm" value="{{ old('last_day') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Reason</label>
+                                <select name="reason" class="form-select form-select-sm">
+                                    <option value="">— Select reason —</option>
+                                    <option value="resignation" {{ old('reason')=='resignation'?'selected':'' }}>Resignation</option>
+                                    <option value="termination" {{ old('reason')=='termination'?'selected':'' }}>Termination</option>
+                                    <option value="retirement" {{ old('reason')=='retirement'?'selected':'' }}>Retirement</option>
+                                    <option value="contract_end" {{ old('reason')=='contract_end'?'selected':'' }}>Contract End</option>
+                                    <option value="other" {{ old('reason')=='other'?'selected':'' }}>Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">HR Reference</label>
+                                <input type="text" name="hr_reference" class="form-control form-control-sm" value="{{ old('hr_reference') }}" placeholder="HR-OFF-2026-XXX">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Manager Email <span class="text-danger">*</span></label>
+                                <input type="email" name="manager_email" class="form-control form-control-sm" value="{{ old('manager_email') }}" placeholder="manager@company.com">
+                                <div class="form-text">Manager will receive an approval email.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Manager Name</label>
+                                <input type="text" name="manager_name" class="form-control form-control-sm" value="{{ old('manager_name') }}" placeholder="Manager full name">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Forward Mailbox To</label>
+                                <input type="email" name="forward_to" class="form-control form-control-sm" value="{{ old('forward_to') }}" placeholder="team@company.com (optional)">
+                                <div class="form-text">If set, the employee's mailbox will be forwarded to this address after offboarding.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Group Assignment fields --}}
+                    <div id="group_assignment_fields" class="mt-4 d-none">
+                        <hr>
+                        <h6 class="fw-semibold text-primary"><i class="bi bi-people-fill me-1"></i>Group Assignment Details</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Employee UPN / Email <span class="text-danger">*</span></label>
+                                <input type="email" name="upn" class="form-control form-control-sm" value="{{ old('upn') }}" placeholder="employee@company.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Azure Object ID</label>
+                                <input type="text" name="azure_id" class="form-control form-control-sm font-monospace" value="{{ old('azure_id') }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Group Names <span class="text-danger">*</span></label>
+                                <textarea name="group_names_raw" class="form-control form-control-sm" rows="3"
+                                          placeholder="One group name per line, e.g.&#10;All-Sales-Staff&#10;Cairo-Office">{{ old('group_names_raw') }}</textarea>
+                                <div class="form-text">Enter one Azure AD group name per line. Groups must already exist in Azure AD.</div>
+                            </div>
+                        </div>
+                    </div>
+
                     {{-- Generic other details field --}}
                     <div id="other_fields" class="mt-4 d-none">
                         <hr><h6 class="text-muted fw-semibold">Additional Information</h6>
@@ -212,18 +287,50 @@ const previewLic   = document.getElementById('previewLicense');
 let previewTimeout = null;
 
 // ── Toggle field sections based on selected type ──
+const allSections = [
+    'create_user_fields',
+    'employee_offboarding_fields',
+    'group_assignment_fields',
+    'other_fields',
+];
+const defaultTitles = {
+    'create_user':          'Create New User',
+    'employee_offboarding': 'Employee Offboarding',
+    'group_assignment':     'Group Assignment',
+    'delete_user':          'Deactivate User',
+    'license_change':       'License Change',
+    'asset_assign':         'Asset Assignment',
+    'asset_return':         'Asset Return',
+    'extension_create':     'Create Extension',
+    'extension_delete':     'Delete Extension',
+    'other':                'Other Request',
+};
+
 document.querySelectorAll('input[name="type"]').forEach(radio => {
     radio.addEventListener('change', function() {
-        document.getElementById('create_user_fields').classList.add('d-none');
-        document.getElementById('other_fields').classList.add('d-none');
+        // Hide all sections
+        allSections.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('d-none');
+        });
         previewCard.classList.add('d-none');
+
+        // Show relevant section
         if (this.value === 'create_user') {
             document.getElementById('create_user_fields').classList.remove('d-none');
             previewCard.classList.remove('d-none');
             updatePreview();
-            if (!titleEl.value.trim()) titleEl.value = 'Create New User';
+        } else if (this.value === 'employee_offboarding') {
+            document.getElementById('employee_offboarding_fields').classList.remove('d-none');
+        } else if (this.value === 'group_assignment') {
+            document.getElementById('group_assignment_fields').classList.remove('d-none');
         } else if (this.value === 'other') {
             document.getElementById('other_fields').classList.remove('d-none');
+        }
+
+        // Auto-fill title if still blank or was a previous default
+        if (!titleEl.value.trim() || Object.values(defaultTitles).includes(titleEl.value.trim())) {
+            titleEl.value = defaultTitles[this.value] || '';
         }
     });
 });

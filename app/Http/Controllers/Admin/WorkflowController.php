@@ -82,14 +82,16 @@ class WorkflowController extends Controller
         // UPN domains for the email domain picker (primary first, then alphabetical)
         $upnDomains  = AllowedDomain::orderByDesc('is_primary')->orderBy('domain')->get();
         $types       = [
-            'create_user'      => 'Create New User',
-            'delete_user'      => 'Deactivate User',
-            'license_change'   => 'License Change',
-            'asset_assign'     => 'Assign Asset',
-            'asset_return'     => 'Return Asset',
-            'extension_create' => 'Create Extension',
-            'extension_delete' => 'Delete Extension',
-            'other'            => 'Other Request',
+            'create_user'          => 'Create New User',
+            'delete_user'          => 'Deactivate User',
+            'employee_offboarding' => 'Employee Offboarding',
+            'license_change'       => 'License Change',
+            'asset_assign'         => 'Assign Asset',
+            'asset_return'         => 'Return Asset',
+            'extension_create'     => 'Create Extension',
+            'extension_delete'     => 'Delete Extension',
+            'group_assignment'     => 'Group Assignment',
+            'other'                => 'Other Request',
         ];
 
         return view('admin.workflows.create', compact('type', 'types', 'branches', 'departments', 'settings', 'upnDomains'));
@@ -157,13 +159,21 @@ class WorkflowController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'type'        => 'required|in:create_user,delete_user,license_change,asset_assign,asset_return,extension_create,extension_delete,other',
+            'type'        => 'required|in:create_user,delete_user,employee_offboarding,license_change,asset_assign,asset_return,extension_create,extension_delete,group_assignment,other',
             'title'       => 'required|string|max:255',
             'description' => 'nullable|string|max:2000',
             'branch_id'   => 'nullable|exists:branches,id',
         ]);
 
         $payload = $request->except(['type', 'title', 'description', 'branch_id', '_token']);
+
+        // Convert group_names_raw (textarea, one per line) → group_names array
+        if (! empty($payload['group_names_raw'])) {
+            $payload['group_names'] = array_values(array_filter(
+                array_map('trim', explode("\n", $payload['group_names_raw']))
+            ));
+            unset($payload['group_names_raw']);
+        }
 
         $workflow = $this->engine->createRequest(
             type:        $validated['type'],

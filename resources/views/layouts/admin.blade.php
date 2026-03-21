@@ -625,6 +625,16 @@
                     </li>
                     @endcan
 
+                    {{-- ── My Printers (SSO auto-assign) ── --}}
+                    @if(\Illuminate\Support\Facades\Route::has('admin.my-printers'))
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('admin/my-printers*') ? 'active' : '' }}"
+                           href="{{ route('admin.my-printers') }}">
+                            <i class="bi bi-printer-fill me-1"></i>My Printers
+                        </a>
+                    </li>
+                    @endif
+
                     {{-- ── Admin Tools ── --}}
                     @can('view-admin-links')
                     <li class="nav-item">
@@ -690,6 +700,14 @@
                                     <i class="bi bi-patch-check-fill me-2"></i>Provisioning Licenses
                                 </a>
                             </li>
+                            @if(\Illuminate\Support\Facades\Route::has('admin.api-docs'))
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.api-docs') ? 'active' : '' }}"
+                                   href="{{ route('admin.api-docs') }}">
+                                    <i class="bi bi-code-slash me-2"></i>HR API Docs & Keys
+                                </a>
+                            </li>
+                            @endif
                             <li><hr class="dropdown-divider"></li>
                             @endcan
                             @can('manage-users')
