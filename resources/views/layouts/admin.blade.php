@@ -603,6 +603,15 @@
                                     <i class="bi bi-collection me-2"></i>Groups
                                 </a>
                             </li>
+                            @can('manage-identity')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.identity.group-mappings.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.identity.group-mappings.index') }}">
+                                    <i class="bi bi-diagram-3 me-2"></i>Group Auto-Assignments
+                                </a>
+                            </li>
+                            @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.identity.sync-logs') ? 'active' : '' }}"

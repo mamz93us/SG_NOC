@@ -129,7 +129,12 @@
       "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOCdatabasemigrations -name *department*)",
       "Bash(grep -n \"unsignedInteger\\\\|bigInteger\\\\|$table->id\\\\|->primary\" C:UsersMohamedZahranDownloadsphonebookSG_NOCdatabasemigrations2024_01_01_000120_create_employees_table.php)",
       "Bash(grep -n \"unsignedInteger\\\\|bigInteger\\\\|$table->id\\\\|->primary\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\database\\\\migrations\\\\2024_01_01_000120_create_employees_table.php\")",
-      "Bash(grep -rn \"unsignedInteger\\\\|bigInteger\\\\|$table->id\\\\|->primary\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\database\\\\migrations\\\\2024_01_01_000120_create_employees_table.php\")"
+      "Bash(grep -rn \"unsignedInteger\\\\|bigInteger\\\\|$table->id\\\\|->primary\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\database\\\\migrations\\\\2024_01_01_000120_create_employees_table.php\")",
+      "Bash(dir /b /s C:UsersMohamedZahranDownloadsphonebookSG_NOCresourcesviewsadmin)",
+      "Bash(findstr \"index.blade.php\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\admin\" -Recurse -Filter \"index.blade.php\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)"
     ]
   }
 }
