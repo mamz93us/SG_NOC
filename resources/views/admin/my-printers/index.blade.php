@@ -18,7 +18,7 @@
     </div>
 
     @if($employee)
-    <form method="POST" action="{{ route('admin.printer-deploy.deploy') }}" class="d-inline">
+    <form method="POST" action="/admin/printer-deploy" class="d-inline">
         @csrf
         <input type="hidden" name="employee_id" value="{{ $employee->id }}">
         <button type="submit" class="btn btn-sm btn-outline-primary">
@@ -76,7 +76,7 @@
     @foreach($printers as $printer)
     @php
         $hasIp       = ! empty($printer->ip_address);
-        $hasToken    = $token && Route::has('printer.setup.script');
+        $hasToken    = (bool) $token;
         $safeName    = preg_replace('/[^A-Za-z0-9_\-]/', '_', $printer->printer_name);
         $uncPath     = $hasIp ? '\\\\' . $printer->ip_address . '\\' . $safeName : null;
         $location    = $printer->locationLabel();
@@ -115,7 +115,7 @@
                 <div class="d-flex gap-2 flex-wrap">
                     {{-- Windows install button --}}
                     @if($hasToken && $hasIp)
-                        <a href="{{ route('printer.setup.script', ['token' => $token->token, 'printer_id' => $printer->id, 'os' => 'windows']) }}"
+                        <a href="{{ '/printer/setup/script?token=' . $token->token . '&printer_id=' . $printer->id . '&os=windows' }}"
                            class="btn btn-sm btn-outline-primary"
                            title="Download Windows install script">
                             <i class="bi bi-windows me-1"></i>Windows
@@ -129,7 +129,7 @@
                     {{-- Mac install button (only if IP exists) --}}
                     @if($hasIp)
                         @if($hasToken)
-                            <a href="{{ route('printer.setup.script', ['token' => $token->token, 'printer_id' => $printer->id, 'os' => 'mac']) }}"
+                            <a href="{{ '/printer/setup/script?token=' . $token->token . '&printer_id=' . $printer->id . '&os=mac' }}"
                                class="btn btn-sm btn-outline-dark"
                                title="Download macOS install script">
                                 <i class="bi bi-apple me-1"></i>Mac
@@ -180,7 +180,7 @@
             To set up printers on another device, send yourself a setup link:
         </p>
         @if($employee && $employee->email)
-        <form method="POST" action="{{ route('admin.printer-deploy.deploy') }}" class="d-flex align-items-center gap-2 flex-wrap">
+        <form method="POST" action="/admin/printer-deploy" class="d-flex align-items-center gap-2 flex-wrap">
             @csrf
             <input type="hidden" name="employee_id" value="{{ $employee->id }}">
             <span class="text-muted small">

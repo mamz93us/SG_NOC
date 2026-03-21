@@ -9,7 +9,7 @@
       <h4 class="mb-0 fw-bold"><i class="bi bi-diagram-3 me-2 text-primary"></i>Group Auto-Assignment Mappings</h4>
       <small class="text-muted">Azure AD groups assigned automatically based on branch and department during user onboarding.</small>
     </div>
-    <a href="{{ route('admin.identity.group-mappings.create') }}" class="btn btn-primary">
+    <a href="{{ '/admin/identity/group-mappings/create' }}" class="btn btn-primary">
       <i class="bi bi-plus-lg me-1"></i> Add Mapping
     </a>
   </div>
@@ -75,7 +75,7 @@
             </td>
             <td class="text-muted small">{{ $m->notes ?? '—' }}</td>
             <td class="text-end pe-4">
-              <form method="POST" action="{{ route('admin.identity.group-mappings.destroy', $m) }}"
+              <form method="POST" action="/admin/identity/group-mappings/{{ $m->id }}"
                     onsubmit="return confirm('Delete this mapping?')">
                 @csrf @method('DELETE')
                 <button class="btn btn-sm btn-outline-danger" title="Delete">
@@ -89,7 +89,7 @@
             <td colspan="7" class="text-center py-5 text-muted">
               <i class="bi bi-diagram-3 d-block mb-2" style="font-size:2rem;opacity:.3;"></i>
               No mappings configured yet.
-              <a href="{{ route('admin.identity.group-mappings.create') }}" class="d-block mt-2">Add your first mapping →</a>
+              <a href="{{ '/admin/identity/group-mappings/create' }}" class="d-block mt-2">Add your first mapping →</a>
             </td>
           </tr>
           @endforelse
@@ -163,7 +163,7 @@ function groupPreview() {
             if (this.deptId)   params.set('department_id', this.deptId);
 
             try {
-                const r    = await fetch('{{ route("admin.identity.group-mappings.preview") }}?' + params);
+                const r    = await fetch('/admin/identity/group-mappings/preview?' + params);
                 this.groups = await r.json();
             } catch (e) {
                 this.groups = [];
