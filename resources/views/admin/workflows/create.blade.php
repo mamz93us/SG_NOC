@@ -117,22 +117,58 @@
                         </div>
                     </div>
 
+                    {{-- Deactivate User fields --}}
+                    <div id="delete_user_fields" class="mt-4 d-none">
+                        <hr>
+                        <h6 class="fw-semibold text-danger"><i class="bi bi-person-x-fill me-1"></i>Deactivate User Details</h6>
+                        <div class="alert alert-warning py-2 px-3 small mb-3">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            The system will look up the account automatically using the employee's email address.
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Employee Email <span class="text-danger">*</span></label>
+                                <input type="email" name="employee_email" class="form-control form-control-sm" value="{{ old('employee_email') }}" placeholder="employee@company.com">
+                                <div class="form-text">The employee's work email address in the system.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Employee Name <span class="text-danger">*</span></label>
+                                <input type="text" name="employee_name" class="form-control form-control-sm" value="{{ old('employee_name') }}" placeholder="Full name">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Reason</label>
+                                <select name="reason" class="form-select form-select-sm">
+                                    <option value="">— Select reason —</option>
+                                    <option value="resignation" {{ old('reason')=='resignation'?'selected':'' }}>Resignation</option>
+                                    <option value="termination" {{ old('reason')=='termination'?'selected':'' }}>Termination</option>
+                                    <option value="retirement" {{ old('reason')=='retirement'?'selected':'' }}>Retirement</option>
+                                    <option value="contract_end" {{ old('reason')=='contract_end'?'selected':'' }}>Contract End</option>
+                                    <option value="other" {{ old('reason')=='other'?'selected':'' }}>Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">HR Reference</label>
+                                <input type="text" name="hr_reference" class="form-control form-control-sm" value="{{ old('hr_reference') }}" placeholder="HR-2026-XXX">
+                            </div>
+                        </div>
+                    </div>
+
                     {{-- Employee Offboarding fields --}}
                     <div id="employee_offboarding_fields" class="mt-4 d-none">
                         <hr>
                         <h6 class="fw-semibold text-danger"><i class="bi bi-person-dash-fill me-1"></i>Employee Offboarding Details</h6>
+                        <div class="alert alert-info py-2 px-3 small mb-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Enter the employee's email — the system looks up their account automatically.
+                        </div>
                         <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Employee Email <span class="text-danger">*</span></label>
+                                <input type="email" name="employee_email" class="form-control form-control-sm" value="{{ old('employee_email') }}" placeholder="employee@company.com">
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Employee Name <span class="text-danger">*</span></label>
                                 <input type="text" name="employee_name" class="form-control form-control-sm" value="{{ old('employee_name') }}" placeholder="Full display name">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Employee UPN / Email</label>
-                                <input type="email" name="upn" class="form-control form-control-sm" value="{{ old('upn') }}" placeholder="employee@company.com">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Azure Object ID</label>
-                                <input type="text" name="azure_id" class="form-control form-control-sm font-monospace" value="{{ old('azure_id') }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Last Working Day</label>
@@ -156,7 +192,7 @@
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Manager Email <span class="text-danger">*</span></label>
                                 <input type="email" name="manager_email" class="form-control form-control-sm" value="{{ old('manager_email') }}" placeholder="manager@company.com">
-                                <div class="form-text">Manager will receive an approval email.</div>
+                                <div class="form-text">Manager will receive an approval notification.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Manager Name</label>
@@ -174,20 +210,21 @@
                     <div id="group_assignment_fields" class="mt-4 d-none">
                         <hr>
                         <h6 class="fw-semibold text-primary"><i class="bi bi-people-fill me-1"></i>Group Assignment Details</h6>
+                        <div class="alert alert-info py-2 px-3 small mb-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Enter the employee's email — the system resolves their Azure account automatically.
+                        </div>
                         <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Employee UPN / Email <span class="text-danger">*</span></label>
-                                <input type="email" name="upn" class="form-control form-control-sm" value="{{ old('upn') }}" placeholder="employee@company.com">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Azure Object ID</label>
-                                <input type="text" name="azure_id" class="form-control form-control-sm font-monospace" value="{{ old('azure_id') }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Employee Email <span class="text-danger">*</span></label>
+                                <input type="email" name="employee_email" class="form-control form-control-sm" value="{{ old('employee_email') }}" placeholder="employee@company.com">
+                                <div class="form-text">The employee's work email address. The system will find their account automatically.</div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label small fw-semibold">Group Names <span class="text-danger">*</span></label>
-                                <textarea name="group_names_raw" class="form-control form-control-sm" rows="3"
-                                          placeholder="One group name per line, e.g.&#10;All-Sales-Staff&#10;Cairo-Office">{{ old('group_names_raw') }}</textarea>
-                                <div class="form-text">Enter one Azure AD group name per line. Groups must already exist in Azure AD.</div>
+                                <label class="form-label small fw-semibold">Groups to Assign <span class="text-danger">*</span></label>
+                                <textarea name="group_names_raw" class="form-control form-control-sm" rows="4"
+                                          placeholder="One group display name per line, e.g.&#10;Sales Team&#10;Cairo Office&#10;VPN Users">{{ old('group_names_raw') }}</textarea>
+                                <div class="form-text">Enter one group display name per line (as shown in the Identity → Groups page).</div>
                             </div>
                         </div>
                     </div>
@@ -289,6 +326,7 @@ let previewTimeout = null;
 // ── Toggle field sections based on selected type ──
 const allSections = [
     'create_user_fields',
+    'delete_user_fields',
     'employee_offboarding_fields',
     'group_assignment_fields',
     'other_fields',
@@ -320,6 +358,8 @@ document.querySelectorAll('input[name="type"]').forEach(radio => {
             document.getElementById('create_user_fields').classList.remove('d-none');
             previewCard.classList.remove('d-none');
             updatePreview();
+        } else if (this.value === 'delete_user') {
+            document.getElementById('delete_user_fields').classList.remove('d-none');
         } else if (this.value === 'employee_offboarding') {
             document.getElementById('employee_offboarding_fields').classList.remove('d-none');
         } else if (this.value === 'group_assignment') {

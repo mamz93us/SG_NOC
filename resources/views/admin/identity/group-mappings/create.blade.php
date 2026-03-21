@@ -7,7 +7,7 @@
     <div class="col-lg-7">
 
       <div class="d-flex align-items-center mb-4">
-        <a href="{{ route('admin.identity.group-mappings.index') }}" class="btn btn-sm btn-outline-secondary me-3">
+        <a href="{{ '/admin/identity/group-mappings' }}" class="btn btn-sm btn-outline-secondary me-3">
           <i class="bi bi-arrow-left"></i>
         </a>
         <div>
@@ -28,7 +28,7 @@
 
       <div class="card border-0 shadow-sm">
         <div class="card-body p-4">
-          <form method="POST" action="{{ route('admin.identity.group-mappings.store') }}">
+          <form method="POST" action="/admin/identity/group-mappings">
             @csrf
 
             <div class="mb-4">
@@ -96,7 +96,7 @@
               <button type="submit" class="btn btn-primary px-4">
                 <i class="bi bi-check-lg me-1"></i>Save Mapping
               </button>
-              <a href="{{ route('admin.identity.group-mappings.index') }}" class="btn btn-outline-secondary">Cancel</a>
+              <a href="{{ '/admin/identity/group-mappings' }}" class="btn btn-outline-secondary">Cancel</a>
             </div>
           </form>
         </div>
