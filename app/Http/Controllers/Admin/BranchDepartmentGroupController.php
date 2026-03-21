@@ -55,7 +55,7 @@ class BranchDepartmentGroupController extends Controller
 
         BranchDepartmentGroupMapping::create($data);
 
-        return redirect()->route('admin.identity.group-mappings.index')
+        return redirect('/admin/identity/group-mappings')
             ->with('success', 'Group mapping created.');
     }
 
@@ -66,7 +66,7 @@ class BranchDepartmentGroupController extends Controller
     {
         $groupMapping->delete(); // route param: {groupMapping} → auto-resolves
 
-        return redirect()->route('admin.identity.group-mappings.index')
+        return redirect('/admin/identity/group-mappings')
             ->with('success', 'Group mapping deleted.');
     }
 

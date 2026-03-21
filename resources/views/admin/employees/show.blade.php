@@ -262,7 +262,7 @@
                 @error('employee_id')
                   <div class="alert alert-danger alert-sm py-2 px-3 mb-2 small">{{ $message }}</div>
                 @enderror
-                <form method="POST" action="{{ route('admin.printer-deploy.deploy') }}">
+                <form method="POST" action="/admin/printer-deploy">
                     @csrf
                     <input type="hidden" name="employee_id" value="{{ $employee->id }}">
                     <button type="submit" class="btn btn-sm btn-outline-primary w-100">

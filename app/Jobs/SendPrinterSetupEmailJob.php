@@ -35,7 +35,7 @@ class SendPrinterSetupEmailJob implements ShouldQueue
             ->orderBy('printer_name')
             ->get();
 
-        $setupUrl = route('printer.setup', ['token' => $token->token]);
+        $setupUrl = url('/printer/setup') . '?token=' . $token->token;
 
         Mail::to($token->sent_to_email)->send(
             new PrinterSetupMail($token, $printers, $setupUrl)

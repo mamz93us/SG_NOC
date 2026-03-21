@@ -83,14 +83,14 @@
 
           <div class="d-flex flex-wrap gap-2">
             {{-- Windows install --}}
-            <a href="{{ route('printer.setup.script', ['token' => $token->token, 'printer_id' => $printer->id, 'os' => 'windows']) }}"
+            <a href="{{ '/printer/setup/script?token=' . $token->token . '&printer_id=' . $printer->id . '&os=windows' }}"
                class="btn btn-sm btn-win">
               <i class="bi bi-windows me-1"></i>Windows Install
             </a>
 
             {{-- Mac install (only if IP is set) --}}
             @if($printer->ip_address)
-            <a href="{{ route('printer.setup.script', ['token' => $token->token, 'printer_id' => $printer->id, 'os' => 'mac']) }}"
+            <a href="{{ '/printer/setup/script?token=' . $token->token . '&printer_id=' . $printer->id . '&os=mac' }}"
                class="btn btn-sm btn-mac">
               <i class="bi bi-apple me-1"></i>Mac Install
             </a>

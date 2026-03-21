@@ -69,7 +69,7 @@
                 </td>
                 <td class="text-end">
                     @can('manage-workflow-templates')
-                    <a href="{{ route('admin.workflow-templates.builder', $tpl) }}"
+                    <a href="/admin/workflow-templates/{{ $tpl->id }}/builder"
                        class="btn btn-sm btn-outline-primary" title="Open Visual Builder">
                         <i class="bi bi-diagram-3"></i>
                     </a>
