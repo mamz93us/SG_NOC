@@ -919,17 +919,17 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ── Branch / Department → Azure Group Mappings ───────────────
     Route::prefix('identity/group-mappings')->name('admin.identity.group-mappings.')->middleware('permission:manage-identity')->group(function () {
-        Route::get('/',              [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'index'])       ->name('index');
-        Route::post('/',             [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'store'])       ->name('store');
-        Route::delete('/{mapping}',  [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'destroy'])     ->name('destroy');
-        Route::get('/preview',       [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'preview'])     ->name('preview');
-        Route::get('/search-azure',  [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'searchAzure'])->name('search-azure');
+        Route::get('/',                     [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'index'])  ->name('index');
+        Route::get('/create',               [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'create']) ->name('create');
+        Route::post('/',                    [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'store'])  ->name('store');
+        Route::delete('/{groupMapping}',    [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'destroy'])->name('destroy');
+        Route::get('/preview',              [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'preview'])->name('preview');
     });
 
-    // ── Printer Deployment ────────────────────────────────────────
-    Route::post('printers/{printer}/deploy', [\App\Http\Controllers\Admin\PrinterDeployController::class, 'deploy'])
-        ->name('printers.deploy')
-        ->middleware('permission:manage-printers');
+    // ── Printer Deployment (employee-level link via employee show page) ───
+    Route::post('printer-deploy', [\App\Http\Controllers\Admin\PrinterDeployController::class, 'deploy'])
+        ->name('admin.printer-deploy.deploy')
+        ->middleware('permission:manage-employees');
 
     // ── Admin Tools / Quick Links ──────────────────────────────────
     Route::middleware('permission:view-admin-links')->prefix('admin-links')->name('admin-links.')->group(function () {
@@ -966,8 +966,8 @@ Route::get('/offboarding/respond',  [OffboardingFormController::class, 'show']) 
 Route::post('/offboarding/respond', [OffboardingFormController::class, 'submit'])->name('offboarding.submit');
 
 // Printer self-service setup
-Route::get('/printer-setup',        [PrinterSetupController::class, 'show'])          ->name('printer-setup.show');
-Route::get('/printer-setup/script', [PrinterSetupController::class, 'downloadScript'])->name('printer-setup.script');
+Route::get('/printer-setup',        [PrinterSetupController::class, 'show'])          ->name('printer.setup');
+Route::get('/printer-setup/script', [PrinterSetupController::class, 'downloadScript'])->name('printer.setup.script');
 
 /*
 |--------------------------------------------------------------------------

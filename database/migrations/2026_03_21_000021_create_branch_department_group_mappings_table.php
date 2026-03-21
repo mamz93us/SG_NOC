@@ -10,17 +10,32 @@ return new class extends Migration
     {
         Schema::create('branch_department_group_mappings', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('branch_id')->nullable();      // null = all branches
-            $table->unsignedBigInteger('department_id')->nullable();  // null = all departments
-            $table->string('azure_group_id');
-            $table->string('azure_group_name');
+
+            // branches.id is unsignedInteger (32-bit) — must match exactly
+            $table->unsignedInteger('branch_id')->nullable();    // null = any branch
+            // departments.id and identity_groups.id use $table->id() = unsignedBigInteger (64-bit)
+            $table->unsignedBigInteger('department_id')->nullable(); // null = any department
+            $table->unsignedBigInteger('identity_group_id');
+
+            $table->boolean('is_active')->default(true);
             $table->text('notes')->nullable();
             $table->timestamps();
 
-            $table->foreign('branch_id')->references('id')->on('branches')->onDelete('cascade');
-            $table->foreign('department_id')->references('id')->on('departments')->onDelete('cascade');
+            $table->foreign('branch_id')
+                  ->references('id')->on('branches')
+                  ->onDelete('cascade');
 
-            $table->index(['branch_id', 'department_id']);
+            $table->foreign('department_id')
+                  ->references('id')->on('departments')
+                  ->onDelete('cascade');
+
+            $table->foreign('identity_group_id')
+                  ->references('id')->on('identity_groups')
+                  ->onDelete('cascade');
+
+            // Prevent exact duplicate mappings
+            $table->unique(['branch_id', 'department_id', 'identity_group_id'],
+                           'bdgm_branch_dept_group_unique');
         });
     }
 

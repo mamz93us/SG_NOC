@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Mail\PrinterSetupMail;
+use App\Models\Printer;
 use App\Models\PrinterDeployToken;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -24,9 +25,20 @@ class SendPrinterSetupEmailJob implements ShouldQueue
 
     public function handle(): void
     {
-        $token = PrinterDeployToken::with('printer')->find($this->tokenId);
-        if (! $token) return;
+        $token = PrinterDeployToken::with(['employee', 'branch'])->find($this->tokenId);
+        if (! $token) {
+            return;
+        }
 
-        Mail::to($token->sent_to_email)->send(new PrinterSetupMail($token));
+        // Get all printers for this branch
+        $printers = Printer::where('branch_id', $token->branch_id)
+            ->orderBy('printer_name')
+            ->get();
+
+        $setupUrl = route('printer.setup', ['token' => $token->token]);
+
+        Mail::to($token->sent_to_email)->send(
+            new PrinterSetupMail($token, $printers, $setupUrl)
+        );
     }
 }

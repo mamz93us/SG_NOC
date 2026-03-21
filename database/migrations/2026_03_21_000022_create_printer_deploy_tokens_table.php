@@ -10,16 +10,17 @@ return new class extends Migration
     {
         Schema::create('printer_deploy_tokens', function (Blueprint $table) {
             $table->id();
-            $table->string('token', 64)->unique();
-            $table->unsignedBigInteger('printer_id');
             $table->unsignedBigInteger('employee_id')->nullable();
-            $table->string('sent_to_email');
-            $table->json('printer_config')->nullable();   // ip, name, driver, share_name snapshot
+            // branches.id is unsignedInteger (32-bit) — must match exactly
+            $table->unsignedInteger('branch_id');
+            $table->string('token', 64)->unique();
+            $table->timestamp('expires_at');
             $table->timestamp('used_at')->nullable();
-            $table->timestamp('expires_at')->nullable();
+            $table->string('sent_to_email');
             $table->timestamps();
 
-            $table->foreign('printer_id')->references('id')->on('printers')->onDelete('cascade');
+            $table->foreign('employee_id')->references('id')->on('employees')->nullOnDelete();
+            $table->foreign('branch_id')->references('id')->on('branches')->cascadeOnDelete();
         });
     }
 

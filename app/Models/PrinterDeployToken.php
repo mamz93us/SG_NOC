@@ -2,55 +2,61 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Str;
 
 class PrinterDeployToken extends Model
 {
     protected $fillable = [
-        'token',
-        'printer_id',
         'employee_id',
-        'sent_to_email',
-        'printer_config',
-        'used_at',
+        'branch_id',
+        'token',
         'expires_at',
+        'used_at',
+        'sent_to_email',
     ];
 
     protected $casts = [
-        'printer_config' => 'array',
-        'used_at'        => 'datetime',
-        'expires_at'     => 'datetime',
+        'expires_at' => 'datetime',
+        'used_at'    => 'datetime',
     ];
 
     // ─── Relationships ────────────────────────────────────────────
-
-    public function printer(): BelongsTo
-    {
-        return $this->belongsTo(Printer::class);
-    }
 
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    // ─── Scopes ───────────────────────────────────────────────────
+
+    public function scopeValid(Builder $q): Builder
+    {
+        return $q->where('expires_at', '>', now())
+                 ->whereNull('used_at');
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────
 
-    public static function generate(int $printerId, array $attributes = []): self
+    public function isExpired(): bool
     {
-        return static::create(array_merge([
-            'token'      => Str::random(48),
-            'printer_id' => $printerId,
-            'expires_at' => now()->addDays(14),
-        ], $attributes));
+        return $this->expires_at && $this->expires_at->isPast();
+    }
+
+    public function isUsed(): bool
+    {
+        return ! is_null($this->used_at);
     }
 
     public function isValid(): bool
     {
-        return is_null($this->used_at)
-            && (is_null($this->expires_at) || $this->expires_at->isFuture());
+        return ! $this->isExpired() && ! $this->isUsed();
     }
 
     public function markUsed(): void

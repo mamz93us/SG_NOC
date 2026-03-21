@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\PrinterDeployToken;
 use Illuminate\Bus\Queueable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -13,15 +14,24 @@ class PrinterSetupMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public PrinterDeployToken $token) {}
+    public string $employeeName;
+    public string $branchName;
+    public string $setupUrl;
+
+    public function __construct(
+        public PrinterDeployToken $token,
+        public Collection         $printers,
+        string                    $setupUrl
+    ) {
+        $this->employeeName = $token->employee?->name ?? $token->sent_to_email;
+        $this->branchName   = $token->branch?->name   ?? 'Your Branch';
+        $this->setupUrl     = $setupUrl;
+    }
 
     public function envelope(): Envelope
     {
-        $config      = $this->token->printer_config ?? [];
-        $printerName = $config['printer_name'] ?? 'Printer';
-
         return new Envelope(
-            subject: "Printer Setup Instructions: {$printerName}",
+            subject: "🖨️ Printer Setup Instructions — {$this->branchName}",
         );
     }
 

@@ -13,97 +13,87 @@
 
         <!-- Header -->
         <tr>
-          <td style="background-color:#0d6efd;padding:28px 32px;">
-            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">&#128438; Printer Setup Instructions</h1>
-            <p style="margin:6px 0 0;color:#cfe2ff;font-size:14px;">IT Department &bull; SG NOC</p>
+          <td style="background-color:#1e3a5f;padding:28px 32px;">
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">&#128438; Printer Setup for {{ $branchName }}</h1>
+            <p style="margin:6px 0 0;color:#b0c4de;font-size:14px;">IT Department &bull; Samir Group IT</p>
           </td>
         </tr>
 
-        <!-- Body -->
+        <!-- Greeting -->
         <tr>
-          <td style="padding:32px;">
-            @php
-              $config      = $token->printer_config ?? [];
-              $printerName = $config['printer_name'] ?? 'Office Printer';
-              $ip          = $config['ip_address']   ?? '—';
-              $mfr         = $config['manufacturer'] ?? '';
-              $model       = $config['model']         ?? '';
-              $branch      = $config['branch']        ?? null;
-              $location    = $config['location']      ?? null;
-              $setupUrl    = url('/printer-setup?token=' . $token->token);
-              $expiresAt   = $token->expires_at?->format('d M Y');
-            @endphp
-
-            <p style="margin:0 0 16px;color:#212529;font-size:16px;">
-              Your IT team has sent you printer installation instructions for <strong>{{ $printerName }}</strong>.
+          <td style="padding:28px 32px 0;">
+            <p style="margin:0 0 8px;font-size:16px;color:#1a1a2e;">Hi <strong>{{ $employeeName }}</strong>,</p>
+            <p style="margin:0;font-size:14px;color:#555;line-height:1.6;">
+              Your printer setup is ready for <strong>{{ $branchName }}</strong>.
+              The table below lists all available office printers.
+              Click the button at the bottom to open the interactive setup page on your laptop.
             </p>
+          </td>
+        </tr>
 
-            <!-- Printer info table -->
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #dee2e6;border-radius:6px;overflow:hidden;margin-bottom:24px;">
+        <!-- Printers table -->
+        @if($printers->isNotEmpty())
+        <tr>
+          <td style="padding:20px 32px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
               <tr style="background-color:#f8f9fa;">
-                <td colspan="2" style="padding:10px 16px;font-size:13px;font-weight:700;color:#495057;text-transform:uppercase;letter-spacing:.5px;">Printer Details</td>
+                <th style="padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;color:#6c757d;font-weight:600;border-bottom:1px solid #e5e7eb;">Printer</th>
+                <th style="padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;color:#6c757d;font-weight:600;border-bottom:1px solid #e5e7eb;">IP Address</th>
+                <th style="padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;color:#6c757d;font-weight:600;border-bottom:1px solid #e5e7eb;">Location</th>
               </tr>
-              <tr>
-                <td style="padding:10px 16px;color:#6c757d;font-size:14px;width:140px;border-top:1px solid #dee2e6;">Printer Name</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;font-weight:600;border-top:1px solid #dee2e6;">{{ $printerName }}</td>
+              @foreach($printers as $p)
+              <tr style="border-bottom:1px solid #f0f0f0;">
+                <td style="padding:10px 14px;font-size:14px;color:#1a1a2e;font-weight:600;">{{ $p->printer_name }}</td>
+                <td style="padding:10px 14px;font-size:13px;color:#555;font-family:monospace;">{{ $p->ip_address ?? '—' }}</td>
+                <td style="padding:10px 14px;font-size:13px;color:#555;">{{ $p->locationLabel() !== '—' ? $p->locationLabel() : ($branchName) }}</td>
               </tr>
-              @if($mfr || $model)
-              <tr style="background-color:#f8f9fa;">
-                <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Make / Model</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;">{{ trim($mfr . ' ' . $model) }}</td>
-              </tr>
-              @endif
-              <tr>
-                <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">IP Address</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;font-family:monospace;border-top:1px solid #dee2e6;">{{ $ip }}</td>
-              </tr>
-              @if($branch)
-              <tr style="background-color:#f8f9fa;">
-                <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Branch</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;">{{ $branch }}</td>
-              </tr>
-              @endif
-              @if($location && $location !== '—')
-              <tr>
-                <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Location</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;">{{ $location }}</td>
-              </tr>
-              @endif
+              @endforeach
             </table>
+          </td>
+        </tr>
+        @endif
 
-            <!-- CTA -->
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+        <!-- CTA Button -->
+        <tr>
+          <td style="padding:28px 32px;">
+            <table cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td align="center">
+                <td style="background-color:#1e3a5f;border-radius:6px;">
                   <a href="{{ $setupUrl }}"
-                     style="display:inline-block;background-color:#0d6efd;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:6px;">
-                    Open Setup Page &amp; Download Script
+                     style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;letter-spacing:.3px;">
+                    &#128438; Open Printer Setup Page &rarr;
                   </a>
                 </td>
               </tr>
             </table>
-
-            <p style="margin:0 0 16px;color:#495057;font-size:14px;">
-              The setup page includes one-click scripts for Windows and macOS/Linux that will automatically install the printer for you.
+            <p style="margin:12px 0 0;font-size:12px;color:#999;">
+              Or copy this link: <a href="{{ $setupUrl }}" style="color:#1e3a5f;word-break:break-all;">{{ $setupUrl }}</a>
             </p>
+          </td>
+        </tr>
 
-            @if($expiresAt)
-            <p style="margin:0 0 16px;color:#856404;font-size:13px;background-color:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:10px 14px;">
-              &#9888; This link expires on <strong>{{ $expiresAt }}</strong>. Contact IT if you need it resent.
-            </p>
-            @endif
-
-            <p style="margin:0;color:#6c757d;font-size:13px;">
-              If you have any issues, please contact the IT helpdesk.
-            </p>
+        <!-- Note -->
+        <tr>
+          <td style="padding:0 32px 24px;">
+            <table width="100%" cellpadding="12" cellspacing="0" border="0" style="background-color:#fff8e1;border-left:4px solid #f59e0b;border-radius:4px;">
+              <tr>
+                <td style="font-size:13px;color:#555;line-height:1.5;">
+                  <strong style="color:#92400e;">&#9888; Note:</strong>
+                  This link expires in <strong>7 days</strong>
+                  ({{ $token->expires_at?->format('d M Y') }}).
+                  Open it on the laptop you want to configure.
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
 
         <!-- Footer -->
         <tr>
-          <td style="background-color:#f8f9fa;padding:16px 32px;border-top:1px solid #dee2e6;">
-            <p style="margin:0;color:#adb5bd;font-size:12px;text-align:center;">
-              SG NOC &bull; IT Management &bull; Automated System Email
+          <td style="background-color:#f8f9fa;padding:18px 32px;border-top:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:12px;color:#999;text-align:center;">
+              SG NOC System &bull; Samir Group IT<br>
+              This is an automated message. Please do not reply.
             </p>
           </td>
         </tr>

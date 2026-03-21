@@ -7,52 +7,43 @@ use App\Jobs\SendPrinterSetupEmailJob;
 use App\Models\Employee;
 use App\Models\Printer;
 use App\Models\PrinterDeployToken;
-use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class PrinterDeployController extends Controller
 {
     /**
-     * POST /admin/printers/{printer}/deploy
-     * Send a printer setup email to a specific employee.
+     * POST /admin/printer-deploy
+     * Send a printer setup link to an employee's email.
+     * Placed on the employee show page as a small form.
      */
-    public function deploy(Request $request, Printer $printer): JsonResponse
+    public function deploy(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'employee_id' => 'nullable|integer|exists:employees,id',
-            'email'       => 'required_without:employee_id|nullable|email|max:200',
+            'employee_id' => 'required|integer|exists:employees,id',
         ]);
 
-        $employee = isset($data['employee_id']) ? Employee::find($data['employee_id']) : null;
-        $email    = $data['email'] ?? $employee?->email;
+        $employee = Employee::with('branch')->findOrFail($data['employee_id']);
 
-        if (! $email) {
-            return response()->json(['error' => 'No email address provided.'], 422);
+        if (empty($employee->email)) {
+            return back()->withErrors(['employee_id' => 'This employee has no email address on record.']);
         }
 
-        // Build a config snapshot so the setup page has everything it needs
-        $config = [
-            'printer_name'  => $printer->printer_name,
-            'ip_address'    => $printer->ip_address,
-            'manufacturer'  => $printer->manufacturer,
-            'model'         => $printer->model,
-            'share_name'    => preg_replace('/[^A-Za-z0-9_-]/', '', $printer->printer_name),
-            'driver_url'    => null,   // filled by admin if needed
-            'branch'        => $printer->branch?->name,
-            'location'      => $printer->locationLabel(),
-        ];
+        if (! $employee->branch_id) {
+            return back()->withErrors(['employee_id' => 'This employee has no branch assigned.']);
+        }
 
-        $token = PrinterDeployToken::generate($printer->id, [
-            'employee_id'   => $employee?->id,
-            'sent_to_email' => $email,
-            'printer_config'=> $config,
+        $token = PrinterDeployToken::create([
+            'employee_id'   => $employee->id,
+            'branch_id'     => $employee->branch_id,
+            'token'         => Str::random(64),
+            'expires_at'    => now()->addDays(7),
+            'sent_to_email' => $employee->email,
         ]);
 
         SendPrinterSetupEmailJob::dispatch($token->id)->onQueue('emails');
 
-        return response()->json([
-            'ok'      => true,
-            'message' => "Setup email sent to {$email}.",
-        ]);
+        return back()->with('success', 'Printer setup link sent to ' . $employee->email);
     }
 }

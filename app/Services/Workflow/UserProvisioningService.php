@@ -171,24 +171,44 @@ class UserProvisioningService
             }
         }
 
-        // ── Step 3b: Assign Azure AD groups based on branch + dept ─
-        $deptId   = isset($payload['department_id']) ? (int) $payload['department_id'] : null;
-        $mappings = \App\Models\BranchDepartmentGroupMapping::getGroupsFor($workflow->branch_id, $deptId);
+        // ── Step 3b: Auto-assign Azure groups based on branch + department ─
+        $branchIdForGroups = $workflow->branch_id;
+        $deptIdForGroups   = isset($payload['department_id']) ? (int) $payload['department_id'] : null;
 
-        if ($mappings->isNotEmpty()) {
-            $this->engine->logEvent($workflow, 'info', "Assigning {$mappings->count()} Azure group(s) from branch/dept mapping.");
-            foreach ($mappings as $mapping) {
-                try {
-                    $graph->addUserToGroup($azureId, $mapping->azure_group_id);
-                    $this->engine->logEvent($workflow, 'success', "Added to group: {$mapping->azure_group_name}");
-                } catch (\Throwable $e) {
-                    // 409 = already a member — not an error
-                    if (str_contains($e->getMessage(), '409')) {
-                        $this->engine->logEvent($workflow, 'info', "Already in group: {$mapping->azure_group_name}");
-                    } else {
-                        $this->engine->logEvent($workflow, 'warning', "Group assignment failed for '{$mapping->azure_group_name}' (non-fatal): " . $e->getMessage());
+        if ($branchIdForGroups || $deptIdForGroups) {
+            $groupIds = \App\Models\BranchDepartmentGroupMapping::getGroupsFor(
+                $branchIdForGroups ?? 0,
+                $deptIdForGroups   ?? 0
+            );
+
+            if ($groupIds->isNotEmpty()) {
+                $this->engine->logEvent($workflow, 'info', "Auto-assigning {$groupIds->count()} Azure group(s) from branch/dept mapping.");
+
+                foreach ($groupIds as $identityGroupId) {
+                    $group = \App\Models\IdentityGroup::find($identityGroupId);
+                    if (! $group) {
+                        continue;
+                    }
+                    try {
+                        $this->engine->logEvent($workflow, 'info', "Auto-assigning group: {$group->display_name}");
+                        $graph->addUserToGroup($azureId, $group->azure_id);
+                        $this->engine->logEvent($workflow, 'success', "Group '{$group->display_name}' assigned.");
+                        sleep(1); // Small delay to avoid Graph throttling
+                    } catch (\Throwable $e) {
+                        // 409 = already a member — not an error
+                        if (str_contains($e->getMessage(), '409')) {
+                            $this->engine->logEvent($workflow, 'info', "Already in group: {$group->display_name}");
+                        } else {
+                            $this->engine->logEvent($workflow, 'warning',
+                                "Group '{$group->display_name}' assignment failed (non-fatal): " . $e->getMessage());
+                        }
                     }
                 }
+
+                // Save group assignment IDs to payload for audit trail
+                $payload['auto_assigned_groups'] = $groupIds->toArray();
+                $workflow->payload = $payload;
+                $workflow->save();
             }
         }
 
@@ -330,6 +350,30 @@ class UserProvisioningService
             route('admin.workflows.show', $workflow->id),
             'info'
         );
+
+        // ── Step 7b: Send printer setup link to new employee ──────
+        if (! empty($upn)) {
+            try {
+                $printerToken = \App\Models\PrinterDeployToken::create([
+                    'employee_id'   => $payload['employee_id'] ?? null,
+                    'branch_id'     => $workflow->branch_id,
+                    'token'         => \Illuminate\Support\Str::random(64),
+                    'expires_at'    => now()->addDays(14),
+                    'sent_to_email' => $upn,
+                ]);
+
+                // Only send if branch has printers configured and employee record exists
+                $hasPrinters = \App\Models\Printer::where('branch_id', $workflow->branch_id)->exists();
+                if ($hasPrinters && $printerToken->employee_id) {
+                    \App\Jobs\SendPrinterSetupEmailJob::dispatch($printerToken->id)->onQueue('emails');
+                    $this->engine->logEvent($workflow, 'info', "Printer setup email queued for: {$upn}");
+                }
+            } catch (\Throwable $e) {
+                // Completely non-fatal — do NOT block provisioning
+                $this->engine->logEvent($workflow, 'warning',
+                    'Printer setup email failed (non-fatal): ' . $e->getMessage());
+            }
+        }
 
         $this->engine->logEvent($workflow, 'success', 'User provisioning complete.');
     }

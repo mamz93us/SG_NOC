@@ -124,7 +124,12 @@
       "Bash(php -l app/Models/BranchDepartmentGroupMapping.php)",
       "Bash(php -l app/Models/PrinterDeployToken.php)",
       "Bash(php -l app/Jobs/SendHrFeedbackEmailJob.php)",
-      "Bash(php -l app/Jobs/SendOffboardingManagerRequestJob.php)"
+      "Bash(php -l app/Jobs/SendOffboardingManagerRequestJob.php)",
+      "Bash(grep -n \"unsignedInteger\\\\|bigInteger\\\\|$table->id\\\\|->primary\" C:UsersMohamedZahranDownloadsphonebookSG_NOCdatabasemigrations2024_01_01_000100_create_branches_table.php C:UsersMohamedZahranDownloadsphonebookSG_NOCdatabasemigrations2024_01_01_000110_create_departments_table.php)",
+      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOCdatabasemigrations -name *department*)",
+      "Bash(grep -n \"unsignedInteger\\\\|bigInteger\\\\|$table->id\\\\|->primary\" C:UsersMohamedZahranDownloadsphonebookSG_NOCdatabasemigrations2024_01_01_000120_create_employees_table.php)",
+      "Bash(grep -n \"unsignedInteger\\\\|bigInteger\\\\|$table->id\\\\|->primary\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\database\\\\migrations\\\\2024_01_01_000120_create_employees_table.php\")",
+      "Bash(grep -rn \"unsignedInteger\\\\|bigInteger\\\\|$table->id\\\\|->primary\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\database\\\\migrations\\\\2024_01_01_000120_create_employees_table.php\")"
     ]
   }
 }

@@ -252,42 +252,26 @@
         @endif
 
         {{-- Printer Deployment Card --}}
-        @can('manage-printers')
-        @php $branchPrinters = $employee->branch ? \App\Models\Printer::where('branch_id', $employee->branch_id)->orderBy('printer_name')->get() : collect(); @endphp
-        @if($branchPrinters->isNotEmpty())
-        <div class="card shadow-sm border-0 mb-3" x-data="{ open: false, email: '{{ $employee->email ?? '' }}', printerId: '', sending: false, msg: '' }">
-            <div class="card-header bg-transparent d-flex justify-content-between align-items-center" style="cursor:pointer" @click="open = !open">
-                <strong><i class="bi bi-printer me-1 text-info"></i>Deploy Printer</strong>
-                <i class="bi" :class="open ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
-            </div>
-            <div class="card-body" x-show="open" x-cloak>
-                <div class="mb-2">
-                    <label class="form-label small">Printer</label>
-                    <select class="form-select form-select-sm" x-model="printerId">
-                        <option value="">— Select printer —</option>
-                        @foreach($branchPrinters as $p)
-                        <option value="{{ $p->id }}">{{ $p->printer_name }}{{ $p->ip_address ? ' ('.$p->ip_address.')' : '' }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small">Recipient Email</label>
-                    <input type="email" class="form-control form-control-sm" x-model="email" placeholder="employee@company.com">
-                </div>
-                <button class="btn btn-sm btn-info w-100 text-white fw-semibold"
-                        :disabled="!printerId || !email || sending"
-                        @click="
-                            sending = true; msg = '';
-                            fetch('/admin/printers/' + printerId + '/deploy', {
-                                method: 'POST',
-                                headers: {'Content-Type':'application/json','X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content},
-                                body: JSON.stringify({email})
-                            }).then(r => r.json()).then(d => { msg = d.message || d.error; sending = false; }).catch(e => { msg = 'Error sending'; sending = false; });
-                        ">
-                    <span x-show="!sending"><i class="bi bi-send me-1"></i>Send Setup Email</span>
-                    <span x-show="sending"><span class="spinner-border spinner-border-sm me-1"></span>Sending…</span>
-                </button>
-                <p class="mt-2 mb-0 small" :class="msg.startsWith('Error') ? 'text-danger' : 'text-success'" x-text="msg" x-show="msg"></p>
+        @can('manage-employees')
+        @if($employee->email && $employee->branch_id)
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body py-3 px-4">
+                @if(session('success') && str_contains(session('success'), 'Printer'))
+                  <div class="alert alert-success alert-sm py-2 px-3 mb-2 small">{{ session('success') }}</div>
+                @endif
+                @error('employee_id')
+                  <div class="alert alert-danger alert-sm py-2 px-3 mb-2 small">{{ $message }}</div>
+                @enderror
+                <form method="POST" action="{{ route('admin.printer-deploy.deploy') }}">
+                    @csrf
+                    <input type="hidden" name="employee_id" value="{{ $employee->id }}">
+                    <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                        <i class="bi bi-printer me-1"></i>Send Printer Setup Link
+                    </button>
+                    <div class="text-muted small mt-1 text-center">
+                        Sends a setup link to <strong>{{ $employee->email }}</strong>
+                    </div>
+                </form>
             </div>
         </div>
         @endif
