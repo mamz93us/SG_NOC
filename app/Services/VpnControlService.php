@@ -21,18 +21,21 @@ class VpnControlService
 
     /**
      * Initiate a specific tunnel (child SA).
+     * Runs non-blocking — returns immediately so the HTTP request doesn't time out
+     * while strongSwan negotiates IKE with the remote peer.
      */
     public function up(string $tunnelName): array
     {
-        return $this->execute(['up', $tunnelName]);
+        return $this->executeAsync(['up', $tunnelName]);
     }
 
     /**
      * Terminate a specific tunnel (child SA).
+     * Runs non-blocking — swanctl sends the DELETE notification and returns quickly.
      */
     public function down(string $tunnelName): array
     {
-        return $this->execute(['down', $tunnelName]);
+        return $this->executeAsync(['down', $tunnelName]);
     }
 
     /**
@@ -178,7 +181,57 @@ class VpnControlService
     }
 
     /**
-     * Execute the wrapper script with given arguments.
+     * Execute the wrapper script asynchronously (fire-and-forget).
+     * Used for `up` and `down` which can take 30+ seconds to negotiate IKE.
+     * Waits up to 5 seconds for an immediate error, then returns success so
+     * the HTTP request isn't blocked waiting for the full negotiation.
+     */
+    public function executeAsync(array $args): array
+    {
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            return ['status' => 'success', 'swanctl_available' => true, 'output' => 'Mocked async for ' . implode(' ', $args)];
+        }
+
+        $command = array_merge(['sudo', $this->wrapperPath], $args);
+        $process = new Process($command);
+        $process->setTimeout(120); // generous upper bound in case swanctl stalls
+        $process->start();         // non-blocking — launches process and returns
+
+        // Give the process up to 5 seconds to produce an immediate error
+        // (e.g. tunnel name not found, swanctl not installed).
+        $waited = 0;
+        while ($process->isRunning() && $waited < 5) {
+            usleep(500_000); // 0.5 s
+            $waited += 0.5;
+        }
+
+        if (!$process->isRunning()) {
+            // Process finished within 5 s — check for failure
+            if (!$process->isSuccessful()) {
+                $error = trim($process->getErrorOutput() ?: $process->getOutput());
+                Log::error('VpnControlService: Async command failed quickly', [
+                    'command' => $command,
+                    'error'   => $error,
+                ]);
+                return ['status' => 'error', 'message' => $error ?: 'Command failed.'];
+            }
+            // Finished quickly and successfully (e.g. tunnel was already up)
+            $output  = $process->getOutput();
+            $decoded = json_decode($output, true);
+            return $decoded ?: ['status' => 'success', 'swanctl_available' => true, 'output' => $output];
+        }
+
+        // Still running after 5 s — negotiation is in progress in background.
+        // Return optimistically; the status-check polling will reflect the real state.
+        Log::info('VpnControlService: Async command still running (background negotiation)', [
+            'command' => $command,
+        ]);
+        return ['status' => 'success', 'swanctl_available' => true, 'output' => 'Negotiation in progress…'];
+    }
+
+    /**
+     * Execute the wrapper script synchronously.
+     * Used for status queries and reload operations which return quickly.
      */
     public function execute(array $args): array
     {
@@ -189,7 +242,7 @@ class VpnControlService
 
         $command = array_merge(['sudo', $this->wrapperPath], $args);
         $process = new Process($command);
-        $process->setTimeout(10);
+        $process->setTimeout(30); // 30 s is plenty for status / reload
         $process->run();
 
         if (!$process->isSuccessful()) {
