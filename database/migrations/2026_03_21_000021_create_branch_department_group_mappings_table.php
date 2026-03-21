@@ -8,6 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::dropIfExists('branch_department_group_mappings'); // safety: drop if left by a failed previous run
+
         Schema::create('branch_department_group_mappings', function (Blueprint $table) {
             $table->id();
 
