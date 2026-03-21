@@ -333,10 +333,14 @@
 @endsection
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.js"></script>
 <script>
-// ── Job registry (from PHP) ────────────────────────────────────
-// Flat map: class → { label, params[] }
+// ════════════════════════════════════════════════════════════════
+// ALL CONSTANTS AND FUNCTIONS DEFINED FIRST
+// (so Drawflow CDN failure cannot put them in temporal dead zone)
+// ════════════════════════════════════════════════════════════════
+
+// ── Job registry (from PHP) ─────────────────────────────────────
 const JOB_REGISTRY = {};
 @foreach($jobRegistry as $group => $jobs)
 @foreach($jobs as $job)
@@ -347,13 +351,12 @@ JOB_REGISTRY[{{ json_encode($job['class']) }}] = {
 @endforeach
 @endforeach
 
-// ── Drawflow init ──────────────────────────────────────────────
-const dfEl   = document.getElementById('drawflow');
-const editor = new Drawflow(dfEl);
-editor.reroute = true;
-editor.start();
+// ── HTML escape helper ──────────────────────────────────────────
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
-// ── Node HTML templates ────────────────────────────────────────
+// ── Node HTML templates ─────────────────────────────────────────
 const nodeTemplates = {
     approval: (d) => `
         <div class="node-card node-type-approval">
@@ -410,11 +413,7 @@ const nodeTemplates = {
         </div>`,
 };
 
-function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-// Node output/input config
+// ── Node config ─────────────────────────────────────────────────
 const nodeOutputs  = { approval: 1, action: 1, condition: 2, notification: 1, wait: 1 };
 const nodeInputs   = { approval: 1, action: 1, condition: 1, notification: 1, wait: 1 };
 const nodeDefaults = {
@@ -425,8 +424,15 @@ const nodeDefaults = {
     wait:         { label: 'Wait', hours: 24 },
 };
 
-// ── Node placement helper ────────────────────────────────────────
+// ── Canvas element (always exists in DOM) ───────────────────────
+const dfEl = document.getElementById('drawflow');
+
+// ── editor reference — populated after Drawflow init ───────────
+let editor = null;
+
+// ── Node placement ──────────────────────────────────────────────
 function placeNode(type, clientX, clientY) {
+    if (!editor) { showToast('Canvas not ready — try refreshing', 'warning'); return; }
     if (!type || !nodeTemplates[type]) return;
     const preRect = editor.precanvas.getBoundingClientRect();
     const zoom    = editor.zoom || 1;
@@ -436,78 +442,82 @@ function placeNode(type, clientX, clientY) {
     editor.addNode(type, nodeInputs[type], nodeOutputs[type], pos_x, pos_y, type, data, nodeTemplates[type](data));
 }
 
-// ── Click-to-add (most reliable: add to canvas center) ──────────
+// ── Click-to-add ────────────────────────────────────────────────
 function addNodeCenter(type) {
-    const rect   = dfEl.getBoundingClientRect();
+    if (!editor) { showToast('Canvas not ready — try refreshing', 'warning'); return; }
+    const rect    = dfEl.getBoundingClientRect();
     const centerX = rect.left + rect.width  / 2;
     const centerY = rect.top  + rect.height / 2;
-    // Spread out so repeated clicks don't stack exactly
-    const jitter = () => (Math.random() - 0.5) * 80;
+    const jitter  = () => (Math.random() - 0.5) * 100;
     placeNode(type, centerX + jitter(), centerY + jitter());
 }
 
-// ── Pointer-events drag (works everywhere, no HTML5 DnD quirks) ─
-let _dragType    = null;
-let _ghostEl     = null;
-let _dragStarted = false;
+// ── Pointer-events drag ─────────────────────────────────────────
+let _dragType = null, _ghostEl = null;
 
 function _cleanupDrag() {
     if (_ghostEl) { _ghostEl.remove(); _ghostEl = null; }
     dfEl.classList.remove('drop-target-active');
     document.removeEventListener('pointermove', _onPointerMove);
     document.removeEventListener('pointerup',   _onPointerUp);
-    _dragType    = null;
-    _dragStarted = false;
+    _dragType = null;
 }
-
 function _onPointerMove(e) {
     if (!_ghostEl) return;
     _ghostEl.style.left = (e.clientX + 12) + 'px';
     _ghostEl.style.top  = (e.clientY - 20) + 'px';
-
-    // Highlight canvas when cursor is over it
-    const dfRect = dfEl.getBoundingClientRect();
-    const over = e.clientX >= dfRect.left && e.clientX <= dfRect.right &&
-                 e.clientY >= dfRect.top  && e.clientY <= dfRect.bottom;
-    dfEl.classList.toggle('drop-target-active', over);
+    const r = dfEl.getBoundingClientRect();
+    dfEl.classList.toggle('drop-target-active',
+        e.clientX >= r.left && e.clientX <= r.right &&
+        e.clientY >= r.top  && e.clientY <= r.bottom);
 }
-
 function _onPointerUp(e) {
     const type = _dragType;
     _cleanupDrag();
-
-    const dfRect = dfEl.getBoundingClientRect();
-    const inside = e.clientX >= dfRect.left && e.clientX <= dfRect.right &&
-                   e.clientY >= dfRect.top  && e.clientY <= dfRect.bottom;
-    if (inside && type) {
+    const r = dfEl.getBoundingClientRect();
+    if (type && e.clientX >= r.left && e.clientX <= r.right &&
+                e.clientY >= r.top  && e.clientY <= r.bottom) {
         placeNode(type, e.clientX, e.clientY);
     }
 }
 
-// Attach pointer-down to every palette item
+// Attach pointer listeners to palette items
 document.querySelectorAll('#node-palette .drag-item').forEach(el => {
     el.addEventListener('pointerdown', e => {
-        // Ignore clicks on the + button itself
         if (e.target.closest('.add-node-btn')) return;
         e.preventDefault();
-        _dragType    = el.dataset.nodeType;
-        _dragStarted = true;
-
-        // Clone the card as a floating ghost
+        _dragType = el.dataset.nodeType;
         _ghostEl = el.cloneNode(true);
         _ghostEl.className = 'card node-drag-ghost position-fixed shadow-lg';
-        _ghostEl.style.cssText = `left:${e.clientX + 12}px; top:${e.clientY - 20}px; width:160px; pointer-events:none; z-index:9999; opacity:.9;`;
+        _ghostEl.style.cssText = `left:${e.clientX+12}px;top:${e.clientY-20}px;width:160px;pointer-events:none;z-index:9999;opacity:.9;`;
         document.body.appendChild(_ghostEl);
-
         document.addEventListener('pointermove', _onPointerMove);
         document.addEventListener('pointerup',   _onPointerUp);
     });
 });
 
-// ── Load existing definition ──────────────────────────────────
-@if($workflowTemplate->definition)
-try { editor.import(@json($workflowTemplate->definition)); } catch(e) { console.warn('Could not import definition:', e); }
-@endif
+// ════════════════════════════════════════════════════════════════
+// DRAWFLOW INIT — wrapped so a CDN failure cannot break everything
+// ════════════════════════════════════════════════════════════════
+try {
+    if (typeof Drawflow === 'undefined') throw new Error('Drawflow library failed to load from CDN');
+    editor = new Drawflow(dfEl);
+    editor.reroute = true;
+    editor.start();
+
+    // Load existing definition
+    @if($workflowTemplate->definition)
+    try { editor.import(@json($workflowTemplate->definition)); } catch(ie) { console.warn('Could not import definition:', ie); }
+    @endif
+
+} catch (initErr) {
+    console.error('Drawflow init failed:', initErr);
+    dfEl.innerHTML = `<div class="alert alert-danger m-4 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>Canvas failed to load:</strong> ${initErr.message}
+        <br><small class="text-muted">Check your internet connection and refresh the page.</small>
+    </div>`;
+}
 
 // ── Save definition ───────────────────────────────────────────
 async function saveDefinition() {
