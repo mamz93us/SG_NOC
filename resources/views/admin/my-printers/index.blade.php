@@ -121,7 +121,7 @@
                 <div class="d-flex gap-2 flex-wrap">
                     {{-- Windows install button --}}
                     @if($hasToken && $hasIp)
-                        <a href="{{ '/printer/setup/script?token=' . $token->token . '&printer_id=' . $printer->id . '&os=windows' }}"
+                        <a href="{{ '/printer-setup/script?token=' . $token->token . '&printer_id=' . $printer->id . '&os=windows' }}"
                            class="btn btn-sm btn-outline-primary"
                            title="Download Windows install script">
                             <i class="bi bi-windows me-1"></i>Windows
@@ -135,7 +135,7 @@
                     {{-- Mac install button (only if IP exists) --}}
                     @if($hasIp)
                         @if($hasToken)
-                            <a href="{{ '/printer/setup/script?token=' . $token->token . '&printer_id=' . $printer->id . '&os=mac' }}"
+                            <a href="{{ '/printer-setup/script?token=' . $token->token . '&printer_id=' . $printer->id . '&os=mac' }}"
                                class="btn btn-sm btn-outline-dark"
                                title="Download macOS install script">
                                 <i class="bi bi-apple me-1"></i>Mac
