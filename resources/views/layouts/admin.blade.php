@@ -604,6 +604,7 @@
                                 </a>
                             </li>
                             @can('manage-identity')
+                            @if(\Illuminate\Support\Facades\Route::has('admin.identity.group-mappings.index'))
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.identity.group-mappings.*') ? 'active' : '' }}"
@@ -611,6 +612,7 @@
                                     <i class="bi bi-diagram-3 me-2"></i>Group Auto-Assignments
                                 </a>
                             </li>
+                            @endif
                             @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>
