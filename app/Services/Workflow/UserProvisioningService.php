@@ -351,28 +351,38 @@ class UserProvisioningService
             'info'
         );
 
-        // ── Step 7b: Send printer setup link to new employee ──────
-        if (! empty($upn)) {
-            try {
+        // ── Step 7b: Printer deployment (dual path) ───────────────
+        try {
+            $hasPrinters = \App\Models\Printer::where('branch_id', $workflow->branch_id)->exists();
+            if ($hasPrinters && ! empty($upn)) {
+                // Check if Intune scripts already deployed for this branch
+                $intuneDeployed = \App\Models\Printer::where('branch_id', $workflow->branch_id)
+                    ->whereNotNull('intune_script_id')
+                    ->exists();
+
+                if ($intuneDeployed) {
+                    $this->engine->logEvent($workflow, 'info',
+                        'Branch printers are deployed via Intune — will auto-install on device enrollment.');
+                }
+
+                // Always send self-service email as backup / for non-enrolled devices
+                $employeeId = $payload['employee_id'] ?? null;
                 $printerToken = \App\Models\PrinterDeployToken::create([
-                    'employee_id'   => $payload['employee_id'] ?? null,
+                    'employee_id'   => $employeeId,
                     'branch_id'     => $workflow->branch_id,
                     'token'         => \Illuminate\Support\Str::random(64),
                     'expires_at'    => now()->addDays(14),
                     'sent_to_email' => $upn,
                 ]);
 
-                // Only send if branch has printers configured and employee record exists
-                $hasPrinters = \App\Models\Printer::where('branch_id', $workflow->branch_id)->exists();
-                if ($hasPrinters && $printerToken->employee_id) {
+                if ($employeeId) {
                     \App\Jobs\SendPrinterSetupEmailJob::dispatch($printerToken->id)->onQueue('emails');
                     $this->engine->logEvent($workflow, 'info', "Printer setup email queued for: {$upn}");
                 }
-            } catch (\Throwable $e) {
-                // Completely non-fatal — do NOT block provisioning
-                $this->engine->logEvent($workflow, 'warning',
-                    'Printer setup email failed (non-fatal): ' . $e->getMessage());
             }
+        } catch (\Throwable $e) {
+            $this->engine->logEvent($workflow, 'warning',
+                'Printer setup step failed (non-fatal): ' . $e->getMessage());
         }
 
         $this->engine->logEvent($workflow, 'success', 'User provisioning complete.');

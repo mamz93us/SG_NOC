@@ -72,6 +72,23 @@ class EmployeeController extends Controller
         return view('admin.employees.index', compact('employees', 'branches', 'total'));
     }
 
+    public function search(Request $request)
+    {
+        $q         = $request->get('q', '');
+        $branchId  = $request->get('branch_id');
+
+        $query = Employee::query()
+            ->where('status', 'active')
+            ->where(fn ($x) => $x->where('name', 'like', "%{$q}%")
+                ->orWhere('email', 'like', "%{$q}%"))
+            ->when($branchId, fn ($x) => $x->where('branch_id', $branchId))
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'name', 'email', 'branch_id']);
+
+        return response()->json($query);
+    }
+
     public function show(Employee $employee)
     {
         $employee->load([

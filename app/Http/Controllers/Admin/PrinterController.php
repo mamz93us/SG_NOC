@@ -21,6 +21,7 @@ class PrinterController extends Controller
     public function index(Request $request)
     {
         $query = Printer::with(['branch', 'device.credentials'])
+                    ->withCount('drivers')
                     ->orderBy('branch_id')
                     ->orderBy('printer_name');
 

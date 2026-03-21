@@ -410,6 +410,260 @@
 </div>
 @endif
 
+{{-- ── Drivers Tab ────────────────────────────────────────────── --}}
+<div class="card shadow-sm border-0 mt-3">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-hdd-fill me-2"></i>Drivers</strong>
+        @can('manage-printers')
+        <a href="/admin/printers/drivers/create?printer_id={{ $printer->id }}"
+           class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-plus me-1"></i>Add Driver
+        </a>
+        @endcan
+    </div>
+    <div class="card-body">
+        @php
+            $winDriver = \App\Models\PrinterDriver::findForPrinter($printer, 'windows_x64');
+            $macDriver = \App\Models\PrinterDriver::findForPrinter($printer, 'mac');
+        @endphp
+
+        {{-- Auto-matched drivers --}}
+        <div class="mb-3 p-2 bg-light rounded small">
+            <strong class="d-block mb-1 text-muted">Auto-matched drivers:</strong>
+            <div class="d-flex gap-3 flex-wrap">
+                <span>
+                    <i class="bi bi-windows text-primary me-1"></i>
+                    <strong>Windows:</strong>
+                    @if($winDriver)
+                        {{ $winDriver->driver_name }}
+                        <span class="badge bg-{{ $winDriver->driver_file_path ? 'success' : 'warning text-dark' }} ms-1">
+                            {{ $winDriver->driver_file_path ? 'Has file' : 'No file' }}
+                        </span>
+                    @else
+                        <span class="text-muted">No match — will use built-in</span>
+                    @endif
+                </span>
+                <span>
+                    <i class="bi bi-apple me-1"></i>
+                    <strong>macOS:</strong>
+                    @if($macDriver)
+                        {{ $macDriver->driver_name }}
+                    @else
+                        <span class="text-muted">Driverless IPP</span>
+                    @endif
+                </span>
+            </div>
+        </div>
+
+        {{-- Linked drivers --}}
+        @if($printer->drivers->isEmpty())
+        <p class="text-muted small mb-0">
+            <i class="bi bi-info-circle me-1"></i>No drivers directly linked to this printer.
+            <a href="/admin/printers/drivers/create?printer_id={{ $printer->id }}">Add one</a>
+            or manage <a href="/admin/printers/drivers">global pattern drivers</a>.
+        </p>
+        @else
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle small mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>OS</th>
+                        <th>Driver Name</th>
+                        <th>Version</th>
+                        <th>File</th>
+                        <th>Active</th>
+                        @can('manage-printers')<th></th>@endcan
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($printer->drivers as $drv)
+                    <tr>
+                        <td><span class="badge {{ $drv->osBadgeClass() }}">{{ $drv->osBadgeLabel() }}</span></td>
+                        <td class="fw-semibold">{{ $drv->driver_name }}</td>
+                        <td class="text-muted">{{ $drv->version ?: '—' }}</td>
+                        <td>
+                            @if($drv->driver_file_path)
+                            <a href="/admin/printers/drivers/{{ $drv->id }}/download" class="text-success small">
+                                <i class="bi bi-download me-1"></i>{{ $drv->original_filename ?? 'driver.zip' }}
+                            </a>
+                            @else
+                            <span class="text-muted small">No file</span>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="badge {{ $drv->is_active ? 'bg-success' : 'bg-secondary' }}">
+                                {{ $drv->is_active ? 'Active' : 'Inactive' }}
+                            </span>
+                        </td>
+                        @can('manage-printers')
+                        <td>
+                            <a href="/admin/printers/drivers/{{ $drv->id }}/edit" class="btn btn-sm btn-outline-secondary py-0 px-1">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                        @endcan
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
+    </div>
+</div>
+
+{{-- ── Deployment Section ──────────────────────────────────────── --}}
+@can('manage-printers')
+<div class="card shadow-sm border-0 mt-3">
+    <div class="card-header bg-transparent">
+        <strong><i class="bi bi-rocket-takeoff me-2"></i>Deployment</strong>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+
+            {{-- Intune Status --}}
+            <div class="col-md-6">
+                <h6 class="fw-semibold small text-muted mb-2">
+                    <i class="bi bi-microsoft me-1"></i>Intune Status
+                </h6>
+                @if($printer->intune_script_id)
+                <div class="alert alert-success py-2 mb-2">
+                    <i class="bi bi-check-circle-fill me-1"></i>
+                    <strong>Deployed to Intune</strong><br>
+                    <small class="font-monospace">Script ID: {{ $printer->intune_script_id }}</small>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <form method="POST" action="/admin/printer-deploy/intune-remove">
+                        @csrf
+                        <input type="hidden" name="printer_id" value="{{ $printer->id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('Remove this printer script from Intune?')">
+                            <i class="bi bi-trash me-1"></i>Remove from Intune
+                        </button>
+                    </form>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            onclick="previewScript('intune')">
+                        <i class="bi bi-eye me-1"></i>Preview PS1
+                    </button>
+                </div>
+                @else
+                <button type="button" class="btn btn-primary btn-sm"
+                        data-bs-toggle="modal" data-bs-target="#intuneDeployModal">
+                    <i class="bi bi-rocket-takeoff me-1"></i>Deploy to Intune
+                </button>
+                @endif
+            </div>
+
+            {{-- Self-service email --}}
+            <div class="col-md-6">
+                <h6 class="fw-semibold small text-muted mb-2">
+                    <i class="bi bi-envelope me-1"></i>Self-Service Setup Link
+                </h6>
+                <p class="small text-muted mb-2">Send a printer setup link to any employee.</p>
+                <div id="employeeSearchContainer" class="mb-2">
+                    <input type="text" id="deployEmployeeSearch"
+                           class="form-control form-control-sm"
+                           placeholder="Search employee email or name..."
+                           oninput="searchEmployees(this.value)">
+                    <div id="employeeDropdown" class="list-group mt-1 d-none" style="max-height:200px;overflow-y:auto"></div>
+                </div>
+                <form method="POST" action="/admin/printer-deploy/deploy" id="deployEmailForm">
+                    @csrf
+                    <input type="hidden" name="employee_id" id="deployEmployeeId">
+                    <button type="submit" class="btn btn-sm btn-outline-primary" id="deployEmailBtn" disabled>
+                        <i class="bi bi-send me-1"></i>Send Setup Link
+                    </button>
+                </form>
+            </div>
+
+            {{-- Script preview --}}
+            <div class="col-12 border-top pt-3">
+                <h6 class="fw-semibold small text-muted mb-2">
+                    <i class="bi bi-code-slash me-1"></i>Script Preview
+                </h6>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            onclick="previewScript('windows')">
+                        <i class="bi bi-windows me-1"></i>Preview Windows .bat
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            onclick="previewScript('mac')">
+                        <i class="bi bi-apple me-1"></i>Preview Mac .sh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endcan
+
+{{-- ── Intune Deploy Modal ─────────────────────────────────────── --}}
+@can('manage-printers')
+<div class="modal fade" id="intuneDeployModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-semibold">
+                    <i class="bi bi-rocket-takeoff me-2"></i>Deploy to Intune — {{ $printer->printer_name }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Azure AD Group ID <span class="text-muted fw-normal">(optional)</span></label>
+                    <input type="text" id="intuneGroupId" class="form-control font-monospace"
+                           placeholder="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                    <div class="form-text">Enter the Azure AD Group Object ID to auto-assign the script after upload. Leave blank to upload without assignment.</div>
+                </div>
+                <div class="mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            onclick="previewScript('intune')">
+                        <i class="bi bi-eye me-1"></i>Preview PS1 Script
+                    </button>
+                </div>
+                <div id="scriptPreviewContainer" class="d-none">
+                    <pre id="scriptPreviewContent" class="bg-dark text-light p-3 rounded small"
+                         style="max-height:300px;overflow-y:auto;white-space:pre-wrap"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="/admin/printer-deploy/intune" class="d-inline">
+                    @csrf
+                    <input type="hidden" name="printer_id" value="{{ $printer->id }}">
+                    <input type="hidden" name="azure_group_id" id="intuneGroupIdHidden">
+                    <button type="submit" class="btn btn-primary"
+                            onclick="document.getElementById('intuneGroupIdHidden').value = document.getElementById('intuneGroupId').value">
+                        <i class="bi bi-rocket-takeoff me-1"></i>Deploy to Intune
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+@endcan
+
+{{-- ── Script Preview Modal ─────────────────────────────────────── --}}
+<div class="modal fade" id="scriptPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-semibold" id="scriptPreviewModalTitle">Script Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="scriptPreviewLoading" class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading...
+                </div>
+                <pre id="scriptPreviewModalContent" class="bg-dark text-light p-3 m-0 d-none"
+                     style="max-height:70vh;overflow-y:auto;white-space:pre-wrap;font-size:.8rem"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- Maintenance History --}}
 <div class="card shadow-sm border-0 mt-3">
     <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
@@ -491,14 +745,14 @@
                 <tbody>
                     @foreach($printer->assignedEmployees as $emp)
                     <tr>
-                        <td class="fw-semibold">{{ $emp->first_name }} {{ $emp->last_name }}</td>
+                        <td class="fw-semibold">{{ $emp->name }}</td>
                         <td class="text-muted font-monospace">{{ $emp->email }}</td>
                         <td>{{ $emp->department ?? '—' }}</td>
                         <td>{{ $emp->branch?->name ?? '—' }}</td>
                         <td class="text-muted">{{ $emp->pivot->notes ?? '—' }}</td>
                         <td class="text-end">
                             <form method="POST" action="/admin/printers/{{ $printer->id }}/assign/{{ $emp->id }}"
-                                  onsubmit="return confirm('Remove {{ addslashes($emp->first_name . ' ' . $emp->last_name) }} from this printer?')">
+                                  onsubmit="return confirm('Remove {{ addslashes($emp->name) }} from this printer?')">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger" title="Remove assignment">
                                     <i class="bi bi-person-x"></i>
@@ -626,6 +880,90 @@
             .catch(err => console.error('Toner history load failed:', err));
     });
 })();
+
+// ── Deployment section JS ─────────────────────────────────────
+
+function previewScript(type) {
+    const modal = new bootstrap.Modal(document.getElementById('scriptPreviewModal'));
+    const loading = document.getElementById('scriptPreviewLoading');
+    const content = document.getElementById('scriptPreviewModalContent');
+    const title   = document.getElementById('scriptPreviewModalTitle');
+
+    loading.classList.remove('d-none');
+    content.classList.add('d-none');
+
+    if (type === 'intune') {
+        title.textContent = 'Intune PowerShell Script Preview';
+        fetch('/admin/printer-deploy/intune-preview?printer_id={{ $printer->id }}')
+            .then(r => r.json())
+            .then(data => {
+                content.textContent = data.ps1_content;
+                loading.classList.add('d-none');
+                content.classList.remove('d-none');
+                // Also update the inline preview in the Intune modal if open
+                const inlineContent = document.getElementById('scriptPreviewContent');
+                const inlineContainer = document.getElementById('scriptPreviewContainer');
+                if (inlineContent) {
+                    inlineContent.textContent = data.ps1_content;
+                    inlineContainer.classList.remove('d-none');
+                }
+            })
+            .catch(() => {
+                content.textContent = 'Error loading script preview.';
+                loading.classList.add('d-none');
+                content.classList.remove('d-none');
+            });
+    } else {
+        title.textContent = type === 'mac' ? 'macOS Shell Script Preview' : 'Windows Install Script Preview';
+        fetch(`/admin/printer-deploy/script-preview?printer_id={{ $printer->id }}&os=${type}`)
+            .then(r => r.json())
+            .then(data => {
+                content.textContent = data.script;
+                loading.classList.add('d-none');
+                content.classList.remove('d-none');
+            })
+            .catch(() => {
+                content.textContent = 'Error loading script preview.';
+                loading.classList.add('d-none');
+                content.classList.remove('d-none');
+            });
+    }
+
+    if (type !== 'intune') modal.show();
+}
+
+// Employee search for deploy email form
+let deploySearchTimer;
+function searchEmployees(query) {
+    clearTimeout(deploySearchTimer);
+    const dropdown = document.getElementById('employeeDropdown');
+    if (query.length < 2) {
+        dropdown.classList.add('d-none');
+        return;
+    }
+    deploySearchTimer = setTimeout(() => {
+        fetch(`/admin/employees/search?q=${encodeURIComponent(query)}&branch_id={{ $printer->branch_id ?? '' }}`)
+            .then(r => r.json())
+            .then(employees => {
+                dropdown.innerHTML = employees.length
+                    ? employees.map(e =>
+                        `<button type="button" class="list-group-item list-group-item-action small py-1"
+                                 onclick="selectDeployEmployee(${e.id}, '${e.email}', '${e.name}')">
+                            <strong>${e.name}</strong> <span class="text-muted">${e.email}</span>
+                         </button>`
+                      ).join('')
+                    : '<div class="list-group-item text-muted small">No employees found</div>';
+                dropdown.classList.remove('d-none');
+            });
+    }, 300);
+}
+
+function selectDeployEmployee(id, email, name) {
+    document.getElementById('deployEmployeeId').value = id;
+    document.getElementById('deployEmployeeSearch').value = name + ' <' + email + '>';
+    document.getElementById('employeeDropdown').classList.add('d-none');
+    document.getElementById('deployEmailBtn').disabled = false;
+}
 </script>
 @endpush
 @endsection

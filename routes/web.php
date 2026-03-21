@@ -386,6 +386,20 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     // ─── Printers ─────────────────────────────────────────────
+    // IMPORTANT: printers/drivers MUST be registered before printers/{printer}
+    // to avoid Laravel matching "drivers" as a printer ID.
+    Route::middleware('permission:view-printers')->group(function () {
+        Route::get('printers/drivers',                          [\App\Http\Controllers\Admin\PrinterDriverController::class, 'index'])   ->name('printers.drivers.index');
+        Route::get('printers/drivers/create',                   [\App\Http\Controllers\Admin\PrinterDriverController::class, 'create'])  ->name('printers.drivers.create');
+        Route::get('printers/drivers/{printerDriver}/edit',     [\App\Http\Controllers\Admin\PrinterDriverController::class, 'edit'])    ->name('printers.drivers.edit');
+        Route::get('printers/drivers/{printerDriver}/download', [\App\Http\Controllers\Admin\PrinterDriverController::class, 'download'])->name('printers.drivers.download');
+    });
+    Route::middleware('permission:manage-printers')->group(function () {
+        Route::post('printers/drivers',                     [\App\Http\Controllers\Admin\PrinterDriverController::class, 'store'])   ->name('printers.drivers.store');
+        Route::put('printers/drivers/{printerDriver}',      [\App\Http\Controllers\Admin\PrinterDriverController::class, 'update'])  ->name('printers.drivers.update');
+        Route::delete('printers/drivers/{printerDriver}',   [\App\Http\Controllers\Admin\PrinterDriverController::class, 'destroy']) ->name('printers.drivers.destroy');
+    });
+
     Route::middleware('permission:view-printers')->group(function () {
         Route::get('printers',                 [PrinterController::class, 'index'])  ->name('printers.index');
         Route::get('printers/create',          [PrinterController::class, 'create'])  ->name('printers.create');
@@ -716,6 +730,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── Employees ────────────────────────────────────────────
     Route::middleware('permission:view-employees')->group(function () {
         Route::get('employees',              [EmployeeController::class, 'index'])      ->name('employees.index');
+        Route::get('employees/search',       [EmployeeController::class, 'search'])     ->name('employees.search');
     });
     Route::middleware('permission:manage-employees')->group(function () {
         // Static routes MUST come before {employee} wildcard
@@ -930,8 +945,20 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     // ── Printer Deployment (employee-level link via employee show page) ───
-    Route::post('printer-deploy', [\App\Http\Controllers\Admin\PrinterDeployController::class, 'deploy'])
+    Route::post('printer-deploy/deploy', [\App\Http\Controllers\Admin\PrinterDeployController::class, 'deploy'])
         ->name('admin.printer-deploy.deploy')
+        ->middleware('permission:manage-employees');
+    Route::post('printer-deploy/intune', [\App\Http\Controllers\Admin\PrinterDeployController::class, 'deployToIntune'])
+        ->name('admin.printer-deploy.intune')
+        ->middleware('permission:manage-employees');
+    Route::post('printer-deploy/intune-remove', [\App\Http\Controllers\Admin\PrinterDeployController::class, 'removeFromIntune'])
+        ->name('admin.printer-deploy.intune-remove')
+        ->middleware('permission:manage-employees');
+    Route::get('printer-deploy/intune-preview', [\App\Http\Controllers\Admin\PrinterDeployController::class, 'intunePreview'])
+        ->name('admin.printer-deploy.intune-preview')
+        ->middleware('permission:manage-employees');
+    Route::get('printer-deploy/script-preview', [\App\Http\Controllers\Admin\PrinterDeployController::class, 'scriptPreview'])
+        ->name('admin.printer-deploy.script-preview')
         ->middleware('permission:manage-employees');
 
     // ── My Printers (SSO auto-assign — any authenticated user) ───────
@@ -980,6 +1007,7 @@ Route::post('/offboarding/respond', [OffboardingFormController::class, 'submit']
 // Printer self-service setup
 Route::get('/printer-setup',        [PrinterSetupController::class, 'show'])          ->name('printer.setup');
 Route::get('/printer-setup/script', [PrinterSetupController::class, 'downloadScript'])->name('printer.setup.script');
+Route::get('/printer-setup/download',[PrinterSetupController::class, 'downloadScript'])->name('printer.setup.download');
 
 /*
 |--------------------------------------------------------------------------

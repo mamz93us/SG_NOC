@@ -1,154 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🖨️ Printer Setup — {{ $branch?->name ?? 'SG NOC' }}</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <style>
-    body { background: #f0f4f8; font-family: 'Segoe UI', system-ui, sans-serif; }
-    .header-bar { background: #1e3a5f; color: #fff; padding: 1.25rem 1.5rem; }
-    .printer-card { background: #fff; border-radius: .75rem; border: 1px solid #dee2e6; padding: 1.25rem 1.5rem; margin-bottom: 1rem; transition: box-shadow .15s; }
-    .printer-card:hover { box-shadow: 0 4px 16px rgba(30,58,95,.1); }
-    .printer-icon { font-size: 2rem; color: #1e3a5f; }
-    .btn-win { background: #0078d4; color: #fff; border: none; }
-    .btn-win:hover { background: #106ebe; color: #fff; }
-    .btn-mac { background: #555; color: #fff; border: none; }
-    .btn-mac:hover { background: #333; color: #fff; }
-    .copy-path-btn { font-family: monospace; font-size: .8rem; }
-    .info-box { background: #e8f4fd; border-left: 4px solid #0d6efd; border-radius: .5rem; }
-    .employee-greeting { background: #fff; border-radius: .75rem; border: 1px solid #dee2e6; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Printer Setup — {{ $token->branch?->name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background: #f0f4f8; min-height: 100vh; }
+        .setup-header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        .printer-card { transition: box-shadow .2s; }
+        .printer-card:hover { box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.15) !important; }
+        .driver-badge { font-size: .75rem; }
+        .copy-btn-success { background-color: #198754 !important; color: white !important; }
+    </style>
 </head>
 <body>
 
-  <!-- Header -->
-  <div class="header-bar">
-    <div class="container">
-      <div class="d-flex align-items-center gap-3">
-        <i class="bi bi-printer-fill" style="font-size:1.75rem;"></i>
-        <div>
-          <h5 class="mb-0 fw-bold">Printer Setup — {{ $branch?->name ?? 'Branch' }}</h5>
-          <small style="opacity:.75;">SG NOC System · Samir Group IT</small>
-        </div>
-      </div>
+<div class="setup-header mb-4">
+    <div style="font-size:2.5rem">🖨️</div>
+    <h2 class="fw-bold mb-1">Printer Setup</h2>
+    <div class="opacity-75">{{ $token->branch?->name }}</div>
+</div>
+
+<div class="container" style="max-width:900px">
+
+    {{-- Greeting --}}
+    <div class="alert alert-light border mb-4">
+        <i class="bi bi-person-circle me-2 text-primary"></i>
+        Hello <strong>{{ $token->employee?->name ?? $token->sent_to_email }}</strong>,
+        here are the printers configured for your branch.
+        Click the install button for your operating system to set up each printer.
     </div>
-  </div>
 
-  <div class="container py-4" style="max-width:780px;">
-
-    <!-- Employee Greeting -->
-    @if($employee)
-    <div class="employee-greeting p-4 mb-4 d-flex align-items-center gap-3">
-      <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold"
-           style="width:48px;height:48px;flex-shrink:0;font-size:1.1rem;">
-        {{ $employee->initials() }}
-      </div>
-      <div>
-        <div class="fw-semibold">Hello, {{ $employee->name }}!</div>
-        <div class="text-muted small">
-          Setting up printers for <strong>{{ $branch?->name }}</strong>.
-          Follow the steps below to install your office printers.
+    {{-- Printer Cards --}}
+    @forelse($printerData as $item)
+    @php
+        $printer   = $item['printer'];
+        $winDriver = $item['win_driver'];
+        $macDriver = $item['mac_driver'];
+        $hasIp     = ! empty($printer->ip_address);
+    @endphp
+    <div class="card printer-card shadow-sm border-0 mb-3">
+        <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-2">
+            <i class="bi bi-printer-fill text-primary fs-5"></i>
+            <span class="fw-semibold fs-6">{{ $printer->printer_name }}</span>
         </div>
-      </div>
-    </div>
-    @endif
-
-    <!-- Printers -->
-    @forelse($printers as $printer)
-    <div class="printer-card">
-      <div class="d-flex align-items-start gap-3">
-        <i class="bi bi-printer printer-icon mt-1"></i>
-        <div class="flex-grow-1">
-          <h6 class="mb-1 fw-bold">{{ $printer->printer_name }}</h6>
-
-          <div class="row g-2 mb-3 small text-muted">
-            @if($printer->ip_address)
-            <div class="col-sm-6">
-              <i class="bi bi-hdd-network me-1"></i>IP: <code>{{ $printer->ip_address }}</code>
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-sm-6">
+                    <small class="text-muted d-block">Location</small>
+                    <span>{{ $printer->locationLabel() ?: '—' }}</span>
+                </div>
+                @if($hasIp)
+                <div class="col-sm-6">
+                    <small class="text-muted d-block">IP Address</small>
+                    <code>{{ $printer->ip_address }}</code>
+                    <button type="button"
+                            class="btn btn-xs btn-outline-secondary py-0 px-1 ms-1"
+                            style="font-size:.7rem"
+                            onclick="copyToClipboard('{{ $printer->ip_address }}', this)">
+                        <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                </div>
+                @endif
             </div>
-            @endif
-            @if($printer->locationLabel() !== '—')
-            <div class="col-sm-6">
-              <i class="bi bi-geo-alt me-1"></i>Location: {{ $printer->locationLabel() }}
+
+            {{-- Driver status --}}
+            <div class="mb-3 p-2 bg-light rounded small">
+                <strong class="d-block mb-1">Driver status:</strong>
+                @if($winDriver && $winDriver->driver_file_path)
+                    <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Driver included in package</span>
+                @elseif($winDriver)
+                    <span class="text-warning"><i class="bi bi-exclamation-triangle-fill me-1"></i>Driver info available (no file uploaded)</span>
+                @else
+                    <span class="text-info"><i class="bi bi-info-circle-fill me-1"></i>Uses built-in Windows driver</span>
+                @endif
             </div>
-            @endif
-            @if($printer->model)
-            <div class="col-sm-6">
-              <i class="bi bi-tag me-1"></i>Model: {{ $printer->manufacturer ? $printer->manufacturer . ' ' : '' }}{{ $printer->model }}
+
+            {{-- Install buttons --}}
+            <div class="d-flex gap-2 flex-wrap">
+                {{-- Windows --}}
+                @if($hasIp)
+                <a href="/printer-setup/script?token={{ $token->token }}&printer_id={{ $printer->id }}&os=windows"
+                   class="btn btn-outline-primary btn-sm"
+                   title="{{ $winDriver && $winDriver->driver_file_path
+                       ? 'Downloads zip with driver + install script. Run as Administrator.'
+                       : 'Downloads install script. Requires printer driver already installed on Windows.' }}">
+                    <i class="bi bi-windows me-1"></i>Windows Install
+                    @if($winDriver && $winDriver->driver_file_path)
+                        <span class="badge bg-success ms-1 driver-badge">+Driver</span>
+                    @endif
+                </a>
+                @else
+                <button class="btn btn-outline-secondary btn-sm" disabled title="No IP address configured">
+                    <i class="bi bi-windows me-1"></i>Windows Install
+                </button>
+                @endif
+
+                {{-- Mac --}}
+                @if($hasIp)
+                <a href="/printer-setup/script?token={{ $token->token }}&printer_id={{ $printer->id }}&os=mac"
+                   class="btn btn-outline-dark btn-sm"
+                   title="Downloads macOS setup script using driverless IPP.">
+                    <i class="bi bi-apple me-1"></i>Mac Install
+                </a>
+                @endif
+
+                {{-- Open web panel --}}
+                @if($printer->printer_url)
+                <a href="{{ $printer->printer_url }}" target="_blank" rel="noopener"
+                   class="btn btn-outline-info btn-sm">
+                    <i class="bi bi-gear me-1"></i>Web Panel
+                </a>
+                @endif
             </div>
-            @endif
-          </div>
-
-          <div class="d-flex flex-wrap gap-2">
-            {{-- Windows install --}}
-            <a href="{{ '/printer/setup/script?token=' . $token->token . '&printer_id=' . $printer->id . '&os=windows' }}"
-               class="btn btn-sm btn-win">
-              <i class="bi bi-windows me-1"></i>Windows Install
-            </a>
-
-            {{-- Mac install (only if IP is set) --}}
-            @if($printer->ip_address)
-            <a href="{{ '/printer/setup/script?token=' . $token->token . '&printer_id=' . $printer->id . '&os=mac' }}"
-               class="btn btn-sm btn-mac">
-              <i class="bi bi-apple me-1"></i>Mac Install
-            </a>
-            @endif
-
-            {{-- Copy UNC Path --}}
-            @if($printer->ip_address)
-            @php
-              $share = preg_replace('/[^A-Za-z0-9_-]/', '', $printer->printer_name);
-              $uncPath = '\\\\' . $printer->ip_address . '\\' . $share;
-            @endphp
-            <button class="btn btn-sm btn-outline-secondary copy-path-btn"
-                    onclick="copyPath('{{ addslashes($uncPath) }}', this)">
-              <i class="bi bi-clipboard me-1"></i>{{ $uncPath }}
-            </button>
-            @endif
-          </div>
         </div>
-      </div>
     </div>
     @empty
-    <div class="alert alert-warning">
-      <i class="bi bi-exclamation-triangle me-2"></i>
-      No printers are configured for <strong>{{ $branch?->name }}</strong> yet.
-      Contact your IT administrator.
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-printer display-4 text-muted d-block mb-3"></i>
+            <h5 class="text-muted">No Printers Configured</h5>
+            <p class="text-muted small">No printers are set up for your branch yet. Contact IT.</p>
+        </div>
     </div>
     @endforelse
 
-    <!-- Help Box -->
-    <div class="info-box p-3 mt-2">
-      <p class="mb-1 small fw-semibold">Need help?</p>
-      <p class="mb-0 small text-muted">
-        If you have trouble installing, contact IT at
-        <a href="mailto:support@samirgroup.com">support@samirgroup.com</a>
-        or open a ticket from the IT portal.
-      </p>
+    {{-- Info box --}}
+    <div class="alert alert-secondary small mt-4 mb-4">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>Need help?</strong>
+        If automatic setup fails, contact IT at
+        <a href="mailto:support@samirgroup.com">support@samirgroup.com</a>.
     </div>
 
-    <p class="text-center text-muted small mt-4">
-      <i class="bi bi-shield-lock me-1"></i>
-      This link is personal and can only be used by you.
-      It expires on {{ $token->expires_at?->format('d M Y') }}.
-    </p>
+</div>
 
-  </div>
-
-  <script>
-  function copyPath(path, btn) {
-    navigator.clipboard.writeText(path).then(function() {
-      var orig = btn.innerHTML;
-      btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied!';
-      btn.classList.replace('btn-outline-secondary', 'btn-outline-success');
-      setTimeout(function() {
-        btn.innerHTML = orig;
-        btn.classList.replace('btn-outline-success', 'btn-outline-secondary');
-      }, 2000);
-    });
-  }
-  </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function copyToClipboard(text, btn) {
+    navigator.clipboard?.writeText(text).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied';
+        btn.classList.add('copy-btn-success');
+        setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.classList.remove('copy-btn-success');
+        }, 2000);
+    }).catch(() => alert('IP: ' + text));
+}
+</script>
 </body>
 </html>

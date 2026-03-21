@@ -16,6 +16,7 @@ class Printer extends Model
         'mac_address',
         'ip_address',
         'printer_url',
+        'intune_script_id',
         'branch_id',
         'floor_id',
         'office_id',
@@ -352,5 +353,10 @@ class Printer extends Model
         }
 
         return $totalMax > 0 ? (int) round(($totalCur / $totalMax) * 100) : null;
+    }
+
+    public function drivers(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PrinterDriver::class);
     }
 }

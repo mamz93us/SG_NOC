@@ -6,6 +6,7 @@ use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class GraphService
 {
@@ -578,5 +579,72 @@ class GraphService
 
         // Disable sign-in as a proxy until Exchange archival completes
         $this->disableUser($userId);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Intune — Device Management Scripts
+    // Required Azure App Permission: DeviceManagementConfiguration.ReadWrite.All
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Upload a PowerShell script to Intune Device Management.
+     * Returns the Intune script ID.
+     */
+    public function uploadIntuneScript(
+        string $displayName,
+        string $ps1Content,
+        string $description = ''
+    ): string {
+        $data = $this->post('/deviceManagement/deviceManagementScripts', [
+            'displayName'           => $displayName,
+            'description'           => $description,
+            'scriptContent'         => base64_encode($ps1Content),
+            'runAs32Bit'            => false,
+            'runAsAccount'          => 'system',
+            'enforceSignatureCheck' => false,
+            'fileName'              => \Illuminate\Support\Str::slug($displayName) . '.ps1',
+        ]);
+
+        return $data['id'] ?? throw new \RuntimeException('Intune script upload returned no ID.');
+    }
+
+    /**
+     * Assign an Intune script to an Azure AD group.
+     */
+    public function assignIntuneScriptToGroup(
+        string $intuneScriptId,
+        string $azureGroupId
+    ): void {
+        $this->post(
+            "/deviceManagement/deviceManagementScripts/{$intuneScriptId}/assign",
+            [
+                'deviceManagementScriptAssignments' => [[
+                    'target' => [
+                        '@odata.type' => '#microsoft.graph.groupAssignmentTarget',
+                        'groupId'     => $azureGroupId,
+                    ],
+                ]],
+            ]
+        );
+    }
+
+    /**
+     * List all Intune device management scripts.
+     */
+    public function listIntuneScripts(): array
+    {
+        $result = $this->get(
+            '/deviceManagement/deviceManagementScripts',
+            ['$select' => 'id,displayName,lastModifiedDateTime']
+        );
+        return $result['value'] ?? [];
+    }
+
+    /**
+     * Delete an Intune device management script.
+     */
+    public function deleteIntuneScript(string $intuneScriptId): void
+    {
+        $this->delete("/deviceManagement/deviceManagementScripts/{$intuneScriptId}");
     }
 }

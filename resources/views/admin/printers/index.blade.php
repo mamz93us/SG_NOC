@@ -60,7 +60,7 @@
                 <tbody>
                     @foreach($printers as $p)
                     <tr>
-                        <td class="fw-semibold">{{ $p->printer_name }}</td>
+                        <td class="fw-semibold">{{ $p->printer_name }}@if($p->drivers_count) <span class="badge bg-info ms-1" title="Drivers available">{{ $p->drivers_count }} driver{{ $p->drivers_count > 1 ? 's' : '' }}</span> @endif</td>
                         <td class="text-muted">{{ $p->manufacturer ? $p->manufacturer . ' ' . $p->model : ($p->model ?: '—') }}</td>
                         <td class="font-monospace">{{ $p->ip_address ?: '—' }}</td>
                         <td class="font-monospace text-muted">{{ $p->mac_address ?: '—' }}</td>
