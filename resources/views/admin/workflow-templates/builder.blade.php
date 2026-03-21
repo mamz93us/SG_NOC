@@ -344,8 +344,8 @@
 const JOB_REGISTRY = {};
 @foreach($jobRegistry as $group => $jobs)
 @foreach($jobs as $job)
-JOB_REGISTRY[{{ json_encode($job['class']) }}] = {
-    label:  {{ json_encode($job['label']) }},
+JOB_REGISTRY[@json($job['class'])] = {
+    label:  @json($job['label']),
     params: @json($job['params'] ?? []),
 };
 @endforeach
@@ -525,6 +525,7 @@ async function saveDefinition() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
 
+    if (!editor) { showToast('Canvas not ready', 'warning'); btn.disabled = false; btn.innerHTML = '<i class="bi bi-floppy me-1"></i>Save'; return; }
     try {
         const definition = editor.export();
         const resp = await fetch('{{ route('admin.workflow-templates.save-definition', $workflowTemplate) }}', {
@@ -618,6 +619,7 @@ function propPanel() {
         data: {},
 
         init() {
+            if (!editor) return; // Drawflow failed to load
             editor.on('nodeSelected', (id) => {
                 this.selectedId = id;
                 const node = editor.getNodeFromId(id);
