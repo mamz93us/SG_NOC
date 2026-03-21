@@ -104,10 +104,16 @@
                         <th class="text-muted ps-0">Model</th>
                         <td>{{ $modelLabel ?: '—' }}</td>
                     </tr>
-                    @if($printer->department)
+                    @if($printer->departmentLabel() !== '—')
                     <tr>
                         <th class="text-muted ps-0">Department</th>
-                        <td>{{ $printer->department }}</td>
+                        <td>{{ $printer->departmentLabel() }}</td>
+                    </tr>
+                    @endif
+                    @if($printer->toner_model)
+                    <tr>
+                        <th class="text-muted ps-0">Toner</th>
+                        <td>{{ $printer->toner_model }}</td>
                     </tr>
                     @endif
                 </table>
@@ -139,6 +145,15 @@
                                 <i class="bi bi-apple me-1"></i>Mac
                             </button>
                         @endif
+                    @endif
+
+                    {{-- Open Web Panel button --}}
+                    @if($printer->printer_url)
+                        <a href="{{ $printer->printer_url }}" target="_blank" rel="noopener"
+                           class="btn btn-sm btn-outline-info"
+                           title="Open printer web management page">
+                            <i class="bi bi-gear me-1"></i>Web Panel
+                        </a>
                     @endif
 
                     {{-- Copy UNC path button --}}

@@ -60,9 +60,23 @@
                     <tr><th class="text-muted">Toner</th><td>{{ $printer->toner_model ?: '—' }}</td></tr>
                     <tr><th class="text-muted">IP</th><td class="font-monospace">{{ $printer->ip_address ?: '—' }}</td></tr>
                     <tr><th class="text-muted">MAC</th><td class="font-monospace">{{ $printer->mac_address ?: '—' }}</td></tr>
+                    <tr>
+                        <th class="text-muted">Web Panel</th>
+                        <td>
+                            @if($printer->printer_url)
+                                <a href="{{ $printer->printer_url }}" target="_blank" rel="noopener"
+                                   class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size:.75rem">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Open
+                                </a>
+                                <span class="text-muted ms-1 font-monospace" style="font-size:.72rem">{{ $printer->printer_url }}</span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                    </tr>
                     <tr><th class="text-muted">Branch</th><td>{{ $printer->branch?->name ?: '—' }}</td></tr>
                     <tr><th class="text-muted">Location</th><td>{{ $printer->locationLabel() }}</td></tr>
-                    <tr><th class="text-muted">Department</th><td>{{ $printer->department ?: '—' }}</td></tr>
+                    <tr><th class="text-muted">Department</th><td>{{ $printer->departmentLabel() }}</td></tr>
                     <tr><th class="text-muted">Added</th><td>{{ $printer->created_at->format('d M Y') }}</td></tr>
                 </table>
                 @if($printer->notes)
@@ -448,6 +462,82 @@
         @endif
     </div>
 </div>
+
+{{-- ── Manual Employee Assignment ───────────────────────────────── --}}
+@can('manage-printers')
+<div class="card shadow-sm border-0 mt-3">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-person-check me-2"></i>Manually Assigned Users</strong>
+        <span class="text-muted small">Users pinned to this printer regardless of branch</span>
+    </div>
+    <div class="card-body">
+
+        {{-- Current assignments --}}
+        @if($printer->assignedEmployees->isEmpty())
+        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>No users manually assigned. Use the form below to pin specific employees to this printer.</p>
+        @else
+        <div class="table-responsive mb-3">
+            <table class="table table-sm table-hover align-middle small mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Employee</th>
+                        <th>Email</th>
+                        <th>Department</th>
+                        <th>Branch</th>
+                        <th>Notes</th>
+                        <th class="text-end">Remove</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($printer->assignedEmployees as $emp)
+                    <tr>
+                        <td class="fw-semibold">{{ $emp->first_name }} {{ $emp->last_name }}</td>
+                        <td class="text-muted font-monospace">{{ $emp->email }}</td>
+                        <td>{{ $emp->department ?? '—' }}</td>
+                        <td>{{ $emp->branch?->name ?? '—' }}</td>
+                        <td class="text-muted">{{ $emp->pivot->notes ?? '—' }}</td>
+                        <td class="text-end">
+                            <form method="POST" action="/admin/printers/{{ $printer->id }}/assign/{{ $emp->id }}"
+                                  onsubmit="return confirm('Remove {{ addslashes($emp->first_name . ' ' . $emp->last_name) }} from this printer?')">
+                                @csrf @method('DELETE')
+                                <button class="btn btn-sm btn-outline-danger" title="Remove assignment">
+                                    <i class="bi bi-person-x"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
+
+        {{-- Add new assignment --}}
+        <form method="POST" action="/admin/printers/{{ $printer->id }}/assign" class="row g-2 align-items-end border-top pt-3">
+            @csrf
+            <div class="col-md-5">
+                <label class="form-label small fw-semibold mb-1">Employee Email <span class="text-danger">*</span></label>
+                <input type="email" name="employee_email" class="form-control form-control-sm @error('employee_email') is-invalid @enderror"
+                       placeholder="employee@company.com" value="{{ old('employee_email') }}" required>
+                @error('employee_email')
+                <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+                <div class="form-text">Must match an employee email in the system.</div>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label small fw-semibold mb-1">Notes <span class="text-muted fw-normal">(optional)</span></label>
+                <input type="text" name="notes" class="form-control form-control-sm"
+                       placeholder="e.g. Executive printer, temporary assignment" maxlength="500" value="{{ old('notes') }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-sm btn-primary w-100">
+                    <i class="bi bi-person-plus me-1"></i>Assign
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+@endcan
 
 @can('manage-printers')
 <div class="mt-4">

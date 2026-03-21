@@ -396,6 +396,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('printers',                [PrinterController::class, 'store'])   ->name('printers.store');
         Route::put('printers/{printer}',       [PrinterController::class, 'update'])  ->name('printers.update');
         Route::delete('printers/{printer}',    [PrinterController::class, 'destroy']) ->name('printers.destroy');
+        // Manual employee assignment
+        Route::post('printers/{printer}/assign',              [PrinterController::class, 'assignEmployee'])   ->name('printers.assign');
+        Route::delete('printers/{printer}/assign/{employee}', [PrinterController::class, 'unassignEmployee']) ->name('printers.unassign');
     });
 
     // ─── Printer SNMP Dashboard ──────────────────────────────

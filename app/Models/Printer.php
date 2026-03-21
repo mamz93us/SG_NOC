@@ -15,6 +15,7 @@ class Printer extends Model
         'serial_number',
         'mac_address',
         'ip_address',
+        'printer_url',
         'branch_id',
         'floor_id',
         'office_id',
@@ -101,6 +102,14 @@ class Printer extends Model
     public function departmentModel(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    /** Employees manually assigned to this printer by an admin */
+    public function assignedEmployees(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Employee::class, 'employee_printer')
+                    ->withPivot(['assigned_by', 'notes'])
+                    ->withTimestamps();
     }
 
     // ─── Helpers ──────────────────────────────────────────────────

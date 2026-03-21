@@ -49,7 +49,7 @@ class PrinterController extends Controller
 
     public function show(Printer $printer)
     {
-        $printer->load(['branch', 'device.credentials.creator', 'supplies']);
+        $printer->load(['branch', 'device.credentials.creator', 'supplies', 'assignedEmployees']);
         $maintenanceLogs = $printer->maintenanceLogs()
             ->with('performedByUser')
             ->orderByDesc('performed_at')
@@ -76,6 +76,7 @@ class PrinterController extends Controller
             'serial_number'  => 'nullable|string|max:100',
             'mac_address'    => 'nullable|string|max:20',
             'ip_address'     => 'nullable|ip',
+            'printer_url'    => 'nullable|url|max:500',
             'branch_id'      => 'required|exists:branches,id',
             'floor_id'       => 'required|exists:network_floors,id',
             'office_id'      => 'nullable|exists:network_offices,id',
@@ -153,6 +154,7 @@ class PrinterController extends Controller
             'serial_number'  => 'nullable|string|max:100',
             'mac_address'    => 'nullable|string|max:20',
             'ip_address'     => 'nullable|ip',
+            'printer_url'    => 'nullable|url|max:500',
             'branch_id'      => 'required|exists:branches,id',
             'floor_id'       => 'required|exists:network_floors,id',
             'office_id'      => 'nullable|exists:network_offices,id',
@@ -277,6 +279,42 @@ class PrinterController extends Controller
 
         $state = $printer->snmp_enabled ? 'enabled' : 'disabled';
         return back()->with('success', "SNMP monitoring {$state} for \"{$printer->printer_name}\".");
+    }
+
+    // ─── Manual Employee Assignment ─────────────────────────────
+
+    /**
+     * POST /admin/printers/{printer}/assign
+     * Manually assign an employee to this printer.
+     */
+    public function assignEmployee(Request $request, Printer $printer)
+    {
+        $data = $request->validate([
+            'employee_email' => 'required|email|exists:employees,email',
+            'notes'          => 'nullable|string|max:500',
+        ]);
+
+        $employee = \App\Models\Employee::where('email', $data['employee_email'])->firstOrFail();
+
+        // Sync without detach — attach only if not already assigned
+        if (! $printer->assignedEmployees()->where('employee_id', $employee->id)->exists()) {
+            $printer->assignedEmployees()->attach($employee->id, [
+                'assigned_by' => Auth::id(),
+                'notes'       => $data['notes'] ?? null,
+            ]);
+        }
+
+        return back()->with('success', "{$employee->first_name} {$employee->last_name} has been assigned to \"{$printer->printer_name}\".");
+    }
+
+    /**
+     * DELETE /admin/printers/{printer}/assign/{employee}
+     * Remove a manually assigned employee from this printer.
+     */
+    public function unassignEmployee(Printer $printer, \App\Models\Employee $employee)
+    {
+        $printer->assignedEmployees()->detach($employee->id);
+        return back()->with('success', "{$employee->first_name} {$employee->last_name} removed from \"{$printer->printer_name}\".");
     }
 
     // ─── Toner History (Chart.js API endpoint) ───────────────

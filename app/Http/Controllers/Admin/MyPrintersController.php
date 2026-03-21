@@ -29,10 +29,17 @@ class MyPrintersController extends Controller
         $printers = collect();
         $token    = null;
 
-        if ($branch) {
-            $printers = Printer::where('branch_id', $branch->id)
-                ->orderBy('printer_name')
-                ->get();
+        if ($employee) {
+            // Branch printers
+            $branchPrinters = $branch
+                ? Printer::where('branch_id', $branch->id)->orderBy('printer_name')->get()
+                : collect();
+
+            // Manually assigned printers (from any branch)
+            $assignedPrinters = $employee->assignedPrinters()->orderBy('printer_name')->get();
+
+            // Merge, deduplicate by ID, keep branch printers first
+            $printers = $branchPrinters->merge($assignedPrinters)->unique('id')->values();
 
             // Get or create a valid deploy token for this session
             // so the user can download install scripts directly
@@ -44,7 +51,7 @@ class MyPrintersController extends Controller
             if (! $token && $printers->isNotEmpty()) {
                 $token = PrinterDeployToken::create([
                     'employee_id'   => $employee->id,
-                    'branch_id'     => $branch->id,
+                    'branch_id'     => $branch?->id,
                     'token'         => Str::random(64),
                     'expires_at'    => now()->addDays(30),
                     'sent_to_email' => $user->email,

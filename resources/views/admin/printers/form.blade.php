@@ -91,6 +91,29 @@
                     <div class="form-text">Type 3+ chars to search Meraki clients by MAC / IP / hostname.</div>
                 </div>
 
+                {{-- ── Web Management URL ── --}}
+                <div class="col-12">
+                    <label class="form-label fw-semibold">
+                        <i class="bi bi-globe2 me-1 text-primary"></i>Web Management URL
+                        <span class="text-muted fw-normal small ms-1">(optional)</span>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text text-muted"><i class="bi bi-link-45deg"></i></span>
+                        <input type="url" name="printer_url" class="form-control @error('printer_url') is-invalid @enderror"
+                               value="{{ old('printer_url', $printer->printer_url ?? '') }}"
+                               placeholder="http://192.168.1.100  or  http://printer-hostname"
+                               maxlength="500">
+                        @if(isset($printer) && $printer->printer_url)
+                        <a href="{{ $printer->printer_url }}" target="_blank" rel="noopener"
+                           class="btn btn-outline-secondary" title="Open in new tab">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                        @endif
+                    </div>
+                    <div class="form-text">The admin/configuration web page of this printer (e.g. <code>http://192.168.1.100</code>). Used in the My Printers page so users can open it directly.</div>
+                    @error('printer_url')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                </div>
+
                 {{-- ── Location ── --}}
                 <div class="col-12">
                     <hr class="my-0">

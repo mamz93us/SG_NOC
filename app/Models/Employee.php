@@ -147,4 +147,14 @@ class Employee extends Model
     {
         return $query->where('status', 'terminated');
     }
+
+    /**
+     * Printers manually assigned to this employee by an admin.
+     */
+    public function assignedPrinters(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Printer::class, 'employee_printer')
+                    ->withPivot(['assigned_by', 'notes'])
+                    ->withTimestamps();
+    }
 }

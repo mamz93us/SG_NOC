@@ -142,7 +142,7 @@
             border-top: 2px solid #f0f0f0;
             text-align: center;
         }
-        
+
         .admin-btn {
             display: inline-block;
             padding: 12px 30px;
@@ -153,10 +153,19 @@
             text-decoration: none;
             font-weight: 600;
             transition: all 0.3s;
+            margin: 5px;
         }
-        
+
         .admin-btn:hover {
             background: #667eea;
+            color: white;
+        }
+
+        .action-card.info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        .action-card.info:hover {
             color: white;
         }
         
@@ -207,7 +216,7 @@
                             Search and view all employee contacts
                         </p>
                     </a>
-                    
+
                     <!-- Print Directory -->
                     <a href="/contacts/print" target="_blank" class="action-card success">
                         <div class="action-icon">🖨️</div>
@@ -216,13 +225,37 @@
                             Print or save contacts as PDF
                         </p>
                     </a>
-                </div>
-                
-                <!-- Admin Login -->
-                <div class="admin-link">
-                    <a href="/login" class="admin-btn">
-                        🔐 Admin Login
+
+                    <!-- My Printers — shown only for logged-in users -->
+                    @auth
+                    <a href="/admin/my-printers" class="action-card info">
+                        <div class="action-icon">🖨️</div>
+                        <h3 class="action-title">My Printers</h3>
+                        <p class="action-description">
+                            Set up and connect printers for your office
+                        </p>
                     </a>
+                    @endauth
+                </div>
+
+                <!-- Bottom links -->
+                <div class="admin-link">
+                    @auth
+                        <a href="/admin/dashboard" class="admin-btn">
+                            ⚙️ Admin Panel
+                        </a>
+                        <a href="/logout" class="admin-btn"
+                           onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                            🚪 Sign Out
+                        </a>
+                        <form id="logout-form" action="/logout" method="POST" style="display:none;">
+                            @csrf
+                        </form>
+                    @else
+                        <a href="/login" class="admin-btn">
+                            🔐 Admin Login
+                        </a>
+                    @endauth
                 </div>
             </div>
         </div>
