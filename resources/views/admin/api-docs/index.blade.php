@@ -24,7 +24,7 @@
 {{-- ═══════════════════════════════════════════════════════
      AUTHENTICATION CARD
 ═══════════════════════════════════════════════════════ --}}
-<div class="card border-warning mb-4 shadow-sm" x-data="{ showKey: false }">
+<div class="card border-warning mb-4 shadow-sm">
     <div class="card-header bg-warning bg-opacity-10 border-warning d-flex align-items-center gap-2">
         <i class="bi bi-shield-lock-fill text-warning fs-5"></i>
         <span class="fw-semibold text-warning-emphasis">Authentication</span>
@@ -45,20 +45,17 @@
                         <tr>
                             <td><code>X-HR-Api-Key</code></td>
                             <td>
-                                <span x-show="!showKey" class="font-monospace text-secondary">
-                                    @if($apiKey)
-                                        {{ Str::mask($apiKey, '*', 4) }}
-                                    @else
-                                        <span class="text-danger fw-semibold">⚠ NOT SET — add HR_API_KEY to .env</span>
-                                    @endif
-                                </span>
-                                <span x-show="showKey" class="font-monospace text-dark">
-                                    @if($apiKey)
-                                        {{ $apiKey }}
-                                    @else
-                                        <span class="text-danger fw-semibold">⚠ NOT SET — add HR_API_KEY to .env</span>
-                                    @endif
-                                </span>
+                                @if($hrApiKeys->isNotEmpty())
+                                    <span class="font-monospace text-success fw-semibold">
+                                        {{ $hrApiKeys->first()->key_prefix }}••••••••••••••••••••••••••••••••••
+                                    </span>
+                                    <span class="badge bg-success ms-2">{{ $hrApiKeys->count() }} active key(s)</span>
+                                @elseif($legacyKey)
+                                    <span class="font-monospace text-warning">{{ Str::mask($legacyKey, '*', 4) }}</span>
+                                    <span class="badge bg-warning text-dark ms-2">Legacy .env key</span>
+                                @else
+                                    <span class="text-danger fw-semibold">⚠ No active keys — generate one below</span>
+                                @endif
                             </td>
                         </tr>
                         <tr>
@@ -72,18 +69,44 @@
                     </tbody>
                 </table>
 
-                @if($apiKey)
-                <button class="btn btn-outline-secondary btn-sm" @click="showKey = !showKey">
-                    <i class="bi" :class="showKey ? 'bi-eye-slash' : 'bi-eye'"></i>
-                    <span x-text="showKey ? 'Hide Key' : 'Show Key'"></span>
-                </button>
+                @if($hrApiKeys->isNotEmpty())
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Key Name</th>
+                                <th>Prefix</th>
+                                <th>Last Used</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($hrApiKeys as $k)
+                            <tr>
+                                <td>{{ $k->name }}</td>
+                                <td><code class="font-monospace">{{ $k->key_prefix }}…</code></td>
+                                <td class="text-muted small">{{ $k->last_used_at?->diffForHumans() ?? 'Never' }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
                 @endif
             </div>
             <div class="col-lg-4">
-                <div class="alert alert-warning mb-0 small">
+                <div class="alert alert-warning mb-2 small">
                     <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                    <strong>Keep this key secret.</strong> Rotate it in <code>.env</code> if compromised. Never expose it in client-side code or public repositories.
+                    <strong>Keys are database-managed.</strong> Generate, revoke, and rotate keys at any time from the
+                    <a href="/admin/hr-api-keys" class="alert-link">HR API Keys</a> page.
+                    Raw keys are shown <strong>only once</strong> at creation.
                 </div>
+                @if($legacyKey)
+                <div class="alert alert-secondary mb-0 small">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>Legacy key detected</strong> in <code>.env</code> (HR_API_KEY).
+                    This still works but will be removed in a future release.
+                    Migrate to a database key when possible.
+                </div>
+                @endif
             </div>
         </div>
     </div>
@@ -112,8 +135,8 @@
         <div id="endpointOnboarding" class="accordion-collapse collapse show" data-bs-parent="#endpointsAccordion">
             <div class="accordion-body">
                 <p class="text-muted">
-                    Creates a new user onboarding workflow. The system will provision an Azure AD account,
-                    assign licenses, create a UCM extension, and send a welcome email.
+                    Creates a new user onboarding workflow. The system will provision an Active Directory account,
+                    assign a UCM extension, and send a welcome email.
                 </p>
 
                 <div class="row g-4">
@@ -181,29 +204,42 @@
             <div class="accordion-body">
                 <p class="text-muted">
                     Creates an employee offboarding workflow. Sends a manager approval email. After the manager confirms,
-                    the system disables the Azure AD account, archives the mailbox, and downgrades the license.
+                    the system terminates the employee record, flags their assets, and logs a mailbox-forwarding note
+                    for the Exchange administrator to process manually.
                 </p>
+                <div class="alert alert-info small py-2 mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>Identity:</strong> Use <code>upn</code> (the employee's work email) as the primary identifier.
+                    Optionally pass <code>employee_id</code> (SG NOC internal ID) for faster lookup.
+                    <code>azure_id</code> is <strong>not used</strong> — this system uses on-premise identity only.
+                </div>
 
                 <div class="row g-4">
                     <div class="col-lg-6">
                         <h6 class="fw-semibold mb-2"><i class="bi bi-arrow-up-circle me-1 text-danger"></i>Request Body</h6>
                         <pre class="bg-dark text-light p-3 rounded small"><code>{
   <span class="text-warning">"employee_name"</span>: <span class="text-success">"Ahmed Karimi"</span>,     <span class="text-secondary">// required</span>
-  <span class="text-warning">"azure_id"</span>:       <span class="text-success">"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"</span>,
-  <span class="text-warning">"upn"</span>:            <span class="text-success">"ahmed.karimi@company.com"</span>,
+  <span class="text-warning">"upn"</span>:            <span class="text-success">"ahmed.karimi@company.com"</span>, <span class="text-secondary">// required*</span>
+  <span class="text-warning">"employee_id"</span>:   <span class="text-info">17</span>,              <span class="text-secondary">// optional — faster lookup</span>
   <span class="text-warning">"last_day"</span>:       <span class="text-success">"2026-04-30"</span>,
   <span class="text-warning">"reason"</span>:         <span class="text-success">"resignation"</span>,
-  <span class="text-warning">"manager_email"</span>: <span class="text-success">"manager@company.com"</span>, <span class="text-secondary">// required</span>
-  <span class="text-warning">"manager_name"</span>:  <span class="text-success">"Sarah Smith"</span>,
-  <span class="text-warning">"forward_to"</span>:    <span class="text-success">"team@company.com"</span>,
-  <span class="text-warning">"branch_id"</span>:     <span class="text-info">1</span>,
-  <span class="text-warning">"hr_reference"</span>:  <span class="text-success">"HR-OFF-2026-012"</span>
+  <span class="text-warning">"manager_email"</span>:  <span class="text-success">"manager@company.com"</span>, <span class="text-secondary">// required</span>
+  <span class="text-warning">"manager_name"</span>:   <span class="text-success">"Sarah Smith"</span>,
+  <span class="text-warning">"forward_to"</span>:     <span class="text-success">"team@company.com"</span>,   <span class="text-secondary">// Exchange admin note</span>
+  <span class="text-warning">"branch_id"</span>:      <span class="text-info">1</span>,
+  <span class="text-warning">"hr_reference"</span>:   <span class="text-success">"HR-OFF-2026-012"</span>
 }</code></pre>
 
                         <div class="mb-3">
                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1">employee_name</span>
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1">upn</span>
                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1">manager_email</span>
                             <small class="text-muted ms-1">— required fields</small>
+                        </div>
+                        <div class="alert alert-secondary small py-2">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <strong>forward_to</strong> is noted in the workflow log. The Exchange administrator
+                            must apply the mailbox forwarding rule manually.
                         </div>
                     </div>
                     <div class="col-lg-6">
@@ -222,7 +258,7 @@
                         <pre class="bg-dark text-light p-3 rounded small"><code><span class="text-info">curl</span> -X POST {{ $baseUrl }}/api/hr/offboarding \
   -H <span class="text-success">"X-HR-Api-Key: YOUR_KEY"</span> \
   -H <span class="text-success">"Content-Type: application/json"</span> \
-  -d <span class="text-success">'{"employee_name":"Ahmed Karimi","manager_email":"manager@company.com"}'</span></code></pre>
+  -d <span class="text-success">'{"employee_name":"Ahmed Karimi","upn":"ahmed.karimi@company.com","manager_email":"manager@company.com"}'</span></code></pre>
                     </div>
                 </div>
             </div>
@@ -239,32 +275,41 @@
                     aria-expanded="false" aria-controls="endpointGroupAssignment">
                 <span class="badge bg-primary me-3 px-2 py-1" style="font-size:.75rem">POST</span>
                 <code>/api/hr/group-assignment</code>
-                <span class="ms-3 text-muted fw-normal small d-none d-md-inline">Assign Azure AD groups to a user</span>
+                <span class="ms-3 text-muted fw-normal small d-none d-md-inline">Log group assignments for a user</span>
             </button>
         </h2>
         <div id="endpointGroupAssignment" class="accordion-collapse collapse" data-bs-parent="#endpointsAccordion">
             <div class="accordion-body">
                 <p class="text-muted">
-                    Assigns one or more Azure AD groups to an existing user. Groups are looked up by name and added
-                    via Microsoft Graph API.
+                    Logs the requested group assignments for an employee. The workflow is recorded in SG NOC
+                    for the IT administrator to apply via Exchange / Active Directory as needed.
                 </p>
+                <div class="alert alert-info small py-2 mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>Identity:</strong> <code>upn</code> (work email) is the <strong>only</strong> required identifier.
+                    This system does not push to Azure AD — group assignments are logged for manual processing.
+                </div>
 
                 <div class="row g-4">
                     <div class="col-lg-6">
                         <h6 class="fw-semibold mb-2"><i class="bi bi-arrow-up-circle me-1 text-primary"></i>Request Body</h6>
                         <pre class="bg-dark text-light p-3 rounded small"><code>{
-  <span class="text-warning">"azure_id"</span>:    <span class="text-success">"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"</span>, <span class="text-secondary">// required*</span>
-  <span class="text-warning">"upn"</span>:         <span class="text-success">"ahmed.karimi@company.com"</span>, <span class="text-secondary">// required*</span>
+  <span class="text-warning">"upn"</span>:         <span class="text-success">"ahmed.karimi@company.com"</span>, <span class="text-secondary">// required</span>
   <span class="text-warning">"group_names"</span>: [
     <span class="text-success">"All-Sales-Staff"</span>,
     <span class="text-success">"Cairo-Office"</span>
-  ]
+  ]                                  <span class="text-secondary">// required, non-empty</span>
 }</code></pre>
 
-                        <div class="alert alert-info small py-2 mb-3">
+                        <div class="mb-3">
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1">upn</span>
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1">group_names</span>
+                            <small class="text-muted ms-1">— required fields</small>
+                        </div>
+                        <div class="alert alert-secondary small py-2">
                             <i class="bi bi-info-circle me-1"></i>
-                            <strong>*</strong> At least one of <code>azure_id</code> or <code>upn</code> is required.
-                            <code>group_names</code> array is required and must not be empty.
+                            The IT admin will be notified of the requested groups.
+                            Apply them via <strong>Active Directory Users & Computers</strong> or Exchange admin.
                         </div>
                     </div>
                     <div class="col-lg-6">
@@ -319,15 +364,19 @@
                 </tr>
                 <tr>
                     <td><span class="badge bg-warning text-dark">401</span></td>
-                    <td>Unauthorized — <code>X-HR-Api-Key</code> missing or incorrect</td>
+                    <td>Unauthorized — <code>X-HR-Api-Key</code> missing, invalid, or revoked</td>
                 </tr>
                 <tr>
                     <td><span class="badge bg-warning text-dark">422</span></td>
                     <td>Validation Error — a required field is missing or invalid</td>
                 </tr>
                 <tr>
+                    <td><span class="badge bg-warning text-dark">429</span></td>
+                    <td>Too Many Requests — rate limit exceeded (5 req/min per IP for offboarding)</td>
+                </tr>
+                <tr>
                     <td><span class="badge bg-danger">500</span></td>
-                    <td>Server Error — unexpected error on the SG NOC side</td>
+                    <td>Server Error — unexpected error; check server logs</td>
                 </tr>
             </tbody>
         </table>
@@ -410,7 +459,7 @@
      TEST CONSOLE
 ═══════════════════════════════════════════════════════ --}}
 <div class="card shadow-sm mb-4"
-     x-data="apiConsole(@json($apiKey), @json($baseUrl))">
+     x-data="apiConsole(@json($baseUrl))">
 
     <div class="card-header bg-dark text-light d-flex align-items-center gap-2">
         <i class="bi bi-terminal-fill text-success"></i>
@@ -420,6 +469,15 @@
 
     <div class="card-body">
         <div class="row g-3 mb-3">
+            {{-- API Key input --}}
+            <div class="col-md-4">
+                <label class="form-label fw-semibold small">API Key</label>
+                <input type="password" class="form-control font-monospace small"
+                       x-model="apiKey"
+                       placeholder="Paste your key here…">
+                <div class="form-text">Key is sent only to this server.</div>
+            </div>
+
             {{-- Endpoint selector --}}
             <div class="col-md-4">
                 <label class="form-label fw-semibold small">Endpoint</label>
@@ -431,7 +489,7 @@
             </div>
 
             {{-- Full URL display --}}
-            <div class="col-md-8">
+            <div class="col-md-4">
                 <label class="form-label fw-semibold small">Full URL</label>
                 <div class="input-group">
                     <span class="input-group-text bg-success text-white small fw-bold">POST</span>
@@ -469,7 +527,7 @@
                 <span class="badge fs-6 px-3 py-2"
                       :class="{
                           'bg-success': statusCode >= 200 && statusCode < 300,
-                          'bg-warning text-dark': statusCode === 401 || statusCode === 422,
+                          'bg-warning text-dark': statusCode === 401 || statusCode === 422 || statusCode === 429,
                           'bg-danger': statusCode >= 500
                       }"
                       x-text="'HTTP ' + statusCode">
@@ -508,7 +566,7 @@
 
 @push('scripts')
 <script>
-    function apiConsole(apiKey, baseUrl) {
+    function apiConsole(baseUrl) {
         const examples = {
             'onboarding': JSON.stringify({
                 first_name:      "Ahmed",
@@ -527,8 +585,8 @@
 
             'offboarding': JSON.stringify({
                 employee_name: "Ahmed Karimi",
-                azure_id:      "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
                 upn:           "ahmed.karimi@company.com",
+                employee_id:   17,
                 last_day:      "2026-04-30",
                 reason:        "resignation",
                 manager_email: "manager@company.com",
@@ -539,14 +597,13 @@
             }, null, 2),
 
             'group-assignment': JSON.stringify({
-                azure_id:    "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
                 upn:         "ahmed.karimi@company.com",
                 group_names: ["All-Sales-Staff", "Cairo-Office"]
             }, null, 2)
         };
 
         return {
-            apiKey:       apiKey || '',
+            apiKey:       '',
             baseUrl:      baseUrl,
             endpoint:     'onboarding',
             body:         examples['onboarding'],
@@ -565,6 +622,11 @@
             },
 
             async sendRequest() {
+                if (! this.apiKey.trim()) {
+                    this.errorMsg = 'Please enter your API key above before sending.';
+                    return;
+                }
+
                 this.loading      = true;
                 this.response     = '';
                 this.statusCode   = null;
@@ -587,9 +649,9 @@
                     const res = await fetch(url, {
                         method:  'POST',
                         headers: {
-                            'Content-Type':  'application/json',
-                            'Accept':        'application/json',
-                            'X-HR-Api-Key':  this.apiKey,
+                            'Content-Type':     'application/json',
+                            'Accept':           'application/json',
+                            'X-HR-Api-Key':     this.apiKey.trim(),
                             'X-Requested-With': 'XMLHttpRequest'
                         },
                         body: JSON.stringify(parsed)
