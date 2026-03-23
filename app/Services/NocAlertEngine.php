@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Log;
 
 class NocAlertEngine
 {
+    public function __construct(private NotificationService $notifications) {}
+
     public function detectAll(): void
     {
         $this->detectNetworkIssues();
@@ -24,7 +26,6 @@ class NocAlertEngine
     public function detectNetworkIssues(): void
     {
         $staleThreshold = now()->subMinutes(30);
-
         $switches = NetworkSwitch::all();
 
         foreach ($switches as $sw) {
@@ -32,25 +33,37 @@ class NocAlertEngine
             $isStale   = $sw->updated_at && $sw->updated_at->isBefore($staleThreshold);
 
             if ($isOffline) {
-                $this->createOrUpdateEvent(
-                    'network',
-                    'switch',
-                    $sw->serial,
-                    'critical',
+                $event = $this->createOrUpdateEvent(
+                    'network', 'switch', $sw->serial, 'critical',
                     "Switch Offline: {$sw->name}",
                     "Switch {$sw->name} ({$sw->serial}) is reporting offline status."
                 );
+                // Only notify on new event creation (not updates)
+                if ($event->wasRecentlyCreated) {
+                    $this->notifications->notifyAdmins(
+                        'noc_alert',
+                        "Switch Offline: {$sw->name}",
+                        "Switch {$sw->name} ({$sw->serial}) has gone offline.",
+                        null,
+                        'critical'
+                    );
+                }
             } elseif ($isStale) {
-                $this->createOrUpdateEvent(
-                    'network',
-                    'switch',
-                    $sw->serial,
-                    'warning',
+                $event = $this->createOrUpdateEvent(
+                    'network', 'switch', $sw->serial, 'warning',
                     "Switch Not Syncing: {$sw->name}",
                     "Switch {$sw->name} ({$sw->serial}) has not been synced in over 30 minutes."
                 );
+                if ($event->wasRecentlyCreated) {
+                    $this->notifications->notifyAdmins(
+                        'noc_alert',
+                        "Switch Not Syncing: {$sw->name}",
+                        "Switch {$sw->name} ({$sw->serial}) has not synced for 30+ minutes.",
+                        null,
+                        'warning'
+                    );
+                }
             } else {
-                // Auto-resolve open events for this switch
                 NocEvent::where('module', 'network')
                     ->where('entity_type', 'switch')
                     ->where('entity_id', $sw->serial)
@@ -70,21 +83,27 @@ class NocAlertEngine
 
         foreach ($servers as $server) {
             try {
-                $resp = Http::timeout(5)->get(rtrim($server->url, '/') . '/api');
+                $resp      = Http::timeout(5)->get(rtrim($server->url, '/') . '/api');
                 $reachable = $resp->successful() || $resp->status() === 401;
             } catch (\Throwable $e) {
                 $reachable = false;
             }
 
             if (!$reachable) {
-                $this->createOrUpdateEvent(
-                    'voip',
-                    'ucm_server',
-                    (string) $server->id,
-                    'critical',
+                $event = $this->createOrUpdateEvent(
+                    'voip', 'ucm_server', (string) $server->id, 'critical',
                     "UCM Unreachable: {$server->name}",
                     "UCM server {$server->name} ({$server->url}) is not responding."
                 );
+                if ($event->wasRecentlyCreated) {
+                    $this->notifications->notifyAdmins(
+                        'noc_alert',
+                        "UCM Unreachable: {$server->name}",
+                        "UCM server {$server->name} at {$server->url} is not responding.",
+                        null,
+                        'critical'
+                    );
+                }
             } else {
                 NocEvent::where('module', 'voip')
                     ->where('entity_type', 'ucm_server')
@@ -136,12 +155,11 @@ class NocAlertEngine
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Auto-resolve stale events (resolved conditions)
+    // Auto-resolve stale events
     // ─────────────────────────────────────────────────────────────
 
     public function resolveStaleEvents(): void
     {
-        // Auto-resolve events older than 24h that haven't been updated
         NocEvent::where('status', 'open')
             ->where('last_seen', '<', now()->subHours(24))
             ->update(['status' => 'resolved', 'resolved_at' => now()]);

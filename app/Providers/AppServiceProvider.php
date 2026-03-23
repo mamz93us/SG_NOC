@@ -6,14 +6,54 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Pagination\Paginator;
-use App\Models\Contact;
+
+// Models
+use App\Models\AlertRule;
 use App\Models\Branch;
+use App\Models\Contact;
+use App\Models\Credential;
+use App\Models\Device;
+use App\Models\Employee;
+use App\Models\Incident;
+use App\Models\IpamSubnet;
+use App\Models\IpReservation;
+use App\Models\IspConnection;
+use App\Models\ItTask;
+use App\Models\License;
+use App\Models\NetworkSwitch;
+use App\Models\NotificationRule;
+use App\Models\Printer;
 use App\Models\RolePermission;
+use App\Models\SophosFirewall;
+use App\Models\User;
+use App\Models\VpnTunnel;
+use App\Models\WorkflowRequest;
+
+// Observers
+use App\Observers\AlertRuleObserver;
+use App\Observers\BranchObserver;
+use App\Observers\ContactObserver;
+use App\Observers\CredentialObserver;
+use App\Observers\DeviceObserver;
+use App\Observers\EmployeeObserver;
+use App\Observers\IncidentObserver;
+use App\Observers\IpamSubnetObserver;
+use App\Observers\IpReservationObserver;
+use App\Observers\IspConnectionObserver;
+use App\Observers\ItTaskObserver;
+use App\Observers\LicenseObserver;
+use App\Observers\NetworkSwitchObserver;
+use App\Observers\NotificationRuleObserver;
+use App\Observers\PrinterObserver;
+use App\Observers\SophosFirewallObserver;
+use App\Observers\UserObserver;
+use App\Observers\VpnTunnelObserver;
+use App\Observers\WorkflowRequestObserver;
+
+// Events
 use App\Events\EmployeeCreated;
 use App\Events\HostStatusChanged;
 use App\Listeners\WorkflowTriggerListener;
-use App\Observers\ContactObserver;
-use App\Observers\BranchObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,25 +64,40 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Use Bootstrap 5 pagination styles
+        // Bootstrap 5 pagination
         Paginator::useBootstrapFive();
 
-        // Register observers
-        Contact::observe(ContactObserver::class);
+        // ── Audit Log Observers ──────────────────────────────────────
+        AlertRule::observe(AlertRuleObserver::class);
         Branch::observe(BranchObserver::class);
+        Contact::observe(ContactObserver::class);
+        Credential::observe(CredentialObserver::class);
+        Device::observe(DeviceObserver::class);
+        Employee::observe(EmployeeObserver::class);
+        Incident::observe(IncidentObserver::class);
+        IpamSubnet::observe(IpamSubnetObserver::class);
+        IpReservation::observe(IpReservationObserver::class);
+        IspConnection::observe(IspConnectionObserver::class);
+        ItTask::observe(ItTaskObserver::class);
+        License::observe(LicenseObserver::class);
+        NetworkSwitch::observe(NetworkSwitchObserver::class);
+        NotificationRule::observe(NotificationRuleObserver::class);
+        Printer::observe(PrinterObserver::class);
+        SophosFirewall::observe(SophosFirewallObserver::class);
+        User::observe(UserObserver::class);
+        VpnTunnel::observe(VpnTunnelObserver::class);
+        WorkflowRequest::observe(WorkflowRequestObserver::class);
 
-        // Workflow event triggers
+        // ── Workflow Event Triggers ──────────────────────────────────
         Event::listen([EmployeeCreated::class, HostStatusChanged::class], WorkflowTriggerListener::class);
 
-        // Register Microsoft Socialite provider
+        // ── Microsoft Socialite ──────────────────────────────────────
         Event::listen(
             \SocialiteProviders\Manager\SocialiteWasCalled::class,
             \SocialiteProviders\Microsoft\MicrosoftExtendSocialite::class.'@handle'
         );
 
-        // ── Permission Gates (DB-driven via role_permissions table) ──
-        // Each gate maps to a permission slug. Falls back gracefully if
-        // the table doesn't exist yet (before migration runs).
+        // ── Permission Gates (DB-driven via role_permissions) ────────
         $gateCheck = function ($user, string $permission): bool {
             try {
                 return RolePermission::roleHas($user->role ?? '', $permission);
@@ -51,19 +106,17 @@ class AppServiceProvider extends ServiceProvider
             }
         };
 
-        // Register a gate for every known permission slug
         foreach (RolePermission::allSlugs() as $slug) {
             Gate::define($slug, fn($user) => $gateCheck($user, $slug));
         }
 
-        // Legacy aliases for existing @can() calls in blade templates
         Gate::define('edit-content', fn($user) => $gateCheck($user, 'manage-contacts'));
 
-        // Load SMTP configuration from DB settings into Laravel mail config at runtime
+        // ── Load SMTP settings from DB ───────────────────────────────
         try {
             (new \App\Services\SmtpConfigService())->loadFromSettings();
         } catch (\Exception) {
-            // Silently skip if DB is not ready yet (first install / migration not run)
+            // Skip if DB not ready yet
         }
     }
 }

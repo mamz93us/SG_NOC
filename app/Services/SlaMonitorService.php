@@ -8,8 +8,11 @@ use Carbon\Carbon;
 
 class SlaMonitorService
 {
+    public function __construct(private NotificationService $notifications) {}
+
     /**
      * Ping the ISP gateway/static IP and record the result.
+     * If the check fails (100% packet loss), notify admins.
      */
     public function checkLink(IspConnection $isp): LinkCheck
     {
@@ -27,13 +30,26 @@ class SlaMonitorService
 
         $result = $this->ping($target);
 
-        return LinkCheck::create([
+        $check = LinkCheck::create([
             'isp_id'      => $isp->id,
             'latency'     => $result['latency'],
             'packet_loss' => $result['packet_loss'],
             'success'     => $result['success'],
             'checked_at'  => now(),
         ]);
+
+        // Notify admins on complete link failure
+        if (!$result['success']) {
+            $this->notifications->notifyAdmins(
+                'system_alert',
+                "ISP Link Down: {$isp->name}",
+                "ISP connection '{$isp->name}' at {$target} is not responding (100% packet loss).",
+                null,
+                'critical'
+            );
+        }
+
+        return $check;
     }
 
     /**
@@ -51,9 +67,6 @@ class SlaMonitorService
         return $total > 0 ? round(($success / $total) * 100, 2) : 0;
     }
 
-    /**
-     * Average latency for the month.
-     */
     public function avgLatency(int $ispId, ?Carbon $month = null): float
     {
         $month = $month ?? now();
@@ -70,9 +83,6 @@ class SlaMonitorService
         );
     }
 
-    /**
-     * Average packet loss for the month.
-     */
     public function avgPacketLoss(int $ispId, ?Carbon $month = null): float
     {
         $month = $month ?? now();
@@ -87,9 +97,6 @@ class SlaMonitorService
         );
     }
 
-    /**
-     * Execute a system ping and parse results.
-     */
     private function ping(string $target, int $count = 3): array
     {
         $isWin  = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
@@ -97,30 +104,18 @@ class SlaMonitorService
             ? "ping -n {$count} -w 2000 " . escapeshellarg($target) . " 2>&1"
             : "ping -c {$count} -W 2 " . escapeshellarg($target) . " 2>&1";
 
-        $output = '';
-        $code   = 0;
         exec($cmd, $lines, $code);
         $output = implode("\n", $lines);
 
         $latency    = null;
         $packetLoss = 100;
-        $success    = false;
 
-        // Parse latency (average)
         if ($isWin) {
-            if (preg_match('/Average\s*=\s*(\d+)ms/i', $output, $m)) {
-                $latency = (float) $m[1];
-            }
-            if (preg_match('/\((\d+)%\s*loss\)/i', $output, $m)) {
-                $packetLoss = (float) $m[1];
-            }
+            if (preg_match('/Average\s*=\s*(\d+)ms/i', $output, $m)) { $latency = (float) $m[1]; }
+            if (preg_match('/\((\d+)%\s*loss\)/i', $output, $m))      { $packetLoss = (float) $m[1]; }
         } else {
-            if (preg_match('/rtt min\/avg\/max\/mdev\s*=\s*[\d.]+\/([\d.]+)\//i', $output, $m)) {
-                $latency = (float) $m[1];
-            }
-            if (preg_match('/(\d+(?:\.\d+)?)%\s*packet loss/i', $output, $m)) {
-                $packetLoss = (float) $m[1];
-            }
+            if (preg_match('/rtt min\/avg\/max\/mdev\s*=\s*[\d.]+\/([\d.]+)\//i', $output, $m)) { $latency = (float) $m[1]; }
+            if (preg_match('/(\d+(?:\.\d+)?)%\s*packet loss/i', $output, $m))                   { $packetLoss = (float) $m[1]; }
         }
 
         $success = $packetLoss < 100 && $latency !== null;

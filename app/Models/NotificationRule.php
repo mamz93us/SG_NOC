@@ -34,14 +34,21 @@ class NotificationRule extends Model
         return $query->where('is_active', true);
     }
 
+    /**
+     * Match rules for a specific event type OR wildcard '*' rules.
+     */
     public function scopeForEvent($query, string $type)
     {
-        return $query->where('event_type', $type);
+        return $query->where(function ($q) use ($type) {
+            $q->where('event_type', $type)
+              ->orWhere('event_type', '*');
+        });
     }
 
     public static function eventTypeLabels(): array
     {
         return [
+            '*'                  => 'All Events (Wildcard)',
             'approval_request'   => 'Approval Request',
             'approval_action'    => 'Approval Action',
             'workflow_complete'  => 'Workflow Completed',
