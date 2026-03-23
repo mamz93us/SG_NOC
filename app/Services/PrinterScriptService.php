@@ -18,16 +18,16 @@ class PrinterScriptService
 
     // ── Method A: Windows .bat ────────────────────────────────────
 
-    public function generateWindowsBat(Printer $printer, ?PrinterDriver $driver, ?string $driverDownloadUrl = null): string
+    public function generateWindowsBat(Printer $printer, ?PrinterDriver $driver, ?string $downloadToken = null): string
     {
         $printerName = $printer->printer_name;
         $ip          = $printer->ip_address ?? '127.0.0.1';
         $portName    = 'IP_' . $ip;
         $location    = $printer->locationLabel();
-        $branch      = $printer->branch?->name ?? 'N/A';
-        $driverName  = $driver?->driver_name ?? 'Microsoft IPP Class Driver';
+        $branch      = $printer->branch?->name ?? '';
 
-        $header = "@echo off\r\n"
+        // Build header block
+        $script = "@echo off\r\n"
             . "setlocal enabledelayedexpansion\r\n"
             . "echo ============================================\r\n"
             . "echo  Printer Setup - Samir Group IT\r\n"
@@ -42,103 +42,53 @@ class PrinterScriptService
             . "IF %ERRORLEVEL% NEQ 0 (\r\n"
             . "    echo ERROR: Please right-click this script and Run as Administrator.\r\n"
             . "    pause & exit /b 1\r\n"
-            . ")\r\n"
-            . "SET PORT_NAME={$portName}\r\n"
-            . "SET PRINTER_IP={$ip}\r\n"
-            . "SET \"PRINTER_NAME={$printerName}\"\r\n"
-            . "SET \"DRIVER_NAME={$driverName}\"\r\n";
+            . ")\r\n";
 
-        if ($driverDownloadUrl !== null) {
-            // CASE A: Driver file is available online — download, extract, install
-            $pnpCmd = $driver->inf_path
-                ? "pnputil /add-driver \"%EXTRACT_DIR%\\{$driver->inf_path}\" /install"
-                : 'pnputil /add-driver "%EXTRACT_DIR%\*.inf" /subdirs /install';
-
-            return $header
-                . "SET DRIVER_ZIP=%TEMP%\\sg_printer_driver.zip\r\n"
-                . "SET EXTRACT_DIR=%TEMP%\\sg_printer_driver_extracted\r\n"
-                . "SET \"DRIVER_URL={$driverDownloadUrl}\"\r\n"
-                . "echo.\r\n"
-                . "echo [1/5] Downloading driver package...\r\n"
-                . "powershell -Command \"Invoke-WebRequest -Uri '!DRIVER_URL!' -OutFile '!DRIVER_ZIP!' -UseBasicParsing\"\r\n"
-                . "IF !ERRORLEVEL! NEQ 0 (\r\n"
-                . "    echo ERROR: Failed to download driver. Check your internet connection.\r\n"
-                . "    echo Contact IT: support@samirgroup.com\r\n"
-                . "    pause & exit /b 1\r\n"
-                . ")\r\n"
-                . "echo       Driver downloaded.\r\n"
-                . "echo [2/5] Extracting driver...\r\n"
-                . "IF EXIST \"%EXTRACT_DIR%\" rmdir /s /q \"%EXTRACT_DIR%\"\r\n"
-                . "powershell -Command \"Expand-Archive -Path '!DRIVER_ZIP!' -DestinationPath '!EXTRACT_DIR!' -Force\"\r\n"
-                . "IF !ERRORLEVEL! NEQ 0 (\r\n"
-                . "    echo ERROR: Extraction failed.\r\n"
-                . "    pause & exit /b 1\r\n"
-                . ")\r\n"
-                . "echo       Extracted.\r\n"
-                . "echo [3/5] Installing driver...\r\n"
-                . "{$pnpCmd}\r\n"
-                . "IF !ERRORLEVEL! NEQ 0 (\r\n"
-                . "    echo WARNING: Driver install had issues. Continuing...\r\n"
-                . ") ELSE (\r\n"
-                . "    echo       Driver installed successfully.\r\n"
-                . ")\r\n"
-                . "echo [4/5] Creating TCP/IP port...\r\n"
-                . "powershell -Command \"Get-PrinterPort -Name '%PORT_NAME%' -ErrorAction SilentlyContinue\" >nul 2>&1\r\n"
-                . "IF !ERRORLEVEL! NEQ 0 (\r\n"
-                . "    powershell -Command \"Add-PrinterPort -Name '%PORT_NAME%' -PrinterHostAddress '%PRINTER_IP%'\"\r\n"
-                . "    echo       Port created.\r\n"
-                . ") ELSE (\r\n"
-                . "    echo       Port already exists. Skipping.\r\n"
-                . ")\r\n"
-                . "echo [5/5] Adding printer...\r\n"
-                . "powershell -Command \"Remove-Printer -Name '%PRINTER_NAME%' -ErrorAction SilentlyContinue\"\r\n"
-                . "powershell -Command \"Add-Printer -Name '%PRINTER_NAME%' -DriverName '!DRIVER_NAME!' -PortName '%PORT_NAME%'\"\r\n"
-                . "IF !ERRORLEVEL! NEQ 0 (\r\n"
-                . "    echo Trying IPP fallback driver...\r\n"
-                . "    powershell -Command \"Add-Printer -Name '%PRINTER_NAME%' -DriverName 'Microsoft IPP Class Driver' -PortName '%PORT_NAME%'\"\r\n"
-                . ")\r\n"
-                . "echo Verifying installation...\r\n"
-                . "powershell -Command \"Get-Printer -Name '%PRINTER_NAME%'\" >nul 2>&1\r\n"
-                . "IF !ERRORLEVEL! EQU 0 (\r\n"
-                . "    echo.\r\n"
-                . "    echo ============================================\r\n"
-                . "    echo  DONE! %PRINTER_NAME% is ready to use.\r\n"
-                . "    echo  Check: Control Panel ^> Printers\r\n"
-                . "    echo ============================================\r\n"
-                . ") ELSE (\r\n"
-                . "    echo.\r\n"
-                . "    echo ============================================\r\n"
-                . "    echo  WARNING: Could not verify printer install.\r\n"
-                . "    echo  Try manually: Settings ^> Bluetooth ^& devices\r\n"
-                . "    echo               ^> Printers ^& scanners ^> Add device\r\n"
-                . "    echo  IP Address: %PRINTER_IP%\r\n"
-                . "    echo  Contact IT: support@samirgroup.com\r\n"
-                . "    echo ============================================\r\n"
-                . ")\r\n"
-                . "REM Cleanup temp files\r\n"
-                . "IF EXIST \"%DRIVER_ZIP%\" del /f /q \"%DRIVER_ZIP%\"\r\n"
-                . "IF EXIST \"%EXTRACT_DIR%\" rmdir /s /q \"%EXTRACT_DIR%\"\r\n"
-                . "pause\r\n";
+        // Set DRIVER_URL if driver file exists and token provided
+        if ($driver && $driver->driver_file_path && $downloadToken !== null) {
+            $driverUrl = url('/printer-setup/download-driver') . '?token=' . $downloadToken . '&driver_id=' . $driver->id;
+            $script .= "SET DRIVER_URL={$driverUrl}\r\n";
         }
 
-        // CASE B: No driver download URL — PowerShell IPP install
-        return $header
-            . "echo [1/3] Creating TCP/IP printer port...\r\n"
+        $script .= "echo [1/3] Creating TCP/IP printer port...\r\n"
+            . "SET PORT_NAME={$portName}\r\n"
+            . "SET PRINTER_IP={$ip}\r\n"
+            . "SET PRINTER_NAME={$printerName}\r\n"
+            . "REM Check if port already exists\r\n"
             . "powershell -Command \"Get-PrinterPort -Name '%PORT_NAME%' -ErrorAction SilentlyContinue\" >nul 2>&1\r\n"
             . "IF !ERRORLEVEL! NEQ 0 (\r\n"
             . "    powershell -Command \"Add-PrinterPort -Name '%PORT_NAME%' -PrinterHostAddress '%PRINTER_IP%'\"\r\n"
-            . "    echo       Port created.\r\n"
+            . "    echo Port created.\r\n"
             . ") ELSE (\r\n"
-            . "    echo       Port already exists. Skipping.\r\n"
+            . "    echo Port already exists. Skipping.\r\n"
             . ")\r\n"
             . "echo [2/3] Adding printer...\r\n"
+            . "REM Remove old entry if exists to ensure clean install\r\n"
             . "powershell -Command \"Remove-Printer -Name '%PRINTER_NAME%' -ErrorAction SilentlyContinue\"\r\n"
             . "powershell -Command \"Add-Printer -Name '%PRINTER_NAME%' -DriverName 'Microsoft IPP Class Driver' -PortName '%PORT_NAME%'\"\r\n"
             . "IF !ERRORLEVEL! NEQ 0 (\r\n"
             . "    echo Trying alternative driver...\r\n"
             . "    powershell -Command \"Add-Printer -Name '%PRINTER_NAME%' -DriverName 'Microsoft Print To PDF' -PortName '%PORT_NAME%'\"\r\n"
-            . ")\r\n"
-            . "echo [3/3] Verifying installation...\r\n"
+            . ")\r\n";
+
+        // Driver download block — only when driver file exists and token provided
+        if ($driver && $driver->driver_file_path && $downloadToken !== null) {
+            $script .= "IF DEFINED DRIVER_URL (\r\n"
+                . "    echo [2b/3] Downloading and installing driver from server...\r\n"
+                . "    SET DRIVER_ZIP=%TEMP%\\printer_driver_%RANDOM%.zip\r\n"
+                . "    SET DRIVER_DIR=%TEMP%\\printer_driver_%RANDOM%\r\n"
+                . "    powershell -Command \"Invoke-WebRequest -Uri '%DRIVER_URL%' -OutFile '%DRIVER_ZIP%' -UseBasicParsing\"\r\n"
+                . "    IF !ERRORLEVEL! EQU 0 (\r\n"
+                . "        powershell -Command \"Expand-Archive -Path '%DRIVER_ZIP%' -DestinationPath '%DRIVER_DIR%' -Force\"\r\n"
+                . "        powershell -Command \"pnputil /add-driver '%DRIVER_DIR%\\*.inf' /install\"\r\n"
+                . "        echo Driver installed from server.\r\n"
+                . "    ) ELSE (\r\n"
+                . "        echo WARNING: Could not download driver. Using built-in driver.\r\n"
+                . "    )\r\n"
+                . ")\r\n";
+        }
+
+        $script .= "echo [3/3] Verifying installation...\r\n"
             . "powershell -Command \"Get-Printer -Name '%PRINTER_NAME%'\" >nul 2>&1\r\n"
             . "IF !ERRORLEVEL! EQU 0 (\r\n"
             . "    echo.\r\n"
@@ -157,6 +107,8 @@ class PrinterScriptService
             . "    echo ============================================\r\n"
             . ")\r\n"
             . "pause\r\n";
+
+        return $script;
     }
 
     // ── Method B: macOS .sh ───────────────────────────────────────
@@ -209,6 +161,7 @@ class PrinterScriptService
         $ip               = $printer->ip_address ?? '127.0.0.1';
         $branch           = $printer->branch?->name ?? 'N/A';
         $driverOrFallback = $driver?->driver_name ?? 'Microsoft IPP Class Driver';
+        $driverLabel      = $driver?->driver_name ? $driver->driver_name : 'Microsoft IPP Class Driver (fallback)';
         $generatedDate    = now()->toDateString();
 
         return "# ============================================================\n"
@@ -216,7 +169,7 @@ class PrinterScriptService
             . "# Printer  : {$printerName}\n"
             . "# Branch   : {$branch}\n"
             . "# IP       : {$ip}\n"
-            . "# Driver   : {$driverName}\n"
+            . "# Driver   : {$driverLabel}\n"
             . "# Generated: {$generatedDate}\n"
             . "#\n"
             . "# Intune Deployment Instructions:\n"
