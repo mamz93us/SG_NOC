@@ -163,8 +163,9 @@
                         </div>
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Employee Email <span class="text-danger">*</span></label>
+                                <label class="form-label small fw-semibold">Employee UPN / Work Email <span class="text-danger">*</span></label>
                                 <input type="email" name="employee_email" class="form-control form-control-sm" value="{{ old('employee_email') }}" placeholder="employee@company.com">
+                                <div class="form-text">The employee's work email address — used to locate their account.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Employee Name <span class="text-danger">*</span></label>
@@ -212,13 +213,13 @@
                         <h6 class="fw-semibold text-primary"><i class="bi bi-people-fill me-1"></i>Group Assignment Details</h6>
                         <div class="alert alert-info py-2 px-3 small mb-3">
                             <i class="bi bi-info-circle me-1"></i>
-                            Enter the employee's email — the system resolves their Azure account automatically.
+                            Enter the employee's work email — the system will record the group assignment request.
                         </div>
                         <div class="row g-3">
                             <div class="col-12">
-                                <label class="form-label small fw-semibold">Employee Email <span class="text-danger">*</span></label>
+                                <label class="form-label small fw-semibold">Employee UPN / Work Email <span class="text-danger">*</span></label>
                                 <input type="email" name="employee_email" class="form-control form-control-sm" value="{{ old('employee_email') }}" placeholder="employee@company.com">
-                                <div class="form-text">The employee's work email address. The system will find their account automatically.</div>
+                                <div class="form-text">The employee's work email. Groups will be assigned in the system.</div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label small fw-semibold">Groups to Assign <span class="text-danger">*</span></label>

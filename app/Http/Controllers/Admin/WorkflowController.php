@@ -175,6 +175,12 @@ class WorkflowController extends Controller
             unset($payload['group_names_raw']);
         }
 
+        // Normalize: the form uses "employee_email" — rename to "upn" for unified payload
+        if (! empty($payload['employee_email']) && empty($payload['upn'])) {
+            $payload['upn'] = $payload['employee_email'];
+        }
+        unset($payload['employee_email']);
+
         $workflow = $this->engine->createRequest(
             type:        $validated['type'],
             payload:     $payload,

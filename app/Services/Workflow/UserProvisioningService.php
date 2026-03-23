@@ -462,64 +462,34 @@ class UserProvisioningService
 
     /**
      * Full offboarding sequence triggered after manager approval:
-     * 1. Disable Azure account
-     * 2. Archive mailbox (log intent for Exchange Online PS)
-     * 3. Downgrade to Exchange-only license
-     * 4. Forward mailbox (log intent) if forward_to specified
-     * 5. Update employee record to terminated
-     * 6. Flag active assets for return
+     * 1. Log that Azure cloud deprovisioning is skipped (on-premise identity only)
+     * 2. Forward mailbox note (log only — handle via Exchange admin)
+     * 3. Update employee record to terminated
+     * 4. Flag active assets for return
      */
     public function deprovisionUserFull(WorkflowRequest $workflow): void
     {
         $payload = $workflow->payload ?? [];
-        $azureId = $payload['azure_id'] ?? null;
 
         $this->engine->logEvent($workflow, 'info', 'Starting full offboarding deprovisioning.');
 
-        $graph = new \App\Services\Identity\GraphService();
+        // Azure cloud deprovisioning not applicable — system uses on-premise identity only
+        $this->engine->logEvent($workflow, 'info',
+            'Azure cloud deprovisioning skipped — system uses on-premise identity only.');
 
-        if ($azureId) {
-            // Step 1: Disable Azure account
-            try {
-                $graph->disableUser($azureId);
-                $this->engine->logEvent($workflow, 'success', 'Azure account disabled.');
-            } catch (\Throwable $e) {
-                $this->engine->logEvent($workflow, 'warning', 'Azure disable failed (non-fatal): ' . $e->getMessage());
-            }
-
-            // Step 2: Archive mailbox
-            try {
-                $graph->archiveMailbox($azureId);
-                $this->engine->logEvent($workflow, 'info', 'Mailbox archive intent logged.');
-            } catch (\Throwable $e) {
-                $this->engine->logEvent($workflow, 'warning', 'Mailbox archive failed (non-fatal): ' . $e->getMessage());
-            }
-
-            // Step 3: Downgrade to Exchange-only license
-            try {
-                $graph->downgradeToExchangeOnly($azureId);
-                $this->engine->logEvent($workflow, 'info', 'License downgraded to Exchange-only.');
-            } catch (\Throwable $e) {
-                $this->engine->logEvent($workflow, 'warning', 'License downgrade failed (non-fatal): ' . $e->getMessage());
-            }
-
-            // Step 4: Set forwarding if requested
-            if (! empty($payload['forward_to'])) {
-                try {
-                    $graph->forwardMailbox($azureId, $payload['forward_to']);
-                    $this->engine->logEvent($workflow, 'info', "Mailbox forwarding intent logged to: {$payload['forward_to']}.");
-                } catch (\Throwable $e) {
-                    $this->engine->logEvent($workflow, 'warning', 'Mailbox forward failed (non-fatal): ' . $e->getMessage());
-                }
-            }
+        // Step 4: Set forwarding note if requested
+        if (! empty($payload['forward_to'])) {
+            $this->engine->logEvent($workflow, 'info',
+                "Mailbox forwarding note: {$payload['forward_to']} — handle via Exchange admin.");
         }
 
         // Step 5: Update employee record
         $employee = null;
-        if ($azureId) {
-            $employee = \App\Models\Employee::where('azure_id', $azureId)->first();
-        } elseif (! empty($payload['employee_id'])) {
+        if (! empty($payload['employee_id'])) {
             $employee = \App\Models\Employee::find($payload['employee_id']);
+        }
+        if (! $employee && ! empty($payload['upn'])) {
+            $employee = \App\Models\Employee::where('email', $payload['upn'])->first();
         }
 
         if ($employee) {

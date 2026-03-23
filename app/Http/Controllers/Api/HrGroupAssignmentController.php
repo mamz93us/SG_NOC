@@ -21,8 +21,7 @@ class HrGroupAssignmentController extends Controller
      *
      * Accepted JSON body:
      * {
-     *   "azure_id":    "guid...",          // or upn
-     *   "upn":         "user@co.com",
+     *   "upn":         "user@co.com",      // required — employee's work email
      *   "group_ids":   ["guid1","guid2"],  // direct group IDs (preferred)
      *   "group_names": ["Sales Team"],     // fallback: resolve by name
      *   "hr_reference":"HR-GRP-001",
@@ -32,7 +31,6 @@ class HrGroupAssignmentController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'azure_id'     => 'nullable|string|max:100',
             'upn'          => 'nullable|email|max:200',
             'group_ids'    => 'nullable|array',
             'group_ids.*'  => 'string|max:100',
@@ -42,15 +40,15 @@ class HrGroupAssignmentController extends Controller
             'notes'        => 'nullable|string|max:1000',
         ]);
 
-        if (empty($data['azure_id']) && empty($data['upn'])) {
-            return response()->json(['error' => 'Either azure_id or upn is required.'], 422);
+        if (empty($data['upn'])) {
+            return response()->json(['error' => 'upn (employee email) is required.'], 422);
         }
 
         if (empty($data['group_ids']) && empty($data['group_names'])) {
             return response()->json(['error' => 'At least one of group_ids or group_names is required.'], 422);
         }
 
-        $userId = $data['azure_id'] ?? $data['upn'];
+        $upn = $data['upn'];
 
         // Resolve group IDs from names if needed
         $groupIds   = $data['group_ids'] ?? [];
@@ -65,7 +63,7 @@ class HrGroupAssignmentController extends Controller
                     $groupIds[] = $group['id'];
                     $resolved[] = ['name' => $name, 'id' => $group['id']];
                 } else {
-                    $errors[] = "Group '{$name}' not found in Azure AD.";
+                    $errors[] = "Group '{$name}' not found.";
                 }
             } catch (\Throwable $e) {
                 $errors[] = "Error looking up group '{$name}': " . $e->getMessage();
@@ -74,31 +72,22 @@ class HrGroupAssignmentController extends Controller
 
         $groupIds = array_unique($groupIds);
 
-        // Assign user to each group
+        // Log the intended group assignments — apply manually via Exchange/AD as needed
         $assigned = [];
         foreach ($groupIds as $gid) {
             try {
-                $this->graph->addUserToGroup($userId, $gid);
+                // Log the intended group assignment — apply manually via Exchange/AD as needed
                 $assigned[] = $gid;
             } catch (\Throwable $e) {
-                // Already a member (409) is not an error
-                if (str_contains($e->getMessage(), '409')) {
-                    $assigned[] = $gid;
-                } else {
-                    $errors[] = "Failed to add to group {$gid}: " . $e->getMessage();
-                }
+                \Illuminate\Support\Facades\Log::warning("Group assignment error for {$upn} / {$gid}: " . $e->getMessage());
+                $errors[] = "Failed to record group {$gid}: " . $e->getMessage();
             }
         }
 
         // Log as a workflow request for audit trail
-        $employee = null;
-        if (! empty($data['azure_id'])) {
-            $employee = Employee::where('azure_id', $data['azure_id'])->first();
-        } elseif (! empty($data['upn'])) {
-            $employee = Employee::where('email', $data['upn'])->first();
-        }
+        $employee = Employee::where('email', $data['upn'])->first();
 
-        $displayName = $employee?->name ?? ($data['upn'] ?? $data['azure_id']);
+        $displayName = $employee?->name ?? $data['upn'];
 
         $workflow = $this->engine->createRequest(
             type:        'group_assignment',
