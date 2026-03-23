@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Models\Notification;
 use App\Models\Setting;
 use App\Models\User;
+use App\Models\WorkflowRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
@@ -16,13 +17,20 @@ class NotificationMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public Setting $setting;
+    public Setting          $setting;
+    public ?WorkflowRequest $workflow = null;
 
     public function __construct(
         public Notification $notification,
         public User         $recipient
     ) {
         $this->setting = Setting::first() ?? new Setting();
+
+        // Auto-load the WorkflowRequest if the notification link points to one
+        if ($notification->link && preg_match('#/workflows/(\d+)#', $notification->link, $m)) {
+            $this->workflow = WorkflowRequest::with(['requester', 'branch', 'steps'])
+                ->find((int) $m[1]);
+        }
     }
 
     public function envelope(): Envelope
