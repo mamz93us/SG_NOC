@@ -17,16 +17,26 @@ class NotificationMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public Setting          $setting;
     public ?WorkflowRequest $workflow = null;
+
+    // Scalar copies — avoids SerializesModels trying to reload a singleton model
+    private string $fromAddress;
+    private string $fromName;
+    private string $companyName;
+    private ?string $companyLogoPath;
 
     public function __construct(
         public Notification $notification,
         public User         $recipient
     ) {
-        $this->setting = Setting::first() ?? new Setting();
+        $setting = Setting::first();
 
-        // Auto-load the WorkflowRequest if the notification link points to one
+        $this->fromAddress     = $setting?->smtp_from_address ?: 'noreply@samirgroup.com';
+        $this->fromName        = $setting?->smtp_from_name    ?: 'SG NOC';
+        $this->companyName     = $setting?->company_name      ?: 'Samir Group';
+        $this->companyLogoPath = $setting?->company_logo      ?: null;
+
+        // Auto-load WorkflowRequest when the notification links to one
         if ($notification->link && preg_match('#/workflows/(\d+)#', $notification->link, $m)) {
             $this->workflow = WorkflowRequest::with(['requester', 'branch', 'steps'])
                 ->find((int) $m[1]);
@@ -36,10 +46,7 @@ class NotificationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            from: new Address(
-                $this->setting->smtp_from_address ?? config('mail.from.address'),
-                $this->setting->smtp_from_name    ?? config('mail.from.name'),
-            ),
+            from:    new Address($this->fromAddress, $this->fromName),
             subject: '[SG NOC] ' . $this->notification->title,
         );
     }
@@ -48,6 +55,11 @@ class NotificationMail extends Mailable
     {
         return new Content(
             view: 'emails.notification',
+            with: [
+                'fromName'        => $this->fromName,
+                'companyName'     => $this->companyName,
+                'companyLogoPath' => $this->companyLogoPath,
+            ],
         );
     }
 }

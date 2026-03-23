@@ -7,11 +7,7 @@
     <title>[SG NOC] {{ $notification->title }}</title>
     <!--[if mso]>
     <noscript>
-        <xml>
-            <o:OfficeDocumentSettings>
-                <o:PixelsPerInch>96</o:PixelsPerInch>
-            </o:OfficeDocumentSettings>
-        </xml>
+        <xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
     </noscript>
     <![endif]-->
 </head>
@@ -37,53 +33,41 @@
         default    => 'background:linear-gradient(90deg,#3b82f6,#2563eb)',
     };
 
-    // Build logo URL using APP_URL from config
-    $logoUrl = (!empty($setting->company_logo))
-        ? rtrim(config('app.url'), '/') . '/storage/' . $setting->company_logo
+    // Logo absolute URL (uses APP_URL — ensure it is set to https://noc.samirgroup.net on VPS)
+    $logoUrl = $companyLogoPath
+        ? rtrim(config('app.url'), '/') . '/storage/' . $companyLogoPath
         : null;
 
-    $companyName = $setting->company_name ?? 'Samir Group';
-
-    // Payload labels — humanise the keys
+    // Payload humanised labels
     $payloadLabels = [
-        'upn'             => 'UPN / Work Email',
-        'first_name'      => 'First Name',
-        'last_name'       => 'Last Name',
-        'full_name'       => 'Full Name',
-        'name'            => 'Name',
-        'email'           => 'Email',
-        'department'      => 'Department',
-        'job_title'       => 'Job Title',
-        'branch_id'       => 'Branch ID',
-        'phone'           => 'Phone',
-        'mobile'          => 'Mobile',
-        'manager'         => 'Manager',
-        'license_sku'     => 'License SKU',
-        'employee_id'     => 'Employee ID',
-        'device_id'       => 'Device ID',
-        'extension'       => 'Extension',
-        'groups'          => 'Groups',
-        'reason'          => 'Reason',
-        'notes'           => 'Notes',
+        'upn'          => 'UPN / Work Email', 'first_name'  => 'First Name',
+        'last_name'    => 'Last Name',         'full_name'   => 'Full Name',
+        'name'         => 'Name',              'email'       => 'Email',
+        'department'   => 'Department',        'job_title'   => 'Job Title',
+        'branch_id'    => 'Branch ID',         'phone'       => 'Phone',
+        'mobile'       => 'Mobile',            'manager'     => 'Manager',
+        'license_sku'  => 'License SKU',       'employee_id' => 'Employee ID',
+        'device_id'    => 'Device ID',         'extension'   => 'Extension',
+        'groups'       => 'Groups',            'reason'      => 'Reason',
+        'notes'        => 'Notes',
     ];
-
-    // Payload rows to display (skip internal/empty keys)
-    $skipKeys = ['_token', 'password', 'secret'];
+    $skipKeys   = ['_token', 'password', 'secret'];
     $payloadRows = [];
-    if (!empty($workflow->payload)) {
+    if (!empty($workflow?->payload)) {
         foreach ($workflow->payload as $k => $v) {
-            if (in_array($k, $skipKeys)) continue;
-            if ($v === null || $v === '') continue;
+            if (in_array($k, $skipKeys) || $v === null || $v === '') continue;
             if (is_array($v)) $v = implode(', ', $v);
-            $label = $payloadLabels[$k] ?? ucwords(str_replace('_', ' ', $k));
-            $payloadRows[] = ['label' => $label, 'value' => $v];
+            $payloadRows[] = [
+                'label' => $payloadLabels[$k] ?? ucwords(str_replace('_', ' ', $k)),
+                'value' => $v,
+            ];
         }
     }
 @endphp
 
 {{-- ═══════════════════════════ OUTER WRAPPER ═══════════════════════════ --}}
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-       style="background-color:#f4f6f9;min-height:100vh;">
+       style="background-color:#f4f6f9;">
     <tr>
         <td align="center" style="padding:40px 16px;">
 
@@ -98,20 +82,28 @@
                                padding:28px 40px 24px;text-align:center;">
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                             <tr>
-                                <td align="center" style="padding-bottom:10px;">
+                                <td align="center" style="padding-bottom:12px;">
                                     @if($logoUrl)
-                                    <img src="{{ $logoUrl }}"
-                                         alt="{{ $companyName }}"
-                                         width="56" height="56"
-                                         style="width:56px;height:56px;border-radius:50%;
-                                                object-fit:contain;background:#ffffff;
-                                                padding:5px;display:block;
-                                                margin:0 auto;
-                                                border:2px solid rgba(255,255,255,0.3);">
+                                    {{-- Email-safe circular logo: fixed 64×64 white circle, image inside --}}
+                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                                           style="margin:0 auto;">
+                                        <tr>
+                                            <td width="68" height="68" align="center" valign="middle"
+                                                style="width:68px;height:68px;background:#ffffff;
+                                                       border-radius:50%;border:3px solid rgba(255,255,255,0.35);
+                                                       overflow:hidden;">
+                                                <img src="{{ $logoUrl }}"
+                                                     alt="{{ $companyName }}"
+                                                     width="54" height="54"
+                                                     style="display:block;width:54px;height:54px;
+                                                            border-radius:4px;margin:0 auto;">
+                                            </td>
+                                        </tr>
+                                    </table>
                                     @else
                                     <div style="display:inline-block;background:rgba(255,255,255,0.15);
-                                                border-radius:50%;width:56px;height:56px;line-height:56px;
-                                                text-align:center;font-size:26px;">🛡️</div>
+                                                border-radius:50%;width:64px;height:64px;line-height:64px;
+                                                text-align:center;font-size:28px;">🛡️</div>
                                     @endif
                                 </td>
                             </tr>
@@ -145,21 +137,19 @@
                 <tr>
                     <td style="padding:32px 40px 24px;background:#ffffff;">
 
-                        {{-- Title --}}
-                        <h1 style="margin:0 0 10px;font-size:21px;font-weight:700;color:#1a2744;line-height:1.3;">
+                        <h1 style="margin:0 0 10px;font-size:21px;font-weight:700;
+                                   color:#1a2744;line-height:1.3;">
                             {{ $notification->title }}
                         </h1>
 
-                        {{-- Accent divider --}}
                         <div style="height:3px;width:44px;background:{{ $severityColor }};
                                     border-radius:2px;margin-bottom:16px;"></div>
 
-                        {{-- Notification message --}}
                         <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4b5563;">
                             {{ $notification->message }}
                         </p>
 
-                        {{-- Type + timestamp row --}}
+                        {{-- Type + timestamp --}}
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
                                style="margin-bottom:24px;">
                             <tr>
@@ -181,12 +171,12 @@
                         {{-- ── WORKFLOW DETAILS PANEL ──────────────── --}}
                         @if($workflow)
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-                               style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;
-                                      margin-bottom:24px;overflow:hidden;">
+                               style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:24px;
+                                      overflow:hidden;border-collapse:separate;">
+
                             {{-- Panel header --}}
                             <tr>
-                                <td colspan="2"
-                                    style="background:#1a2744;padding:10px 18px;">
+                                <td colspan="2" style="background:#1a2744;padding:10px 18px;border-radius:10px 10px 0 0;">
                                     <span style="color:#ffffff;font-size:12px;font-weight:700;
                                                  letter-spacing:1px;text-transform:uppercase;">
                                         📋 Request Details
@@ -194,83 +184,36 @@
                                 </td>
                             </tr>
 
-                            {{-- Request ID --}}
                             <tr>
-                                <td style="padding:10px 18px 6px;font-size:12px;color:#6b7280;
-                                           font-weight:600;width:38%;vertical-align:top;">
-                                    Request ID
-                                </td>
-                                <td style="padding:10px 18px 6px;font-size:13px;color:#1e293b;
-                                           font-weight:600;vertical-align:top;">
-                                    #{{ $workflow->id }}
-                                </td>
+                                <td style="padding:10px 18px 6px;font-size:12px;color:#6b7280;font-weight:600;width:38%;vertical-align:top;">Request ID</td>
+                                <td style="padding:10px 18px 6px;font-size:13px;color:#1e293b;font-weight:700;vertical-align:top;">#{{ $workflow->id }}</td>
                             </tr>
-
-                            {{-- Type --}}
-                            <tr style="background:#ffffff;">
-                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;
-                                           font-weight:600;vertical-align:top;">
-                                    Workflow Type
-                                </td>
-                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">
-                                    {{ $workflow->typeLabel() }}
-                                </td>
+                            <tr style="background:#f8fafc;">
+                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Workflow Type</td>
+                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">{{ $workflow->typeLabel() }}</td>
                             </tr>
-
-                            {{-- Title --}}
                             <tr>
-                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;
-                                           font-weight:600;vertical-align:top;">
-                                    Title
-                                </td>
-                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">
-                                    {{ $workflow->title }}
-                                </td>
+                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Title</td>
+                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">{{ $workflow->title }}</td>
                             </tr>
-
                             @if($workflow->description)
-                            {{-- Description --}}
-                            <tr style="background:#ffffff;">
-                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;
-                                           font-weight:600;vertical-align:top;">
-                                    Description
-                                </td>
-                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">
-                                    {{ $workflow->description }}
-                                </td>
+                            <tr style="background:#f8fafc;">
+                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Description</td>
+                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">{{ $workflow->description }}</td>
                             </tr>
                             @endif
-
-                            {{-- Requested By --}}
-                            <tr @if(!$workflow->description) style="background:#ffffff;" @endif>
-                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;
-                                           font-weight:600;vertical-align:top;">
-                                    Requested By
-                                </td>
-                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">
-                                    {{ $workflow->requester?->name ?? 'System / API' }}
-                                </td>
+                            <tr @if(!$workflow->description) style="background:#f8fafc;" @endif>
+                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Requested By</td>
+                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">{{ $workflow->requester?->name ?? 'System / API' }}</td>
                             </tr>
-
                             @if($workflow->branch)
-                            {{-- Branch --}}
-                            <tr style="background:#ffffff;">
-                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;
-                                           font-weight:600;vertical-align:top;">
-                                    Branch
-                                </td>
-                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">
-                                    {{ $workflow->branch->name }}
-                                </td>
+                            <tr>
+                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Branch</td>
+                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">{{ $workflow->branch->name }}</td>
                             </tr>
                             @endif
-
-                            {{-- Step Progress --}}
-                            <tr>
-                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;
-                                           font-weight:600;vertical-align:top;">
-                                    Approval Progress
-                                </td>
+                            <tr style="background:#f8fafc;">
+                                <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Approval Progress</td>
                                 <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">
                                     Step {{ $workflow->current_step }} of {{ $workflow->total_steps }}
                                     &nbsp;
@@ -282,23 +225,15 @@
                                     </span>
                                 </td>
                             </tr>
-
-                            {{-- Submitted At --}}
-                            <tr style="background:#ffffff;">
-                                <td style="padding:6px 18px 10px;font-size:12px;color:#6b7280;
-                                           font-weight:600;vertical-align:top;">
-                                    Submitted At
-                                </td>
-                                <td style="padding:6px 18px 10px;font-size:13px;color:#1e293b;vertical-align:top;">
-                                    {{ $workflow->created_at?->format('D, d M Y · H:i') }} UTC
-                                </td>
+                            <tr>
+                                <td style="padding:6px 18px 10px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Submitted At</td>
+                                <td style="padding:6px 18px 10px;font-size:13px;color:#1e293b;vertical-align:top;">{{ $workflow->created_at?->format('D, d M Y · H:i') }} UTC</td>
                             </tr>
 
-                            {{-- Payload rows (if any) --}}
-                            @if(count($payloadRows) > 0)
+                            {{-- Payload rows --}}
+                            @if(count($payloadRows))
                             <tr>
-                                <td colspan="2"
-                                    style="background:#e2e8f0;padding:8px 18px;">
+                                <td colspan="2" style="background:#e2e8f0;padding:8px 18px;">
                                     <span style="color:#475569;font-size:11px;font-weight:700;
                                                  letter-spacing:1px;text-transform:uppercase;">
                                         Request Data
@@ -306,22 +241,15 @@
                                 </td>
                             </tr>
                             @foreach($payloadRows as $i => $row)
-                            <tr @if($i % 2 === 0) style="background:#ffffff;" @endif>
-                                <td style="padding:6px 18px @if($loop->last) 12px @endif;font-size:12px;
-                                           color:#6b7280;font-weight:600;vertical-align:top;">
-                                    {{ $row['label'] }}
-                                </td>
-                                <td style="padding:6px 18px @if($loop->last) 12px @endif;font-size:13px;
-                                           color:#1e293b;word-break:break-word;vertical-align:top;">
-                                    {{ $row['value'] }}
-                                </td>
+                            <tr @if($i % 2 !== 0) style="background:#f8fafc;" @endif>
+                                <td style="padding:6px 18px @if($loop->last) 12px @endif;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">{{ $row['label'] }}</td>
+                                <td style="padding:6px 18px @if($loop->last) 12px @endif;font-size:13px;color:#1e293b;word-break:break-word;vertical-align:top;">{{ $row['value'] }}</td>
                             </tr>
                             @endforeach
                             @endif
 
                         </table>
                         @endif
-                        {{-- /workflow details panel --}}
 
                         {{-- CTA button --}}
                         @if($notification->link)
@@ -332,10 +260,8 @@
                                        style="display:inline-block;background:{{ $severityColor }};color:#ffffff;
                                               text-decoration:none;font-size:14px;font-weight:700;
                                               padding:14px 40px;border-radius:8px;letter-spacing:0.5px;">
-                                        @if($workflow)
-                                            → Review &amp; Approve Request
-                                        @else
-                                            → View in SG NOC
+                                        @if($workflow) → Review &amp; Approve Request
+                                        @else → View in SG NOC
                                         @endif
                                     </a>
                                 </td>
@@ -346,14 +272,14 @@
                     </td>
                 </tr>
 
-                {{-- ── DIVIDER ──────────────────────────────────── --}}
+                {{-- ── DIVIDER ─────────────────────────────────── --}}
                 <tr>
                     <td style="padding:0 40px;">
                         <div style="height:1px;background:#e5e7eb;"></div>
                     </td>
                 </tr>
 
-                {{-- ── RECIPIENT INFO ───────────────────────────── --}}
+                {{-- ── RECIPIENT INFO ──────────────────────────── --}}
                 <tr>
                     <td style="padding:16px 40px;background:#f9fafb;">
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
@@ -377,7 +303,7 @@
                     </td>
                 </tr>
 
-                {{-- ── FOOTER ───────────────────────────────────── --}}
+                {{-- ── FOOTER ──────────────────────────────────── --}}
                 <tr>
                     <td style="background:#f1f5f9;padding:20px 40px;text-align:center;
                                border-top:1px solid #e2e8f0;">

@@ -11,13 +11,21 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class NotificationService
 {
+    /**
+     * Create an in-app notification and optionally dispatch an email for a single user.
+     *
+     * @param  bool  $skipRules  Pass true for broadcast calls (notifyAdmins / notifyRole)
+     *                           to prevent notification rules from re-sending to the same
+     *                           audience and producing duplicate emails.
+     */
     public function notify(
         int     $userId,
         string  $type,
         string  $title,
         string  $message,
         ?string $link = null,
-        string  $severity = 'info'
+        string  $severity = 'info',
+        bool    $skipRules = false
     ): Notification {
         $notification = Notification::create([
             'user_id'    => $userId,
@@ -30,18 +38,26 @@ class NotificationService
             'created_at' => now(),
         ]);
 
-        // 1. Per-user email preference (existing behaviour)
+        // 1. Per-user email preference
         $settings = NotificationSetting::forUser($userId);
         if ($settings->notify_email) {
             SendNotificationEmailJob::dispatch($notification)->afterCommit();
         }
 
-        // 2. Notification routing rules
-        $this->applyNotificationRules($notification);
+        // 2. Notification routing rules — skipped for broadcast calls to avoid
+        //    each admin's notification re-firing rules that target the admin role,
+        //    which would result in N×(N-1) duplicate emails for N admins.
+        if (! $skipRules) {
+            $this->applyNotificationRules($notification);
+        }
 
         return $notification;
     }
 
+    /**
+     * Broadcast to all users with a given role.
+     * Rules are skipped — the broadcast already covers the target audience.
+     */
     public function notifyRole(
         string  $role,
         string  $type,
@@ -52,10 +68,14 @@ class NotificationService
     ): void {
         $users = User::where('role', $role)->get();
         foreach ($users as $user) {
-            $this->notify($user->id, $type, $title, $message, $link, $severity);
+            $this->notify($user->id, $type, $title, $message, $link, $severity, skipRules: true);
         }
     }
 
+    /**
+     * Broadcast to all super_admin and admin users.
+     * Rules are skipped — the broadcast already covers the target audience.
+     */
     public function notifyAdmins(
         string  $type,
         string  $title,
@@ -65,7 +85,7 @@ class NotificationService
     ): void {
         $users = User::whereIn('role', ['super_admin', 'admin'])->get();
         foreach ($users as $user) {
-            $this->notify($user->id, $type, $title, $message, $link, $severity);
+            $this->notify($user->id, $type, $title, $message, $link, $severity, skipRules: true);
         }
     }
 
@@ -125,12 +145,17 @@ class NotificationService
 
                 foreach ($recipients as $recipient) {
                     // Skip if this user is already the notification owner
-                    // (they already got the standard email above)
+                    // (they already received the standard email above)
                     if ($recipient->id === $notification->user_id) {
                         continue;
                     }
 
-                    // In-app notification
+                    // Skip email if recipient already gets emails via their own
+                    // notify_email preference — they will receive their own direct
+                    // email when notify() is called for them (e.g. via notifyAdmins).
+                    $recipientPref = NotificationSetting::forUser($recipient->id);
+
+                    // In-app notification (always send regardless of email preference)
                     if ($rule->send_in_app) {
                         Notification::create([
                             'user_id'    => $recipient->id,
@@ -144,8 +169,9 @@ class NotificationService
                         ]);
                     }
 
-                    // Email notification
-                    if ($rule->send_email) {
+                    // Email notification — only if recipient does NOT already
+                    // receive email via their personal notify_email setting
+                    if ($rule->send_email && ! $recipientPref->notify_email) {
                         SendNotificationEmailJob::dispatch($notification, $recipient)->afterCommit();
                     }
                 }
