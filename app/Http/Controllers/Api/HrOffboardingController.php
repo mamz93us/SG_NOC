@@ -19,15 +19,14 @@ class HrOffboardingController extends Controller
      *
      * Accepted JSON body:
      * {
-     *   "employee_id":    42,             // internal DB id (optional if azure_id provided)
-     *   "azure_id":       "guid...",
-     *   "upn":            "ahmed@co.com",
+     *   "employee_id":    42,             // internal DB id (optional if upn provided)
+     *   "upn":            "ahmed@co.com", // primary identity — employee's work email
      *   "employee_name":  "Ahmed Karimi",
      *   "last_day":       "2026-04-30",
      *   "reason":         "resignation",
      *   "manager_email":  "manager@co.com",
      *   "manager_name":   "Sarah Smith",
-     *   "forward_to":     "team@co.com",  // mailbox forwarding target
+     *   "forward_to":     "team@co.com",  // mailbox forwarding note
      *   "branch_id":      1,
      *   "hr_reference":   "HR-OFF-2026-012",
      *   "notes":          "..."
@@ -37,7 +36,6 @@ class HrOffboardingController extends Controller
     {
         $data = $request->validate([
             'employee_id'    => 'nullable|integer',
-            'azure_id'       => 'nullable|string|max:100',
             'upn'            => 'nullable|email|max:200',
             'employee_name'  => 'required|string|max:200',
             'last_day'       => 'nullable|date',
@@ -54,9 +52,8 @@ class HrOffboardingController extends Controller
         $employee = null;
         if (! empty($data['employee_id'])) {
             $employee = Employee::find($data['employee_id']);
-        } elseif (! empty($data['azure_id'])) {
-            $employee = Employee::where('azure_id', $data['azure_id'])->first();
-        } elseif (! empty($data['upn'])) {
+        }
+        if (! $employee && ! empty($data['upn'])) {
             $employee = Employee::where('email', $data['upn'])->first();
         }
 
@@ -65,8 +62,7 @@ class HrOffboardingController extends Controller
         $payload = array_merge($data, [
             'employee_id'  => $employee?->id,
             'display_name' => $data['employee_name'],
-            'azure_id'     => $data['azure_id'] ?? $employee?->azure_id,
-            'upn'          => $data['upn']       ?? $employee?->email,
+            'upn'          => $data['upn'] ?? $employee?->email,
             'source'       => 'hr_api',
         ]);
 
