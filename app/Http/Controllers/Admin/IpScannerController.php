@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Services\PingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Process;
 
 class IpScannerController extends Controller
 {
@@ -43,12 +45,13 @@ class IpScannerController extends Controller
             $aliveIps = [];
 
             // 1. Try parallel scanning with fping if available (much faster)
-            $fpingPath = @shell_exec('which fping');
-            if ($fpingPath && count($ips) > 1) {
+            if (count($ips) > 1) {
                 $startIp = $ips[0];
                 $endIp = end($ips);
-                $cmd = "fping -g {$startIp} {$endIp} -a -r 1 -t 200 2>/dev/null";
-                $output = shell_exec($cmd);
+                $process = new Process(['fping', '-g', $startIp, $endIp, '-a', '-r', '1', '-t', '200']);
+                $process->setTimeout(30);
+                $process->run();
+                $output = $process->getOutput();
                 if ($output) {
                     $aliveIps = array_filter(explode("\n", trim($output)));
                 }
@@ -101,8 +104,8 @@ class IpScannerController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json(['error' => collect($e->errors())->flatten()->first()], 422);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('IP Scanner error: ' . $e->getFile() . ':' . $e->getLine() . ' (' . $e->getMessage() . ')');
-            return response()->json(['error' => 'Scan failed on server: ' . $e->getMessage()], 500);
+            Log::error('IP Scanner error: ' . $e->getFile() . ':' . $e->getLine() . ' (' . $e->getMessage() . ')');
+            return response()->json(['error' => 'Scan failed. Please check server logs.'], 500);
         }
     }
 

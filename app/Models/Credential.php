@@ -21,7 +21,7 @@ class Credential extends Model
     ];
 
     protected $casts = [
-        // 'password' => 'encrypted', // handled manually with error catching
+        'password' => 'encrypted',
     ];
 
     public function getPasswordAttribute($value)

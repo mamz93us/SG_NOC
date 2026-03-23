@@ -51,20 +51,35 @@ class OffboardingFormController extends Controller
 
         $token = OffboardingToken::where('token', $data['token'])->first();
 
-        if (! $token || ! $token->isValid()) {
+        if (! $token) {
             return view('public.offboarding_form_submitted', [
                 'error'   => true,
                 'message' => 'This link is invalid or has already been used.',
             ]);
         }
 
-        // Record manager response
-        $token->update([
-            'manager_decision' => $data['decision'],
-            'manager_notes'    => $data['notes'] ?? null,
-            'responded_at'     => now(),
-        ]);
-        $token->markUsed();
+        $validationFailed = false;
+        \DB::transaction(function () use ($token, $data, &$validationFailed) {
+            $locked = \App\Models\OffboardingToken::lockForUpdate()->find($token->id);
+            if (! $locked || ! $locked->isValid()) {
+                $validationFailed = true;
+                return;
+            }
+            // Record manager response
+            $locked->update([
+                'manager_decision' => $data['decision'],
+                'manager_notes'    => $data['notes'] ?? null,
+                'responded_at'     => now(),
+            ]);
+            $locked->markUsed();
+        });
+
+        if ($validationFailed) {
+            return view('public.offboarding_form_submitted', [
+                'error'   => true,
+                'message' => 'This link is invalid or has already been used.',
+            ]);
+        }
 
         $workflow = $token->workflow;
 
@@ -110,7 +125,9 @@ class OffboardingFormController extends Controller
         return view('public.offboarding_form_submitted', [
             'error'    => false,
             'decision' => $data['decision'],
-            'payload'  => $workflow->payload ?? [],
+            'payload'  => collect($workflow->payload ?? [])->except([
+                'azure_id', 'national_id', 'hr_id', 'manager_upn', 'manager_azure_id',
+            ])->toArray(),
         ]);
     }
 }
