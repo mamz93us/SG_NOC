@@ -63,6 +63,7 @@ use App\Http\Controllers\Admin\DarkModeController;
 use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\ItTaskController;
 use App\Http\Controllers\Admin\AlertRuleController;
+use App\Http\Controllers\Admin\HrApiKeyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -970,6 +971,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         ->name('admin.api-docs')
         ->middleware('permission:manage-settings');
 
+    // ── HR API Key Manager ────────────────────────────────────────────
+    Route::middleware('permission:manage-settings')->group(function () {
+        Route::get('hr-api-keys', [HrApiKeyController::class, 'index'])->name('hr-api-keys.index');
+        Route::post('hr-api-keys', [HrApiKeyController::class, 'store'])->name('hr-api-keys.store');
+        Route::post('hr-api-keys/{hrApiKey}/revoke', [HrApiKeyController::class, 'revoke'])->name('hr-api-keys.revoke');
+        Route::delete('hr-api-keys/{hrApiKey}', [HrApiKeyController::class, 'destroy'])->name('hr-api-keys.destroy');
+    });
+
     // ── Admin Tools / Quick Links ──────────────────────────────────
     Route::middleware('permission:view-admin-links')->prefix('admin-links')->name('admin-links.')->group(function () {
         Route::get('/',                        [AdminLinkController::class, 'index'])         ->name('index');
@@ -1002,13 +1011,16 @@ use App\Http\Controllers\Public\PrinterSetupController;
 
 // Offboarding manager approval form
 Route::get('/offboarding/respond',  [OffboardingFormController::class, 'show'])  ->name('offboarding.form');
-Route::post('/offboarding/respond', [OffboardingFormController::class, 'submit'])->name('offboarding.submit');
+Route::post('/offboarding/respond', [OffboardingFormController::class, 'submit'])->name('offboarding.submit')->middleware('throttle:5,1');
 
 // Printer self-service setup
-Route::get('/printer-setup',         [PrinterSetupController::class, 'show'])           ->name('printer.setup');
-Route::get('/printer-setup/script',  [PrinterSetupController::class, 'downloadScript']) ->name('printer.setup.script');
-Route::get('/printer-setup/download',[PrinterSetupController::class, 'downloadScript']) ->name('printer.setup.download');
-Route::get('/printer-setup/driver',  [PrinterSetupController::class, 'downloadDriver']) ->name('printer.setup.driver');
+Route::middleware(['throttle:20,1'])->group(function () {
+    Route::get('/printer-setup',         [PrinterSetupController::class, 'show'])           ->name('printer.setup');
+    Route::get('/printer-setup/script',  [PrinterSetupController::class, 'downloadScript']) ->name('printer.setup.script');
+    Route::get('/printer-setup/download',[PrinterSetupController::class, 'downloadScript']) ->name('printer.setup.download');
+    Route::get('/printer-setup/driver',         [PrinterSetupController::class, 'downloadDriver']) ->name('printer.setup.driver');
+    Route::get('/printer-setup/download-driver',[PrinterSetupController::class, 'downloadDriver']) ->name('printer.setup.download-driver');
+});
 
 /*
 |--------------------------------------------------------------------------
