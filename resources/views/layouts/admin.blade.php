@@ -709,6 +709,14 @@
                                     <i class="bi bi-code-slash me-2"></i>HR API Docs & Keys
                                 </a>
                             </li>
+                            @can('manage-settings')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.hr-api-keys.*') ? 'active' : '' }}"
+                                   href="/admin/hr-api-keys">
+                                    <i class="bi bi-key me-2"></i>HR API Keys
+                                </a>
+                            </li>
+                            @endcan
                             <li><hr class="dropdown-divider"></li>
                             @endcan
                             @can('manage-users')
