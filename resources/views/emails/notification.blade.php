@@ -84,19 +84,19 @@
                             <tr>
                                 <td align="center" style="padding-bottom:12px;">
                                     @if($logoUrl)
-                                    {{-- Email-safe circular logo: fixed 64×64 white circle, image inside --}}
+                                    {{-- Email-safe logo: white rounded-rect pill, natural aspect ratio --}}
                                     <table role="presentation" cellspacing="0" cellpadding="0" border="0"
                                            style="margin:0 auto;">
                                         <tr>
-                                            <td width="68" height="68" align="center" valign="middle"
-                                                style="width:68px;height:68px;background:#ffffff;
-                                                       border-radius:50%;border:3px solid rgba(255,255,255,0.35);
-                                                       overflow:hidden;">
+                                            <td align="center" valign="middle"
+                                                style="background:#ffffff;border-radius:14px;
+                                                       padding:8px 16px;
+                                                       border:3px solid rgba(255,255,255,0.35);">
                                                 <img src="{{ $logoUrl }}"
                                                      alt="{{ $companyName }}"
-                                                     width="54" height="54"
-                                                     style="display:block;width:54px;height:54px;
-                                                            border-radius:4px;margin:0 auto;">
+                                                     height="48"
+                                                     style="display:block;height:48px;width:auto;
+                                                            max-width:140px;">
                                             </td>
                                         </tr>
                                     </table>

@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Mail\NotificationMail;
 use App\Models\EmailLog;
 use App\Models\Notification;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\SmtpConfigService;
 use Illuminate\Bus\Queueable;
@@ -41,12 +42,21 @@ class SendNotificationEmailJob implements ShouldQueue
 
         $smtp->loadFromSettings();
 
+        // Read from-name directly from DB — belt-and-suspenders so the
+        // sender name is correct regardless of config/env values.
+        $setting  = Setting::first();
+        $fromAddr = $setting?->smtp_from_address ?: config('mail.from.address');
+        $fromName = $setting?->smtp_from_name    ?: 'SG NOC';
+
         $notification = $this->notification;
         $errorMessage = null;
 
         try {
             Mail::to($recipient->email, $recipient->name)
-                ->send(new NotificationMail($this->notification, $recipient));
+                ->send(
+                    (new NotificationMail($this->notification, $recipient))
+                        ->from($fromAddr, $fromName)  // explicit override — highest priority
+                );
             $status = 'sent';
         } catch (\Throwable $e) {
             $status       = 'failed';
