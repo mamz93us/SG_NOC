@@ -26,7 +26,7 @@ class DiagnosticsController extends Controller
     public function ping(Request $request)
     {
         $request->validate([
-            'host' => 'required|string',
+            'host' => 'required|ip',
         ]);
 
         $result = $this->pingService->ping($request->host);

@@ -64,6 +64,7 @@ class Printer extends Model
     ];
 
     protected $casts = [
+        'snmp_community'       => 'encrypted',
         'toner_last_changed'   => 'date',
         'last_service_date'    => 'date',
         'snmp_enabled'         => 'boolean',
