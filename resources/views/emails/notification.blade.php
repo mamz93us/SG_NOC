@@ -37,19 +37,31 @@
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                             <tr>
                                 <td align="center">
-                                    {{-- Shield icon badge --}}
+                                    @if(!empty($setting->company_logo))
+                                    {{-- Actual company logo --}}
+                                    <img src="{{ rtrim(config('app.url'), '/') . '/storage/' . $setting->company_logo }}"
+                                         alt="{{ $setting->company_name ?? 'Samir Group' }}"
+                                         width="64" height="64"
+                                         style="width:64px;height:64px;border-radius:50%;
+                                                object-fit:contain;background:#ffffff;
+                                                padding:6px;margin-bottom:12px;
+                                                display:block;margin-left:auto;margin-right:auto;
+                                                border:2px solid rgba(255,255,255,0.25);">
+                                    @else
+                                    {{-- Fallback shield badge --}}
                                     <div style="display:inline-block;background:rgba(255,255,255,0.12);
                                                 border-radius:50%;width:64px;height:64px;line-height:64px;
                                                 text-align:center;font-size:30px;margin-bottom:12px;">
                                         🛡️
                                     </div>
+                                    @endif
                                 </td>
                             </tr>
                             <tr>
                                 <td align="center">
                                     <p style="margin:0;font-size:22px;font-weight:800;
                                               letter-spacing:3px;color:#ffffff;text-transform:uppercase;">
-                                        SAMIR GROUP
+                                        {{ strtoupper($setting->company_name ?? 'SAMIR GROUP') }}
                                     </p>
                                     <p style="margin:6px 0 0;font-size:12px;font-weight:400;
                                               letter-spacing:2px;color:#93b8e8;text-transform:uppercase;">
@@ -188,7 +200,7 @@
 
                         {{-- Footer brand --}}
                         <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#475569;">
-                            🛡️ SG NOC — Samir Group IT Department
+                            🛡️ SG NOC — {{ $setting->company_name ?? 'Samir Group' }} IT Department
                         </p>
 
                         <p style="margin:0 0 12px;font-size:11px;color:#94a3b8;">
@@ -200,7 +212,7 @@
                         <div style="height:1px;background:#e2e8f0;margin:12px auto;max-width:200px;"></div>
 
                         <p style="margin:0;font-size:11px;color:#94a3b8;">
-                            © {{ date('Y') }} Samir Group. All rights reserved.<br>
+                            © {{ date('Y') }} {{ $setting->company_name ?? 'Samir Group' }}. All rights reserved.<br>
                             <span style="color:#cbd5e1;">You are receiving this because you are registered as an admin in SG NOC.</span>
                         </p>
                     </td>
