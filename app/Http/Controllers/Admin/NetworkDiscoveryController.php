@@ -171,14 +171,15 @@ class NetworkDiscoveryController extends Controller
 
         $host = MonitoredHost::firstOrNew(['ip' => $printer->ip_address]);
         $host->fill([
-            'name'           => $printer->printer_name,
-            'type'           => 'printer',
-            'snmp_enabled'   => (bool) $printer->snmp_enabled,
-            'snmp_version'   => $printer->snmp_version ?? 'v2c',
-            'snmp_community' => $printer->snmp_community,
-            'snmp_port'      => 161,
-            'ping_enabled'   => true,
-            'branch_id'      => $printer->branch_id,
+            'name'                => $printer->printer_name,
+            'type'                => 'printer',
+            'snmp_enabled'        => (bool) $printer->snmp_enabled,
+            'snmp_version'        => $printer->snmp_version ?? 'v2c',
+            'snmp_community'      => $printer->snmp_community ?? 'public',
+            'snmp_port'           => 161,
+            'snmp_security_level' => 'noAuthNoPriv', // column is NOT NULL
+            'ping_enabled'        => true,
+            'branch_id'           => $printer->branch_id,
         ]);
 
         $isNew = ! $host->exists;

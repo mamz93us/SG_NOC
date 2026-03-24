@@ -297,7 +297,7 @@ class SnmpMonitoringController extends Controller
             $data['snmp_auth_protocol']  = null;
             $data['snmp_priv_password']  = null;
             $data['snmp_priv_protocol']  = null;
-            $data['snmp_security_level'] = null;
+            $data['snmp_security_level'] = 'noAuthNoPriv'; // column is NOT NULL
             $data['snmp_context_name']   = null;
         }
 
@@ -360,7 +360,7 @@ class SnmpMonitoringController extends Controller
             $data['snmp_auth_protocol']  = null;
             $data['snmp_priv_password']  = null;
             $data['snmp_priv_protocol']  = null;
-            $data['snmp_security_level'] = null;
+            $data['snmp_security_level'] = 'noAuthNoPriv'; // column is NOT NULL
             $data['snmp_context_name']   = null;
         }
 
