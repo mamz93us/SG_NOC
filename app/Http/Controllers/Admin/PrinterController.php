@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\DiscoverSnmpDeviceJob;
 use App\Jobs\PollPrinterSnmpJob;
 use App\Models\ActivityLog;
 use App\Models\Branch;
@@ -131,6 +132,14 @@ class PrinterController extends Controller
             ]);
         });
 
+        // Auto-create / update MonitoredHost for SNMP monitoring
+        $printer = Printer::where('printer_name', $data['printer_name'])
+                          ->where('ip_address', $data['ip_address'] ?? null)
+                          ->latest()->first();
+        if ($printer) {
+            $this->syncMonitoredHost($printer);
+        }
+
         return redirect()->route('admin.printers.index')
                          ->with('success', "Printer \"{$data['printer_name']}\" created.");
     }
@@ -203,7 +212,45 @@ class PrinterController extends Controller
             'user_id'    => Auth::id(),
         ]);
 
+        // Keep MonitoredHost in sync with printer SNMP settings
+        $printer->refresh();
+        $this->syncMonitoredHost($printer);
+
         return back()->with('success', "Printer \"{$printer->printer_name}\" updated.");
+    }
+
+    /**
+     * Create or update the MonitoredHost record that mirrors this printer's
+     * SNMP settings so it appears in the SNMP Monitoring dashboard.
+     * If SNMP is disabled or IP is missing the host is soft-disabled (snmp_enabled=false).
+     */
+    protected function syncMonitoredHost(Printer $printer): void
+    {
+        if (empty($printer->ip_address)) {
+            return;
+        }
+
+        $host = MonitoredHost::firstOrNew(['ip' => $printer->ip_address]);
+
+        $host->fill([
+            'name'              => $printer->printer_name,
+            'type'              => 'printer',
+            'snmp_enabled'      => (bool) $printer->snmp_enabled,
+            'snmp_version'      => $printer->snmp_version ?? 'v2c',
+            'snmp_community'    => $printer->snmp_community,   // raw value; MonitoredHost accessor will encrypt
+            'snmp_port'         => 161,
+            'ping_enabled'      => true,
+            'branch_id'         => $printer->branch_id,
+        ]);
+
+        $isNew = !$host->exists;
+        $host->save();
+
+        // Trigger full SNMP discovery (creates sensors) for newly added hosts
+        // or when SNMP was just enabled.
+        if ($printer->snmp_enabled && ($isNew || $host->wasRecentlyCreated)) {
+            DiscoverSnmpDeviceJob::dispatch($host);
+        }
     }
 
     public function destroy(Printer $printer)

@@ -6,6 +6,7 @@ use App\Models\MonitoredHost;
 use App\Models\SensorMetric;
 use App\Models\SnmpSensor;
 use App\Models\NocEvent;
+use App\Services\NotificationService;
 use App\Services\Snmp\SnmpClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -118,10 +119,32 @@ class CollectSnmpMetricsJob implements ShouldQueue
                             }
                         }
 
+                        // Rate-based network/system counters (bandwidth, etc.)
                         if ($sensor->data_type === 'counter') {
                             $isFirstPoll = ($sensor->last_raw_counter === null);
                             $finalValue = $this->calculateCounterRate($sensor, $parsedValue);
                             if ($isFirstPoll) $skipMetric = true;
+                        }
+
+                        // Absolute page-counter — store raw cumulative total, not a rate
+                        if ($sensor->data_type === 'absolute_counter') {
+                            $sensor->update(['last_raw_counter' => $parsedValue]);
+                            $finalValue = $parsedValue;
+                        }
+
+                        // Ricoh toner gauge — Ricoh encodes full toner as -100, half as -50, etc.
+                        // Normalise negative values: < -3 → abs(value); -3 = ~5%; -2/-1 = unknown/full
+                        if ($sensor->data_type === 'toner_gauge') {
+                            if ($finalValue == -1.0) {
+                                $finalValue = 100.0;
+                            } elseif ($finalValue == -2.0) {
+                                $finalValue = 0.0;
+                            } elseif ($finalValue == -3.0) {
+                                $finalValue = 5.0;
+                            } elseif ($finalValue < -3.0) {
+                                $finalValue = (float) abs($finalValue);
+                            }
+                            $finalValue = (float) min(100, max(0, $finalValue));
                         }
 
                         if (!$skipMetric) {
@@ -322,18 +345,36 @@ class CollectSnmpMetricsJob implements ShouldQueue
 
     protected function checkThresholds(MonitoredHost $host, SnmpSensor $sensor, float $value): void
     {
+        // Toner / consumable sensors alert on LOW values (≤ threshold).
+        // All other sensors (CPU, traffic, etc.) alert on HIGH values (≥ threshold).
+        $isLowAlert = in_array($sensor->data_type, ['toner_gauge'])
+            || in_array(strtolower($sensor->sensor_group ?? ''), ['toner', 'consumables', 'paper']);
+
         $severity = null;
-        if ($sensor->critical_threshold !== null && $value >= $sensor->critical_threshold) {
-            $severity = 'critical';
-        } elseif ($sensor->warning_threshold !== null && $value >= $sensor->warning_threshold) {
-            $severity = 'warning';
+        if ($isLowAlert) {
+            if ($sensor->critical_threshold !== null && $value <= $sensor->critical_threshold) {
+                $severity = 'critical';
+            } elseif ($sensor->warning_threshold !== null && $value <= $sensor->warning_threshold) {
+                $severity = 'warning';
+            }
+        } else {
+            if ($sensor->critical_threshold !== null && $value >= $sensor->critical_threshold) {
+                $severity = 'critical';
+            } elseif ($sensor->warning_threshold !== null && $value >= $sensor->warning_threshold) {
+                $severity = 'warning';
+            }
         }
 
         $sensorName = $sensor->name ?: $sensor->description ?: $sensor->oid;
-        $eventTitle = "SNMP Threshold Exceeded: {$host->name} - {$sensorName}";
+        $eventTitle = $isLowAlert
+            ? "Low Supply Alert: {$host->name} — {$sensorName}"
+            : "SNMP Threshold Exceeded: {$host->name} — {$sensorName}";
 
         if ($severity) {
-            $message = "Sensor value {$value} {$sensor->unit} exceeded {$severity} threshold limit.";
+            $valDisplay = $sensor->unit ? "{$value} {$sensor->unit}" : $value;
+            $message = $isLowAlert
+                ? "{$sensorName} is low ({$valDisplay}). Please replace or refill."
+                : "Sensor value {$valDisplay} exceeded {$severity} threshold.";
 
             $existingEvent = NocEvent::where('source_id', $host->id)
                 ->where('event_type', 'snmp_threshold')
@@ -351,6 +392,21 @@ class CollectSnmpMetricsJob implements ShouldQueue
                     'status' => 'active',
                     'detected_at' => now(),
                 ]);
+
+                // Send in-app notification + email to all admins for toner/supply alerts
+                if ($isLowAlert) {
+                    try {
+                        app(NotificationService::class)->notifyAdmins(
+                            type: 'supply_alert',
+                            title: $eventTitle,
+                            message: $message,
+                            link: null,
+                            severity: $severity
+                        );
+                    } catch (\Throwable) {
+                        // Don't fail the job if notification dispatch fails
+                    }
+                }
             }
         } else {
             // Auto-resolve active threshold events when value drops below thresholds
