@@ -182,9 +182,21 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.network.monitoring.*') ? 'active' : '' }}"
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.monitoring.index') ? 'active' : '' }}"
                                    href="{{ route('admin.network.monitoring.index') }}">
                                     <i class="bi bi-broadcast me-2"></i>SNMP Monitoring
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.monitoring.hosts.list') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.monitoring.hosts.list') }}">
+                                    <i class="bi bi-list-check me-2"></i>SNMP Hosts List
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.monitoring.dashboard') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.monitoring.dashboard') }}">
+                                    <i class="bi bi-speedometer2 me-2 text-info"></i>SNMP Dashboard
                                 </a>
                             </li>
                             <li>
@@ -319,6 +331,12 @@
                             </li>
                             @endcan
                             @can('view-printers')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.printers.dashboard') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.dashboard') }}">
+                                    <i class="bi bi-speedometer2 me-2 text-warning"></i>Printer Dashboard
+                                </a>
+                            </li>
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/printers') || request()->is('admin/printers/create') ? 'active' : '' }}"
                                    href="{{ route('admin.printers.index') }}">

@@ -417,6 +417,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('printers/{printer}/assign/{employee}', [PrinterController::class, 'unassignEmployee']) ->name('printers.unassign');
     });
 
+    // ── Printer Dashboard ────────────────────────────────────
+    Route::middleware('permission:view-printers')->group(function () {
+        Route::get('printers/dashboard', [PrinterController::class, 'dashboard'])->name('printers.dashboard');
+    });
+
     // ─── Printer SNMP Dashboard ──────────────────────────────
     Route::middleware('permission:view-printers')->group(function () {
         Route::get('printers/snmp-status',               [PrinterController::class, 'snmpStatus']) ->name('printers.snmp.status');
@@ -513,6 +518,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── SNMP Monitoring ──────────────────────────────────────
     Route::middleware(['auth', 'permission:manage-network-settings'])->prefix('network/monitoring')->name('network.monitoring.')->group(function () {
         Route::get('/',             [SnmpMonitoringController::class, 'index'])->name('index');
+        Route::get('/hosts-list',  [SnmpMonitoringController::class, 'hostsList'])->name('hosts.list');
+        Route::get('/dashboard',   [SnmpMonitoringController::class, 'monitoringDashboard'])->name('dashboard');
         Route::get('/hosts/{host}', [SnmpMonitoringController::class, 'show'])->name('show');
         Route::get('/hosts/{host}/settings', [SnmpMonitoringController::class, 'settings'])->name('hosts.settings');
         Route::post('/hosts/{host}/discover-device', [SnmpMonitoringController::class, 'discoverDevice'])->name('hosts.discover-device');

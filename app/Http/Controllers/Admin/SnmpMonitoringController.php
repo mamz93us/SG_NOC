@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AlertState;
 use App\Models\Branch;
+use App\Models\HostCheck;
 use App\Models\Mib;
 use App\Models\MonitoredHost;
 use App\Models\SensorMetric;
@@ -13,6 +15,7 @@ use App\Services\Snmp\SnmpClient;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -549,5 +552,138 @@ class SnmpMonitoringController extends Controller
         } catch (\Exception $e) {
             return back()->with('error', 'Ping failed: ' . $e->getMessage());
         }
+    }
+
+    // ─── SNMP Hosts List (table view) ────────────────────────────
+
+    public function hostsList(Request $request)
+    {
+        $query = MonitoredHost::with(['branch'])
+            ->withCount('snmpSensors')
+            ->orderBy('name');
+
+        if ($search = $request->search) {
+            $query->where(fn($q) => $q->where('name', 'like', "%{$search}%")
+                                      ->orWhere('ip',   'like', "%{$search}%"));
+        }
+        if ($branchId = $request->branch_id) {
+            $query->where('branch_id', $branchId);
+        }
+        if ($status = $request->status) {
+            $query->where('status', $status);
+        }
+        if ($type = $request->type) {
+            $query->where('type', $type);
+        }
+        if ($request->boolean('has_alerts')) {
+            $ids = AlertState::where('entity_type', 'MonitoredHost')
+                ->where('state', 'alerted')
+                ->pluck('entity_id');
+            $query->whereIn('id', $ids);
+        }
+
+        $hosts = $query->paginate(25)->withQueryString();
+
+        // Summary counts
+        $totalHosts    = MonitoredHost::count();
+        $upCount       = MonitoredHost::where('status', 'up')->count();
+        $downCount     = MonitoredHost::where('status', 'down')->count();
+        $alertHostCount = AlertState::where('entity_type', 'MonitoredHost')
+            ->where('state', 'alerted')
+            ->distinct('entity_id')
+            ->count('entity_id');
+
+        // Active alert counts keyed by host_id
+        $activeAlerts = AlertState::where('entity_type', 'MonitoredHost')
+            ->where('state', 'alerted')
+            ->select('entity_id', DB::raw('COUNT(*) as cnt'))
+            ->groupBy('entity_id')
+            ->pluck('cnt', 'entity_id');
+
+        // Latest ping check per host (within the current page)
+        $pageIds = $hosts->pluck('id');
+        $latestChecks = HostCheck::whereIn('host_id', $pageIds)
+            ->where('check_type', 'ping')
+            ->select('host_id',
+                DB::raw('MAX(checked_at) as checked_at'),
+                DB::raw('AVG(latency_ms) as latency_ms'),
+                DB::raw('AVG(packet_loss) as packet_loss'))
+            ->groupBy('host_id')
+            ->get()
+            ->keyBy('host_id');
+
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $types    = MonitoredHost::distinct()->pluck('type')->filter()->sort()->values();
+
+        return view('admin.network.monitoring.hosts', compact(
+            'hosts', 'branches', 'types',
+            'totalHosts', 'upCount', 'downCount', 'alertHostCount',
+            'activeAlerts', 'latestChecks'
+        ));
+    }
+
+    // ─── SNMP Monitoring Dashboard ───────────────────────────────
+
+    public function monitoringDashboard()
+    {
+        $totalHosts     = MonitoredHost::count();
+        $upCount        = MonitoredHost::where('status', 'up')->count();
+        $downCount      = MonitoredHost::where('status', 'down')->count();
+        $degradedCount  = MonitoredHost::where('status', 'degraded')->count();
+        $unknownCount   = MonitoredHost::where('status', 'unknown')->orWhereNull('status')->count();
+        $totalSensors   = SnmpSensor::count();
+        $alertHostCount = AlertState::where('entity_type', 'MonitoredHost')
+            ->where('state', 'alerted')
+            ->distinct('entity_id')
+            ->count('entity_id');
+
+        // Branch breakdown
+        $branchBreakdown = MonitoredHost::select(
+                'branch_id',
+                DB::raw('COUNT(*) as total'),
+                DB::raw("SUM(CASE WHEN status='up'       THEN 1 ELSE 0 END) as up_count"),
+                DB::raw("SUM(CASE WHEN status='down'     THEN 1 ELSE 0 END) as down_count"),
+                DB::raw("SUM(CASE WHEN status='degraded' THEN 1 ELSE 0 END) as degraded_count")
+            )
+            ->with('branch:id,name')
+            ->groupBy('branch_id')
+            ->orderByDesc('total')
+            ->get();
+
+        // Recent down hosts
+        $downHosts = MonitoredHost::with('branch:id,name')
+            ->where('status', 'down')
+            ->orderByDesc('last_checked_at')
+            ->limit(10)
+            ->get();
+
+        // Recent active alert states
+        $recentAlerts = AlertState::with('rule')
+            ->whereIn('state', ['alerted', 'acknowledged'])
+            ->orderByDesc('first_triggered_at')
+            ->limit(15)
+            ->get()
+            ->map(function ($a) {
+                $a->host = MonitoredHost::find($a->entity_id);
+                return $a;
+            });
+
+        // Top problematic hosts (most alert_state rows in last 7 days)
+        $topProblematic = AlertState::where('entity_type', 'MonitoredHost')
+            ->where('first_triggered_at', '>=', now()->subDays(7))
+            ->select('entity_id', DB::raw('COUNT(*) as rule_count'), DB::raw('SUM(alert_count) as total_fires'))
+            ->groupBy('entity_id')
+            ->orderByDesc('rule_count')
+            ->limit(8)
+            ->get()
+            ->map(fn($a) => tap($a, fn($a) => $a->host = MonitoredHost::find($a->entity_id)))
+            ->filter(fn($a) => $a->host !== null)
+            ->values();
+
+        return view('admin.network.monitoring.dashboard', compact(
+            'totalHosts', 'upCount', 'downCount', 'degradedCount', 'unknownCount',
+            'totalSensors', 'alertHostCount',
+            'branchBreakdown', 'downHosts', 'recentAlerts', 'topProblematic'
+        ));
     }
 }

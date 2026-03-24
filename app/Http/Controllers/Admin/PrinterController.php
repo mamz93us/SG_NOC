@@ -11,6 +11,8 @@ use App\Models\Department;
 use App\Models\Device;
 use App\Models\MonitoredHost;
 use App\Models\Printer;
+use App\Models\PrinterMaintenanceLog;
+use App\Models\PrinterSupply;
 use App\Models\SnmpSensor;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -19,6 +21,95 @@ use Illuminate\Support\Facades\DB;
 
 class PrinterController extends Controller
 {
+    public function dashboard()
+    {
+        // KPI counts
+        $total = Printer::count();
+
+        $snmpEnabled    = Printer::where('snmp_enabled', true)->count();
+        $recentlyPolled = Printer::where('snmp_enabled', true)
+            ->whereNotNull('snmp_last_polled_at')
+            ->where('snmp_last_polled_at', '>=', now()->subMinutes(30))
+            ->count();
+
+        // Low-toner printers: any toner supply below warning_threshold (default 20%)
+        $lowTonerPrinterIds = PrinterSupply::where('supply_type', 'toner')
+            ->whereNotNull('supply_percent')
+            ->where('supply_percent', '>=', 0)
+            ->whereRaw('supply_percent <= COALESCE(warning_threshold, 20)')
+            ->distinct()
+            ->pluck('printer_id');
+        $lowTonerCount = $lowTonerPrinterIds->count();
+
+        // Critical toner
+        $criticalTonerPrinterIds = PrinterSupply::where('supply_type', 'toner')
+            ->whereNotNull('supply_percent')
+            ->where('supply_percent', '>=', 0)
+            ->whereRaw('supply_percent <= COALESCE(critical_threshold, 5)')
+            ->distinct()
+            ->pluck('printer_id');
+        $criticalTonerCount = $criticalTonerPrinterIds->count();
+
+        // Maintenance due
+        $maintenanceDue = Printer::whereNotNull('service_interval_days')
+            ->whereNotNull('last_service_date')
+            ->whereRaw('DATE_ADD(last_service_date, INTERVAL service_interval_days DAY) < NOW()')
+            ->count();
+
+        // Low toner supplies table (worst first, up to 20)
+        $lowTonerSupplies = PrinterSupply::with(['printer.branch'])
+            ->where('supply_type', 'toner')
+            ->whereNotNull('supply_percent')
+            ->where('supply_percent', '>=', 0)
+            ->whereRaw('supply_percent <= COALESCE(warning_threshold, 20)')
+            ->orderBy('supply_percent')
+            ->limit(20)
+            ->get();
+
+        // Branch distribution
+        $branchDist = Printer::select('branch_id', DB::raw('COUNT(*) as total'))
+            ->with('branch:id,name')
+            ->groupBy('branch_id')
+            ->orderByDesc('total')
+            ->get();
+
+        // Recent maintenance logs
+        $recentMaintenance = PrinterMaintenanceLog::with(['printer.branch', 'performedByUser'])
+            ->orderByDesc('performed_at')
+            ->limit(10)
+            ->get();
+
+        // Highest-usage printers (by page_count_total, non-null)
+        $topByUsage = Printer::with('branch:id,name')
+            ->whereNotNull('page_count_total')
+            ->where('page_count_total', '>', 0)
+            ->orderByDesc('page_count_total')
+            ->limit(10)
+            ->get();
+
+        // Printers with errors / status
+        $errorPrinters = Printer::with('branch:id,name')
+            ->where('snmp_enabled', true)
+            ->where('printer_status', 'error')
+            ->orderByDesc('snmp_last_polled_at')
+            ->limit(10)
+            ->get();
+
+        // Printers with active low-alert flag
+        $isLowAlertPrinters = Printer::with(['branch:id,name', 'supplies' => fn($q) => $q->where('is_low_alert_active', true)])
+            ->whereHas('supplies', fn($q) => $q->where('is_low_alert_active', true))
+            ->orderBy('printer_name')
+            ->limit(10)
+            ->get();
+
+        return view('admin.printers.dashboard', compact(
+            'total', 'snmpEnabled', 'recentlyPolled',
+            'lowTonerCount', 'criticalTonerCount', 'maintenanceDue',
+            'lowTonerSupplies', 'branchDist', 'recentMaintenance',
+            'topByUsage', 'errorPrinters', 'isLowAlertPrinters'
+        ));
+    }
+
     public function index(Request $request)
     {
         $query = Printer::with(['branch', 'device.credentials'])
