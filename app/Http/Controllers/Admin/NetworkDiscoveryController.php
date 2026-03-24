@@ -3,16 +3,19 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\DiscoverSnmpDeviceJob;
 use App\Jobs\RunDiscoveryScanJob;
 use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\Device;
 use App\Models\DiscoveryResult;
 use App\Models\DiscoveryScan;
+use App\Models\MonitoredHost;
 use App\Models\NetworkSwitch;
 use App\Models\Printer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class NetworkDiscoveryController extends Controller
 {
@@ -85,25 +88,46 @@ class NetworkDiscoveryController extends Controller
 
         $type = $request->input('import_as', $result->device_type);
 
+        $printerName = $result->sys_name ?: $result->hostname ?: $result->ip_address;
+
         switch ($type) {
             case 'printer':
-                $model = Printer::create([
-                    'printer_name' => $result->sys_name ?: $result->hostname ?: $result->ip_address,
-                    'ip_address'   => $result->ip_address,
-                    'mac_address'  => $result->mac_address,
-                    'model'        => $result->model,
-                    'manufacturer' => $result->vendor,
-                    'branch_id'    => $discoveryScan->branch_id,
-                    'snmp_enabled' => $result->snmp_accessible,
-                    'snmp_community' => $discoveryScan->snmp_community,
-                ]);
+                $model = DB::transaction(function () use ($result, $discoveryScan, $printerName) {
+                    // Must create a Device record first (1-to-1 FK requirement)
+                    $device = Device::create([
+                        'type'        => 'printer',
+                        'name'        => $printerName,
+                        'model'       => $result->model,
+                        'mac_address' => $result->mac_address,
+                        'ip_address'  => $result->ip_address,
+                        'branch_id'   => $discoveryScan->branch_id,
+                        'source'      => 'printer',
+                        'status'      => 'active',
+                    ]);
+
+                    return Printer::create([
+                        'device_id'      => $device->id,
+                        'printer_name'   => $printerName,
+                        'ip_address'     => $result->ip_address,
+                        'mac_address'    => $result->mac_address,
+                        'model'          => $result->model,
+                        'manufacturer'   => $result->vendor,
+                        'branch_id'      => $discoveryScan->branch_id,
+                        'snmp_enabled'   => $result->snmp_accessible,
+                        'snmp_community' => $discoveryScan->snmp_community,
+                    ]);
+                });
+
+                // Auto-register in SNMP monitoring (same as normal printer creation)
+                $this->syncPrinterMonitoredHost($model);
+
                 $result->update(['already_imported' => true, 'imported_type' => 'printer', 'imported_id' => $model->id]);
                 $label = 'Printer';
                 break;
 
             case 'switch':
                 $model = NetworkSwitch::create([
-                    'name'      => $result->sys_name ?: $result->hostname ?: $result->ip_address,
+                    'name'      => $printerName,
                     'lan_ip'    => $result->ip_address,
                     'mac'       => $result->mac_address,
                     'model'     => $result->model,
@@ -115,12 +139,13 @@ class NetworkDiscoveryController extends Controller
 
             default: // device
                 $model = Device::create([
-                    'name'        => $result->sys_name ?: $result->hostname ?: $result->ip_address,
+                    'name'        => $printerName,
                     'ip_address'  => $result->ip_address,
                     'mac_address' => $result->mac_address,
                     'model'       => $result->model,
                     'branch_id'   => $discoveryScan->branch_id,
                     'type'        => 'other',
+                    'status'      => 'active',
                 ]);
                 $result->update(['already_imported' => true, 'imported_type' => 'device', 'imported_id' => $model->id]);
                 $label = 'Device';
@@ -134,6 +159,34 @@ class NetworkDiscoveryController extends Controller
         ]);
 
         return back()->with('success', "{$result->ip_address} imported as {$label}.");
+    }
+
+    // ─── Sync MonitoredHost after printer import ─────────────────
+
+    protected function syncPrinterMonitoredHost(Printer $printer): void
+    {
+        if (empty($printer->ip_address)) {
+            return;
+        }
+
+        $host = MonitoredHost::firstOrNew(['ip' => $printer->ip_address]);
+        $host->fill([
+            'name'           => $printer->printer_name,
+            'type'           => 'printer',
+            'snmp_enabled'   => (bool) $printer->snmp_enabled,
+            'snmp_version'   => $printer->snmp_version ?? 'v2c',
+            'snmp_community' => $printer->snmp_community,
+            'snmp_port'      => 161,
+            'ping_enabled'   => true,
+            'branch_id'      => $printer->branch_id,
+        ]);
+
+        $isNew = ! $host->exists;
+        $host->save();
+
+        if ($printer->snmp_enabled && ($isNew || $host->wasRecentlyCreated)) {
+            DiscoverSnmpDeviceJob::dispatch($host);
+        }
     }
 
     // ─── Delete a scan ───────────────────────────────────────────
