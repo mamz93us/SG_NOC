@@ -276,6 +276,15 @@ Schedule::call(function () {
     }
 })->name('poll-printer-snmp')->withoutOverlapping(5)->everyFiveMinutes();
 
+// ─── Low Toner Monitor — every 30 minutes ────────────────────
+Schedule::call(function () {
+    try {
+        app(\App\Services\PrinterSupplyMonitorService::class)->checkAll();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error("Low toner monitor failed: " . $e->getMessage());
+    }
+})->name('check-low-toner')->withoutOverlapping(10)->everyThirtyMinutes();
+
 // ─── Metrics Rollup (hourly → daily) + Tiered Pruning ───────
 // Rolls raw sensor_metrics into hourly/daily rollup tables.
 // Also prunes: raw data >7 days, hourly data >90 days.

@@ -45,6 +45,7 @@ use App\Http\Controllers\Admin\TopologyController;
 use App\Http\Controllers\Admin\WarrantyTrackerController;
 use App\Http\Controllers\Admin\PortMapController;
 use App\Http\Controllers\Admin\DhcpLeaseController;
+use App\Http\Controllers\Admin\NetworkDiscoveryController;
 use App\Http\Controllers\Admin\SophosFirewallController;
 use App\Http\Controllers\Admin\IpamController;
 use App\Http\Controllers\Admin\ItamController;
@@ -811,6 +812,17 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::post('/settings/provisioning', [SettingsController::class, 'updateProvisioning'])->name('settings.provisioning');
     Route::get('/settings/provisioning-licenses',  [SettingsController::class, 'provisioningLicenses'])->name('settings.provisioning-licenses');
     Route::post('/settings/provisioning-licenses', [SettingsController::class, 'setDefaultLicense'])   ->name('settings.provisioning-licenses.save');
+
+    // ─── Network Discovery ────────────────────────────────────────
+    Route::middleware('permission:view-printers')->group(function () {
+        Route::get('network-discovery',                                         [NetworkDiscoveryController::class, 'index'])   ->name('network-discovery.index');
+        Route::get('network-discovery/{discoveryScan}',                         [NetworkDiscoveryController::class, 'show'])    ->name('network-discovery.show');
+    });
+    Route::middleware('permission:manage-printers')->group(function () {
+        Route::post('network-discovery',                                        [NetworkDiscoveryController::class, 'store'])   ->name('network-discovery.store');
+        Route::post('network-discovery/{discoveryScan}/results/{result}/import',[NetworkDiscoveryController::class, 'import'])  ->name('network-discovery.import');
+        Route::delete('network-discovery/{discoveryScan}',                      [NetworkDiscoveryController::class, 'destroy']) ->name('network-discovery.destroy');
+    });
 
     // ─── ITAM ─────────────────────────────────────────────────────
     Route::middleware('permission:view-itam')->prefix('itam')->name('itam.')->group(function () {

@@ -76,6 +76,12 @@
                             <a href="{{ route('admin.printers.show', $p) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
                             @can('manage-printers')
                             <a href="{{ route('admin.printers.edit', $p) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+                            <form action="{{ route('admin.printers.destroy', $p) }}" method="POST" class="d-inline"
+                                  onsubmit="return confirm('Delete printer \'{{ addslashes($p->printer_name) }}\'? This cannot be undone.');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                            </form>
                             @endcan
                         </td>
                     </tr>

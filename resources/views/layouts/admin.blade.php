@@ -331,6 +331,12 @@
                                     <i class="bi bi-activity me-2 text-success"></i>Printer SNMP Status
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/network-discovery*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network-discovery.index') }}">
+                                    <i class="bi bi-radar me-2 text-info"></i>Network Discovery
+                                </a>
+                            </li>
                             @endcan
                             @can('view-credentials')
                             <li>
