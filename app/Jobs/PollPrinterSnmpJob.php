@@ -645,7 +645,7 @@ class PollPrinterSnmpJob implements ShouldQueue
 
             // Determine type from prtMarkerSuppliesType integer
             $typeKey = str_replace('.6.1.', '.7.1.', $oid);
-            $typeInt = isset($types[$typeKey]) ? (int) $types[$typeKey] : 3;
+            $typeInt = isset($types[$typeKey]) ? $this->parseIntValue($types[$typeKey]) : 3;
             $supplyType = match($typeInt) {
                 7  => 'drum',
                 12 => 'fuser',
@@ -658,13 +658,15 @@ class PollPrinterSnmpJob implements ShouldQueue
             // Get level OID
             $levelKey = str_replace('.6.1.', '.9.1.', $oid);
             $maxKey   = str_replace('.6.1.', '.8.1.', $oid);
-            $rawLevel = isset($curLevels[$levelKey]) ? (int) $curLevels[$levelKey] : null;
-            $rawMax   = isset($maxCaps[$maxKey])   ? (int) $maxCaps[$maxKey]   : null;
+            $rawLevel = isset($curLevels[$levelKey]) ? $this->parseIntValue($curLevels[$levelKey]) : null;
+            $rawMax   = isset($maxCaps[$maxKey])     ? $this->parseIntValue($maxCaps[$maxKey])     : null;
 
-            // Also try Ricoh override
+            // Also try Ricoh override (Ricoh private MIB already returns percent 0–100 or -100)
             if (isset($curLevels["ricoh.$index"])) {
-                $rawLevel = (int) $curLevels["ricoh.$index"];
-                $rawMax = 100;
+                $ricohRaw = $this->parseIntValue($curLevels["ricoh.$index"]);
+                // Ricoh: -100 = Cartridge Almost Empty → treat as 0%
+                $rawLevel = ($ricohRaw !== null && $ricohRaw < -3) ? 0 : $ricohRaw;
+                $rawMax   = 100;
             }
 
             // Normalize to percent
