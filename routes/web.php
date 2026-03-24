@@ -403,10 +403,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     Route::middleware('permission:view-printers')->group(function () {
-        Route::get('printers',                 [PrinterController::class, 'index'])  ->name('printers.index');
-        Route::get('printers/create',          [PrinterController::class, 'create'])  ->name('printers.create');
-        Route::get('printers/{printer}/edit',  [PrinterController::class, 'edit'])    ->name('printers.edit');
-        Route::get('printers/{printer}',       [PrinterController::class, 'show'])   ->name('printers.show');
+        // IMPORTANT: static segments (dashboard, create) MUST come before {printer} wildcard
+        Route::get('printers/dashboard',       [PrinterController::class, 'dashboard']) ->name('printers.dashboard');
+        Route::get('printers',                 [PrinterController::class, 'index'])     ->name('printers.index');
+        Route::get('printers/create',          [PrinterController::class, 'create'])    ->name('printers.create');
+        Route::get('printers/{printer}/edit',  [PrinterController::class, 'edit'])      ->name('printers.edit');
+        Route::get('printers/{printer}',       [PrinterController::class, 'show'])      ->name('printers.show');
     });
     Route::middleware('permission:manage-printers')->group(function () {
         Route::post('printers',                [PrinterController::class, 'store'])   ->name('printers.store');
@@ -415,11 +417,6 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         // Manual employee assignment
         Route::post('printers/{printer}/assign',              [PrinterController::class, 'assignEmployee'])   ->name('printers.assign');
         Route::delete('printers/{printer}/assign/{employee}', [PrinterController::class, 'unassignEmployee']) ->name('printers.unassign');
-    });
-
-    // ── Printer Dashboard ────────────────────────────────────
-    Route::middleware('permission:view-printers')->group(function () {
-        Route::get('printers/dashboard', [PrinterController::class, 'dashboard'])->name('printers.dashboard');
     });
 
     // ─── Printer SNMP Dashboard ──────────────────────────────
