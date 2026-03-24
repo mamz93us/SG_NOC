@@ -89,6 +89,68 @@ class NotificationService
         }
     }
 
+    /**
+     * Send a notification only to recipients defined in active rules for the given
+     * event type, honouring per-rule send_in_app / send_email flags.
+     *
+     * Falls back to notifyAdmins() when no rules are configured for the event type,
+     * so alerts are never silently dropped.
+     */
+    public function notifyViaRules(
+        string  $type,
+        string  $title,
+        string  $message,
+        ?string $link = null,
+        string  $severity = 'info'
+    ): void {
+        $rules = NotificationRule::active()->forEvent($type)->get();
+
+        if ($rules->isEmpty()) {
+            // No rules configured for this event — fall back to all admins
+            $this->notifyAdmins($type, $title, $message, $link, $severity);
+            return;
+        }
+
+        $notifiedIds = collect(); // deduplicate: first matching rule wins per user
+
+        foreach ($rules as $rule) {
+            if ($rule->recipient_type === 'role') {
+                $recipients = User::where('role', $rule->recipient_role)->get();
+            } else {
+                $user = $rule->recipientUser;
+                $recipients = $user ? collect([$user]) : collect();
+            }
+
+            foreach ($recipients as $recipient) {
+                if ($notifiedIds->contains($recipient->id)) {
+                    continue; // already handled by an earlier rule
+                }
+                $notifiedIds->push($recipient->id);
+
+                // Create the notification record.
+                // is_read=true when send_in_app is off so it doesn't clutter the bell.
+                $notification = Notification::create([
+                    'user_id'    => $recipient->id,
+                    'type'       => $type,
+                    'severity'   => $severity,
+                    'title'      => $title,
+                    'message'    => $message,
+                    'link'       => $link,
+                    'is_read'    => ! $rule->send_in_app,
+                    'created_at' => now(),
+                ]);
+
+                // Email — rule flag OR the user's personal notify_email preference
+                $settings     = NotificationSetting::forUser($recipient->id);
+                $shouldEmail  = $rule->send_email || $settings->notify_email;
+
+                if ($shouldEmail) {
+                    SendNotificationEmailJob::dispatch($notification, $recipient)->afterCommit();
+                }
+            }
+        }
+    }
+
     public function markRead(int $notificationId, int $userId): void
     {
         Notification::where('id', $notificationId)

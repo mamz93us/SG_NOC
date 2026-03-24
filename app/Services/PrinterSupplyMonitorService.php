@@ -36,6 +36,16 @@ class PrinterSupplyMonitorService
             return;
         }
 
+        // Skip supplies that have never been polled (supply_percent is 0 but the record
+        // was just created — no real data yet). We consider a supply "unpolled" when its
+        // percent is 0 AND it has never fired an alert AND the record is less than 1 hour old.
+        if ($supply->supply_percent === 0
+            && $supply->low_alert_sent_at === null
+            && $supply->created_at?->gt(now()->subHour())
+        ) {
+            return;
+        }
+
         // Use per-supply override, otherwise fall back to warning_threshold, then default 10%
         $threshold = $supply->low_alert_threshold
             ?? $supply->warning_threshold
@@ -70,7 +80,7 @@ class PrinterSupplyMonitorService
         $link = route('admin.printers.show', $printer->id);
 
         try {
-            $this->notifications->notifyAdmins(
+            $this->notifications->notifyViaRules(
                 type:     'printer_maintenance',
                 title:    $title,
                 message:  $message,
