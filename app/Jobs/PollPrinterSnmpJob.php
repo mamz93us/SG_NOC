@@ -188,8 +188,11 @@ class PollPrinterSnmpJob implements ShouldQueue
 
             if ($level === null) continue;
 
-            // Ricoh returns -100 to 100 sometimes, normalize to 0-100
-            if ($level < -3) $level = abs($level);
+            // Ricoh special toner values:
+            //   -3 = some supply remaining (unknown qty) → keep as-is, shown as 1% by -3 check above
+            //   -100 (or any < -3) = "Cartridge Almost Empty" alert → map to 0%, NOT abs()
+            //   Positive values are direct percentages 0–100
+            if ($level < -3) $level = 0;
             if ($level > 100) $level = 100;
 
             if (str_contains($nameClean, 'black') || str_contains($nameClean, 'bk')) {

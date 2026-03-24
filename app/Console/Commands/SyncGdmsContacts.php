@@ -26,6 +26,8 @@ class SyncGdmsContacts extends Command
         $pageSize     = 200;
         $processed    = 0;
         $failed       = 0;
+        $fetched      = 0;   // raw count of all accounts seen (incl. failures) — drives loop exit
+        $totalFromApi = null; // captured once from page 1 to avoid re-assignment skewing the exit
         $syncedPhones = [];   // every sipUserId seen this run — used for orphan pruning
 
         do {
@@ -34,9 +36,10 @@ class SyncGdmsContacts extends Command
             // GDMS API nests data inside data.result with data.total
             $inner    = $pageData['data'] ?? $pageData;
             $accounts = $inner['result'] ?? $inner['list'] ?? [];
-            $total    = $inner['total'] ?? count($accounts);
+            $total    = (int) ($inner['total'] ?? count($accounts));
 
             if ($pageNum === 1) {
+                $totalFromApi = $total;
                 $pages = (int) ceil($total / $pageSize);
                 $this->info("Total accounts: {$total}, pages: {$pages}");
             }
@@ -51,6 +54,7 @@ class SyncGdmsContacts extends Command
                     continue;
                 }
 
+                $fetched++;
                 $syncedPhones[] = (string) $sipUserId;
 
                 // Resolve branch — null if not mapped (avoids FK constraint errors)
@@ -88,7 +92,7 @@ class SyncGdmsContacts extends Command
             }
 
             $pageNum++;
-        } while (! empty($accounts) && isset($total) && $processed < $total);
+        } while (! empty($accounts) && ($totalFromApi === null || $fetched < $totalFromApi));
 
         // ── Remove GDMS-sourced contacts that no longer exist in GDMS ────────
         // Only contacts marked source=gdms are eligible — manually-added contacts
