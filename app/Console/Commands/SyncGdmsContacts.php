@@ -2,18 +2,19 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Contact;
 use App\Models\ActivityLog;
+use App\Models\Branch;
+use App\Models\Contact;
 use App\Models\ServiceSyncLog;
-use App\Services\GdmsService;
+use App\Models\User;
 use App\Services\GdmsBranchMapper;
+use App\Services\GdmsService;
 use Illuminate\Console\Command;
-       use App\Models\User;
 
 class SyncGdmsContacts extends Command
 {
     protected $signature = 'gdms:sync-contacts';
-    protected $description = 'Sync contacts from GDMS SIP accounts into local contacts table';
+    protected $description = 'Sync contacts from GDMS SIP accounts (create / update / delete orphans)';
 
     public function handle(GdmsService $gdms, GdmsBranchMapper $branchMapper): int
     {
@@ -21,11 +22,11 @@ class SyncGdmsContacts extends Command
 
         $log = ServiceSyncLog::start('gdms');
 
-        $pageNum   = 1;
-        $pageSize  = 200;
-        $processed = 0;
-
-        $failed = 0;
+        $pageNum      = 1;
+        $pageSize     = 200;
+        $processed    = 0;
+        $failed       = 0;
+        $syncedPhones = [];   // every sipUserId seen this run — used for orphan pruning
 
         do {
             $pageData = $gdms->listSipAccounts($pageNum, $pageSize);
@@ -41,24 +42,26 @@ class SyncGdmsContacts extends Command
             }
 
             foreach ($accounts as $acc) {
-                $sipUserId   = $acc['sipUserId'] ?? null;
-                $displayName = $acc['displayName'] ?? '';
-                $sipServer   = $acc['sipServer'] ?? '';
+                $sipUserId   = $acc['sipUserId']      ?? null;
+                $displayName = $acc['displayName']    ?? '';
+                $sipServer   = $acc['sipServer']      ?? '';
                 $email       = $acc['extensionEmail'] ?? null;
 
-                if (!$sipUserId) {
+                if (! $sipUserId) {
                     continue;
                 }
 
+                $syncedPhones[] = (string) $sipUserId;
+
                 // Resolve branch — null if not mapped (avoids FK constraint errors)
+                $branchId = null;
                 try {
-                    $branchId = $branchMapper->resolveBranchId($sipServer);
-                    // Verify branch actually exists, otherwise set null
-                    if (!\App\Models\Branch::find($branchId)) {
-                        $branchId = null;
+                    $bid = $branchMapper->resolveBranchId($sipServer);
+                    if ($bid && Branch::find($bid)) {
+                        $branchId = $bid;
                     }
                 } catch (\Throwable) {
-                    $branchId = null;
+                    // leave null
                 }
 
                 $parts     = preg_split('/\s+/', trim($displayName));
@@ -69,10 +72,12 @@ class SyncGdmsContacts extends Command
                     Contact::updateOrCreate(
                         ['phone' => (string) $sipUserId],
                         [
-                            'first_name' => $firstName,
-                            'last_name'  => $lastName,
-                            'email'      => $email ?: null,
-                            'branch_id'  => $branchId,
+                            'first_name'     => $firstName,
+                            'last_name'      => $lastName,
+                            'email'          => $email ?: null,
+                            'branch_id'      => $branchId,
+                            'source'         => 'gdms',
+                            'gdms_synced_at' => now(),
                         ]
                     );
                     $processed++;
@@ -83,9 +88,23 @@ class SyncGdmsContacts extends Command
             }
 
             $pageNum++;
-        } while (!empty($accounts) && isset($total) && $processed < $total);
+        } while (! empty($accounts) && isset($total) && $processed < $total);
 
-        $this->info("GDMS contacts sync complete. Processed: {$processed}, Failed: {$failed}.");
+        // ── Remove GDMS-sourced contacts that no longer exist in GDMS ────────
+        // Only contacts marked source=gdms are eligible — manually-added contacts
+        // (source=manual) are never touched by the sync.
+        $deleted = 0;
+        if (! empty($syncedPhones)) {
+            $deleted = Contact::where('source', 'gdms')
+                ->whereNotIn('phone', $syncedPhones)
+                ->delete();
+
+            if ($deleted > 0) {
+                $this->warn("Removed {$deleted} orphaned GDMS contact(s) no longer present in GDMS.");
+            }
+        }
+
+        $this->info("GDMS sync complete. Updated: {$processed}, Removed: {$deleted}, Failed: {$failed}.");
 
         $log->update([
             'status'         => 'completed',
@@ -93,22 +112,27 @@ class SyncGdmsContacts extends Command
             'completed_at'   => now(),
         ]);
 
-// Log activity — use the first user, non-critical if it fails
-try {
-    $adminUser = \App\Models\User::first();
-    if ($adminUser) {
-        \App\Models\ActivityLog::create([
-            'model_type' => 'System',
-            'model_id'   => 0,
-            'action'     => 'gdms_sync_contacts',
-            'changes'    => ['processed' => $processed, 'source' => 'gdms', 'run_from' => 'cli'],
-            'user_id'    => $adminUser->id,
-        ]);
-    }
-} catch (\Throwable) {
-    // Non-critical — don't let activity log failure break the sync
-}
-
+        // Activity log — non-critical
+        try {
+            $adminUser = User::first();
+            if ($adminUser) {
+                ActivityLog::create([
+                    'model_type' => 'System',
+                    'model_id'   => 0,
+                    'action'     => 'gdms_sync_contacts',
+                    'changes'    => [
+                        'processed' => $processed,
+                        'deleted'   => $deleted,
+                        'failed'    => $failed,
+                        'source'    => 'gdms',
+                        'run_from'  => 'cli',
+                    ],
+                    'user_id'    => $adminUser->id,
+                ]);
+            }
+        } catch (\Throwable) {
+            // Non-critical — don't let activity log failure break the sync
+        }
 
         return Command::SUCCESS;
     }
