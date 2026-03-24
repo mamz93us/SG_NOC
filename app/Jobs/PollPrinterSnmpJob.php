@@ -610,19 +610,42 @@ class PollPrinterSnmpJob implements ShouldQueue
 
         if (empty($descrs) && empty($curLevels)) return;
 
-        // For Ricoh: override with private MIB if available
-        $isRicoh = $this->isRicohPrinter($printer);
+        // For Ricoh: build a reliable color→percent map using name-based matching
+        // (same logic as pollRicohToner) so index mismatches never cause N/A.
+        $isRicoh      = $this->isRicohPrinter($printer);
+        $ricohColorMap = []; // ['black' => 40, 'cyan' => 90, ...]
         if ($isRicoh) {
             $ricohNames  = $this->snmpWalk($ip, $community, '1.3.6.1.4.1.367.3.2.1.2.24.1.1.3', $version, $port) ?? [];
             $ricohLevels = $this->snmpWalk($ip, $community, '1.3.6.1.4.1.367.3.2.1.2.24.1.1.5', $version, $port) ?? [];
-            if (!empty($ricohLevels)) {
-                // Override standard levels/descriptions with Ricoh private MIB
-                foreach ($ricohLevels as $oid => $level) {
-                    $index = (int) substr($oid, strrpos($oid, '.') + 1);
-                    $curLevels["ricoh.$index"] = $level;
-                    if (isset($ricohNames[$oid])) {
-                        $descrs["ricoh.$index"] = $ricohNames[$oid];
+
+            foreach ($ricohNames as $nameOid => $nameVal) {
+                $nameClean  = strtolower((string) $this->cleanValue($nameVal));
+                $ricohIndex = $this->lastOidIndex($nameOid);
+
+                // Find the matching level by OID index
+                $level = null;
+                foreach ($ricohLevels as $levelOid => $levelVal) {
+                    if ($this->lastOidIndex($levelOid) == $ricohIndex) {
+                        $level = $this->parseIntValue($levelVal);
+                        break;
                     }
+                }
+                if ($level === null) continue;
+
+                // Ricoh: < -3 = "Cartridge Almost Empty" → 0%; clip to 0–100
+                if ($level < -3) $level = 0;
+                if ($level > 100) $level = 100;
+
+                if (str_contains($nameClean, 'black') || str_contains($nameClean, 'bk')) {
+                    $ricohColorMap['black']   = $level;
+                } elseif (str_contains($nameClean, 'cyan')) {
+                    $ricohColorMap['cyan']    = $level;
+                } elseif (str_contains($nameClean, 'magenta')) {
+                    $ricohColorMap['magenta'] = $level;
+                } elseif (str_contains($nameClean, 'yellow')) {
+                    $ricohColorMap['yellow']  = $level;
+                } elseif (str_contains($nameClean, 'waste')) {
+                    $ricohColorMap['waste']   = $level;
                 }
             }
         }
@@ -661,15 +684,7 @@ class PollPrinterSnmpJob implements ShouldQueue
             $rawLevel = isset($curLevels[$levelKey]) ? $this->parseIntValue($curLevels[$levelKey]) : null;
             $rawMax   = isset($maxCaps[$maxKey])     ? $this->parseIntValue($maxCaps[$maxKey])     : null;
 
-            // Also try Ricoh override (Ricoh private MIB already returns percent 0–100 or -100)
-            if (isset($curLevels["ricoh.$index"])) {
-                $ricohRaw = $this->parseIntValue($curLevels["ricoh.$index"]);
-                // Ricoh: -100 = Cartridge Almost Empty → treat as 0%
-                $rawLevel = ($ricohRaw !== null && $ricohRaw < -3) ? 0 : $ricohRaw;
-                $rawMax   = 100;
-            }
-
-            // Normalize to percent
+            // Normalize to percent from standard MIB values
             $percent = null;
             if ($rawLevel !== null) {
                 if ($rawLevel === -1) $percent = 100; // no restriction
@@ -680,6 +695,11 @@ class PollPrinterSnmpJob implements ShouldQueue
                 } elseif ($rawMax === -1) {
                     $percent = $rawLevel; // already a percentage
                 }
+            }
+
+            // For Ricoh: override with the name-matched color map (reliable, no index ambiguity)
+            if ($isRicoh && isset($ricohColorMap[$color])) {
+                $percent = $ricohColorMap[$color];
             }
 
             // Fetch previous record for consumption rate
