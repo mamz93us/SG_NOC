@@ -291,13 +291,15 @@ class SnmpMonitoringController extends Controller
         }
 
         // Clear v3 fields when not using SNMPv3
+        // snmp_auth_protocol (default 'sha'), snmp_priv_protocol (default 'aes'),
+        // and snmp_security_level are NOT NULL — must supply a value, not null.
         if (($data['snmp_version'] ?? '') !== 'v3') {
             $data['snmp_auth_user']      = null;
             $data['snmp_auth_password']  = null;
-            $data['snmp_auth_protocol']  = null;
+            $data['snmp_auth_protocol']  = 'sha';          // NOT NULL, keep DB default
             $data['snmp_priv_password']  = null;
-            $data['snmp_priv_protocol']  = null;
-            $data['snmp_security_level'] = 'noAuthNoPriv'; // column is NOT NULL
+            $data['snmp_priv_protocol']  = 'aes';          // NOT NULL, keep DB default
+            $data['snmp_security_level'] = 'noAuthNoPriv'; // NOT NULL
             $data['snmp_context_name']   = null;
         }
 
@@ -354,13 +356,15 @@ class SnmpMonitoringController extends Controller
         }
 
         // Clear v3 fields when not using SNMPv3
+        // snmp_auth_protocol (default 'sha'), snmp_priv_protocol (default 'aes'),
+        // and snmp_security_level are NOT NULL — must supply a value, not null.
         if (($data['snmp_version'] ?? '') !== 'v3') {
             $data['snmp_auth_user']      = null;
             $data['snmp_auth_password']  = null;
-            $data['snmp_auth_protocol']  = null;
+            $data['snmp_auth_protocol']  = 'sha';          // NOT NULL, keep DB default
             $data['snmp_priv_password']  = null;
-            $data['snmp_priv_protocol']  = null;
-            $data['snmp_security_level'] = 'noAuthNoPriv'; // column is NOT NULL
+            $data['snmp_priv_protocol']  = 'aes';          // NOT NULL, keep DB default
+            $data['snmp_security_level'] = 'noAuthNoPriv'; // NOT NULL
             $data['snmp_context_name']   = null;
         }
 
