@@ -12,7 +12,8 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('range_input');                        // e.g. 192.168.1.0/24 or 192.168.1.1-254
-            $table->foreignId('branch_id')->nullable()->constrained('branches')->nullOnDelete();
+            $table->unsignedInteger('branch_id')->nullable();
+            $table->foreign('branch_id')->references('id')->on('branches')->nullOnDelete();
             $table->string('snmp_community')->default('public');
             $table->unsignedTinyInteger('snmp_timeout')->default(2); // seconds per host
             $table->enum('status', ['pending', 'running', 'completed', 'failed'])->default('pending');
