@@ -132,8 +132,10 @@ class CollectSnmpMetricsJob implements ShouldQueue
                             $finalValue = $parsedValue;
                         }
 
-                        // Ricoh toner gauge — Ricoh encodes full toner as -100, half as -50, etc.
-                        // Normalise negative values: < -3 → abs(value); -3 = ~5%; -2/-1 = unknown/full
+                        // Ricoh toner gauge — OID returns positive percentages (0-100) normally.
+                        // Special codes: -1 = no restriction (full), -2 = unknown, -3 = some remaining.
+                        // -100 (any < -3) = "Cartridge Almost Empty" alert → 0%.
+                        // DO NOT use abs(): abs(-100)=100 inverts the reading entirely.
                         if ($sensor->data_type === 'toner_gauge') {
                             if ($finalValue == -1.0) {
                                 $finalValue = 100.0;
@@ -142,7 +144,7 @@ class CollectSnmpMetricsJob implements ShouldQueue
                             } elseif ($finalValue == -3.0) {
                                 $finalValue = 5.0;
                             } elseif ($finalValue < -3.0) {
-                                $finalValue = (float) abs($finalValue);
+                                $finalValue = 0.0;  // empty/alert — NOT abs()
                             }
                             $finalValue = (float) min(100, max(0, $finalValue));
                         }
