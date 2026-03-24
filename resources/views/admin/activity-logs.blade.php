@@ -154,15 +154,15 @@
                                         @php
                                             $json = is_array($log->changes) ? $log->changes : json_decode($log->changes, true);
                                         @endphp
-                                        @if(isset($json['old']) && isset($json['new']))
+                                        @if(isset($json['old']) && isset($json['new']) && is_array($json['new']))
                                             <div class="d-flex flex-column gap-1">
                                                 @foreach($json['new'] as $field => $newVal)
                                                     @if(isset($json['old'][$field]) && $json['old'][$field] !== $newVal)
                                                     <div>
                                                         <span class="badge bg-light text-dark border me-1">{{ $field }}</span>
-                                                        <span class="text-danger"><del>{{ \Illuminate\Support\Str::limit(is_array($json['old'][$field]) ? json_encode($json['old'][$field]) : $json['old'][$field], 40) }}</del></span>
+                                                        <span class="text-danger"><del>{{ \Illuminate\Support\Str::limit(is_array($json['old'][$field]) ? json_encode($json['old'][$field]) : (string)$json['old'][$field], 40) }}</del></span>
                                                         <i class="bi bi-arrow-right text-muted mx-1" style="font-size:10px"></i>
-                                                        <span class="text-success">{{ \Illuminate\Support\Str::limit(is_array($newVal) ? json_encode($newVal) : $newVal, 40) }}</span>
+                                                        <span class="text-success">{{ \Illuminate\Support\Str::limit(is_array($newVal) ? json_encode($newVal) : (string)$newVal, 40) }}</span>
                                                     </div>
                                                     @endif
                                                 @endforeach
@@ -170,14 +170,14 @@
                                         @elseif(is_array($json))
                                             <div class="d-flex flex-wrap gap-1">
                                                 @foreach(array_slice($json, 0, 4) as $k => $v)
-                                                <span class="badge bg-light text-dark border">{{ $k }}: {{ \Illuminate\Support\Str::limit(is_array($v) ? json_encode($v) : $v, 30) }}</span>
+                                                <span class="badge bg-light text-dark border">{{ $k }}: {{ \Illuminate\Support\Str::limit(is_array($v) ? json_encode($v) : (string)$v, 30) }}</span>
                                                 @endforeach
                                                 @if(count($json) > 4)
                                                 <span class="text-muted small">+{{ count($json) - 4 }} more</span>
                                                 @endif
                                             </div>
                                         @else
-                                            <small class="text-muted font-monospace">{{ \Illuminate\Support\Str::limit(json_encode($json), 120) }}</small>
+                                            <small class="text-muted font-monospace">{{ \Illuminate\Support\Str::limit(is_string($json) ? $json : json_encode($json), 120) }}</small>
                                         @endif
                                     @else
                                         <span class="text-muted">—</span>
