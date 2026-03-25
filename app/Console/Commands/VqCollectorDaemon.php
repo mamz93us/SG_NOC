@@ -173,18 +173,29 @@ class VqCollectorDaemon extends Command
         $mosLq = $this->floatOrNull($fields['moslq'] ?? null);
         $mosCq = $this->floatOrNull($fields['moscq'] ?? null);
 
-        // ── Jitter: JitterBuffer:JBN=100 JBM=90 (nominal / max delay ms) ────
-        // IAJ = Inter-Arrival Jitter from Delay line (better jitter_avg proxy)
+        // ── Jitter: JitterBuffer:JBN=100 JBM=90 IAJ from Delay ──────────────
+        // IAJ  = Inter-Arrival Jitter (matches UCM "Jitter" column)
+        // JBM  = JitterBuffer Max delay ms (matches UCM "JitterBufferMax")
+        // JBN  = JitterBuffer Nominal delay ms (matches UCM "JitterBuffer")
         $jitterAvg = $this->floatOrNull($fields['iaj'] ?? $fields['jbn'] ?? null);
         $jitterMax = $this->floatOrNull($fields['jbm'] ?? null);
 
-        // ── Packet loss: PacketLoss:NLR=0.00 ─────────────────────────────────
-        $packetLoss = $this->floatOrNull($fields['nlr'] ?? null);
+        // ── Packet loss: PacketLoss:NLR=0.00 PLC=... NLC=... ─────────────────
+        // NLR = Network Loss Rate (%) — 0.0 is valid (no loss), do NOT use floatOrNull
+        $packetLoss = isset($fields['nlr']) && $fields['nlr'] !== ''
+            ? (float) $fields['nlr']
+            : null;
+        // NLC = raw lost packet count (integer)
+        $packetsLost = isset($fields['nlc']) && $fields['nlc'] !== ''
+            ? (int) $fields['nlc']
+            : null;
 
-        // ── RTT: Delay:RTD=7 ─────────────────────────────────────────────────
-        $rtt = isset($fields['rtd']) ? (int) $fields['rtd'] : null;
+        // ── RTT / One-way delays: Delay:RTD=7 ESD=140 SOWD=143 IAJ=8 ────────
+        $rtt  = isset($fields['rtd'])  ? (int) $fields['rtd']  : null;
+        $sowd = isset($fields['sowd']) ? (int) $fields['sowd'] : null;
+        $esd  = isset($fields['esd'])  ? (int) $fields['esd']  : null;
 
-        // ── Remote IP: RemoteAddr:IP=10.9.8.10 PORT=11172 ───────────────────
+        // ── Remote IP / Remote port ───────────────────────────────────────────
         $remoteIp = $fromIp;
         if (!empty($rawLines['remoteaddr'])) {
             if (preg_match('/IP=([\d\.]+)/i', $rawLines['remoteaddr'], $m)) {
@@ -201,11 +212,14 @@ class VqCollectorDaemon extends Command
             'mos_lq'                => $mosLq,
             'mos_cq'                => $mosCq,
             'r_factor'              => null,   // not in GRP format
-            'jitter_avg'            => $jitterAvg,
-            'jitter_max'            => $jitterMax,
-            'packet_loss'           => $packetLoss,
+            'jitter_avg'            => $jitterAvg,   // IAJ — matches UCM "Jitter"
+            'jitter_max'            => $jitterMax,   // JBM — matches UCM "JitterBufferMax"
+            'packet_loss'           => $packetLoss,  // NLR rate (0.0 stored, not null)
             'burst_loss'            => null,
-            'rtt'                   => $rtt,
+            'packets_lost'          => $packetsLost, // NLC raw count
+            'rtt'                   => $rtt,         // RTD ms
+            'sowd'                  => $sowd,        // Symmetric One-Way Delay ms
+            'esd'                   => $esd,         // End System Delay ms
             'call_start'            => $startTime ? date('Y-m-d H:i:s', $startTime) : null,
             'call_end'              => $stopTime  ? date('Y-m-d H:i:s', $stopTime)  : null,
             'call_duration_seconds' => $duration,

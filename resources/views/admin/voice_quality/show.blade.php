@@ -85,17 +85,23 @@
                         <td>{{ $report->r_factor !== null ? number_format($report->r_factor, 1) : '—' }}</td>
                     </tr>
                     <tr>
-                        <th class="text-muted fw-normal">Jitter Avg</th>
+                        <th class="text-muted fw-normal">Jitter <small class="text-muted">(IAJ)</small></th>
                         <td>{{ $report->jitter_avg !== null ? number_format($report->jitter_avg, 2).' ms' : '—' }}</td>
                     </tr>
                     <tr>
-                        <th class="text-muted fw-normal">Jitter Max</th>
+                        <th class="text-muted fw-normal">JitterBuffer Max <small class="text-muted">(JBM)</small></th>
                         <td>{{ $report->jitter_max !== null ? number_format($report->jitter_max, 2).' ms' : '—' }}</td>
                     </tr>
                     <tr>
-                        <th class="text-muted fw-normal">Packet Loss</th>
-                        <td class="{{ $report->packet_loss > 5 ? 'text-danger fw-semibold' : '' }}">
-                            {{ $report->packet_loss !== null ? number_format($report->packet_loss, 3).'%' : '—' }}
+                        <th class="text-muted fw-normal">Packet Loss Rate <small class="text-muted">(NLR)</small></th>
+                        <td class="{{ $report->packet_loss !== null && $report->packet_loss > 5 ? 'text-danger fw-semibold' : '' }}">
+                            {{ $report->packet_loss !== null ? number_format($report->packet_loss, 2).'%' : '—' }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted fw-normal">Packets Lost <small class="text-muted">(count)</small></th>
+                        <td class="{{ $report->packets_lost > 0 ? 'text-warning fw-semibold' : '' }}">
+                            {{ $report->packets_lost !== null ? $report->packets_lost : '—' }}
                         </td>
                     </tr>
                     <tr>
@@ -103,10 +109,20 @@
                         <td>{{ $report->burst_loss !== null ? number_format($report->burst_loss, 3).'%' : '—' }}</td>
                     </tr>
                     <tr>
-                        <th class="text-muted fw-normal">Round Trip Time</th>
-                        <td class="{{ $report->rtt > 300 ? 'text-danger fw-semibold' : '' }}">
+                        <th class="text-muted fw-normal">Round Trip Delay <small class="text-muted">(RTD)</small></th>
+                        <td class="{{ $report->rtt !== null && $report->rtt > 300 ? 'text-danger fw-semibold' : '' }}">
                             {{ $report->rtt !== null ? $report->rtt.' ms' : '—' }}
                         </td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted fw-normal">One-Way Delay <small class="text-muted">(SOWD)</small></th>
+                        <td class="{{ $report->sowd !== null && $report->sowd > 150 ? 'text-warning fw-semibold' : '' }}">
+                            {{ $report->sowd !== null ? $report->sowd.' ms' : '—' }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted fw-normal">End System Delay <small class="text-muted">(ESD)</small></th>
+                        <td>{{ $report->esd !== null ? $report->esd.' ms' : '—' }}</td>
                     </tr>
                     <tr>
                         <th class="text-muted fw-normal">Quality Label</th>

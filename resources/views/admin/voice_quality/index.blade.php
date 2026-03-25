@@ -109,7 +109,16 @@
                             @endif
                         </td>
                         <td class="text-muted">{{ $r->jitter_avg !== null ? number_format($r->jitter_avg, 1).'ms' : '—' }}</td>
-                        <td class="text-muted">{{ $r->packet_loss !== null ? number_format($r->packet_loss, 2).'%' : '—' }}</td>
+                        <td class="{{ $r->packet_loss !== null && $r->packet_loss > 5 ? 'text-danger fw-semibold' : 'text-muted' }}">
+                            @if($r->packet_loss !== null)
+                                {{ number_format($r->packet_loss, 2) }}%
+                                @if($r->packets_lost > 0)
+                                    <span class="text-warning small">({{ $r->packets_lost }})</span>
+                                @endif
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td class="text-muted">{{ $r->rtt !== null ? $r->rtt.'ms' : '—' }}</td>
                         <td>
                             @if($r->quality_label)
