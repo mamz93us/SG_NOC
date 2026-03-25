@@ -13,7 +13,8 @@ return new class extends Migration
             $table->string('device_name')->index();
             $table->string('device_ip')->index();
             $table->string('branch')->nullable();
-            $table->foreignId('branch_id')->nullable()->constrained('branches')->nullOnDelete();
+            $table->unsignedInteger('branch_id')->nullable();
+            $table->foreign('branch_id')->references('id')->on('branches')->nullOnDelete();
             $table->string('interface_name')->nullable();
             $table->integer('interface_index')->nullable();
             $table->unsignedBigInteger('in_discards')->default(0);

@@ -14,7 +14,8 @@ return new class extends Migration
             $table->string('remote_extension')->nullable();
             $table->string('remote_ip')->nullable();
             $table->string('branch')->nullable();
-            $table->foreignId('branch_id')->nullable()->constrained('branches')->nullOnDelete();
+            $table->unsignedInteger('branch_id')->nullable();
+            $table->foreign('branch_id')->references('id')->on('branches')->nullOnDelete();
             $table->string('codec')->nullable();
             $table->float('mos_lq')->nullable();
             $table->float('mos_cq')->nullable();
