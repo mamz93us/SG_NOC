@@ -37,7 +37,7 @@ class LicenseMonitor extends Model
     public function canAlert(): bool
     {
         if (! $this->last_alerted_at) return true;
-        return $this->last_alerted_at->diffInHours(now()) >= 24;
+        return $this->last_alerted_at->diffInDays(now()) >= 7; // max once per week
     }
 
     public function availabilityColor(): string

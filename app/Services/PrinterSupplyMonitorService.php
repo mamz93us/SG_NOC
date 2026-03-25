@@ -54,13 +54,18 @@ class PrinterSupplyMonitorService
         $isLow = $supply->supply_percent <= $threshold;
 
         if ($isLow && ! $supply->is_low_alert_active) {
-            // Toner just crossed below threshold — send alert
+            // Toner just crossed below threshold for the first time — send alert
             $this->sendLowTonerAlert($printer, $supply);
-
             $supply->update([
                 'is_low_alert_active' => true,
                 'low_alert_sent_at'   => now(),
             ]);
+
+        } elseif ($isLow && $supply->is_low_alert_active
+                  && $supply->low_alert_sent_at?->lt(now()->subWeek())) {
+            // Still low after 7 days — send a weekly reminder, update timestamp
+            $this->sendLowTonerAlert($printer, $supply);
+            $supply->update(['low_alert_sent_at' => now()]);
 
         } elseif (! $isLow && $supply->is_low_alert_active) {
             // Toner recovered above threshold — reset so future drop can notify again

@@ -632,8 +632,15 @@ class PollPrinterSnmpJob implements ShouldQueue
                 }
                 if ($level === null) continue;
 
-                // Ricoh: < -3 = "Cartridge Almost Empty" → 0%; clip to 0–100
-                if ($level < -3) $level = 0;
+                // Normalise Ricoh special values (same logic as pollRicohToner):
+                //   -2 = unknown          → skip (null); let standard MIB fallback apply
+                //   -3 = some remaining   → approximate 10%
+                //   -1 = no restriction   → 100%
+                //   < -3 = almost empty   → 0%
+                if ($level === -2) continue;          // unknown — skip this entry
+                if ($level === -1) $level = 100;
+                elseif ($level === -3) $level = 10;
+                elseif ($level < -3)  $level = 0;
                 if ($level > 100) $level = 100;
 
                 if (str_contains($nameClean, 'black') || str_contains($nameClean, 'bk')) {
@@ -650,7 +657,8 @@ class PollPrinterSnmpJob implements ShouldQueue
             }
         }
 
-        $seenIndexes = [];
+        $seenIndexes   = [];
+        $handledColors = []; // tracks which colors were handled by standard MIB loop
 
         foreach ($descrs as $oid => $descr) {
             $index = (int) substr($oid, strrpos($oid, '.') + 1);
@@ -702,6 +710,8 @@ class PollPrinterSnmpJob implements ShouldQueue
                 $percent = $ricohColorMap[$color];
             }
 
+            $handledColors[] = $color; // mark this color as handled by standard MIB
+
             // Fetch previous record for consumption rate
             $existing = \App\Models\PrinterSupply::where('printer_id', $printer->id)
                             ->where('supply_index', $index)->first();
@@ -749,6 +759,63 @@ class PollPrinterSnmpJob implements ShouldQueue
                     'last_updated_at'      => now(),
                 ]
             );
+        }
+
+        // ── Ricoh fallback ────────────────────────────────────────────
+        // Some Ricoh models (especially mono) don't respond to the standard
+        // supply description MIB (.43.11.1.1.6.1), leaving $descrs empty and
+        // the main loop with nothing to iterate.  If we have Ricoh private MIB
+        // data in $ricohColorMap for colors not handled above, create/update
+        // supply records directly from the Ricoh data.
+        if ($isRicoh && !empty($ricohColorMap)) {
+            $fallbackIndex = 900; // high enough to avoid collisions with real MIB indexes
+            foreach ($ricohColorMap as $color => $percent) {
+                if ($percent === null) continue;
+                if (in_array($color, $handledColors)) continue; // already covered above
+
+                $supplyType = $color === 'waste' ? 'waste' : 'toner';
+                $descr = ucfirst($color) . ($color === 'waste' ? ' Toner Bottle' : ' Toner Cartridge');
+
+                // Re-use existing record's index if one exists for this color
+                $existing = \App\Models\PrinterSupply::where('printer_id', $printer->id)
+                    ->where('supply_color', $color)->first();
+                $index = $existing?->supply_index ?? $fallbackIndex++;
+
+                $seenIndexes[] = $index;
+
+                $consumptionRate = $existing?->consumption_rate;
+                $estimatedDays   = null;
+                if ($existing && $existing->supply_percent !== null && $percent !== null
+                    && $existing->last_updated_at && $percent < $existing->supply_percent) {
+                    $hoursDiff = $existing->last_updated_at->diffInHours(now());
+                    if ($hoursDiff > 0) {
+                        $daysDiff = $hoursDiff / 24;
+                        $ratePerDay = ($existing->supply_percent - $percent) / $daysDiff;
+                        $consumptionRate = $consumptionRate !== null
+                            ? 0.3 * $ratePerDay + 0.7 * $consumptionRate
+                            : $ratePerDay;
+                    }
+                }
+                if ($consumptionRate > 0 && $percent !== null) {
+                    $estimatedDays = (int) min(9999, $percent / $consumptionRate);
+                }
+
+                \App\Models\PrinterSupply::updateOrCreate(
+                    ['printer_id' => $printer->id, 'supply_index' => $index],
+                    [
+                        'supply_oid'               => null,
+                        'supply_type'              => $supplyType,
+                        'supply_color'             => $color,
+                        'supply_descr'             => $descr,
+                        'supply_percent'           => $percent,
+                        'warning_threshold'        => $existing?->warning_threshold  ?? 20,
+                        'critical_threshold'       => $existing?->critical_threshold ?? 5,
+                        'consumption_rate'         => $consumptionRate,
+                        'estimated_days_remaining' => $estimatedDays,
+                        'last_updated_at'          => now(),
+                    ]
+                );
+            }
         }
 
         // Remove orphan supplies no longer reported by printer
