@@ -53,7 +53,9 @@ use App\Observers\WorkflowRequestObserver;
 // Events
 use App\Events\EmployeeCreated;
 use App\Events\HostStatusChanged;
+use App\Events\PoorVoiceQualityDetected;
 use App\Listeners\WorkflowTriggerListener;
+use App\Listeners\FireVoiceQualityAlert;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -90,6 +92,9 @@ class AppServiceProvider extends ServiceProvider
 
         // ── Workflow Event Triggers ──────────────────────────────────
         Event::listen([EmployeeCreated::class, HostStatusChanged::class], WorkflowTriggerListener::class);
+
+        // ── Voice Quality Alert ──────────────────────────────────────
+        Event::listen(PoorVoiceQualityDetected::class, FireVoiceQualityAlert::class);
 
         // ── Microsoft Socialite ──────────────────────────────────────
         Event::listen(

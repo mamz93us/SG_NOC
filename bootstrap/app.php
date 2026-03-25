@@ -12,10 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role'       => \App\Http\Middleware\EnsureRole::class,
-            'permission' => \App\Http\Middleware\EnsurePermission::class,
-            '2fa'        => \App\Http\Middleware\RequireTwoFactor::class,
-            'hr.api_key' => \App\Http\Middleware\HrApiKeyMiddleware::class,
+            'role'        => \App\Http\Middleware\EnsureRole::class,
+            'permission'  => \App\Http\Middleware\EnsurePermission::class,
+            '2fa'         => \App\Http\Middleware\RequireTwoFactor::class,
+            'hr.api_key'  => \App\Http\Middleware\HrApiKeyMiddleware::class,
+            'internal.ip' => \App\Http\Middleware\InternalIpOnly::class,
         ]);
 
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);

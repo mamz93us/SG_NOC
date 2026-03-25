@@ -1013,8 +1013,31 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/categories/{category}',[AdminLinkController::class, 'destroyCategory']) ->name('categories.destroy');
     });
 
+    // ─── Voice Quality ─────────────────────────────────────────────
+    Route::prefix('voice-quality')->name('voice-quality.')->middleware('permission:view-voice-quality')->group(function () {
+        Route::get('/dashboard',  [\App\Http\Controllers\Admin\VoiceQualityController::class, 'dashboard'])  ->name('dashboard');
+        Route::get('/stats',      [\App\Http\Controllers\Admin\VoiceQualityController::class, 'statistics']) ->name('statistics');
+        Route::get('/chart-data', [\App\Http\Controllers\Admin\VoiceQualityController::class, 'chartData'])  ->name('chart-data');
+        Route::get('/export',     [\App\Http\Controllers\Admin\VoiceQualityController::class, 'exportCsv'])  ->name('export');
+        Route::get('/',           [\App\Http\Controllers\Admin\VoiceQualityController::class, 'index'])      ->name('index');
+        Route::get('/{report}',   [\App\Http\Controllers\Admin\VoiceQualityController::class, 'show'])       ->name('show');
+    });
+
+    // ─── Switch Drops ──────────────────────────────────────────────
+    Route::prefix('switch-drops')->name('switch-drops.')->middleware('permission:view-voice-quality')->group(function () {
+        Route::get('/dashboard',    [\App\Http\Controllers\Admin\SwitchDropController::class, 'dashboard'])  ->name('dashboard');
+        Route::get('/stats',        [\App\Http\Controllers\Admin\SwitchDropController::class, 'statistics']) ->name('statistics');
+        Route::get('/export',       [\App\Http\Controllers\Admin\SwitchDropController::class, 'exportCsv'])  ->name('export');
+        Route::get('/',             [\App\Http\Controllers\Admin\SwitchDropController::class, 'index'])      ->name('index');
+        Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchDropController::class, 'device'])     ->name('device');
+    });
 
 });
+
+// Internal VQ report endpoint
+Route::post('/api/internal/vq-report', [\App\Http\Controllers\Admin\VoiceQualityController::class, 'receive'])
+    ->middleware('internal.ip')
+    ->name('api.vq-report');
 
 /*
 |--------------------------------------------------------------------------
