@@ -73,14 +73,26 @@ class VqCollectorDaemon extends Command
                     }
 
                     // Write directly to DB — one row per CallID (upsert)
+                    // Rule: never overwrite a record that already has MOS data
+                    // with a late intermediate packet that has no MOS. This prevents
+                    // periodic mid-call reports from erasing the final summary report.
                     $callId = $data['call_id'] ?? null;
+                    unset($data['call_id']);
+
                     if ($callId) {
-                        unset($data['call_id']);
-                        VoiceQualityReport::updateOrCreate(
-                            ['call_id' => $callId],
-                            $data
-                        );
-                    } else {
+                        $existing = VoiceQualityReport::where('call_id', $callId)->first();
+                        if ($existing) {
+                            // Only update if: new packet has MOS, OR existing has no MOS yet
+                            if ($data['mos_lq'] !== null || $existing->mos_lq === null) {
+                                $existing->update($data);
+                            }
+                            // else: drop — stale null-MOS packet; existing data is better
+                        } else {
+                            $data['call_id'] = $callId;
+                            VoiceQualityReport::create($data);
+                        }
+                    } elseif ($data['mos_lq'] !== null) {
+                        // No call_id — only store if packet has quality data
                         VoiceQualityReport::create($data);
                     }
 
