@@ -55,6 +55,11 @@ class VqCollectorDaemon extends Command
                 $data = $this->parseVqPacket($buf, $from);
 
                 if ($data) {
+                    // Skip empty interim packets (no MOS, codec or timestamps)
+                    if (empty($data['mos_lq']) && empty($data['codec']) && empty($data['call_start'])) {
+                        continue;
+                    }
+
                     // Resolve branch from remote IP
                     $branch = $branches->first(fn($b) =>
                         !empty($b->ip_range) && $this->ipInRange($from, $b->ip_range)
@@ -67,8 +72,17 @@ class VqCollectorDaemon extends Command
                         $data['quality_label'] = VoiceQualityReport::mosLabel((float) $data['mos_lq']);
                     }
 
-                    // Write directly to DB — no HTTP roundtrip
-                    VoiceQualityReport::create($data);
+                    // Write directly to DB — one row per CallID (upsert)
+                    $callId = $data['call_id'] ?? null;
+                    if ($callId) {
+                        unset($data['call_id']);
+                        VoiceQualityReport::updateOrCreate(
+                            ['call_id' => $callId],
+                            $data
+                        );
+                    } else {
+                        VoiceQualityReport::create($data);
+                    }
 
                     $this->info(sprintf(
                         "[VQ] ext=%s remote=%s MOS-LQ=%.2f codec=%s branch=%s",
@@ -140,6 +154,9 @@ class VqCollectorDaemon extends Command
 
         if (empty($rawLines)) return null;
 
+        // ── Call ID (SIP CallID header) ───────────────────────────────────────
+        $callId = trim($rawLines['callid'] ?? $rawLines['call-id'] ?? '');
+
         // ── Extension ────────────────────────────────────────────────────────
         $localId  = $this->extractExtension($rawLines['localid']  ?? $rawLines['local']  ?? '');
         $remoteId = $this->extractExtension($rawLines['remoteid'] ?? $rawLines['remote'] ?? '');
@@ -176,6 +193,7 @@ class VqCollectorDaemon extends Command
         }
 
         return [
+            'call_id'               => $callId   ?: null,
             'extension'             => $localId  ?: null,
             'remote_extension'      => $remoteId ?: null,
             'remote_ip'             => $remoteIp,
