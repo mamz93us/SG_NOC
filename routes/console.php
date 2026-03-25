@@ -307,3 +307,6 @@ Schedule::call(function () {
         \Illuminate\Support\Facades\Log::error("Prune metrics failed: " . $e->getMessage());
     }
 })->name('prune-old-metrics')->withoutOverlapping(60)->weeklyOn(0, '02:00');
+
+// ─── Switch Drop Counter Poll — every 5 minutes ───────────────
+Schedule::command('switch:poll-drops')->everyFiveMinutes()->withoutOverlapping(10);
