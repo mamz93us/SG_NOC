@@ -199,6 +199,20 @@
                                     <i class="bi bi-speedometer2 me-2 text-info"></i>SNMP Dashboard
                                 </a>
                             </li>
+                            @can('view-voice-quality')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.switch-drops.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.switch-drops.dashboard') }}">
+                                    <i class="bi bi-exclamation-triangle me-2 text-warning"></i>Switch Drop Monitor
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.voice-quality.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.voice-quality.dashboard') }}">
+                                    <i class="bi bi-soundwave me-2 text-info"></i>Voice Quality
+                                </a>
+                            </li>
+                            @endcan
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.workers.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.workers.index') }}">
