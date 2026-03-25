@@ -55,8 +55,9 @@ class VqCollectorDaemon extends Command
                 $data = $this->parseVqPacket($buf, $from);
 
                 if ($data) {
-                    // Skip empty interim packets (no MOS, codec or timestamps)
-                    if (empty($data['mos_lq']) && empty($data['codec']) && empty($data['call_start'])) {
+                    // Only store packets that have MOS data — this is the final
+                    // end-of-call summary. Interim RTCP-XR reports (no MOS) are dropped.
+                    if ($data['mos_lq'] === null) {
                         continue;
                     }
 
@@ -79,25 +80,18 @@ class VqCollectorDaemon extends Command
                     $callId = $data['call_id'] ?? null;
                     unset($data['call_id']);
 
+                    // At this point $data['mos_lq'] is guaranteed non-null (filtered above).
                     if ($callId) {
-                        // Match on BOTH call_id AND extension — both phones in a call
-                        // send the same SIP Call-ID but from different extensions.
-                        // We store each side separately (1610→1213 AND 1213→1610).
-                        $existing = VoiceQualityReport::where('call_id', $callId)
-                            ->where('extension', $data['extension'] ?? '')
-                            ->first();
-                        if ($existing) {
-                            // Only update if: new packet has MOS, OR existing has no MOS yet
-                            if ($data['mos_lq'] !== null || $existing->mos_lq === null) {
-                                $existing->update($data);
-                            }
-                            // else: drop — stale null-MOS packet; existing data is better
-                        } else {
-                            $data['call_id'] = $callId;
-                            VoiceQualityReport::create($data);
-                        }
-                    } elseif ($data['mos_lq'] !== null) {
-                        // No call_id — only store if packet has quality data
+                        // Composite key: (call_id + extension)
+                        // → same call, same phone = update (dedup periodic reports)
+                        // → same call, other phone = new record (both sides stored)
+                        VoiceQualityReport::updateOrCreate(
+                            ['call_id'   => $callId,
+                             'extension' => $data['extension'] ?? ''],
+                            $data
+                        );
+                    } else {
+                        // No call_id — create unconditionally (we already have MOS)
                         VoiceQualityReport::create($data);
                     }
 
@@ -190,11 +184,12 @@ class VqCollectorDaemon extends Command
         $mosLq = $this->floatOrNull($fields['moslq'] ?? null);
         $mosCq = $this->floatOrNull($fields['moscq'] ?? null);
 
-        // ── Jitter: JitterBuffer:JBN=100 JBM=90 IAJ from Delay ──────────────
-        // IAJ  = Inter-Arrival Jitter (matches UCM "Jitter" column)
-        // JBM  = JitterBuffer Max delay ms (matches UCM "JitterBufferMax")
-        // JBN  = JitterBuffer Nominal delay ms (matches UCM "JitterBuffer")
-        $jitterAvg = $this->floatOrNull($fields['iaj'] ?? $fields['jbn'] ?? null);
+        // ── Jitter ────────────────────────────────────────────────────────────
+        // IAJ = Inter-Arrival Jitter from Delay: line  → jitter_avg (actual measured)
+        // JBM = JitterBuffer Max delay from JitterBuffer: line → jitter_max (buffer capacity)
+        // NOTE: do NOT fall back to JBN (nominal buffer size=100ms) as jitter_avg —
+        //       JBN is a configuration value, not a measurement of actual jitter.
+        $jitterAvg = $this->floatOrNull($fields['iaj'] ?? null);
         $jitterMax = $this->floatOrNull($fields['jbm'] ?? null);
 
         // ── Packet loss: PacketLoss:NLR=0.00 PLC=... NLC=... ─────────────────
@@ -274,11 +269,16 @@ class VqCollectorDaemon extends Command
     {
         if (empty($value)) return null;
 
-        // Compact: 20240325T143022Z
-        if (preg_match('/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/', $value, $m)) {
+        // Compact UTC: 20240325T143022Z — use gmmktime so Z is honoured
+        if (preg_match('/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/', $value, $m)) {
+            if (!empty($m[7])) {
+                // Z suffix → UTC → gmmktime
+                return gmmktime((int)$m[4], (int)$m[5], (int)$m[6], (int)$m[2], (int)$m[3], (int)$m[1]);
+            }
             return mktime((int)$m[4], (int)$m[5], (int)$m[6], (int)$m[2], (int)$m[3], (int)$m[1]);
         }
 
+        // strtotime handles ISO-8601 "2026-03-25T10:37:01Z" — correctly treats Z as UTC
         $ts = strtotime($value);
         return $ts !== false ? $ts : null;
     }
