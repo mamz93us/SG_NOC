@@ -80,7 +80,12 @@ class VqCollectorDaemon extends Command
                     unset($data['call_id']);
 
                     if ($callId) {
-                        $existing = VoiceQualityReport::where('call_id', $callId)->first();
+                        // Match on BOTH call_id AND extension — both phones in a call
+                        // send the same SIP Call-ID but from different extensions.
+                        // We store each side separately (1610→1213 AND 1213→1610).
+                        $existing = VoiceQualityReport::where('call_id', $callId)
+                            ->where('extension', $data['extension'] ?? '')
+                            ->first();
                         if ($existing) {
                             // Only update if: new packet has MOS, OR existing has no MOS yet
                             if ($data['mos_lq'] !== null || $existing->mos_lq === null) {
