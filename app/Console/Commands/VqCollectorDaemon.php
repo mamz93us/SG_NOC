@@ -94,60 +94,83 @@ class VqCollectorDaemon extends Command
             return null;
         }
 
-        // Flatten all lines (including indented ones) into a key→value map.
-        // Grandstream UCM uses indented sub-sections like:
-        //   Jitter:
-        //     JitterAvg: 5
-        //     JitterMax: 12
-        //   QualityEst:
-        //     MOSLQ: 4.1
-        //     MOSCQ: 4.0
-        $fields = [];
+        // ── Build a flat key→value map from the VQ body ───────────────────────
+        //
+        // Grandstream GRP phones send lines in two formats:
+        //
+        //   1. Simple:   LocalID:"6001" <sip:6001@10.9.8.140>
+        //   2. Compound: QualityEst:MOSLQ=4.400 MOSCQ=4.400
+        //                Timestamps:START=2026-03-25T10:37:01Z STOP=2026-03-25T10:37:05Z
+        //                SessionDesc:PT=0 PD=PCMU SR=8000 FD=10
+        //                Delay:RTD=7 ESD=140 SOWD=143 IAJ=8
+        //                JitterBuffer:JBA=0 JBR=16 JBN=100 JBM=90 JBX=2000
+        //                PacketLoss:NLR=0.00
+        //
+        // Strategy: for each line split at the first ':', then extract ALL
+        // KEY=VALUE tokens from the right-hand side into $fields.
+
+        $fields   = [];
+        $rawLines = []; // also keep raw line values by section name
+
         foreach (explode("\n", $raw) as $line) {
-            $trimmed = trim($line);
-            // Match "Key: value" or "Key=value" (with any leading whitespace)
-            if (preg_match('/^([\w\-]+)\s*[:=]\s*(.+)$/', $trimmed, $m)) {
-                $key = strtolower(trim($m[1]));
-                $val = trim($m[2]);
-                // Only store first occurrence so outer fields don't get overwritten
-                if (!isset($fields[$key])) {
-                    $fields[$key] = $val;
+            $line = trim($line);
+            if (empty($line)) continue;
+
+            // Must have a colon to be a VQ field
+            $colonPos = strpos($line, ':');
+            if ($colonPos === false) continue;
+
+            $section  = strtolower(substr($line, 0, $colonPos));
+            $rest     = trim(substr($line, $colonPos + 1));
+
+            // Store the raw section value (for LocalID, RemoteID, RemoteAddr etc.)
+            $rawLines[$section] = $rest;
+
+            // Extract all KEY=VALUE tokens from the rest of the line
+            // e.g. "MOSLQ=4.400 MOSCQ=4.400" → moslq=4.400, moscq=4.400
+            if (preg_match_all('/([A-Z][A-Z0-9]*)=([\S]+)/i', $rest, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $m) {
+                    $key = strtolower($m[1]);
+                    if (!isset($fields[$key])) {   // first occurrence wins
+                        $fields[$key] = $m[2];
+                    }
                 }
             }
         }
 
-        if (empty($fields)) return null;
+        if (empty($rawLines)) return null;
 
-        // ── Extension: strip SIP URI, keep only the user part ────────────────
-        // Input examples:
-        //   "6001" <sip:6001@10.9.8.10>
-        //   sip:6001@10.9.8.10
-        //   6001
-        $localId  = $this->extractExtension($fields['localid']  ?? $fields['local']  ?? '');
-        $remoteId = $this->extractExtension($fields['remoteid'] ?? $fields['remote'] ?? '');
+        // ── Extension ────────────────────────────────────────────────────────
+        $localId  = $this->extractExtension($rawLines['localid']  ?? $rawLines['local']  ?? '');
+        $remoteId = $this->extractExtension($rawLines['remoteid'] ?? $rawLines['remote'] ?? '');
 
-        // ── Codec: strip payload number, keep name only ───────────────────────
-        // Input: "PCMU 8"  →  "PCMU"
-        $codec = null;
-        if (!empty($fields['payloadtype'])) {
-            $codec = preg_split('/\s+/', trim($fields['payloadtype']))[0] ?? null;
-        }
+        // ── Codec: SessionDesc:PT=0 PD=PCMU SR=8000 → fields['pd'] = PCMU ───
+        $codec = $fields['pd'] ?? null;
 
-        // ── Timestamps ───────────────────────────────────────────────────────
-        // Grandstream format: 20240325T143022Z  or  2024-03-25T14:30:22Z
-        $startTime = $this->parseTimestamp($fields['starttime'] ?? '');
-        $stopTime  = $this->parseTimestamp($fields['stoptime']  ?? '');
+        // ── Timestamps: fields['start'] / fields['stop'] ─────────────────────
+        $startTime = $this->parseTimestamp($fields['start'] ?? $fields['starttime'] ?? '');
+        $stopTime  = $this->parseTimestamp($fields['stop']  ?? $fields['stoptime']  ?? '');
         $duration  = ($startTime && $stopTime) ? max(0, $stopTime - $startTime) : null;
 
-        // ── MOS / Quality metrics ─────────────────────────────────────────────
-        $mosLq = $this->floatOrNull($fields['moslq'] ?? $fields['mos-lq'] ?? null);
-        $mosCq = $this->floatOrNull($fields['moscq'] ?? $fields['mos-cq'] ?? null);
+        // ── Quality: QualityEst:MOSLQ=4.400 MOSCQ=4.400 ─────────────────────
+        $mosLq = $this->floatOrNull($fields['moslq'] ?? null);
+        $mosCq = $this->floatOrNull($fields['moscq'] ?? null);
 
-        // ── Remote IP from RemoteAddr field ──────────────────────────────────
-        // Input: "IP=10.9.8.12 Port=10000 Ssrc=xxx"
+        // ── Jitter: JitterBuffer:JBN=100 JBM=90 (nominal / max delay ms) ────
+        // IAJ = Inter-Arrival Jitter from Delay line (better jitter_avg proxy)
+        $jitterAvg = $this->floatOrNull($fields['iaj'] ?? $fields['jbn'] ?? null);
+        $jitterMax = $this->floatOrNull($fields['jbm'] ?? null);
+
+        // ── Packet loss: PacketLoss:NLR=0.00 ─────────────────────────────────
+        $packetLoss = $this->floatOrNull($fields['nlr'] ?? null);
+
+        // ── RTT: Delay:RTD=7 ─────────────────────────────────────────────────
+        $rtt = isset($fields['rtd']) ? (int) $fields['rtd'] : null;
+
+        // ── Remote IP: RemoteAddr:IP=10.9.8.10 PORT=11172 ───────────────────
         $remoteIp = $fromIp;
-        if (!empty($fields['remoteaddr'])) {
-            if (preg_match('/IP=([\d\.]+)/i', $fields['remoteaddr'], $m)) {
+        if (!empty($rawLines['remoteaddr'])) {
+            if (preg_match('/IP=([\d\.]+)/i', $rawLines['remoteaddr'], $m)) {
                 $remoteIp = $m[1];
             }
         }
@@ -159,12 +182,12 @@ class VqCollectorDaemon extends Command
             'codec'                 => $codec,
             'mos_lq'                => $mosLq,
             'mos_cq'                => $mosCq,
-            'r_factor'              => $this->floatOrNull($fields['rfactor']       ?? $fields['r-factor']       ?? null),
-            'jitter_avg'            => $this->floatOrNull($fields['jitteravg']     ?? $fields['jitter-avg']     ?? null),
-            'jitter_max'            => $this->floatOrNull($fields['jittermax']     ?? $fields['jitter-max']     ?? null),
-            'packet_loss'           => $this->floatOrNull($fields['packetlossrate']?? $fields['packet-loss']    ?? null),
-            'burst_loss'            => $this->floatOrNull($fields['burstlossrate'] ?? $fields['burst-loss']     ?? null),
-            'rtt'                   => isset($fields['rtdelay']) ? (int) $fields['rtdelay'] : null,
+            'r_factor'              => null,   // not in GRP format
+            'jitter_avg'            => $jitterAvg,
+            'jitter_max'            => $jitterMax,
+            'packet_loss'           => $packetLoss,
+            'burst_loss'            => null,
+            'rtt'                   => $rtt,
             'call_start'            => $startTime ? date('Y-m-d H:i:s', $startTime) : null,
             'call_end'              => $stopTime  ? date('Y-m-d H:i:s', $stopTime)  : null,
             'call_duration_seconds' => $duration,
