@@ -16,30 +16,34 @@ class VoiceQualityController extends Controller
     {
         $today = today();
 
-        $avgMos       = VoiceQualityReport::today()->avg('mos_lq');
-        $totalCalls   = VoiceQualityReport::today()->count();
-        $poorCalls    = VoiceQualityReport::today()->poor()->count();
-        $excellentCalls = VoiceQualityReport::today()->where('mos_lq', '>=', 4.0)->count();
+        // Base scope: today + must have a valid MOS reading
+        $baseToday = fn() => VoiceQualityReport::today()->whereNotNull('mos_lq');
 
-        $worstCalls = VoiceQualityReport::today()
+        $avgMos         = $baseToday()->avg('mos_lq');
+        $totalCalls     = $baseToday()->count();
+        $poorCalls      = $baseToday()->poor()->count();
+        $excellentCalls = $baseToday()->where('mos_lq', '>=', 4.0)->count();
+
+        // Worst calls = lowest MOS first (only records with actual MOS data)
+        $worstCalls = $baseToday()
             ->orderBy('mos_lq')
             ->limit(10)
             ->get();
 
-        $byBranch = VoiceQualityReport::today()
+        $byBranch = $baseToday()
             ->select('branch', DB::raw('avg(mos_lq) as avg_mos'), DB::raw('count(*) as call_count'))
             ->whereNotNull('branch')
             ->groupBy('branch')
             ->orderBy('avg_mos')
             ->get();
 
-        $hourlyTrend = VoiceQualityReport::today()
+        $hourlyTrend = $baseToday()
             ->select(DB::raw('HOUR(created_at) as hour'), DB::raw('avg(mos_lq) as avg_mos'), DB::raw('count(*) as calls'))
             ->groupBy('hour')
             ->orderBy('hour')
             ->get();
 
-        $codecStats = VoiceQualityReport::today()
+        $codecStats = $baseToday()
             ->select('codec', DB::raw('count(*) as calls'), DB::raw('avg(mos_lq) as avg_mos'), DB::raw('avg(jitter_avg) as avg_jitter'))
             ->whereNotNull('codec')
             ->groupBy('codec')
@@ -52,7 +56,7 @@ class VoiceQualityController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        $qualityDistribution = VoiceQualityReport::today()
+        $qualityDistribution = $baseToday()
             ->select('quality_label', DB::raw('count(*) as cnt'))
             ->whereNotNull('quality_label')
             ->groupBy('quality_label')

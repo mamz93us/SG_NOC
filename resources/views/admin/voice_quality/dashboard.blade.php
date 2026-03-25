@@ -281,7 +281,8 @@ if (mosCtx) {
 const qualityLabels = ['Excellent','Good','Fair','Poor','Bad'];
 const qualityKeys   = ['excellent','good','fair','poor','bad'];
 const qualityColors = ['#198754','#0dcaf0','#ffc107','#fd7e14','#dc3545'];
-const qualityValues = qualityKeys.map(k => {{ json_encode($qualityDistribution) }}[k] || 0);
+const qualityDist   = @json($qualityDistribution);
+const qualityValues = qualityKeys.map(k => qualityDist[k] || 0);
 
 new Chart(document.getElementById('qualityDoughnut'), {
     type: 'doughnut',
