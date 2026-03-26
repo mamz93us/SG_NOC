@@ -10,19 +10,23 @@ class PrinterSupply extends Model
         'printer_id', 'supply_oid', 'supply_capacity_oid', 'supply_index',
         'supply_type', 'supply_color', 'supply_descr', 'supply_capacity',
         'supply_current', 'supply_percent', 'part_number',
-        'warning_threshold', 'critical_threshold',
+        'warning_threshold', 'critical_threshold', 'low_alert_threshold',
+        'is_low_alert_active', 'low_alert_sent_at',
         'consumption_rate', 'estimated_days_remaining', 'last_updated_at',
     ];
 
     protected $casts = [
-        'supply_capacity' => 'integer',
-        'supply_current' => 'integer',
-        'supply_percent' => 'integer',
-        'warning_threshold' => 'integer',
-        'critical_threshold' => 'integer',
-        'consumption_rate' => 'float',
+        'supply_capacity'          => 'integer',
+        'supply_current'           => 'integer',
+        'supply_percent'           => 'integer',
+        'warning_threshold'        => 'integer',
+        'critical_threshold'       => 'integer',
+        'low_alert_threshold'      => 'integer',
+        'is_low_alert_active'      => 'boolean',   // was missing — caused silent update failure
+        'low_alert_sent_at'        => 'datetime',  // was missing — caused subWeek() check to fail
+        'consumption_rate'         => 'float',
         'estimated_days_remaining' => 'integer',
-        'last_updated_at' => 'datetime',
+        'last_updated_at'          => 'datetime',
     ];
 
     public function printer()
