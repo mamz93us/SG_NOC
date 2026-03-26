@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class VoiceQualityReport extends Model
 {
     protected $fillable = [
-        'call_id',
+        'call_id', 'call_group_key', 'report_type',
         'extension','remote_extension','remote_ip','branch','branch_id','codec',
         'mos_lq','mos_cq','r_factor',
         'jitter_avg','jitter_max',

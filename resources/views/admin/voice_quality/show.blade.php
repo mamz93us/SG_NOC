@@ -7,6 +7,13 @@
 </div>
 
 @php
+    // Find the other side of this call (same call_group_key, different extension)
+    $otherSide = null;
+    if ($report->call_group_key) {
+        $otherSide = \App\Models\VoiceQualityReport::where('call_group_key', $report->call_group_key)
+            ->where('id', '!=', $report->id)
+            ->first();
+    }
     $mos = $report->mos_lq;
     $label = $report->quality_label ?? ($mos ? \App\Models\VoiceQualityReport::mosLabel($mos) : null);
     $colorMap = ['excellent'=>'success','good'=>'info','fair'=>'warning','poor'=>'danger','bad'=>'dark'];
@@ -26,6 +33,27 @@
         </div>
     </div>
 </div>
+
+{{-- Other side of call --}}
+@if($otherSide)
+<div class="alert alert-info d-flex align-items-center gap-3 mb-4">
+    <i class="bi bi-arrow-left-right fs-5"></i>
+    <div class="flex-grow-1">
+        <strong>Both sides of this call are recorded.</strong>
+        <span class="ms-2 text-muted small">
+            {{ $report->extension }} &harr; {{ $report->remote_extension }} &bull;
+            Remote side MOS-LQ:
+            <strong>{{ $otherSide->mos_lq !== null ? number_format($otherSide->mos_lq, 2) : '—' }}</strong>
+            @if($otherSide->quality_label)
+            <span class="badge bg-{{ ['excellent'=>'success','good'=>'info','fair'=>'warning','poor'=>'danger','bad'=>'dark'][$otherSide->quality_label] ?? 'secondary' }} ms-1">{{ ucfirst($otherSide->quality_label) }}</span>
+            @endif
+        </span>
+    </div>
+    <a href="{{ route('admin.voice-quality.show', $otherSide) }}" class="btn btn-sm btn-outline-info text-nowrap">
+        <i class="bi bi-eye me-1"></i>View {{ $otherSide->extension }}'s side
+    </a>
+</div>
+@endif
 
 @if($mos)
 <div class="card border-0 shadow-sm mb-4">

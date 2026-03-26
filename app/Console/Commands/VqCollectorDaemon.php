@@ -61,9 +61,13 @@ class VqCollectorDaemon extends Command
                         continue;
                     }
 
-                    // Resolve branch from remote IP
+                    // Resolve branch using the phone's private IP (LocalAddr:IP=)
+                    // $from is the public/NATed IP and won't match branch IP ranges.
+                    $localIp = $data['local_ip'] ?? $from;
+                    unset($data['local_ip']); // not a DB column
+
                     $branch = $branches->first(fn($b) =>
-                        !empty($b->ip_range) && $this->ipInRange($from, $b->ip_range)
+                        !empty($b->ip_range) && $this->ipInRange($localIp, $b->ip_range)
                     );
                     $data['branch_id'] = $branch?->id;
                     $data['branch']    = $branch?->name;
@@ -96,12 +100,14 @@ class VqCollectorDaemon extends Command
                     }
 
                     $this->info(sprintf(
-                        "[VQ] ext=%s remote=%s MOS-LQ=%.2f codec=%s branch=%s",
+                        "[VQ/%s] ext=%s remote=%s MOS-LQ=%.2f codec=%s branch=%s group=%s",
+                        strtoupper(substr($data['report_type'] ?? 'unknown', 0, 3)),
                         $data['extension']        ?? '?',
                         $data['remote_extension'] ?? '?',
                         $data['mos_lq']           ?? 0,
                         $data['codec']            ?? '?',
-                        $data['branch']           ?? 'unknown'
+                        $data['branch']           ?? 'unknown',
+                        substr($data['call_group_key'] ?? 'none', 0, 8)
                     ));
                 }
             } catch (\Throwable $e) {
@@ -115,9 +121,15 @@ class VqCollectorDaemon extends Command
 
     private function parseVqPacket(string $raw, string $fromIp): ?array
     {
-        if (!str_contains($raw, 'vq-rtcpxr') && !str_contains($raw, 'VQSessionReport')) {
+        if (!str_contains($raw, 'vq-rtcpxr') &&
+            !str_contains($raw, 'VQSessionReport') &&
+            !str_contains($raw, 'VQIntervalReport')) {
             return null;
         }
+
+        // Detect report type: VQSessionReport = final hangup summary,
+        // VQIntervalReport = periodic mid-call update (every ~30s)
+        $reportType = str_contains($raw, 'VQSessionReport') ? 'session' : 'interval';
 
         // ── Build a flat key→value map from the VQ body ───────────────────────
         //
@@ -216,7 +228,7 @@ class VqCollectorDaemon extends Command
         $sowd = isset($fields['sowd']) ? (int) $fields['sowd'] : null;
         $esd  = isset($fields['esd'])  ? (int) $fields['esd']  : null;
 
-        // ── Remote IP / Remote port ───────────────────────────────────────────
+        // ── Remote IP: use RemoteAddr if present ─────────────────────────────
         $remoteIp = $fromIp;
         if (!empty($rawLines['remoteaddr'])) {
             if (preg_match('/IP=([\d\.]+)/i', $rawLines['remoteaddr'], $m)) {
@@ -224,23 +236,48 @@ class VqCollectorDaemon extends Command
             }
         }
 
+        // ── Local private IP (for branch resolution, bypasses NAT) ───────────
+        // $fromIp is the public/NATed IP — useless for branch matching.
+        // LocalAddr:IP= is the phone's private LAN IP — use this instead.
+        $localIp = $fromIp;
+        if (!empty($rawLines['localaddr'])) {
+            if (preg_match('/IP=([\d\.]+)/i', $rawLines['localaddr'], $m)) {
+                $localIp = $m[1];
+            }
+        }
+
+        // ── Call group key — links both sides of the same call ────────────────
+        // Grandstream UCM is a B2BUA: each leg gets a different SIP Call-ID, so
+        // we cannot use call_id to join them. Instead we build a deterministic key
+        // from the sorted pair of extensions + call start time. Both sides of the
+        // same call will produce the same key.
+        $callGroupKey = null;
+        if ($localId && $remoteId && $startTime) {
+            $pair = [$localId, $remoteId];
+            sort($pair);
+            $callGroupKey = md5(implode(':', $pair) . ':' . $startTime);
+        }
+
         return [
             'call_id'               => $callId   ?: null,
+            'call_group_key'        => $callGroupKey,
+            'report_type'           => $reportType,
+            'local_ip'              => $localIp,   // private IP — used by branch resolver
             'extension'             => $localId  ?: null,
             'remote_extension'      => $remoteId ?: null,
             'remote_ip'             => $remoteIp,
             'codec'                 => $codec,
             'mos_lq'                => $mosLq,
             'mos_cq'                => $mosCq,
-            'r_factor'              => null,   // not in GRP format
-            'jitter_avg'            => $jitterAvg,   // IAJ — matches UCM "Jitter"
-            'jitter_max'            => $jitterMax,   // JBM — matches UCM "JitterBufferMax"
-            'packet_loss'           => $packetLoss,  // NLR rate (0.0 stored, not null)
+            'r_factor'              => null,
+            'jitter_avg'            => $jitterAvg,
+            'jitter_max'            => $jitterMax,
+            'packet_loss'           => $packetLoss,
             'burst_loss'            => null,
-            'packets_lost'          => $packetsLost, // NLC raw count
-            'rtt'                   => $rtt,         // RTD ms
-            'sowd'                  => $sowd,        // Symmetric One-Way Delay ms
-            'esd'                   => $esd,         // End System Delay ms
+            'packets_lost'          => $packetsLost,
+            'rtt'                   => $rtt,
+            'sowd'                  => $sowd,
+            'esd'                   => $esd,
             'call_start'            => $startTime ? date('Y-m-d H:i:s', $startTime) : null,
             'call_end'              => $stopTime  ? date('Y-m-d H:i:s', $stopTime)  : null,
             'call_duration_seconds' => $duration,
