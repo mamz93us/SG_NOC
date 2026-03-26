@@ -192,15 +192,24 @@ class VqCollectorDaemon extends Command
         $jitterAvg = $this->floatOrNull($fields['iaj'] ?? null);
         $jitterMax = $this->floatOrNull($fields['jbm'] ?? null);
 
-        // ── Packet loss: PacketLoss:NLR=0.00 PLC=... NLC=... ─────────────────
+        // ── Packet loss: PacketLoss:NLR=0.00 ────────────────────────────────
         // NLR = Network Loss Rate (%) — 0.0 is valid (no loss), do NOT use floatOrNull
         $packetLoss = isset($fields['nlr']) && $fields['nlr'] !== ''
             ? (float) $fields['nlr']
             : null;
-        // NLC = raw lost packet count (integer)
-        $packetsLost = isset($fields['nlc']) && $fields['nlc'] !== ''
-            ? (int) $fields['nlc']
-            : null;
+
+        // Grandstream RTCP-XR does not send a raw packet count (NLC).
+        // Derive it from: loss_rate × (duration_ms / frame_duration_ms)
+        // SessionDesc:FD=10 gives frame duration in ms (default 20ms if missing)
+        $frameDurationMs = isset($fields['fd']) && (int)$fields['fd'] > 0
+            ? (int) $fields['fd']
+            : 20;
+        $packetsLost = null;
+        if ($packetLoss !== null && $duration !== null && $duration > 0) {
+            $totalPackets = (int) round($duration * 1000 / $frameDurationMs);
+            $packetsLost  = (int) round($packetLoss / 100 * $totalPackets);
+            // 0 lost packets is a valid and meaningful value — keep it
+        }
 
         // ── RTT / One-way delays: Delay:RTD=7 ESD=140 SOWD=143 IAJ=8 ────────
         $rtt  = isset($fields['rtd'])  ? (int) $fields['rtd']  : null;
