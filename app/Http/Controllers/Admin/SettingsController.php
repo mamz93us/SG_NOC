@@ -36,9 +36,12 @@ class SettingsController extends Controller
     public function update(Request $request)
     {
         $request->validate([
-            'company_name'          => 'required|string|max:255',
-            'company_logo'          => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'metrics_retention_days' => 'nullable|integer|min:1|max:3650',
+            'company_name'               => 'required|string|max:255',
+            'company_logo'               => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'metrics_retention_days'     => 'nullable|integer|min:1|max:3650',
+            'vq_retention_days'          => 'nullable|integer|min:1|max:3650',
+            'switch_drop_retention_days' => 'nullable|integer|min:1|max:3650',
+            'workflow_retention_days'    => 'nullable|integer|min:1|max:3650',
         ]);
 
         $settings = Setting::get();
@@ -47,8 +50,11 @@ class SettingsController extends Controller
             'metrics_retention_days' => $settings->metrics_retention_days,
         ];
 
-        $settings->company_name          = $request->company_name;
-        $settings->metrics_retention_days = (int) ($request->metrics_retention_days ?: 90);
+        $settings->company_name               = $request->company_name;
+        $settings->metrics_retention_days     = (int) ($request->metrics_retention_days ?: 90);
+        $settings->vq_retention_days          = (int) ($request->vq_retention_days ?: 90);
+        $settings->switch_drop_retention_days = (int) ($request->switch_drop_retention_days ?: 30);
+        $settings->workflow_retention_days    = (int) ($request->workflow_retention_days ?: 365);
 
         // Handle logo upload
         if ($request->hasFile('company_logo')) {

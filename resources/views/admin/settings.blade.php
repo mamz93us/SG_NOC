@@ -65,8 +65,53 @@
                 @enderror
             </div>
 
+            {{-- ── Data Retention ─────────────────────────────────────────────── --}}
+            <hr class="my-4">
+            <h5 class="mb-3"><i class="bi bi-clock-history me-2"></i>Data Retention</h5>
+            <p class="text-muted small mb-3">
+                Records older than the configured number of days are automatically deleted each night at 03:00.
+            </p>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">SNMP Metrics <small class="text-muted">(sensor data)</small></label>
+                    <div class="input-group">
+                        <input type="number" name="metrics_retention_days" class="form-control"
+                            value="{{ old('metrics_retention_days', $settings->metrics_retention_days ?? 90) }}"
+                            min="1" max="3650">
+                        <span class="input-group-text">days</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Voice Quality Reports</label>
+                    <div class="input-group">
+                        <input type="number" name="vq_retention_days" class="form-control"
+                            value="{{ old('vq_retention_days', $settings->vq_retention_days ?? 90) }}"
+                            min="1" max="3650">
+                        <span class="input-group-text">days</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Switch Drop Stats</label>
+                    <div class="input-group">
+                        <input type="number" name="switch_drop_retention_days" class="form-control"
+                            value="{{ old('switch_drop_retention_days', $settings->switch_drop_retention_days ?? 30) }}"
+                            min="1" max="3650">
+                        <span class="input-group-text">days</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Workflow Requests</label>
+                    <div class="input-group">
+                        <input type="number" name="workflow_retention_days" class="form-control"
+                            value="{{ old('workflow_retention_days', $settings->workflow_retention_days ?? 365) }}"
+                            min="1" max="3650">
+                        <span class="input-group-text">days</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Submit Button -->
-            <div class="d-flex justify-content-end">
+            <div class="d-flex justify-content-end mt-4">
                 <button type="submit" class="btn btn-primary">
                     Save Settings
                 </button>

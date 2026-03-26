@@ -134,7 +134,19 @@
       "Bash(findstr \"index.blade.php\")",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\admin\" -Recurse -Filter \"index.blade.php\")",
       "Bash(Select-Object FullName)",
-      "Bash(Sort-Object FullName)"
+      "Bash(Sort-Object FullName)",
+      "Bash(grep -n \"class ServiceSyncLog\\\\|table.*service_sync\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Models/*.php)",
+      "Bash(grep -rn \"//.*add\\\\|//.*delete\\\\|//.*edit\\\\|/\\\\*.*add\\\\|/\\\\*.*delete\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Services/GdmsService.php)",
+      "Bash(find app/Polling -name *.php)",
+      "Bash(grep -n Route.*printer C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/routes/web.php)",
+      "Bash(grep -l \"NetworkSwitch\\\\|network_switch\" C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Models/*)",
+      "Bash(find C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC -name *Kernel* -o -name *bootstrap*)",
+      "Bash(gh pr:*)",
+      "Bash(where gh:*)",
+      "Read(//c/Users/MohamedZahran/Downloads/**)",
+      "Bash(grep -n \"device_id\" database/migrations/*.php)",
+      "Bash(grep -rn schedule app/Console/ --include=*.php -l)",
+      "Bash(grep -rn \"schedule\\\\|->daily\\\\|->weekly\\\\|->hourly\" app/Providers/ bootstrap/ --include=*.php)"
     ]
   }
 }

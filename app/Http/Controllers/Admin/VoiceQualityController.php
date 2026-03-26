@@ -145,14 +145,14 @@ class VoiceQualityController extends Controller
             'remote_extension'      => 'nullable|string|max:100',
             'remote_ip'             => 'nullable|string|max:45',
             'codec'                 => 'nullable|string|max:50',
-            'mos_lq'                => 'nullable|numeric',
-            'mos_cq'                => 'nullable|numeric',
-            'r_factor'              => 'nullable|numeric',
+            'mos_lq'                => 'nullable|numeric|min:1|max:5',
+            'mos_cq'                => 'nullable|numeric|min:1|max:5',
+            'r_factor'              => 'nullable|numeric|min:0|max:100',
             'jitter_avg'            => 'nullable|numeric',
             'jitter_max'            => 'nullable|numeric',
-            'packet_loss'           => 'nullable|numeric',
+            'packet_loss'           => 'nullable|numeric|min:0|max:100',
             'burst_loss'            => 'nullable|numeric',
-            'rtt'                   => 'nullable|integer',
+            'rtt'                   => 'nullable|integer|min:0',
             'call_start'            => 'nullable|string',
             'call_end'              => 'nullable|string',
             'call_duration_seconds' => 'nullable|integer',
@@ -174,7 +174,7 @@ class VoiceQualityController extends Controller
         $data['branch_id'] = $branchId;
         $data['branch']    = $branchName;
 
-        if (!empty($data['mos_lq'])) {
+        if ($data['mos_lq'] !== null && $data['mos_lq'] > 0) {
             $data['quality_label'] = VoiceQualityReport::mosLabel((float)$data['mos_lq']);
         }
 

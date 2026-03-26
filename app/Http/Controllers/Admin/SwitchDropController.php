@@ -82,15 +82,15 @@ class SwitchDropController extends Controller
         $latest = SwitchDropStat::where('device_ip', $deviceIp)->latest('polled_at')->first();
         if (!$latest) abort(404);
 
+        // SNMP counters are cumulative — SUM across all historical rows inflates counts.
+        // Use only the latest row per interface (MAX id = most recent poll).
         $interfaces = SwitchDropStat::where('device_ip', $deviceIp)
-            ->select('interface_name','interface_index',
-                DB::raw('MAX(polled_at) as last_polled'),
-                DB::raw('SUM(in_discards) as in_discards'),
-                DB::raw('SUM(out_discards) as out_discards'),
-                DB::raw('SUM(in_errors) as in_errors'),
-                DB::raw('SUM(out_errors) as out_errors'),
-                DB::raw('SUM(crc_errors) as crc_errors'))
-            ->groupBy('interface_name','interface_index')
+            ->whereIn('id', function ($sub) use ($deviceIp) {
+                $sub->selectRaw('MAX(id)')
+                    ->from('switch_drop_stats')
+                    ->where('device_ip', $deviceIp)
+                    ->groupBy('interface_name');
+            })
             ->orderBy('interface_index')->get();
 
         $trend = SwitchDropStat::where('device_ip', $deviceIp)

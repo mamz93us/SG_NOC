@@ -1020,7 +1020,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/chart-data', [\App\Http\Controllers\Admin\VoiceQualityController::class, 'chartData'])  ->name('chart-data');
         Route::get('/export',     [\App\Http\Controllers\Admin\VoiceQualityController::class, 'exportCsv'])  ->name('export');
         Route::get('/',           [\App\Http\Controllers\Admin\VoiceQualityController::class, 'index'])      ->name('index');
-        Route::get('/{report}',   [\App\Http\Controllers\Admin\VoiceQualityController::class, 'show'])       ->name('show');
+        Route::get('/{report}',   [\App\Http\Controllers\Admin\VoiceQualityController::class, 'show'])       ->name('show')->where('report', '[0-9]+');
     });
 
     // ─── Switch Drops ──────────────────────────────────────────────
@@ -1029,7 +1029,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/stats',        [\App\Http\Controllers\Admin\SwitchDropController::class, 'statistics']) ->name('statistics');
         Route::get('/export',       [\App\Http\Controllers\Admin\SwitchDropController::class, 'exportCsv'])  ->name('export');
         Route::get('/',             [\App\Http\Controllers\Admin\SwitchDropController::class, 'index'])      ->name('index');
-        Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchDropController::class, 'device'])     ->name('device');
+        Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchDropController::class, 'device'])     ->name('device')->where('ip', '[0-9a-fA-F.:]+');
     });
 
 });

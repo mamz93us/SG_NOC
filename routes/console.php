@@ -310,3 +310,9 @@ Schedule::call(function () {
 
 // ─── Switch Drop Counter Poll — every 5 minutes ───────────────
 Schedule::command('switch:poll-drops')->everyFiveMinutes()->withoutOverlapping(10);
+
+// ─── Prune VQ, Switch Drop, Workflow data per retention settings ──
+Schedule::command('data:prune')
+    ->dailyAt('03:00')
+    ->withoutOverlapping(30)
+    ->name('prune-data');

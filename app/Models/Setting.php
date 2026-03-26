@@ -62,8 +62,11 @@ class Setting extends Model
         'itam_asset_prefix',
         'itam_code_padding',
         'itam_company_url',
-        // Metrics
+        // Metrics / Data Retention
         'metrics_retention_days',
+        'vq_retention_days',
+        'switch_drop_retention_days',
+        'workflow_retention_days',
     ];
 
     protected $casts = [
@@ -81,6 +84,9 @@ class Setting extends Model
         'graph_default_license_skus'   => 'array',
         'itam_code_padding'            => 'integer',
         'metrics_retention_days'       => 'integer',
+        'vq_retention_days'            => 'integer',
+        'switch_drop_retention_days'   => 'integer',
+        'workflow_retention_days'      => 'integer',
     ];
 
     /**
