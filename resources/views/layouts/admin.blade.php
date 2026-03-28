@@ -361,6 +361,14 @@
                                     <i class="bi bi-activity me-2 text-success"></i>Printer SNMP Status
                                 </a>
                             </li>
+                            @can('manage-printers')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/intune-groups*') ? 'active' : '' }}"
+                                   href="{{ route('admin.intune-groups.index') }}">
+                                    <i class="bi bi-collection me-2 text-primary"></i>Intune Groups
+                                </a>
+                            </li>
+                            @endcan
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/network-discovery*') ? 'active' : '' }}"
                                    href="{{ route('admin.network-discovery.index') }}">
@@ -506,6 +514,30 @@
                         </ul>
                     </li>
                     @endcanany
+
+                    {{-- ── Form Builder dropdown ── --}}
+                    @can('manage-workflows')
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/forms*') || request()->is('forms*') || request()->is('my/forms*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-ui-checks-grid me-1"></i>Forms
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.forms.index') ? 'active' : '' }}"
+                                   href="{{ route('admin.forms.index') }}">
+                                    <i class="bi bi-list-ul me-2"></i>All Forms
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.forms.create') ? 'active' : '' }}"
+                                   href="{{ route('admin.forms.create') }}">
+                                    <i class="bi bi-plus-circle-fill me-2"></i>New Form
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    @endcan
 
                     {{-- ── NOC dropdown ── --}}
                     @can('view-noc')
