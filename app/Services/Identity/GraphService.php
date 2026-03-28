@@ -647,4 +647,73 @@ class GraphService
     {
         $this->delete("/deviceManagement/deviceManagementScripts/{$intuneScriptId}");
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Group Management (create, delete, list members, search users)
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Create a new Azure AD security group.
+     * Returns the created group object including 'id'.
+     */
+    public function createGroup(string $name, string $description = ''): array
+    {
+        return $this->post('/groups', [
+            'displayName'     => $name,
+            'description'     => $description,
+            'mailEnabled'     => false,
+            'mailNickname'    => Str::slug($name, '_') ?: 'group_' . time(),
+            'securityEnabled' => true,
+            'groupTypes'      => [],
+        ]);
+    }
+
+    /**
+     * Delete an Azure AD group by its object ID.
+     */
+    public function deleteGroup(string $azureGroupId): bool
+    {
+        try {
+            $this->delete("/groups/{$azureGroupId}");
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning("GraphService::deleteGroup failed for {$azureGroupId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get members of a group. Returns array of ['id', 'displayName', 'userPrincipalName'].
+     */
+    public function getGroupMembers(string $azureGroupId): array
+    {
+        $result = $this->get("/groups/{$azureGroupId}/members", [
+            '$select' => 'id,displayName,userPrincipalName',
+        ]);
+        return $result['value'] ?? [];
+    }
+
+    /**
+     * Search Azure AD users by display name or UPN.
+     * Uses ConsistencyLevel: eventual for advanced query support.
+     * Returns array of user objects with id, displayName, userPrincipalName, jobTitle, department.
+     */
+    public function searchUsers(string $query): array
+    {
+        if (blank($query)) {
+            return [];
+        }
+
+        $escaped = addslashes($query);
+        $result  = $this->get('/users', [
+            '$search'  => "\"displayName:{$escaped}\" OR \"userPrincipalName:{$escaped}\"",
+            '$select'  => 'id,displayName,userPrincipalName,jobTitle,department',
+            '$top'     => 20,
+            '$orderby' => 'displayName',
+        ], self::TIMEOUT_STANDARD, [
+            'ConsistencyLevel' => 'eventual',
+        ]);
+
+        return $result['value'] ?? [];
+    }
 }

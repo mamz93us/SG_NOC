@@ -978,6 +978,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         ->name('admin.printer-deploy.script-preview')
         ->middleware('permission:manage-employees');
 
+    // ── Intune Group Management ───────────────────────────────────────
+    Route::prefix('intune-groups')->name('admin.intune-groups.')->middleware('permission:manage-printers')->group(function () {
+        Route::get('/',                                  [\App\Http\Controllers\Admin\IntuneGroupController::class, 'index'])        ->name('index');
+        Route::get('/create',                            [\App\Http\Controllers\Admin\IntuneGroupController::class, 'create'])       ->name('create');
+        Route::post('/',                                 [\App\Http\Controllers\Admin\IntuneGroupController::class, 'store'])        ->name('store');
+        Route::get('/users/search',                      [\App\Http\Controllers\Admin\IntuneGroupController::class, 'searchUsers'])  ->name('users.search');
+        Route::get('/{intuneGroup}',                     [\App\Http\Controllers\Admin\IntuneGroupController::class, 'show'])         ->name('show');
+        Route::delete('/{intuneGroup}',                  [\App\Http\Controllers\Admin\IntuneGroupController::class, 'destroy'])      ->name('destroy');
+        Route::post('/{intuneGroup}/members',            [\App\Http\Controllers\Admin\IntuneGroupController::class, 'addMember'])    ->name('members.add');
+        Route::delete('/{intuneGroup}/members/{userId}', [\App\Http\Controllers\Admin\IntuneGroupController::class, 'removeMember']) ->name('members.remove');
+        Route::post('/{intuneGroup}/deploy-printer',     [\App\Http\Controllers\Admin\IntuneGroupController::class, 'deployPrinter'])->name('deploy-printer');
+    });
+
     // ── My Printers (SSO auto-assign — any authenticated user) ───────
     Route::get('my-printers', [\App\Http\Controllers\Admin\MyPrintersController::class, 'index'])
         ->name('admin.my-printers');
@@ -1032,6 +1045,21 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchDropController::class, 'device'])     ->name('device')->where('ip', '[0-9a-fA-F.:]+');
     });
 
+    // ─── Form Builder (admin) ──────────────────────────────────────
+    Route::prefix('forms')->name('admin.forms.')->group(function () {
+        Route::get('/',                                  [\App\Http\Controllers\Admin\FormBuilderController::class, 'index'])           ->name('index');
+        Route::get('/create',                            [\App\Http\Controllers\Admin\FormBuilderController::class, 'create'])          ->name('create');
+        Route::post('/',                                 [\App\Http\Controllers\Admin\FormBuilderController::class, 'store'])           ->name('store');
+        Route::get('/{form}/edit',                       [\App\Http\Controllers\Admin\FormBuilderController::class, 'edit'])            ->name('edit');
+        Route::put('/{form}',                            [\App\Http\Controllers\Admin\FormBuilderController::class, 'update'])          ->name('update');
+        Route::delete('/{form}',                         [\App\Http\Controllers\Admin\FormBuilderController::class, 'destroy'])         ->name('destroy');
+        Route::get('/{form}/submissions/export',         [\App\Http\Controllers\Admin\FormBuilderController::class, 'exportSubmissions'])->name('export');
+        Route::get('/{form}/submissions/{submission}',   [\App\Http\Controllers\Admin\FormBuilderController::class, 'showSubmission'])  ->name('submission.show');
+        Route::patch('/{form}/submissions/{submission}', [\App\Http\Controllers\Admin\FormBuilderController::class, 'reviewSubmission'])->name('submission.review');
+        Route::get('/{form}/submissions',                [\App\Http\Controllers\Admin\FormBuilderController::class, 'submissions'])     ->name('submissions');
+        Route::post('/{form}/tokens',                    [\App\Http\Controllers\Admin\FormBuilderController::class, 'generateToken'])   ->name('tokens.generate');
+    });
+
 });
 
 // Internal VQ report endpoint
@@ -1051,6 +1079,16 @@ use App\Http\Controllers\Public\PrinterSetupController;
 // Offboarding manager approval form
 Route::get('/offboarding/respond',  [OffboardingFormController::class, 'show'])  ->name('offboarding.form');
 Route::post('/offboarding/respond', [OffboardingFormController::class, 'submit'])->name('offboarding.submit')->middleware('throttle:5,1');
+
+// Public & token-only forms
+Route::get('/forms/{slug}',  [\App\Http\Controllers\Public\PublicFormController::class, 'show'])  ->name('forms.show');
+Route::post('/forms/{slug}', [\App\Http\Controllers\Public\PublicFormController::class, 'submit'])->name('forms.submit')->middleware('throttle:20,1');
+
+// Private (logged-in employee) forms
+Route::middleware('auth')->group(function () {
+    Route::get('/my/forms/{slug}',  [\App\Http\Controllers\Public\PublicFormController::class, 'show'])  ->name('forms.private.show');
+    Route::post('/my/forms/{slug}', [\App\Http\Controllers\Public\PublicFormController::class, 'submit'])->name('forms.private.submit');
+});
 
 // Printer self-service setup
 Route::middleware(['throttle:20,1'])->group(function () {

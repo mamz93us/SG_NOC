@@ -146,7 +146,8 @@
       "Read(//c/Users/MohamedZahran/Downloads/**)",
       "Bash(grep -n \"device_id\" database/migrations/*.php)",
       "Bash(grep -rn schedule app/Console/ --include=*.php -l)",
-      "Bash(grep -rn \"schedule\\\\|->daily\\\\|->weekly\\\\|->hourly\" app/Providers/ bootstrap/ --include=*.php)"
+      "Bash(grep -rn \"schedule\\\\|->daily\\\\|->weekly\\\\|->hourly\" app/Providers/ bootstrap/ --include=*.php)",
+      "Bash(do php:*)"
     ]
   }
 }

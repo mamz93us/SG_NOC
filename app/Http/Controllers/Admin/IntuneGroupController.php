@@ -1,0 +1,223 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Branch;
+use App\Models\Department;
+use App\Models\IntuneGroup;
+use App\Models\IntuneGroupMember;
+use App\Models\IntuneGroupPolicy;
+use App\Models\Printer;
+use App\Models\PrinterDriver;
+use App\Services\Identity\GraphService;
+use App\Services\PrinterScriptService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+
+class IntuneGroupController extends Controller
+{
+    public function __construct(private GraphService $graph) {}
+
+    /**
+     * GET /admin/intune-groups
+     */
+    public function index()
+    {
+        $groups = IntuneGroup::with(['branch', 'department'])
+            ->withCount(['members', 'policies'])
+            ->orderBy('name')
+            ->get();
+
+        return view('admin.intune_groups.index', compact('groups'));
+    }
+
+    /**
+     * GET /admin/intune-groups/create
+     */
+    public function create()
+    {
+        $branches    = Branch::orderBy('name')->get();
+        $departments = Department::orderBy('name')->get();
+        return view('admin.intune_groups.create', compact('branches', 'departments'));
+    }
+
+    /**
+     * POST /admin/intune-groups
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name'          => 'required|string|max:150',
+            'description'   => 'nullable|string|max:500',
+            'group_type'    => 'required|in:printer,policy,device,compliance',
+            'branch_id'     => 'nullable|exists:branches,id',
+            'department_id' => 'nullable|exists:departments,id',
+        ]);
+
+        try {
+            $azureGroup = $this->graph->createGroup(
+                $data['name'],
+                $data['description'] ?? ''
+            );
+        } catch (\Throwable $e) {
+            return back()->withInput()->withErrors(['graph' => 'Azure group creation failed: ' . $e->getMessage()]);
+        }
+
+        $group = IntuneGroup::create([
+            ...$data,
+            'azure_group_id' => $azureGroup['id'] ?? null,
+            'sync_status'    => 'synced',
+            'last_synced_at' => now(),
+        ]);
+
+        return redirect()->route('admin.intune-groups.show', $group)
+            ->with('success', 'Group "' . $group->name . '" created and synced to Azure AD.');
+    }
+
+    /**
+     * GET /admin/intune-groups/{group}
+     */
+    public function show(IntuneGroup $intuneGroup)
+    {
+        $intuneGroup->load(['members', 'policies', 'branch', 'department']);
+        $printers = Printer::orderBy('printer_name')->get(['id', 'printer_name', 'ip_address']);
+
+        return view('admin.intune_groups.show', [
+            'group'    => $intuneGroup,
+            'printers' => $printers,
+        ]);
+    }
+
+    /**
+     * DELETE /admin/intune-groups/{group}
+     */
+    public function destroy(IntuneGroup $intuneGroup): RedirectResponse
+    {
+        if ($intuneGroup->azure_group_id) {
+            $this->graph->deleteGroup($intuneGroup->azure_group_id);
+        }
+
+        $intuneGroup->delete();
+
+        return redirect()->route('admin.intune-groups.index')
+            ->with('success', 'Group "' . $intuneGroup->name . '" deleted.');
+    }
+
+    /**
+     * POST /admin/intune-groups/{group}/members
+     */
+    public function addMember(Request $request, IntuneGroup $intuneGroup): RedirectResponse
+    {
+        $data = $request->validate([
+            'azure_user_id' => 'required|string|max:100',
+            'user_upn'      => 'required|string|max:150',
+            'display_name'  => 'required|string|max:150',
+        ]);
+
+        if (! $intuneGroup->azure_group_id) {
+            return back()->withErrors(['group' => 'This group has no Azure Group ID. Please re-sync.']);
+        }
+
+        try {
+            $this->graph->addUserToGroup($data['azure_user_id'], $intuneGroup->azure_group_id);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['graph' => 'Failed to add member: ' . $e->getMessage()]);
+        }
+
+        IntuneGroupMember::updateOrCreate(
+            ['intune_group_id' => $intuneGroup->id, 'azure_user_id' => $data['azure_user_id']],
+            ['user_upn' => $data['user_upn'], 'display_name' => $data['display_name'], 'status' => 'added']
+        );
+
+        return back()->with('success', $data['display_name'] . ' added to group.');
+    }
+
+    /**
+     * DELETE /admin/intune-groups/{group}/members/{userId}
+     */
+    public function removeMember(IntuneGroup $intuneGroup, string $userId): RedirectResponse
+    {
+        if ($intuneGroup->azure_group_id) {
+            try {
+                $this->graph->removeUserFromGroup($userId, $intuneGroup->azure_group_id);
+            } catch (\Throwable $e) {
+                return back()->withErrors(['graph' => 'Failed to remove member: ' . $e->getMessage()]);
+            }
+        }
+
+        IntuneGroupMember::where('intune_group_id', $intuneGroup->id)
+            ->where('azure_user_id', $userId)
+            ->update(['status' => 'removed']);
+
+        return back()->with('success', 'Member removed from group.');
+    }
+
+    /**
+     * GET /admin/intune-groups/users/search?q=...
+     */
+    public function searchUsers(Request $request): JsonResponse
+    {
+        $q = $request->get('q', '');
+        if (strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        try {
+            $users = $this->graph->searchUsers($q);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+
+        return response()->json($users);
+    }
+
+    /**
+     * POST /admin/intune-groups/{group}/deploy-printer
+     */
+    public function deployPrinter(Request $request, IntuneGroup $intuneGroup): RedirectResponse
+    {
+        $data = $request->validate([
+            'printer_id' => 'required|exists:printers,id',
+        ]);
+
+        if (! $intuneGroup->azure_group_id) {
+            return back()->withErrors(['group' => 'This group has no Azure Group ID. Please re-sync.']);
+        }
+
+        $printer = Printer::with('branch')->findOrFail($data['printer_id']);
+        $driver  = PrinterDriver::findForPrinter($printer, 'windows_x64');
+        $ps1     = (new PrinterScriptService())->generateIntunePowerShell($printer, $driver);
+
+        $scriptName = 'SG NOC - ' . $printer->printer_name . ' (Group: ' . $intuneGroup->name . ')';
+
+        try {
+            $scriptId = $this->graph->uploadIntuneScript(
+                $scriptName,
+                $ps1,
+                'Deployed via SG NOC to group: ' . $intuneGroup->name
+            );
+
+            $this->graph->assignIntuneScriptToGroup($scriptId, $intuneGroup->azure_group_id);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['graph' => 'Intune deploy failed: ' . $e->getMessage()]);
+        }
+
+        IntuneGroupPolicy::create([
+            'intune_group_id'   => $intuneGroup->id,
+            'policy_type'       => 'printer_script',
+            'intune_policy_id'  => $scriptId,
+            'policy_name'       => $printer->printer_name,
+            'policy_payload'    => [
+                'printer_id'  => $printer->id,
+                'printer_ip'  => $printer->ip_address,
+                'driver_name' => $printer->driver_name ?? ($driver?->driver_name ?? 'Generic / Text Only'),
+                'branch'      => $printer->branch?->name,
+            ],
+            'status' => 'assigned',
+        ]);
+
+        return back()->with('success', 'Script for "' . $printer->printer_name . '" deployed and assigned to group.');
+    }
+}
