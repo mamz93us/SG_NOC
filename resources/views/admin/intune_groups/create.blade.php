@@ -38,26 +38,27 @@
             </div>
         </div>
 
-        <form method="POST" action="{{ route('admin.intune-groups.store') }}" @submit.prevent="submit">
+        <form method="POST" action="{{ route('admin.intune-groups.store') }}" id="intuneGroupForm" @submit.prevent="submit($el)">
             @csrf
             {{-- Actual mode value sent to controller --}}
             <input type="hidden" name="mode" :value="mode">
 
             {{-- ── CREATE mode: plain name field ───────────────────────────── --}}
-            <div x-show="mode === 'create'">
+            {{-- x-if removes the element entirely from DOM, so the input does NOT submit in the other mode --}}
+            <template x-if="mode === 'create'">
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Group Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
-                           :required="mode === 'create'"
-                           value="{{ old('name') }}"
+                           required value="{{ old('name') }}"
                            placeholder="e.g. SG-Printers-MainBranch" maxlength="150">
-                    @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    @error('name')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                     <div class="form-text">This will become the Azure AD group display name.</div>
                 </div>
-            </div>
+            </template>
 
             {{-- ── LINK mode: search + select existing Azure group ─────────── --}}
-            <div x-show="mode === 'link'">
+            {{-- x-if removes inputs from DOM entirely so they don't submit in create mode --}}
+            <template x-if="mode === 'link'">
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Search Azure AD Group <span class="text-danger">*</span></label>
                     <div class="position-relative">
@@ -66,15 +67,13 @@
                                x-model="q"
                                @input.debounce.350ms="search()"
                                autocomplete="off">
-                        {{-- Spinner --}}
-                        <div class="position-absolute top-50 end-0 translate-middle-y pe-3"
-                             x-show="loading" x-cloak>
+                        <div class="position-absolute top-50 end-0 translate-middle-y pe-3" x-show="loading">
                             <div class="spinner-border spinner-border-sm text-secondary"></div>
                         </div>
                     </div>
 
                     {{-- Dropdown results --}}
-                    <ul class="list-group mt-1 shadow-sm" x-show="results.length > 0 && !selectedId" x-cloak>
+                    <ul class="list-group mt-1 shadow-sm" x-show="results.length > 0 && !selectedId">
                         <template x-for="g in results" :key="g.id">
                             <li class="list-group-item list-group-item-action py-2 d-flex justify-content-between align-items-center"
                                 @click="pick(g)" style="cursor:pointer;">
@@ -89,11 +88,11 @@
                     </ul>
 
                     {{-- Selected confirmation --}}
-                    <div class="mt-2 d-flex align-items-center gap-2" x-show="selectedId" x-cloak>
+                    <div class="mt-2 d-flex align-items-center gap-2" x-show="selectedId">
                         <i class="bi bi-check-circle-fill text-success"></i>
-                        <span class="small"><strong x-text="selectedName"></strong>
-                            <span class="text-muted font-monospace ms-1" style="font-size:.75rem"
-                                  x-text="selectedId"></span>
+                        <span class="small">
+                            <strong x-text="selectedName"></strong>
+                            <span class="text-muted font-monospace ms-1" style="font-size:.75rem" x-text="selectedId"></span>
                         </span>
                         <button type="button" class="btn btn-sm btn-link p-0 text-muted ms-auto"
                                 @click="clearPick()" title="Clear selection">
@@ -105,13 +104,11 @@
                     <div class="text-danger small mt-1">{{ $message }}</div>
                     @enderror
 
-                    {{-- Group name mirrors the selected group name for the controller --}}
-                    <input type="hidden" name="name" :value="selectedName || '{{ old('name') }}'">
+                    {{-- These hidden inputs only exist in the DOM when in link mode --}}
+                    <input type="hidden" name="name" :value="selectedName">
+                    <input type="hidden" name="azure_group_id" :value="selectedId">
                 </div>
-
-                {{-- Hidden field carrying the Azure group ID --}}
-                <input type="hidden" name="azure_group_id" :value="selectedId">
-            </div>
+            </template>
 
             {{-- ── Shared fields ──────────────────────────────────────────── --}}
             <div class="mb-3">
@@ -202,12 +199,13 @@ function intuneGroupCreate(searchUrl) {
             this.results      = [];
         },
 
-        submit() {
+        submit(form) {
             if (this.mode === 'link' && !this.selectedId) {
                 alert('Please search for and select an existing Azure AD group first.');
                 return;
             }
-            this.$el.submit();
+            // Submit the actual <form> element, not the Alpine root div
+            form.submit();
         },
     };
 }
