@@ -979,7 +979,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         ->middleware('permission:manage-employees');
 
     // ── Intune Group Management ───────────────────────────────────────
-    Route::prefix('intune-groups')->name('admin.intune-groups.')->middleware('permission:manage-printers')->group(function () {
+    Route::prefix('intune-groups')->name('intune-groups.')->middleware('permission:manage-printers')->group(function () {
         Route::get('/',                                  [\App\Http\Controllers\Admin\IntuneGroupController::class, 'index'])        ->name('index');
         Route::get('/create',                            [\App\Http\Controllers\Admin\IntuneGroupController::class, 'create'])       ->name('create');
         Route::post('/',                                 [\App\Http\Controllers\Admin\IntuneGroupController::class, 'store'])        ->name('store');
@@ -1046,7 +1046,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     // ─── Form Builder (admin) ──────────────────────────────────────
-    Route::prefix('forms')->name('admin.forms.')->group(function () {
+    Route::prefix('forms')->name('forms.')->group(function () {
         Route::get('/',                                  [\App\Http\Controllers\Admin\FormBuilderController::class, 'index'])           ->name('index');
         Route::get('/create',                            [\App\Http\Controllers\Admin\FormBuilderController::class, 'create'])          ->name('create');
         Route::post('/',                                 [\App\Http\Controllers\Admin\FormBuilderController::class, 'store'])           ->name('store');
