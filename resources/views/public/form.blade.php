@@ -18,13 +18,22 @@ body { background:#f4f6f9; min-height:100vh; }
 .rating-stars label:hover,
 .rating-stars label:hover ~ label { color:#ffc107; }
 .rating-stars { display:flex; flex-direction:row-reverse; justify-content:flex-end; }
+[x-cloak] { display:none !important; }
 </style>
 </head>
+@php $settings = \App\Models\Setting::get(); @endphp
 <body x-data="dynamicForm()">
 
 <div class="form-card">
     {{-- Header --}}
     <div class="form-header">
+        @if($settings->company_logo)
+        <div class="mb-3">
+            <img src="{{ \Illuminate\Support\Facades\Storage::url($settings->company_logo) }}"
+                 alt="{{ $settings->company_name ?? 'Logo' }}"
+                 style="height:42px;width:auto;object-fit:contain;filter:brightness(0) invert(1);">
+        </div>
+        @endif
         <h4 class="mb-1 fw-bold">{{ $form->name }}</h4>
         @if($form->description)
         <p class="mb-0 opacity-75 small">{{ $form->description }}</p>
@@ -36,6 +45,8 @@ body { background:#f4f6f9; min-height:100vh; }
         <form method="POST"
               action="{{ route('forms.submit', $form->slug) }}"
               enctype="multipart/form-data"
+              x-data="{ submitting: false }"
+              @submit="submitting = true"
               novalidate>
             @csrf
             @if($token)
@@ -66,6 +77,7 @@ body { background:#f4f6f9; min-height:100vh; }
                     $width     = $field['width'] ?? 'full';
                     $colClass  = $width === 'half' ? 'col-md-6' : 'col-12';
                     $condition = $field['conditional'] ?? null;
+                    $hasCondition = !empty($condition) && !empty($condition['field']);
                 @endphp
 
                 @if($type === 'section')
@@ -74,8 +86,9 @@ body { background:#f4f6f9; min-height:100vh; }
                 </div>
                 @elseif($name)
                 <div class="{{ $colClass }}"
-                     @if($condition)
-                     x-show="fieldValue('{{ $condition['field'] }}') {{ $condition['operator'] === 'equals' ? '===' : '!==' }} '{{ $condition['value'] }}'"
+                     @if($hasCondition)
+                     x-show="matchesCondition({{ json_encode($condition) }})"
+                     x-transition
                      @endif>
                     @include('forms.fields.'.$type, compact('field','name','label','required','helpText'))
                 </div>
@@ -93,8 +106,9 @@ body { background:#f4f6f9; min-height:100vh; }
             </div>
 
             <div class="mt-4 d-flex justify-content-end">
-                <button type="submit" class="btn btn-primary px-5">
-                    {{ $form->settings['submit_label'] ?? 'Submit' }}
+                <button type="submit" class="btn btn-primary px-5" :disabled="submitting">
+                    <span x-show="submitting" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    <span x-text="submitting ? 'Submitting…' : '{{ addslashes($form->settings['submit_label'] ?? 'Submit') }}'"></span>
                 </button>
             </div>
         </form>
@@ -107,9 +121,50 @@ function dynamicForm() {
     return {
         formData: {},
 
-        fieldValue(name) {
-            const el = document.querySelector('[name="' + name + '"]');
-            return el ? el.value : '';
+        init() {
+            // Seed formData with any old() values already in the DOM on page load
+            document.querySelectorAll('input, select, textarea').forEach(el => this._sync(el));
+            // Keep formData reactive on every user interaction
+            document.addEventListener('input',  e => this._sync(e.target));
+            document.addEventListener('change', e => this._sync(e.target));
+        },
+
+        _sync(el) {
+            if (!el.name) return;
+            // Skip internal fields
+            if (el.name === '_token' || el.name === '_form_token' || el.name === '_email') return;
+            if (el.type === 'checkbox') {
+                const checked = document.querySelectorAll('[name="' + el.name + '"]:checked');
+                this.formData[el.name] = Array.from(checked).map(c => c.value);
+            } else if (el.type === 'radio') {
+                if (el.checked) this.formData[el.name] = el.value;
+            } else {
+                this.formData[el.name] = el.value;
+            }
+        },
+
+        matchesCondition(condition) {
+            if (!condition || !condition.field) return true;
+            const raw  = this.formData[condition.field] ?? '';
+            const val  = Array.isArray(raw) ? raw : String(raw);
+            const test = String(condition.value ?? '');
+
+            switch (condition.operator) {
+                case 'equals':
+                    return Array.isArray(val) ? val.includes(test) : val === test;
+                case 'not_equals':
+                    return Array.isArray(val) ? !val.includes(test) : val !== test;
+                case 'contains':
+                    return Array.isArray(val)
+                        ? val.some(v => v.toLowerCase().includes(test.toLowerCase()))
+                        : val.toLowerCase().includes(test.toLowerCase());
+                case 'not_empty':
+                    return Array.isArray(val) ? val.length > 0 : val !== '';
+                case 'is_empty':
+                    return Array.isArray(val) ? val.length === 0 : val === '';
+                default:
+                    return true;
+            }
         },
     };
 }

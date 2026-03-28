@@ -137,6 +137,7 @@
                                                   :value="(selectedField.options||[]).join('\n')"
                                                   @input="selectedField.options = $event.target.value.split('\n').filter(s=>s.trim())"></textarea>
                                     </div>
+                                    {{-- Rating min/max --}}
                                     <div class="mb-2" x-show="selectedField.type === 'rating'">
                                         <div class="row g-1">
                                             <div class="col-6">
@@ -146,6 +147,23 @@
                                             <div class="col-6">
                                                 <label class="form-label small fw-semibold mb-1">Max</label>
                                                 <input type="number" class="form-control form-control-sm" x-model.number="selectedField.max" min="1" max="10">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {{-- Number min/max --}}
+                                    <div class="mb-2" x-show="selectedField.type === 'number'">
+                                        <div class="row g-1">
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold mb-1">Min Value</label>
+                                                <input type="number" class="form-control form-control-sm"
+                                                       x-model.number="selectedField.min"
+                                                       placeholder="No limit">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold mb-1">Max Value</label>
+                                                <input type="number" class="form-control form-control-sm"
+                                                       x-model.number="selectedField.max"
+                                                       placeholder="No limit">
                                             </div>
                                         </div>
                                     </div>
@@ -163,6 +181,52 @@
                                             <option value="full">Full</option>
                                             <option value="half">Half</option>
                                         </select>
+                                    </div>
+                                    {{-- Conditional Logic --}}
+                                    <div class="mb-2" x-show="selectedField.type !== 'section'">
+                                        <hr class="my-2">
+                                        <label class="form-label small fw-semibold mb-1">
+                                            <i class="bi bi-eye-slash me-1"></i>Show/Hide Condition
+                                        </label>
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox"
+                                                   :id="'cond-'+selectedField.id"
+                                                   :checked="selectedField.conditional !== null && selectedField.conditional !== undefined"
+                                                   @change="toggleCondition($event.target.checked)">
+                                            <label class="form-check-label small" :for="'cond-'+selectedField.id">Only show when…</label>
+                                        </div>
+                                        <div x-show="selectedField.conditional">
+                                            <div class="mb-1">
+                                                <label class="form-label small mb-0">Field</label>
+                                                <select class="form-select form-select-sm"
+                                                        x-model="selectedField.conditional && selectedField.conditional.field">
+                                                    <option value="">— pick a field —</option>
+                                                    <template x-for="f in otherFields" :key="f.name">
+                                                        <option :value="f.name" x-text="f.label || f.name"></option>
+                                                    </template>
+                                                </select>
+                                            </div>
+                                            <div class="row g-1">
+                                                <div class="col-6">
+                                                    <label class="form-label small mb-0">Operator</label>
+                                                    <select class="form-select form-select-sm"
+                                                            x-model="selectedField.conditional && selectedField.conditional.operator">
+                                                        <option value="equals">equals</option>
+                                                        <option value="not_equals">not equals</option>
+                                                        <option value="contains">contains</option>
+                                                        <option value="not_empty">is not empty</option>
+                                                        <option value="is_empty">is empty</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-6"
+                                                     x-show="selectedField.conditional && !['not_empty','is_empty'].includes(selectedField.conditional.operator)">
+                                                    <label class="form-label small mb-0">Value</label>
+                                                    <input type="text" class="form-control form-control-sm"
+                                                           x-model="selectedField.conditional && selectedField.conditional.value"
+                                                           placeholder="Match value">
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </template>
@@ -430,18 +494,18 @@ function formBuilder(initial) {
         addField(type) {
             const id = 'f' + Math.random().toString(36).substr(2, 6);
             const defaults = {
-                text:     { label:'Text Field',    placeholder:'',    required:false, width:'full' },
-                textarea: { label:'Text Area',     placeholder:'',    required:false, width:'full' },
-                number:   { label:'Number',        placeholder:'',    required:false, width:'half' },
-                email:    { label:'Email Address', placeholder:'',    required:false, width:'half' },
-                phone:    { label:'Phone Number',  placeholder:'',    required:false, width:'half' },
-                date:     { label:'Date',          placeholder:'',    required:false, width:'half' },
-                select:   { label:'Dropdown',      options:[],        required:false, width:'full' },
-                radio:    { label:'Single Choice', options:[],        required:false, width:'full' },
-                checkbox: { label:'Multi Choice',  options:[],        required:false, width:'full' },
-                rating:   { label:'Rating',        min:1, max:5,      required:false, width:'half', style:'stars' },
-                file:     { label:'File Upload',                      required:false, width:'full' },
-                section:  { label:'Section Title',                    required:false, width:'full' },
+                text:     { label:'Text Field',    placeholder:'',    required:false, width:'full',  conditional:null },
+                textarea: { label:'Text Area',     placeholder:'',    required:false, width:'full',  conditional:null },
+                number:   { label:'Number',        placeholder:'',    required:false, width:'half',  conditional:null, min:null, max:null },
+                email:    { label:'Email Address', placeholder:'',    required:false, width:'half',  conditional:null },
+                phone:    { label:'Phone Number',  placeholder:'',    required:false, width:'half',  conditional:null },
+                date:     { label:'Date',          placeholder:'',    required:false, width:'half',  conditional:null },
+                select:   { label:'Dropdown',      options:[],        required:false, width:'full',  conditional:null },
+                radio:    { label:'Single Choice', options:[],        required:false, width:'full',  conditional:null },
+                checkbox: { label:'Multi Choice',  options:[],        required:false, width:'full',  conditional:null },
+                rating:   { label:'Rating',        min:1, max:5,      required:false, width:'half',  conditional:null, style:'stars' },
+                file:     { label:'File Upload',                      required:false, width:'full',  conditional:null },
+                section:  { label:'Section Title',                    required:false, width:'full',  conditional:null },
             };
             this.fields.push({ id, type, name: type + '_' + this.fields.length, help_text:'', ...defaults[type] });
             this.selectedIdx = this.fields.length - 1;
@@ -455,8 +519,20 @@ function formBuilder(initial) {
             if (this.fields.length === 0) this.selectedIdx = null;
         },
 
+        // All fields except the selected one — used for condition target picker
+        get otherFields() {
+            return this.fields.filter((f, i) => i !== this.selectedIdx && f.type !== 'section');
+        },
+
+        toggleCondition(enabled) {
+            if (!this.selectedField) return;
+            this.selectedField.conditional = enabled
+                ? { field: '', operator: 'equals', value: '' }
+                : null;
+        },
+
         syncSchema() {
-            // Ensure hidden input is up-to-date before form submit
+            // Hidden input is kept in sync via x-model="schemaJson" — no-op kept for backward compat
         },
     };
 }

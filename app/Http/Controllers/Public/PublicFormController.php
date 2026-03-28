@@ -163,9 +163,20 @@ class PublicFormController extends Controller
                 continue;
             }
 
+            if (($field['type'] ?? 'text') === 'number') {
+                $numRule = [$required, 'numeric'];
+                if (isset($field['min']) && $field['min'] !== null && $field['min'] !== '') {
+                    $numRule[] = 'min:' . $field['min'];
+                }
+                if (isset($field['max']) && $field['max'] !== null && $field['max'] !== '') {
+                    $numRule[] = 'max:' . $field['max'];
+                }
+                $rules[$name] = $numRule;
+                continue;
+            }
+
             $typeRules = match ($field['type'] ?? 'text') {
                 'email'    => [$required, 'email', 'max:150'],
-                'number'   => [$required, 'numeric'],
                 'date'     => [$required, 'date'],
                 'rating'   => [$required, 'integer', 'min:'.($field['min'] ?? 1), 'max:'.($field['max'] ?? 10)],
                 'checkbox' => [$required, 'array'],
