@@ -14,6 +14,8 @@ class GraphService
     private string $clientId;
     private string $clientSecret;
     private string $baseUrl = 'https://graph.microsoft.com/v1.0';
+    /** Intune / DeviceManagement APIs are only available on the beta endpoint */
+    private string $betaUrl = 'https://graph.microsoft.com/beta';
 
     private const TIMEOUT_STANDARD = 30;
     private const TIMEOUT_BULK     = 120;
@@ -613,7 +615,7 @@ class GraphService
         string $ps1Content,
         string $description = ''
     ): string {
-        $data = $this->post('/deviceManagement/deviceManagementScripts', [
+        $data = $this->post($this->betaUrl . '/deviceManagement/deviceManagementScripts', [
             'displayName'           => $displayName,
             'description'           => $description,
             'scriptContent'         => base64_encode($ps1Content),
@@ -634,7 +636,7 @@ class GraphService
         string $azureGroupId
     ): void {
         $this->post(
-            "/deviceManagement/deviceManagementScripts/{$intuneScriptId}/assign",
+            $this->betaUrl . "/deviceManagement/deviceManagementScripts/{$intuneScriptId}/assign",
             [
                 'deviceManagementScriptAssignments' => [[
                     'target' => [
@@ -652,7 +654,7 @@ class GraphService
     public function listIntuneScripts(): array
     {
         $result = $this->get(
-            '/deviceManagement/deviceManagementScripts',
+            $this->betaUrl . '/deviceManagement/deviceManagementScripts',
             ['$select' => 'id,displayName,lastModifiedDateTime']
         );
         return $result['value'] ?? [];
@@ -663,7 +665,7 @@ class GraphService
      */
     public function deleteIntuneScript(string $intuneScriptId): void
     {
-        $this->delete("/deviceManagement/deviceManagementScripts/{$intuneScriptId}");
+        $this->delete($this->betaUrl . "/deviceManagement/deviceManagementScripts/{$intuneScriptId}");
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -745,7 +747,7 @@ class GraphService
      */
     public function getIntuneScriptAssignments(string $scriptId): array
     {
-        $result = $this->get("/deviceManagement/deviceManagementScripts/{$scriptId}/assignments");
+        $result = $this->get($this->betaUrl . "/deviceManagement/deviceManagementScripts/{$scriptId}/assignments");
 
         return $result['value'] ?? [];
     }
@@ -763,7 +765,7 @@ class GraphService
             fn($a) => ($a['target']['groupId'] ?? '') !== $groupId
         ));
 
-        $this->post("/deviceManagement/deviceManagementScripts/{$scriptId}/assign", [
+        $this->post($this->betaUrl . "/deviceManagement/deviceManagementScripts/{$scriptId}/assign", [
             'deviceManagementScriptAssignments' => array_map(fn($a) => [
                 'target' => [
                     '@odata.type' => '#microsoft.graph.groupAssignmentTarget',
