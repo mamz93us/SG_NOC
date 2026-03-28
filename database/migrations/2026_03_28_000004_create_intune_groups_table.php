@@ -14,8 +14,10 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->string('azure_group_id', 100)->nullable()->unique();
             $table->enum('group_type', ['printer', 'policy', 'device', 'compliance'])->default('printer');
-            $table->foreignId('branch_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('department_id')->nullable()->constrained()->nullOnDelete();
+            $table->unsignedInteger('branch_id')->nullable();
+            $table->unsignedBigInteger('department_id')->nullable();
+            $table->foreign('branch_id')->references('id')->on('branches')->nullOnDelete();
+            $table->foreign('department_id')->references('id')->on('departments')->nullOnDelete();
             $table->enum('sync_status', ['pending', 'synced', 'error'])->default('pending');
             $table->timestamp('last_synced_at')->nullable();
             $table->timestamps();
