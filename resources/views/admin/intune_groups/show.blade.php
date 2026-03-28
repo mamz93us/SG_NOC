@@ -154,7 +154,16 @@
 
         {{-- Deploy Printer --}}
         <div class="card shadow-sm mb-3">
-            <div class="card-header py-2 fw-semibold small"><i class="bi bi-printer me-1"></i>Deploy Printer Script</div>
+            <div class="card-header py-2 fw-semibold small d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-printer me-1"></i>Deploy Printer Script</span>
+                {{-- Sync button --}}
+                <form action="{{ route('admin.intune-groups.policies.sync', $group) }}" method="POST" class="d-inline">
+                    @csrf
+                    <button class="btn btn-sm btn-outline-secondary" title="Pull live assignment status from Intune">
+                        <i class="bi bi-arrow-repeat me-1"></i>Sync from Intune
+                    </button>
+                </form>
+            </div>
             <div class="card-body">
                 <form method="POST" action="{{ route('admin.intune-groups.deploy-printer', $group) }}" class="d-flex gap-2 align-items-end flex-wrap">
                     @csrf
@@ -171,7 +180,7 @@
                         <i class="bi bi-cloud-upload me-1"></i>Upload & Assign Script
                     </button>
                 </form>
-                <div class="form-text">Generates a PowerShell script for this printer and assigns it to the Azure group in Intune.</div>
+                <div class="form-text mt-2">Generates a PowerShell script for this printer and assigns it to the Azure group in Intune.</div>
             </div>
         </div>
 
@@ -190,6 +199,7 @@
                                 <th>Intune Script ID</th>
                                 <th>Status</th>
                                 <th>Deployed</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -197,9 +207,21 @@
                             <tr>
                                 <td class="fw-semibold">{{ $p->policy_name }}</td>
                                 <td><span class="badge bg-light text-dark border">{{ $p->policy_type }}</span></td>
-                                <td class="font-monospace text-muted small">{{ $p->intune_policy_id ?? '—' }}</td>
+                                <td class="font-monospace text-muted small" title="{{ $p->intune_policy_id }}">
+                                    {{ $p->intune_policy_id ? Str::limit($p->intune_policy_id, 18) : '—' }}
+                                </td>
                                 <td><span class="badge {{ $p->statusBadgeClass() }}">{{ ucfirst($p->status) }}</span></td>
                                 <td class="text-muted">{{ $p->created_at?->diffForHumans() ?? '—' }}</td>
+                                <td>
+                                    <form action="{{ route('admin.intune-groups.policies.remove', [$group, $p]) }}"
+                                          method="POST" class="d-inline"
+                                          onsubmit="return confirm('Unassign &quot;{{ addslashes($p->policy_name) }}&quot; from Intune and remove this record?')">
+                                        @csrf @method('DELETE')
+                                        <button class="btn btn-sm btn-outline-danger" title="Unassign & Remove">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                             @endforeach
                         </tbody>

@@ -49,31 +49,66 @@ class IntuneGroupController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'name'          => 'required|string|max:150',
-            'description'   => 'nullable|string|max:500',
-            'group_type'    => 'required|in:printer,policy,device,compliance',
-            'branch_id'     => 'nullable|exists:branches,id',
-            'department_id' => 'nullable|exists:departments,id',
+            'name'           => 'required|string|max:150',
+            'description'    => 'nullable|string|max:500',
+            'group_type'     => 'required|in:printer,policy,device,compliance',
+            'branch_id'      => 'nullable|exists:branches,id',
+            'department_id'  => 'nullable|exists:departments,id',
+            'mode'           => 'required|in:create,link',
+            'azure_group_id' => 'nullable|string|max:100',
         ]);
 
+        $linking = $data['mode'] === 'link';
+
         try {
-            $azureGroup = $this->graph->createGroup(
-                $data['name'],
-                $data['description'] ?? ''
-            );
+            if ($linking) {
+                if (empty($data['azure_group_id'])) {
+                    return back()->withInput()->withErrors(['azure_group_id' => 'Please search for and select an Azure AD group.']);
+                }
+                $azureGroup = $this->graph->getGroup($data['azure_group_id']);
+            } else {
+                $azureGroup = $this->graph->createGroup($data['name'], $data['description'] ?? '');
+            }
         } catch (\Throwable $e) {
-            return back()->withInput()->withErrors(['graph' => 'Azure group creation failed: ' . $e->getMessage()]);
+            $action = $linking ? 'fetch' : 'create';
+            return back()->withInput()->withErrors(['graph' => "Azure group {$action} failed: " . $e->getMessage()]);
         }
 
         $group = IntuneGroup::create([
-            ...$data,
+            'name'           => $data['name'],
+            'description'    => $data['description'] ?? null,
+            'group_type'     => $data['group_type'],
+            'branch_id'      => $data['branch_id'] ?? null,
+            'department_id'  => $data['department_id'] ?? null,
             'azure_group_id' => $azureGroup['id'] ?? null,
             'sync_status'    => 'synced',
             'last_synced_at' => now(),
         ]);
 
-        return redirect()->route('admin.intune-groups.show', $group)
-            ->with('success', 'Group "' . $group->name . '" created and synced to Azure AD.');
+        $message = $linking
+            ? 'Azure AD group "' . $group->name . '" linked successfully.'
+            : 'Group "' . $group->name . '" created in Azure AD.';
+
+        return redirect()->route('admin.intune-groups.show', $group)->with('success', $message);
+    }
+
+    /**
+     * GET /admin/intune-groups/groups/search?q=...
+     */
+    public function searchGroups(Request $request): JsonResponse
+    {
+        $q = $request->query('q', '');
+        if (strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        try {
+            $groups = $this->graph->searchGroups($q);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+
+        return response()->json($groups);
     }
 
     /**
@@ -219,5 +254,60 @@ class IntuneGroupController extends Controller
         ]);
 
         return back()->with('success', 'Script for "' . $printer->printer_name . '" deployed and assigned to group.');
+    }
+
+    /**
+     * POST /admin/intune-groups/{group}/sync-policies
+     * Queries Intune for each policy's current assignments and updates local status.
+     */
+    public function syncPolicies(IntuneGroup $intuneGroup): RedirectResponse
+    {
+        if (! $intuneGroup->azure_group_id) {
+            return back()->withErrors(['group' => 'This group has no Azure Group ID.']);
+        }
+
+        $synced = 0;
+        foreach ($intuneGroup->policies as $policy) {
+            if (! $policy->intune_policy_id) {
+                continue;
+            }
+            try {
+                $assignments = $this->graph->getIntuneScriptAssignments($policy->intune_policy_id);
+                $groupIds    = array_column(array_column($assignments, 'target'), 'groupId');
+                $policy->update([
+                    'status' => in_array($intuneGroup->azure_group_id, $groupIds) ? 'assigned' : 'error',
+                ]);
+                $synced++;
+            } catch (\Throwable $e) {
+                $policy->update(['status' => 'error']);
+            }
+        }
+
+        $intuneGroup->update(['sync_status' => 'synced', 'last_synced_at' => now()]);
+
+        return back()->with('success', "Synced {$synced} " . str('policy')->plural($synced) . " from Intune.");
+    }
+
+    /**
+     * DELETE /admin/intune-groups/{group}/policies/{policy}
+     * Unassigns the Intune script from the group and removes the local record.
+     */
+    public function removePolicy(IntuneGroup $intuneGroup, IntuneGroupPolicy $intuneGroupPolicy): RedirectResponse
+    {
+        if ($intuneGroupPolicy->intune_policy_id && $intuneGroup->azure_group_id) {
+            try {
+                $this->graph->unassignIntuneScriptFromGroup(
+                    $intuneGroupPolicy->intune_policy_id,
+                    $intuneGroup->azure_group_id
+                );
+            } catch (\Throwable $e) {
+                \Log::warning("IntuneGroupController::removePolicy — unassign failed: " . $e->getMessage());
+            }
+        }
+
+        $name = $intuneGroupPolicy->policy_name;
+        $intuneGroupPolicy->delete();
+
+        return back()->with('success', '"' . $name . '" removed from Intune group.');
     }
 }

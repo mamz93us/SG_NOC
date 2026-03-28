@@ -983,12 +983,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/',                                  [\App\Http\Controllers\Admin\IntuneGroupController::class, 'index'])        ->name('index');
         Route::get('/create',                            [\App\Http\Controllers\Admin\IntuneGroupController::class, 'create'])       ->name('create');
         Route::post('/',                                 [\App\Http\Controllers\Admin\IntuneGroupController::class, 'store'])        ->name('store');
-        Route::get('/users/search',                      [\App\Http\Controllers\Admin\IntuneGroupController::class, 'searchUsers'])  ->name('users.search');
-        Route::get('/{intuneGroup}',                     [\App\Http\Controllers\Admin\IntuneGroupController::class, 'show'])         ->name('show');
-        Route::delete('/{intuneGroup}',                  [\App\Http\Controllers\Admin\IntuneGroupController::class, 'destroy'])      ->name('destroy');
-        Route::post('/{intuneGroup}/members',            [\App\Http\Controllers\Admin\IntuneGroupController::class, 'addMember'])    ->name('members.add');
-        Route::delete('/{intuneGroup}/members/{userId}', [\App\Http\Controllers\Admin\IntuneGroupController::class, 'removeMember']) ->name('members.remove');
-        Route::post('/{intuneGroup}/deploy-printer',     [\App\Http\Controllers\Admin\IntuneGroupController::class, 'deployPrinter'])->name('deploy-printer');
+        Route::get('/users/search',                              [\App\Http\Controllers\Admin\IntuneGroupController::class, 'searchUsers'])   ->name('users.search');
+        Route::get('/groups/search',                             [\App\Http\Controllers\Admin\IntuneGroupController::class, 'searchGroups'])  ->name('groups.search');
+        Route::get('/{intuneGroup}',                             [\App\Http\Controllers\Admin\IntuneGroupController::class, 'show'])          ->name('show');
+        Route::delete('/{intuneGroup}',                          [\App\Http\Controllers\Admin\IntuneGroupController::class, 'destroy'])       ->name('destroy');
+        Route::post('/{intuneGroup}/members',                    [\App\Http\Controllers\Admin\IntuneGroupController::class, 'addMember'])     ->name('members.add');
+        Route::delete('/{intuneGroup}/members/{userId}',         [\App\Http\Controllers\Admin\IntuneGroupController::class, 'removeMember'])  ->name('members.remove');
+        Route::post('/{intuneGroup}/deploy-printer',             [\App\Http\Controllers\Admin\IntuneGroupController::class, 'deployPrinter']) ->name('deploy-printer');
+        Route::post('/{intuneGroup}/sync-policies',              [\App\Http\Controllers\Admin\IntuneGroupController::class, 'syncPolicies'])  ->name('policies.sync');
+        Route::delete('/{intuneGroup}/policies/{intuneGroupPolicy}', [\App\Http\Controllers\Admin\IntuneGroupController::class, 'removePolicy']) ->name('policies.remove');
     });
 
     // ── My Printers (SSO auto-assign — any authenticated user) ───────

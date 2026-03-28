@@ -716,4 +716,95 @@ class GraphService
 
         return $result['value'] ?? [];
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Group search + fetch
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Search Azure AD security groups by display name.
+     * Returns array of ['id','displayName','description'].
+     */
+    public function searchGroups(string $query): array
+    {
+        if (blank($query)) {
+            return [];
+        }
+
+        $escaped = addslashes($query);
+        $result  = $this->get('/groups', [
+            '$search'  => "\"displayName:{$escaped}\"",
+            '$select'  => 'id,displayName,description',
+            '$filter'  => 'securityEnabled eq true',
+            '$top'     => 20,
+            '$orderby' => 'displayName',
+        ], self::TIMEOUT_STANDARD, [
+            'ConsistencyLevel' => 'eventual',
+        ]);
+
+        return $result['value'] ?? [];
+    }
+
+    /**
+     * Fetch a single Azure AD group by object ID.
+     * Returns ['id','displayName','description'] or throws on error.
+     */
+    public function getGroup(string $groupId): array
+    {
+        return $this->get("/groups/{$groupId}", [
+            '$select' => 'id,displayName,description',
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Intune script management
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * List all Intune PowerShell device management scripts.
+     * Returns array of script objects: id, displayName, description, lastModifiedDateTime.
+     */
+    public function listIntuneScripts(): array
+    {
+        $result = $this->get('/deviceManagement/deviceManagementScripts', [
+            '$select' => 'id,displayName,description,lastModifiedDateTime',
+            '$top'    => 100,
+        ]);
+
+        return $result['value'] ?? [];
+    }
+
+    /**
+     * Get all group assignments for a given Intune script.
+     * Each element has a 'target' key with 'groupId'.
+     */
+    public function getIntuneScriptAssignments(string $scriptId): array
+    {
+        $result = $this->get("/deviceManagement/deviceManagementScripts/{$scriptId}/assignments");
+
+        return $result['value'] ?? [];
+    }
+
+    /**
+     * Unassign a script from a specific Azure AD group.
+     * Works by fetching current assignments, filtering out the target group,
+     * then re-posting the remaining list (Graph replaces all assignments in one call).
+     */
+    public function unassignIntuneScriptFromGroup(string $scriptId, string $groupId): void
+    {
+        $current  = $this->getIntuneScriptAssignments($scriptId);
+        $filtered = array_values(array_filter(
+            $current,
+            fn($a) => ($a['target']['groupId'] ?? '') !== $groupId
+        ));
+
+        $this->post("/deviceManagement/deviceManagementScripts/{$scriptId}/assign", [
+            'deviceManagementScriptAssignments' => array_map(fn($a) => [
+                'target' => [
+                    '@odata.type' => '#microsoft.graph.groupAssignmentTarget',
+                    'groupId'     => $a['target']['groupId'],
+                ],
+            ], $filtered),
+        ]);
+    }
 }
