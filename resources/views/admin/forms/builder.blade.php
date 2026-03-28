@@ -135,6 +135,7 @@
                                         <label class="form-label small fw-semibold mb-1">Options <small class="text-muted">(one per line)</small></label>
                                         <textarea class="form-control form-control-sm font-monospace" rows="5"
                                                   x-model="selectedField._optionsText"
+                                                  @input="selectedField.options = selectedField._optionsText.split('\n').map(s=>s.trim()).filter(s=>s.length>0)"
                                                   placeholder="Option A&#10;Option B&#10;Option C"></textarea>
                                     </div>
                                     {{-- Rating min/max --}}
@@ -195,38 +196,42 @@
                                                    @change="toggleCondition($event.target.checked)">
                                             <label class="form-check-label small" :for="'cond-'+selectedField.id">Only show when…</label>
                                         </div>
-                                        <div x-show="selectedField.conditional">
-                                            <div class="mb-1">
-                                                <label class="form-label small mb-0">Field</label>
-                                                <select class="form-select form-select-sm"
-                                                        x-model="selectedField.conditional && selectedField.conditional.field">
-                                                    <option value="">— pick a field —</option>
-                                                    <template x-for="f in otherFields" :key="f.name">
-                                                        <option :value="f.name" x-text="f.label || f.name"></option>
-                                                    </template>
-                                                </select>
-                                            </div>
-                                            <div class="row g-1">
-                                                <div class="col-6">
-                                                    <label class="form-label small mb-0">Operator</label>
+                                        {{-- This div is only shown when selectedField.conditional is truthy,
+                                             so it is safe to access .field / .operator / .value directly --}}
+                                        <template x-if="selectedField.conditional">
+                                            <div>
+                                                <div class="mb-1">
+                                                    <label class="form-label small mb-0">Field</label>
                                                     <select class="form-select form-select-sm"
-                                                            x-model="selectedField.conditional && selectedField.conditional.operator">
-                                                        <option value="equals">equals</option>
-                                                        <option value="not_equals">not equals</option>
-                                                        <option value="contains">contains</option>
-                                                        <option value="not_empty">is not empty</option>
-                                                        <option value="is_empty">is empty</option>
+                                                            x-model="selectedField.conditional.field">
+                                                        <option value="">— pick a field —</option>
+                                                        <template x-for="f in otherFields" :key="f.name">
+                                                            <option :value="f.name" x-text="f.label || f.name"></option>
+                                                        </template>
                                                     </select>
                                                 </div>
-                                                <div class="col-6"
-                                                     x-show="selectedField.conditional && !['not_empty','is_empty'].includes(selectedField.conditional.operator)">
-                                                    <label class="form-label small mb-0">Value</label>
-                                                    <input type="text" class="form-control form-control-sm"
-                                                           x-model="selectedField.conditional && selectedField.conditional.value"
-                                                           placeholder="Match value">
+                                                <div class="row g-1">
+                                                    <div class="col-6">
+                                                        <label class="form-label small mb-0">Operator</label>
+                                                        <select class="form-select form-select-sm"
+                                                                x-model="selectedField.conditional.operator">
+                                                            <option value="equals">equals</option>
+                                                            <option value="not_equals">not equals</option>
+                                                            <option value="contains">contains</option>
+                                                            <option value="not_empty">is not empty</option>
+                                                            <option value="is_empty">is empty</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-6"
+                                                         x-show="!['not_empty','is_empty'].includes(selectedField.conditional.operator)">
+                                                        <label class="form-label small mb-0">Value</label>
+                                                        <input type="text" class="form-control form-control-sm"
+                                                               x-model="selectedField.conditional.value"
+                                                               placeholder="Match value">
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </template>
                                     </div>
                                 </div>
                             </template>
@@ -469,10 +474,20 @@
 <script>
 function formBuilder(initial) {
     return {
-        fields: initial.schema || [],
+        // Seed _optionsText on every field so the textarea can use x-model without feedback loops
+        fields: (initial.schema || []).map(f => ({
+            ...f,
+            _optionsText: (f.options || []).join('\n'),
+        })),
         selectedIdx: null,
         get selectedField() { return this.selectedIdx !== null ? this.fields[this.selectedIdx] : null; },
-        get schemaJson()    { return JSON.stringify(this.fields); },
+        get schemaJson() {
+            // Exclude the _optionsText helper key from the serialised schema.
+            // options[] is kept in sync directly via the @input handler on the textarea.
+            return JSON.stringify(this.fields, (key, value) =>
+                key === '_optionsText' ? undefined : value
+            );
+        },
         get payloadMapJson(){ return JSON.stringify({}); },
 
         init() {
@@ -500,9 +515,9 @@ function formBuilder(initial) {
                 email:    { label:'Email Address', placeholder:'',    required:false, width:'half',  conditional:null },
                 phone:    { label:'Phone Number',  placeholder:'',    required:false, width:'half',  conditional:null },
                 date:     { label:'Date',          placeholder:'',    required:false, width:'half',  conditional:null },
-                select:   { label:'Dropdown',      options:[],        required:false, width:'full',  conditional:null },
-                radio:    { label:'Single Choice', options:[],        required:false, width:'full',  conditional:null },
-                checkbox: { label:'Multi Choice',  options:[],        required:false, width:'full',  conditional:null },
+                select:   { label:'Dropdown',      options:[], _optionsText:'', required:false, width:'full',  conditional:null },
+                radio:    { label:'Single Choice', options:[], _optionsText:'', required:false, width:'full',  conditional:null },
+                checkbox: { label:'Multi Choice',  options:[], _optionsText:'', required:false, width:'full',  conditional:null },
                 rating:   { label:'Rating',        min:1, max:5,      required:false, width:'half',  conditional:null, style:'stars' },
                 file:     { label:'File Upload',                      required:false, width:'full',  conditional:null },
                 section:  { label:'Section Title',                    required:false, width:'full',  conditional:null },

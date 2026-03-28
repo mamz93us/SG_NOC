@@ -65,7 +65,13 @@
                     @foreach($submissions as $s)
                     <tr>
                         <td class="text-muted">{{ $s->id }}</td>
-                        <td>{{ $s->submittedBy?->name ?? '<em class="text-muted">Anonymous</em>' }}</td>
+                        <td>
+                            @if($s->submittedBy)
+                                {{ $s->submittedBy->name }}
+                            @else
+                                <em class="text-muted">Anonymous</em>
+                            @endif
+                        </td>
                         <td class="text-muted">{{ $s->submitter_email ?? '—' }}</td>
                         @foreach(collect($form->schema)->where('type','!=','section')->take(3) as $field)
                         <td>
