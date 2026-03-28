@@ -108,7 +108,7 @@ class PublicFormController extends Controller
 
         // Increment token uses
         if ($token && ($form->settings['one_per_token'] ?? true)) {
-            $token->increment();
+            $token->incrementUses();
         }
 
         // Notify configured users

@@ -49,7 +49,7 @@ class FormToken extends Model
         return $notExpired && $notExhausted;
     }
 
-    public function increment(): void
+    public function incrementUses(): void
     {
         $this->increment('uses_count');
     }
