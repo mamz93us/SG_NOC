@@ -16,12 +16,37 @@ class FormTemplate extends Model
     ];
 
     protected $casts = [
-        'schema'               => 'array',
         'settings'             => 'array',
         'workflow_payload_map' => 'array',
         'is_active'            => 'boolean',
         'expires_at'           => 'datetime',
     ];
+
+    /**
+     * Always return schema as a plain PHP array, even if it was stored
+     * double-encoded (JSON string instead of JSON object) due to the old bug.
+     */
+    public function getSchemaAttribute(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+        // Second decode handles double-encoded strings
+        $decoded = json_decode($decoded, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    public function setSchemaAttribute(mixed $value): void
+    {
+        if (is_string($value)) {
+            $value = json_decode($value, true) ?? [];
+        }
+        $this->attributes['schema'] = json_encode($value ?? []);
+    }
 
     // ─── Relationships ────────────────────────────────────────────
 

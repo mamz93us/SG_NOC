@@ -79,7 +79,10 @@ class PublicFormController extends Controller
         }
 
         // Build dynamic validation rules from schema
-        $rules = $this->buildValidationRules($form->schema);
+        $schema = is_array($form->schema)
+            ? $form->schema
+            : (json_decode($form->schema, true) ?? []);
+        $rules = $this->buildValidationRules($schema);
         $data  = $request->validate($rules);
 
         // Strip hidden helper fields

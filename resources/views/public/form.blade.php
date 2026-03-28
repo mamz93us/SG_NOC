@@ -51,7 +51,12 @@ body { background:#f4f6f9; min-height:100vh; }
             @endif
 
             <div class="row g-3">
-                @foreach($form->schema as $field)
+                @php
+                    $schema = is_array($form->schema)
+                        ? $form->schema
+                        : (json_decode($form->schema, true) ?? []);
+                @endphp
+                @foreach($schema as $field)
                 @php
                     $name      = $field['name'] ?? null;
                     $label     = $field['label'] ?? '';

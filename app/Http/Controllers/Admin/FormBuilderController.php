@@ -199,7 +199,7 @@ class FormBuilderController extends Controller
 
     private function validateFormRequest(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'name'                   => 'required|string|max:150',
             'description'            => 'nullable|string',
             'type'                   => 'required|in:feedback,survey,request,intake',
@@ -219,5 +219,17 @@ class FormBuilderController extends Controller
             'workflow_template_id'   => 'nullable|exists:workflow_templates,id',
             'workflow_payload_map'   => 'nullable|json',
         ]);
+
+        // Decode JSON-string fields so Eloquent's array cast stores them correctly.
+        // Without this, the cast would double-encode the JSON string on save and
+        // return a string (not an array) on retrieval.
+        if (isset($validated['schema'])) {
+            $validated['schema'] = json_decode($validated['schema'], true) ?? [];
+        }
+        if (isset($validated['workflow_payload_map'])) {
+            $validated['workflow_payload_map'] = json_decode($validated['workflow_payload_map'], true) ?? [];
+        }
+
+        return $validated;
     }
 }
