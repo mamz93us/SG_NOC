@@ -133,9 +133,9 @@
                                     </div>
                                     <div class="mb-2" x-show="['select','radio','checkbox'].includes(selectedField.type)">
                                         <label class="form-label small fw-semibold mb-1">Options <small class="text-muted">(one per line)</small></label>
-                                        <textarea class="form-control form-control-sm font-monospace" rows="4"
-                                                  :value="(selectedField.options||[]).join('\n')"
-                                                  @input="selectedField.options = $event.target.value.split('\n').filter(s=>s.trim())"></textarea>
+                                        <textarea class="form-control form-control-sm font-monospace" rows="5"
+                                                  x-model="selectedField._optionsText"
+                                                  placeholder="Option A&#10;Option B&#10;Option C"></textarea>
                                     </div>
                                     {{-- Rating min/max --}}
                                     <div class="mb-2" x-show="selectedField.type === 'rating'">
