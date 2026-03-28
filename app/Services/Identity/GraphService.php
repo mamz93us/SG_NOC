@@ -488,17 +488,35 @@ class GraphService
     }
 
     /**
-     * Search groups by partial display name.
+     * Search Azure AD security groups by display name (partial match).
+     * Uses ConsistencyLevel: eventual for $search support.
+     * Returns array of ['id','displayName','description'].
      */
     public function searchGroups(string $query, int $top = 20): array
     {
-        $result = $this->get('/groups', [
-            '$filter'  => "startswith(displayName, '{$query}')",
-            '$select'  => 'id,displayName',
+        if (blank($query)) {
+            return [];
+        }
+        $escaped = addslashes($query);
+        $result  = $this->get('/groups', [
+            '$search'  => "\"displayName:{$escaped}\"",
+            '$select'  => 'id,displayName,description',
+            '$filter'  => 'securityEnabled eq true',
             '$top'     => $top,
             '$orderby' => 'displayName',
-        ]);
+        ], self::TIMEOUT_STANDARD, ['ConsistencyLevel' => 'eventual']);
         return $result['value'] ?? [];
+    }
+
+    /**
+     * Fetch a single Azure AD group by object ID.
+     * Returns ['id','displayName','description'] or throws on error.
+     */
+    public function getGroup(string $groupId): array
+    {
+        return $this->get("/groups/{$groupId}", [
+            '$select' => 'id,displayName,description',
+        ]);
     }
 
     /**
@@ -718,61 +736,8 @@ class GraphService
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Group search + fetch
+    // Intune script assignment helpers
     // ─────────────────────────────────────────────────────────────
-
-    /**
-     * Search Azure AD security groups by display name.
-     * Returns array of ['id','displayName','description'].
-     */
-    public function searchGroups(string $query): array
-    {
-        if (blank($query)) {
-            return [];
-        }
-
-        $escaped = addslashes($query);
-        $result  = $this->get('/groups', [
-            '$search'  => "\"displayName:{$escaped}\"",
-            '$select'  => 'id,displayName,description',
-            '$filter'  => 'securityEnabled eq true',
-            '$top'     => 20,
-            '$orderby' => 'displayName',
-        ], self::TIMEOUT_STANDARD, [
-            'ConsistencyLevel' => 'eventual',
-        ]);
-
-        return $result['value'] ?? [];
-    }
-
-    /**
-     * Fetch a single Azure AD group by object ID.
-     * Returns ['id','displayName','description'] or throws on error.
-     */
-    public function getGroup(string $groupId): array
-    {
-        return $this->get("/groups/{$groupId}", [
-            '$select' => 'id,displayName,description',
-        ]);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Intune script management
-    // ─────────────────────────────────────────────────────────────
-
-    /**
-     * List all Intune PowerShell device management scripts.
-     * Returns array of script objects: id, displayName, description, lastModifiedDateTime.
-     */
-    public function listIntuneScripts(): array
-    {
-        $result = $this->get('/deviceManagement/deviceManagementScripts', [
-            '$select' => 'id,displayName,description,lastModifiedDateTime',
-            '$top'    => 100,
-        ]);
-
-        return $result['value'] ?? [];
-    }
 
     /**
      * Get all group assignments for a given Intune script.

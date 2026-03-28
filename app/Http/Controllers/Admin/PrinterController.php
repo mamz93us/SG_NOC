@@ -147,7 +147,9 @@ class PrinterController extends Controller
             ->with('performedByUser')
             ->orderByDesc('performed_at')
             ->get();
-        return view('admin.printers.show', compact('printer', 'maintenanceLogs'));
+        $intuneGroups = \App\Models\IntuneGroup::orderBy('name')
+            ->get(['id', 'name', 'azure_group_id', 'group_type', 'sync_status']);
+        return view('admin.printers.show', compact('printer', 'maintenanceLogs', 'intuneGroups'));
     }
 
     public function create()

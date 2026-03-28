@@ -607,13 +607,48 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
+            <form method="POST" action="/admin/printer-deploy/intune">
+            @csrf
+            <input type="hidden" name="printer_id" value="{{ $printer->id }}">
             <div class="modal-body">
+
+                {{-- Group picker --}}
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Azure AD Group ID <span class="text-muted fw-normal">(optional)</span></label>
-                    <input type="text" id="intuneGroupId" class="form-control font-monospace"
+                    <label class="form-label fw-semibold">
+                        Intune Group <span class="text-muted fw-normal small">(optional)</span>
+                    </label>
+
+                    @if($intuneGroups->isNotEmpty())
+                    <select name="azure_group_id" id="intuneGroupSelect" class="form-select">
+                        <option value="">— Upload only, no group assignment —</option>
+                        @foreach($intuneGroups as $ig)
+                        <option value="{{ $ig->azure_group_id }}"
+                                data-type="{{ $ig->group_type }}"
+                                data-status="{{ $ig->sync_status }}">
+                            {{ $ig->name }}
+                            @if($ig->group_type !== 'printer') ({{ ucfirst($ig->group_type) }}) @endif
+                        </option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">
+                        Select a group to automatically assign the Intune script after upload, or leave blank to upload without assignment.
+                        <a href="{{ route('admin.intune-groups.create') }}" target="_blank" class="ms-1">
+                            <i class="bi bi-plus-circle me-1"></i>Create new group
+                        </a>
+                    </div>
+                    @else
+                    {{-- No groups yet — fall back to raw UUID input --}}
+                    <input type="text" name="azure_group_id" class="form-control font-monospace"
                            placeholder="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                    <div class="form-text">Enter the Azure AD Group Object ID to auto-assign the script after upload. Leave blank to upload without assignment.</div>
+                    <div class="form-text">
+                        No Intune groups exist yet.
+                        <a href="{{ route('admin.intune-groups.create') }}" target="_blank">Create one first</a>
+                        or enter a raw Azure AD Group Object ID above.
+                    </div>
+                    @endif
                 </div>
+
+                {{-- Script preview --}}
                 <div class="mb-3">
                     <button type="button" class="btn btn-sm btn-outline-secondary"
                             onclick="previewScript('intune')">
@@ -627,16 +662,11 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form method="POST" action="/admin/printer-deploy/intune" class="d-inline">
-                    @csrf
-                    <input type="hidden" name="printer_id" value="{{ $printer->id }}">
-                    <input type="hidden" name="azure_group_id" id="intuneGroupIdHidden">
-                    <button type="submit" class="btn btn-primary"
-                            onclick="document.getElementById('intuneGroupIdHidden').value = document.getElementById('intuneGroupId').value">
-                        <i class="bi bi-rocket-takeoff me-1"></i>Deploy to Intune
-                    </button>
-                </form>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-rocket-takeoff me-1"></i>Deploy to Intune
+                </button>
             </div>
+            </form>
         </div>
     </div>
 </div>
