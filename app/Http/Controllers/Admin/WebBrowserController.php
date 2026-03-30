@@ -43,8 +43,8 @@ class WebBrowserController extends Controller
         try {
             $http = Http::withOptions([
                 'verify'          => false,
-                'timeout'         => 20,
-                'connect_timeout' => 8,
+                'timeout'         => 12,       // total response time — keeps PHP-FPM alive
+                'connect_timeout' => 5,        // fail fast on unreachable hosts
                 'allow_redirects' => false,    // Handle redirects ourselves
                 // Legacy SSL compatibility for old network device firmware:
                 // SECLEVEL=0  → allows MD5/SHA1 signature algorithms (cURL error:0A00014D)
@@ -91,12 +91,17 @@ class WebBrowserController extends Controller
         $contentType = $response->header('Content-Type', 'text/html; charset=utf-8');
         $body        = $response->body();
 
+        // ── Safety: skip rewriting for large responses (> 2 MB) ──────────
+        // Regex link-rewriting on huge pages (Google, heavy SPAs) will exhaust
+        // PHP memory and cause nginx 502. Pass them through untouched.
+        $tooBig = strlen($body) > 2 * 1024 * 1024;
+
         // ── Rewrite & inject for HTML ─────────────────────────────────────
-        if (str_contains($contentType, 'text/html')) {
+        if (!$tooBig && str_contains($contentType, 'text/html')) {
             $body = $this->rewriteHtml($body, $base, $url);
         }
 
-        if (str_contains($contentType, 'text/css')) {
+        if (!$tooBig && str_contains($contentType, 'text/css')) {
             $body = $this->rewriteCss($body, $base);
         }
 
