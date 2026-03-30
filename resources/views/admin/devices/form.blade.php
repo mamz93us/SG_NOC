@@ -31,7 +31,7 @@
                                class="form-control font-monospace @error('asset_code') is-invalid @enderror"
                                value="{{ old('asset_code', $device->asset_code ?? request('asset_code', '')) }}"
                                maxlength="50" placeholder="Auto-generating…"
-                               oninput="dvUpdateQr(this.value)"
+                               oninput="dv_codeManuallyEdited=true; dvUpdateQr(this.value)"
                                {{ $editing ? 'readonly' : '' }}>
                         @if(!$editing)
                         <button type="button" class="btn btn-outline-secondary" id="dv_genCode" title="Re-generate code">
@@ -455,6 +455,10 @@ function dvUpdateQr(code) {
 }
 
 // ── Auto-generate asset code ──────────────────────────────────────────
+// Track whether the admin manually typed a custom code.
+// If true → don't auto-overwrite on type change.
+let dv_codeManuallyEdited = false;
+
 async function dvGenerateCode(type) {
     try {
         const r = await fetch(`${dv_genCodeUrl}?type=${encodeURIComponent(type)}`, {
@@ -464,13 +468,15 @@ async function dvGenerateCode(type) {
         if (d.code) {
             document.getElementById('dv_asset_code').value = d.code;
             dvUpdateQr(d.code);
+            dv_codeManuallyEdited = false; // reset flag — this is an auto-code
         }
     } catch(e) {}
 }
 
 function dvTypeChanged(type) {
-    const codeInput = document.getElementById('dv_asset_code');
-    if (!dv_editing && !codeInput.value) {
+    // Always regenerate on type change for new devices,
+    // UNLESS the admin has manually typed a custom value.
+    if (!dv_editing && !dv_codeManuallyEdited) {
         dvGenerateCode(type);
     }
 }
@@ -479,17 +485,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const codeInput  = document.getElementById('dv_asset_code');
     const typeSelect = document.getElementById('dv_type');
 
-    // Auto-generate on new device load
+    // Mark as manually edited when admin types in the field
+    if (codeInput) {
+        codeInput.addEventListener('input', () => {
+            dv_codeManuallyEdited = true;
+        });
+    }
+
+    // Auto-generate on new device load (field is empty)
     if (!dv_editing && !codeInput.value) {
         dvGenerateCode(typeSelect ? typeSelect.value : 'other');
     } else if (codeInput.value) {
         dvUpdateQr(codeInput.value);
     }
 
-    // Re-generate button
+    // Re-generate button — always regenerates regardless of manual edit flag
     const genBtn = document.getElementById('dv_genCode');
     if (genBtn) {
         genBtn.addEventListener('click', () => {
+            dv_codeManuallyEdited = false; // reset so dvGenerateCode writes the new code
             dvGenerateCode(typeSelect ? typeSelect.value : 'other');
         });
     }
