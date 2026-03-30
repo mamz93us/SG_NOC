@@ -67,12 +67,12 @@ class DeviceProxyController extends Controller
                 'timeout'         => 12,
                 'connect_timeout' => 5,
                 'allow_redirects' => false,
-                // Allow TLS 1.0/1.1 for old device firmware (OpenSSL 3.x blocks these by default)
+                // Full legacy SSL for old device firmware (TLS 1.0/1.1, MD5/SHA1 sigalgs)
                 'curl' => [
-                    CURLOPT_SSLVERSION      => CURL_SSLVERSION_DEFAULT,
+                    CURLOPT_SSLVERSION      => CURL_SSLVERSION_TLSv1,
                     CURLOPT_SSL_VERIFYPEER  => false,
                     CURLOPT_SSL_VERIFYHOST  => 0,
-                    CURLOPT_SSL_CIPHER_LIST => 'DEFAULT@SECLEVEL=1',
+                    CURLOPT_SSL_CIPHER_LIST => 'DEFAULT@SECLEVEL=0',
                 ],
             ])
             ->withHeaders(['X-Forwarded-For' => $request->ip()])

@@ -46,14 +46,16 @@ class WebBrowserController extends Controller
                 'timeout'         => 20,
                 'connect_timeout' => 8,
                 'allow_redirects' => false,    // Handle redirects ourselves
-                // Allow TLS 1.0/1.1 — many network devices (UCM, switches, APs)
-                // use old firmware with legacy SSL. OpenSSL 3.x disables these
-                // by default; SECLEVEL=1 re-enables them.
+                // Legacy SSL compatibility for old network device firmware:
+                // SECLEVEL=0  → allows MD5/SHA1 signature algorithms (cURL error:0A00014D)
+                // TLSv1       → allows TLS 1.0/1.1 (cURL error:0A000102)
+                // verify=false→ ignores self-signed / expired certificates
                 'curl' => [
-                    CURLOPT_SSLVERSION      => CURL_SSLVERSION_DEFAULT,
+                    CURLOPT_SSLVERSION      => CURL_SSLVERSION_TLSv1,
                     CURLOPT_SSL_VERIFYPEER  => false,
                     CURLOPT_SSL_VERIFYHOST  => 0,
-                    CURLOPT_SSL_CIPHER_LIST => 'DEFAULT@SECLEVEL=1',
+                    CURLOPT_SSL_CIPHER_LIST => 'DEFAULT@SECLEVEL=0',
+                    CURLOPT_PINNEDPUBLICKEY => '',
                 ],
             ])
             ->withHeaders(array_filter([
@@ -100,9 +102,15 @@ class WebBrowserController extends Controller
         }
 
         // ── Build response — pass through Set-Cookie from device ──────────
-        $resp = response($body, $response->status())
+        // Always return 200: a real 401/403/5xx from the device makes the
+        // browser refuse to render the iframe body (which is the login page we need to show).
+        $deviceStatus  = $response->status();
+        $renderStatus  = ($deviceStatus >= 400) ? 200 : $deviceStatus;
+
+        $resp = response($body, $renderStatus)
             ->header('Content-Type', $contentType)
             ->header('X-Proxied-By', 'SG-NOC')
+            ->header('X-Device-Status', (string) $deviceStatus)
             ->header('X-Frame-Options', 'SAMEORIGIN');
 
         // Strip headers that would break the iframe
@@ -168,17 +176,20 @@ class WebBrowserController extends Controller
         $escapedProxy = json_encode($proxyFetch);
         $escapedCsrf  = json_encode($csrf);
 
+        $escapedOrigin = json_encode(url('/'));
+
         $interceptor = <<<SCRIPT
 <script>
 (function() {
   var DEVICE_BASE  = {$escapedBase};
   var PROXY_FETCH  = {$escapedProxy};
   var CSRF         = {$escapedCsrf};
+  var NOC_ORIGIN   = {$escapedOrigin};   // e.g. https://noc.samirgroup.net
 
   // Convert any URL to a proxied version
   function proxyUrl(url) {
     if (!url || typeof url !== 'string') return url;
-    // Already our proxy
+    // Already our proxy — leave alone
     if (url.indexOf(PROXY_FETCH) === 0) return url;
     // Non-navigable
     if (/^(#|javascript:|mailto:|data:|blob:|about:)/i.test(url)) return url;
@@ -187,9 +198,21 @@ class WebBrowserController extends Controller
     if (url.startsWith('//')) {
       abs = (DEVICE_BASE.startsWith('https') ? 'https:' : 'http:') + url;
     } else if (url.startsWith('/')) {
+      // Root-relative URL: resolve against DEVICE_BASE (not NOC origin)
       abs = DEVICE_BASE + url;
     } else if (!/^https?:\/\//i.test(url)) {
       abs = DEVICE_BASE + '/' + url;
+    }
+    // If the resolved URL points to our OWN server (not the device), it means
+    // the SPA used a relative URL that resolved against the iframe origin.
+    // Re-resolve it against the device base instead.
+    if (abs.indexOf(NOC_ORIGIN) === 0) {
+      var path = abs.slice(NOC_ORIGIN.length);
+      abs = DEVICE_BASE + path;
+    }
+    // Don't proxy external CDNs / 3rd-party URLs (not device, not NOC)
+    if (/^https?:\/\//i.test(abs) && abs.indexOf(DEVICE_BASE) !== 0) {
+      return abs;  // pass through as-is (CDN fonts, etc.)
     }
     return PROXY_FETCH + '?url=' + encodeURIComponent(abs);
   }

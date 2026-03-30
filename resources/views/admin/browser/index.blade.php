@@ -165,9 +165,10 @@
 </div>
 
 <div id="frame-area">
+    {{-- No sandbox: content is served from our own domain (proxied by Laravel).
+         Sandboxing our own domain's content breaks cookies and XHR inside the iframe. --}}
     <iframe id="browser-frame"
             name="sg-noc-browser"
-            sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-top-navigation-by-user-activation"
             title="SG NOC Browser"></iframe>
 
     <div id="empty-state">
