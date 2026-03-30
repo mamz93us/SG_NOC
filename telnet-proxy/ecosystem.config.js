@@ -25,8 +25,8 @@ module.exports = {
                 INTERNAL_SECRET:   'changeme_replace_with_random_string',  // match TELNET_INTERNAL_SECRET in .env
             },
             log_date_format: 'YYYY-MM-DD HH:mm:ss',
-            error_file:  '/var/log/sg-noc-telnet-error.log',
-            out_file:    '/var/log/sg-noc-telnet-out.log',
+            error_file:  '/home/azureuser/.pm2/logs/sg-noc-telnet-error.log',
+            out_file:    '/home/azureuser/.pm2/logs/sg-noc-telnet-out.log',
         },
     ],
 };

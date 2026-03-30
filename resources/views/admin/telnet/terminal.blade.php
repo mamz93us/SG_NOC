@@ -239,10 +239,12 @@
 
     // ── WebSocket connection ───────────────────────────────────────────────
     let ws;
+    let overlayShownByControl = false; // prevent ws.onclose from overwriting a control-set overlay
 
     function connect() {
         overlay.classList.add('hidden');
         btnReconn.classList.add('d-none');
+        overlayShownByControl = false;
         setStatus('connecting');
         term.writeln('\x1b[90m— Connecting… —\x1b[0m\r\n');
 
@@ -250,7 +252,6 @@
         ws.binaryType = 'arraybuffer';
 
         ws.onopen = () => {
-            // Send current terminal size
             sendResize();
         };
 
@@ -279,9 +280,12 @@
             setStatus('closed');
             term.writeln('\r\n\x1b[90m— Connection closed —\x1b[0m');
             btnReconn.classList.remove('d-none');
-            showOverlay('🔌', 'Disconnected', e.wasClean
-                ? 'The session was closed normally.'
-                : 'The connection was lost unexpectedly.', false);
+            // Only show the generic overlay if a control message hasn't already shown a specific one
+            if (!overlayShownByControl) {
+                showOverlay('🔌', 'Disconnected', e.wasClean
+                    ? 'The session was closed normally.'
+                    : 'The connection was lost unexpectedly.', true);
+            }
         };
 
         ws.onerror = () => {
@@ -301,12 +305,14 @@
             case 'error':
                 setStatus('error');
                 term.writeln(`\r\n\x1b[31m✖ ${ctrl.message}\x1b[0m`);
-                showOverlay('❌', 'Connection Error', ctrl.message, false);
+                overlayShownByControl = true;
+                showOverlay('❌', 'Connection Error', ctrl.message, true);
                 break;
             case 'disconnected':
                 setStatus('closed');
                 term.writeln(`\r\n\x1b[90m${ctrl.message}\x1b[0m`);
-                showOverlay('🔌', 'Disconnected', ctrl.message, false);
+                overlayShownByControl = true;
+                showOverlay('🔌', 'Disconnected', ctrl.message, true);
                 break;
         }
     }
