@@ -55,7 +55,6 @@ class WebBrowserController extends Controller
                     CURLOPT_SSL_VERIFYPEER  => false,
                     CURLOPT_SSL_VERIFYHOST  => 0,
                     CURLOPT_SSL_CIPHER_LIST => 'DEFAULT@SECLEVEL=0',
-                    CURLOPT_PINNEDPUBLICKEY => '',
                 ],
             ])
             ->withHeaders(array_filter([
