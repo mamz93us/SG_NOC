@@ -35,8 +35,10 @@ class TelnetTokenController extends Controller
             return response()->json(['error' => 'Token not found or expired'], 404);
         }
 
-        // Consume token immediately — one-time use
-        Cache::forget($key);
+        // Keep the token alive for reconnects within the same session window.
+        // Re-store it with a fresh 30-minute TTL so the Reconnect button works
+        // without having to go back to the connect form.
+        Cache::put($key, $session, now()->addMinutes(30));
 
         return response()->json($session);
     }
