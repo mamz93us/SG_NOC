@@ -13,11 +13,12 @@
 
 'use strict';
 
-const net   = require('net');
-const http  = require('http');
-const https = require('https');
+const net        = require('net');
+const http       = require('http');
+const https      = require('https');
+const { Client: SshClient } = require('ssh2');
 const { WebSocketServer, OPEN } = require('ws');
-const url   = require('url');
+const url        = require('url');
 
 const WS_PORT       = parseInt(process.env.WS_PORT       || '8765', 10);
 const LARAVEL_URL   = (process.env.LARAVEL_URL           || 'http://127.0.0.1').replace(/\/$/, '');
@@ -132,98 +133,147 @@ wss.on('connection', async (ws, req) => {
         return;
     }
 
-    const { host, port = 23, username = null, password = null } = session;
+    const { host, port, protocol = 'telnet', username = null, password = null } = session;
+    const effectivePort = port || (protocol === 'ssh' ? 22 : 23);
 
-    ws.send(JSON.stringify({ type: 'status', message: `Connecting to ${host}:${port}…` }));
+    ws.send(JSON.stringify({ type: 'status', message: `Connecting to ${host}:${effectivePort} via ${protocol.toUpperCase()}…` }));
 
-    // ── Open Telnet TCP socket ────────────────────────────────────────────
-    const telnet = new net.Socket();
-    let connected = false;
+    if (protocol === 'ssh') {
+        // ── SSH connection ────────────────────────────────────────────────
+        const ssh = new SshClient();
+        let stream = null;
 
-    const cleanup = () => {
-        if (!telnet.destroyed) telnet.destroy();
-    };
+        const cleanup = () => { try { ssh.end(); } catch (_) {} };
 
-    telnet.setTimeout(10000);
+        ssh.on('ready', () => {
+            ws.send(JSON.stringify({ type: 'connected', message: `SSH connected to ${host}:${effectivePort}` }));
 
-    telnet.connect(port, host, () => {
-        connected = true;
-        ws.send(JSON.stringify({ type: 'connected', message: `Connected to ${host}:${port}` }));
-        telnet.setTimeout(0); // Disable connect timeout once connected
-    });
+            ssh.shell({ term: 'xterm-256color', cols: 220, rows: 50 }, (err, s) => {
+                if (err) {
+                    if (ws.readyState === OPEN)
+                        ws.send(JSON.stringify({ type: 'error', message: `SSH shell error: ${err.message}` }));
+                    cleanup();
+                    ws.close();
+                    return;
+                }
+                stream = s;
 
-    // ── Telnet → WebSocket ────────────────────────────────────────────────
-    telnet.on('data', (data) => {
-        if (ws.readyState !== OPEN) return;
+                stream.on('data',  (data) => { if (ws.readyState === OPEN) ws.send(data); });
+                stream.stderr.on('data', (data) => { if (ws.readyState === OPEN) ws.send(data); });
+                stream.on('close', () => {
+                    if (ws.readyState === OPEN) {
+                        ws.send(JSON.stringify({ type: 'disconnected', message: 'SSH session closed.' }));
+                        ws.close();
+                    }
+                    cleanup();
+                });
+            });
+        });
 
-        const { clean, response } = processTelnet(data);
+        ssh.on('error', (err) => {
+            if (ws.readyState === OPEN)
+                ws.send(JSON.stringify({ type: 'error', message: `SSH error: ${err.message}` }));
+            ws.close();
+        });
 
-        // Send IAC negotiation replies back to the Telnet server
-        if (response.length > 0) telnet.write(response);
+        ssh.connect({
+            host:              host,
+            port:              effectivePort,
+            username:          username || '',
+            password:          password || '',
+            readyTimeout:      15000,
+            keepaliveInterval: 10000,
+        });
 
-        // Forward clean data to the browser terminal
-        if (clean.length > 0) ws.send(clean);
-    });
-
-    telnet.on('error', (err) => {
-        if (ws.readyState === OPEN) {
-            ws.send(JSON.stringify({ type: 'error', message: `Telnet error: ${err.message}` }));
-        }
-        cleanup();
-        ws.close();
-    });
-
-    telnet.on('timeout', () => {
-        if (!connected) {
-            if (ws.readyState === OPEN) {
-                ws.send(JSON.stringify({ type: 'error', message: `Connection to ${host}:${port} timed out.` }));
+        // ── WebSocket → SSH ───────────────────────────────────────────────
+        ws.on('message', (msg, isBinary) => {
+            if (!stream) return;
+            if (!isBinary) {
+                try {
+                    const ctrl = JSON.parse(msg.toString());
+                    if (ctrl !== null && typeof ctrl === 'object' && ctrl.type === 'resize') {
+                        stream.setWindow(ctrl.rows || 50, ctrl.cols || 220, 0, 0);
+                        return;
+                    }
+                } catch (_) {}
             }
+            stream.write(isBinary ? msg : msg.toString());
+        });
+
+        ws.on('close', cleanup);
+        ws.on('error', cleanup);
+
+    } else {
+        // ── Telnet connection ─────────────────────────────────────────────
+        const telnet = new net.Socket();
+        let connected = false;
+
+        const cleanup = () => { if (!telnet.destroyed) telnet.destroy(); };
+
+        telnet.setTimeout(10000);
+
+        telnet.connect(effectivePort, host, () => {
+            connected = true;
+            ws.send(JSON.stringify({ type: 'connected', message: `Telnet connected to ${host}:${effectivePort}` }));
+            telnet.setTimeout(0);
+        });
+
+        // ── Telnet → WebSocket ────────────────────────────────────────────
+        telnet.on('data', (data) => {
+            if (ws.readyState !== OPEN) return;
+            const { clean, response } = processTelnet(data);
+            if (response.length > 0) telnet.write(response);
+            if (clean.length > 0)    ws.send(clean);
+        });
+
+        telnet.on('error', (err) => {
+            if (ws.readyState === OPEN)
+                ws.send(JSON.stringify({ type: 'error', message: `Telnet error: ${err.message}` }));
             cleanup();
             ws.close();
-        }
-    });
+        });
 
-    telnet.on('close', () => {
-        if (ws.readyState === OPEN) {
-            ws.send(JSON.stringify({ type: 'disconnected', message: 'Remote host closed the connection.' }));
-            ws.close();
-        }
-    });
-
-    // ── WebSocket → Telnet ────────────────────────────────────────────────
-    ws.on('message', (msg, isBinary) => {
-        if (telnet.destroyed || !connected) return;
-
-        if (!isBinary) {
-            // Only treat as a control message if it is a plain JSON *object*
-            // with a recognised `type` field.  Single digits, "true", "null",
-            // etc. are also valid JSON but must be forwarded as keystrokes.
-            try {
-                const ctrl = JSON.parse(msg.toString());
-                if (ctrl !== null && typeof ctrl === 'object' && ctrl.type === 'resize') {
-                    const cols = Math.min(ctrl.cols || 220, 65535);
-                    const rows = Math.min(ctrl.rows || 50,  65535);
-                    const naws = Buffer.from([
-                        IAC, SB, 31,
-                        (cols >> 8) & 0xFF, cols & 0xFF,
-                        (rows >> 8) & 0xFF, rows & 0xFF,
-                        IAC, SE,
-                    ]);
-                    telnet.write(naws);
-                    return; // consumed — do NOT fall through
-                }
-                // Any other valid JSON (digits, booleans, arrays…) falls through
-                // to be written as raw keystroke data below.
-            } catch (_) {
-                // Not JSON — raw terminal input, fall through
+        telnet.on('timeout', () => {
+            if (!connected) {
+                if (ws.readyState === OPEN)
+                    ws.send(JSON.stringify({ type: 'error', message: `Connection to ${host}:${effectivePort} timed out.` }));
+                cleanup();
+                ws.close();
             }
-        }
+        });
 
-        telnet.write(isBinary ? msg : msg.toString());
-    });
+        telnet.on('close', () => {
+            if (ws.readyState === OPEN) {
+                ws.send(JSON.stringify({ type: 'disconnected', message: 'Remote host closed the connection.' }));
+                ws.close();
+            }
+        });
 
-    ws.on('close', cleanup);
-    ws.on('error', cleanup);
+        // ── WebSocket → Telnet ────────────────────────────────────────────
+        ws.on('message', (msg, isBinary) => {
+            if (telnet.destroyed || !connected) return;
+            if (!isBinary) {
+                try {
+                    const ctrl = JSON.parse(msg.toString());
+                    if (ctrl !== null && typeof ctrl === 'object' && ctrl.type === 'resize') {
+                        const cols = Math.min(ctrl.cols || 220, 65535);
+                        const rows = Math.min(ctrl.rows || 50,  65535);
+                        telnet.write(Buffer.from([
+                            IAC, SB, 31,
+                            (cols >> 8) & 0xFF, cols & 0xFF,
+                            (rows >> 8) & 0xFF, rows & 0xFF,
+                            IAC, SE,
+                        ]));
+                        return;
+                    }
+                } catch (_) {}
+            }
+            telnet.write(isBinary ? msg : msg.toString());
+        });
+
+        ws.on('close', cleanup);
+        ws.on('error', cleanup);
+    }
 });
 
 wss.on('listening', () => {

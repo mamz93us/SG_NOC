@@ -11,7 +11,7 @@
             <h4 class="mb-0 fw-bold">
                 <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet Client
             </h4>
-            <p class="text-muted small mb-0">Connect to network devices, printers, and routers via Telnet</p>
+            <p class="text-muted small mb-0">Connect to network devices, printers, and routers via Telnet or SSH</p>
         </div>
     </div>
 
@@ -31,9 +31,27 @@
                     <i class="bi bi-plug-fill text-success"></i>
                     <span class="fw-semibold">Quick Connect</span>
                 </div>
-                <div class="card-body">
+                <div class="card-body" x-data="quickConnect()">
                     <form method="POST" action="{{ route('admin.telnet.connect') }}">
                         @csrf
+
+                        {{-- Protocol toggle --}}
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Protocol</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="protocol" id="proto-telnet"
+                                       value="telnet" x-model="protocol">
+                                <label class="btn btn-outline-success btn-sm" for="proto-telnet">
+                                    <i class="bi bi-terminal me-1"></i>Telnet
+                                </label>
+                                <input type="radio" class="btn-check" name="protocol" id="proto-ssh"
+                                       value="ssh" x-model="protocol">
+                                <label class="btn btn-outline-info btn-sm" for="proto-ssh">
+                                    <i class="bi bi-shield-lock me-1"></i>SSH
+                                </label>
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label fw-semibold small">Host / IP Address <span class="text-danger">*</span></label>
                             <input type="text" name="host" class="form-control @error('host') is-invalid @enderror"
@@ -44,8 +62,9 @@
                         <div class="mb-3">
                             <label class="form-label fw-semibold small">Port</label>
                             <input type="number" name="port" class="form-control"
-                                   value="{{ old('port', 23) }}" min="1" max="65535">
-                            <div class="form-text">Default: 23 (Telnet)</div>
+                                   :value="protocol === 'ssh' ? 22 : 23"
+                                   min="1" max="65535">
+                            <div class="form-text" x-text="protocol === 'ssh' ? 'Default: 22 (SSH)' : 'Default: 23 (Telnet)'"></div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-semibold small">Label <small class="text-muted">(optional)</small></label>
@@ -58,17 +77,23 @@
                             <i class="bi bi-shield-lock me-1"></i>Credentials are sent securely and never stored.
                         </p>
                         <div class="mb-3">
-                            <label class="form-label fw-semibold small">Username <small class="text-muted">(optional)</small></label>
+                            <label class="form-label fw-semibold small">
+                                Username
+                                <small class="text-muted" x-text="protocol === 'ssh' ? '(required for SSH)' : '(optional)'"></small>
+                            </label>
                             <input type="text" name="username" class="form-control"
-                                   placeholder="admin" autocomplete="off">
+                                   placeholder="admin" autocomplete="off"
+                                   :required="protocol === 'ssh'">
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-semibold small">Password <small class="text-muted">(optional)</small></label>
                             <input type="password" name="password" class="form-control" autocomplete="new-password">
                         </div>
                         <div class="d-grid mt-4">
-                            <button type="submit" class="btn btn-success">
-                                <i class="bi bi-terminal me-2"></i>Open Terminal
+                            <button type="submit" class="btn"
+                                    :class="protocol === 'ssh' ? 'btn-info' : 'btn-success'">
+                                <i class="bi me-2" :class="protocol === 'ssh' ? 'bi-shield-lock' : 'bi-terminal'"></i>
+                                <span x-text="protocol === 'ssh' ? 'Open SSH Session' : 'Open Telnet Session'">Open Terminal</span>
                             </button>
                         </div>
                     </form>
@@ -101,16 +126,28 @@
                                         <div class="text-muted" style="font-size:.7rem">{{ $sw->model }}</div>
                                         @endif
                                     </div>
-                                    <form method="POST" action="{{ route('admin.telnet.connect') }}" class="flex-shrink-0">
-                                        @csrf
-                                        <input type="hidden" name="host"  value="{{ $sw->lan_ip }}">
-                                        <input type="hidden" name="port"  value="23">
-                                        <input type="hidden" name="label" value="{{ $sw->name }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-success"
-                                                title="Connect via Telnet">
-                                            <i class="bi bi-terminal"></i>
-                                        </button>
-                                    </form>
+                                    <div class="d-flex gap-1 flex-shrink-0">
+                                        <form method="POST" action="{{ route('admin.telnet.connect') }}">
+                                            @csrf
+                                            <input type="hidden" name="host"     value="{{ $sw->lan_ip }}">
+                                            <input type="hidden" name="port"     value="23">
+                                            <input type="hidden" name="protocol" value="telnet">
+                                            <input type="hidden" name="label"    value="{{ $sw->name }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-success" title="Telnet">
+                                                <i class="bi bi-terminal"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ route('admin.telnet.connect') }}">
+                                            @csrf
+                                            <input type="hidden" name="host"     value="{{ $sw->lan_ip }}">
+                                            <input type="hidden" name="port"     value="22">
+                                            <input type="hidden" name="protocol" value="ssh">
+                                            <input type="hidden" name="label"    value="{{ $sw->name }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-info" title="SSH">
+                                                <i class="bi bi-shield-lock"></i>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                                 @endforeach
                             </div>
@@ -137,16 +174,28 @@
                                         <div class="fw-semibold text-truncate small">{{ $p->printer_name }}</div>
                                         <div class="text-muted font-monospace" style="font-size:.75rem">{{ $p->ip_address }}</div>
                                     </div>
-                                    <form method="POST" action="{{ route('admin.telnet.connect') }}" class="flex-shrink-0">
-                                        @csrf
-                                        <input type="hidden" name="host"  value="{{ $p->ip_address }}">
-                                        <input type="hidden" name="port"  value="23">
-                                        <input type="hidden" name="label" value="{{ $p->printer_name }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-success"
-                                                title="Connect via Telnet">
-                                            <i class="bi bi-terminal"></i>
-                                        </button>
-                                    </form>
+                                    <div class="d-flex gap-1 flex-shrink-0">
+                                        <form method="POST" action="{{ route('admin.telnet.connect') }}">
+                                            @csrf
+                                            <input type="hidden" name="host"     value="{{ $p->ip_address }}">
+                                            <input type="hidden" name="port"     value="23">
+                                            <input type="hidden" name="protocol" value="telnet">
+                                            <input type="hidden" name="label"    value="{{ $p->printer_name }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-success" title="Telnet">
+                                                <i class="bi bi-terminal"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ route('admin.telnet.connect') }}">
+                                            @csrf
+                                            <input type="hidden" name="host"     value="{{ $p->ip_address }}">
+                                            <input type="hidden" name="port"     value="22">
+                                            <input type="hidden" name="protocol" value="ssh">
+                                            <input type="hidden" name="label"    value="{{ $p->printer_name }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-info" title="SSH">
+                                                <i class="bi bi-shield-lock"></i>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                                 @endforeach
                             </div>
@@ -162,3 +211,13 @@
 
 </div>
 @endsection
+
+@push('scripts')
+<script>
+function quickConnect() {
+    return {
+        protocol: '{{ old('protocol', 'telnet') }}',
+    };
+}
+</script>
+@endpush

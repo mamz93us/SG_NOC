@@ -36,17 +36,22 @@ class TelnetController extends Controller
         $validated = $request->validate([
             'host'     => ['required', 'string', 'max:255'],
             'port'     => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'protocol' => ['nullable', 'string', 'in:telnet,ssh'],
             'username' => ['nullable', 'string', 'max:100'],
             'password' => ['nullable', 'string', 'max:200'],
             'label'    => ['nullable', 'string', 'max:150'],
         ]);
+
+        $protocol   = $validated['protocol'] ?? 'telnet';
+        $defaultPort = $protocol === 'ssh' ? 22 : 23;
 
         $token = Str::random(40);
         $ttl   = (int) config('telnet.token_ttl', 5);
 
         Cache::put("telnet_token:{$token}", [
             'host'     => trim($validated['host']),
-            'port'     => (int) ($validated['port'] ?? config('telnet.default_port', 23)),
+            'port'     => (int) ($validated['port'] ?? $defaultPort),
+            'protocol' => $protocol,
             'username' => $validated['username'] ?? null,
             'password' => $validated['password'] ?? null,
             'user_id'  => $request->user()->id,
@@ -69,11 +74,14 @@ class TelnetController extends Controller
                 ->with('error', 'Terminal session expired. Please connect again.');
         }
 
-        $wsUrl = rtrim(config('telnet.ws_url', 'wss://noc.samirgroup.net/ws/telnet'), '/');
+        $session  = Cache::get("telnet_token:{$token}");
+        $protocol = $session['protocol'] ?? 'telnet';
+        $wsUrl    = rtrim(config('telnet.ws_url', 'wss://noc.samirgroup.net/ws/telnet'), '/');
 
         return view('admin.telnet.terminal', [
-            'wsUrl' => "{$wsUrl}?token={$token}",
-            'label' => $label,
+            'wsUrl'    => "{$wsUrl}?token={$token}",
+            'label'    => $label,
+            'protocol' => $protocol,
         ]);
     }
 }

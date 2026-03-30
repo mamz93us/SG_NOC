@@ -8,6 +8,7 @@
     "dev":   "node server.js --debug"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "ssh2": "^1.16.0"
   }
 }

@@ -113,7 +113,13 @@
         </a>
 
         <span class="label">
-            <i class="bi bi-terminal-fill text-success me-1"></i>
+            @if($protocol === 'ssh')
+                <i class="bi bi-shield-lock-fill text-info me-1"></i>
+                <span class="badge bg-info bg-opacity-20 text-info border border-info me-1" style="font-size:.65rem">SSH</span>
+            @else
+                <i class="bi bi-terminal-fill text-success me-1"></i>
+                <span class="badge bg-success bg-opacity-20 text-success border border-success me-1" style="font-size:.65rem">TELNET</span>
+            @endif
             {{ $label }}
         </span>
 
@@ -123,6 +129,10 @@
         </span>
 
         <div class="ms-auto d-flex gap-2 align-items-center">
+            {{-- Copy All --}}
+            <button class="btn btn-sm btn-outline-secondary border-0" id="btn-copy-all" title="Copy all terminal output">
+                <i class="bi bi-clipboard"></i> Copy All
+            </button>
             {{-- Clear screen --}}
             <button class="btn btn-sm btn-outline-secondary border-0" id="btn-clear" title="Clear screen">
                 <i class="bi bi-eraser-fill"></i>
@@ -336,6 +346,41 @@
     }
 
     term.onResize(() => sendResize());
+
+    // ── Copy All ───────────────────────────────────────────────────────────
+    document.getElementById('btn-copy-all').addEventListener('click', () => {
+        const btn    = document.getElementById('btn-copy-all');
+        const buf    = term.buffer.active;
+        const lines  = [];
+        for (let i = 0; i < buf.length; i++) {
+            const line = buf.getLine(i);
+            if (line) lines.push(line.translateToString(true));
+        }
+        // Trim trailing empty lines
+        while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+        const text = lines.join('\n');
+
+        navigator.clipboard.writeText(text).then(() => {
+            btn.innerHTML = '<i class="bi bi-clipboard-check"></i> Copied!';
+            btn.classList.replace('btn-outline-secondary', 'btn-outline-success');
+            setTimeout(() => {
+                btn.innerHTML = '<i class="bi bi-clipboard"></i> Copy All';
+                btn.classList.replace('btn-outline-success', 'btn-outline-secondary');
+            }, 2000);
+        }).catch(() => {
+            // Fallback for browsers that block clipboard without user gesture
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity  = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            btn.innerHTML = '<i class="bi bi-clipboard-check"></i> Copied!';
+            setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i> Copy All'; }, 2000);
+        });
+    });
 
     // ── Toolbar buttons ────────────────────────────────────────────────────
     document.getElementById('btn-clear').addEventListener('click', () => term.clear());
