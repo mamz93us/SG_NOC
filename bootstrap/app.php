@@ -22,8 +22,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);
 
         // Exclude HR API routes from CSRF — they use X-HR-Api-Key header auth instead
+        // Exclude browser proxy fetch — auth is enforced by session + permission middleware;
+        // device API calls (e.g. UCM /cgi?) arrive as POST through the proxy with no _token.
         $middleware->validateCsrfTokens(except: [
             'api/hr/*',
+            'admin/browser/fetch',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

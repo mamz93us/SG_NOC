@@ -260,20 +260,57 @@ class WebBrowserController extends Controller
     });
   } catch(e) {}
 
-  // ── 6. Patch WebSocket (some devices use WS for real-time status) ──────
-  if (window.WebSocket) {
-    var _WS = window.WebSocket;
-    window.WebSocket = function(url, protocols) {
-      // Convert ws://device/ → wss://noc/admin/browser/ws?url=ws://device/
-      // For now just let WS through as-is (can't proxy WS via HTTP)
-      return protocols ? new _WS(url, protocols) : new _WS(url);
+  // ── 6. Patch document.createElement for webpack dynamic chunk loading ──
+  // React/webpack loads JS chunks and CSS via dynamically-created <script>/<link>
+  // tags. These bypass fetch/XHR interceptors entirely.
+  // We intercept createElement so that any script/link src/href is proxied.
+  (function() {
+    var _ce = document.createElement.bind(document);
+    document.createElement = function(tag) {
+      var el = _ce(tag);
+      var t  = (tag || '').toLowerCase();
+
+      if (t === 'script') {
+        // Intercept the .src property setter
+        var proto = HTMLScriptElement.prototype;
+        var desc  = Object.getOwnPropertyDescriptor(proto, 'src');
+        Object.defineProperty(el, 'src', {
+          get: function() {
+            return desc ? desc.get.call(el) : el.getAttribute('src');
+          },
+          set: function(v) {
+            var p = proxyUrl(v);
+            if (desc) desc.set.call(el, p); else el.setAttribute('src', p);
+          },
+          configurable: true,
+        });
+      } else if (t === 'link') {
+        var proto2 = HTMLLinkElement.prototype;
+        var desc2  = Object.getOwnPropertyDescriptor(proto2, 'href');
+        Object.defineProperty(el, 'href', {
+          get: function() {
+            return desc2 ? desc2.get.call(el) : el.getAttribute('href');
+          },
+          set: function(v) {
+            var p = proxyUrl(v);
+            if (desc2) desc2.set.call(el, p); else el.setAttribute('href', p);
+          },
+          configurable: true,
+        });
+      }
+      return el;
     };
-    window.WebSocket.prototype    = _WS.prototype;
-    window.WebSocket.CONNECTING   = _WS.CONNECTING;
-    window.WebSocket.OPEN         = _WS.OPEN;
-    window.WebSocket.CLOSING      = _WS.CLOSING;
-    window.WebSocket.CLOSED       = _WS.CLOSED;
-  }
+  })();
+
+  // ── 7. Patch setAttribute so chunks added via el.setAttribute('src',…) ─
+  var _setAttribute = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function(name, value) {
+    var t = (this.tagName || '').toLowerCase();
+    if ((t === 'script' && name === 'src') || (t === 'link' && name === 'href')) {
+      value = proxyUrl(value);
+    }
+    return _setAttribute.call(this, name, value);
+  };
 
 })();
 </script>
