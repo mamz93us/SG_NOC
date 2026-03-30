@@ -15,7 +15,8 @@
         "laravel/tinker": "^2.10.1",
         "maatwebsite/excel": "^3.1",
         "pragmarx/google2fa": "*",
-        "socialiteproviders/microsoft": "^4.8"
+        "socialiteproviders/microsoft": "^4.8",
+        "workerman/workerman": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

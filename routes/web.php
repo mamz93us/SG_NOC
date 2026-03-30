@@ -670,6 +670,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::put('settings',    [NotificationController::class, 'updateSettings']) ->name('settings.update');
     });
 
+    // ─── Telnet Client ────────────────────────────────────────
+    Route::middleware('permission:view-noc')->prefix('telnet')->name('telnet.')->group(function () {
+        Route::get('/',           [\App\Http\Controllers\Admin\TelnetController::class, 'index'])    ->name('index');
+        Route::post('/connect',   [\App\Http\Controllers\Admin\TelnetController::class, 'connect'])  ->name('connect');
+        Route::get('/terminal',   [\App\Http\Controllers\Admin\TelnetController::class, 'terminal']) ->name('terminal');
+    });
+
     // ─── NOC Dashboard ────────────────────────────────────────
     Route::middleware('permission:view-noc')->prefix('noc')->name('noc.')->group(function () {
         Route::get('/',           [NocController::class, 'dashboard']) ->name('dashboard');
@@ -1117,6 +1124,16 @@ Route::prefix('api/hr')->middleware('hr.api_key')->group(function () {
     Route::post('/offboarding',      [HrOffboardingController::class,     'store'])->name('api.hr.offboarding');
     Route::post('/group-assignment', [HrGroupAssignmentController::class, 'store'])->name('api.hr.group-assignment');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Internal — Telnet Token Validation (called only by the Node.js proxy)
+| Protected by: localhost-only + X-Telnet-Secret header check in controller.
+|--------------------------------------------------------------------------
+*/
+Route::get('/internal/telnet-token/{token}',
+    [\App\Http\Controllers\Internal\TelnetTokenController::class, 'show']
+)->name('internal.telnet-token');
 
 /*
 |--------------------------------------------------------------------------

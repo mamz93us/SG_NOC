@@ -598,6 +598,13 @@
                             @endcanany
                             <li><hr class="dropdown-divider"></li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.telnet.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.telnet.index') }}">
+                                    <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet Client
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.alerts.dashboard') || request()->routeIs('admin.alert-rules.*') ? 'active' : '' }}"
                                    href="{{ route('admin.alerts.dashboard') }}">
                                     <i class="bi bi-shield-exclamation me-2"></i>Alert Rules

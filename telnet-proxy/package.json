@@ -1,0 +1,13 @@
+{
+  "name": "sg-noc-telnet-proxy",
+  "version": "1.0.0",
+  "description": "WebSocket ↔ Telnet bridge for SG NOC",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev":   "node server.js --debug"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
