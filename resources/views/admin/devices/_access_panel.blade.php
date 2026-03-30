@@ -58,8 +58,7 @@
             </form>
             @endcan
 
-            {{-- Web Browser (proxy, only if enabled) --}}
-            @if($device->proxy_enabled)
+            {{-- Web Browser (proxy — available for any device with an IP) --}}
             @can('manage-devices')
             <a href="{{ route('admin.devices.browse', $device) }}"
                class="btn btn-sm btn-outline-primary" target="_blank">
@@ -69,7 +68,14 @@
                 </span>
             </a>
             @endcan
-            @endif
+
+            {{-- Custom URL Browser --}}
+            @can('view-noc')
+            <a href="{{ route('admin.browser.index', ['url' => 'http://'.$device->ip_address.':'.($device->web_port ?? 80).($device->web_path ?? '/')]) }}"
+               class="btn btn-sm btn-outline-secondary" target="_blank">
+                <i class="bi bi-box-arrow-up-right me-1"></i>Custom URL
+            </a>
+            @endcan
 
         </div>
     </div>

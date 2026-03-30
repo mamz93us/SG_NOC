@@ -29,8 +29,7 @@ class DeviceProxyController extends Controller
      */
     public function browse(Request $request, Device $device): \Illuminate\View\View
     {
-        abort_unless($device->proxy_enabled,  403, 'Web proxy is not enabled for this device.');
-        abort_unless($device->ip_address,     422, 'Device has no IP address configured.');
+        abort_unless($device->ip_address, 422, 'Device has no IP address configured.');
 
         // Security: device must be in our table — already guaranteed by model binding.
         DeviceAccessLog::log(
@@ -51,8 +50,7 @@ class DeviceProxyController extends Controller
      */
     public function proxy(Request $request, Device $device, string $path = ''): Response|\Illuminate\Http\RedirectResponse
     {
-        abort_unless($device->proxy_enabled, 403);
-        abort_unless($device->ip_address,    422);
+        abort_unless($device->ip_address, 422);
 
         $protocol = $device->web_protocol ?? 'http';
         $port     = $device->web_port     ?? ($protocol === 'https' ? 443 : 80);

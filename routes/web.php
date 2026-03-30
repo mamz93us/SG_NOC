@@ -700,6 +700,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/terminal',   [\App\Http\Controllers\Admin\TelnetController::class, 'terminal']) ->name('terminal');
     });
 
+    // ─── Web Browser (custom URL proxy) ──────────────────────
+    Route::middleware(['permission:view-noc', 'throttle:120,1'])->prefix('browser')->name('browser.')->group(function () {
+        Route::get('/',       [\App\Http\Controllers\Admin\WebBrowserController::class, 'index']) ->name('index');
+        Route::get('/fetch',  [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch');
+        Route::post('/fetch', [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch.post');
+    });
+
     // ─── NOC Dashboard ────────────────────────────────────────
     Route::middleware('permission:view-noc')->prefix('noc')->name('noc.')->group(function () {
         Route::get('/',           [NocController::class, 'dashboard']) ->name('dashboard');

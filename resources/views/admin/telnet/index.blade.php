@@ -9,10 +9,13 @@
     <div class="d-flex align-items-center justify-content-between mb-4">
         <div>
             <h4 class="mb-0 fw-bold">
-                <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet Client
+                <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet / SSH Client
             </h4>
             <p class="text-muted small mb-0">Connect to network devices, printers, and routers via Telnet or SSH</p>
         </div>
+        <a href="{{ route('admin.browser.index') }}" class="btn btn-outline-primary btn-sm" target="_blank">
+            <i class="bi bi-globe me-1"></i>Web Browser
+        </a>
     </div>
 
     @if(session('error'))
