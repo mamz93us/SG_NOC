@@ -46,6 +46,15 @@ class WebBrowserController extends Controller
                 'timeout'         => 20,
                 'connect_timeout' => 8,
                 'allow_redirects' => false,    // Handle redirects ourselves
+                // Allow TLS 1.0/1.1 — many network devices (UCM, switches, APs)
+                // use old firmware with legacy SSL. OpenSSL 3.x disables these
+                // by default; SECLEVEL=1 re-enables them.
+                'curl' => [
+                    CURLOPT_SSLVERSION      => CURL_SSLVERSION_DEFAULT,
+                    CURLOPT_SSL_VERIFYPEER  => false,
+                    CURLOPT_SSL_VERIFYHOST  => 0,
+                    CURLOPT_SSL_CIPHER_LIST => 'DEFAULT@SECLEVEL=1',
+                ],
             ])
             ->withHeaders(array_filter([
                 'User-Agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
