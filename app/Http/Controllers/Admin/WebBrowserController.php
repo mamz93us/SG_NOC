@@ -188,40 +188,47 @@ class WebBrowserController extends Controller
   var DEVICE_BASE  = {$escapedBase};
   var PROXY_FETCH  = {$escapedProxy};
   var CSRF         = {$escapedCsrf};
-  var NOC_ORIGIN   = {$escapedOrigin};   // e.g. https://noc.samirgroup.net
+  var NOC_ORIGIN   = {$escapedOrigin};
 
-  // Convert any URL to a proxied version
+  // ── 1. Defeat iframe detection (Grandstream, UCM, most network devices) ─
+  // Many device UIs check window !== window.top or window.parent !== window
+  // and redirect/blank themselves when they detect an iframe.
+  // Spoof these properties so the page thinks it is the top-level window.
+  try {
+    Object.defineProperty(window, 'top',    { get: function(){ return window; }, configurable: true });
+    Object.defineProperty(window, 'parent', { get: function(){ return window; }, configurable: true });
+    Object.defineProperty(window, 'frameElement', { get: function(){ return null; }, configurable: true });
+  } catch(e) {}
+
+  // ── 2. URL resolver ────────────────────────────────────────────────────
   function proxyUrl(url) {
     if (!url || typeof url !== 'string') return url;
-    // Already our proxy — leave alone
     if (url.indexOf(PROXY_FETCH) === 0) return url;
-    // Non-navigable
     if (/^(#|javascript:|mailto:|data:|blob:|about:)/i.test(url)) return url;
-    // Resolve to absolute
+
     var abs = url;
     if (url.startsWith('//')) {
       abs = (DEVICE_BASE.startsWith('https') ? 'https:' : 'http:') + url;
     } else if (url.startsWith('/')) {
-      // Root-relative URL: resolve against DEVICE_BASE (not NOC origin)
       abs = DEVICE_BASE + url;
     } else if (!/^https?:\/\//i.test(url)) {
       abs = DEVICE_BASE + '/' + url;
     }
-    // If the resolved URL points to our OWN server (not the device), it means
-    // the SPA used a relative URL that resolved against the iframe origin.
-    // Re-resolve it against the device base instead.
+
+    // URL resolved to our OWN server → re-resolve against device base
     if (abs.indexOf(NOC_ORIGIN) === 0) {
-      var path = abs.slice(NOC_ORIGIN.length);
-      abs = DEVICE_BASE + path;
+      abs = DEVICE_BASE + abs.slice(NOC_ORIGIN.length);
     }
-    // Don't proxy external CDNs / 3rd-party URLs (not device, not NOC)
+
+    // External CDN / 3rd-party → pass through unchanged
     if (/^https?:\/\//i.test(abs) && abs.indexOf(DEVICE_BASE) !== 0) {
-      return abs;  // pass through as-is (CDN fonts, etc.)
+      return abs;
     }
+
     return PROXY_FETCH + '?url=' + encodeURIComponent(abs);
   }
 
-  // ── Patch window.fetch ──────────────────────────────────────────
+  // ── 3. Patch window.fetch ──────────────────────────────────────────────
   var _fetch = window.fetch.bind(window);
   window.fetch = function(input, init) {
     try {
@@ -230,38 +237,43 @@ class WebBrowserController extends Controller
       } else if (input && input.url) {
         input = new Request(proxyUrl(input.url), input);
       }
-      // Add CSRF header for non-GET requests through our proxy
-      if (init && init.method && init.method.toUpperCase() !== 'GET') {
-        init.headers = Object.assign({}, init.headers || {}, {'X-CSRF-TOKEN': CSRF});
-      }
     } catch(e) {}
     return _fetch(input, init);
   };
 
-  // ── Patch XMLHttpRequest ────────────────────────────────────────
+  // ── 4. Patch XMLHttpRequest ────────────────────────────────────────────
   var _open = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(method, url, async, user, pass) {
     try { url = proxyUrl(url); } catch(e) {}
     return _open.call(this, method, url, async !== false, user, pass);
   };
-  var _setHeader = XMLHttpRequest.prototype.setRequestHeader;
-  XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
-    // Always ensure CSRF is sent for state-changing requests
-    return _setHeader.call(this, name, value);
-  };
 
-  // ── Patch window.location assignment ───────────────────────────
-  // Intercept JS redirects like location.href = '/login'
+  // ── 5. Patch window.location redirects ────────────────────────────────
   try {
     var _loc = window.location;
     Object.defineProperty(window, 'location', {
       get: function() { return _loc; },
       set: function(v) {
-        try { _loc.href = proxyUrl(String(v)); } catch(e) { _loc.href = v; }
+        try { _loc.href = proxyUrl(String(v)); } catch(e) { _loc.href = String(v); }
       },
       configurable: true,
     });
   } catch(e) {}
+
+  // ── 6. Patch WebSocket (some devices use WS for real-time status) ──────
+  if (window.WebSocket) {
+    var _WS = window.WebSocket;
+    window.WebSocket = function(url, protocols) {
+      // Convert ws://device/ → wss://noc/admin/browser/ws?url=ws://device/
+      // For now just let WS through as-is (can't proxy WS via HTTP)
+      return protocols ? new _WS(url, protocols) : new _WS(url);
+    };
+    window.WebSocket.prototype    = _WS.prototype;
+    window.WebSocket.CONNECTING   = _WS.CONNECTING;
+    window.WebSocket.OPEN         = _WS.OPEN;
+    window.WebSocket.CLOSING      = _WS.CLOSING;
+    window.WebSocket.CLOSED       = _WS.CLOSED;
+  }
 
 })();
 </script>
