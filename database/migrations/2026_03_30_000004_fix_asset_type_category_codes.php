@@ -34,9 +34,10 @@ return new class extends Migration
         DB::table('asset_types')->where('slug', 'ap')      ->update(['category_code' => 'AP']);
 
         // 2. Rename existing device asset_codes that used the old prefix
+        // Fetch base prefix from the single-row settings record (default 'SG')
+        $base = DB::table('settings')->value('itam_asset_prefix') ?? 'SG';
+
         foreach ($this->changes as [$slug, $old, $new]) {
-            // Fetch base prefix from settings (default 'SG')
-            $base = DB::table('settings')->where('key', 'itam_asset_prefix')->value('value') ?? 'SG';
 
             $oldPrefix = "{$base}-{$old}-";
             $newPrefix = "{$base}-{$new}-";
