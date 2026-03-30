@@ -701,10 +701,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     // ─── Web Browser (custom URL proxy) ──────────────────────
-    Route::middleware(['permission:view-noc', 'throttle:120,1'])->prefix('browser')->name('browser.')->group(function () {
-        Route::get('/',       [\App\Http\Controllers\Admin\WebBrowserController::class, 'index']) ->name('index');
-        Route::get('/fetch',  [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch');
-        Route::post('/fetch', [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch.post');
+    Route::middleware(['permission:view-noc', 'throttle:300,1'])->prefix('browser')->name('browser.')->group(function () {
+        Route::get('/',                [\App\Http\Controllers\Admin\WebBrowserController::class, 'index']) ->name('index');
+        Route::match(['GET','POST'], '/fetch', [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch');
     });
 
     // ─── NOC Dashboard ────────────────────────────────────────
