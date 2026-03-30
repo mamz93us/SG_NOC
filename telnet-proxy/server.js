@@ -195,12 +195,12 @@ wss.on('connection', async (ws, req) => {
         if (telnet.destroyed || !connected) return;
 
         if (!isBinary) {
-            // Try to parse as a JSON control message (e.g., resize)
+            // Only treat as a control message if it is a plain JSON *object*
+            // with a recognised `type` field.  Single digits, "true", "null",
+            // etc. are also valid JSON but must be forwarded as keystrokes.
             try {
                 const ctrl = JSON.parse(msg.toString());
-                if (ctrl.type === 'resize') {
-                    // Telnet NAWS (option 31) window-size — most devices ignore this
-                    // but we send it anyway for devices that support it
+                if (ctrl !== null && typeof ctrl === 'object' && ctrl.type === 'resize') {
                     const cols = Math.min(ctrl.cols || 220, 65535);
                     const rows = Math.min(ctrl.rows || 50,  65535);
                     const naws = Buffer.from([
@@ -210,10 +210,12 @@ wss.on('connection', async (ws, req) => {
                         IAC, SE,
                     ]);
                     telnet.write(naws);
+                    return; // consumed — do NOT fall through
                 }
-                return;
+                // Any other valid JSON (digits, booleans, arrays…) falls through
+                // to be written as raw keystroke data below.
             } catch (_) {
-                // Not JSON — raw terminal input
+                // Not JSON — raw terminal input, fall through
             }
         }
 
