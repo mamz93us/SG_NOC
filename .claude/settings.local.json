@@ -149,7 +149,8 @@
       "Bash(grep -rn \"schedule\\\\|->daily\\\\|->weekly\\\\|->hourly\" app/Providers/ bootstrap/ --include=*.php)",
       "Bash(do php:*)",
       "Bash(composer require:*)",
-      "Bash(npm --version)"
+      "Bash(npm --version)",
+      "Bash(grep -l \"floor_id\\\\|office_id\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)"
     ]
   }
 }

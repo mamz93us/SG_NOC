@@ -371,6 +371,29 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('devices/import/batch',        [DeviceImportController::class, 'batchStore'])->name('devices.import.batch');
     });
 
+    // ─── Device Web Proxy & SSH ───────────────────────────────────────────
+    Route::middleware(['permission:manage-devices', 'throttle:60,1'])->group(function () {
+        // Web proxy — browse device management UI through the NOC server
+        Route::get('devices/{device}/browse',
+            [\App\Http\Controllers\Admin\DeviceProxyController::class, 'browse'])
+            ->name('admin.devices.browse');
+        Route::any('devices/{device}/proxy/{path?}',
+            [\App\Http\Controllers\Admin\DeviceProxyController::class, 'proxy'])
+            ->name('admin.devices.proxy')
+            ->where('path', '.*');
+
+        // SSH terminal — tied to a device record
+        Route::get('devices/{device}/ssh',
+            [\App\Http\Controllers\Admin\DeviceSshController::class, 'connect'])
+            ->name('admin.devices.ssh.connect');
+        Route::post('devices/{device}/ssh',
+            [\App\Http\Controllers\Admin\DeviceSshController::class, 'terminal'])
+            ->name('admin.devices.ssh.terminal');
+        Route::post('devices/{device}/ssh/sessions/{session}/disconnect',
+            [\App\Http\Controllers\Admin\DeviceSshController::class, 'disconnect'])
+            ->name('admin.devices.ssh.disconnect');
+    });
+
     // ─── Credentials (Password Vault) ─────────────────────────
     Route::middleware('permission:view-credentials')->group(function () {
         Route::get('credentials',                     [CredentialController::class, 'index'])   ->name('credentials.index');

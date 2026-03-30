@@ -41,6 +41,13 @@ class Device extends Model
         'depreciation_method',
         'depreciation_years',
         'current_value',
+        // ── Web & SSH proxy ───────────────────────────────────────────────
+        'proxy_enabled',
+        'web_protocol',
+        'web_port',
+        'web_path',
+        'ssh_port',
+        'ssh_username',
     ];
 
     protected $casts = [
@@ -51,9 +58,22 @@ class Device extends Model
         'purchase_cost'      => 'decimal:2',
         'current_value'      => 'decimal:2',
         'depreciation_years' => 'integer',
+        'proxy_enabled'      => 'boolean',
+        'web_port'           => 'integer',
+        'ssh_port'           => 'integer',
     ];
 
     // ─── Relationships ────────────────────────────────────────────
+
+    public function sshSessions(): HasMany
+    {
+        return $this->hasMany(DeviceSshSession::class);
+    }
+
+    public function accessLogs(): HasMany
+    {
+        return $this->hasMany(DeviceAccessLog::class)->latest('created_at');
+    }
 
     public function deviceModel(): BelongsTo
     {
