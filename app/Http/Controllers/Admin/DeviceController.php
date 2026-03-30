@@ -119,7 +119,23 @@ class DeviceController extends Controller
         ]);
         $depreciation = new DepreciationService();
         $employees    = Employee::orderBy('name')->get(['id', 'name']);
-        return view('admin.devices.show', compact('device', 'depreciation', 'employees'));
+
+        // Access panel data
+        $sshSessions = $device->sshSessions()
+            ->with('user')
+            ->latest('started_at')
+            ->limit(15)
+            ->get();
+
+        $accessLogs = $device->accessLogs()
+            ->with('user')
+            ->limit(30)
+            ->get();
+
+        return view('admin.devices.show', compact(
+            'device', 'depreciation', 'employees',
+            'sshSessions', 'accessLogs'
+        ));
     }
 
     public function create()

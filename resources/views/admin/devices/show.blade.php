@@ -335,6 +335,9 @@
 
 </div>{{-- /row --}}
 
+{{-- ── Access Panel (Quick Access + SSH Sessions + Access Log) ── --}}
+@include('admin.devices._access_panel')
+
 @can('manage-assets')
 <div class="mt-2 d-flex align-items-center gap-2">
     @if($assigned)
