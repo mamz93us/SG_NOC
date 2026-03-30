@@ -58,23 +58,45 @@
             </form>
             @endcan
 
-            {{-- Web Browser (proxy — available for any device with an IP) --}}
-            @can('manage-devices')
-            <a href="{{ route('admin.devices.browse', $device) }}"
-               class="btn btn-sm btn-outline-primary" target="_blank">
-                <i class="bi bi-globe me-1"></i>Web UI
-                <span class="badge bg-primary bg-opacity-20 text-primary ms-1" style="font-size:.65rem">
-                    {{ $device->web_protocol ?? 'http' }}:{{ $device->web_port ?? 80 }}
-                </span>
-            </a>
-            @endcan
-
-            {{-- Custom URL Browser --}}
+            {{-- Web Browser — opens browser pre-filled with device IP --}}
             @can('view-noc')
-            <a href="{{ route('admin.browser.index', ['url' => 'http://'.$device->ip_address.':'.($device->web_port ?? 80).($device->web_path ?? '/')]) }}"
-               class="btn btn-sm btn-outline-secondary" target="_blank">
-                <i class="bi bi-box-arrow-up-right me-1"></i>Custom URL
-            </a>
+            <div class="dropdown d-inline">
+                <button class="btn btn-sm btn-outline-primary dropdown-toggle"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                        aria-expanded="false">
+                    <i class="bi bi-globe me-1"></i>Web Browser
+                </button>
+                <div class="dropdown-menu p-3 shadow" style="min-width:260px">
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold mb-1">Protocol</label>
+                        <div class="btn-group btn-group-sm w-100" id="wb-proto-{{ $device->id }}">
+                            <input type="radio" class="btn-check" name="wb-proto-{{ $device->id }}"
+                                   id="wb-http-{{ $device->id }}" value="http" checked>
+                            <label class="btn btn-outline-secondary" for="wb-http-{{ $device->id }}">http://</label>
+
+                            <input type="radio" class="btn-check" name="wb-proto-{{ $device->id }}"
+                                   id="wb-https-{{ $device->id }}" value="https">
+                            <label class="btn btn-outline-secondary" for="wb-https-{{ $device->id }}">https://</label>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold mb-1">Port</label>
+                        <input type="number" class="form-control form-control-sm wb-port-input"
+                               id="wb-port-{{ $device->id }}"
+                               value="{{ $device->web_port ?? 80 }}" min="1" max="65535">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold mb-1">Path</label>
+                        <input type="text" class="form-control form-control-sm wb-path-input"
+                               id="wb-path-{{ $device->id }}"
+                               value="{{ $device->web_path ?? '/' }}" placeholder="/">
+                    </div>
+                    <button class="btn btn-primary btn-sm w-100"
+                            onclick="openWebBrowser('{{ $device->id }}', '{{ $device->ip_address }}')">
+                        <i class="bi bi-arrow-right-circle-fill me-1"></i>Open
+                    </button>
+                </div>
+            </div>
             @endcan
 
         </div>

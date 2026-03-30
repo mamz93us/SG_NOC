@@ -600,7 +600,14 @@
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.telnet.*') ? 'active' : '' }}"
                                    href="{{ route('admin.telnet.index') }}">
-                                    <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet Client
+                                    <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet / SSH Client
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.browser.index') }}" target="_blank">
+                                    <i class="bi bi-globe me-2 text-primary"></i>Web Browser
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>

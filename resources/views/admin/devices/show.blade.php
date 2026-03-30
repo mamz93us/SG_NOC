@@ -458,6 +458,19 @@ document.addEventListener('DOMContentLoaded', function() {
         QRCode.toCanvas(canvas, '{{ addslashes($device->asset_code ?? '') }}', { width: 60, margin: 1 }, function() {});
     }
 });
+
+function openWebBrowser(deviceId, ip) {
+    const proto = document.querySelector(`input[name="wb-proto-${deviceId}"]:checked`)?.value ?? 'http';
+    const port  = document.getElementById(`wb-port-${deviceId}`)?.value ?? '80';
+    const path  = document.getElementById(`wb-path-${deviceId}`)?.value ?? '/';
+
+    const defaultPort = proto === 'https' ? '443' : '80';
+    const portStr     = port && port !== defaultPort ? `:${port}` : '';
+    const url         = `${proto}://${ip}${portStr}${path.startsWith('/') ? path : '/' + path}`;
+
+    const browserUrl  = @json(route('admin.browser.index'));
+    window.open(browserUrl + '?url=' + encodeURIComponent(url), '_blank');
+}
 </script>
 @endpush
 

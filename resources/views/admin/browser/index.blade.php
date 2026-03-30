@@ -7,258 +7,307 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { height: 100%; background: #0d1117; color: #e6edf3; font-family: system-ui, sans-serif; overflow: hidden; }
+        html, body { height: 100%; background: #0d1117; color: #e6edf3;
+                     font-family: system-ui, sans-serif; overflow: hidden; }
 
         /* ── Toolbar ── */
         #toolbar {
-            display: flex; align-items: center; gap: .4rem;
-            height: 48px; padding: 0 .6rem;
-            background: #161b22; border-bottom: 1px solid #30363d;
-            flex-shrink: 0;
+            display: flex; align-items: center; gap: .35rem;
+            height: 50px; padding: 0 .6rem;
+            background: #161b22; border-bottom: 1px solid #30363d; flex-shrink: 0;
         }
 
-        .btn-tool {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 32px; height: 32px; border: 1px solid transparent;
-            border-radius: 6px; background: transparent; color: #8b949e;
-            cursor: pointer; font-size: .95rem; flex-shrink: 0;
-            text-decoration: none;
+        .btn-icon {
+            width: 30px; height: 30px; display: inline-flex; align-items: center;
+            justify-content: center; border-radius: 6px; border: none;
+            background: transparent; color: #8b949e; cursor: pointer;
+            font-size: .9rem; flex-shrink: 0; text-decoration: none;
         }
-        .btn-tool:hover { background: #21262d; color: #e6edf3; }
-        .btn-tool:disabled { opacity: .35; cursor: default; }
+        .btn-icon:hover:not(:disabled) { background: #21262d; color: #e6edf3; }
+        .btn-icon:disabled { opacity: .3; cursor: default; }
 
-        /* ── Address bar ── */
-        #address-form { flex: 1; display: flex; align-items: center; gap: .4rem; }
+        /* ── Protocol selector ── */
+        #scheme-wrap {
+            display: flex; align-items: center; gap: 0;
+            background: #0d1117; border: 1px solid #30363d;
+            border-radius: 8px 0 0 8px; padding: 0 .5rem;
+            height: 34px; flex-shrink: 0; border-right: none;
+        }
+        #scheme-select {
+            background: transparent; border: none; color: #8b949e;
+            font-size: .78rem; outline: none; cursor: pointer; padding: 0;
+            appearance: none; -webkit-appearance: none;
+        }
+        #scheme-select option { background: #161b22; color: #e6edf3; }
+
+        /* ── Address input ── */
         #url-input {
-            flex: 1; height: 34px;
-            background: #0d1117; border: 1px solid #30363d; border-radius: 20px;
-            color: #e6edf3; font-size: .85rem; padding: 0 1rem;
-            font-family: monospace; outline: none; transition: border-color .15s;
+            flex: 1; height: 34px; min-width: 0;
+            background: #0d1117; border: 1px solid #30363d;
+            border-left: none; border-right: none;
+            color: #e6edf3; font-size: .82rem; padding: 0 .5rem;
+            font-family: monospace; outline: none;
         }
-        #url-input:focus { border-color: #388bfd; background: #0d1117; }
+        #url-input:focus { background: #0d1117; }
+        #toolbar:focus-within #scheme-wrap,
+        #toolbar:focus-within #url-input,
+        #toolbar:focus-within #port-wrap,
+        #toolbar:focus-within #go-btn { border-color: #388bfd; }
 
+        /* ── Port selector ── */
+        #port-wrap {
+            display: flex; align-items: center;
+            background: #0d1117; border: 1px solid #30363d;
+            border-left: none; border-right: none;
+            height: 34px; padding: 0 .4rem; flex-shrink: 0; gap: .2rem;
+        }
+        #port-wrap span { color: #484f58; font-size: .75rem; }
+        #port-input {
+            background: transparent; border: none; color: #8b949e;
+            font-size: .78rem; outline: none; width: 52px;
+            font-family: monospace;
+        }
+
+        /* ── Go button ── */
         #go-btn {
-            height: 34px; padding: 0 .9rem; border-radius: 20px;
-            background: #1f6feb; border: none; color: #fff;
-            font-size: .8rem; font-weight: 600; cursor: pointer;
-            display: inline-flex; align-items: center; gap: .3rem;
-            white-space: nowrap;
+            height: 34px; padding: 0 .9rem;
+            border-radius: 0 8px 8px 0; border: 1px solid #30363d; border-left: none;
+            background: #1f6feb; color: #fff; font-size: .8rem; font-weight: 600;
+            cursor: pointer; display: inline-flex; align-items: center; gap: .3rem;
+            white-space: nowrap; flex-shrink: 0;
         }
         #go-btn:hover { background: #388bfd; }
 
-        /* ── Status/tag strip ── */
+        /* ── Info strip ── */
         #infobar {
-            height: 26px; background: #0d1117;
-            border-bottom: 1px solid #21262d;
+            height: 24px; background: #0d1117; border-bottom: 1px solid #21262d;
             display: flex; align-items: center; gap: .5rem;
-            padding: 0 .8rem; font-size: .72rem; color: #484f58;
+            padding: 0 .8rem; font-size: .7rem; color: #484f58; flex-shrink: 0;
         }
-        #infobar .proxied-url { color: #388bfd; font-family: monospace; overflow: hidden;
-            text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
-        #loading-indicator { display: none; width: 10px; height: 10px;
-            border: 2px solid #388bfd; border-top-color: transparent;
-            border-radius: 50%; animation: spin .6s linear infinite; }
+        #infobar .live-url { color: #388bfd; font-family: monospace;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .spinner { display: none; width: 10px; height: 10px; border: 2px solid #388bfd;
+            border-top-color: transparent; border-radius: 50%;
+            animation: spin .5s linear infinite; flex-shrink: 0; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ── Frame ── */
-        #browser-frame {
-            width: 100%; border: none; background: #fff;
-            height: calc(100vh - 74px); /* toolbar 48px + infobar 26px */
-            display: block;
+        /* ── Frame area ── */
+        #frame-area {
+            position: relative;
+            height: calc(100vh - 74px); /* 50px toolbar + 24px infobar */
         }
+        #browser-frame { width: 100%; height: 100%; border: none; background: #fff; display: block; }
 
-        /* ── Empty state ── */
+        /* ── Empty state overlay ── */
         #empty-state {
-            position: absolute; inset: 74px 0 0 0;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 1rem; color: #484f58;
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: .9rem; color: #484f58;
+            background: #0d1117; pointer-events: none;
         }
-        #empty-state i { font-size: 3.5rem; }
-        #empty-state p { font-size: .95rem; }
-
-        /* ── Quick suggestions ── */
-        #suggestions {
-            display: flex; flex-wrap: wrap; gap: .5rem;
-            justify-content: center; max-width: 600px;
-        }
-        .suggestion-chip {
-            background: #161b22; border: 1px solid #30363d;
-            border-radius: 20px; padding: .25rem .75rem;
-            font-size: .78rem; color: #8b949e; cursor: pointer;
-            font-family: monospace; text-decoration: none;
-        }
-        .suggestion-chip:hover { border-color: #388bfd; color: #58a6ff; }
+        #empty-state.hidden { display: none; }
+        #empty-state i { font-size: 3rem; }
+        #empty-state p { font-size: .88rem; }
+        #suggestions { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center;
+            max-width: 520px; pointer-events: all; }
+        .chip { background: #161b22; border: 1px solid #30363d; border-radius: 20px;
+            padding: .2rem .65rem; font-size: .75rem; color: #8b949e; cursor: pointer;
+            font-family: monospace; }
+        .chip:hover { border-color: #388bfd; color: #58a6ff; }
+        #security-note { font-size: .72rem; color: #30363d; }
     </style>
 </head>
 <body>
 
-{{-- ── Toolbar ── --}}
 <div id="toolbar">
-    {{-- Back to NOC --}}
-    <a href="{{ route('admin.telnet.index') }}" class="btn-tool" title="Back to NOC">
+    {{-- Back --}}
+    <a href="{{ route('admin.telnet.index') }}" class="btn-icon" title="Back">
         <i class="bi bi-arrow-left"></i>
     </a>
+    <button class="btn-icon" id="btn-back"    title="Back"    onclick="goBack()"><i class="bi bi-chevron-left"></i></button>
+    <button class="btn-icon" id="btn-forward" title="Forward" onclick="goForward()"><i class="bi bi-chevron-right"></i></button>
+    <button class="btn-icon" id="btn-reload"  title="Reload"  onclick="reload()"><i class="bi bi-arrow-clockwise"></i></button>
 
-    {{-- Back / Forward / Reload (iframe history) --}}
-    <button class="btn-tool" id="btn-back"    title="Back"    onclick="frameNav(-1)"><i class="bi bi-chevron-left"></i></button>
-    <button class="btn-tool" id="btn-forward" title="Forward" onclick="frameNav(1)"><i class="bi bi-chevron-right"></i></button>
-    <button class="btn-tool" id="btn-reload"  title="Reload"  onclick="reloadFrame()"><i class="bi bi-arrow-clockwise"></i></button>
+    {{-- Address bar group --}}
+    <div id="scheme-wrap">
+        <select id="scheme-select" title="Protocol">
+            <option value="http">http://</option>
+            <option value="https">https://</option>
+        </select>
+    </div>
 
-    {{-- Address bar --}}
-    <form id="address-form" onsubmit="navigate(event)">
-        <i class="bi bi-lock-fill" id="scheme-icon" style="color:#484f58;font-size:.8rem;flex-shrink:0"></i>
-        <input type="text" id="url-input"
-               placeholder="Enter URL — e.g. http://10.1.0.1/ or https://192.168.1.1/"
-               value="{{ $url }}"
-               autocomplete="off" spellcheck="false">
-        <button type="submit" id="go-btn">
-            <i class="bi bi-arrow-right-circle-fill"></i> Go
-        </button>
-    </form>
+    <input type="text" id="url-input"
+           placeholder="10.1.0.100  or  192.168.1.1/page"
+           autocomplete="off" spellcheck="false"
+           onkeydown="if(event.key==='Enter') go()">
 
-    {{-- Open original in new tab --}}
-    <button class="btn-tool" id="btn-open-direct" title="Open original URL in new tab" onclick="openDirect()" style="display:none">
+    <div id="port-wrap">
+        <span>:</span>
+        <input type="number" id="port-input" value="80" min="1" max="65535"
+               title="Port" onkeydown="if(event.key==='Enter') go()">
+    </div>
+
+    <button id="go-btn" onclick="go()">
+        <i class="bi bi-arrow-right-circle-fill"></i> Go
+    </button>
+
+    {{-- Direct open --}}
+    <button class="btn-icon" id="btn-direct" title="Open original in new tab"
+            onclick="openDirect()" style="display:none">
         <i class="bi bi-box-arrow-up-right"></i>
     </button>
 </div>
 
-{{-- ── Info bar ── --}}
 <div id="infobar">
-    <div id="loading-indicator"></div>
-    <span style="flex-shrink:0">Proxied via SG NOC →</span>
-    <span class="proxied-url" id="current-url-display">—</span>
+    <div class="spinner" id="spinner"></div>
+    <span style="flex-shrink:0">Proxied via SG NOC &rarr;</span>
+    <span class="live-url" id="live-url">—</span>
 </div>
 
-{{-- ── Frame ── --}}
-<iframe id="browser-frame"
-        name="sg-noc-browser"
-        sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
-        title="SG NOC Web Browser"></iframe>
+<div id="frame-area">
+    <iframe id="browser-frame"
+            name="sg-noc-browser"
+            sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-top-navigation-by-user-activation"
+            title="SG NOC Browser"></iframe>
 
-{{-- ── Empty state (shown when no URL loaded) ── --}}
-<div id="empty-state" id="empty">
-    <i class="bi bi-globe2"></i>
-    <p>Enter a URL above to browse through the NOC server</p>
-    <div id="suggestions">
-        <span class="suggestion-chip" onclick="loadSuggestion(this)">http://192.168.1.1/</span>
-        <span class="suggestion-chip" onclick="loadSuggestion(this)">http://10.0.0.1/</span>
-        <span class="suggestion-chip" onclick="loadSuggestion(this)">http://172.16.0.1/</span>
-        <span class="suggestion-chip" onclick="loadSuggestion(this)">https://192.168.0.1/</span>
+    <div id="empty-state">
+        <i class="bi bi-globe2"></i>
+        <p>Enter an address above and press <strong>Go</strong></p>
+        <div id="suggestions">
+            <span class="chip" onclick="prefill('http','192.168.1.1','80')">192.168.1.1</span>
+            <span class="chip" onclick="prefill('http','10.0.0.1','80')">10.0.0.1</span>
+            <span class="chip" onclick="prefill('http','172.16.0.1','80')">172.16.0.1</span>
+            <span class="chip" onclick="prefill('https','192.168.1.1','443')">192.168.1.1 (HTTPS)</span>
+            <span class="chip" onclick="prefill('http','10.1.0.100','8080')">10.1.0.100:8080</span>
+        </div>
+        <p id="security-note">
+            <i class="bi bi-shield-check me-1" style="color:#3fb950"></i>
+            All requests are made by the NOC server — your browser never connects directly.
+        </p>
     </div>
-    <p style="font-size:.78rem;color:#30363d;margin-top:.5rem">
-        <i class="bi bi-shield-check me-1 text-success"></i>
-        All requests are made by the NOC server — your browser never connects directly.
-    </p>
 </div>
 
 <script>
 (function () {
-    const FETCH_BASE = @json(route('admin.browser.fetch'));
+    const FETCH_URL  = @json(route('admin.browser.fetch'));
     const frame      = document.getElementById('browser-frame');
-    const input      = document.getElementById('url-input');
+    const urlInput   = document.getElementById('url-input');
+    const portInput  = document.getElementById('port-input');
+    const schemeEl   = document.getElementById('scheme-select');
     const emptyState = document.getElementById('empty-state');
-    const loadingEl  = document.getElementById('loading-indicator');
-    const urlDisplay = document.getElementById('current-url-display');
-    const btnDirect  = document.getElementById('btn-open-direct');
-    const schemeIcon = document.getElementById('scheme-icon');
+    const spinner    = document.getElementById('spinner');
+    const liveUrl    = document.getElementById('live-url');
+    const btnDirect  = document.getElementById('btn-direct');
 
-    let currentUrl = '';
+    let currentTarget = '';
+
+    // ── Build full URL from parts ─────────────────────────────────────────
+    function buildUrl() {
+        const scheme = schemeEl.value;
+        let   host   = urlInput.value.trim();
+        const port   = portInput.value.trim();
+
+        // Strip any scheme the user typed in the host box
+        host = host.replace(/^https?:\/\//i, '');
+
+        // Strip path from host (keep it for appending)
+        const slashIdx = host.indexOf('/');
+        const path     = slashIdx >= 0 ? host.slice(slashIdx) : '/';
+        const hostname = slashIdx >= 0 ? host.slice(0, slashIdx) : host;
+
+        if (!hostname) return null;
+
+        // Omit default ports
+        const defaultPort = scheme === 'https' ? '443' : '80';
+        const portStr     = port && port !== defaultPort ? ':' + port : '';
+
+        return `${scheme}://${hostname}${portStr}${path}`;
+    }
 
     // ── Navigate ──────────────────────────────────────────────────────────
-    function navigate(e) {
-        if (e) e.preventDefault();
-        let url = input.value.trim();
-        if (!url) return;
-
-        // Auto-prepend http:// if no scheme
-        if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
-
-        input.value = url;
+    function go() {
+        const url = buildUrl();
+        if (!url) { urlInput.focus(); return; }
         loadUrl(url);
     }
+    window.go = go;
 
     function loadUrl(url) {
-        currentUrl = url;
-        const proxied = FETCH_BASE + '?url=' + encodeURIComponent(url);
-
-        emptyState.style.display = 'none';
-        loadingEl.style.display  = 'block';
-
-        frame.src = proxied;
-
-        urlDisplay.textContent = url;
+        currentTarget = url;
+        liveUrl.textContent = url;
+        spinner.style.display = 'block';
+        emptyState.classList.add('hidden');
         btnDirect.style.display = '';
-        updateSchemeIcon(url);
-    }
 
-    function loadSuggestion(el) {
-        input.value = el.textContent.trim();
-        navigate(null);
-    }
-    window.loadSuggestion = loadSuggestion;
+        frame.src = FETCH_URL + '?url=' + encodeURIComponent(url);
 
-    // ── Frame events ──────────────────────────────────────────────────────
-    frame.addEventListener('load', () => {
-        loadingEl.style.display = 'none';
-
-        // Try to read the frame's current proxied URL to update the address bar
+        // Update address bar from parsed URL
         try {
-            const loc = frame.contentWindow?.location?.href;
-            if (loc && loc !== 'about:blank') {
-                const params = new URL(loc).searchParams;
-                const realUrl = params.get('url');
-                if (realUrl) {
-                    currentUrl = realUrl;
-                    input.value = realUrl;
-                    urlDisplay.textContent = realUrl;
-                    updateSchemeIcon(realUrl);
-                }
+            const p = new URL(url);
+            schemeEl.value   = p.protocol.replace(':', '');
+            urlInput.value   = p.hostname + (p.pathname !== '/' ? p.pathname : '');
+            portInput.value  = p.port || (p.protocol === 'https:' ? '443' : '80');
+        } catch (_) {}
+    }
+
+    function prefill(scheme, host, port) {
+        schemeEl.value  = scheme;
+        urlInput.value  = host;
+        portInput.value = port;
+        go();
+    }
+    window.prefill = prefill;
+
+    // ── Frame load/error ──────────────────────────────────────────────────
+    frame.addEventListener('load', () => {
+        spinner.style.display = 'none';
+
+        // Try reading proxied URL from frame's location
+        try {
+            const loc    = frame.contentWindow?.location?.href || '';
+            const params = new URL(loc).searchParams;
+            const real   = params.get('url');
+            if (real) {
+                currentTarget = real;
+                liveUrl.textContent = real;
+                const p = new URL(real);
+                schemeEl.value  = p.protocol.replace(':', '');
+                urlInput.value  = p.hostname + (p.pathname !== '/' ? p.pathname + p.search : '');
+                portInput.value = p.port || (p.protocol === 'https:' ? '443' : '80');
             }
         } catch (_) {}
     });
 
-    // ── Address bar: pressing Escape restores previous URL ────────────────
-    input.addEventListener('focus', () => input.select());
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') { input.value = currentUrl; input.blur(); }
+    // ── Sync port default when scheme changes ─────────────────────────────
+    schemeEl.addEventListener('change', () => {
+        const cur = portInput.value;
+        if (schemeEl.value === 'https' && cur === '80')  portInput.value = '443';
+        if (schemeEl.value === 'http'  && cur === '443') portInput.value = '80';
     });
 
-    // ── Scheme icon colouring ─────────────────────────────────────────────
-    function updateSchemeIcon(url) {
-        if (/^https:\/\//i.test(url)) {
-            schemeIcon.className = 'bi bi-lock-fill';
-            schemeIcon.style.color = '#3fb950';
-        } else {
-            schemeIcon.className = 'bi bi-unlock-fill';
-            schemeIcon.style.color = '#e3b341';
-        }
-    }
+    // ── Controls ──────────────────────────────────────────────────────────
+    function goBack()    { try { frame.contentWindow.history.back(); }    catch(_){} }
+    function goForward() { try { frame.contentWindow.history.forward(); } catch(_){} }
+    function reload()    { if (frame.src) frame.src = frame.src; }
+    function openDirect() { if (currentTarget) window.open(currentTarget, '_blank'); }
+    window.goBack = goBack; window.goForward = goForward;
+    window.reload = reload; window.openDirect = openDirect;
 
-    // ── Navigation helpers ────────────────────────────────────────────────
-    function frameNav(dir) {
+    // ── Pre-load URL passed from device page ──────────────────────────────
+    @if($url)
+    (function() {
+        const raw = @json($url);
         try {
-            if (dir === -1) frame.contentWindow.history.back();
-            else            frame.contentWindow.history.forward();
-        } catch (_) {}
-    }
-    function reloadFrame() {
-        if (frame.src && frame.src !== window.location.href) {
-            frame.src = frame.src;
+            const p = new URL(raw);
+            schemeEl.value  = p.protocol.replace(':', '');
+            urlInput.value  = p.hostname + (p.pathname && p.pathname !== '/' ? p.pathname : '');
+            portInput.value = p.port || (p.protocol === 'https:' ? '443' : '80');
+        } catch(_) {
+            urlInput.value = raw;
         }
-    }
-    window.frameNav    = frameNav;
-    window.reloadFrame = reloadFrame;
-
-    function openDirect() {
-        if (currentUrl) window.open(currentUrl, '_blank');
-    }
-    window.openDirect = openDirect;
-
-    // ── Auto-load if URL passed from device page ──────────────────────────
-    const initialUrl = input.value.trim();
-    if (initialUrl) {
-        loadUrl(initialUrl.startsWith('http') ? initialUrl : 'http://' + initialUrl);
-    }
+        go();
+    })();
+    @endif
 })();
 </script>
 </body>
