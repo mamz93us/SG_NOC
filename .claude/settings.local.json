@@ -151,7 +151,17 @@
       "Bash(composer require:*)",
       "Bash(npm --version)",
       "Bash(grep -l \"floor_id\\\\|office_id\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)",
-      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOC -name Kernel.php -o -name *device_mac* -o -name DeviceMac.php)"
+      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOC -name Kernel.php -o -name *device_mac* -o -name DeviceMac.php)",
+      "Bash(ls -la \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\resources\\\\views\\\\admin\\\\azure_devices\"\" 2>&1 || echo \"Directory not found \")",
+      "Bash(wc -l resources/views/admin/settings/*.blade.php)",
+      "Bash(for file:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/**)",
+      "Bash(php -l app/Http/Controllers/Admin/PrinterController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/AzureSyncController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/MacAddressController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/SettingsController.php)",
+      "Bash(php -l database/migrations/2026_03_31_000003_add_intune_net_data_script_id_to_settings_table.php)"
     ]
   }
 }

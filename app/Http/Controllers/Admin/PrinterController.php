@@ -196,7 +196,14 @@ class PrinterController extends Controller
             unset($data['snmp_version']);
         }
 
-        DB::transaction(function () use ($data, $request) {
+        // Auto-generate asset code for the printer device record
+        try {
+            $assetCode = (new \App\Services\AssetCodeService())->generate('printer');
+        } catch (\Throwable) {
+            $assetCode = null;
+        }
+
+        DB::transaction(function () use ($data, $request, $assetCode) {
             // Create unified device record first
             $device = Device::create([
                 'type'          => 'printer',
@@ -212,6 +219,7 @@ class PrinterController extends Controller
                 'source'        => 'printer',
                 'source_id'     => $data['serial_number'] ?? null,
                 'status'        => 'active',
+                'asset_code'    => $assetCode,
             ]);
 
             $printer = Printer::create(array_merge($data, ['device_id' => $device->id]));

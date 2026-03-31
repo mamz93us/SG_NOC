@@ -207,21 +207,23 @@ class SettingsController extends Controller
     public function updateGraph(Request $request)
     {
         $request->validate([
-            'graph_tenant_id'          => 'nullable|string|max:100',
-            'graph_client_id'          => 'nullable|string|max:100',
-            'graph_client_secret'      => 'nullable|string|max:500',
-            'graph_default_password'   => 'nullable|string|max:255',
-            'graph_default_license_sku'=> 'nullable|string|max:100',
-            'identity_sync_interval'   => 'required|integer|min:5|max:1440',
+            'graph_tenant_id'             => 'nullable|string|max:100',
+            'graph_client_id'             => 'nullable|string|max:100',
+            'graph_client_secret'         => 'nullable|string|max:500',
+            'graph_default_password'      => 'nullable|string|max:255',
+            'graph_default_license_sku'   => 'nullable|string|max:100',
+            'identity_sync_interval'      => 'required|integer|min:5|max:1440',
+            'intune_net_data_script_id'   => 'nullable|string|max:100',
         ]);
 
         $settings = Setting::get();
-        $settings->identity_sync_enabled    = $request->boolean('identity_sync_enabled');
-        $settings->graph_tenant_id          = $request->graph_tenant_id;
-        $settings->graph_client_id          = $request->graph_client_id;
-        $settings->graph_default_password   = $request->graph_default_password;
-        $settings->graph_default_license_sku= $request->graph_default_license_sku;
-        $settings->identity_sync_interval   = (int) $request->identity_sync_interval;
+        $settings->identity_sync_enabled      = $request->boolean('identity_sync_enabled');
+        $settings->graph_tenant_id            = $request->graph_tenant_id;
+        $settings->graph_client_id            = $request->graph_client_id;
+        $settings->graph_default_password     = $request->graph_default_password;
+        $settings->graph_default_license_sku  = $request->graph_default_license_sku;
+        $settings->identity_sync_interval     = (int) $request->identity_sync_interval;
+        $settings->intune_net_data_script_id  = $request->intune_net_data_script_id;
 
         if ($request->filled('graph_client_secret')) {
             $settings->graph_client_secret = $request->graph_client_secret;

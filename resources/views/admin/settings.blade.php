@@ -509,6 +509,38 @@
                 </div>
             </div>
 
+            {{-- ── Intune Net Data Script ──────────────────────────── --}}
+            <hr class="my-3">
+            <h6 class="text-muted mb-3"><i class="bi bi-terminal me-1"></i> Intune Net Data Script</h6>
+            <div class="row g-3 mb-3">
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">NOC-DeviceInfo Script ID</label>
+                    <input type="text" name="intune_net_data_script_id"
+                           class="form-control font-monospace @error('intune_net_data_script_id') is-invalid @enderror"
+                           value="{{ old('intune_net_data_script_id', $settings->intune_net_data_script_id) }}"
+                           placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                    <div class="form-text">
+                        The GUID of the <code>NOC-DeviceInfo.ps1</code> Intune script.
+                        Find it in <strong>Intune → Devices → Scripts → Windows</strong> — copy the GUID from the URL.
+                        Used by <code>artisan intune:sync-net-data</code> to pull CPU, MAC and TeamViewer data.
+                    </div>
+                    @error('intune_net_data_script_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    @if($settings->intune_net_data_script_id)
+                    <div class="alert alert-success py-2 mb-0 w-100 small">
+                        <i class="bi bi-check-circle-fill me-1"></i>Script ID configured
+                    </div>
+                    @else
+                    <div class="alert alert-warning py-2 mb-0 w-100 small">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Not configured — net data sync disabled
+                    </div>
+                    @endif
+                </div>
+            </div>
+
             <div class="d-flex justify-content-end">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-save me-1"></i>Save Graph Settings

@@ -866,7 +866,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ─── ITAM ─────────────────────────────────────────────────────
     Route::middleware('permission:view-itam')->prefix('itam')->name('itam.')->group(function () {
-        Route::get('/',         [ItamController::class, 'dashboard']) ->name('dashboard');
+        Route::get('/',            [ItamController::class, 'dashboard']) ->name('dashboard');
+        Route::get('/mac-address', [\App\Http\Controllers\Admin\MacAddressController::class, 'index'])->name('mac-address');
     });
 
     // ─── Suppliers ────────────────────────────────────────────────
@@ -946,13 +947,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── Azure Device Sync ────────────────────────────────────────
     Route::middleware('permission:view-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
         Route::get('/mappings',          [AzureSyncController::class, 'mappings'])->name('mappings');
-        
+
         // These specific ID routes must come before the general /{azureDevice}
-        Route::get('/{azureDevice}/create-device', [AzureSyncController::class, 'createDevice'])->name('create-device');
-        Route::get('/{azureDevice}/preview-import', [AzureSyncController::class, 'previewImport'])->name('preview-import');
-        
-        Route::get('/',                  [AzureSyncController::class, 'index'])->name('index');
-        Route::get('/{azureDevice}',     [AzureSyncController::class, 'show']) ->name('show');
+        Route::get('/{azureDevice}/create-device',   [AzureSyncController::class, 'createDevice'])  ->name('create-device');
+        Route::get('/{azureDevice}/preview-import',  [AzureSyncController::class, 'previewImport']) ->name('preview-import');
+        Route::get('/{azureDevice}/json',            [AzureSyncController::class, 'showJson'])      ->name('show-json');
+
+        Route::get('/',              [AzureSyncController::class, 'index'])->name('index');
+        Route::get('/{azureDevice}', [AzureSyncController::class, 'show']) ->name('show');
     });
     Route::middleware('permission:manage-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
         Route::post('/sync',                       [AzureSyncController::class, 'sync'])        ->name('sync');

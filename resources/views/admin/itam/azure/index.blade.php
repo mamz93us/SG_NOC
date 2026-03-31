@@ -166,13 +166,17 @@
                 </thead>
                 <tbody>
                     @forelse($azureDevices as $az)
-                    <tr style="cursor:pointer" onclick="azShowDetail({{ $az->id }})">
+                    <tr style="cursor:pointer" onclick="window.location='{{ route('admin.itam.azure.show', $az) }}'">
                         <td onclick="event.stopPropagation()">
                             @if($az->link_status !== 'linked')
                             <input type="checkbox" name="ids[]" value="{{ $az->id }}" class="form-check-input az-checkbox" form="batchImportForm">
                             @endif
                         </td>
-                        <td class="fw-semibold">{{ $az->display_name }}</td>
+                        <td class="fw-semibold">
+                            <a href="{{ route('admin.itam.azure.show', $az) }}" class="text-decoration-none text-dark" onclick="event.stopPropagation()">
+                                {{ $az->display_name }}
+                            </a>
+                        </td>
                         <td>{{ $az->os }}{{ $az->os_version ? ' '.$az->os_version : '' }}</td>
                         <td class="font-monospace small">{{ $az->serial_number ?: '—' }}</td>
                         <td class="small">{{ $az->upn ?: '—' }}</td>
@@ -222,7 +226,8 @@
 
 @push('scripts')
 <script>
-const azDetailUrl = '{{ rtrim(route("admin.itam.azure.index"), "/") }}/';
+const azDetailUrl     = '{{ rtrim(route("admin.itam.azure.index"), "/") }}/';
+const azDetailJsonSfx = '/json';
 const azCsrf      = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
 function statusBadge(status) {
@@ -241,7 +246,7 @@ function azShowDetail(id) {
     document.getElementById('azDetailBody').innerHTML   = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Loading…</div>';
     new bootstrap.Modal(document.getElementById('azDetailModal')).show();
 
-    fetch(azDetailUrl + id, { headers: { 'Accept': 'application/json' } })
+    fetch(azDetailUrl + id + azDetailJsonSfx, { headers: { 'Accept': 'application/json' } })
         .then(r => r.json())
         .then(d => {
             document.getElementById('azDetailName').textContent = d.display_name;

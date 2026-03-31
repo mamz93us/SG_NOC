@@ -112,7 +112,26 @@ class AzureSyncController extends Controller
         return response()->json(['ok' => true, 'message' => 'Linked — pending approval.']);
     }
 
+    /**
+     * Full-page device detail — shows net data, MACs, IP, TeamViewer.
+     */
     public function show(AzureDevice $azureDevice)
+    {
+        $azureDevice->load(['device.branch', 'macs']);
+
+        // Resolve IP address: prefer the linked ITAM device's IP, fall back to SNMP host
+        $monitoredHost = \App\Models\MonitoredHost::where('name', $azureDevice->display_name)->first()
+            ?? \App\Models\MonitoredHost::where('name', 'like', '%' . $azureDevice->display_name . '%')->first();
+
+        $ipAddress = $azureDevice->device?->ip_address ?? $monitoredHost?->ip;
+
+        return view('admin.itam.azure.show', compact('azureDevice', 'monitoredHost', 'ipAddress'));
+    }
+
+    /**
+     * JSON endpoint used by the index page modal (AJAX).
+     */
+    public function showJson(AzureDevice $azureDevice)
     {
         $azureDevice->load('device.branch');
         return response()->json([
@@ -132,9 +151,9 @@ class AzureSyncController extends Controller
             'link_status'  => $azureDevice->link_status,
             'raw_data'     => $azureDevice->raw_data,
             'linked_device' => $azureDevice->device ? [
-                'id'   => $azureDevice->device->id,
-                'name' => $azureDevice->device->name,
-                'type' => $azureDevice->device->type,
+                'id'         => $azureDevice->device->id,
+                'name'       => $azureDevice->device->name,
+                'type'       => $azureDevice->device->type,
                 'serial'     => $azureDevice->device->serial_number,
                 'model'      => $azureDevice->device->deviceModel?->name,
                 'branch'     => $azureDevice->device->branch?->name,
