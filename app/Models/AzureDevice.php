@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class AzureDevice extends Model
 {
     protected $fillable = [
-        'azure_device_id', 'display_name', 'device_type', 'os', 'os_version',
+        'azure_device_id', 'intune_managed_device_id', 'display_name', 'device_type', 'os', 'os_version',
         'upn', 'serial_number', 'manufacturer', 'model', 'enrolled_date', 'last_sync_at',
         'last_activity_at', 'device_id', 'link_status', 'raw_data',
         // Net data — populated by intune:sync-net-data (NOC-DeviceInfo.ps1)

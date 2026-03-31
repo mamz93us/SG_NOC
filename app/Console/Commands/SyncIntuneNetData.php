@@ -167,11 +167,15 @@ class SyncIntuneNetData extends Command
         }
 
         // ── Find Azure device ─────────────────────────────────────────
-        $azureDevice = AzureDevice::where('azure_device_id', $managedDeviceId)->first();
+        // Script run states use the Intune MDM enrollment ID (managedDevices[].id).
+        // azure_devices.azure_device_id holds the Azure AD hardware ID — different GUID.
+        // We match on intune_managed_device_id (populated by AzureDeviceService since the fix).
+        $azureDevice = AzureDevice::where('intune_managed_device_id', $managedDeviceId)->first()
+                    ?? AzureDevice::where('azure_device_id',           $managedDeviceId)->first();
+
         if (! $azureDevice) {
             $counters['skipped']++;
             $counters['reasons']['not_in_db'] = ($counters['reasons']['not_in_db'] ?? 0) + 1;
-            // Show first 5 misses so admin can diagnose
             if (($counters['reasons']['not_in_db'] ?? 0) <= 5) {
                 $this->line("  ⚠ Device not in azure_devices: {$managedDeviceId}");
             }

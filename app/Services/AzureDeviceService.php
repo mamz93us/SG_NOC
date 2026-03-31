@@ -39,6 +39,9 @@ class AzureDeviceService
                 $azDev = AzureDevice::updateOrCreate(
                     ['azure_device_id' => $data['azure_device_id']],
                     [
+                        // intune_id = Intune MDM enrollment ID (managedDevices[].id)
+                        // Needed to match script run states back to this row.
+                        'intune_managed_device_id' => $data['intune_id'] ?? null,
                         'display_name'     => $data['display_name'],
                         'device_type'      => $data['device_type'] ?? null,
                         'os'               => $data['os'] ?? null,
