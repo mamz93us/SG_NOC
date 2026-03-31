@@ -75,7 +75,7 @@ class SyncIntuneNetData extends Command
         $this->info("Starting Intune net-data sync  [script: {$scriptId}]…");
         $log = ServiceSyncLog::start('intune_net_data');
 
-        $counters = ['updated' => 0, 'skipped' => 0, 'failed' => 0];
+        $counters = ['updated' => 0, 'skipped' => 0, 'failed' => 0, 'reasons' => []];
 
         try {
             $graph = new GraphService();
@@ -100,6 +100,25 @@ class SyncIntuneNetData extends Command
                 "Skipped: {$counters['skipped']} | " .
                 "Failed: {$counters['failed']}"
             );
+
+            // ── Skip breakdown ────────────────────────────────────────
+            if ($counters['skipped'] > 0) {
+                $reasons = $counters['reasons'];
+                if (! empty($reasons['runState'])) {
+                    foreach ($reasons['runState'] as $state => $n) {
+                        $this->line("  ↳ runState='{$state}': {$n} device(s) — script has not run / returned this status");
+                    }
+                }
+                if (! empty($reasons['not_in_db'])) {
+                    $this->line("  ↳ not_in_db: {$reasons['not_in_db']} device(s) — Intune device GUID not found in azure_devices table (run identity:sync first)");
+                }
+                if (! empty($reasons['no_device_id'])) {
+                    $this->line("  ↳ no_device_id: {$reasons['no_device_id']} — could not extract GUID from composite id");
+                }
+                if (! empty($reasons['recent'])) {
+                    $this->line("  ↳ recent: {$reasons['recent']} device(s) — synced within last 12 h (use --force to re-sync)");
+                }
+            }
             return self::SUCCESS;
 
         } catch (\Throwable $e) {
@@ -123,9 +142,13 @@ class SyncIntuneNetData extends Command
 
     private function processState(array $state, array &$counters, bool $force): void
     {
+        $compositeId = $state['id'] ?? '(no id)';
+
         // ── Only process successful runs ──────────────────────────────
-        if (($state['runState'] ?? '') !== 'success') {
+        $runState = $state['runState'] ?? '';
+        if ($runState !== 'success') {
             $counters['skipped']++;
+            $counters['reasons']['runState'][$runState] = ($counters['reasons']['runState'][$runState] ?? 0) + 1;
             return;
         }
 
@@ -133,11 +156,13 @@ class SyncIntuneNetData extends Command
         // 'managedDeviceId' is NOT a selectable field on deviceManagementScriptDeviceState.
         // The device GUID is always the second segment of the composite id:
         //   format:  "{scriptId}:{managedDeviceId}"
-        $parts           = explode(':', $state['id'] ?? '');
+        $parts           = explode(':', $compositeId);
         $managedDeviceId = $parts[1] ?? '';
 
         if (empty($managedDeviceId)) {
             $counters['skipped']++;
+            $counters['reasons']['no_device_id'] = ($counters['reasons']['no_device_id'] ?? 0) + 1;
+            $this->line("  ⚠ Could not extract device ID from composite id: {$compositeId}");
             return;
         }
 
@@ -145,12 +170,18 @@ class SyncIntuneNetData extends Command
         $azureDevice = AzureDevice::where('azure_device_id', $managedDeviceId)->first();
         if (! $azureDevice) {
             $counters['skipped']++;
+            $counters['reasons']['not_in_db'] = ($counters['reasons']['not_in_db'] ?? 0) + 1;
+            // Show first 5 misses so admin can diagnose
+            if (($counters['reasons']['not_in_db'] ?? 0) <= 5) {
+                $this->line("  ⚠ Device not in azure_devices: {$managedDeviceId}");
+            }
             return;
         }
 
         // ── Skip recently synced devices (unless --force) ─────────────
         if (! $force && $azureDevice->net_data_synced_at && $azureDevice->net_data_synced_at->gt(now()->subHours(12))) {
             $counters['skipped']++;
+            $counters['reasons']['recent'] = ($counters['reasons']['recent'] ?? 0) + 1;
             return;
         }
 
