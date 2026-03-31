@@ -20,6 +20,14 @@ class GraphService
     private const TIMEOUT_STANDARD = 30;
     private const TIMEOUT_BULK     = 120;
 
+    /**
+     * Maximum $top allowed by the Intune proxy (deviceManagement endpoints).
+     * The v1.0 / beta Graph API generally supports $top=999, but Intune's
+     * internal proxy (proxy.amsub*.manage.microsoft.com) rejects values > 100
+     * with HTTP 400.  We keep a separate constant so it is easy to adjust.
+     */
+    private const TOP_INTUNE = 100;
+
     // ─────────────────────────────────────────────────────────────
     // Construction & Authentication
     // ─────────────────────────────────────────────────────────────
@@ -144,9 +152,23 @@ class GraphService
     // Pagination helper
     // ─────────────────────────────────────────────────────────────
 
-    private function paginateWithCallback(string $endpoint, callable $callback, array $query = [], array $headers = []): void
-    {
-        $query   = array_merge(['$top' => 999], $query); // caller's $top overrides default
+    /**
+     * @param int $defaultTop  Page size sent in the first request.
+     *                         Pass TOP_INTUNE (100) for Intune/deviceManagement
+     *                         endpoints; the default 999 is fine for AAD endpoints.
+     */
+    private function paginateWithCallback(
+        string $endpoint,
+        callable $callback,
+        array $query = [],
+        array $headers = [],
+        int $defaultTop = 999
+    ): void {
+        // Caller's explicit $top wins; otherwise use $defaultTop.
+        if (! isset($query['$top'])) {
+            $query['$top'] = $defaultTop;
+        }
+
         $baseUrl = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl . $endpoint;
         $url     = $baseUrl;
 
@@ -674,6 +696,9 @@ class GraphService
      * NOTE: 'managedDeviceId' is NOT a selectable field on deviceManagementScriptDeviceState —
      *       the device ID must always be extracted by splitting the composite 'id' on ':'.
      *
+     * NOTE on $top: Intune's internal proxy rejects $top > 100 with HTTP 400.
+     *       We pass TOP_INTUNE (100) as the defaultTop for this endpoint.
+     *
      * @param string   $scriptId  Intune deviceManagementScript GUID
      * @param callable $callback  Receives array of run-state objects per page
      */
@@ -682,9 +707,13 @@ class GraphService
         $url = $this->betaUrl
             . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
 
-        $this->paginateWithCallback($url, $callback, [
-            '$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime',
-        ]);
+        $this->paginateWithCallback(
+            $url,
+            $callback,
+            ['$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime'],
+            [],
+            self::TOP_INTUNE   // ← 100 instead of 999
+        );
     }
 
     /**
