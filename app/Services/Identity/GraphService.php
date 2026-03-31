@@ -661,6 +661,30 @@ class GraphService
     }
 
     /**
+     * Paginate all device run states for a given Intune script.
+     *
+     * Each item in the callback contains:
+     *   id                      — "{scriptId}:{managedDeviceId}"
+     *   runState                — success | fail | pending | notApplicable | etc.
+     *   resultMessage           — stdout from the script (JSON string in our case)
+     *   errorCode               — int, 0 on success
+     *   lastStateUpdateDateTime — ISO 8601 timestamp
+     *   managedDeviceId         — Intune device GUID (may be empty; extract from id if so)
+     *
+     * @param string   $scriptId  Intune deviceManagementScript GUID
+     * @param callable $callback  Receives array of run-state objects per page
+     */
+    public function listScriptRunStates(string $scriptId, callable $callback): void
+    {
+        $url = $this->betaUrl
+            . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
+
+        $this->paginateWithCallback($url, $callback, [
+            '$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime,managedDeviceId',
+        ]);
+    }
+
+    /**
      * Delete an Intune device management script.
      */
     public function deleteIntuneScript(string $intuneScriptId): void

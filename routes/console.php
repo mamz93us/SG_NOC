@@ -316,3 +316,12 @@ Schedule::command('data:prune')
     ->dailyAt('03:00')
     ->withoutOverlapping(30)
     ->name('prune-data');
+
+// ─── Intune Net Data Sync — daily at 03:30 ───────────────────────────────
+// Reads NOC-DeviceInfo.ps1 run results from Graph beta, updates azure_devices
+// with TeamViewer ID / CPU / MAC addresses, and populates device_macs for RADIUS.
+Schedule::command('intune:sync-net-data')
+    ->dailyAt('03:30')
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('intune-net-data');

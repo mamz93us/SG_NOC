@@ -150,7 +150,8 @@
       "Bash(do php:*)",
       "Bash(composer require:*)",
       "Bash(npm --version)",
-      "Bash(grep -l \"floor_id\\\\|office_id\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)"
+      "Bash(grep -l \"floor_id\\\\|office_id\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/migrations/*.php)",
+      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOC -name Kernel.php -o -name *device_mac* -o -name DeviceMac.php)"
     ]
   }
 }

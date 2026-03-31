@@ -62,6 +62,8 @@ class Setting extends Model
         'itam_asset_prefix',
         'itam_code_padding',
         'itam_company_url',
+        // Intune Net Data sync — set to the GUID of NOC-DeviceInfo.ps1 script in Intune
+        'intune_net_data_script_id',
         // Metrics / Data Retention
         'metrics_retention_days',
         'vq_retention_days',
