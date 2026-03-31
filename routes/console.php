@@ -317,6 +317,15 @@ Schedule::command('data:prune')
     ->withoutOverlapping(30)
     ->name('prune-data');
 
+// ─── Azure / Intune Device Sync — every 6 hours ──────────────────────────
+// Inline (no queue) sync of managed devices → populates intune_managed_device_id
+// which is required for intune:sync-net-data to match script results.
+Schedule::command('itam:sync-devices')
+    ->everySixHours()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('itam-sync-devices');
+
 // ─── Intune Net Data Sync — daily at 03:30 ───────────────────────────────
 // Reads NOC-DeviceInfo.ps1 run results from Graph beta, updates azure_devices
 // with TeamViewer ID / CPU / MAC addresses, and populates device_macs for RADIUS.

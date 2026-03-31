@@ -60,14 +60,21 @@ class AzureSyncController extends Controller
 
     public function sync(Request $request)
     {
-        // Dispatch as a queued job to avoid 504 Gateway Timeout
-        dispatch(function () {
+        // Run inline via the artisan command (avoids queue-worker dependency).
+        // set_time_limit to prevent 504 on large tenants.
+        try {
+            set_time_limit(300);
             $service = new AzureDeviceService();
             $result  = $service->syncDevices();
             ActivityLog::log("Azure device sync completed: {$result['synced']} synced, {$result['new']} new, {$result['auto_linked']} auto-linked");
-        })->onQueue('default');
 
-        return back()->with('success', 'Azure device sync started in background. Refresh in a minute to see results.');
+            return back()->with('success',
+                "Sync complete — {$result['synced']} devices synced, {$result['new']} new, {$result['auto_linked']} auto-linked."
+            );
+        } catch (\Throwable $e) {
+            ActivityLog::log("Azure device sync failed: " . $e->getMessage());
+            return back()->with('error', 'Sync failed: ' . $e->getMessage());
+        }
     }
 
     public function approve(Request $request, AzureDevice $azureDevice)
@@ -411,6 +418,46 @@ class AzureSyncController extends Controller
     private function guessDeviceType(AzureDevice $az): string
     {
         return 'laptop';
+    }
+
+    /**
+     * Find the Employee who owns this Azure device.
+     *
+     * Lookup chain (first match wins):
+     *   1. Employee.email = upn                        (exact match, works when domains align)
+     *   2. IdentityUser.user_principal_name = upn      (synced from Entra ID)
+     *      → Employee.azure_id = IdentityUser.azure_id (linked via shared Azure object ID)
+     *   3. IdentityUser.mail = upn                     (proxy / alias address)
+     *      → Employee.email   = IdentityUser.mail
+     */
+    private function findEmployeeByUpn(?string $upn): ?\App\Models\Employee
+    {
+        if (empty($upn)) return null;
+
+        // 1. Direct email match
+        $employee = \App\Models\Employee::where('email', $upn)->first();
+        if ($employee) return $employee;
+
+        // 2 & 3. Via IdentityUser (handles UPN ≠ email, e.g. @tenant.onmicrosoft.com vs @company.com)
+        $identityUser = \App\Models\IdentityUser::where('user_principal_name', $upn)
+            ->orWhere('mail', $upn)
+            ->first();
+
+        if (! $identityUser) return null;
+
+        // Try linking by shared azure_id first
+        if ($identityUser->azure_id) {
+            $employee = \App\Models\Employee::where('azure_id', $identityUser->azure_id)->first();
+            if ($employee) return $employee;
+        }
+
+        // Fall back to matching the synced mail address
+        if ($identityUser->mail) {
+            $employee = \App\Models\Employee::where('email', $identityUser->mail)->first();
+            if ($employee) return $employee;
+        }
+
+        return null;
     }
 
     // --- Branch Mapping Management ---
