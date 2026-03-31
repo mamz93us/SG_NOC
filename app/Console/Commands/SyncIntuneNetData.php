@@ -130,12 +130,11 @@ class SyncIntuneNetData extends Command
         }
 
         // ── Resolve managedDeviceId ───────────────────────────────────
-        // Graph may return the ID directly, or we can split from "scriptId:deviceId"
-        $managedDeviceId = $state['managedDeviceId'] ?? '';
-        if (empty($managedDeviceId)) {
-            $parts           = explode(':', $state['id'] ?? '');
-            $managedDeviceId = $parts[1] ?? '';
-        }
+        // 'managedDeviceId' is NOT a selectable field on deviceManagementScriptDeviceState.
+        // The device GUID is always the second segment of the composite id:
+        //   format:  "{scriptId}:{managedDeviceId}"
+        $parts           = explode(':', $state['id'] ?? '');
+        $managedDeviceId = $parts[1] ?? '';
 
         if (empty($managedDeviceId)) {
             $counters['skipped']++;

@@ -161,7 +161,8 @@
       "Bash(php -l app/Http/Controllers/Admin/AzureSyncController.php)",
       "Bash(php -l app/Http/Controllers/Admin/MacAddressController.php)",
       "Bash(php -l app/Http/Controllers/Admin/SettingsController.php)",
-      "Bash(php -l database/migrations/2026_03_31_000003_add_intune_net_data_script_id_to_settings_table.php)"
+      "Bash(php -l database/migrations/2026_03_31_000003_add_intune_net_data_script_id_to_settings_table.php)",
+      "Bash(php -l app/Console/Commands/SyncIntuneNetData.php)"
     ]
   }
 }

@@ -664,12 +664,15 @@ class GraphService
      * Paginate all device run states for a given Intune script.
      *
      * Each item in the callback contains:
-     *   id                      — "{scriptId}:{managedDeviceId}"
-     *   runState                — success | fail | pending | notApplicable | etc.
-     *   resultMessage           — stdout from the script (JSON string in our case)
-     *   errorCode               — int, 0 on success
-     *   lastStateUpdateDateTime — ISO 8601 timestamp
-     *   managedDeviceId         — Intune device GUID (may be empty; extract from id if so)
+     *   id                      — composite key: "{scriptId}:{managedDeviceId}"
+     *                             Split on ':' and take index [1] to get the Intune device GUID.
+     *   runState                — success | fail | pending | notApplicable | unknown
+     *   resultMessage           — stdout written by the script (JSON string in our case)
+     *   errorCode               — integer, 0 on success
+     *   lastStateUpdateDateTime — ISO 8601 timestamp of last run
+     *
+     * NOTE: 'managedDeviceId' is NOT a selectable field on deviceManagementScriptDeviceState —
+     *       the device ID must always be extracted by splitting the composite 'id' on ':'.
      *
      * @param string   $scriptId  Intune deviceManagementScript GUID
      * @param callable $callback  Receives array of run-state objects per page
@@ -680,7 +683,7 @@ class GraphService
             . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
 
         $this->paginateWithCallback($url, $callback, [
-            '$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime,managedDeviceId',
+            '$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime',
         ]);
     }
 
