@@ -58,11 +58,11 @@ class DeviceLookupController extends Controller
         }
 
         // ── 2. Find currently assigned devices ────────────────────
-        $assignments = $employee->employeeAssets()
+        $assignments = $employee->assetAssignments()
             ->whereNull('returned_date')
             ->with([
-                'asset.azureDevice',
-                'asset.branch',
+                'device.azureDevice',
+                'device.branch',
             ])
             ->get();
 
@@ -82,7 +82,7 @@ class DeviceLookupController extends Controller
             : null;
 
         $devices = $assignments->map(function ($assignment) use ($normMac) {
-            $device = $assignment->asset;
+            $device = $assignment->device;
             $az     = $device?->azureDevice;
 
             $entry = [
