@@ -436,6 +436,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('view-itam')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.mac-address') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.mac-address') }}">
+                                    <i class="bi bi-fingerprint me-2"></i>MAC Registry
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-assets')
                             <li><hr class="dropdown-divider"></li>
                             <li>

@@ -455,6 +455,121 @@
     </div>
 </div>
 
+    {{-- ─────────────────────────────────────────────────────
+         ENDPOINT D: GET /api/hr/device-lookup
+    ───────────────────────────────────────────────────── --}}
+    <div class="accordion-item border">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed fw-semibold" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#endpointDeviceLookup"
+                    aria-expanded="false" aria-controls="endpointDeviceLookup">
+                <span class="badge bg-info text-dark me-3 px-2 py-1" style="font-size:.75rem">GET</span>
+                <code>/api/hr/device-lookup</code>
+                <span class="ms-3 text-muted fw-normal small d-none d-md-inline">Get TeamViewer ID &amp; hardware info for a user's device</span>
+            </button>
+        </h2>
+        <div id="endpointDeviceLookup" class="accordion-collapse collapse" data-bs-parent="#endpointsAccordion">
+            <div class="accordion-body">
+                <p class="text-muted">
+                    Returns the TeamViewer ID, CPU, MAC addresses, and other hardware info for the device(s)
+                    currently assigned to the given user (looked up by UPN or email).
+                    Useful for helpdesk integrations that need to remote into a user's machine.
+                </p>
+
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <h6 class="fw-semibold mb-2"><i class="bi bi-arrow-up-circle me-1 text-info"></i>Query Parameter</h6>
+                        <table class="table table-sm table-bordered mb-3">
+                            <thead class="table-light">
+                                <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>upn</code></td>
+                                    <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle">required</span></td>
+                                    <td>User Principal Name or work email (e.g. <code>ahmed@company.com</code>)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h6 class="fw-semibold mb-2"><i class="bi bi-terminal me-1 text-secondary"></i>cURL Example</h6>
+                        <pre class="bg-dark text-light p-3 rounded small"><code>curl -X GET \
+  "{{ $baseUrl }}/api/hr/device-lookup?upn=ahmed.karimi@company.com" \
+  -H "X-HR-Api-Key: YOUR_API_KEY" \
+  -H "Accept: application/json"</code></pre>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <h6 class="fw-semibold mb-2">
+                            <i class="bi bi-arrow-down-circle me-1 text-primary"></i>
+                            Response <span class="badge bg-success ms-1">200 OK</span>
+                        </h6>
+                        <pre class="bg-dark text-light p-3 rounded small" style="font-size:.75rem"><code>{
+  <span class="text-warning">"ok"</span>:             <span class="text-info">true</span>,
+  <span class="text-warning">"upn"</span>:            <span class="text-success">"ahmed.karimi@company.com"</span>,
+  <span class="text-warning">"employee"</span>:       <span class="text-success">"Ahmed Karimi"</span>,
+  <span class="text-warning">"teamviewer_id"</span>:  <span class="text-success">"1234567890"</span>,   <span class="text-secondary">// primary device TV ID</span>
+  <span class="text-warning">"tv_version"</span>:     <span class="text-success">"15.72.6 H"</span>,
+  <span class="text-warning">"devices"</span>: [{
+    <span class="text-warning">"asset_code"</span>:    <span class="text-success">"SG-LAP-000171"</span>,
+    <span class="text-warning">"device_name"</span>:   <span class="text-success">"J-MZAHRAN"</span>,
+    <span class="text-warning">"type"</span>:          <span class="text-success">"laptop"</span>,
+    <span class="text-warning">"model"</span>:         <span class="text-success">"LENOVO 21SX006UAD"</span>,
+    <span class="text-warning">"serial"</span>:        <span class="text-success">"PF5XEHlL"</span>,
+    <span class="text-warning">"branch"</span>:        <span class="text-success">"JED"</span>,
+    <span class="text-warning">"ip_address"</span>:    <span class="text-success">"192.168.1.50"</span>,
+    <span class="text-warning">"mac_address"</span>:   <span class="text-success">"A8:2B:DD:68:3D:9E"</span>,
+    <span class="text-warning">"cpu"</span>:           <span class="text-success">"Intel Core Ultra 7 255H"</span>,
+    <span class="text-warning">"teamviewer_id"</span>: <span class="text-success">"1234567890"</span>,
+    <span class="text-warning">"tv_version"</span>:    <span class="text-success">"15.72.6 H"</span>,
+    <span class="text-warning">"ethernet_mac"</span>:  <span class="text-success">"A8:2B:DD:68:3D:9E"</span>,
+    <span class="text-warning">"wifi_mac_intune"</span>:<span class="text-success">"BC:F1:05:5C:F7:5B"</span>,
+    <span class="text-warning">"usb_adapters"</span>:  [],
+    <span class="text-warning">"hw_synced_at"</span>:  <span class="text-success">"2026-04-01T13:00:00Z"</span>,
+    <span class="text-warning">"azure_device"</span>: {
+      <span class="text-warning">"display_name"</span>: <span class="text-success">"J-MZAHRAN"</span>,
+      <span class="text-warning">"upn"</span>:          <span class="text-success">"ahmed.karimi@company.com"</span>,
+      <span class="text-warning">"os"</span>:           <span class="text-success">"Windows 10.0.26200.8037"</span>,
+      <span class="text-warning">"last_sync"</span>:    <span class="text-success">"2026-04-01T13:00:00Z"</span>
+    }
+  }]
+}</code></pre>
+
+                        <div class="alert alert-info small mt-3 mb-0">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <strong>Note:</strong> <code>teamviewer_id</code> at the root level is the ID of the first device
+                            that has TeamViewer synced — convenient shortcut for single-device users.
+                            If the device hasn't run the Intune script yet, <code>teamviewer_id</code> will be <code>null</code>.
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="fw-semibold mt-3 mb-2">Error Responses</h6>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <pre class="bg-dark text-light p-2 rounded small mb-0"><code><span class="text-warning">// 404 — User not found</span>
+{
+  <span class="text-warning">"ok"</span>:      <span class="text-info">false</span>,
+  <span class="text-warning">"error"</span>:   <span class="text-success">"No employee found for the given UPN."</span>,
+  <span class="text-warning">"devices"</span>: []
+}</code></pre>
+                    </div>
+                    <div class="col-md-6">
+                        <pre class="bg-dark text-light p-2 rounded small mb-0"><code><span class="text-warning">// 200 — Found but no devices assigned</span>
+{
+  <span class="text-warning">"ok"</span>:          <span class="text-info">true</span>,
+  <span class="text-warning">"employee"</span>:    <span class="text-success">"Ahmed Karimi"</span>,
+  <span class="text-warning">"devices"</span>:    [],
+  <span class="text-warning">"message"</span>:    <span class="text-success">"Employee found but has no currently assigned devices."</span>
+}</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>{{-- /endpointsAccordion --}}
+
 {{-- ═══════════════════════════════════════════════════════
      TEST CONSOLE
 ═══════════════════════════════════════════════════════ --}}
@@ -485,6 +600,7 @@
                     <option value="onboarding">POST /api/hr/onboarding</option>
                     <option value="offboarding">POST /api/hr/offboarding</option>
                     <option value="group-assignment">POST /api/hr/group-assignment</option>
+                    <option value="device-lookup">GET /api/hr/device-lookup</option>
                 </select>
             </div>
 
@@ -492,15 +608,31 @@
             <div class="col-md-4">
                 <label class="form-label fw-semibold small">Full URL</label>
                 <div class="input-group">
-                    <span class="input-group-text bg-success text-white small fw-bold">POST</span>
+                    <span class="input-group-text small fw-bold"
+                          :class="endpoint === 'device-lookup' ? 'bg-info text-dark' : 'bg-success text-white'"
+                          x-text="endpoint === 'device-lookup' ? 'GET' : 'POST'"></span>
                     <input type="text" class="form-control font-monospace small bg-light"
-                           :value="baseUrl + '/api/hr/' + endpoint" readonly>
+                           :value="endpoint === 'device-lookup'
+                               ? baseUrl + '/api/hr/device-lookup?upn=' + (upnParam || 'user@domain.com')
+                               : baseUrl + '/api/hr/' + endpoint"
+                           readonly>
                 </div>
             </div>
         </div>
 
-        {{-- Request Body --}}
-        <div class="mb-3">
+        {{-- UPN field for GET device-lookup --}}
+        <template x-if="endpoint === 'device-lookup'">
+            <div class="mb-3">
+                <label class="form-label fw-semibold small">UPN / Email <span class="text-danger">*</span></label>
+                <input type="text" class="form-control form-control-sm font-monospace"
+                       x-model="upnParam"
+                       placeholder="user@company.com">
+                <div class="form-text">The user's work email or Azure UPN to look up their device.</div>
+            </div>
+        </template>
+
+        {{-- Request Body (hidden for GET) --}}
+        <div class="mb-3" x-show="endpoint !== 'device-lookup'">
             <label class="form-label fw-semibold small">Request Body (JSON)</label>
             <textarea class="form-control font-monospace small"
                       rows="12"
@@ -607,6 +739,7 @@
             baseUrl:      baseUrl,
             endpoint:     'onboarding',
             body:         examples['onboarding'],
+            upnParam:     '',
             response:     '',
             statusCode:   null,
             responseTime: null,
@@ -633,6 +766,37 @@
                 this.responseTime = null;
                 this.errorMsg     = '';
 
+                // ── GET device-lookup ─────────────────────────────
+                if (this.endpoint === 'device-lookup') {
+                    if (! this.upnParam.trim()) {
+                        this.errorMsg = 'Please enter a UPN / email address.';
+                        this.loading  = false;
+                        return;
+                    }
+                    const url   = this.baseUrl + '/api/hr/device-lookup?upn=' + encodeURIComponent(this.upnParam.trim());
+                    const start = Date.now();
+                    try {
+                        const res = await fetch(url, {
+                            method:  'GET',
+                            headers: {
+                                'Accept':           'application/json',
+                                'X-HR-Api-Key':     this.apiKey.trim(),
+                                'X-Requested-With': 'XMLHttpRequest',
+                            },
+                        });
+                        this.statusCode   = res.status;
+                        this.responseTime = Date.now() - start;
+                        const json = await res.json();
+                        this.response = JSON.stringify(json, null, 2);
+                    } catch (e) {
+                        this.errorMsg = 'Request failed: ' + e.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                    return;
+                }
+
+                // ── POST endpoints ────────────────────────────────
                 let parsed;
                 try {
                     parsed = JSON.parse(this.body);

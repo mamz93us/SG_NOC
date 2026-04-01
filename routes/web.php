@@ -1154,11 +1154,13 @@ Route::middleware(['throttle:20,1'])->group(function () {
 use App\Http\Controllers\Api\HrOnboardingController;
 use App\Http\Controllers\Api\HrOffboardingController;
 use App\Http\Controllers\Api\HrGroupAssignmentController;
+use App\Http\Controllers\Api\DeviceLookupController;
 
 Route::prefix('api/hr')->middleware('hr.api_key')->group(function () {
-    Route::post('/onboarding',       [HrOnboardingController::class,      'store'])->name('api.hr.onboarding');
-    Route::post('/offboarding',      [HrOffboardingController::class,     'store'])->name('api.hr.offboarding');
-    Route::post('/group-assignment', [HrGroupAssignmentController::class, 'store'])->name('api.hr.group-assignment');
+    Route::post('/onboarding',       [HrOnboardingController::class,      'store'])  ->name('api.hr.onboarding');
+    Route::post('/offboarding',      [HrOffboardingController::class,     'store'])  ->name('api.hr.offboarding');
+    Route::post('/group-assignment', [HrGroupAssignmentController::class, 'store'])  ->name('api.hr.group-assignment');
+    Route::get('/device-lookup',     [DeviceLookupController::class,      'lookup']) ->name('api.hr.device-lookup');
 });
 
 /*
