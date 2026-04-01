@@ -199,8 +199,14 @@ class PrinterController extends Controller
         // Auto-generate asset code for the printer device record
         try {
             $assetCode = (new \App\Services\AssetCodeService())->generate('printer');
-        } catch (\Throwable) {
-            $assetCode = null;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('PrinterController: asset code generation failed: ' . $e->getMessage());
+            // Hard fallback — use raw DB sequence so the record is never left without a code
+            $lastCode = \App\Models\Device::where('asset_code', 'like', 'SG-PRN-%')
+                ->orderByRaw('LENGTH(asset_code) DESC, asset_code DESC')
+                ->value('asset_code');
+            $seq = $lastCode ? ((int) ltrim(substr($lastCode, 7), '0') + 1) : 1;
+            $assetCode = 'SG-PRN-' . str_pad($seq, 6, '0', STR_PAD_LEFT);
         }
 
         DB::transaction(function () use ($data, $request, $assetCode) {
