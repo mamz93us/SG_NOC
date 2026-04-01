@@ -131,6 +131,7 @@
                             <th style="width:130px">Type</th>
                             <th>Adapter / Hardware</th>
                             <th>Owner Device</th>
+                            <th style="width:120px">IP Address</th>
                             <th style="width:100px">Source</th>
                             <th style="width:130px">Last Seen</th>
                             <th style="width:60px">Primary</th>
@@ -138,6 +139,10 @@
                     </thead>
                     <tbody>
                         @foreach($deviceMacs as $mac)
+                        @php
+                            $macNorm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $mac->mac_address ?? ''));
+                            $macIp   = $mac->device?->ip_address ?: ($dhcpByMac[$macNorm] ?? null);
+                        @endphp
                         <tr>
                             <td class="ps-3 font-monospace fw-semibold">{{ $mac->mac_address }}</td>
                             <td>
@@ -167,6 +172,16 @@
                                     </a>
                                     @if($mac->device->branch)
                                     <div class="text-muted small">{{ $mac->device->branch->name }}</div>
+                                    @endif
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
+                            <td class="font-monospace small">
+                                @if($macIp)
+                                    {{ $macIp }}
+                                    @if(! $mac->device?->ip_address)
+                                        <span class="badge bg-info text-dark ms-1" style="font-size:.62rem">DHCP</span>
                                     @endif
                                 @else
                                     <span class="text-muted">—</span>
@@ -221,32 +236,70 @@
                 <table class="table table-hover align-middle mb-0" style="font-size:.84rem">
                     <thead class="table-light sticky-top">
                         <tr>
-                            <th class="ps-3" style="width:170px">MAC Address</th>
+                            <th class="ps-3" style="width:60px">Adapter</th>
+                            <th style="width:170px">MAC Address</th>
                             <th>Device Name</th>
-                            <th style="width:130px">Type</th>
+                            <th style="width:120px">Type</th>
                             <th>Branch</th>
                             <th style="width:120px">Asset Code</th>
-                            <th style="width:120px">IP Address</th>
+                            <th style="width:130px">IP Address</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($deviceRows as $device)
+                        @php
+                            $lanNorm  = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $device->mac_address ?? ''));
+                            $lanMacFmt = $lanNorm ? strtoupper(implode(':', str_split($lanNorm, 2))) : null;
+                            $wifiNorm = $device->wifi_mac ? strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $device->wifi_mac)) : null;
+                            $wifiMacFmt = $wifiNorm ? strtoupper(implode(':', str_split($wifiNorm, 2))) : null;
+                            $devIp    = $device->ip_address
+                                ?: ($dhcpByMac[$lanNorm]  ?? null)
+                                ?: ($wifiNorm ? ($dhcpByMac[$wifiNorm] ?? null) : null);
+                            $ipSource = !$device->ip_address && $devIp ? 'DHCP' : null;
+                            $rowspan  = $wifiMacFmt ? 2 : 1;
+                        @endphp
+                        {{-- LAN row --}}
                         <tr>
-                            <td class="ps-3 font-monospace fw-semibold">
-                                {{ strtoupper(preg_replace('/[^a-fA-F0-9:-]/', '', $device->mac_address)) }}
+                            <td class="ps-3">
+                                <span class="badge bg-primary" style="font-size:.68rem">LAN</span>
                             </td>
-                            <td>
-                                <a href="{{ route('admin.devices.show', $device) }}" class="text-decoration-none">
+                            <td class="font-monospace fw-semibold">{{ $lanMacFmt ?? '—' }}</td>
+                            <td @if($rowspan==2) rowspan="2" @endif>
+                                <a href="{{ route('admin.devices.show', $device) }}" class="text-decoration-none fw-semibold">
                                     {{ $device->name }}
                                 </a>
                             </td>
-                            <td>
+                            <td @if($rowspan==2) rowspan="2" @endif>
                                 <span class="badge bg-secondary">{{ ucfirst($device->type) }}</span>
                             </td>
-                            <td class="text-muted small">{{ $device->branch?->name ?: '—' }}</td>
-                            <td class="font-monospace small">{{ $device->asset_code ?: '—' }}</td>
-                            <td class="font-monospace small">{{ $device->ip_address ?: '—' }}</td>
+                            <td @if($rowspan==2) rowspan="2" @endif class="text-muted small">
+                                {{ $device->branch?->name ?: '—' }}
+                            </td>
+                            <td @if($rowspan==2) rowspan="2" @endif class="font-monospace small">
+                                {{ $device->asset_code ?: '—' }}
+                            </td>
+                            <td @if($rowspan==2) rowspan="2" @endif class="font-monospace small">
+                                @if($devIp)
+                                    {{ $devIp }}
+                                    @if($ipSource)
+                                        <span class="badge bg-info text-dark ms-1" style="font-size:.62rem">{{ $ipSource }}</span>
+                                    @endif
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
                         </tr>
+                        {{-- WiFi row (only for phones/devices with wifi_mac) --}}
+                        @if($wifiMacFmt)
+                        <tr>
+                            <td class="ps-3">
+                                <span class="badge bg-info text-dark" style="font-size:.68rem">
+                                    <i class="bi bi-wifi me-1"></i>WiFi
+                                </span>
+                            </td>
+                            <td class="font-monospace fw-semibold">{{ $wifiMacFmt }}</td>
+                        </tr>
+                        @endif
                         @endforeach
                     </tbody>
                 </table>

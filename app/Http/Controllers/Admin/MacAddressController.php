@@ -50,7 +50,8 @@ class MacAddressController extends Controller
                 $s = $request->search;
                 $q->where(function ($inner) use ($s) {
                     $inner->where('mac_address', 'like', "%{$s}%")
-                          ->orWhere('name', 'like', "%{$s}%");
+                          ->orWhere('wifi_mac',   'like', "%{$s}%")
+                          ->orWhere('name',        'like', "%{$s}%");
                 });
             })
             ->get()
@@ -61,6 +62,43 @@ class MacAddressController extends Controller
                 $formatted = implode(':', str_split($normalized, 2));
                 return ! in_array($formatted, $registeredMacs);
             });
+
+        // ── 3. Bulk DHCP IP lookup for all MACs without a stored IP ──
+        $normMacFn = fn(?string $m) => $m
+            ? strtoupper(implode(':', str_split(strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), 2)))
+            : null;
+
+        // Collect all raw MACs (Section 1 registry + Section 2 device rows)
+        $allMacsForLookup = [];
+        foreach ($macsQuery->get() as $dm) {
+            $n = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $dm->mac_address ?? ''));
+            if (strlen($n) === 12) $allMacsForLookup[] = $n;
+        }
+        foreach ($deviceRows as $device) {
+            foreach (array_filter([$device->mac_address, $device->wifi_mac]) as $raw) {
+                $n = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $raw));
+                if (strlen($n) === 12) $allMacsForLookup[] = $n;
+            }
+        }
+        $allMacsForLookup = array_unique($allMacsForLookup);
+
+        // One query — most-recent DHCP lease IP keyed by normalised MAC
+        $dhcpByMac = [];
+        if (! empty($allMacsForLookup)) {
+            $placeholders = implode(',', array_fill(0, count($allMacsForLookup), '?'));
+            \App\Models\DhcpLease::whereRaw(
+                "UPPER(REPLACE(REPLACE(mac_address,':',''),'-','')) IN ({$placeholders})",
+                $allMacsForLookup
+            )
+            ->orderByDesc('last_seen')
+            ->get(['mac_address', 'ip_address'])
+            ->each(function ($lease) use (&$dhcpByMac) {
+                $norm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lease->mac_address));
+                if (! isset($dhcpByMac[$norm])) {
+                    $dhcpByMac[$norm] = $lease->ip_address;
+                }
+            });
+        }
 
         // ── Stats ──────────────────────────────────────────────────────
         $stats = [
@@ -74,15 +112,15 @@ class MacAddressController extends Controller
 
         // ── Export CSV ────────────────────────────────────────────────
         if ($request->boolean('export')) {
-            return $this->exportCsv($macsQuery->get(), $deviceRows);
+            return $this->exportCsv($macsQuery->get(), $deviceRows, $dhcpByMac, $normMacFn);
         }
 
         return view('admin.mac_addresses.index', compact(
-            'deviceMacs', 'deviceRows', 'stats'
+            'deviceMacs', 'deviceRows', 'stats', 'dhcpByMac', 'normMacFn'
         ));
     }
 
-    private function exportCsv($registryMacs, $deviceRows): Response
+    private function exportCsv($registryMacs, $deviceRows, array $dhcpByMac = [], ?callable $normMacFn = null): Response
     {
         $normMac = fn(?string $m) => $m
             ? strtoupper(implode(':', str_split(strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), 2)))
@@ -110,28 +148,31 @@ class MacAddressController extends Controller
             ];
         }
 
-        // Section 2: devices with single mac_address
+        // Section 2: devices with single mac_address (+ wifi_mac)
         foreach ($deviceRows as $device) {
-            $rows[] = [
+            $lanNorm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $device->mac_address ?? ''));
+            $ip      = $device->ip_address ?: ($dhcpByMac[$lanNorm] ?? '');
+            $rows[]  = [
                 $normMac($device->mac_address),
                 ucfirst($device->type),
                 'LAN',
                 $device->name,
                 $device->asset_code ?? '',
-                $device->ip_address ?? '',
+                $ip,
                 $device->branch?->name ?? '',
                 'Manual',
                 '',
             ];
-            // Also export wifi_mac if present
             if ($device->wifi_mac) {
-                $rows[] = [
+                $wifiNorm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $device->wifi_mac));
+                $wifiIp   = $device->ip_address ?: ($dhcpByMac[$wifiNorm] ?? $ip);
+                $rows[]   = [
                     $normMac($device->wifi_mac),
                     ucfirst($device->type),
                     'Wi-Fi',
                     $device->name,
                     $device->asset_code ?? '',
-                    $device->ip_address ?? '',
+                    $wifiIp,
                     $device->branch?->name ?? '',
                     'Manual',
                     '',
