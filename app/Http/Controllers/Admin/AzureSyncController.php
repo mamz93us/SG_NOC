@@ -84,20 +84,15 @@ class AzureSyncController extends Controller
             return back()->with('error', 'Script ID not configured. Set intune_net_data_script_id in Settings → Graph.');
         }
 
-        try {
-            set_time_limit(600);
-            \Illuminate\Support\Facades\Artisan::call('intune:sync-net-data', [
-                '--script-id' => $scriptId,
-            ]);
-            $output = \Illuminate\Support\Facades\Artisan::output();
-            preg_match('/Updated:\s*(\d+)/', $output, $m);
-            $count = $m[1] ?? '?';
-            ActivityLog::log("Intune HW data sync: {$count} device(s) updated.");
-            return redirect()->route('admin.itam.azure.index')
-                ->with('success', "Hardware sync complete — {$count} device(s) updated.");
-        } catch (\Throwable $e) {
-            return back()->with('error', 'HW sync failed: ' . $e->getMessage());
+        if (\App\Jobs\SyncIntuneHwDataJob::isRunning()) {
+            return back()->with('warning', 'A hardware sync is already in progress. Check the Activity Log for results.');
         }
+
+        \App\Jobs\SyncIntuneHwDataJob::dispatch()->onQueue('default');
+        ActivityLog::log('Intune HW data sync queued (background job).');
+
+        return redirect()->route('admin.itam.azure.index')
+            ->with('success', 'Hardware sync job queued — it will run in the background. Check the Activity Log for results once complete.');
     }
 
     public function approve(Request $request, AzureDevice $azureDevice)
