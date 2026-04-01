@@ -65,6 +65,11 @@ use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\ItTaskController;
 use App\Http\Controllers\Admin\AlertRuleController;
 use App\Http\Controllers\Admin\HrApiKeyController;
+use App\Http\Controllers\Admin\MacAddressController;
+use App\Http\Controllers\Api\HrOnboardingController;
+use App\Http\Controllers\Api\HrOffboardingController;
+use App\Http\Controllers\Api\HrGroupAssignmentController;
+use App\Http\Controllers\Api\DeviceLookupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1150,11 +1155,6 @@ Route::middleware(['throttle:20,1'])->group(function () {
 | HR API Routes (token-authenticated, no session)
 |--------------------------------------------------------------------------
 */
-
-use App\Http\Controllers\Api\HrOnboardingController;
-use App\Http\Controllers\Api\HrOffboardingController;
-use App\Http\Controllers\Api\HrGroupAssignmentController;
-use App\Http\Controllers\Api\DeviceLookupController;
 
 Route::prefix('api/hr')->middleware('hr.api_key')->group(function () {
     Route::post('/onboarding',       [HrOnboardingController::class,      'store'])  ->name('api.hr.onboarding');
