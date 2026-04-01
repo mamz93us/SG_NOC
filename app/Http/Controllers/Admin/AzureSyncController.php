@@ -456,6 +456,118 @@ class AzureSyncController extends Controller
      *   3. IdentityUser.mail = upn                     (proxy / alias address)
      *      → Employee.email   = IdentityUser.mail
      */
+    /**
+     * Fetch and apply hardware/network data for a single device from Intune.
+     * Calls the Graph API run-state endpoint directly for this device's Intune ID,
+     * parses the JSON result and saves it — same logic as the artisan command.
+     */
+    public function syncHwData(AzureDevice $azureDevice)
+    {
+        $scriptId = \App\Models\Setting::get()->intune_net_data_script_id ?? null;
+        if (! $scriptId) {
+            return back()->with('error', 'Script ID not configured. Set intune_net_data_script_id in Settings → Graph.');
+        }
+
+        $managedId = $azureDevice->intune_managed_device_id;
+        if (! $managedId) {
+            return back()->with('error', 'Device has no Intune Managed Device ID yet. Run itam:sync-devices first.');
+        }
+
+        try {
+            $graph    = new \App\Services\Identity\GraphService();
+            $state    = $graph->getScriptRunState($scriptId, $managedId);
+
+            if (! $state) {
+                return back()->with('error', 'No script run state found for this device. Device may not have run the script yet.');
+            }
+
+            $runState = $state['runState'] ?? 'unknown';
+            if ($runState !== 'success') {
+                return back()->with('error', "Script run state is '{$runState}' — device hasn't returned data yet.");
+            }
+
+            // Parse JSON from script stdout
+            $raw  = trim(preg_replace('/^\xEF\xBB\xBF/', '', $state['resultMessage'] ?? ''));
+            $data = json_decode($raw, true);
+            if (! is_array($data)) {
+                return back()->with('error', 'Script result is not valid JSON.');
+            }
+
+            // Normalize MACs
+            $normMac = fn(?string $m) => $m
+                ? strtoupper(implode(':', str_split(preg_replace('/[^a-fA-F0-9]/', '', $m), 2)))
+                : null;
+
+            $cpuName     = $data['cpu']          ?? $data['cpu_name']     ?? null;
+            $wifiMac     = $normMac($data['wifi_mac']     ?? null);
+            $ethernetMac = $normMac($data['ethernet_mac'] ?? null);
+            $usbEthRaw   = $data['usb_eth']       ?? $data['usb_eth_adapters'] ?? null;
+            $usbEthJson  = (!empty($usbEthRaw) && is_array($usbEthRaw)) ? json_encode($usbEthRaw) : null;
+
+            $azureDevice->update([
+                'teamviewer_id'      => $data['teamviewer_id'] ?? $azureDevice->teamviewer_id,
+                'tv_version'         => $data['tv_version']    ?? $azureDevice->tv_version,
+                'cpu_name'           => $cpuName               ?? $azureDevice->cpu_name,
+                'wifi_mac'           => $wifiMac               ?? $azureDevice->wifi_mac,
+                'ethernet_mac'       => $ethernetMac           ?? $azureDevice->ethernet_mac,
+                'usb_eth_data'       => $usbEthJson            ?? $azureDevice->usb_eth_data,
+                'net_data_synced_at' => now(),
+            ]);
+
+            // Sync MACs to device_macs registry
+            if ($ethernetMac) {
+                \App\Models\DeviceMac::upsertMac($ethernetMac, [
+                    'adapter_type'    => 'ethernet',
+                    'adapter_name'    => 'Ethernet',
+                    'azure_device_id' => $azureDevice->id,
+                    'device_id'       => $azureDevice->device_id,
+                    'source'          => 'intune',
+                    'is_primary'      => true,
+                ]);
+            }
+            if ($wifiMac) {
+                \App\Models\DeviceMac::upsertMac($wifiMac, [
+                    'adapter_type'    => 'wifi',
+                    'adapter_name'    => 'Wi-Fi',
+                    'azure_device_id' => $azureDevice->id,
+                    'device_id'       => $azureDevice->device_id,
+                    'source'          => 'intune',
+                    'is_primary'      => false,
+                ]);
+            }
+            foreach (json_decode($usbEthJson ?? '[]', true) as $usb) {
+                $usbMac = $normMac($usb['mac'] ?? null);
+                if ($usbMac) {
+                    \App\Models\DeviceMac::upsertMac($usbMac, [
+                        'adapter_type'        => 'usb_ethernet',
+                        'adapter_name'        => $usb['name'] ?? 'USB LAN',
+                        'adapter_description' => $usb['desc'] ?? null,
+                        'azure_device_id'     => $azureDevice->id,
+                        'device_id'           => $azureDevice->device_id,
+                        'source'              => 'intune',
+                        'is_primary'          => false,
+                    ]);
+                }
+            }
+
+            // Propagate MACs to the linked ITAM device record
+            // so the asset profile page shows them without loading azure_device relation
+            if ($azureDevice->device_id && ($ethernetMac || $wifiMac)) {
+                $itamUpdate = [];
+                if ($ethernetMac) $itamUpdate['mac_address'] = $ethernetMac;
+                if ($wifiMac)     $itamUpdate['wifi_mac']    = $wifiMac;
+                \App\Models\Device::where('id', $azureDevice->device_id)->update($itamUpdate);
+            }
+
+            ActivityLog::log("Intune HW sync for {$azureDevice->display_name}: CPU={$cpuName} TV={$data['teamviewer_id']}");
+
+            return back()->with('success', "Hardware data synced for {$azureDevice->display_name}.");
+
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Sync failed: ' . $e->getMessage());
+        }
+    }
+
     private function findEmployeeByUpn(?string $upn): ?\App\Models\Employee
     {
         if (empty($upn)) return null;

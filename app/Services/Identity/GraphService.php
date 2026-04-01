@@ -741,6 +741,23 @@ class GraphService
     }
 
     /**
+     * Fetch a single script run-state for one device.
+     * The composite ID is "{scriptId}:{managedDeviceId}".
+     * Returns the run-state object array, or null if not found.
+     */
+    public function getScriptRunState(string $scriptId, string $managedDeviceId): ?array
+    {
+        $compositeId = urlencode("{$scriptId}:{$managedDeviceId}");
+        $url = $this->betaUrl
+            . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates/{$compositeId}";
+        try {
+            return $this->get($url);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
      * Delete an Intune device management script.
      */
     public function deleteIntuneScript(string $intuneScriptId): void

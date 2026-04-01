@@ -152,7 +152,7 @@ class SyncIntuneNetData extends Command
                     $wifiMac     = $normMac($data['wifi_mac']     ?? null);
                     $ethernetMac = $normMac($data['ethernet_mac'] ?? null);
 
-                    // ── 6. Update the device ───────────────────────────
+                    // ── 6. Update azure_device ────────────────────────
                     $device->update([
                         'teamviewer_id'      => $data['teamviewer_id'] ?? $device->teamviewer_id,
                         'tv_version'         => $data['tv_version']    ?? $device->tv_version,
@@ -162,6 +162,21 @@ class SyncIntuneNetData extends Command
                         'usb_eth_data'       => $usbEthJson            ?? $device->usb_eth_data,
                         'net_data_synced_at' => now(),
                     ]);
+
+                    // ── 6b. Propagate MACs to the linked ITAM device ───
+                    // Write ethernet_mac → devices.mac_address
+                    //       wifi_mac     → devices.wifi_mac
+                    // so the asset profile page shows them without needing
+                    // to load the azure_device relation.
+                    if ($device->device_id && ($ethernetMac || $wifiMac)) {
+                        $itamDevice = \App\Models\Device::find($device->device_id);
+                        if ($itamDevice) {
+                            $itamUpdate = [];
+                            if ($ethernetMac) $itamUpdate['mac_address'] = $ethernetMac;
+                            if ($wifiMac)     $itamUpdate['wifi_mac']    = $wifiMac;
+                            $itamDevice->update($itamUpdate);
+                        }
+                    }
 
                     // ── 7. Sync MACs into device_macs registry ─────────
                     if ($ethernetMac) {

@@ -116,13 +116,29 @@
                     <span class="fw-semibold">
                         <i class="bi bi-cpu me-2 text-info"></i>Hardware &amp; Network Data
                     </span>
-                    @if($hasNetData)
-                        <small class="text-muted">
-                            <i class="bi bi-clock me-1"></i>Synced {{ $azureDevice->net_data_synced_at->diffForHumans() }}
-                        </small>
-                    @else
-                        <span class="badge bg-secondary">Not yet synced</span>
-                    @endif
+                    <div class="d-flex align-items-center gap-2">
+                        @if($hasNetData)
+                            <small class="text-muted">
+                                <i class="bi bi-clock me-1"></i>Synced {{ $azureDevice->net_data_synced_at->diffForHumans() }}
+                            </small>
+                        @else
+                            <span class="badge bg-secondary">Not yet synced</span>
+                        @endif
+                        @can('manage-itam')
+                        @if($azureDevice->intune_managed_device_id)
+                        <form method="POST" action="{{ route('admin.itam.azure.sync-hw-data', $azureDevice) }}" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-info py-0 px-2"
+                                    title="Pull latest script result from Intune for this device"
+                                    onclick="return confirm('Sync hardware data from Intune for {{ addslashes($azureDevice->display_name) }}?')">
+                                <i class="bi bi-arrow-repeat me-1"></i>Sync HW
+                            </button>
+                        </form>
+                        @else
+                        <span class="badge bg-warning text-dark" title="Run itam:sync-devices to populate Intune ID">No Intune ID</span>
+                        @endif
+                        @endcan
+                    </div>
                 </div>
                 <div class="card-body">
                     @if(!$hasNetData)

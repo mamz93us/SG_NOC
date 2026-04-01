@@ -106,22 +106,30 @@
                         // IP resolution: device IP → DHCP → nothing
                         $displayIp  = $device->ip_address ?: $dhcpLease?->ip_address;
                         $ipFromDhcp = !$device->ip_address && $dhcpLease?->ip_address;
-                        // MAC source: Intune-synced or manual
+                        // Azure device & Intune HW data
                         $az       = $device->azureDevice;
                         $intuneHw = $az && $az->net_data_synced_at;
+                        // MAC resolution: device field → Intune ethernet_mac → nothing
+                        $displayMac     = $device->mac_address ?: ($intuneHw ? $az->ethernet_mac : null);
+                        $macFromIntune  = !$device->mac_address && $intuneHw && $az->ethernet_mac;
+                        // WiFi MAC: device field → Intune wifi_mac → nothing
+                        $displayWifiMac    = $device->wifi_mac ?: ($intuneHw ? $az->wifi_mac : null);
+                        $wifiMacFromIntune = !$device->wifi_mac && $intuneHw && $az->wifi_mac;
                     @endphp
                     <tr><th class="text-muted ps-3">IP</th>
                         <td class="font-monospace">
                             @if($displayIp)
                                 {{ $displayIp }}
                                 @if($ipFromDhcp)
-                                    <span class="badge bg-info text-dark ms-1" style="font-size:.65em" title="From DHCP lease ({{ $dhcpLease->source }}, {{ $dhcpLease->last_seen?->diffForHumans() }})">DHCP</span>
+                                    <span class="badge bg-info text-dark ms-1" style="font-size:.65em"
+                                          title="From DHCP lease ({{ $dhcpLease->source }}, {{ $dhcpLease->last_seen?->diffForHumans() }})">DHCP</span>
                                 @endif
                             @else
                                 <span class="text-muted">—</span>
                             @endif
                             @can('manage-network-settings')
-                            <a href="{{ route('admin.network.ip-reservations.create', ['device_id' => $device->id]) }}" class="btn btn-sm btn-outline-primary py-0 px-1 ms-1" style="font-size:11px">
+                            <a href="{{ route('admin.network.ip-reservations.create', ['device_id' => $device->id]) }}"
+                               class="btn btn-sm btn-outline-primary py-0 px-1 ms-1" style="font-size:11px">
                                 <i class="bi bi-plus"></i>
                             </a>
                             @endcan
@@ -130,9 +138,9 @@
                             @if($device->type === 'phone') LAN MAC @else MAC @endif
                         </th>
                         <td class="font-monospace">
-                            @if($device->mac_address)
-                                {{ $normMacFn($device->mac_address) }}
-                                @if($intuneHw && $az->ethernet_mac)
+                            @if($displayMac)
+                                {{ $normMacFn($displayMac) }}
+                                @if($intuneHw && ($az->ethernet_mac || $macFromIntune))
                                     <span class="badge bg-success ms-1" style="font-size:.65em">Intune</span>
                                 @else
                                     <span class="badge bg-secondary ms-1" style="font-size:.65em">Manual</span>
@@ -141,17 +149,17 @@
                                 <span class="text-muted">—</span>
                             @endif
                         </td></tr>
-                    @if($device->wifi_mac || $device->type === 'phone')
+                    @if($displayWifiMac || $device->type === 'phone')
                     <tr><th class="text-muted ps-3"><i class="bi bi-wifi me-1 text-info"></i>WiFi MAC</th>
                         <td class="font-monospace">
-                            @if($device->wifi_mac)
-                                {{ $normMacFn($device->wifi_mac) }}
-                                @if($device->type === 'phone')
+                            @if($displayWifiMac)
+                                {{ $normMacFn($displayWifiMac) }}
+                                @if($device->type === 'phone' && !$wifiMacFromIntune)
                                     <span class="badge bg-info text-dark ms-1" style="font-size:.65em">+1</span>
                                 @endif
-                                @if($intuneHw && $az->wifi_mac)
+                                @if($intuneHw && ($az->wifi_mac || $wifiMacFromIntune))
                                     <span class="badge bg-success ms-1" style="font-size:.65em">Intune</span>
-                                @else
+                                @elseif(!$wifiMacFromIntune)
                                     <span class="badge bg-secondary ms-1" style="font-size:.65em">Manual</span>
                                 @endif
                             @else

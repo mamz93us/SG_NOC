@@ -964,6 +964,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/{azureDevice}/link-device',  [AzureSyncController::class, 'linkDevice'])  ->name('link-device');
         Route::post('/{azureDevice}/import',       [AzureSyncController::class, 'importToItam'])->name('import');
         Route::post('/{azureDevice}/sync-branch',  [AzureSyncController::class, 'reDetectBranch'])->name('sync-branch');
+        Route::post('/{azureDevice}/sync-hw-data', [AzureSyncController::class, 'syncHwData'])    ->name('sync-hw-data');
         Route::post('/batch-import',               [AzureSyncController::class, 'batchImport'])->name('batch-import');
         
         // Branch Mapping
