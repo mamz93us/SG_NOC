@@ -10,9 +10,15 @@
             <h4 class="mb-0"><i class="bi bi-fingerprint me-2 text-primary"></i>MAC Address Registry</h4>
             <small class="text-muted">All network adapters registered in the system — used for RADIUS / 802.1X configuration</small>
         </div>
-        <a href="{{ route('admin.itam.dashboard') }}" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>ITAM
-        </a>
+        <div class="d-flex gap-2">
+            <a href="{{ route('admin.itam.mac-address', array_merge(request()->query(), ['export' => 1])) }}"
+               class="btn btn-sm btn-outline-success">
+                <i class="bi bi-download me-1"></i>Export CSV
+            </a>
+            <a href="{{ route('admin.itam.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>ITAM
+            </a>
+        </div>
     </div>
 
     {{-- ── KPI Cards ────────────────────────────────────────────────── --}}

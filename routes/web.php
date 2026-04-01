@@ -655,9 +655,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ─── DHCP Leases ────────────────────────────────────────────
     Route::middleware('permission:view-dhcp-leases')->prefix('network/dhcp')->name('network.dhcp.')->group(function () {
-        Route::get('/',        [DhcpLeaseController::class, 'index'])->name('index');
-        Route::get('/widget',  [DhcpLeaseController::class, 'widget'])->name('widget');
-        Route::get('/{lease}', [DhcpLeaseController::class, 'show'])->name('show');
+        Route::get('/',                       [DhcpLeaseController::class, 'index'])       ->name('index');
+        Route::get('/widget',                 [DhcpLeaseController::class, 'widget'])      ->name('widget');
+        Route::get('/device-search',          [DhcpLeaseController::class, 'deviceSearch'])->name('device-search');
+        Route::post('/{lease}/link-asset',    [DhcpLeaseController::class, 'linkAsset'])   ->name('link-asset');
+        Route::get('/{lease}',                [DhcpLeaseController::class, 'show'])        ->name('show');
     });
 
     // ─── IPAM Subnets ───────────────────────────────────────────

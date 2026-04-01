@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Device;
 use App\Models\DeviceMac;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 class MacAddressController extends Controller
 {
@@ -71,8 +72,78 @@ class MacAddressController extends Controller
             'devices_with_mac' => Device::whereNotNull('mac_address')->where('mac_address', '!=', '')->count(),
         ];
 
+        // ── Export CSV ────────────────────────────────────────────────
+        if ($request->boolean('export')) {
+            return $this->exportCsv($macsQuery->get(), $deviceRows);
+        }
+
         return view('admin.mac_addresses.index', compact(
             'deviceMacs', 'deviceRows', 'stats'
         ));
+    }
+
+    private function exportCsv($registryMacs, $deviceRows): Response
+    {
+        $normMac = fn(?string $m) => $m
+            ? strtoupper(implode(':', str_split(strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), 2)))
+            : '';
+
+        $rows   = [];
+        $rows[] = ['MAC Address', 'Type', 'Adapter Name', 'Owner Device', 'Asset Code', 'IP Address', 'Branch', 'Source', 'Last Seen'];
+
+        // Section 1: device_macs registry
+        foreach ($registryMacs as $mac) {
+            $owner     = $mac->azureDevice?->display_name ?? $mac->device?->name ?? '';
+            $assetCode = $mac->device?->asset_code ?? '';
+            $ip        = $mac->device?->ip_address ?? '';
+            $branch    = $mac->device?->branch?->name ?? $mac->azureDevice?->device?->branch?->name ?? '';
+            $rows[]    = [
+                $mac->mac_address,
+                $mac->adapterTypeLabel(),
+                $mac->adapter_name ?? '',
+                $owner,
+                $assetCode,
+                $ip,
+                $branch,
+                ucfirst($mac->source),
+                $mac->last_seen_at?->format('Y-m-d H:i') ?? '',
+            ];
+        }
+
+        // Section 2: devices with single mac_address
+        foreach ($deviceRows as $device) {
+            $rows[] = [
+                $normMac($device->mac_address),
+                ucfirst($device->type),
+                'LAN',
+                $device->name,
+                $device->asset_code ?? '',
+                $device->ip_address ?? '',
+                $device->branch?->name ?? '',
+                'Manual',
+                '',
+            ];
+            // Also export wifi_mac if present
+            if ($device->wifi_mac) {
+                $rows[] = [
+                    $normMac($device->wifi_mac),
+                    ucfirst($device->type),
+                    'Wi-Fi',
+                    $device->name,
+                    $device->asset_code ?? '',
+                    $device->ip_address ?? '',
+                    $device->branch?->name ?? '',
+                    'Manual',
+                    '',
+                ];
+            }
+        }
+
+        $csv = collect($rows)->map(fn($r) => implode(',', array_map(fn($v) => '"' . str_replace('"', '""', $v) . '"', $r)))->implode("\n");
+
+        return response($csv, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="mac-registry-' . now()->format('Y-m-d') . '.csv"',
+        ]);
     }
 }

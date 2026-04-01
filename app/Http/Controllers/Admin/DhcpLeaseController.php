@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\Device;
 use App\Models\DhcpLease;
 use Illuminate\Http\Request;
 
@@ -55,6 +56,60 @@ class DhcpLeaseController extends Controller
         $lease->load(['branch', 'device', 'networkSwitch', 'subnet']);
 
         return view('admin.network.dhcp.show', compact('lease'));
+    }
+
+    /**
+     * AJAX: search devices by name/MAC/IP for the "Link to Asset" modal.
+     * GET /admin/network/dhcp/device-search?q=...
+     */
+    public function deviceSearch(Request $request)
+    {
+        $q = $request->get('q', '');
+        if (strlen($q) < 2) return response()->json([]);
+
+        $devices = Device::where(function ($query) use ($q) {
+                $query->where('name',         'like', "%{$q}%")
+                      ->orWhere('mac_address', 'like', "%{$q}%")
+                      ->orWhere('asset_code',  'like', "%{$q}%")
+                      ->orWhere('ip_address',  'like', "%{$q}%");
+            })
+            ->select('id', 'name', 'type', 'asset_code', 'ip_address', 'mac_address')
+            ->limit(15)
+            ->get()
+            ->map(fn($d) => [
+                'id'         => $d->id,
+                'name'       => $d->name,
+                'type'       => $d->type,
+                'asset_code' => $d->asset_code,
+                'ip'         => $d->ip_address,
+                'mac'        => $d->mac_address,
+            ]);
+
+        return response()->json($devices);
+    }
+
+    /**
+     * POST /admin/network/dhcp/{lease}/link-asset
+     * Link or unlink a DHCP lease to a device asset.
+     */
+    public function linkAsset(Request $request, DhcpLease $lease)
+    {
+        $deviceId = $request->input('device_id');
+
+        if ($deviceId === 'unlink' || ! $deviceId) {
+            $lease->update(['device_id' => null]);
+            return back()->with('success', 'Asset link removed from lease ' . $lease->ip_address);
+        }
+
+        $device = Device::findOrFail($deviceId);
+        $lease->update(['device_id' => $device->id]);
+
+        // Also update device IP if it doesn't have one
+        if (! $device->ip_address && $lease->ip_address) {
+            $device->update(['ip_address' => $lease->ip_address]);
+        }
+
+        return back()->with('success', "Lease {$lease->ip_address} linked to asset {$device->name}.");
     }
 
     public function widget()
