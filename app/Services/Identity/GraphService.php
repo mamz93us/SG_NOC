@@ -83,6 +83,16 @@ class GraphService
             $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
         }
 
+        // Retry on 429 Too Many Requests — honour Retry-After header (max 3 attempts)
+        $attempts = 0;
+        while ($response->status() === 429 && $attempts < 3) {
+            $retryAfter = (int) ($response->header('Retry-After') ?: 20);
+            $retryAfter = max(5, min($retryAfter, 60)); // clamp 5-60 s
+            sleep($retryAfter);
+            $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
+            $attempts++;
+        }
+
         if (! $response->successful()) {
             throw new \RuntimeException("Graph GET {$endpoint} failed ({$response->status()}): " . $response->body());
         }
@@ -149,8 +159,14 @@ class GraphService
         $query   = array_merge(['$top' => 999], $query); // caller's $top overrides default
         $baseUrl = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl . $endpoint;
         $url     = $baseUrl;
+        $page    = 0;
 
         do {
+            // Small courtesy delay between pages to avoid 429s on large tenants
+            if ($page > 0) {
+                usleep(500_000); // 0.5 s between pages
+            }
+
             $body   = $this->get($url, $url === $baseUrl ? $query : [], self::TIMEOUT_BULK, $headers);
             $values = $body['value'] ?? [];
 
@@ -161,6 +177,7 @@ class GraphService
             $url = $body['@odata.nextLink'] ?? null;
             unset($body);
             gc_collect_cycles();
+            $page++;
         } while ($url);
     }
 

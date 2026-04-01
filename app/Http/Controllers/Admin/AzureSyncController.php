@@ -279,7 +279,7 @@ class AzureSyncController extends Controller
                 }
 
                 // 5. Assign to Employee if UPN matches
-                $employee = \App\Models\Employee::where('email', $azureDevice->upn)->first();
+                $employee = $this->findEmployeeByUpn($azureDevice->upn);
                 if ($employee) {
                     \App\Models\EmployeeAsset::updateOrCreate(
                         ['employee_id' => $employee->id, 'asset_id' => $device->id],
@@ -289,7 +289,7 @@ class AzureSyncController extends Controller
                             'notes'         => 'Assigned during Azure import.',
                         ]
                     );
-                    
+
                     $device->update(['status' => 'assigned']);
                 }
 
@@ -382,7 +382,7 @@ class AzureSyncController extends Controller
                     }
 
                     // 5. Assign to Employee
-                    $employee = \App\Models\Employee::where('email', $azureDevice->upn)->first();
+                    $employee = $this->findEmployeeByUpn($azureDevice->upn);
                     if ($employee) {
                         \App\Models\EmployeeAsset::updateOrCreate(
                             ['employee_id' => $employee->id, 'asset_id' => $device->id],
