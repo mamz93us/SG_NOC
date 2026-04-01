@@ -98,9 +98,28 @@
                     @endif
                     <tr><th class="text-muted ps-3">Serial</th>
                         <td class="font-monospace">{{ $device->serial_number ?: '—' }}</td></tr>
+                    @php
+                        // Normalize any MAC to AA:BB:CC:DD:EE:FF for display
+                        $normMacFn = fn(?string $m) => $m
+                            ? strtoupper(implode(':', str_split(strtoupper(preg_replace('/[^a-fA-F0-9]/','',$m)),2)))
+                            : null;
+                        // IP resolution: device IP → DHCP → nothing
+                        $displayIp  = $device->ip_address ?: $dhcpLease?->ip_address;
+                        $ipFromDhcp = !$device->ip_address && $dhcpLease?->ip_address;
+                        // MAC source: Intune-synced or manual
+                        $az       = $device->azureDevice;
+                        $intuneHw = $az && $az->net_data_synced_at;
+                    @endphp
                     <tr><th class="text-muted ps-3">IP</th>
                         <td class="font-monospace">
-                            {{ $device->ip_address ?: '—' }}
+                            @if($displayIp)
+                                {{ $displayIp }}
+                                @if($ipFromDhcp)
+                                    <span class="badge bg-info text-dark ms-1" style="font-size:.65em" title="From DHCP lease ({{ $dhcpLease->source }}, {{ $dhcpLease->last_seen?->diffForHumans() }})">DHCP</span>
+                                @endif
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
                             @can('manage-network-settings')
                             <a href="{{ route('admin.network.ip-reservations.create', ['device_id' => $device->id]) }}" class="btn btn-sm btn-outline-primary py-0 px-1 ms-1" style="font-size:11px">
                                 <i class="bi bi-plus"></i>
@@ -110,13 +129,31 @@
                     <tr><th class="text-muted ps-3">
                             @if($device->type === 'phone') LAN MAC @else MAC @endif
                         </th>
-                        <td class="font-monospace">{{ $device->mac_address ?: '—' }}</td></tr>
-                    @if($device->type === 'phone')
+                        <td class="font-monospace">
+                            @if($device->mac_address)
+                                {{ $normMacFn($device->mac_address) }}
+                                @if($intuneHw && $az->ethernet_mac)
+                                    <span class="badge bg-success ms-1" style="font-size:.65em">Intune</span>
+                                @else
+                                    <span class="badge bg-secondary ms-1" style="font-size:.65em">Manual</span>
+                                @endif
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td></tr>
+                    @if($device->wifi_mac || $device->type === 'phone')
                     <tr><th class="text-muted ps-3"><i class="bi bi-wifi me-1 text-info"></i>WiFi MAC</th>
                         <td class="font-monospace">
                             @if($device->wifi_mac)
-                                {{ $device->wifi_mac }}
-                                <span class="badge bg-info text-dark ms-1" style="font-size:.68em">+1</span>
+                                {{ $normMacFn($device->wifi_mac) }}
+                                @if($device->type === 'phone')
+                                    <span class="badge bg-info text-dark ms-1" style="font-size:.65em">+1</span>
+                                @endif
+                                @if($intuneHw && $az->wifi_mac)
+                                    <span class="badge bg-success ms-1" style="font-size:.65em">Intune</span>
+                                @else
+                                    <span class="badge bg-secondary ms-1" style="font-size:.65em">Manual</span>
+                                @endif
                             @else
                                 <span class="text-muted">—</span>
                             @endif

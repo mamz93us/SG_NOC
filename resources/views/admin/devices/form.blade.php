@@ -165,8 +165,14 @@
                 <div class="col-12"><hr class="my-0"><p class="fw-semibold small text-muted mb-0 mt-2"><i class="bi bi-ethernet me-1"></i>Network</p></div>
                 <div class="col-md-6">
                     <label class="form-label">IP Address</label>
-                    <input type="text" name="ip_address" id="dv_ip" class="form-control font-monospace"
-                           value="{{ old('ip_address', $device->ip_address ?? '') }}" placeholder="192.168.1.1">
+                    <div class="input-group">
+                        <input type="text" name="ip_address" id="dv_ip" class="form-control font-monospace"
+                               value="{{ old('ip_address', $device->ip_address ?? '') }}" placeholder="192.168.1.1">
+                        <button type="button" class="btn btn-outline-secondary" id="dv_ipFromMac" title="Look up IP from MAC via DHCP">
+                            <i class="bi bi-arrow-repeat" id="dv_ipFromMacIcon"></i>
+                        </button>
+                    </div>
+                    <div class="form-text" id="dv_dhcpHint" style="display:none"></div>
                     @error('ip_address')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
@@ -176,22 +182,22 @@
                            placeholder="AA:BB:CC:DD:EE:FF"
                            pattern="([0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}"
                            autocomplete="off" list="dv_macList"
-                           oninput="dvAutoCalcWifiMac(this.value)">
+                           oninput="dvAutoCalcWifiMac(this.value); dvDhcpAutoLookup('mac')">
                     <datalist id="dv_macList"></datalist>
                     <div class="form-text">Type 3+ chars to search Meraki clients by MAC / IP / hostname.</div>
                 </div>
 
-                {{-- WiFi MAC — shown only for IP phones, auto-calculated from LAN MAC --}}
-                <div class="col-md-6" id="dv_wifiMacGroup" style="display:none">
-                    <label class="form-label">
+                {{-- WiFi MAC — shown for phones (auto-calc) and any device that has one --}}
+                <div class="col-md-6" id="dv_wifiMacGroup">
+                    <label class="form-label" id="dv_wifiMacLabel">
                         <i class="bi bi-wifi me-1 text-info"></i>WiFi MAC
-                        <span class="badge bg-info text-dark ms-1" style="font-size:.7em">Auto-calculated</span>
+                        <span class="badge bg-info text-dark ms-1" style="font-size:.7em" id="dv_wifiMacBadge">Auto +1</span>
                     </label>
                     <input type="text" name="wifi_mac" id="dv_wifi_mac" class="form-control font-monospace"
                            value="{{ old('wifi_mac', $device->wifi_mac ?? '') }}" maxlength="17"
-                           placeholder="Auto: LAN MAC last byte + 1"
+                           placeholder="AA:BB:CC:DD:EE:FF"
                            autocomplete="off">
-                    <div class="form-text">LAN MAC + 1 last byte. Override only if phone model differs.</div>
+                    <div class="form-text" id="dv_wifiMacHelp">LAN MAC + 1 last byte (phone). Override if needed.</div>
                 </div>
 
                 {{-- ── Location ── --}}
@@ -438,18 +444,23 @@
 @endcan
 
 @push('scripts')
+<style>
+@keyframes dv-spin { to { transform: rotate(360deg); } }
+.spin { display:inline-block; animation: dv-spin .7s linear infinite; }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script>
 // ── Server-side URLs ──────────────────────────────────────────────────
-const dv_floorsUrl   = '{{ route("admin.network.floors") }}';
-const dv_officesUrl  = '{{ route("admin.network.offices") }}';
-const dv_macUrl      = '{{ route("admin.network.clients.mac-search") }}';
-const dv_deptStore   = '{{ route("admin.settings.departments.store") }}';
-const dv_modelStore    = '{{ route("admin.devices.models.store") }}';
-const dv_supplierStore = '{{ route("admin.itam.suppliers.store") }}';
-const dv_genCodeUrl    = '{{ route("admin.devices.generate-code") }}';
-const dv_csrf        = document.querySelector('meta[name="csrf-token"]')?.content || '';
-const dv_editing     = {{ $editing ? 'true' : 'false' }};
+const dv_floorsUrl    = '{{ route("admin.network.floors") }}';
+const dv_officesUrl   = '{{ route("admin.network.offices") }}';
+const dv_macUrl       = '{{ route("admin.network.clients.mac-search") }}';
+const dv_deptStore    = '{{ route("admin.settings.departments.store") }}';
+const dv_modelStore   = '{{ route("admin.devices.models.store") }}';
+const dv_supplierStore= '{{ route("admin.itam.suppliers.store") }}';
+const dv_genCodeUrl   = '{{ route("admin.devices.generate-code") }}';
+const dv_dhcpLookupUrl= '{{ route("admin.devices.dhcp-lookup") }}';
+const dv_csrf         = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const dv_editing      = {{ $editing ? 'true' : 'false' }};
 
 // ── QR Code preview ──────────────────────────────────────────────────
 function dvUpdateQr(code) {
@@ -493,11 +504,13 @@ function dvTypeChanged(type) {
     if (!dv_editing && !dv_codeManuallyEdited) {
         dvGenerateCode(type);
     }
-    // Show WiFi MAC field only for IP phones
-    const wifiGroup = document.getElementById('dv_wifiMacGroup');
-    if (wifiGroup) {
-        wifiGroup.style.display = (type === 'phone') ? '' : 'none';
-    }
+    // Update WiFi MAC label: phones show "Auto +1" badge; others show plain label
+    const badge   = document.getElementById('dv_wifiMacBadge');
+    const helpTxt = document.getElementById('dv_wifiMacHelp');
+    if (badge) badge.style.display   = (type === 'phone') ? '' : 'none';
+    if (helpTxt) helpTxt.textContent = (type === 'phone')
+        ? 'LAN MAC + 1 last byte (auto). Override if model differs.'
+        : 'WiFi MAC address for this device (if applicable).';
 }
 
 // Auto-calculate WiFi MAC = LAN MAC last byte + 1
@@ -609,6 +622,54 @@ function dvLoadOffices(floorId, keepOfficeId) {
         })
         .catch(() => { officeSel.disabled = false; });
 }
+
+// ── DHCP Lookup ───────────────────────────────────────────────────────
+let dv_dhcpTimer;
+async function dvDhcpLookup(paramKey, paramVal) {
+    const hint    = document.getElementById('dv_dhcpHint');
+    const icon    = document.getElementById('dv_ipFromMacIcon');
+    if (!paramVal) return;
+    if (icon) { icon.classList.add('spin'); }
+    try {
+        const r    = await fetch(`${dv_dhcpLookupUrl}?${paramKey}=${encodeURIComponent(paramVal)}`,
+                         { headers: { 'Accept': 'application/json' } });
+        const data = await r.json();
+        if (data && data.ip) {
+            const ipIn = document.getElementById('dv_ip');
+            if (ipIn && !ipIn.value) ipIn.value = data.ip;
+            if (hint) {
+                hint.textContent = `DHCP: ${data.ip}${data.hostname ? ' ('+data.hostname+')' : ''} — ${data.source}, ${data.last_seen}`;
+                hint.style.display = '';
+            }
+        } else {
+            if (hint) { hint.textContent = 'No DHCP lease found for this MAC.'; hint.style.display = ''; }
+        }
+    } catch(e) {}
+    if (icon) { icon.classList.remove('spin'); }
+}
+
+// Auto-trigger DHCP lookup 800ms after MAC stops changing
+function dvDhcpAutoLookup(fromField) {
+    clearTimeout(dv_dhcpTimer);
+    dv_dhcpTimer = setTimeout(() => {
+        if (fromField === 'mac') {
+            const mac = document.getElementById('dv_mac')?.value?.trim();
+            const clean = mac ? mac.replace(/[^a-fA-F0-9]/g,'') : '';
+            if (clean.length === 12) dvDhcpLookup('mac', mac);
+        }
+    }, 800);
+}
+
+// Manual sync button: look up IP from current MAC
+document.getElementById('dv_ipFromMac')?.addEventListener('click', function() {
+    const mac = document.getElementById('dv_mac')?.value?.trim();
+    if (!mac) {
+        const hint = document.getElementById('dv_dhcpHint');
+        if (hint) { hint.textContent = 'Enter a MAC address first.'; hint.style.display = ''; }
+        return;
+    }
+    dvDhcpLookup('mac', mac);
+});
 
 // ── MAC autocomplete ──────────────────────────────────────────────────
 const dv_macInput = document.getElementById('dv_mac');

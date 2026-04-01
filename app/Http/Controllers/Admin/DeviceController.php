@@ -115,7 +115,7 @@ class DeviceController extends Controller
             'branch', 'floor', 'office', 'department',
             'credentials.creator', 'printer', 'deviceModel',
             'supplier', 'assetHistory.user', 'licenseAssignments.license',
-            'azureDevice', 'currentAssignment.employee',
+            'azureDevice.macs', 'currentAssignment.employee',
         ]);
         $depreciation = new DepreciationService();
         $employees    = Employee::orderBy('name')->get(['id', 'name']);
@@ -132,10 +132,69 @@ class DeviceController extends Controller
             ->limit(30)
             ->get();
 
+        // Resolve IP from DHCP leases using all known MACs (device + azure device adapters)
+        $dhcpLease  = null;
+        $rawMacs    = array_filter([$device->mac_address, $device->wifi_mac]);
+        $az         = $device->azureDevice;
+        if ($az) {
+            if ($az->ethernet_mac) $rawMacs[] = $az->ethernet_mac;
+            if ($az->wifi_mac)     $rawMacs[] = $az->wifi_mac;
+            foreach ($az->usb_eth_decoded() as $usb) {
+                if (!empty($usb['mac'])) $rawMacs[] = $usb['mac'];
+            }
+        }
+        $normMacs = array_values(array_unique(array_filter(
+            array_map(fn($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), $rawMacs)
+        )));
+        if (!empty($normMacs)) {
+            $dhcpLease = \App\Models\DhcpLease::whereRaw(
+                'UPPER(REPLACE(REPLACE(mac_address,\':\',\'\'),\'-\',\'\')) IN (' .
+                implode(',', array_fill(0, count($normMacs), '?')) . ')',
+                $normMacs
+            )->latest('last_seen')->first();
+        }
+
         return view('admin.devices.show', compact(
             'device', 'depreciation', 'employees',
-            'sshSessions', 'accessLogs'
+            'sshSessions', 'accessLogs', 'dhcpLease'
         ));
+    }
+
+    /**
+     * AJAX: look up a DHCP lease by MAC or IP.
+     * GET /admin/devices/dhcp-lookup?mac=AA:BB:CC:DD:EE:FF
+     * GET /admin/devices/dhcp-lookup?ip=192.168.1.10
+     * Returns: {ip, mac, hostname, source, last_seen}
+     */
+    public function dhcpLookup(\Illuminate\Http\Request $request)
+    {
+        $mac = $request->get('mac');
+        $ip  = $request->get('ip');
+
+        if ($mac) {
+            $normMac = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $mac));
+            if (strlen($normMac) !== 12) return response()->json(['error' => 'Invalid MAC'], 422);
+            $lease = \App\Models\DhcpLease::whereRaw(
+                'UPPER(REPLACE(REPLACE(mac_address,\':\',\'\'),\'-\',\'\')) = ?', [$normMac]
+            )->latest('last_seen')->first();
+        } elseif ($ip) {
+            $lease = \App\Models\DhcpLease::where('ip_address', $ip)->latest('last_seen')->first();
+        } else {
+            return response()->json(['error' => 'Provide mac or ip'], 422);
+        }
+
+        if (! $lease) return response()->json(null);
+
+        return response()->json([
+            'ip'        => $lease->ip_address,
+            'mac'       => strtoupper(str_replace(['-', ':'], '', $lease->mac_address)),
+            'mac_fmt'   => strtoupper(implode(':', str_split(
+                strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lease->mac_address)), 2
+            ))),
+            'hostname'  => $lease->hostname,
+            'source'    => $lease->source,
+            'last_seen' => $lease->last_seen?->diffForHumans(),
+        ]);
     }
 
     public function create()

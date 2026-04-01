@@ -348,6 +348,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('devices/create',           [DeviceController::class, 'create'])    ->name('devices.create');
         Route::get('devices/scan',             [DeviceController::class, 'scan'])         ->name('devices.scan');
         Route::get('devices/generate-code',    [DeviceController::class, 'generateCode']) ->name('devices.generate-code');
+        Route::get('devices/dhcp-lookup',      [DeviceController::class, 'dhcpLookup'])   ->name('devices.dhcp-lookup');
         Route::get('devices/warranty',         [WarrantyTrackerController::class, 'index'])->name('devices.warranty');
         Route::get('devices/firmware',         [DeviceController::class, 'firmware'])  ->name('devices.firmware');
         Route::get('devices/batch-create',     [DeviceController::class, 'batchCreate'])->name('devices.batch-create');
