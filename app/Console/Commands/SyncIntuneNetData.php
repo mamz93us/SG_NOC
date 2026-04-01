@@ -87,19 +87,29 @@ class SyncIntuneNetData extends Command
                     $compositeId = $state['id'] ?? '';
                     $stateCounts[$runState] = ($stateCounts[$runState] ?? 0) + 1;
 
-                    // ── 1. Skip non-successful runs ────────────────────
-                    if ($runState !== 'success') {
-                        $failed++;
-                        if ($verbose) {
-                            $this->line("  <fg=red>✗</> [{$runState}] id={$compositeId}" . ($errorCode ? " errorCode={$errorCode}" : ''));
-                        }
-                        continue;
-                    }
-
-                    // ── 2. Extract Intune managedDeviceId from composite key ──
+                    // ── 1. Extract Intune managedDeviceId from composite key ──
                     // Graph returns id as "{scriptId}:{managedDeviceId}"
                     $parts           = explode(':', $compositeId);
                     $managedDeviceId = $parts[1] ?? null;
+
+                    // ── 2. Skip non-successful runs ────────────────────
+                    if ($runState !== 'success') {
+                        $failed++;
+                        if ($verbose) {
+                            // Try to show the device name so it's useful, not just a GUID
+                            $knownName = null;
+                            if ($managedDeviceId) {
+                                $knownDevice = AzureDevice::select('display_name')
+                                    ->where('intune_managed_device_id', $managedDeviceId)
+                                    ->orWhere('azure_device_id', $managedDeviceId)
+                                    ->first();
+                                $knownName = $knownDevice?->display_name;
+                            }
+                            $label = $knownName ? "<fg=yellow>{$knownName}</>" : "id={$compositeId}";
+                            $this->line("  <fg=red>✗</> [{$runState}] {$label}" . ($errorCode ? " errorCode={$errorCode}" : ''));
+                        }
+                        continue;
+                    }
 
                     if (! $managedDeviceId) {
                         $this->warn("  ⚠ Could not parse managedDeviceId from id: [{$compositeId}]");
