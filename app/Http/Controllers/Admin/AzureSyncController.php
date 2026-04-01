@@ -43,7 +43,7 @@ class AzureSyncController extends Controller
         // Sorting
         $sort      = $request->get('sort', 'display_name');
         $direction = $request->get('direction', 'asc');
-        $allowed   = ['display_name', 'os', 'serial_number', 'upn', 'link_status', 'last_activity_at', 'last_sync_at'];
+        $allowed   = ['display_name', 'os', 'serial_number', 'upn', 'link_status', 'last_activity_at', 'last_sync_at', 'net_data_synced_at'];
         
         if (in_array($sort, $allowed)) {
             $query->orderBy($sort, $direction === 'desc' ? 'desc' : 'asc');
@@ -126,11 +126,37 @@ class AzureSyncController extends Controller
     {
         $azureDevice->load(['device.branch', 'macs']);
 
-        // Resolve IP address: prefer the linked ITAM device's IP, fall back to SNMP host
+        // Resolve IP address — priority: linked ITAM device → DHCP lease (by any known MAC) → SNMP host
         $monitoredHost = \App\Models\MonitoredHost::where('name', $azureDevice->display_name)->first()
             ?? \App\Models\MonitoredHost::where('name', 'like', '%' . $azureDevice->display_name . '%')->first();
 
-        $ipAddress = $azureDevice->device?->ip_address ?? $monitoredHost?->ip;
+        $ipAddress = $azureDevice->device?->ip_address;
+
+        if (! $ipAddress) {
+            // Collect all known MACs for this device (ethernet, wifi, usb adapters)
+            $rawMacs = $azureDevice->macs->pluck('mac_address')->toArray();
+            if ($azureDevice->ethernet_mac) $rawMacs[] = $azureDevice->ethernet_mac;
+            if ($azureDevice->wifi_mac)     $rawMacs[] = $azureDevice->wifi_mac;
+
+            // Normalize to uppercase no-separator for comparison
+            $normalised = array_values(array_unique(array_filter(
+                array_map(fn ($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), $rawMacs)
+            )));
+
+            if (! empty($normalised)) {
+                // DHCP leases may store MAC with colons (Meraki: lowercase) or dashes — compare stripped
+                $dhcpLease = \App\Models\DhcpLease::whereRaw(
+                    'UPPER(REPLACE(REPLACE(mac_address, \':\', \'\'), \'-\', \'\')) IN (' .
+                    implode(',', array_fill(0, count($normalised), '?')) . ')',
+                    $normalised
+                )->latest('last_seen')->first();
+
+                $ipAddress = $dhcpLease?->ip_address;
+            }
+        }
+
+        // Final fallback: SNMP monitored host
+        $ipAddress = $ipAddress ?? $monitoredHost?->ip;
 
         return view('admin.itam.azure.show', compact('azureDevice', 'monitoredHost', 'ipAddress'));
     }

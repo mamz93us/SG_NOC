@@ -153,6 +153,11 @@
                         </th>
                         <th>Linked Asset</th>
                         <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'net_data_synced_at', 'direction' => request('sort') == 'net_data_synced_at' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
+                                HW Data {!! request('sort') == 'net_data_synced_at' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
                             <a href="{{ request()->fullUrlWithQuery(['sort' => 'last_activity_at', 'direction' => request('sort') == 'last_activity_at' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
                                 Last Seen {!! request('sort') == 'last_activity_at' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
                             </a>
@@ -188,6 +193,18 @@
                             <span class="text-muted small">—</span>
                             @endif
                         </td>
+                        <td>
+                            @if($az->net_data_synced_at)
+                                <span class="badge bg-success bg-opacity-75"
+                                      title="Synced {{ $az->net_data_synced_at->format('d M Y H:i') }}">
+                                    <i class="bi bi-cpu me-1"></i>{{ $az->net_data_synced_at->diffForHumans() }}
+                                </span>
+                            @else
+                                <span class="badge bg-secondary bg-opacity-50 text-dark">
+                                    <i class="bi bi-question-circle me-1"></i>Not synced
+                                </span>
+                            @endif
+                        </td>
                         <td class="text-muted small">
                             @if($az->last_activity_at)
                                 <span title="{{ $az->last_activity_at->format('d M Y H:i') }}">{{ $az->last_activity_at->diffForHumans() }}</span>
@@ -198,7 +215,7 @@
                         <td class="text-muted small">{{ $az->last_sync_at?->diffForHumans() }}</td>
                     </tr>
                     @empty
-                    <tr><td colspan="9" class="text-center text-muted py-4">No Azure devices synced yet. Click "Sync Now" to begin.</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-4">No Azure devices synced yet. Click "Sync Now" to begin.</td></tr>
                     @endforelse
                 </tbody>
             </table>
