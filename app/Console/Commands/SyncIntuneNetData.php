@@ -38,6 +38,7 @@ class SyncIntuneNetData extends Command
 {
     protected $signature = 'intune:sync-net-data
         {--script-id= : Override the Intune deviceManagementScript GUID stored in settings}
+        {--force      : Re-sync all devices, even those already synced recently}
         {--diagnose   : Print first successful resultMessage and first 5 composite IDs, then exit}';
 
     protected $description = 'Sync TeamViewer ID, CPU, Wi-Fi MAC, Ethernet MAC from Intune script run results.';
