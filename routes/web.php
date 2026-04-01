@@ -958,7 +958,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/{azureDevice}', [AzureSyncController::class, 'show']) ->name('show');
     });
     Route::middleware('permission:manage-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
-        Route::post('/sync',                       [AzureSyncController::class, 'sync'])        ->name('sync');
+        Route::post('/sync',                       [AzureSyncController::class, 'sync'])           ->name('sync');
+        Route::post('/sync-all-hw-data',           [AzureSyncController::class, 'syncAllHwData']) ->name('sync-all-hw-data');
         Route::patch('/{azureDevice}/approve',     [AzureSyncController::class, 'approve'])     ->name('approve');
         Route::patch('/{azureDevice}/reject',      [AzureSyncController::class, 'reject'])      ->name('reject');
         Route::post('/{azureDevice}/link-device',  [AzureSyncController::class, 'linkDevice'])  ->name('link-device');

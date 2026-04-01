@@ -118,6 +118,7 @@
                     @endphp
                     <tr><th class="text-muted ps-3">IP</th>
                         <td class="font-monospace">
+                            <span id="dv-ip-display">
                             @if($displayIp)
                                 {{ $displayIp }}
                                 @if($ipFromDhcp)
@@ -127,12 +128,22 @@
                             @else
                                 <span class="text-muted">—</span>
                             @endif
+                            </span>
                             @can('manage-network-settings')
                             <a href="{{ route('admin.network.ip-reservations.create', ['device_id' => $device->id]) }}"
                                class="btn btn-sm btn-outline-primary py-0 px-1 ms-1" style="font-size:11px">
                                 <i class="bi bi-plus"></i>
                             </a>
                             @endcan
+                            @if($displayMac || ($intuneHw && $az && $az->ethernet_mac))
+                            <button type="button" id="dv-dhcp-btn"
+                                    class="btn btn-sm btn-outline-info py-0 px-1 ms-1" style="font-size:11px"
+                                    title="Look up IP from DHCP leases"
+                                    data-mac="{{ $normMacFn($displayMac ?: ($intuneHw && $az ? $az->ethernet_mac : '')) }}"
+                                    data-lookup-url="{{ route('admin.devices.dhcp-lookup') }}">
+                                <i class="bi bi-search"></i>
+                            </button>
+                            @endif
                         </td></tr>
                     <tr><th class="text-muted ps-3">
                             @if($device->type === 'phone') LAN MAC @else MAC @endif
@@ -257,9 +268,20 @@
         <div class="card shadow-sm mb-3">
             <div class="card-header py-2 d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-semibold"><i class="bi bi-microsoft me-2"></i>Azure / Intune</h6>
-                <a href="{{ route('admin.itam.azure.show', $az) }}" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:11px">
-                    <i class="bi bi-box-arrow-up-right"></i> Detail
-                </a>
+                <div class="d-flex gap-1">
+                    @can('manage-itam')
+                    <form method="POST" action="{{ route('admin.itam.azure.sync-hw-data', $az) }}" class="d-inline">
+                        @csrf
+                        <button type="submit" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px"
+                                title="Sync CPU, MAC addresses and TeamViewer ID from Intune">
+                            <i class="bi bi-motherboard me-1"></i>Sync HW
+                        </button>
+                    </form>
+                    @endcan
+                    <a href="{{ route('admin.itam.azure.show', $az) }}" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:11px">
+                        <i class="bi bi-box-arrow-up-right"></i> Detail
+                    </a>
+                </div>
             </div>
             <div class="card-body p-0">
                 <table class="table table-sm table-borderless small mb-0">
@@ -561,6 +583,36 @@ document.addEventListener('DOMContentLoaded', function() {
     const canvas = document.getElementById('showQrCanvas');
     if (canvas) {
         QRCode.toCanvas(canvas, '{{ addslashes($device->asset_code ?? '') }}', { width: 60, margin: 1 }, function() {});
+    }
+
+    // ── DHCP IP Lookup ────────────────────────────────────────────
+    const dhcpBtn = document.getElementById('dv-dhcp-btn');
+    if (dhcpBtn) {
+        dhcpBtn.addEventListener('click', function () {
+            const mac = dhcpBtn.dataset.mac;
+            const url = dhcpBtn.dataset.lookupUrl + '?mac=' + encodeURIComponent(mac);
+            dhcpBtn.disabled = true;
+            dhcpBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    const display = document.getElementById('dv-ip-display');
+                    if (data && data.ip) {
+                        display.innerHTML = `<span class="font-monospace">${data.ip}</span>`
+                            + ` <span class="badge bg-info text-dark ms-1" style="font-size:.65em"`
+                            + ` title="DHCP from ${data.source || ''}, last seen ${data.last_seen || ''}">DHCP</span>`;
+                    } else {
+                        display.innerHTML = '<span class="text-muted small">Not found in DHCP leases</span>';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('dv-ip-display').innerHTML = '<span class="text-danger small">Lookup failed</span>';
+                })
+                .finally(() => {
+                    dhcpBtn.disabled = false;
+                    dhcpBtn.innerHTML = '<i class="bi bi-search"></i>';
+                });
+        });
     }
 });
 

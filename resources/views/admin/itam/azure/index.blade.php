@@ -17,6 +17,16 @@
                     <i class="bi bi-arrow-repeat me-1"></i>Sync Now
                 </button>
             </form>
+            @can('manage-itam')
+            <form action="{{ route('admin.itam.azure.sync-all-hw-data') }}" method="POST"
+                  onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').innerHTML='<span class=\'spinner-border spinner-border-sm\'></span> Syncing…'">
+                @csrf
+                <button type="submit" class="btn btn-outline-success btn-sm"
+                        title="Fetch CPU, MAC, TeamViewer ID from Intune script results for all devices">
+                    <i class="bi bi-motherboard me-1"></i>Sync HW Data
+                </button>
+            </form>
+            @endcan
             <a href="{{ route('admin.itam.azure.mappings') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-geo-alt me-1"></i>Branch Mappings
             </a>
