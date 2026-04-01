@@ -190,7 +190,7 @@ class AzureSyncController extends Controller
         $codeService = new \App\Services\AssetCodeService();
         $type        = $this->guessDeviceType($azureDevice);
         $code        = $codeService->generate($type); // Use global sequence (SG-LAP-XXXX)
-        $employee    = \App\Models\Employee::where('email', $azureDevice->upn)->first();
+        $employee    = $this->findEmployeeByUpn($azureDevice->upn);
 
         // Detect Branch
         $branchId = $this->detectBranchId($azureDevice);

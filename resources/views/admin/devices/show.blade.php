@@ -107,8 +107,21 @@
                             </a>
                             @endcan
                         </td></tr>
-                    <tr><th class="text-muted ps-3">MAC</th>
+                    <tr><th class="text-muted ps-3">
+                            @if($device->type === 'phone') LAN MAC @else MAC @endif
+                        </th>
                         <td class="font-monospace">{{ $device->mac_address ?: '—' }}</td></tr>
+                    @if($device->type === 'phone')
+                    <tr><th class="text-muted ps-3"><i class="bi bi-wifi me-1 text-info"></i>WiFi MAC</th>
+                        <td class="font-monospace">
+                            @if($device->wifi_mac)
+                                {{ $device->wifi_mac }}
+                                <span class="badge bg-info text-dark ms-1" style="font-size:.68em">+1</span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td></tr>
+                    @endif
                     <tr><th class="text-muted ps-3">Branch</th>
                         <td>{{ $device->branch?->name ?: '—' }}</td></tr>
                     @if($device->floor || $device->office)
@@ -195,23 +208,26 @@
 
         {{-- Azure Device Link --}}
         @if($device->azureDevice)
+        @php $az = $device->azureDevice; @endphp
         <div class="card shadow-sm mb-3">
-            <div class="card-header py-2">
+            <div class="card-header py-2 d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-semibold"><i class="bi bi-microsoft me-2"></i>Azure / Intune</h6>
+                <a href="{{ route('admin.itam.azure.show', $az) }}" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:11px">
+                    <i class="bi bi-box-arrow-up-right"></i> Detail
+                </a>
             </div>
             <div class="card-body p-0">
                 <table class="table table-sm table-borderless small mb-0">
-                    <tr><th class="text-muted ps-3" style="width:40%">Display Name</th>
-                        <td>{{ $device->azureDevice->display_name }}</td></tr>
+                    <tr><th class="text-muted ps-3" style="width:42%">Display Name</th>
+                        <td>{{ $az->display_name }}</td></tr>
                     <tr><th class="text-muted ps-3">UPN</th>
-                        <td>{{ $device->azureDevice->upn ?: '—' }}</td></tr>
+                        <td class="text-truncate" style="max-width:180px">{{ $az->upn ?: '—' }}</td></tr>
                     <tr><th class="text-muted ps-3">OS</th>
-                        <td>{{ $device->azureDevice->os }} {{ $device->azureDevice->os_version }}</td></tr>
+                        <td>{{ $az->os }} {{ $az->os_version }}</td></tr>
                     <tr><th class="text-muted ps-3">Last Sync</th>
-                        <td>{{ $device->azureDevice->last_sync_at?->format('d M Y H:i') ?: '—' }}</td></tr>
+                        <td>{{ $az->last_sync_at?->format('d M Y H:i') ?: '—' }}</td></tr>
                     <tr><th class="text-muted ps-3">Link Status</th>
                         <td>
-                            @php $az = $device->azureDevice; @endphp
                             <span class="badge bg-{{ $az->link_status === 'linked' ? 'success' : ($az->link_status === 'pending' ? 'warning text-dark' : 'secondary') }}">
                                 {{ ucfirst($az->link_status) }}
                             </span>
@@ -219,6 +235,50 @@
                 </table>
             </div>
         </div>
+
+        {{-- Intune Hardware / Network Data (from NOC-DeviceInfo.ps1) --}}
+        @if($az->net_data_synced_at)
+        <div class="card shadow-sm mb-3">
+            <div class="card-header py-2">
+                <h6 class="mb-0 fw-semibold">
+                    <i class="bi bi-motherboard me-2 text-primary"></i>Hardware / Network
+                    <span class="badge bg-success ms-2" style="font-size:.68em">Intune</span>
+                    <span class="text-muted fw-normal ms-2" style="font-size:.8em">{{ $az->net_data_synced_at->diffForHumans() }}</span>
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-borderless small mb-0">
+                    @if($az->cpu_name)
+                    <tr><th class="text-muted ps-3" style="width:42%"><i class="bi bi-cpu me-1"></i>CPU</th>
+                        <td>{{ $az->cpu_name }}</td></tr>
+                    @endif
+                    @if($az->ethernet_mac)
+                    <tr><th class="text-muted ps-3"><i class="bi bi-ethernet me-1"></i>Ethernet MAC</th>
+                        <td class="font-monospace">{{ $az->ethernet_mac }}</td></tr>
+                    @endif
+                    @if($az->wifi_mac)
+                    <tr><th class="text-muted ps-3"><i class="bi bi-wifi me-1 text-info"></i>WiFi MAC</th>
+                        <td class="font-monospace">{{ $az->wifi_mac }}</td></tr>
+                    @endif
+                    @foreach($az->usb_eth_decoded() as $usb)
+                    <tr><th class="text-muted ps-3"><i class="bi bi-usb-symbol me-1 text-warning"></i>USB LAN</th>
+                        <td class="font-monospace">
+                            {{ $usb['mac'] ?? '—' }}
+                            @if(!empty($usb['name']))<span class="text-muted ms-1">({{ $usb['name'] }})</span>@endif
+                        </td></tr>
+                    @endforeach
+                    @if($az->teamviewer_id)
+                    <tr><th class="text-muted ps-3"><i class="bi bi-display me-1 text-success"></i>TeamViewer ID</th>
+                        <td class="font-monospace fw-semibold">{{ $az->teamviewer_id }}
+                            @if($az->tv_version)
+                            <span class="text-muted ms-1 fw-normal" style="font-size:.9em">v{{ $az->tv_version }}</span>
+                            @endif
+                        </td></tr>
+                    @endif
+                </table>
+            </div>
+        </div>
+        @endif
         @endif
 
     </div>{{-- /col-md-5 --}}

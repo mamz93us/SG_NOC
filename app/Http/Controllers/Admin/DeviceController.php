@@ -155,6 +155,7 @@ class DeviceController extends Controller
             'device_model_id'      => 'nullable|exists:device_models,id',
             'serial_number'        => 'nullable|string|max:100',
             'mac_address'          => 'nullable|string|max:20',
+            'wifi_mac'             => 'nullable|string|max:17',
             'ip_address'           => 'nullable|ip',
             'branch_id'            => 'nullable|exists:branches,id',
             'floor_id'             => 'nullable|exists:network_floors,id',
@@ -183,6 +184,11 @@ class DeviceController extends Controller
             }
         }
 
+        // Auto-calculate WiFi MAC for IP phones (LAN MAC last byte + 1)
+        if ($data['type'] === 'phone' && !empty($data['mac_address']) && empty($data['wifi_mac'])) {
+            $data['wifi_mac'] = Device::calculatePhoneWifiMac($data['mac_address']);
+        }
+
         // Sync manufacturer/model strings from DeviceModel for backward compatibility
         if (!empty($data['device_model_id'])) {
             $dm = DeviceModel::find($data['device_model_id']);
@@ -197,6 +203,28 @@ class DeviceController extends Controller
         // Calculate initial depreciation value
         if ($device->purchase_cost && $device->depreciation_method === 'straight_line') {
             $device->update(['current_value' => (new DepreciationService())->currentValue($device)]);
+        }
+
+        // Register phone MACs in the central device_macs registry for RADIUS
+        if ($device->type === 'phone') {
+            if ($device->mac_address) {
+                \App\Models\DeviceMac::upsertMac($device->mac_address, [
+                    'adapter_type' => 'ethernet',
+                    'adapter_name' => 'LAN',
+                    'device_id'    => $device->id,
+                    'source'       => 'manual',
+                    'is_primary'   => true,
+                ]);
+            }
+            if ($device->wifi_mac) {
+                \App\Models\DeviceMac::upsertMac($device->wifi_mac, [
+                    'adapter_type' => 'wifi',
+                    'adapter_name' => 'WiFi',
+                    'device_id'    => $device->id,
+                    'source'       => 'manual',
+                    'is_primary'   => false,
+                ]);
+            }
         }
 
         // Log asset history
@@ -305,6 +333,7 @@ class DeviceController extends Controller
             'device_model_id'      => 'nullable|exists:device_models,id',
             'serial_number'        => 'nullable|string|max:100',
             'mac_address'          => 'nullable|string|max:20',
+            'wifi_mac'             => 'nullable|string|max:17',
             'ip_address'           => 'nullable|ip',
             'branch_id'            => 'nullable|exists:branches,id',
             'floor_id'             => 'nullable|exists:network_floors,id',
@@ -324,6 +353,11 @@ class DeviceController extends Controller
             'depreciation_years'   => 'nullable|integer|min:1|max:30',
         ]);
 
+        // Auto-calculate WiFi MAC for IP phones when LAN MAC changes
+        if ($data['type'] === 'phone' && !empty($data['mac_address']) && empty($data['wifi_mac'])) {
+            $data['wifi_mac'] = Device::calculatePhoneWifiMac($data['mac_address']);
+        }
+
         // Sync manufacturer/model strings from DeviceModel
         if (!empty($data['device_model_id'])) {
             $dm = DeviceModel::find($data['device_model_id']);
@@ -334,6 +368,28 @@ class DeviceController extends Controller
         }
 
         $device->update($data);
+
+        // Update device_macs registry when phone MACs change
+        if ($device->type === 'phone') {
+            if ($device->mac_address) {
+                \App\Models\DeviceMac::upsertMac($device->mac_address, [
+                    'adapter_type' => 'ethernet',
+                    'adapter_name' => 'LAN',
+                    'device_id'    => $device->id,
+                    'source'       => 'manual',
+                    'is_primary'   => true,
+                ]);
+            }
+            if ($device->wifi_mac) {
+                \App\Models\DeviceMac::upsertMac($device->wifi_mac, [
+                    'adapter_type' => 'wifi',
+                    'adapter_name' => 'WiFi',
+                    'device_id'    => $device->id,
+                    'source'       => 'manual',
+                    'is_primary'   => false,
+                ]);
+            }
+        }
 
         // Recalculate depreciation if cost or method changed
         if ($device->purchase_cost && $device->depreciation_method === 'straight_line') {

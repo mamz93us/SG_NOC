@@ -170,14 +170,28 @@
                     @error('ip_address')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">MAC Address</label>
+                    <label class="form-label">MAC Address <span class="text-muted small">(LAN / Ethernet)</span></label>
                     <input type="text" name="mac_address" id="dv_mac" class="form-control font-monospace"
                            value="{{ old('mac_address', $device->mac_address ?? '') }}" maxlength="20"
                            placeholder="AA:BB:CC:DD:EE:FF"
                            pattern="([0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}"
-                           autocomplete="off" list="dv_macList">
+                           autocomplete="off" list="dv_macList"
+                           oninput="dvAutoCalcWifiMac(this.value)">
                     <datalist id="dv_macList"></datalist>
                     <div class="form-text">Type 3+ chars to search Meraki clients by MAC / IP / hostname.</div>
+                </div>
+
+                {{-- WiFi MAC — shown only for IP phones, auto-calculated from LAN MAC --}}
+                <div class="col-md-6" id="dv_wifiMacGroup" style="display:none">
+                    <label class="form-label">
+                        <i class="bi bi-wifi me-1 text-info"></i>WiFi MAC
+                        <span class="badge bg-info text-dark ms-1" style="font-size:.7em">Auto-calculated</span>
+                    </label>
+                    <input type="text" name="wifi_mac" id="dv_wifi_mac" class="form-control font-monospace"
+                           value="{{ old('wifi_mac', $device->wifi_mac ?? '') }}" maxlength="17"
+                           placeholder="Auto: LAN MAC last byte + 1"
+                           autocomplete="off">
+                    <div class="form-text">LAN MAC + 1 last byte. Override only if phone model differs.</div>
                 </div>
 
                 {{-- ── Location ── --}}
@@ -479,6 +493,25 @@ function dvTypeChanged(type) {
     if (!dv_editing && !dv_codeManuallyEdited) {
         dvGenerateCode(type);
     }
+    // Show WiFi MAC field only for IP phones
+    const wifiGroup = document.getElementById('dv_wifiMacGroup');
+    if (wifiGroup) {
+        wifiGroup.style.display = (type === 'phone') ? '' : 'none';
+    }
+}
+
+// Auto-calculate WiFi MAC = LAN MAC last byte + 1
+function dvAutoCalcWifiMac(lanMac) {
+    const wifiInput = document.getElementById('dv_wifi_mac');
+    if (!wifiInput) return;
+    // Only auto-fill if the field is blank or was previously auto-filled
+    if (wifiInput.dataset.manuallyEdited === '1') return;
+    const clean = lanMac.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+    if (clean.length !== 12) { wifiInput.value = ''; return; }
+    const lastByte = parseInt(clean.slice(10), 16);
+    const nextByte = (lastByte + 1) & 0xFF;
+    const full = clean.slice(0, 10) + nextByte.toString(16).padStart(2, '0').toUpperCase();
+    wifiInput.value = full.match(/.{2}/g).join(':');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -497,6 +530,15 @@ document.addEventListener('DOMContentLoaded', () => {
         dvGenerateCode(typeSelect ? typeSelect.value : 'other');
     } else if (codeInput.value) {
         dvUpdateQr(codeInput.value);
+    }
+
+    // Initialize WiFi MAC group visibility based on selected type
+    dvTypeChanged(typeSelect ? typeSelect.value : 'other');
+
+    // Mark WiFi MAC as manually edited if admin types in it
+    const wifiInput = document.getElementById('dv_wifi_mac');
+    if (wifiInput) {
+        wifiInput.addEventListener('input', () => { wifiInput.dataset.manuallyEdited = '1'; });
     }
 
     // Re-generate button — always regenerates regardless of manual edit flag

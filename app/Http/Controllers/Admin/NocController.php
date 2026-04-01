@@ -287,9 +287,21 @@ class NocController extends Controller
 
         $portMaps = PhonePortMap::all()->keyBy(fn ($m) => $m->ucm_server_id . '-' . $m->extension);
 
-        $data = $extensions->map(function ($ext) use ($portMaps) {
+        // Build a normalized set of known WiFi MACs for phones (for WiFi detection)
+        $wifiMacs = \App\Models\Device::where('type', 'phone')
+            ->whereNotNull('wifi_mac')
+            ->pluck('wifi_mac')
+            ->map(fn ($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)))
+            ->flip()
+            ->toArray();
+
+        $data = $extensions->map(function ($ext) use ($portMaps, $wifiMacs) {
             $key = $ext->ucm_id . '-' . $ext->extension;
             $map = $portMaps[$key] ?? null;
+
+            $phoneMac = $map?->phone_mac ?: '-';
+            $macClean = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $phoneMac));
+            $isWifi   = ($macClean && isset($wifiMacs[$macClean]));
 
             return [
                 'extension'    => $ext->extension,
@@ -301,7 +313,8 @@ class NocController extends Controller
                 'switch_port'  => $map?->switch_port ? 'Port ' . $map->switch_port : '-',
                 'location'     => $map?->locationLabel() ?: '-',
                 'vlan'         => $map?->vlan ?: '-',
-                'mac'          => $map?->phone_mac ?: '-',
+                'mac'          => $phoneMac,
+                'wifi'         => $isWifi,
                 'server'       => $ext->ucmServer?->name ?: '-',
             ];
         });

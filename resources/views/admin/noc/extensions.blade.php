@@ -243,14 +243,16 @@ function renderExtensions() {
     body.innerHTML = list.map(e => {
         const dotClass = ['inuse','busy','ringing'].includes(e.status) ? 'ext-inuse' : (e.status === 'idle' ? 'ext-idle' : (e.status === 'unavailable' ? 'ext-unavailable' : 'ext-default'));
         const loc = (e.switch_name && e.switch_name !== '-') ? `${e.switch_name}${e.switch_port && e.switch_port !== '-' ? ' / ' + e.switch_port : ''}` : '<span class="text-muted">-</span>';
+        const wifiIcon = e.wifi ? ' <i class="bi bi-wifi text-info" title="Connected via WiFi MAC"></i>' : '';
+        const locDisplay = e.wifi && e.switch_name === '-' ? '<span class="badge bg-info bg-opacity-10 text-info border border-info"><i class="bi bi-wifi me-1"></i>WiFi</span>' : loc;
         return `<tr>
             <td class="ps-3 fw-semibold font-monospace small">${e.extension}</td>
             <td class="small">${e.name}</td>
             <td class="text-center"><span class="ext-status ${dotClass}" title="${e.status}"></span> <span class="badge ${e.status_badge} rounded-pill" style="font-size:.68rem">${e.status}</span></td>
             <td class="small font-monospace">${e.ip}</td>
-            <td class="small">${loc}</td>
+            <td class="small">${locDisplay}</td>
             <td class="text-center small">${e.vlan}</td>
-            <td class="small font-monospace text-muted">${e.mac}</td>
+            <td class="small font-monospace text-muted">${e.mac}${wifiIcon}</td>
             <td class="small text-muted">${e.server}</td>
         </tr>`;
     }).join('');

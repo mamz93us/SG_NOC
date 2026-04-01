@@ -19,6 +19,7 @@ class Device extends Model
         'device_model_id',
         'serial_number',
         'mac_address',
+        'wifi_mac',
         'ip_address',
         'branch_id',
         'floor_id',
@@ -207,6 +208,22 @@ class Device extends Model
     {
         if (!$this->warranty_expiry) return null;
         return (int) now()->diffInDays($this->warranty_expiry, false);
+    }
+
+    /**
+     * Calculate the WiFi MAC address for an IP phone from its LAN MAC.
+     * Grandstream (and most Yealink/Fanvil) phones use: WiFi MAC = LAN MAC last byte + 1.
+     * Example: EC:74:D7:A7:D4:D8  →  EC:74:D7:A7:D4:D9
+     */
+    public static function calculatePhoneWifiMac(?string $lanMac): ?string
+    {
+        if (empty($lanMac)) return null;
+        $clean = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lanMac));
+        if (strlen($clean) !== 12) return null;
+        $lastByte = hexdec(substr($clean, 10, 2));
+        $nextByte = ($lastByte + 1) & 0xFF;
+        $full = substr($clean, 0, 10) . str_pad(dechex($nextByte), 2, '0', STR_PAD_LEFT);
+        return implode(':', str_split(strtoupper($full), 2));
     }
 
     public function isFirmwareOutdated(): bool

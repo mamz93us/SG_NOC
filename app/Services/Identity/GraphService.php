@@ -91,11 +91,16 @@ class GraphService
             $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
         }
 
-        // Retry on 429 Too Many Requests — honour Retry-After header (max 3 attempts)
+        // Retry on 429 Too Many Requests — honour Retry-After header (max 6 attempts)
         $attempts = 0;
-        while ($response->status() === 429 && $attempts < 3) {
-            $retryAfter = (int) ($response->header('Retry-After') ?: 20);
-            $retryAfter = max(5, min($retryAfter, 60)); // clamp 5-60 s
+        while ($response->status() === 429 && $attempts < 6) {
+            // Intune proxy often returns RetryAfter: null — use exponential backoff
+            $retryAfter = (int) ($response->header('Retry-After') ?: 0);
+            if ($retryAfter <= 0) {
+                $retryAfter = min(10 * (2 ** $attempts), 90); // 10s, 20s, 40s, 80s, 90s, 90s
+            }
+            $retryAfter = max(5, min($retryAfter, 90));
+            \Illuminate\Support\Facades\Log::warning("Graph 429 on {$url} — waiting {$retryAfter}s (attempt " . ($attempts + 1) . "/6)");
             sleep($retryAfter);
             $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
             $attempts++;
@@ -172,7 +177,8 @@ class GraphService
         callable $callback,
         array $query = [],
         array $headers = [],
-        int $defaultTop = 999
+        int $defaultTop = 999,
+        int $pageDelayMs = 500
     ): void {
         // Caller's explicit $top wins; otherwise use $defaultTop.
         if (! isset($query['$top'])) {
@@ -184,9 +190,9 @@ class GraphService
         $page    = 0;
 
         do {
-            // Small courtesy delay between pages to avoid 429s on large tenants
+            // Courtesy delay between pages to avoid 429s
             if ($page > 0) {
-                usleep(500_000); // 0.5 s between pages
+                usleep($pageDelayMs * 1000);
             }
 
             $body   = $this->get($url, $url === $baseUrl ? $query : [], self::TIMEOUT_BULK, $headers);
@@ -729,7 +735,8 @@ class GraphService
             $callback,
             ['$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime'],
             [],
-            self::TOP_INTUNE   // ← 100 instead of 999
+            self::TOP_INTUNE,   // ← 100 per page (Intune proxy max)
+            3000                // ← 3 second delay between pages (Intune rate-limit is aggressive)
         );
     }
 
