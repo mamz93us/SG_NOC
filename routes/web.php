@@ -1156,12 +1156,15 @@ Route::middleware(['throttle:20,1'])->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::prefix('api/hr')->middleware('hr.api_key')->group(function () {
-    Route::post('/onboarding',       [HrOnboardingController::class,      'store'])  ->name('api.hr.onboarding');
-    Route::post('/offboarding',      [HrOffboardingController::class,     'store'])  ->name('api.hr.offboarding');
-    Route::post('/group-assignment', [HrGroupAssignmentController::class, 'store'])  ->name('api.hr.group-assignment');
-    Route::get('/device-lookup',     [DeviceLookupController::class,      'lookup']) ->name('api.hr.device-lookup');
-});
+Route::prefix('api/hr')
+    ->middleware('hr.api_key')
+    ->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class)
+    ->group(function () {
+        Route::post('/onboarding',       [HrOnboardingController::class,      'store'])  ->name('api.hr.onboarding');
+        Route::post('/offboarding',      [HrOffboardingController::class,     'store'])  ->name('api.hr.offboarding');
+        Route::post('/group-assignment', [HrGroupAssignmentController::class, 'store'])  ->name('api.hr.group-assignment');
+        Route::get('/device-lookup',     [DeviceLookupController::class,      'lookup']) ->name('api.hr.device-lookup');
+    });
 
 /*
 |--------------------------------------------------------------------------

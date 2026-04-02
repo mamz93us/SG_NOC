@@ -20,12 +20,6 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);
-
-        // CSRF exclusions are defined in App\Http\Middleware\VerifyCsrfToken::$except
-        // (explicit class is more reliable than the dynamic validateCsrfTokens() config)
-        $middleware->web(replace: [
-            \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class => \App\Http\Middleware\VerifyCsrfToken::class,
-        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
