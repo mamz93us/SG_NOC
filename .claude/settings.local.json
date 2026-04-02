@@ -180,7 +180,8 @@
       "Bash(php -l app/Http/Middleware/VerifyCsrfToken.php)",
       "Bash(php -l bootstrap/app.php)",
       "Bash(ls -la \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Mail\"\" 2>/dev/null || find \"/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Mail \" -type f)",
-      "Bash(php -l app/Models/WorkflowTask.php app/Models/OnboardingManagerToken.php app/Models/NetworkFloor.php app/Http/Controllers/Public/OnboardingFormController.php app/Mail/OnboardingManagerFormMail.php app/Jobs/SendOnboardingManagerFormJob.php app/Http/Controllers/Admin/WorkflowController.php)"
+      "Bash(php -l app/Models/WorkflowTask.php app/Models/OnboardingManagerToken.php app/Models/NetworkFloor.php app/Http/Controllers/Public/OnboardingFormController.php app/Mail/OnboardingManagerFormMail.php app/Jobs/SendOnboardingManagerFormJob.php app/Http/Controllers/Admin/WorkflowController.php)",
+      "Bash(echo \"OK: $f\")"
     ]
   }
 }

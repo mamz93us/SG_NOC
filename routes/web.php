@@ -773,6 +773,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('workflows/{workflow}/reject',  [WorkflowController::class, 'reject'])  ->name('workflows.reject');
         Route::post('workflows/{workflow}/retry',   [WorkflowController::class, 'retry'])   ->name('workflows.retry');
         Route::patch('workflows/tasks/{task}/complete', [WorkflowController::class, 'completeTask'])->name('workflows.tasks.complete');
+        Route::post('workflows/{workflow}/resend-manager-form', [WorkflowController::class, 'resendManagerForm'])->name('workflows.resend-manager-form');
     });
     Route::middleware('permission:view-workflows')->group(function () {
         Route::get('workflows/{workflow}',   [WorkflowController::class, 'show'])       ->name('workflows.show');

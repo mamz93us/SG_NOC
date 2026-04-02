@@ -41,7 +41,8 @@ class SendOnboardingManagerFormJob implements ShouldQueue
         // Derive manager name from email (before the @)
         $managerName = ucfirst(explode('.', explode('@', $managerEmail)[0])[0] ?? 'Manager');
 
-        // Create (or reuse existing valid) token
+        // Reuse existing token (created synchronously in HrOnboardingController)
+        // or create a new one if this job is called from another path (e.g. admin panel).
         $token = OnboardingManagerToken::where('workflow_id', $workflow->id)
             ->whereNull('responded_at')
             ->latest()

@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendOnboardingManagerFormJob;
 use App\Models\AllowedDomain;
 use App\Models\Branch;
 use App\Models\Department;
+use App\Models\OnboardingManagerToken;
 use App\Models\Setting;
 use App\Models\UcmServer;
 use App\Models\WorkflowRequest;
@@ -191,6 +193,18 @@ class WorkflowController extends Controller
             description: $validated['description'] ?? null,
         );
 
+        // For create_user workflows: create manager form token immediately
+        // so it appears on the workflow page, then queue the email.
+        if ($validated['type'] === 'create_user' && ! empty($payload['manager_email'])) {
+            $managerEmail = $payload['manager_email'];
+            $managerName  = ucfirst(explode('.', explode('@', $managerEmail)[0])[0] ?? 'Manager');
+            OnboardingManagerToken::generate($workflow->id, [
+                'manager_email' => $managerEmail,
+                'manager_name'  => $managerName,
+            ]);
+            SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
+        }
+
         return redirect()
             ->route('admin.workflows.show', $workflow->id)
             ->with('success', 'Workflow request submitted. Awaiting approval.');
@@ -248,6 +262,42 @@ class WorkflowController extends Controller
         return redirect()
             ->route('admin.workflows.my-requests')
             ->with('success', 'Request cancelled.');
+    }
+
+    // (Re)create manager form token and dispatch email — useful for existing workflows
+    // or if the manager never received / lost the link.
+    public function resendManagerForm(WorkflowRequest $workflow)
+    {
+        if ($workflow->type !== 'create_user') {
+            return back()->with('error', 'Manager form is only for create_user workflows.');
+        }
+
+        $payload      = $workflow->payload ?? [];
+        $managerEmail = $payload['manager_email'] ?? null;
+
+        if (! $managerEmail) {
+            return back()->with('error', 'No manager email in this workflow payload.');
+        }
+
+        $managerName = ucfirst(explode('.', explode('@', $managerEmail)[0])[0] ?? 'Manager');
+
+        // Expire any old unfilled tokens
+        OnboardingManagerToken::where('workflow_id', $workflow->id)
+            ->whereNull('responded_at')
+            ->update(['expires_at' => now()->subMinute()]);
+
+        // Create a fresh token
+        OnboardingManagerToken::generate($workflow->id, [
+            'manager_email' => $managerEmail,
+            'manager_name'  => $managerName,
+        ]);
+
+        // Send the email
+        SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
+
+        return redirect()
+            ->route('admin.workflows.show', $workflow->id)
+            ->with('success', "Manager form (re)sent to {$managerEmail}. The form link is now available on this page.");
     }
 
     // Mark a workflow task as completed

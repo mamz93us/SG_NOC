@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SendOnboardingManagerFormJob;
 use App\Models\Branch;
 use App\Models\Department;
+use App\Models\OnboardingManagerToken;
 use App\Services\Workflow\WorkflowEngine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -77,8 +78,18 @@ class HrOnboardingController extends Controller
             description: $data['notes'] ?? null,
         );
 
-        // Send manager setup form if a manager email was provided
+        // Create manager setup token immediately (synchronous) so the form link
+        // is available on the workflow show page even before the email is sent.
         if (! empty($data['manager_email'])) {
+            $managerEmail = $data['manager_email'];
+            $managerName  = ucfirst(explode('.', explode('@', $managerEmail)[0])[0] ?? 'Manager');
+
+            OnboardingManagerToken::generate($workflow->id, [
+                'manager_email' => $managerEmail,
+                'manager_name'  => $managerName,
+            ]);
+
+            // Dispatch the email asynchronously — the token already exists
             SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
         }
 

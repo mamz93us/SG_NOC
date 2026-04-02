@@ -31,6 +31,20 @@
         @endcan
         @endif
 
+        {{-- Send / resend manager form (always available for create_user with a manager_email) --}}
+        @if($isCreateUser && !empty($payload['manager_email']))
+        @can('approve-workflows')
+        <form method="POST" action="{{ route('admin.workflows.resend-manager-form', $workflow->id) }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-outline-secondary btn-sm"
+                    title="(Re)send setup form link to {{ $payload['manager_email'] }}"
+                    onclick="return confirm('Send the manager setup form to {{ addslashes($payload['manager_email']) }}?')">
+                <i class="bi bi-envelope me-1"></i>{{ $managerToken ? 'Resend' : 'Send' }} Manager Form
+            </button>
+        </form>
+        @endcan
+        @endif
+
         @if(in_array($workflow->status, ['failed', 'completed']))
         @can('approve-workflows')
         <form method="POST" action="{{ route('admin.workflows.retry', $workflow->id) }}" class="d-inline">
@@ -266,12 +280,15 @@
 </div>
 
 {{-- ── Manager Form Status (create_user only) ── --}}
-@if($isCreateUser && $managerToken)
+@if($isCreateUser)
+@php $managerEmail = $payload['manager_email'] ?? null; @endphp
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-transparent d-flex align-items-center gap-2">
         <i class="bi bi-clipboard-check text-info"></i>
         <strong>Manager Setup Form</strong>
-        @if($managerToken->hasResponse())
+        @if(! $managerToken)
+            <span class="badge bg-secondary ms-auto">Not Sent Yet</span>
+        @elseif($managerToken->hasResponse())
             <span class="badge bg-success ms-auto">Submitted</span>
         @elseif($managerToken->isValid())
             <span class="badge bg-warning text-dark ms-auto">Awaiting Manager</span>
@@ -280,7 +297,7 @@
         @endif
     </div>
     <div class="card-body small">
-        @if($managerToken->hasResponse())
+        @if($managerToken && $managerToken->hasResponse())
         <div class="row g-3">
             <div class="col-md-6">
                 <dl class="row mb-0">
@@ -307,19 +324,49 @@
                 </dl>
             </div>
         </div>
-        @else
+        @elseif(! $managerToken)
+        {{-- Token not created yet --}}
         <p class="mb-2 text-muted">
-            The manager setup form has been sent to <strong>{{ $managerToken->manager_email }}</strong>.
+            The manager setup form has not been sent yet.
+            @if($managerEmail) Manager email: <strong>{{ $managerEmail }}</strong>. @endif
+        </p>
+        @can('approve-workflows')
+        @if($managerEmail)
+        <form method="POST" action="{{ route('admin.workflows.resend-manager-form', $workflow->id) }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-primary">
+                <i class="bi bi-send me-1"></i>Send Manager Form Now
+            </button>
+        </form>
+        @else
+        <span class="text-warning small"><i class="bi bi-exclamation-triangle me-1"></i>No manager email in payload — cannot send form.</span>
+        @endif
+        @endcan
+        @else
+        {{-- Token exists but not responded --}}
+        <p class="mb-2 text-muted">
+            The manager setup form was sent to <strong>{{ $managerToken->manager_email }}</strong>.
             @if($managerToken->isValid())
-                Expires: {{ $managerToken->expires_at?->format('d M Y, H:i') }}.
+                Expires: <strong>{{ $managerToken->expires_at?->format('d M Y, H:i') }}</strong>.
+            @else
+                <span class="text-danger">This link has expired.</span>
             @endif
         </p>
         @can('approve-workflows')
         @if($managerToken->isValid())
-        <a href="{{ route('onboarding.form', $managerToken->token) }}" target="_blank"
-           class="btn btn-sm btn-outline-info">
-            <i class="bi bi-box-arrow-up-right me-1"></i>Open Form (IT can fill on behalf of manager)
-        </a>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ route('onboarding.form', $managerToken->token) }}" target="_blank"
+               class="btn btn-sm btn-info text-white">
+                <i class="bi bi-clipboard-check me-1"></i>Open Form (fill on behalf of manager)
+            </a>
+        </div>
+        @else
+        <form method="POST" action="{{ route('admin.workflows.resend-manager-form', $workflow->id) }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-warning">
+                <i class="bi bi-arrow-repeat me-1"></i>Resend with New Link
+            </button>
+        </form>
         @endif
         @endcan
         @endif
