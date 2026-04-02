@@ -70,6 +70,7 @@ use App\Http\Controllers\Api\HrOnboardingController;
 use App\Http\Controllers\Api\HrOffboardingController;
 use App\Http\Controllers\Api\HrGroupAssignmentController;
 use App\Http\Controllers\Api\DeviceLookupController;
+use App\Http\Controllers\Admin\DocumentationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1111,6 +1112,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::patch('/{form}/submissions/{submission}', [\App\Http\Controllers\Admin\FormBuilderController::class, 'reviewSubmission'])->name('submission.review');
         Route::get('/{form}/submissions',                [\App\Http\Controllers\Admin\FormBuilderController::class, 'submissions'])     ->name('submissions');
         Route::post('/{form}/tokens',                    [\App\Http\Controllers\Admin\FormBuilderController::class, 'generateToken'])   ->name('tokens.generate');
+    });
+
+    // ─── Documentation (HTML report/doc upload & viewer) ──────────
+    // NOTE: static segment 'documentation/{filename}/raw' MUST come before
+    // the show route to prevent Laravel matching 'raw' as a filename wildcard.
+    Route::middleware('permission:view-documentation')->prefix('documentation')->name('documentation.')->group(function () {
+        Route::get('/',                        [DocumentationController::class, 'index'])   ->name('index');
+        Route::get('/{filename}/raw',          [DocumentationController::class, 'raw'])     ->name('raw');
+        Route::get('/{filename}',              [DocumentationController::class, 'show'])    ->name('show');
+    });
+    Route::middleware('permission:manage-documentation')->prefix('documentation')->name('documentation.')->group(function () {
+        Route::post('/',                       [DocumentationController::class, 'store'])   ->name('store');
+        Route::delete('/{filename}',           [DocumentationController::class, 'destroy'])->name('destroy');
     });
 
 });
