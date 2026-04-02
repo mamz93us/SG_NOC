@@ -13,18 +13,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // MySQL: modify ENUM → VARCHAR in-place
+        // MySQL: modify ENUM → VARCHAR in-place.
+        // MySQL preserves existing indexes on the column automatically,
+        // so no index recreation is needed.
         DB::statement("ALTER TABLE notifications MODIFY COLUMN `type` VARCHAR(100) NOT NULL");
-        // Re-add the index that was on the ENUM column
-        // (MySQL drops the index when we change type, so we recreate it)
-        Schema::table('notifications', function (Blueprint $table) {
-            // Only add index if not already present
-            try {
-                $table->index('type', 'notifications_type_index');
-            } catch (\Throwable) {
-                // Index may already exist — safe to ignore
-            }
-        });
     }
 
     public function down(): void
