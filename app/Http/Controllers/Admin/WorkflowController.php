@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\UcmServer;
 use App\Models\WorkflowRequest;
 use App\Models\WorkflowStep;
+use App\Models\WorkflowTask;
 use App\Services\Identity\GraphService;
 use App\Services\Workflow\WorkflowEngine;
 use Illuminate\Http\Request;
@@ -247,6 +248,44 @@ class WorkflowController extends Controller
         return redirect()
             ->route('admin.workflows.my-requests')
             ->with('success', 'Request cancelled.');
+    }
+
+    // Mark a workflow task as completed
+    public function completeTask(Request $request, WorkflowTask $task)
+    {
+        if ($task->status === 'completed') {
+            return back()->with('error', 'Task is already completed.');
+        }
+
+        $task->update([
+            'status'       => 'completed',
+            'completed_at' => now(),
+            'completed_by' => Auth::id(),
+            'notes'        => $request->input('notes'),
+        ]);
+
+        // Check if all tasks for this workflow are now done — notify IT team
+        $workflow = $task->workflow;
+        if ($workflow) {
+            $pendingCount = WorkflowTask::where('workflow_id', $workflow->id)
+                ->whereNotIn('status', ['completed', 'cancelled'])
+                ->count();
+
+            if ($pendingCount === 0) {
+                $payload     = $workflow->payload ?? [];
+                $displayName = $payload['display_name'] ?? 'New Employee';
+                // Notify IT team that all tasks are done
+                app(\App\Services\NotificationService::class)->notifyAdmins(
+                    'workflow_all_tasks_done',
+                    'All Setup Tasks Complete',
+                    "All setup tasks for '{$displayName}' are completed. The employee is ready.",
+                    route('admin.workflows.show', $workflow->id),
+                    'success'
+                );
+            }
+        }
+
+        return back()->with('success', 'Task marked as completed.');
     }
 
     // Retry a failed workflow execution (skips approval — already approved)

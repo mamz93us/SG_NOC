@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendOnboardingManagerFormJob;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Services\Workflow\WorkflowEngine;
@@ -75,6 +76,11 @@ class HrOnboardingController extends Controller
             title:       "Onboard: {$displayName}",
             description: $data['notes'] ?? null,
         );
+
+        // Send manager setup form if a manager email was provided
+        if (! empty($data['manager_email'])) {
+            SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
+        }
 
         return response()->json([
             'ok'          => true,

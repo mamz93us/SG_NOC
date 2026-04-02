@@ -260,17 +260,21 @@ class NetworkController extends Controller
     public function storeFloor(Request $request)
     {
         $request->validate([
-            'branch_id'   => 'required|exists:branches,id',
-            'name'        => 'required|string|max:100|unique:network_floors,name,NULL,id,branch_id,' . $request->branch_id,
-            'description' => 'nullable|string|max:255',
-            'sort_order'  => 'nullable|integer|min:0',
+            'branch_id'       => 'required|exists:branches,id',
+            'name'            => 'required|string|max:100|unique:network_floors,name,NULL,id,branch_id,' . $request->branch_id,
+            'description'     => 'nullable|string|max:255',
+            'sort_order'      => 'nullable|integer|min:0',
+            'ext_range_start' => 'nullable|integer|min:100|max:99999',
+            'ext_range_end'   => 'nullable|integer|min:100|max:99999|gte:ext_range_start',
         ]);
 
         NetworkFloor::create([
-            'branch_id'   => $request->branch_id,
-            'name'        => $request->name,
-            'description' => $request->description,
-            'sort_order'  => $request->sort_order ?? 0,
+            'branch_id'       => $request->branch_id,
+            'name'            => $request->name,
+            'description'     => $request->description,
+            'sort_order'      => $request->sort_order ?? 0,
+            'ext_range_start' => $request->ext_range_start ?: null,
+            'ext_range_end'   => $request->ext_range_end   ?: null,
         ]);
 
         return back()->with('success', "Floor \"{$request->name}\" created.");
@@ -279,15 +283,19 @@ class NetworkController extends Controller
     public function updateFloor(Request $request, NetworkFloor $floor)
     {
         $request->validate([
-            'name'        => 'required|string|max:100',
-            'description' => 'nullable|string|max:255',
-            'sort_order'  => 'nullable|integer|min:0',
+            'name'            => 'required|string|max:100',
+            'description'     => 'nullable|string|max:255',
+            'sort_order'      => 'nullable|integer|min:0',
+            'ext_range_start' => 'nullable|integer|min:100|max:99999',
+            'ext_range_end'   => 'nullable|integer|min:100|max:99999|gte:ext_range_start',
         ]);
 
         $floor->update([
-            'name'        => $request->name,
-            'description' => $request->description,
-            'sort_order'  => $request->sort_order ?? $floor->sort_order,
+            'name'            => $request->name,
+            'description'     => $request->description,
+            'sort_order'      => $request->sort_order ?? $floor->sort_order,
+            'ext_range_start' => $request->ext_range_start ?: null,
+            'ext_range_end'   => $request->ext_range_end   ?: null,
         ]);
 
         return back()->with('success', "Floor \"{$floor->name}\" updated.");

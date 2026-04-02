@@ -13,10 +13,14 @@ class NetworkFloor extends Model
         'name',
         'description',
         'sort_order',
+        'ext_range_start',
+        'ext_range_end',
     ];
 
     protected $casts = [
-        'sort_order' => 'integer',
+        'sort_order'      => 'integer',
+        'ext_range_start' => 'integer',
+        'ext_range_end'   => 'integer',
     ];
 
     // ─── Relationships ────────────────────────────────────────────

@@ -164,7 +164,23 @@
       "Bash(php -l database/migrations/2026_03_31_000003_add_intune_net_data_script_id_to_settings_table.php)",
       "Bash(php -l app/Console/Commands/SyncIntuneNetData.php)",
       "Bash(php -l app/Services/AzureDeviceService.php)",
-      "Bash(php -l app/Models/AzureDevice.php)"
+      "Bash(php -l app/Models/AzureDevice.php)",
+      "Bash(find C:UsersMohamedZahranDownloadsphonebookSG_NOC/resources/views -name *api* -o -name *swagger* -o -name *doc*)",
+      "Bash(grep -n \"protected $table\\\\|fillable\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\Employee.php\")",
+      "Bash(grep -n \"fillable\\\\|protected $table\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\IdentityUser.php\")",
+      "Bash(grep -n \"fillable\\\\|protected $table\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\Department.php\")",
+      "Bash(grep -n \"fillable\\\\|protected $table\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\Branch.php\")",
+      "Bash(grep -A 10 \"protected $fillable\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\IdentityUser.php\")",
+      "Bash(grep -A 5 \"protected $fillable\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\Department.php\")",
+      "Bash(grep -A 5 \"protected $fillable\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\Branch.php\")",
+      "Bash(grep -A 15 \"protected $fillable\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\Branch.php\")",
+      "Bash(grep -A 20 \"protected $fillable\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\AzureDevice.php\")",
+      "Bash(grep -A 15 \"protected $fillable\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\EmployeeAsset.php\")",
+      "Bash(grep -A 10 \"protected $fillable\" \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\Device.php\")",
+      "Bash(php -l app/Http/Middleware/VerifyCsrfToken.php)",
+      "Bash(php -l bootstrap/app.php)",
+      "Bash(ls -la \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Mail\"\" 2>/dev/null || find \"/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Mail \" -type f)",
+      "Bash(php -l app/Models/WorkflowTask.php app/Models/OnboardingManagerToken.php app/Models/NetworkFloor.php app/Http/Controllers/Public/OnboardingFormController.php app/Mail/OnboardingManagerFormMail.php app/Jobs/SendOnboardingManagerFormJob.php app/Http/Controllers/Admin/WorkflowController.php)"
     ]
   }
 }

@@ -5,6 +5,14 @@
     $payload = $workflow->payload ?? [];
     $isCreateUser = $workflow->type === 'create_user';
     $isCompleted  = $workflow->status === 'completed';
+
+    // Manager form token (onboarding)
+    $managerToken = $isCreateUser
+        ? \App\Models\OnboardingManagerToken::where('workflow_id', $workflow->id)->latest()->first()
+        : null;
+
+    // Workflow tasks
+    $workflowTasks = \App\Models\WorkflowTask::where('workflow_id', $workflow->id)->orderBy('created_at')->get();
 @endphp
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -12,7 +20,17 @@
         <h4 class="mb-0 fw-bold"><i class="bi bi-diagram-2-fill me-2 text-primary"></i>{{ $workflow->title }}</h4>
         <small class="text-muted">Workflow #{{ $workflow->id }} &bull; {{ $workflow->typeLabel() }}</small>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+        {{-- Manager form button (IT team can fill if manager unavailable) --}}
+        @if($isCreateUser && $managerToken && $managerToken->isValid() && ! $managerToken->hasResponse())
+        @can('approve-workflows')
+        <a href="{{ route('onboarding.form', $managerToken->token) }}" target="_blank"
+           class="btn btn-outline-info btn-sm">
+            <i class="bi bi-clipboard-check me-1"></i>Fill Manager Form
+        </a>
+        @endcan
+        @endif
+
         @if(in_array($workflow->status, ['failed', 'completed']))
         @can('approve-workflows')
         <form method="POST" action="{{ route('admin.workflows.retry', $workflow->id) }}" class="d-inline">
@@ -246,6 +264,133 @@
         @endif
     </div>
 </div>
+
+{{-- ── Manager Form Status (create_user only) ── --}}
+@if($isCreateUser && $managerToken)
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent d-flex align-items-center gap-2">
+        <i class="bi bi-clipboard-check text-info"></i>
+        <strong>Manager Setup Form</strong>
+        @if($managerToken->hasResponse())
+            <span class="badge bg-success ms-auto">Submitted</span>
+        @elseif($managerToken->isValid())
+            <span class="badge bg-warning text-dark ms-auto">Awaiting Manager</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Expired</span>
+        @endif
+    </div>
+    <div class="card-body small">
+        @if($managerToken->hasResponse())
+        <div class="row g-3">
+            <div class="col-md-6">
+                <dl class="row mb-0">
+                    <dt class="col-6 text-muted">Laptop</dt>
+                    <dd class="col-6">{{ ucfirst($managerToken->laptop_status ?? '—') }}</dd>
+                    <dt class="col-6 text-muted">Needs Extension</dt>
+                    <dd class="col-6">{{ $managerToken->needs_extension ? 'Yes' : 'No' }}</dd>
+                    <dt class="col-6 text-muted">Internet Level</dt>
+                    <dd class="col-6"><span class="badge bg-secondary">{{ strtoupper($managerToken->internet_level ?? '—') }}</span></dd>
+                    <dt class="col-6 text-muted">Floor</dt>
+                    <dd class="col-6">{{ $managerToken->floor?->name ?? '—' }}</dd>
+                </dl>
+            </div>
+            <div class="col-md-6">
+                <dl class="row mb-0">
+                    <dt class="col-6 text-muted">Groups Selected</dt>
+                    <dd class="col-6">{{ count($managerToken->selected_group_ids ?? []) }}</dd>
+                    <dt class="col-6 text-muted">Responded At</dt>
+                    <dd class="col-6">{{ $managerToken->responded_at?->format('d M Y H:i') ?? '—' }}</dd>
+                    @if($managerToken->manager_comments)
+                    <dt class="col-6 text-muted">Comments</dt>
+                    <dd class="col-6">{{ $managerToken->manager_comments }}</dd>
+                    @endif
+                </dl>
+            </div>
+        </div>
+        @else
+        <p class="mb-2 text-muted">
+            The manager setup form has been sent to <strong>{{ $managerToken->manager_email }}</strong>.
+            @if($managerToken->isValid())
+                Expires: {{ $managerToken->expires_at?->format('d M Y, H:i') }}.
+            @endif
+        </p>
+        @can('approve-workflows')
+        @if($managerToken->isValid())
+        <a href="{{ route('onboarding.form', $managerToken->token) }}" target="_blank"
+           class="btn btn-sm btn-outline-info">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Open Form (IT can fill on behalf of manager)
+        </a>
+        @endif
+        @endcan
+        @endif
+    </div>
+</div>
+@endif
+
+{{-- ── Workflow Tasks ── --}}
+@if($workflowTasks->isNotEmpty())
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent d-flex align-items-center gap-2">
+        <i class="bi bi-check2-square text-primary"></i>
+        <strong>Setup Tasks</strong>
+        <span class="badge bg-secondary ms-auto">{{ $workflowTasks->count() }}</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle small mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Task</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                    @can('approve-workflows')<th class="text-end pe-3">Action</th>@endcan
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($workflowTasks as $task)
+                <tr>
+                    <td class="ps-3 fw-semibold">
+                        <i class="bi {{ $task->typeIcon() }} me-1 text-primary"></i>
+                        {{ $task->title }}
+                    </td>
+                    <td><span class="badge bg-light text-dark border">{{ $task->typeLabel() }}</span></td>
+                    <td><span class="badge {{ $task->statusBadgeClass() }}">{{ ucfirst(str_replace('_', ' ', $task->status)) }}</span></td>
+                    <td class="text-muted">
+                        @if($task->type === 'ip_phone_assign' && ! empty($task->payload))
+                            <span title="UCM: {{ $task->payload['ucm_ip'] ?? '—' }}  |  User: {{ $task->payload['ucm_username'] ?? '—' }}  |  Pass: {{ $task->payload['ucm_password'] ?? '—' }}">
+                                Ext. <strong>{{ $task->payload['extension'] ?? '—' }}</strong>
+                                &bull; UCM: <code>{{ $task->payload['ucm_ip'] ?? '—' }}</code>
+                                &bull; Pass: <code>{{ $task->payload['ucm_password'] ?? '—' }}</code>
+                            </span>
+                        @elseif($task->type === 'laptop_assign' && ! empty($task->payload))
+                            {{ ucfirst($task->payload['laptop_type'] ?? '') }} laptop
+                        @else
+                            {{ $task->description ? Str::limit($task->description, 60) : '—' }}
+                        @endif
+                    </td>
+                    @can('approve-workflows')
+                    <td class="text-end pe-3">
+                        @if($task->status === 'pending')
+                        <form method="POST" action="{{ route('admin.workflows.tasks.complete', $task->id) }}" class="d-inline">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px"
+                                    onclick="return confirm('Mark this task as completed?')">
+                                <i class="bi bi-check2 me-1"></i>Complete
+                            </button>
+                        </form>
+                        @elseif($task->status === 'completed')
+                        <span class="text-success small"><i class="bi bi-check-circle-fill me-1"></i>Done</span>
+                        @endif
+                    </td>
+                    @endcan
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
 
 {{-- Reject modal --}}
 <div class="modal fade" id="rejectModal" tabindex="-1">

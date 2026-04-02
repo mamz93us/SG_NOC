@@ -50,6 +50,7 @@
                         <th style="width:30px"></th>
                         <th>Floor</th>
                         <th>Description</th>
+                        <th class="text-center">Ext Range</th>
                         <th class="text-center">Racks</th>
                         <th class="text-center">Switches</th>
                         <th class="text-end">Actions</th>
@@ -72,6 +73,15 @@
                         </td>
                         <td class="text-muted">{{ $floor->description ?: '—' }}</td>
                         <td class="text-center">
+                            @if($floor->ext_range_start && $floor->ext_range_end)
+                                <span class="badge bg-success text-white" title="Extension range for this floor" style="font-size:.7rem">
+                                    {{ $floor->ext_range_start }}–{{ $floor->ext_range_end }}
+                                </span>
+                            @else
+                                <span class="text-muted small">—</span>
+                            @endif
+                        </td>
+                        <td class="text-center">
                             <span class="badge bg-secondary">{{ $floor->racks->count() }}</span>
                         </td>
                         <td class="text-center">
@@ -84,7 +94,7 @@
                                 <i class="bi bi-plus-lg"></i> Rack
                             </button>
                             <button class="btn btn-sm btn-outline-primary"
-                                    onclick="openEditFloorModal({{ $floor->id }}, {{ $floor->branch_id }}, '{{ addslashes($floor->name) }}', '{{ addslashes($floor->description ?? '') }}', {{ $floor->sort_order }})"
+                                    onclick="openEditFloorModal({{ $floor->id }}, {{ $floor->branch_id }}, '{{ addslashes($floor->name) }}', '{{ addslashes($floor->description ?? '') }}', {{ $floor->sort_order }}, {{ $floor->ext_range_start ?? 'null' }}, {{ $floor->ext_range_end ?? 'null' }})"
                                     title="Edit floor">
                                 <i class="bi bi-pencil"></i>
                             </button>
@@ -199,10 +209,23 @@
                     <label class="form-label">Description</label>
                     <input type="text" name="description" class="form-control" placeholder="Optional description" maxlength="255">
                 </div>
-                <div class="mb-1">
+                <div class="mb-3">
                     <label class="form-label">Sort Order</label>
                     <input type="number" name="sort_order" class="form-control" value="0" min="0" max="999">
                     <div class="form-text">Lower numbers appear first (0 = top).</div>
+                </div>
+                <div class="mb-1">
+                    <label class="form-label fw-semibold">Extension Range <span class="text-muted fw-normal">(optional)</span></label>
+                    <div class="row g-2">
+                        <div class="col">
+                            <input type="number" name="ext_range_start" class="form-control" placeholder="Start e.g. 2000" min="100" max="99999">
+                        </div>
+                        <div class="col-auto d-flex align-items-center text-muted">to</div>
+                        <div class="col">
+                            <input type="number" name="ext_range_end" class="form-control" placeholder="End e.g. 2099" min="100" max="99999">
+                        </div>
+                    </div>
+                    <div class="form-text">Phone extension numbers reserved for employees on this floor.</div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -234,9 +257,22 @@
                     <label class="form-label">Description</label>
                     <input type="text" name="description" id="editFloorDesc" class="form-control" maxlength="255">
                 </div>
-                <div class="mb-1">
+                <div class="mb-3">
                     <label class="form-label">Sort Order</label>
                     <input type="number" name="sort_order" id="editFloorSort" class="form-control" min="0" max="999">
+                </div>
+                <div class="mb-1">
+                    <label class="form-label fw-semibold">Extension Range <span class="text-muted fw-normal">(optional)</span></label>
+                    <div class="row g-2">
+                        <div class="col">
+                            <input type="number" name="ext_range_start" id="editFloorExtStart" class="form-control" placeholder="Start" min="100" max="99999">
+                        </div>
+                        <div class="col-auto d-flex align-items-center text-muted">to</div>
+                        <div class="col">
+                            <input type="number" name="ext_range_end" id="editFloorExtEnd" class="form-control" placeholder="End" min="100" max="99999">
+                        </div>
+                    </div>
+                    <div class="form-text">Phone extension numbers reserved for employees on this floor.</div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -342,12 +378,14 @@ function openAddFloorModal(branchId, branchName) {
 }
 
 // ── Edit Floor modal ─────────────────────────────────────────────
-function openEditFloorModal(id, branchId, name, desc, sortOrder) {
+function openEditFloorModal(id, branchId, name, desc, sortOrder, extStart, extEnd) {
     const baseUrl = '{{ rtrim(route("admin.network.floors.update", ["floor" => "__ID__"]), "/") }}';
-    document.getElementById('editFloorForm').action = baseUrl.replace('__ID__', id);
-    document.getElementById('editFloorName').value  = name;
-    document.getElementById('editFloorDesc').value  = desc;
-    document.getElementById('editFloorSort').value  = sortOrder;
+    document.getElementById('editFloorForm').action      = baseUrl.replace('__ID__', id);
+    document.getElementById('editFloorName').value       = name;
+    document.getElementById('editFloorDesc').value       = desc;
+    document.getElementById('editFloorSort').value       = sortOrder;
+    document.getElementById('editFloorExtStart').value   = extStart && extStart !== 'null' ? extStart : '';
+    document.getElementById('editFloorExtEnd').value     = extEnd   && extEnd   !== 'null' ? extEnd   : '';
     new bootstrap.Modal(document.getElementById('editFloorModal')).show();
 }
 

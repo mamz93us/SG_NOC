@@ -772,6 +772,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('workflows/{workflow}/approve', [WorkflowController::class, 'approve']) ->name('workflows.approve');
         Route::post('workflows/{workflow}/reject',  [WorkflowController::class, 'reject'])  ->name('workflows.reject');
         Route::post('workflows/{workflow}/retry',   [WorkflowController::class, 'retry'])   ->name('workflows.retry');
+        Route::patch('workflows/tasks/{task}/complete', [WorkflowController::class, 'completeTask'])->name('workflows.tasks.complete');
     });
     Route::middleware('permission:view-workflows')->group(function () {
         Route::get('workflows/{workflow}',   [WorkflowController::class, 'show'])       ->name('workflows.show');
@@ -1125,11 +1126,16 @@ Route::post('/api/internal/vq-report', [\App\Http\Controllers\Admin\VoiceQuality
 */
 
 use App\Http\Controllers\Public\OffboardingFormController;
+use App\Http\Controllers\Public\OnboardingFormController;
 use App\Http\Controllers\Public\PrinterSetupController;
 
 // Offboarding manager approval form
 Route::get('/offboarding/respond',  [OffboardingFormController::class, 'show'])  ->name('offboarding.form');
 Route::post('/offboarding/respond', [OffboardingFormController::class, 'submit'])->name('offboarding.submit')->middleware('throttle:5,1');
+
+// Onboarding manager setup form (token-based, public)
+Route::get('/onboarding/form/{token}',  [OnboardingFormController::class, 'show'])  ->name('onboarding.form');
+Route::post('/onboarding/form/{token}', [OnboardingFormController::class, 'submit'])->name('onboarding.submit')->middleware('throttle:10,1');
 
 // Public & token-only forms
 Route::get('/forms/{slug}',  [\App\Http\Controllers\Public\PublicFormController::class, 'show'])  ->name('forms.show');

@@ -4,12 +4,17 @@ namespace App\Services\Workflow;
 
 use App\Models\Branch;
 use App\Models\Employee;
+use App\Models\IdentityGroup;
 use App\Models\IdentityUser;
+use App\Models\NetworkFloor;
+use App\Models\OnboardingManagerToken;
 use App\Models\Setting;
 use App\Models\UcmServer;
 use App\Models\WorkflowRequest;
+use App\Models\WorkflowTask;
 use App\Services\Identity\GraphService;
 use App\Services\NotificationService;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class UserProvisioningService
@@ -212,13 +217,51 @@ class UserProvisioningService
             }
         }
 
-        // ── Step 4: Create UCM extension (branch-aware) ──────────
-        // Branch UCM + range take priority; global settings are the fallback.
+        // ── Step 3c: Assign manager-selected groups ───────────────
+        // If the manager filled the onboarding form, assign the groups they chose.
+        $managerGroupIds = $payload['manager_groups'] ?? [];
+        if (! empty($managerGroupIds)) {
+            $this->engine->logEvent($workflow, 'info', 'Assigning ' . count($managerGroupIds) . ' manager-selected Azure group(s).');
+            foreach ($managerGroupIds as $identityGroupId) {
+                $group = IdentityGroup::find($identityGroupId);
+                if (! $group) continue;
+                try {
+                    $this->engine->logEvent($workflow, 'info', "Assigning manager-selected group: {$group->display_name}");
+                    $graph->addUserToGroup($azureId, $group->azure_id);
+                    $this->engine->logEvent($workflow, 'success', "Group '{$group->display_name}' assigned.");
+                    sleep(1);
+                } catch (\Throwable $e) {
+                    if (str_contains($e->getMessage(), '409')) {
+                        $this->engine->logEvent($workflow, 'info', "Already in group: {$group->display_name}");
+                    } else {
+                        $this->engine->logEvent($workflow, 'warning',
+                            "Manager group '{$group->display_name}' assignment failed (non-fatal): " . $e->getMessage());
+                    }
+                }
+            }
+        }
+
+        // ── Step 4: Create UCM extension (floor-aware, then branch-aware) ──
+        // Priority: floor ext range → branch ext range → global settings.
+        // Only create extension if manager form says needs_extension (or form not filled yet).
+        $needsExtension = $payload['needs_extension'] ?? true; // default true if form not filled
         $extension = null;
         $ucmServer = null;
         $branch    = $workflow->branch_id ? Branch::find($workflow->branch_id) : null;
 
-        if ($branch) {
+        // Try floor range first (from manager form)
+        $floorId = $payload['floor_id'] ?? null;
+        $floor   = $floorId ? NetworkFloor::find($floorId) : null;
+
+        if ($floor && $floor->ext_range_start && $floor->ext_range_end) {
+            $ucmServer = $branch ? $branch->effectiveUcmServer($settings)
+                                 : ($settings->default_ucm_id ? UcmServer::find($settings->default_ucm_id) : null);
+            $extRange  = [
+                'start' => (int) $floor->ext_range_start,
+                'end'   => (int) $floor->ext_range_end,
+            ];
+            $this->engine->logEvent($workflow, 'info', "Using floor '{$floor->name}' extension range: {$extRange['start']}–{$extRange['end']}");
+        } elseif ($branch) {
             $ucmServer = $branch->effectiveUcmServer($settings);
             $extRange  = $branch->effectiveExtRange($settings);
         } else {
@@ -233,6 +276,8 @@ class UserProvisioningService
         if (!empty($payload['extension'])) {
             $extension = $payload['extension'];
             $this->engine->logEvent($workflow, 'info', "Resuming — UCM extension already created: {$extension}");
+        } elseif (! $needsExtension) {
+            $this->engine->logEvent($workflow, 'info', 'Extension skipped — manager indicated no IP phone needed.');
         } elseif ($ucmServer) {
             try {
                 $rangeStart = $extRange['start'];
@@ -243,7 +288,8 @@ class UserProvisioningService
                 $extension = $this->extProvisioning->getFirstAvailable($ucmServer, $rangeStart, $rangeEnd);
                 $this->engine->logEvent($workflow, 'info', "Using extension: {$extension}");
 
-                $this->extProvisioning->createForUser($ucmServer, $extension, $displayName, $upn, [
+                // createForUser returns the extension details including the generated secret
+                $extDetails = $this->extProvisioning->createForUser($ucmServer, $extension, $displayName, $upn, [
                     'department'   => $payload['department'] ?? '',
                     'location'     => 'SA', // Requested: location should be SA
                     'phone_number' => $payload['mobile_phone'] ?? $payload['businessPhones'][0] ?? '',
@@ -251,8 +297,9 @@ class UserProvisioningService
                 $this->engine->logEvent($workflow, 'success', "UCM extension {$extension} created (voicemail=no, call_waiting=no).");
 
                 $payload = array_merge($payload, [
-                    'extension'     => $extension,
-                    'ucm_server_id' => $ucmServer->id,
+                    'extension'            => $extension,
+                    'ucm_server_id'        => $ucmServer->id,
+                    'ucm_extension_secret' => $extDetails['secret'] ?? '(see UCM admin)',
                 ]);
                 $workflow->payload = $payload;
                 $workflow->save();
@@ -351,9 +398,19 @@ class UserProvisioningService
             'info'
         );
 
-        // ── Step 7b: Printer deployment (dual path) ───────────────
+        // ── Step 7b: Printer deployment (floor-aware, dual path) ─────
         try {
-            $hasPrinters = \App\Models\Printer::where('branch_id', $workflow->branch_id)->exists();
+            // Prefer floor-specific printers; fall back to branch-level
+            $floorId     = $payload['floor_id'] ?? null;
+            $hasPrinters = $floorId
+                ? \App\Models\Printer::where('floor_id', $floorId)->exists()
+                : \App\Models\Printer::where('branch_id', $workflow->branch_id)->exists();
+
+            if (! $hasPrinters && $floorId) {
+                // No floor-specific printers — try branch level
+                $hasPrinters = \App\Models\Printer::where('branch_id', $workflow->branch_id)->exists();
+            }
+
             if ($hasPrinters && ! empty($upn)) {
                 // Check if Intune scripts already deployed for this branch
                 $intuneDeployed = \App\Models\Printer::where('branch_id', $workflow->branch_id)
@@ -385,7 +442,84 @@ class UserProvisioningService
                 'Printer setup step failed (non-fatal): ' . $e->getMessage());
         }
 
+        // ── Step 7c: Create workflow tasks (based on manager form) ──
+        $this->createProvisioningTasks($workflow, $payload, $extension, $ucmServer);
+
         $this->engine->logEvent($workflow, 'success', 'User provisioning complete.');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Create post-provisioning tasks and send completion email
+    // ─────────────────────────────────────────────────────────────
+
+    private function createProvisioningTasks(
+        WorkflowRequest $workflow,
+        array           $payload,
+        ?string         $extension,
+        ?UcmServer      $ucmServer
+    ): void {
+        $displayName  = $payload['display_name'] ?? 'New Employee';
+        $laptopStatus = $payload['laptop_status'] ?? null;
+        $needsExt     = $payload['needs_extension'] ?? ($extension !== null);
+        $tasks        = [];
+
+        // Laptop task (only if new or used)
+        if (in_array($laptopStatus, ['new', 'used'])) {
+            $laptopLabel = $laptopStatus === 'new' ? 'New' : 'Used / Refurbished';
+            $task = WorkflowTask::create([
+                'workflow_id' => $workflow->id,
+                'type'        => 'laptop_assign',
+                'title'       => "Assign Laptop to {$displayName}",
+                'description' => "Prepare and assign a {$laptopLabel} laptop to the new employee.",
+                'status'      => 'pending',
+                'payload'     => [
+                    'laptop_type'  => $laptopStatus,
+                    'employee_upn' => $payload['upn'] ?? null,
+                    'branch_id'    => $workflow->branch_id,
+                ],
+            ]);
+            $tasks[] = $task;
+            $this->engine->logEvent($workflow, 'info', "Task created: Assign {$laptopLabel} Laptop to {$displayName}");
+        }
+
+        // IP phone task (only if extension was requested and created)
+        if ($needsExt && $extension && $ucmServer) {
+            $ucmIp   = $ucmServer->url ?? '—';
+            $ucmUser = $extension;
+            // The UCM password was generated inside createForUser() and stored in payload
+            $ucmPass = $payload['ucm_extension_secret'] ?? '(reset via UCM admin panel)';
+
+            $task = WorkflowTask::create([
+                'workflow_id' => $workflow->id,
+                'type'        => 'ip_phone_assign',
+                'title'       => "Set Up IP Phone for {$displayName} (Ext. {$extension})",
+                'description' => "Configure and assign the IP phone for the new employee.",
+                'status'      => 'pending',
+                'payload'     => [
+                    'extension'      => $extension,
+                    'ucm_ip'         => $ucmIp,
+                    'ucm_username'   => $ucmUser,
+                    'ucm_password'   => $ucmPass,
+                    'ucm_server_id'  => $ucmServer->id,
+                    'ucm_server_name'=> $ucmServer->name,
+                    'employee_upn'   => $payload['upn'] ?? null,
+                ],
+            ]);
+            $tasks[] = $task;
+            $this->engine->logEvent($workflow, 'info', "Task created: Set Up IP Phone for {$displayName} (ext. {$extension})");
+        }
+
+        // Notify IT team via system notification + email
+        if (! empty($tasks)) {
+            $taskCount = count($tasks);
+            $this->notifications->notifyAdmins(
+                'workflow_tasks_created',
+                'New Employee Setup Tasks',
+                "{$taskCount} task(s) created for '{$displayName}' — please complete setup.",
+                route('admin.workflows.show', $workflow->id),
+                'info'
+            );
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

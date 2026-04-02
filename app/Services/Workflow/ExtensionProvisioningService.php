@@ -108,7 +108,10 @@ class ExtensionProvisioningService
         sleep(16);
         $api->applyChanges();
 
-        return $result;
+        // Merge the generated secret into the result so callers can store it
+        return array_merge(is_array($result) ? $result : [], [
+            'secret' => $complexSecret,
+        ]);
     }
 
     /**
