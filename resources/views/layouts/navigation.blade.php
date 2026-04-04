@@ -45,6 +45,12 @@
                         {{ __('NOC') }}
                     </x-nav-link>
 
+                    @can('view-documentation')
+                    <x-nav-link :href="route('admin.documentation.index')" :active="request()->routeIs('admin.documentation.*')">
+                        {{ __('Documentation') }}
+                    </x-nav-link>
+                    @endcan
+
                     <!-- Network Dropdown -->
                     <div class="hidden sm:flex sm:items-center sm:ms-6">
                         <x-dropdown align="left" width="48">
@@ -169,6 +175,12 @@
             <x-responsive-nav-link :href="route('admin.noc.dashboard')" :active="request()->routeIs('admin.noc.*')">
                 {{ __('NOC') }}
             </x-responsive-nav-link>
+
+            @can('view-documentation')
+            <x-responsive-nav-link :href="route('admin.documentation.index')" :active="request()->routeIs('admin.documentation.*')">
+                {{ __('Documentation') }}
+            </x-responsive-nav-link>
+            @endcan
 
             <div class="pt-4 pb-1 border-t border-gray-200 dark:border-gray-600">
                 <div class="px-4 font-medium text-sm text-gray-500">{{ __('Network') }}</div>
