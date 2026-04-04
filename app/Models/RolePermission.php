@@ -103,6 +103,10 @@ class RolePermission extends Model
                 'view-admin-links'   => 'View Admin Tools / Quick Links',
                 'manage-admin-links' => 'Create / Edit / Delete Admin Links',
             ],
+            'Documentation' => [
+                'view-documentation'   => 'View Documentation',
+                'manage-documentation' => 'Upload / Delete Documentation Files',
+            ],
         ];
     }
 

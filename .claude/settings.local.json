@@ -181,7 +181,10 @@
       "Bash(php -l bootstrap/app.php)",
       "Bash(ls -la \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Mail\"\" 2>/dev/null || find \"/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Mail \" -type f)",
       "Bash(php -l app/Models/WorkflowTask.php app/Models/OnboardingManagerToken.php app/Models/NetworkFloor.php app/Http/Controllers/Public/OnboardingFormController.php app/Mail/OnboardingManagerFormMail.php app/Jobs/SendOnboardingManagerFormJob.php app/Http/Controllers/Admin/WorkflowController.php)",
-      "Bash(echo \"OK: $f\")"
+      "Bash(echo \"OK: $f\")",
+      "Bash(grep -r \"seeder\\\\|Seeder\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database --include=*.php)",
+      "Bash(sqlite3 \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/database/database.sqlite\" \"INSERT OR IGNORE INTO role_permissions \\(role, permission, created_at, updated_at\\) VALUES \\(''super_admin'',''view-documentation'',datetime\\(''now''\\),datetime\\(''now''\\)\\), \\(''super_admin'',''manage-documentation'',datetime\\(''now''\\),datetime\\(''now''\\)\\), \\(''admin'',''view-documentation'',datetime\\(''now''\\),datetime\\(''now''\\)\\), \\(''admin'',''manage-documentation'',datetime\\(''now''\\),datetime\\(''now''\\)\\), \\(''viewer'',''view-documentation'',datetime\\(''now''\\),datetime\\(''now''\\)\\); SELECT role, permission FROM role_permissions WHERE permission LIKE ''%documentation%'';\")",
+      "Bash(find C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC -name *.sqlite -o -name *.db)"
     ]
   }
 }
