@@ -26,7 +26,7 @@
 
     <iframe id="docFrame"
             sandbox="allow-same-origin allow-scripts allow-popups"
-            srcdoc="{{ htmlspecialchars($html, ENT_QUOTES, 'UTF-8') }}">
+            srcdoc="{{ $html }}">
     </iframe>
 </body>
 </html>
