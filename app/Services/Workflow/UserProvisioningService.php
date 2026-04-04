@@ -244,7 +244,10 @@ class UserProvisioningService
         // ── Step 4: Create UCM extension (floor-aware, then branch-aware) ──
         // Priority: floor ext range → branch ext range → global settings.
         // Only create extension if manager form says needs_extension (or form not filled yet).
-        $needsExtension = $payload['needs_extension'] ?? true; // default true if form not filled
+        // Only create extension if manager explicitly said "yes" on the form.
+        // If the form hasn't been submitted yet, needs_extension will not be in
+        // the payload — default to false so nothing is created prematurely.
+        $needsExtension = $payload['needs_extension'] ?? false;
         $extension = null;
         $ucmServer = null;
         $branch    = $workflow->branch_id ? Branch::find($workflow->branch_id) : null;

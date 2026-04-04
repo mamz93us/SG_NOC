@@ -13,7 +13,8 @@
 
 <div class="alert alert-info small py-2 mb-3">
     <i class="bi bi-info-circle me-1"></i>
-    <strong>Location hierarchy:</strong> Branch → Floor → Rack (network equipment) / Office (rooms). Floors and Offices are used for assets and printers.
+    <strong>Location hierarchy:</strong> Branch → Floor → Rack (network equipment) / Office (rooms).
+    Set an <strong>Extension Range</strong> on each floor so onboarding automatically assigns the right IP phone number for each area.
 </div>
 
 @if($branches->isEmpty())
@@ -63,6 +64,15 @@
                                 data-bs-toggle="collapse" data-bs-target="#floor{{ $floor->id }}">
                             <i class="bi bi-layers me-2 text-secondary"></i>{{ $floor->name }}
                             <span class="text-muted fw-normal ms-1">({{ $floor->racks->count() }} rack(s), {{ $floor->offices->count() }} office(s))</span>
+                            @if($floor->ext_range_start && $floor->ext_range_end)
+                                <span class="badge bg-primary ms-2" title="IP Phone extension range for this floor">
+                                    <i class="bi bi-telephone-fill me-1"></i>Ext {{ $floor->ext_range_start }}–{{ $floor->ext_range_end }}
+                                </span>
+                            @else
+                                <span class="badge bg-light text-muted border ms-2" title="No extension range set">
+                                    <i class="bi bi-telephone me-1"></i>No ext range
+                                </span>
+                            @endif
                         </button>
                         @can('manage-settings')
                         <div class="d-flex gap-1">
@@ -75,7 +85,7 @@
                                 <i class="bi bi-plus-lg"></i> Rack
                             </button>
                             <button class="btn btn-sm btn-outline-secondary" style="font-size:.7rem;padding:.2rem .4rem"
-                                    onclick="openEditFloorModal({{ $floor->id }}, '{{ addslashes($floor->name) }}', '{{ addslashes($floor->description ?? '') }}', {{ $floor->sort_order }})">
+                                    onclick="openEditFloorModal({{ $floor->id }}, '{{ addslashes($floor->name) }}', '{{ addslashes($floor->description ?? '') }}', {{ $floor->sort_order }}, {{ $floor->ext_range_start ?? 'null' }}, {{ $floor->ext_range_end ?? 'null' }})">
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <form method="POST" action="{{ route('admin.settings.floors.destroy', $floor) }}" class="d-inline"
@@ -236,6 +246,19 @@
                         <label class="form-label">Sort Order</label>
                         <input type="number" name="sort_order" class="form-control" value="0" min="0">
                     </div>
+                    <hr class="my-2">
+                    <p class="small fw-semibold text-muted mb-2"><i class="bi bi-telephone-fill me-1"></i>IP Phone Extension Range</p>
+                    <div class="form-text mb-2">Extensions assigned during onboarding will be picked from this range for employees on this floor.</div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small">Range Start</label>
+                            <input type="number" name="ext_range_start" class="form-control form-control-sm" min="100" max="99999" placeholder="e.g. 1000">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Range End</label>
+                            <input type="number" name="ext_range_end" class="form-control form-control-sm" min="100" max="99999" placeholder="e.g. 1099">
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -265,6 +288,19 @@
                     <div class="mb-3">
                         <label class="form-label">Sort Order</label>
                         <input type="number" name="sort_order" id="editFloorSort" class="form-control" min="0">
+                    </div>
+                    <hr class="my-2">
+                    <p class="small fw-semibold text-muted mb-2"><i class="bi bi-telephone-fill me-1"></i>IP Phone Extension Range</p>
+                    <div class="form-text mb-2">Extensions assigned during onboarding will be picked from this range for employees on this floor.</div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small">Range Start</label>
+                            <input type="number" name="ext_range_start" id="editFloorExtStart" class="form-control form-control-sm" min="100" max="99999" placeholder="e.g. 1000">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Range End</label>
+                            <input type="number" name="ext_range_end" id="editFloorExtEnd" class="form-control form-control-sm" min="100" max="99999" placeholder="e.g. 1099">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -421,11 +457,13 @@ function openAddFloorModal(branchId, branchName) {
     document.getElementById('addFloorBranchName').textContent = branchName;
     new bootstrap.Modal(document.getElementById('addFloorModal')).show();
 }
-function openEditFloorModal(id, name, desc, sort) {
-    document.getElementById('editFloorForm').action = BASE + '/floors/' + id;
-    document.getElementById('editFloorName').value  = name;
-    document.getElementById('editFloorDesc').value  = desc;
-    document.getElementById('editFloorSort').value  = sort;
+function openEditFloorModal(id, name, desc, sort, extStart, extEnd) {
+    document.getElementById('editFloorForm').action      = BASE + '/floors/' + id;
+    document.getElementById('editFloorName').value       = name;
+    document.getElementById('editFloorDesc').value       = desc;
+    document.getElementById('editFloorSort').value       = sort;
+    document.getElementById('editFloorExtStart').value   = extStart ?? '';
+    document.getElementById('editFloorExtEnd').value     = extEnd   ?? '';
     new bootstrap.Modal(document.getElementById('editFloorModal')).show();
 }
 function openAddOfficeModal(floorId, floorName) {
