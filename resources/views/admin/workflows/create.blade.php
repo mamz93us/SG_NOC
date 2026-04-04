@@ -60,18 +60,22 @@
                     {{-- Dynamic fields for create_user --}}
                     <div id="create_user_fields" class="mt-4 d-none">
                         <hr>
-                        <h6 class="fw-semibold"><i class="bi bi-person-plus-fill me-1 text-primary"></i>New User Details</h6>
-                        <div class="row g-3">
+                        <h6 class="fw-semibold mb-3"><i class="bi bi-person-plus-fill me-1 text-primary"></i>New User Details</h6>
+
+                        {{-- ── Employee Identity ── --}}
+                        <p class="text-muted small fw-semibold text-uppercase mb-2" style="letter-spacing:.04em">
+                            <i class="bi bi-person me-1"></i>Employee Identity
+                        </p>
+                        <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">First Name <span class="text-danger">*</span></label>
-                                <input type="text" name="first_name" id="firstName" class="form-control form-control-sm" value="{{ old('first_name') }}">
+                                <input type="text" name="first_name" id="firstName" class="form-control form-control-sm" value="{{ old('first_name') }}" required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Last Name <span class="text-danger">*</span></label>
-                                <input type="text" name="last_name" id="lastName" class="form-control form-control-sm" value="{{ old('last_name') }}">
+                                <input type="text" name="last_name" id="lastName" class="form-control form-control-sm" value="{{ old('last_name') }}" required>
                             </div>
 
-                            {{-- Email Domain picker --}}
                             <div class="col-12">
                                 <label class="form-label small fw-semibold">Email Domain <span class="text-danger">*</span></label>
                                 @if($upnDomains->count() > 0)
@@ -83,7 +87,7 @@
                                     </option>
                                     @endforeach
                                 </select>
-                                <div class="form-text">The <code>@</code>domain part of the user's email address. Manage domains in
+                                <div class="form-text">The <code>@</code>domain part of the user's email. Manage in
                                     <a href="{{ route('admin.settings.domains') }}" target="_blank">Settings → Domains</a>.
                                 </div>
                                 @else
@@ -98,7 +102,7 @@
 
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Job Title</label>
-                                <input type="text" name="job_title" class="form-control form-control-sm" value="{{ old('job_title') }}">
+                                <input type="text" name="job_title" class="form-control form-control-sm" value="{{ old('job_title') }}" placeholder="e.g. Network Engineer">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Department</label>
@@ -110,9 +114,54 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Mobile Phone</label>
+                                <input type="text" name="mobile_phone" class="form-control form-control-sm" value="{{ old('mobile_phone') }}" placeholder="+966XXXXXXXXX">
+                                <div class="form-text">Used for Azure profile and SMS notifications.</div>
+                            </div>
+                            <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Initial Password</label>
                                 <input type="text" name="initial_password" id="initialPassword" class="form-control form-control-sm" placeholder="Auto-generated if blank" value="{{ old('initial_password') }}">
                                 <div class="form-text">Leave blank to auto-generate a secure password.</div>
+                            </div>
+                        </div>
+
+                        {{-- ── Employment Details ── --}}
+                        <p class="text-muted small fw-semibold text-uppercase mb-2" style="letter-spacing:.04em">
+                            <i class="bi bi-briefcase me-1"></i>Employment Details
+                        </p>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Start Date</label>
+                                <input type="date" name="start_date" class="form-control form-control-sm" value="{{ old('start_date') }}">
+                                <div class="form-text">Displayed on the manager onboarding form.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">HR Reference</label>
+                                <input type="text" name="hr_reference" class="form-control form-control-sm" value="{{ old('hr_reference') }}" placeholder="e.g. HR-2026-0045">
+                                <div class="form-text">Shown on the manager form for reference.</div>
+                            </div>
+                        </div>
+
+                        {{-- ── Manager Contact ── --}}
+                        <p class="text-muted small fw-semibold text-uppercase mb-2" style="letter-spacing:.04em">
+                            <i class="bi bi-envelope me-1"></i>Manager Contact
+                            <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">Required to send onboarding form</span>
+                        </p>
+                        <div class="alert alert-info py-2 px-3 small mb-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            The manager will receive a link to fill in IT setup preferences (laptop, extension, floor, internet level, groups).
+                            After the manager submits the form, the provisioning workflow continues automatically.
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Manager Email <span class="text-danger">*</span></label>
+                                <input type="email" name="manager_email" class="form-control form-control-sm" value="{{ old('manager_email') }}" placeholder="manager@company.com" required>
+                                <div class="form-text">The onboarding form link will be emailed here.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Manager Name</label>
+                                <input type="text" name="manager_name" class="form-control form-control-sm" value="{{ old('manager_name') }}" placeholder="e.g. Ahmed Al-Rashidi">
+                                <div class="form-text">Used to personalise the email greeting.</div>
                             </div>
                         </div>
                     </div>
@@ -263,9 +312,9 @@
                         <span class="text-muted fst-italic">type name above…</span>
                     </dd>
 
-                    <dt class="col-5 text-muted">Extension Range</dt>
+                    <dt class="col-5 text-muted">Ext Range</dt>
                     <dd class="col-7" id="previewRange">
-                        <span class="text-muted fst-italic">loading…</span>
+                        <span class="text-muted fst-italic">select branch…</span>
                     </dd>
 
                     <dt class="col-5 text-muted">UCM Server</dt>
@@ -286,12 +335,32 @@
                         @endif
                     </dd>
                 </dl>
+                <div class="alert alert-info py-1 px-2 small mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Exact extension is picked by <strong>floor range</strong> after the manager fills the onboarding form.
+                    The branch range shown above is the fallback.
+                </div>
                 @if(empty($previewSkus))
-                <div class="alert alert-warning py-1 px-2 small mb-0">
+                <div class="alert alert-warning py-1 px-2 small mt-2 mb-0">
                     <i class="bi bi-exclamation-triangle me-1"></i>No default license configured.
                     <a href="{{ route('admin.settings.provisioning-licenses') }}" class="alert-link">Set one →</a>
                 </div>
                 @endif
+            </div>
+        </div>
+
+        {{-- Manager Form Flow info --}}
+        <div id="managerFormInfo" class="card shadow-sm border-0 border-warning mb-3 d-none">
+            <div class="card-header bg-warning bg-opacity-10 text-warning-emphasis fw-semibold">
+                <i class="bi bi-envelope-fill me-1"></i>Manager Onboarding Form
+            </div>
+            <div class="card-body small text-muted">
+                <ol class="ps-3 mb-0">
+                    <li class="mb-1">After approval, a form link is emailed to the <strong>Manager Email</strong> you entered.</li>
+                    <li class="mb-1">The manager selects: <strong>laptop</strong>, <strong>floor</strong>, <strong>extension</strong>, <strong>internet level</strong>, and <strong>groups</strong>.</li>
+                    <li class="mb-1">Once submitted, provisioning continues automatically using the manager's choices.</li>
+                    <li>Extension is assigned from the <strong>floor's range</strong> (set in Settings → Locations).</li>
+                </ol>
             </div>
         </div>
 
@@ -300,7 +369,7 @@
             <div class="card-header bg-transparent"><strong><i class="bi bi-info-circle me-1"></i>Approval Process</strong></div>
             <div class="card-body small text-muted">
                 <p class="mb-2">Approval chains are configured in <a href="{{ route('admin.workflow-templates.index') }}">Workflow Templates</a>. Each request type follows its defined chain before executing.</p>
-                <p class="mb-0"><i class="bi bi-lightning-fill text-warning me-1"></i>For <strong>Create User</strong>: after final approval the account is created immediately — Azure AD user, license(s), UCM extension, and employee profile are all provisioned in one step.</p>
+                <p class="mb-0"><i class="bi bi-lightning-fill text-warning me-1"></i>For <strong>Create User</strong>: after final approval the account is created in Azure AD, licenses are assigned, and the manager onboarding form is sent. Extension and other IT setup are provisioned after the manager responds.</p>
             </div>
         </div>
     </div>
@@ -311,16 +380,17 @@
 const PREVIEW_URL  = '{{ route('admin.workflows.preview-user') }}';
 const CSRF_TOKEN   = '{{ csrf_token() }}';
 
-const firstNameEl  = document.getElementById('firstName');
-const lastNameEl   = document.getElementById('lastName');
-const branchEl     = document.getElementById('branchSelect');
-const domainEl     = document.getElementById('domainSelect');
-const titleEl      = document.getElementById('titleInput');
-const previewCard  = document.getElementById('provisioningPreview');
-const previewUpn   = document.getElementById('previewUpn');
-const previewRange = document.getElementById('previewRange');
-const previewUcm   = document.getElementById('previewUcm');
-const previewLic   = document.getElementById('previewLicense');
+const firstNameEl    = document.getElementById('firstName');
+const lastNameEl     = document.getElementById('lastName');
+const branchEl       = document.getElementById('branchSelect');
+const domainEl       = document.getElementById('domainSelect');
+const titleEl        = document.getElementById('titleInput');
+const previewCard    = document.getElementById('provisioningPreview');
+const managerInfoCard = document.getElementById('managerFormInfo');
+const previewUpn     = document.getElementById('previewUpn');
+const previewRange   = document.getElementById('previewRange');
+const previewUcm     = document.getElementById('previewUcm');
+const previewLic     = document.getElementById('previewLicense');
 
 let previewTimeout = null;
 
@@ -353,11 +423,13 @@ document.querySelectorAll('input[name="type"]').forEach(radio => {
             if (el) el.classList.add('d-none');
         });
         previewCard.classList.add('d-none');
+        if (managerInfoCard) managerInfoCard.classList.add('d-none');
 
         // Show relevant section
         if (this.value === 'create_user') {
             document.getElementById('create_user_fields').classList.remove('d-none');
             previewCard.classList.remove('d-none');
+            if (managerInfoCard) managerInfoCard.classList.remove('d-none');
             updatePreview();
         } else if (this.value === 'delete_user') {
             document.getElementById('delete_user_fields').classList.remove('d-none');
