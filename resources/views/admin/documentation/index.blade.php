@@ -116,7 +116,7 @@
                                             <th>Filename</th>
                                             <th class="text-right">Size</th>
                                             <th>Last Modified</th>
-                                            <th class="text-center" style="width:130px">Actions</th>
+                                            <th class="text-center" style="width:160px">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -126,6 +126,9 @@
                                                 <i class="fas fa-file-code text-primary mr-1"></i>
                                                 <a href="{{ route('admin.documentation.show', $doc['name']) }}"
                                                    class="doc-name">{{ $doc['name'] }}</a>
+                                                @if($doc['is_public'])
+                                                    <span class="badge badge-success ml-1" title="Visible on public page">Public</span>
+                                                @endif
                                             </td>
                                             <td class="text-right text-muted small">
                                                 {{ number_format($doc['size'] / 1024, 1) }} KB
@@ -145,8 +148,18 @@
                                                    class="btn btn-xs btn-outline-secondary" title="Open in new tab">
                                                     <i class="fas fa-external-link-alt"></i>
                                                 </a>
-                                                {{-- Delete --}}
                                                 @can('manage-documentation')
+                                                {{-- Toggle public --}}
+                                                <form action="{{ route('admin.documentation.toggle-public', $doc['name']) }}"
+                                                      method="POST" class="d-inline">
+                                                    @csrf
+                                                    <button type="submit"
+                                                            class="btn btn-xs {{ $doc['is_public'] ? 'btn-success' : 'btn-outline-success' }}"
+                                                            title="{{ $doc['is_public'] ? 'Make Private' : 'Make Public' }}">
+                                                        <i class="fas fa-globe"></i>
+                                                    </button>
+                                                </form>
+                                                {{-- Delete --}}
                                                 <form action="{{ route('admin.documentation.destroy', $doc['name']) }}"
                                                       method="POST" class="d-inline"
                                                       onsubmit="return confirm('Delete {{ $doc['name'] }}?')">

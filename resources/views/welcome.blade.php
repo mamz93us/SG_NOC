@@ -236,6 +236,15 @@
                         </p>
                     </a>
                     @endauth
+
+                    <!-- Documentation -->
+                    <a href="/documentation" class="action-card" style="background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);color:white;">
+                        <div class="action-icon">📄</div>
+                        <h3 class="action-title">Documentation</h3>
+                        <p class="action-description">
+                            View reports and technical documents
+                        </p>
+                    </a>
                 </div>
 
                 <!-- Bottom links -->

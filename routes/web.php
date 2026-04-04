@@ -93,6 +93,10 @@ Route::get('/contacts/print', [PublicContactController::class, 'print'])
     ->name('public.contacts.print');
 // Compact print layout (landscape)
 Route::get('/contacts/print-compact', [PhonebookController::class, 'printCompact'])->name('public.contacts.print.compact');
+
+// Public documentation (only docs marked as public by admin)
+Route::get('/documentation', [\App\Http\Controllers\Admin\DocumentationController::class, 'publicIndex'])->name('public.documentation.index');
+Route::get('/documentation/{filename}', [\App\Http\Controllers\Admin\DocumentationController::class, 'publicShow'])->name('public.documentation.show');
 /*
 |--------------------------------------------------------------------------
 | Microsoft SSO
@@ -1123,8 +1127,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/{filename}',              [DocumentationController::class, 'show'])    ->name('show');
     });
     Route::middleware('permission:manage-documentation')->prefix('documentation')->name('documentation.')->group(function () {
-        Route::post('/',                       [DocumentationController::class, 'store'])   ->name('store');
-        Route::delete('/{filename}',           [DocumentationController::class, 'destroy'])->name('destroy');
+        Route::post('/',                            [DocumentationController::class, 'store'])        ->name('store');
+        Route::post('/{filename}/toggle-public',    [DocumentationController::class, 'togglePublic'])->name('toggle-public');
+        Route::delete('/{filename}',                [DocumentationController::class, 'destroy'])     ->name('destroy');
     });
 
 });

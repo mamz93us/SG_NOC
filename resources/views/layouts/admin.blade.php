@@ -728,6 +728,16 @@
                         </a>
                     </li>
 
+                    {{-- ── Documentation ── --}}
+                    @can('view-documentation')
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('admin/documentation*') ? 'active' : '' }}"
+                           href="{{ route('admin.documentation.index') }}">
+                            <i class="bi bi-book-fill me-1"></i>Documentation
+                        </a>
+                    </li>
+                    @endcan
+
                     {{-- ── Admin Tools ── --}}
                     @can('view-admin-links')
                     <li class="nav-item">
