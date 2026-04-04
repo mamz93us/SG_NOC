@@ -54,7 +54,6 @@
                                         <p class="text-muted small mb-2">{{ $doc['description'] }}</p>
                                     @endif
                                     <small class="text-muted">
-                                        {{ number_format($doc['size'] / 1024, 1) }} KB &middot;
                                         {{ \Carbon\Carbon::createFromTimestamp($doc['modified'])->diffForHumans() }}
                                     </small>
                                 </div>
