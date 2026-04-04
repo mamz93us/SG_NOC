@@ -7,32 +7,68 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
-        html, body { height: 100%; margin: 0; display: flex; flex-direction: column; }
-        .toolbar { flex-shrink: 0; }
-        #docFrame { flex: 1; border: none; width: 100%; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .toolbar {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            flex-wrap: wrap;
+            padding: .4rem .75rem;
+            border-bottom: 1px solid rgba(0,0,0,.15);
+            background: #212529;
+        }
+        .doc-title {
+            font-weight: 600;
+            font-size: .9rem;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #fff;
+        }
+        #docIframe {
+            flex: 1;
+            border: none;
+            width: 100%;
+            display: block;
+        }
     </style>
 </head>
 <body>
-    <div class="toolbar navbar navbar-dark bg-dark px-3 gap-2 flex-wrap">
+
+    <div class="toolbar">
         <a href="{{ route('public.documentation.index') }}" class="btn btn-sm btn-outline-light">
-            <i class="bi bi-arrow-left me-1"></i>Back
+            <i class="bi bi-arrow-left"></i> Back
         </a>
-        <div class="flex-grow-1 min-w-0">
-            <span class="text-white fw-semibold d-block text-truncate">{{ $title ?: $filename }}</span>
+
+        <span class="doc-title">
+            <i class="bi bi-file-earmark-code me-1" style="opacity:.7"></i>
+            {{ $title ?: $filename }}
             @if($description)
-                <small class="text-white-50">{{ $description }}</small>
+                <small style="opacity:.6; font-size:.78rem"> — {{ $description }}</small>
             @endif
-        </div>
+        </span>
+
         <a href="{{ route('public.documentation.show', $filename) }}" target="_blank"
-           class="btn btn-sm btn-outline-light" title="Open in new tab">
+           class="btn btn-sm btn-outline-light">
             <i class="bi bi-box-arrow-up-right"></i>
         </a>
     </div>
 
-    <iframe id="docFrame"
+    <iframe id="docIframe"
             srcdoc="{{ $html }}"
             sandbox="allow-same-origin allow-scripts allow-popups"
-            title="{{ $title ?: $filename }}">
-    </iframe>
+            title="{{ $title ?: $filename }}"
+            loading="lazy"
+    ></iframe>
+
 </body>
 </html>
