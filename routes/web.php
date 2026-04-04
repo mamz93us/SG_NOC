@@ -1127,9 +1127,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/{filename}',              [DocumentationController::class, 'show'])    ->name('show');
     });
     Route::middleware('permission:manage-documentation')->prefix('documentation')->name('documentation.')->group(function () {
-        Route::post('/',                            [DocumentationController::class, 'store'])        ->name('store');
+        Route::post('/',                            [DocumentationController::class, 'store'])       ->name('store');
         Route::post('/{filename}/toggle-public',    [DocumentationController::class, 'togglePublic'])->name('toggle-public');
-        Route::delete('/{filename}',                [DocumentationController::class, 'destroy'])     ->name('destroy');
+        Route::post('/{filename}/meta',             [DocumentationController::class, 'updateMeta']) ->name('update-meta');
+        Route::delete('/{filename}',                [DocumentationController::class, 'destroy'])    ->name('destroy');
     });
 
 });

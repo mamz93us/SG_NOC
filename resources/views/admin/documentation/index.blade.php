@@ -37,9 +37,9 @@
         {{-- ── Upload Card ─────────────────────────────────────────── --}}
         @can('manage-documentation')
         <div class="col-lg-4 col-md-5">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm">
                 <div class="card-header fw-semibold">
-                    <i class="bi bi-upload me-1"></i> Upload Report / Document
+                    <i class="bi bi-upload me-1"></i> Upload Document
                 </div>
                 <div class="card-body">
                     <form action="{{ route('admin.documentation.store') }}" method="POST"
@@ -47,21 +47,25 @@
                         @csrf
 
                         <div class="mb-3">
-                            <label for="doc_title" class="form-label">
-                                Display Title <small class="text-muted">(optional)</small>
-                            </label>
+                            <label for="doc_title" class="form-label fw-semibold">Display Title <span class="text-danger">*</span></label>
                             <input type="text" name="title" id="doc_title"
                                    class="form-control @error('title') is-invalid @enderror"
-                                   placeholder="e.g. Network Audit Q1 2026"
-                                   value="{{ old('title') }}">
+                                   placeholder="e.g. Network Architecture Report"
+                                   value="{{ old('title') }}" required>
                             @error('title')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            <div class="form-text">If blank, the original filename is used.</div>
+                            <div class="form-text">Shown to users instead of the filename.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label for="doc_file" class="form-label">
-                                HTML File <span class="text-danger">*</span>
-                            </label>
+                            <label for="doc_desc" class="form-label fw-semibold">Description</label>
+                            <textarea name="description" id="doc_desc" rows="3"
+                                      class="form-control @error('description') is-invalid @enderror"
+                                      placeholder="Brief description of what this document covers…">{{ old('description') }}</textarea>
+                            @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="doc_file" class="form-label fw-semibold">HTML File <span class="text-danger">*</span></label>
                             <input type="file" name="file" id="doc_file" accept=".html,.htm"
                                    class="form-control @error('file') is-invalid @enderror"
                                    required>
@@ -96,50 +100,60 @@
                             <i class="bi bi-folder2-open" style="font-size:3rem"></i>
                             <p class="mt-3 mb-0">No documents uploaded yet.</p>
                             @can('manage-documentation')
-                                <p class="text-muted small">Use the upload form to add your first report.</p>
+                                <p class="text-muted small">Use the upload form to add your first document.</p>
                             @endcan
                         </div>
                     @else
-                        <table class="table table-hover table-sm mb-0" id="docsTable">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Filename</th>
-                                    <th class="text-end">Size</th>
-                                    <th>Last Modified</th>
-                                    <th class="text-center" style="width:160px">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($files as $doc)
-                                <tr class="doc-row">
-                                    <td>
-                                        <i class="bi bi-file-earmark-code text-primary me-1"></i>
-                                        <a href="{{ route('admin.documentation.show', $doc['name']) }}"
-                                           class="doc-name">{{ $doc['name'] }}</a>
-                                        @if($doc['is_public'])
-                                            <span class="badge bg-success ms-1">Public</span>
+                        <div class="list-group list-group-flush" id="docsList">
+                            @foreach($files as $doc)
+                            <div class="list-group-item doc-row px-3 py-3">
+                                <div class="d-flex align-items-start gap-3">
+                                    <i class="bi bi-file-earmark-code text-primary mt-1" style="font-size:1.4rem;flex-shrink:0"></i>
+                                    <div class="flex-grow-1 min-width-0">
+                                        {{-- Title + badges --}}
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            <a href="{{ route('admin.documentation.show', $doc['name']) }}"
+                                               class="fw-semibold text-decoration-none doc-title">
+                                                {{ $doc['title'] ?: $doc['name'] }}
+                                            </a>
+                                            @if($doc['is_public'])
+                                                <span class="badge bg-success">Public</span>
+                                            @else
+                                                <span class="badge bg-secondary">Private</span>
+                                            @endif
+                                        </div>
+                                        {{-- Description --}}
+                                        @if($doc['description'])
+                                        <p class="text-muted small mb-1 doc-desc">{{ $doc['description'] }}</p>
                                         @endif
-                                    </td>
-                                    <td class="text-end text-muted small">
-                                        {{ number_format($doc['size'] / 1024, 1) }} KB
-                                    </td>
-                                    <td class="text-muted small">
-                                        {{ \Carbon\Carbon::createFromTimestamp($doc['modified'])->diffForHumans() }}
-                                    </td>
-                                    <td class="text-center">
-                                        {{-- View (iframe) --}}
+                                        {{-- File info --}}
+                                        <small class="text-muted">
+                                            {{ $doc['name'] }} &middot;
+                                            {{ number_format($doc['size'] / 1024, 1) }} KB &middot;
+                                            {{ \Carbon\Carbon::createFromTimestamp($doc['modified'])->diffForHumans() }}
+                                        </small>
+                                    </div>
+                                    {{-- Actions --}}
+                                    <div class="d-flex gap-1 flex-shrink-0">
                                         <a href="{{ route('admin.documentation.show', $doc['name']) }}"
                                            class="btn btn-sm btn-outline-primary" title="View">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        {{-- Open raw in new tab --}}
                                         <a href="{{ route('admin.documentation.raw', $doc['name']) }}"
                                            target="_blank"
                                            class="btn btn-sm btn-outline-secondary" title="Open in new tab">
                                             <i class="bi bi-box-arrow-up-right"></i>
                                         </a>
                                         @can('manage-documentation')
-                                        {{-- Toggle public --}}
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-info btn-edit-meta"
+                                                title="Edit title & description"
+                                                data-filename="{{ $doc['name'] }}"
+                                                data-title="{{ $doc['title'] }}"
+                                                data-description="{{ $doc['description'] }}"
+                                                data-bs-toggle="modal" data-bs-target="#editMetaModal">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
                                         <form action="{{ route('admin.documentation.toggle-public', $doc['name']) }}"
                                               method="POST" class="d-inline">
                                             @csrf
@@ -149,21 +163,20 @@
                                                 <i class="bi bi-globe"></i>
                                             </button>
                                         </form>
-                                        {{-- Delete --}}
                                         <form action="{{ route('admin.documentation.destroy', $doc['name']) }}"
                                               method="POST" class="d-inline"
-                                              onsubmit="return confirm('Delete {{ $doc['name'] }}?')">
+                                              onsubmit="return confirm('Delete {{ addslashes($doc['name']) }}?')">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
                                         @endcan
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
                     @endif
                 </div>
             </div>
@@ -171,15 +184,62 @@
 
     </div>{{-- /row --}}
 </div>
+
+{{-- ── Edit Meta Modal ─────────────────────────────────────────────── --}}
+@can('manage-documentation')
+<div class="modal fade" id="editMetaModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="editMetaForm" method="POST">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Document Info</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Display Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" id="editTitle" class="form-control" required maxlength="120">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Description</label>
+                        <textarea name="description" id="editDescription" class="form-control" rows="3" maxlength="500"
+                                  placeholder="Brief description of what this document covers…"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i>Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endcan
+
 @endsection
 
 @push('scripts')
 <script>
+// Live search across title, description, filename
 document.getElementById('docSearch')?.addEventListener('input', function () {
     const q = this.value.toLowerCase();
-    document.querySelectorAll('#docsTable .doc-row').forEach(row => {
-        const name = row.querySelector('.doc-name')?.textContent.toLowerCase() ?? '';
-        row.style.display = name.includes(q) ? '' : 'none';
+    document.querySelectorAll('#docsList .doc-row').forEach(row => {
+        const title = row.querySelector('.doc-title')?.textContent.toLowerCase() ?? '';
+        const desc  = row.querySelector('.doc-desc')?.textContent.toLowerCase()  ?? '';
+        row.style.display = (title + desc).includes(q) ? '' : 'none';
+    });
+});
+
+// Populate edit modal
+document.querySelectorAll('.btn-edit-meta').forEach(btn => {
+    btn.addEventListener('click', function () {
+        const filename = this.dataset.filename;
+        document.getElementById('editMetaForm').action = `/admin/documentation/${encodeURIComponent(filename)}/meta`;
+        document.getElementById('editTitle').value       = this.dataset.title       ?? '';
+        document.getElementById('editDescription').value = this.dataset.description ?? '';
     });
 });
 </script>

@@ -8,16 +8,15 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
         body { background: #f8f9fa; }
-        .doc-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.12); transform: translateY(-2px); transition: all .2s; }
-        .doc-card { transition: all .2s; }
+        .doc-card { transition: transform .15s, box-shadow .15s; cursor: pointer; text-decoration: none; color: inherit; }
+        .doc-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,.12) !important; }
     </style>
 </head>
 <body>
     <nav class="navbar navbar-dark bg-dark shadow-sm">
         <div class="container">
             <a class="navbar-brand fw-bold" href="/">
-                <i class="bi bi-house-fill me-1"></i>
-                {{ config('app.name', 'SG NOC') }}
+                <i class="bi bi-house-fill me-1"></i>{{ config('app.name', 'SG NOC') }}
             </a>
             @auth
             <a href="{{ route('admin.documentation.index') }}" class="btn btn-sm btn-outline-light">
@@ -39,22 +38,32 @@
                 <p class="mt-3">No public documents available yet.</p>
             </div>
         @else
-            <div class="row g-3">
+            <div class="row g-4">
                 @foreach($files as $doc)
                 <div class="col-md-4 col-sm-6">
                     <a href="{{ route('public.documentation.show', $doc['name']) }}"
-                       class="card doc-card text-decoration-none text-dark h-100">
+                       class="card shadow-sm doc-card h-100">
                         <div class="card-body">
-                            <div class="d-flex align-items-start gap-3">
-                                <i class="bi bi-file-earmark-code-fill text-primary" style="font-size:2rem;flex-shrink:0"></i>
+                            <div class="d-flex gap-3 align-items-start">
+                                <div class="bg-primary bg-opacity-10 rounded p-2" style="flex-shrink:0">
+                                    <i class="bi bi-file-earmark-code-fill text-primary" style="font-size:1.6rem"></i>
+                                </div>
                                 <div>
-                                    <div class="fw-semibold">{{ $doc['name'] }}</div>
+                                    <h6 class="fw-bold mb-1">{{ $doc['title'] ?: $doc['name'] }}</h6>
+                                    @if($doc['description'])
+                                        <p class="text-muted small mb-2">{{ $doc['description'] }}</p>
+                                    @endif
                                     <small class="text-muted">
                                         {{ number_format($doc['size'] / 1024, 1) }} KB &middot;
                                         {{ \Carbon\Carbon::createFromTimestamp($doc['modified'])->diffForHumans() }}
                                     </small>
                                 </div>
                             </div>
+                        </div>
+                        <div class="card-footer bg-transparent border-top-0 pt-0">
+                            <span class="text-primary small fw-semibold">
+                                <i class="bi bi-arrow-right-circle me-1"></i>Open document
+                            </span>
                         </div>
                     </a>
                 </div>

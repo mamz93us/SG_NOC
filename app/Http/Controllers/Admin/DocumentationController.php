@@ -11,9 +11,7 @@ class DocumentationController extends Controller
 {
     private const META_PATH = 'documentation/meta.json';
 
-    // ───────────────────────────────────────────────────────────────────
-    // Helpers — read / write the JSON meta file that tracks public status
-    // ───────────────────────────────────────────────────────────────────
+    // ── Meta helpers ────────────────────────────────────────────────────
     private function getMeta(): array
     {
         if (! Storage::disk('local')->exists(self::META_PATH)) {
@@ -27,10 +25,6 @@ class DocumentationController extends Controller
         Storage::disk('local')->put(self::META_PATH, json_encode($meta, JSON_PRETTY_PRINT));
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // Sanitise filename — strip path separators, validate characters
-    // Allows: word chars, dash, underscore, dot, spaces, parentheses
-    // ───────────────────────────────────────────────────────────────────
     private function sanitise(string $filename): string
     {
         return basename($filename);
@@ -41,9 +35,7 @@ class DocumentationController extends Controller
         return (bool) preg_match('/^[\w\-\. ()]+\.html?$/i', $filename);
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // INDEX — list all uploaded docs (admin)
-    // ───────────────────────────────────────────────────────────────────
+    // ── INDEX ────────────────────────────────────────────────────────────
     public function index()
     {
         $meta = $this->getMeta();
@@ -52,13 +44,15 @@ class DocumentationController extends Controller
             ->filter(fn($p) => basename($p) !== 'meta.json')
             ->map(function (string $path) use ($meta) {
                 $name = basename($path);
+                $m    = $meta[$name] ?? [];
                 return [
-                    'name'      => $name,
-                    'path'      => $path,
-                    'size'      => Storage::disk('local')->size($path),
-                    'modified'  => Storage::disk('local')->lastModified($path),
-                    'slug'      => Str::before($name, '.html'),
-                    'is_public' => $meta[$name]['is_public'] ?? false,
+                    'name'        => $name,
+                    'path'        => $path,
+                    'size'        => Storage::disk('local')->size($path),
+                    'modified'    => Storage::disk('local')->lastModified($path),
+                    'is_public'   => $m['is_public']   ?? false,
+                    'title'       => $m['title']       ?? '',
+                    'description' => $m['description'] ?? '',
                 ];
             })
             ->sortByDesc('modified')
@@ -67,20 +61,21 @@ class DocumentationController extends Controller
         return view('admin.documentation.index', compact('files'));
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // STORE — upload an HTML file
-    // ───────────────────────────────────────────────────────────────────
+    // ── STORE ────────────────────────────────────────────────────────────
     public function store(Request $request)
     {
         $request->validate([
-            'file'  => 'required|file|mimes:html,htm|max:10240',
-            'title' => 'nullable|string|max:120',
+            'file'        => 'required|file|mimes:html,htm|max:10240',
+            'title'       => 'nullable|string|max:120',
+            'description' => 'nullable|string|max:500',
         ]);
 
         $original = $request->file('file')->getClientOriginalName();
+        $title    = $request->input('title', '');
 
-        if ($request->filled('title')) {
-            $original = Str::slug($request->input('title')) . '.html';
+        // Use slugified title as filename if provided
+        if ($title) {
+            $original = Str::slug($title) . '.html';
         }
 
         $filename = basename($original);
@@ -92,13 +87,20 @@ class DocumentationController extends Controller
 
         $request->file('file')->storeAs('documentation', $filename, 'local');
 
+        // Save meta
+        $meta            = $this->getMeta();
+        $meta[$filename] = [
+            'is_public'   => false,
+            'title'       => $title ?: $filename,
+            'description' => $request->input('description', ''),
+        ];
+        $this->saveMeta($meta);
+
         return redirect()->route('admin.documentation.index')
             ->with('success', "'{$filename}' uploaded successfully.");
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // SHOW — render the HTML file inside a sandboxed iframe (admin)
-    // ───────────────────────────────────────────────────────────────────
+    // ── SHOW ─────────────────────────────────────────────────────────────
     public function show(string $filename)
     {
         $filename = $this->sanitise($filename);
@@ -113,18 +115,20 @@ class DocumentationController extends Controller
             abort(404);
         }
 
+        $meta = $this->getMeta();
+        $m    = $meta[$filename] ?? [];
         $html = Storage::disk('local')->get($path);
 
         return view('admin.documentation.show', [
-            'filename'  => $filename,
-            'html'      => $html,
-            'is_public' => $this->getMeta()[$filename]['is_public'] ?? false,
+            'filename'    => $filename,
+            'html'        => $html,
+            'is_public'   => $m['is_public']   ?? false,
+            'title'       => $m['title']       ?? $filename,
+            'description' => $m['description'] ?? '',
         ]);
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // RAW — serve the HTML file directly (open in new tab)
-    // ───────────────────────────────────────────────────────────────────
+    // ── RAW ──────────────────────────────────────────────────────────────
     public function raw(string $filename)
     {
         $filename = $this->sanitise($filename);
@@ -144,9 +148,37 @@ class DocumentationController extends Controller
             ->header('X-Frame-Options', 'SAMEORIGIN');
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // TOGGLE PUBLIC — mark a doc as public or private
-    // ───────────────────────────────────────────────────────────────────
+    // ── UPDATE META (title + description) ────────────────────────────────
+    public function updateMeta(Request $request, string $filename)
+    {
+        $filename = $this->sanitise($filename);
+
+        if (! $this->validFilename($filename)) {
+            abort(404);
+        }
+
+        if (! Storage::disk('local')->exists('documentation/' . $filename)) {
+            abort(404);
+        }
+
+        $request->validate([
+            'title'       => 'required|string|max:120',
+            'description' => 'nullable|string|max:500',
+        ]);
+
+        $meta            = $this->getMeta();
+        $existing        = $meta[$filename] ?? [];
+        $meta[$filename] = array_merge($existing, [
+            'title'       => $request->input('title'),
+            'description' => $request->input('description', ''),
+        ]);
+        $this->saveMeta($meta);
+
+        return redirect()->route('admin.documentation.index')
+            ->with('success', "'{$filename}' updated.");
+    }
+
+    // ── TOGGLE PUBLIC ─────────────────────────────────────────────────────
     public function togglePublic(string $filename)
     {
         $filename = $this->sanitise($filename);
@@ -159,8 +191,8 @@ class DocumentationController extends Controller
             abort(404);
         }
 
-        $meta = $this->getMeta();
-        $current = $meta[$filename]['is_public'] ?? false;
+        $meta                         = $this->getMeta();
+        $current                      = $meta[$filename]['is_public'] ?? false;
         $meta[$filename]['is_public'] = ! $current;
         $this->saveMeta($meta);
 
@@ -170,9 +202,7 @@ class DocumentationController extends Controller
             ->with('success', "'{$filename}' is now {$state}.");
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // DESTROY — delete a doc
-    // ───────────────────────────────────────────────────────────────────
+    // ── DESTROY ──────────────────────────────────────────────────────────
     public function destroy(string $filename)
     {
         $filename = $this->sanitise($filename);
@@ -183,7 +213,6 @@ class DocumentationController extends Controller
 
         Storage::disk('local')->delete('documentation/' . $filename);
 
-        // Remove from meta
         $meta = $this->getMeta();
         unset($meta[$filename]);
         $this->saveMeta($meta);
@@ -192,9 +221,7 @@ class DocumentationController extends Controller
             ->with('success', "'{$filename}' deleted.");
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // PUBLIC INDEX — list all public docs (no auth required)
-    // ───────────────────────────────────────────────────────────────────
+    // ── PUBLIC INDEX ─────────────────────────────────────────────────────
     public function publicIndex()
     {
         $meta = $this->getMeta();
@@ -203,11 +230,14 @@ class DocumentationController extends Controller
             ->filter(fn($p) => basename($p) !== 'meta.json')
             ->map(function (string $path) use ($meta) {
                 $name = basename($path);
+                $m    = $meta[$name] ?? [];
                 return [
-                    'name'      => $name,
-                    'size'      => Storage::disk('local')->size($path),
-                    'modified'  => Storage::disk('local')->lastModified($path),
-                    'is_public' => $meta[$name]['is_public'] ?? false,
+                    'name'        => $name,
+                    'size'        => Storage::disk('local')->size($path),
+                    'modified'    => Storage::disk('local')->lastModified($path),
+                    'is_public'   => $m['is_public']   ?? false,
+                    'title'       => $m['title']       ?? $name,
+                    'description' => $m['description'] ?? '',
                 ];
             })
             ->filter(fn($f) => $f['is_public'])
@@ -217,9 +247,7 @@ class DocumentationController extends Controller
         return view('documentation.public', compact('files'));
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // PUBLIC SHOW — render a public doc (no auth required)
-    // ───────────────────────────────────────────────────────────────────
+    // ── PUBLIC SHOW ──────────────────────────────────────────────────────
     public function publicShow(string $filename)
     {
         $filename = $this->sanitise($filename);
@@ -229,8 +257,9 @@ class DocumentationController extends Controller
         }
 
         $meta = $this->getMeta();
+        $m    = $meta[$filename] ?? [];
 
-        if (! ($meta[$filename]['is_public'] ?? false)) {
+        if (! ($m['is_public'] ?? false)) {
             abort(404);
         }
 
@@ -240,8 +269,11 @@ class DocumentationController extends Controller
             abort(404);
         }
 
-        $html = Storage::disk('local')->get($path);
-
-        return view('documentation.public-show', compact('filename', 'html'));
+        return view('documentation.public-show', [
+            'filename'    => $filename,
+            'html'        => Storage::disk('local')->get($path),
+            'title'       => $m['title']       ?? $filename,
+            'description' => $m['description'] ?? '',
+        ]);
     }
 }

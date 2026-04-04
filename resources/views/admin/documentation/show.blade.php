@@ -47,7 +47,10 @@
 
         <span class="doc-title">
             <i class="bi bi-file-earmark-code text-primary me-1"></i>
-            {{ $filename }}
+            {{ $title ?: $filename }}
+            @if($description)
+                <small class="text-muted fw-normal ms-2">{{ $description }}</small>
+            @endif
         </span>
 
         <a href="{{ route('admin.documentation.raw', $filename) }}" target="_blank"
