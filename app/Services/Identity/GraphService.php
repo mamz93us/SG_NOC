@@ -871,13 +871,15 @@ class GraphService
      */
     public function getScriptRunState(string $scriptId, string $managedDeviceId): ?array
     {
-        $compositeId = urlencode("{$scriptId}:{$managedDeviceId}");
+        $compositeId = rawurlencode("{$scriptId}:{$managedDeviceId}");
         $url = $this->betaUrl
             . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates/{$compositeId}";
         try {
             return $this->get($url, ['$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime']);
-        } catch (\Throwable) {
-            return null;
+        } catch (\RuntimeException $e) {
+            // Surface the HTTP status so callers can distinguish 404 (never ran)
+            // from 403 (permission missing) — store on the exception message.
+            throw $e;
         }
     }
 

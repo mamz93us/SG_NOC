@@ -353,6 +353,33 @@ class SyncIntuneNetData extends Command
             $this->line('  → Devices may not have run the script yet, or all runs failed.');
         }
 
+        // 5. Test individual device run-state lookup for first successful device
+        if ($firstSuccess) {
+            $compositeId = $firstSuccess['id'] ?? '';
+            $parts       = explode(':', $compositeId);
+            $deviceId    = $parts[1] ?? null;
+
+            if ($deviceId) {
+                $this->info('── Individual getScriptRunState test:');
+                $this->line("  Calling: /deviceRunStates/{$scriptId}:{$deviceId}");
+                try {
+                    $single = $graph->getScriptRunState($scriptId, $deviceId);
+                    if ($single) {
+                        $this->info("  ✅ Success — runState: " . ($single['runState'] ?? '?'));
+                        $this->line("  resultMessage length: " . strlen($single['resultMessage'] ?? ''));
+                    } else {
+                        $this->warn("  ⚠ Returned null (exception was thrown and caught)");
+                    }
+                } catch (\RuntimeException $e) {
+                    $this->error("  ❌ Error: " . $e->getMessage());
+                    if (str_contains($e->getMessage(), '403')) {
+                        $this->line('  → Missing permission: DeviceManagementConfiguration.Read.All');
+                        $this->line('  → Add this Application permission in Azure portal → App Registrations → API Permissions');
+                    }
+                }
+            }
+        }
+
         $this->warn('── END DIAGNOSE ────────────────────────────────────────');
 
         return self::SUCCESS;
