@@ -910,12 +910,21 @@ class GraphService
     public function exportScriptRunStates(string $scriptId, ?callable $progress = null): array
     {
         // ── 1. Create async export job ────────────────────────────────────
+        // Explicitly request every column we need including ResultMessage.
+        // An empty select[] uses the report's default columns which omits ResultMessage.
         $job = $this->post(
             $this->betaUrl . '/deviceManagement/reports/exportJobs',
             [
                 'reportName'       => 'DeviceRunStatesByScript',
                 'filter'           => "PolicyId eq '{$scriptId}'",
-                'select'           => [],    // empty = all available columns
+                'select'           => [
+                    'DeviceId',
+                    'DeviceName',
+                    'RunState',
+                    'ResultMessage',
+                    'ErrorCode',
+                    'LastStateUpdateDateTime',
+                ],
                 'format'           => 'csv',
                 'localizationType' => 'ReplaceLocalizableValues',
             ],
@@ -999,6 +1008,10 @@ class GraphService
             throw new \RuntimeException('Intune export CSV has no header row');
         }
         $headers = array_map('trim', $headers);
+
+        if ($progress) {
+            $progress("  CSV columns: " . implode(', ', $headers));
+        }
 
         // Normalise column name variations across Intune tenants/locales
         $colAlias = [
