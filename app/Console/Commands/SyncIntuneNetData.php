@@ -70,16 +70,35 @@ class SyncIntuneNetData extends Command
         }
 
         // ── NORMAL SYNC ───────────────────────────────────────────────
-        // Strategy: iterate every local AzureDevice that has an Intune
-        // managed-device ID and fetch its run state via a filtered list
-        // query ($filter=id eq '{compositeId}').  This completely bypasses
-        // the broken deviceRunStates pagination and the empty userRunStates
-        // (script is assigned to device groups, not user groups).
+        // Strategy:
+        //   1. Paginate deviceRunStates once to build a managedDeviceId→state map.
+        //      This avoids per-device API calls — the Intune proxy ignores $filter
+        //      on this endpoint and returns the same first record for every query.
+        //   2. Iterate local AzureDevice rows and look each one up in the map.
         $updated     = 0;
         $skipped     = 0;
         $failed      = 0;
         $stateCounts = [];
 
+        // ── Step 1: Fetch all run states into a lookup map ────────────
+        $this->info("[intune:sync-net-data] Fetching run states from Intune for script: {$scriptId}");
+        $runStateMap = []; // managedDeviceId (Intune GUID) => run-state array
+
+        $graph->listScriptRunStates($scriptId, function (array $states) use (&$runStateMap) {
+            foreach ($states as $state) {
+                // Composite id format: "{scriptId}:{managedDeviceId}"
+                $parts           = explode(':', $state['id'] ?? '', 2);
+                $managedDeviceId = $parts[1] ?? null;
+                if ($managedDeviceId) {
+                    $runStateMap[$managedDeviceId] = $state;
+                }
+            }
+        });
+
+        $found = count($runStateMap);
+        $this->info("  → Collected {$found} unique run states from Intune");
+
+        // ── Step 2: Match against local AzureDevice records ──────────
         $devices = AzureDevice::whereNotNull('intune_managed_device_id')
             ->select('id', 'display_name', 'intune_managed_device_id', 'device_id',
                      'teamviewer_id', 'tv_version', 'cpu_name',
@@ -87,26 +106,14 @@ class SyncIntuneNetData extends Command
             ->get();
 
         $total = $devices->count();
-        $this->info("[intune:sync-net-data] Querying {$total} devices for script: {$scriptId}");
+        $this->info("[intune:sync-net-data] Matching {$found} Intune states against {$total} local devices...");
 
         $normMac = fn(?string $m) => $m
             ? strtoupper(implode(':', str_split(preg_replace('/[^a-fA-F0-9]/', '', $m), 2)))
             : null;
 
-        foreach ($devices as $i => $device) {
-            if ($i > 0 && $i % 10 === 0) {
-                usleep(500 * 1000); // 0.5 s every 10 devices
-            }
-
-            try {
-                $state = $graph->getScriptRunState($scriptId, $device->intune_managed_device_id);
-            } catch (\RuntimeException $e) {
-                if ($verbose) {
-                    $this->warn("  ⚠ {$device->display_name}: " . $e->getMessage());
-                }
-                $skipped++;
-                continue;
-            }
+        foreach ($devices as $device) {
+            $state = $runStateMap[$device->intune_managed_device_id] ?? null;
 
             if ($state === null) {
                 $skipped++;

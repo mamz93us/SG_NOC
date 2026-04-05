@@ -727,27 +727,29 @@ class GraphService
      */
     public function listScriptRunStates(string $scriptId, callable $callback): void
     {
-        // The Intune deviceRunStates endpoint sometimes returns a nextLink that
-        // loops back to an earlier page.  We guard against this by tracking every
-        // composite ID we have already delivered and stopping as soon as any ID
-        // on the current page was seen before (= we have entered a cycle).
-        //
-        // resultMessage is included in the initial $select — the looping issue is
-        // NOT caused by heavy fields; it is an Intune proxy quirk on some tenants.
+        // The Intune deviceRunStates endpoint returns a nextLink that cycles back
+        // to earlier pages on most tenants.  We guard against infinite loops by
+        // tracking every composite ID we have delivered and counting consecutive
+        // pages that yield zero new IDs.  We stop when we see N consecutive pages
+        // with no new items (= full cycle with nothing left to collect) rather than
+        // breaking on the first duplicate, which would miss devices on later pages
+        // that haven't appeared yet.
 
         $baseUrl = $this->betaUrl
             . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
 
-        $seen = [];   // composite IDs already delivered to the callback
-        $page = 0;
-        $url  = $baseUrl;
+        $seen              = [];   // composite IDs already delivered to the callback
+        $page              = 0;
+        $url               = $baseUrl;
+        $consecutiveEmpty  = 0;
+        $maxEmptyStreak    = 3;    // stop after 3 back-to-back pages with no new IDs
 
         do {
             if ($page > 0) {
-                usleep(3000 * 1000); // 3 s between pages
+                usleep(3000 * 1000); // 3 s between pages to respect Intune rate limits
             }
 
-            $body   = $this->get(
+            $body = $this->get(
                 $url,
                 $url === $baseUrl
                     ? ['$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime',
@@ -759,25 +761,20 @@ class GraphService
             $states = $body['value'] ?? [];
             $page++;
 
-            if (empty($states)) {
-                $url = $body['@odata.nextLink'] ?? null;
-                continue;
-            }
-
-            // Check for cycling — if the FIRST id on this page was already seen,
-            // the API has looped back; stop immediately.
-            $firstId = $states[0]['id'] ?? null;
-            if ($firstId && isset($seen[$firstId])) {
-                break; // pagination loop detected — all real pages already delivered
-            }
-
-            // Deliver only IDs not yet seen (safety net for partial overlaps)
+            // Filter to items we have not yet delivered
             $fresh = array_filter($states, fn($s) => ! isset($seen[$s['id'] ?? '']));
             foreach ($fresh as $s) {
                 $seen[$s['id'] ?? ''] = true;
             }
 
-            if (! empty($fresh)) {
+            if (empty($fresh)) {
+                // This page contained no new device states — could be a cycle
+                $consecutiveEmpty++;
+                if ($consecutiveEmpty >= $maxEmptyStreak) {
+                    break; // full cycle detected — nothing new left
+                }
+            } else {
+                $consecutiveEmpty = 0;
                 $callback(array_values($fresh));
             }
 
