@@ -75,22 +75,24 @@ class SyncIntuneNetData extends Command
         $failed   = 0;
         $stateCounts = [];
 
-        $this->info("[intune:sync-net-data] Fetching run states for script: {$scriptId}");
+        $this->info("[intune:sync-net-data] Fetching run states via userRunStates for script: {$scriptId}");
 
-        $graph->listScriptRunStates(
+        $graph->listScriptRunStatesViaUsers(
             $scriptId,
             function (array $states) use (&$updated, &$skipped, &$failed, &$stateCounts, $verbose) {
                 foreach ($states as $state) {
 
                     $runState    = $state['runState'] ?? 'unknown';
                     $errorCode   = $state['errorCode'] ?? null;
-                    $compositeId = $state['id'] ?? '';
                     $stateCounts[$runState] = ($stateCounts[$runState] ?? 0) + 1;
 
-                    // ── 1. Extract Intune managedDeviceId from composite key ──
-                    // Graph returns id as "{scriptId}:{managedDeviceId}"
-                    $parts           = explode(':', $compositeId);
-                    $managedDeviceId = $parts[1] ?? null;
+                    // managedDeviceId is set directly by listScriptRunStatesViaUsers
+                    $managedDeviceId = $state['managedDeviceId'] ?? null;
+                    // Fallback: parse from composite id if needed
+                    if (! $managedDeviceId) {
+                        $parts           = explode(':', $state['id'] ?? '');
+                        $managedDeviceId = $parts[1] ?? null;
+                    }
 
                     // ── 2. Skip non-successful runs ────────────────────
                     if ($runState !== 'success') {
@@ -104,7 +106,7 @@ class SyncIntuneNetData extends Command
                                     ->first();
                                 $knownName = $knownDevice?->display_name;
                             }
-                            $label = $knownName ? "<fg=yellow>{$knownName}</>" : "id={$compositeId}";
+                            $label = $knownName ? "<fg=yellow>{$knownName}</>" : "id={$managedDeviceId}";
                             $this->line("  <fg=red>✗</> [{$runState}] {$label}" . ($errorCode ? " errorCode={$errorCode}" : ''));
                         }
                         continue;

@@ -786,6 +786,86 @@ class GraphService
     }
 
     /**
+     * Paginate ALL device run states for a script via the userRunStates hierarchy.
+     *
+     * The flat deviceRunStates endpoint only exposes a partial subset (~50) of
+     * devices and has a broken pagination token on most tenants.  The correct
+     * approach (matching what the Intune portal itself does) is to paginate
+     * userRunStates and expand deviceRunStates inline for each user.
+     *
+     * The callback receives the same device-state shape as listScriptRunStates,
+     * but with an extra 'managedDeviceId' field already extracted so the caller
+     * does not need to parse the composite id.
+     *
+     * @param string   $scriptId
+     * @param callable $callback  fn(array $deviceStates): void
+     */
+    public function listScriptRunStatesViaUsers(string $scriptId, callable $callback): void
+    {
+        $baseUrl = $this->betaUrl
+            . "/deviceManagement/deviceManagementScripts/{$scriptId}/userRunStates";
+
+        // Smaller page size: each user entry expands to N device records inline
+        $top  = 50;
+        $seen = [];  // user-state IDs already processed
+        $page = 0;
+        $url  = $baseUrl;
+
+        do {
+            if ($page > 0) {
+                usleep(2000 * 1000); // 2 s between pages
+            }
+
+            $body = $this->get(
+                $url,
+                $url === $baseUrl
+                    ? [
+                        '$top'    => $top,
+                        '$select' => 'id,userPrincipalName',
+                        '$expand' => 'deviceRunStates($select=id,managedDeviceId,runState,resultMessage,errorCode,lastStateUpdateDateTime)',
+                      ]
+                    : [],
+                self::TIMEOUT_BULK
+            );
+
+            $userStates = $body['value'] ?? [];
+            $page++;
+
+            if (empty($userStates)) {
+                $url = $body['@odata.nextLink'] ?? null;
+                continue;
+            }
+
+            // Dedup guard: stop if we have cycled back to a user we already processed
+            $firstId = $userStates[0]['id'] ?? null;
+            if ($firstId && isset($seen[$firstId])) {
+                break;
+            }
+
+            // Flatten all device run states from every user on this page
+            $deviceStates = [];
+            foreach ($userStates as $us) {
+                $seen[$us['id'] ?? ''] = true;
+
+                foreach ($us['deviceRunStates'] ?? [] as $ds) {
+                    // Ensure managedDeviceId is set — parse from composite id if absent
+                    if (empty($ds['managedDeviceId'])) {
+                        $parts = explode(':', $ds['id'] ?? '');
+                        $ds['managedDeviceId'] = $parts[1] ?? null;
+                    }
+                    $deviceStates[] = $ds;
+                }
+            }
+
+            if (! empty($deviceStates)) {
+                $callback($deviceStates);
+            }
+
+            $url = $body['@odata.nextLink'] ?? null;
+        } while ($url);
+    }
+
+    /**
      * Fetch a single script run-state for one device.
      * The composite ID is "{scriptId}:{managedDeviceId}".
      * Returns the run-state object array, or null if not found.
