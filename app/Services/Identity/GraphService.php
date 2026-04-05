@@ -822,7 +822,7 @@ class GraphService
                     ? [
                         '$top'    => $top,
                         '$select' => 'id,userPrincipalName',
-                        '$expand' => 'deviceRunStates($select=id,managedDeviceId,runState,resultMessage,errorCode,lastStateUpdateDateTime)',
+                        '$expand' => 'deviceRunStates($select=id,runState,resultMessage,errorCode,lastStateUpdateDateTime)',
                       ]
                     : [],
                 self::TIMEOUT_BULK
