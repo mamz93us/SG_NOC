@@ -871,14 +871,20 @@ class GraphService
      */
     public function getScriptRunState(string $scriptId, string $managedDeviceId): ?array
     {
-        $compositeId = rawurlencode("{$scriptId}:{$managedDeviceId}");
+        // Direct key access (/deviceRunStates/{compositeId}) returns HTTP 400 —
+        // "No OData route exists that match template ~/singleton/navigation/key/navigation/key".
+        // Use a filtered list query on the collection instead (valid route).
+        $compositeId = "{$scriptId}:{$managedDeviceId}";
         $url = $this->betaUrl
-            . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates/{$compositeId}";
+            . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
         try {
-            return $this->get($url, ['$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime']);
+            $body = $this->get($url, [
+                '$filter' => "id eq '{$compositeId}'",
+                '$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime',
+                '$top'    => 1,
+            ]);
+            return $body['value'][0] ?? null;
         } catch (\RuntimeException $e) {
-            // Surface the HTTP status so callers can distinguish 404 (never ran)
-            // from 403 (permission missing) — store on the exception message.
             throw $e;
         }
     }
