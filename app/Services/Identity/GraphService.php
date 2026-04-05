@@ -801,7 +801,7 @@ class GraphService
         $url = $this->betaUrl
             . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates/{$compositeId}";
         try {
-            return $this->get($url);
+            return $this->get($url, ['$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime']);
         } catch (\Throwable) {
             return null;
         }
