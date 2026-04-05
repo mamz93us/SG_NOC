@@ -821,8 +821,7 @@ class GraphService
                 $url === $baseUrl
                     ? [
                         '$top'    => $top,
-                        '$select' => 'id,userPrincipalName',
-                        '$expand' => 'deviceRunStates($select=id,runState,resultMessage,errorCode,lastStateUpdateDateTime)',
+                        '$expand' => 'deviceRunStates',
                       ]
                     : [],
                 self::TIMEOUT_BULK
@@ -858,7 +857,7 @@ class GraphService
             }
 
             if (! empty($deviceStates)) {
-                $callback($deviceStates);
+                $callback($deviceStates, count($userStates));
             }
 
             $url = $body['@odata.nextLink'] ?? null;

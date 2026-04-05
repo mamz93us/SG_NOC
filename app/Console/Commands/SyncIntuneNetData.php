@@ -76,10 +76,14 @@ class SyncIntuneNetData extends Command
         $stateCounts = [];
 
         $this->info("[intune:sync-net-data] Fetching run states via userRunStates for script: {$scriptId}");
+        $totalUsers   = 0;
+        $totalDevices = 0;
 
         $graph->listScriptRunStatesViaUsers(
             $scriptId,
-            function (array $states) use (&$updated, &$skipped, &$failed, &$stateCounts, $verbose) {
+            function (array $states, int $userCount) use (&$updated, &$skipped, &$failed, &$stateCounts, &$totalUsers, &$totalDevices, $verbose) {
+                $totalUsers   += $userCount;
+                $totalDevices += count($states);
                 foreach ($states as $state) {
 
                     $runState    = $state['runState'] ?? 'unknown';
@@ -228,6 +232,7 @@ class SyncIntuneNetData extends Command
         );
 
         // ── Summary ───────────────────────────────────────────────────
+        $this->line("  [debug] users seen from API: {$totalUsers} | device states seen: {$totalDevices}");
         $summary = "✅ Done — Updated: {$updated} | Skipped: {$skipped} | Failed/Pending: {$failed}";
         $this->info($summary);
 
