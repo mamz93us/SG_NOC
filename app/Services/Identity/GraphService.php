@@ -887,6 +887,173 @@ class GraphService
     }
 
     /**
+     * Export ALL device run states for a script via the Intune Reports Export API.
+     *
+     * Unlike the broken deviceRunStates collection (which only pages ~50 unique
+     * devices before looping), the export-jobs endpoint creates an async CSV dump
+     * of every device that has ever run the script — no pagination limit.
+     *
+     * Flow:
+     *   1. POST /deviceManagement/reports/exportJobs  → get jobId
+     *   2. Poll GET /…/exportJobs/{jobId}             → wait for status=completed
+     *   3. Download the ZIP from the SAS URL in job.url
+     *   4. Extract the CSV from the ZIP, parse rows
+     *   5. Return map:  managedDeviceId => [runState, resultMessage, errorCode, ...]
+     *
+     * Required Graph permission: DeviceManagementConfiguration.Read.All
+     *
+     * @param  string        $scriptId  Intune deviceManagementScript GUID
+     * @param  callable|null $progress  Optional fn(string $msg) for status logging
+     * @return array<string, array>     managedDeviceId => state array
+     * @throws \RuntimeException        on export failure / timeout
+     */
+    public function exportScriptRunStates(string $scriptId, ?callable $progress = null): array
+    {
+        // ── 1. Create async export job ────────────────────────────────────
+        $job = $this->post(
+            $this->betaUrl . '/deviceManagement/reports/exportJobs',
+            [
+                'reportName'       => 'DeviceRunStatesByScript',
+                'filter'           => "PolicyId eq '{$scriptId}'",
+                'select'           => [],    // empty = all available columns
+                'format'           => 'csv',
+                'localizationType' => 'ReplaceLocalizableValues',
+            ],
+            self::TIMEOUT_BULK
+        );
+
+        $jobId = $job['id'] ?? null;
+        if (! $jobId) {
+            throw new \RuntimeException('Intune export: no job ID returned from POST exportJobs');
+        }
+
+        if ($progress) { $progress("  Export job created (id={$jobId})"); }
+
+        // ── 2. Poll until completed — max 15 minutes (90 × 10 s) ─────────
+        $statusUrl   = $this->betaUrl . "/deviceManagement/reports/exportJobs/{$jobId}";
+        $maxAttempts = 90;
+        $attempt     = 0;
+        $status      = $job['status'] ?? 'inProgress';
+
+        while (! in_array($status, ['completed', 'failed'], true) && $attempt < $maxAttempts) {
+            sleep(10);
+            $attempt++;
+            $job    = $this->get($statusUrl, [], self::TIMEOUT_BULK);
+            $status = $job['status'] ?? 'unknown';
+            if ($progress && $attempt % 3 === 0) {
+                $progress("  Polling export job — attempt {$attempt}: {$status}");
+            }
+        }
+
+        if ($status !== 'completed') {
+            throw new \RuntimeException(
+                "Intune export job {$jobId} did not complete after {$attempt} polls (status={$status})"
+            );
+        }
+
+        $downloadUrl = $job['url'] ?? null;
+        if (! $downloadUrl) {
+            throw new \RuntimeException("Export job {$jobId} completed but returned no download URL");
+        }
+
+        if ($progress) { $progress("  Export completed — downloading ZIP..."); }
+
+        // ── 3. Download ZIP (SAS URL — no Authorization header needed) ────
+        $zipBytes = Http::timeout(180)->get($downloadUrl)->body();
+
+        // ── 4. Extract CSV from ZIP ───────────────────────────────────────
+        $tmpZip = tempnam(sys_get_temp_dir(), 'intune_') . '.zip';
+        file_put_contents($tmpZip, $zipBytes);
+
+        $zip = new \ZipArchive();
+        if ($zip->open($tmpZip) !== true) {
+            @unlink($tmpZip);
+            throw new \RuntimeException('Failed to open Intune export ZIP');
+        }
+
+        $csvContent = null;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            if (str_ends_with(strtolower($zip->getNameIndex($i)), '.csv')) {
+                $csvContent = $zip->getFromIndex($i);
+                break;
+            }
+        }
+        $zip->close();
+        @unlink($tmpZip);
+
+        if ($csvContent === null) {
+            throw new \RuntimeException('No CSV file found inside Intune export ZIP');
+        }
+
+        if ($progress) { $progress("  Parsing CSV..."); }
+
+        // ── 5. Parse CSV → managedDeviceId lookup map ─────────────────────
+        // Use fgetcsv on a memory stream to correctly handle embedded commas/newlines.
+        $handle  = fopen('php://memory', 'r+');
+        fwrite($handle, $csvContent);
+        rewind($handle);
+
+        $headers = fgetcsv($handle);
+        if ($headers === false) {
+            fclose($handle);
+            throw new \RuntimeException('Intune export CSV has no header row');
+        }
+        $headers = array_map('trim', $headers);
+
+        // Normalise column name variations across Intune tenants/locales
+        $colAlias = [
+            'DeviceId'                => 'deviceId',
+            'ManagedDeviceId'         => 'deviceId',
+            'DeviceName'              => 'deviceName',
+            'RunState'                => 'runState',
+            'ResultMessage'           => 'resultMessage',
+            'ErrorCode'               => 'errorCode',
+            'LastStateUpdateDateTime' => 'lastUpdated',
+            'LastSyncDateTime'        => 'lastUpdated',
+        ];
+
+        // Intune CSV may encode RunState as an integer; map to the string used by the JSON API
+        $numericRunState = [
+            '0' => 'unknown',
+            '1' => 'success',
+            '2' => 'fail',
+            '3' => 'fail',          // scriptError
+            '4' => 'pending',
+            '5' => 'notApplicable',
+        ];
+
+        $map = [];
+        while (($row = fgetcsv($handle)) !== false) {
+            if (count($row) !== count($headers)) { continue; }
+            $raw = array_combine($headers, $row);
+
+            // Canonicalise keys
+            $data = [];
+            foreach ($raw as $k => $v) {
+                $canon        = $colAlias[trim($k)] ?? trim($k);
+                $data[$canon] = trim($v);
+            }
+
+            $deviceId = $data['deviceId'] ?? null;
+            if (! $deviceId) { continue; }
+
+            $rs       = strtolower($data['runState'] ?? 'unknown');
+            $runState = $numericRunState[$rs] ?? $rs;   // pass through if already a string
+
+            $map[$deviceId] = [
+                'id'                      => "{$scriptId}:{$deviceId}",
+                'runState'                => $runState,
+                'resultMessage'           => $data['resultMessage'] ?? '',
+                'errorCode'               => (int) ($data['errorCode'] ?? 0),
+                'lastStateUpdateDateTime' => $data['lastUpdated'] ?? null,
+            ];
+        }
+        fclose($handle);
+
+        return $map;
+    }
+
+    /**
      * Delete an Intune device management script.
      */
     public function deleteIntuneScript(string $intuneScriptId): void

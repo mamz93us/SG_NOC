@@ -39,7 +39,8 @@ class SyncIntuneNetData extends Command
     protected $signature = 'intune:sync-net-data
         {--script-id= : Override the Intune deviceManagementScript GUID stored in settings}
         {--force      : Re-sync all devices, even those already synced recently}
-        {--diagnose   : Print first successful resultMessage and first 5 composite IDs, then exit}';
+        {--diagnose   : Print first successful resultMessage and first 5 composite IDs, then exit}
+        {--reset      : Clear all Intune-written net/hw data from azure_devices and device_macs, then exit}';
 
     protected $description = 'Sync TeamViewer ID, CPU, Wi-Fi MAC, Ethernet MAC from Intune script run results.';
 
@@ -61,7 +62,13 @@ class SyncIntuneNetData extends Command
 
         $verbose  = $this->option('verbose');
         $diagnose = $this->option('diagnose');
+        $reset    = $this->option('reset');
         $graph    = new GraphService();
+
+        // ── RESET MODE ────────────────────────────────────────────────
+        if ($reset) {
+            return $this->runReset();
+        }
 
         // ── DIAGNOSE MODE ─────────────────────────────────────────────
         // Dumps raw Graph data so you can verify ID format & resultMessage
@@ -81,22 +88,36 @@ class SyncIntuneNetData extends Command
         $stateCounts = [];
 
         // ── Step 1: Fetch all run states into a lookup map ────────────
-        $this->info("[intune:sync-net-data] Fetching run states from Intune for script: {$scriptId}");
+        // Primary:  Intune Reports Export API  — returns ALL devices, no limit.
+        // Fallback: deviceRunStates pagination  — broken Intune proxy caps at ~50.
+        $this->info("[intune:sync-net-data] Building run-state map from Intune...");
         $runStateMap = []; // managedDeviceId (Intune GUID) => run-state array
+        $exportUsed  = false;
 
-        $graph->listScriptRunStates($scriptId, function (array $states) use (&$runStateMap) {
-            foreach ($states as $state) {
-                // Composite id format: "{scriptId}:{managedDeviceId}"
-                $parts           = explode(':', $state['id'] ?? '', 2);
-                $managedDeviceId = $parts[1] ?? null;
-                if ($managedDeviceId) {
-                    $runStateMap[$managedDeviceId] = $state;
+        try {
+            $runStateMap = $graph->exportScriptRunStates(
+                $scriptId,
+                fn (string $msg) => $this->line($msg)
+            );
+            $exportUsed = true;
+        } catch (\RuntimeException $e) {
+            $this->warn("  ⚠ Export API failed: " . $e->getMessage());
+            $this->warn("  → Falling back to pagination (limited to ~50 devices)...");
+
+            $graph->listScriptRunStates($scriptId, function (array $states) use (&$runStateMap) {
+                foreach ($states as $state) {
+                    $parts           = explode(':', $state['id'] ?? '', 2);
+                    $managedDeviceId = $parts[1] ?? null;
+                    if ($managedDeviceId) {
+                        $runStateMap[$managedDeviceId] = $state;
+                    }
                 }
-            }
-        });
+            });
+        }
 
-        $found = count($runStateMap);
-        $this->info("  → Collected {$found} unique run states from Intune");
+        $found  = count($runStateMap);
+        $source = $exportUsed ? 'Export API' : 'pagination fallback';
+        $this->info("  → Collected {$found} unique run states via {$source}");
 
         // ── Step 2: Match against local AzureDevice records ──────────
         $devices = AzureDevice::whereNotNull('intune_managed_device_id')
@@ -232,6 +253,54 @@ class SyncIntuneNetData extends Command
         }
 
         Log::info("[intune:sync-net-data] script={$scriptId} {$summary}");
+
+        return self::SUCCESS;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Reset: wipe all Intune-written hw/net data so a clean re-sync
+    //        can write correct values.
+    // ─────────────────────────────────────────────────────────────────
+
+    private function runReset(): int
+    {
+        $this->warn('── RESET MODE ──────────────────────────────────────────');
+        $this->line('  This will:');
+        $this->line('    1. NULL out teamviewer_id, tv_version, cpu_name,');
+        $this->line('       wifi_mac, ethernet_mac, usb_eth_data, net_data_synced_at');
+        $this->line('       on ALL rows in azure_devices.');
+        $this->line('    2. DELETE all rows in device_macs where source = "intune".');
+        $this->newLine();
+
+        if (! $this->confirm('Proceed with reset?', false)) {
+            $this->info('Aborted.');
+            return self::SUCCESS;
+        }
+
+        // 1. Clear Intune net/hw columns from azure_devices
+        $azureCount = AzureDevice::query()->update([
+            'teamviewer_id'      => null,
+            'tv_version'         => null,
+            'cpu_name'           => null,
+            'wifi_mac'           => null,
+            'ethernet_mac'       => null,
+            'usb_eth_data'       => null,
+            'net_data_synced_at' => null,
+        ]);
+
+        $this->info("  ✅ azure_devices — cleared {$azureCount} rows");
+
+        // 2. Delete device_macs rows written by Intune
+        $macCount = \App\Models\DeviceMac::where('source', 'intune')->delete();
+
+        $this->info("  ✅ device_macs    — deleted {$macCount} rows (source=intune)");
+
+        $this->newLine();
+        $this->info('Reset complete. Run the sync again to populate fresh data:');
+        $this->line('  php artisan intune:sync-net-data --verbose');
+        $this->warn('── END RESET ────────────────────────────────────────────');
+
+        Log::info("[intune:sync-net-data] RESET — cleared {$azureCount} azure_devices rows and {$macCount} device_macs rows");
 
         return self::SUCCESS;
     }
