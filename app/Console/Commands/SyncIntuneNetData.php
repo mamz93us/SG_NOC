@@ -70,170 +70,152 @@ class SyncIntuneNetData extends Command
         }
 
         // ── NORMAL SYNC ───────────────────────────────────────────────
-        $updated  = 0;
-        $skipped  = 0;
-        $failed   = 0;
+        // The Graph deviceRunStates list endpoint has a broken pagination
+        // token that always circles back to the same 100 devices.
+        // Workaround: iterate over every AzureDevice that has an Intune
+        // managed-device ID and fetch each run state individually.
+        // This bypasses the list endpoint entirely and is 100% reliable.
+
+        $updated     = 0;
+        $skipped     = 0;
+        $failed      = 0;
         $stateCounts = [];
 
-        $this->info("[intune:sync-net-data] Fetching run states for script: {$scriptId}");
+        $devices = AzureDevice::whereNotNull('intune_managed_device_id')
+            ->select('id', 'display_name', 'intune_managed_device_id', 'device_id',
+                     'teamviewer_id', 'tv_version', 'cpu_name',
+                     'wifi_mac', 'ethernet_mac', 'usb_eth_data')
+            ->get();
 
-        $graph->listScriptRunStates(
-            $scriptId,
-            function (array $states) use (&$updated, &$skipped, &$failed, &$stateCounts, $verbose) {
-                foreach ($states as $state) {
+        $total = $devices->count();
+        $this->info("[intune:sync-net-data] Querying {$total} devices for script: {$scriptId}");
 
-                    $runState    = $state['runState'] ?? 'unknown';
-                    $errorCode   = $state['errorCode'] ?? null;
-                    $compositeId = $state['id'] ?? '';
-                    $stateCounts[$runState] = ($stateCounts[$runState] ?? 0) + 1;
+        $normMac = fn(?string $m) => $m
+            ? strtoupper(implode(':', str_split(preg_replace('/[^a-fA-F0-9]/', '', $m), 2)))
+            : null;
 
-                    // ── 1. Extract Intune managedDeviceId from composite key ──
-                    // Graph returns id as "{scriptId}:{managedDeviceId}"
-                    $parts           = explode(':', $compositeId);
-                    $managedDeviceId = $parts[1] ?? null;
+        foreach ($devices as $i => $device) {
+            // Courtesy delay after every 10 requests to stay under Intune rate limits
+            if ($i > 0 && $i % 10 === 0) {
+                usleep(1000 * 1000); // 1 s every 10 devices
+            }
 
-                    // ── 2. Skip non-successful runs ────────────────────
-                    if ($runState !== 'success') {
-                        $failed++;
-                        if ($verbose) {
-                            // Try to show the device name so it's useful, not just a GUID
-                            $knownName = null;
-                            if ($managedDeviceId) {
-                                $knownDevice = AzureDevice::select('display_name')
-                                    ->where('intune_managed_device_id', $managedDeviceId)
-                                    ->orWhere('azure_device_id', $managedDeviceId)
-                                    ->first();
-                                $knownName = $knownDevice?->display_name;
-                            }
-                            $label = $knownName ? "<fg=yellow>{$knownName}</>" : "id={$compositeId}";
-                            $this->line("  <fg=red>✗</> [{$runState}] {$label}" . ($errorCode ? " errorCode={$errorCode}" : ''));
-                        }
-                        continue;
-                    }
+            $managedDeviceId = $device->intune_managed_device_id;
 
-                    if (! $managedDeviceId) {
-                        $this->warn("  ⚠ Could not parse managedDeviceId from id: [{$compositeId}]");
-                        $skipped++;
-                        continue;
-                    }
+            // ── 1. Fetch this device's run state ──────────────────
+            $state = $graph->getScriptRunState($scriptId, $managedDeviceId);
 
-                    // ── 3. Parse the script stdout (JSON) ─────────────
-                    $raw  = trim($state['resultMessage'] ?? '');
-                    $data = json_decode($raw, true);
+            if ($state === null) {
+                // 404 — script has never run on this device
+                $skipped++;
+                if ($verbose) {
+                    $this->line("  <fg=yellow>~</> {$device->display_name} — no run state");
+                }
+                continue;
+            }
 
-                    if (! is_array($data)) {
-                        if ($verbose) {
-                            $this->warn("  ⚠ Non-JSON result for {$managedDeviceId}: [{$raw}]");
-                        }
-                        $skipped++;
-                        continue;
-                    }
+            $runState  = $state['runState']  ?? 'unknown';
+            $errorCode = $state['errorCode'] ?? null;
+            $stateCounts[$runState] = ($stateCounts[$runState] ?? 0) + 1;
 
-                    // ── 4. Match to local AzureDevice record ───────────
-                    // The composite ID contains the Intune MDM enrollment ID,
-                    // which is stored in intune_managed_device_id (different from
-                    // azure_device_id which is the Azure AD hardware GUID).
-                    $device = AzureDevice::where('intune_managed_device_id', $managedDeviceId)->first()
-                           ?? AzureDevice::where('azure_device_id', $managedDeviceId)->first();
+            // ── 2. Skip non-successful runs ───────────────────────
+            if ($runState !== 'success') {
+                $failed++;
+                if ($verbose) {
+                    $this->line("  <fg=red>✗</> [{$runState}] {$device->display_name}" . ($errorCode ? " errorCode={$errorCode}" : ''));
+                }
+                continue;
+            }
 
-                    if (! $device) {
-                        if ($verbose) {
-                            $this->line("  <fg=yellow>~</> No local record for intune_managed_device_id/azure_device_id={$managedDeviceId}");
-                        }
-                        $skipped++;
-                        continue;
-                    }
+            // ── 3. Parse the script stdout (JSON) ─────────────────
+            $raw  = trim($state['resultMessage'] ?? '');
+            $data = json_decode($raw, true);
 
-                    // ── 5. Map usb_eth (PS1 key) → JSON string ─────────
-                    // PS1 script outputs key "usb_eth" (array of {name,mac,desc})
-                    $usbEthJson = null;
-                    $usbEthRaw  = $data['usb_eth'] ?? $data['usb_eth_adapters'] ?? null;
-                    if (! empty($usbEthRaw) && is_array($usbEthRaw)) {
-                        $usbEthJson = json_encode($usbEthRaw);
-                    }
+            if (! is_array($data)) {
+                if ($verbose) {
+                    $this->warn("  ⚠ Non-JSON result for {$device->display_name}: [{$raw}]");
+                }
+                $skipped++;
+                continue;
+            }
 
-                    // Normalize MACs from Windows AA-BB-CC format to AA:BB:CC
-                    $normMac = fn(?string $m) => $m
-                        ? strtoupper(implode(':', str_split(preg_replace('/[^a-fA-F0-9]/', '', $m), 2)))
-                        : null;
+            // ── 4. Map fields ─────────────────────────────────────
+            $usbEthJson = null;
+            $usbEthRaw  = $data['usb_eth'] ?? $data['usb_eth_adapters'] ?? null;
+            if (! empty($usbEthRaw) && is_array($usbEthRaw)) {
+                $usbEthJson = json_encode($usbEthRaw);
+            }
 
-                    // PS1 uses key "cpu" (not "cpu_name")
-                    $cpuName     = $data['cpu']     ?? $data['cpu_name']     ?? null;
-                    $wifiMac     = $normMac($data['wifi_mac']     ?? null);
-                    $ethernetMac = $normMac($data['ethernet_mac'] ?? null);
+            $cpuName     = $data['cpu']          ?? $data['cpu_name']     ?? null;
+            $wifiMac     = $normMac($data['wifi_mac']     ?? null);
+            $ethernetMac = $normMac($data['ethernet_mac'] ?? null);
 
-                    // ── 6. Update azure_device ────────────────────────
-                    $device->update([
-                        'teamviewer_id'      => $data['teamviewer_id'] ?? $device->teamviewer_id,
-                        'tv_version'         => $data['tv_version']    ?? $device->tv_version,
-                        'cpu_name'           => $cpuName               ?? $device->cpu_name,
-                        'wifi_mac'           => $wifiMac               ?? $device->wifi_mac,
-                        'ethernet_mac'       => $ethernetMac           ?? $device->ethernet_mac,
-                        'usb_eth_data'       => $usbEthJson            ?? $device->usb_eth_data,
-                        'net_data_synced_at' => now(),
-                    ]);
+            // ── 5. Update azure_device ────────────────────────────
+            $device->update([
+                'teamviewer_id'      => $data['teamviewer_id'] ?? $device->teamviewer_id,
+                'tv_version'         => $data['tv_version']    ?? $device->tv_version,
+                'cpu_name'           => $cpuName               ?? $device->cpu_name,
+                'wifi_mac'           => $wifiMac               ?? $device->wifi_mac,
+                'ethernet_mac'       => $ethernetMac           ?? $device->ethernet_mac,
+                'usb_eth_data'       => $usbEthJson            ?? $device->usb_eth_data,
+                'net_data_synced_at' => now(),
+            ]);
 
-                    // ── 6b. Propagate MACs to the linked ITAM device ───
-                    // Write ethernet_mac → devices.mac_address
-                    //       wifi_mac     → devices.wifi_mac
-                    // so the asset profile page shows them without needing
-                    // to load the azure_device relation.
-                    if ($device->device_id && ($ethernetMac || $wifiMac)) {
-                        $itamDevice = \App\Models\Device::find($device->device_id);
-                        if ($itamDevice) {
-                            $itamUpdate = [];
-                            if ($ethernetMac) $itamUpdate['mac_address'] = $ethernetMac;
-                            if ($wifiMac)     $itamUpdate['wifi_mac']    = $wifiMac;
-                            $itamDevice->update($itamUpdate);
-                        }
-                    }
-
-                    // ── 7. Sync MACs into device_macs registry ─────────
-                    if ($ethernetMac) {
-                        \App\Models\DeviceMac::upsertMac($ethernetMac, [
-                            'adapter_type'    => 'ethernet',
-                            'adapter_name'    => 'Ethernet',
-                            'azure_device_id' => $device->id,
-                            'device_id'       => $device->device_id,
-                            'source'          => 'intune',
-                            'is_primary'      => true,
-                        ]);
-                    }
-                    if ($wifiMac) {
-                        \App\Models\DeviceMac::upsertMac($wifiMac, [
-                            'adapter_type'    => 'wifi',
-                            'adapter_name'    => 'Wi-Fi',
-                            'azure_device_id' => $device->id,
-                            'device_id'       => $device->device_id,
-                            'source'          => 'intune',
-                            'is_primary'      => false,
-                        ]);
-                    }
-                    foreach (json_decode($usbEthJson ?? '[]', true) as $usb) {
-                        $usbMac = $normMac($usb['mac'] ?? null);
-                        if ($usbMac) {
-                            \App\Models\DeviceMac::upsertMac($usbMac, [
-                                'adapter_type'       => 'usb_ethernet',
-                                'adapter_name'       => $usb['name'] ?? 'USB LAN',
-                                'adapter_description'=> $usb['desc'] ?? null,
-                                'azure_device_id'    => $device->id,
-                                'device_id'          => $device->device_id,
-                                'source'             => 'intune',
-                                'is_primary'         => false,
-                            ]);
-                        }
-                    }
-
-                    if ($verbose) {
-                        $tvStr  = $device->teamviewer_id ? " TV={$device->teamviewer_id}" : '';
-                        $cpuStr = $cpuName ? " CPU=" . substr($cpuName, 0, 30) : '';
-                        $this->line("  <fg=green>✓</> {$device->display_name}{$cpuStr}{$tvStr}");
-                    }
-
-                    $updated++;
+            // ── 5b. Propagate MACs to the linked ITAM device ──────
+            if ($device->device_id && ($ethernetMac || $wifiMac)) {
+                $itamDevice = \App\Models\Device::find($device->device_id);
+                if ($itamDevice) {
+                    $itamUpdate = [];
+                    if ($ethernetMac) $itamUpdate['mac_address'] = $ethernetMac;
+                    if ($wifiMac)     $itamUpdate['wifi_mac']    = $wifiMac;
+                    $itamDevice->update($itamUpdate);
                 }
             }
-        );
+
+            // ── 6. Sync MACs into device_macs registry ────────────
+            if ($ethernetMac) {
+                \App\Models\DeviceMac::upsertMac($ethernetMac, [
+                    'adapter_type'    => 'ethernet',
+                    'adapter_name'    => 'Ethernet',
+                    'azure_device_id' => $device->id,
+                    'device_id'       => $device->device_id,
+                    'source'          => 'intune',
+                    'is_primary'      => true,
+                ]);
+            }
+            if ($wifiMac) {
+                \App\Models\DeviceMac::upsertMac($wifiMac, [
+                    'adapter_type'    => 'wifi',
+                    'adapter_name'    => 'Wi-Fi',
+                    'azure_device_id' => $device->id,
+                    'device_id'       => $device->device_id,
+                    'source'          => 'intune',
+                    'is_primary'      => false,
+                ]);
+            }
+            foreach (json_decode($usbEthJson ?? '[]', true) as $usb) {
+                $usbMac = $normMac($usb['mac'] ?? null);
+                if ($usbMac) {
+                    \App\Models\DeviceMac::upsertMac($usbMac, [
+                        'adapter_type'       => 'usb_ethernet',
+                        'adapter_name'       => $usb['name'] ?? 'USB LAN',
+                        'adapter_description'=> $usb['desc'] ?? null,
+                        'azure_device_id'    => $device->id,
+                        'device_id'          => $device->device_id,
+                        'source'             => 'intune',
+                        'is_primary'         => false,
+                    ]);
+                }
+            }
+
+            if ($verbose) {
+                $tvStr  = $device->teamviewer_id ? " TV={$device->teamviewer_id}" : '';
+                $cpuStr = $cpuName ? " CPU=" . substr($cpuName, 0, 30) : '';
+                $this->line("  <fg=green>✓</> {$device->display_name}{$cpuStr}{$tvStr}");
+            }
+
+            $updated++;
+        }
 
         // ── Summary ───────────────────────────────────────────────────
         $summary = "✅ Done — Updated: {$updated} | Skipped: {$skipped} | Failed/Pending: {$failed}";
