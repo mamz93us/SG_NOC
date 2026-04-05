@@ -727,60 +727,67 @@ class GraphService
      */
     public function listScriptRunStates(string $scriptId, callable $callback): void
     {
-        // The Intune deviceRunStates endpoint caps at $top=100 AND does not
-        // always return @odata.nextLink — it returns a bare page with no
-        // continuation token.  We therefore drive pagination ourselves with
-        // explicit $skip increments and stop when a page returns fewer items
-        // than the page size (i.e. we are on the last page).
+        // Strategy:
+        //  1. Page through ALL run states using ONLY id/runState/errorCode (no resultMessage).
+        //     Without resultMessage in $select the Intune proxy reliably returns @odata.nextLink
+        //     on every page except the last, so standard nextLink pagination works.
+        //  2. For each page, collect the composite IDs of successful runs.
+        //  3. Fetch resultMessage individually (getScriptRunState) for those devices only.
+        //     This avoids the "heavy $select kills pagination" problem while still giving
+        //     us the JSON output for every device that actually ran the script.
+
         $baseUrl = $this->betaUrl
             . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
 
-        $select  = 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime';
-        $top     = self::TOP_INTUNE; // 100
-        $skip    = 0;
-        $page    = 0;
+        $page = 0;
+        $url  = $baseUrl;
 
         do {
             if ($page > 0) {
-                usleep(3000 * 1000); // 3 s between pages — Intune rate-limit is aggressive
+                usleep(3000 * 1000); // 3 s between pages
             }
 
-            $body   = $this->get($baseUrl, [
-                '$select' => $select,
-                '$top'    => $top,
-                '$skip'   => $skip,
-            ], self::TIMEOUT_BULK);
+            $body   = $this->get(
+                $url,
+                $url === $baseUrl
+                    ? ['$select' => 'id,runState,errorCode,lastStateUpdateDateTime', '$top' => self::TOP_INTUNE]
+                    : [],
+                self::TIMEOUT_BULK
+            );
 
-            $values = $body['value'] ?? [];
-
-            if (! empty($values)) {
-                $callback($values);
-            }
-
-            $count  = count($values);
-            $skip  += $count;
+            $states = $body['value'] ?? [];
             $page++;
 
-            // If Graph returned a next link, honour it on the next iteration
-            // by switching to nextLink-driven mode (avoids duplicates from $skip).
-            $nextLink = $body['@odata.nextLink'] ?? null;
-            if ($nextLink) {
-                // Follow whatever pages remain via nextLink
-                $url = $nextLink;
-                do {
-                    usleep(3000 * 1000);
-                    $body   = $this->get($url, [], self::TIMEOUT_BULK);
-                    $values = $body['value'] ?? [];
-                    if (! empty($values)) {
-                        $callback($values);
-                    }
-                    $url = $body['@odata.nextLink'] ?? null;
-                } while ($url);
-                break; // nextLink chain exhausted — we are done
+            if (empty($states)) {
+                $url = $body['@odata.nextLink'] ?? null;
+                continue;
             }
 
-            // Stop when the page is not full (last page)
-        } while ($count === $top);
+            // Enrich successful states with resultMessage (individual call, 1–2 s each)
+            $enriched = [];
+            foreach ($states as $state) {
+                if (($state['runState'] ?? '') === 'success') {
+                    $compositeId = $state['id'] ?? '';
+                    $parts       = explode(':', $compositeId);
+                    $deviceId    = $parts[1] ?? null;
+
+                    if ($deviceId) {
+                        usleep(500 * 1000); // 0.5 s — avoid hammering the Intune proxy
+                        $full = $this->getScriptRunState($scriptId, $deviceId);
+                        if ($full) {
+                            $state = array_merge($state, [
+                                'resultMessage' => $full['resultMessage'] ?? '',
+                            ]);
+                        }
+                    }
+                }
+                $enriched[] = $state;
+            }
+
+            $callback($enriched);
+
+            $url = $body['@odata.nextLink'] ?? null;
+        } while ($url);
     }
 
     /**
