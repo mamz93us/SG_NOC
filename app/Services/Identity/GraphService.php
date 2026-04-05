@@ -727,17 +727,60 @@ class GraphService
      */
     public function listScriptRunStates(string $scriptId, callable $callback): void
     {
-        $url = $this->betaUrl
+        // The Intune deviceRunStates endpoint caps at $top=100 AND does not
+        // always return @odata.nextLink — it returns a bare page with no
+        // continuation token.  We therefore drive pagination ourselves with
+        // explicit $skip increments and stop when a page returns fewer items
+        // than the page size (i.e. we are on the last page).
+        $baseUrl = $this->betaUrl
             . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
 
-        $this->paginateWithCallback(
-            $url,
-            $callback,
-            ['$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime'],
-            [],
-            self::TOP_INTUNE,   // ← 100 per page (Intune proxy max)
-            3000                // ← 3 second delay between pages (Intune rate-limit is aggressive)
-        );
+        $select  = 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime';
+        $top     = self::TOP_INTUNE; // 100
+        $skip    = 0;
+        $page    = 0;
+
+        do {
+            if ($page > 0) {
+                usleep(3000 * 1000); // 3 s between pages — Intune rate-limit is aggressive
+            }
+
+            $body   = $this->get($baseUrl, [
+                '$select' => $select,
+                '$top'    => $top,
+                '$skip'   => $skip,
+            ], self::TIMEOUT_BULK);
+
+            $values = $body['value'] ?? [];
+
+            if (! empty($values)) {
+                $callback($values);
+            }
+
+            $count  = count($values);
+            $skip  += $count;
+            $page++;
+
+            // If Graph returned a next link, honour it on the next iteration
+            // by switching to nextLink-driven mode (avoids duplicates from $skip).
+            $nextLink = $body['@odata.nextLink'] ?? null;
+            if ($nextLink) {
+                // Follow whatever pages remain via nextLink
+                $url = $nextLink;
+                do {
+                    usleep(3000 * 1000);
+                    $body   = $this->get($url, [], self::TIMEOUT_BULK);
+                    $values = $body['value'] ?? [];
+                    if (! empty($values)) {
+                        $callback($values);
+                    }
+                    $url = $body['@odata.nextLink'] ?? null;
+                } while ($url);
+                break; // nextLink chain exhausted — we are done
+            }
+
+            // Stop when the page is not full (last page)
+        } while ($count === $top);
     }
 
     /**
