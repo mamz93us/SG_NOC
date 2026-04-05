@@ -910,21 +910,16 @@ class GraphService
     public function exportScriptRunStates(string $scriptId, ?callable $progress = null): array
     {
         // ── 1. Create async export job ────────────────────────────────────
-        // Explicitly request every column we need including ResultMessage.
-        // An empty select[] uses the report's default columns which omits ResultMessage.
+        // Use empty select (all columns) — Intune rejects explicit column lists
+        // for this report name with HTTP 400 InvalidArgument on some tenants.
+        // ResultMessage is intentionally absent from bulk exports; we fetch it
+        // individually via getDeviceScriptResult() after building the ID map.
         $job = $this->post(
             $this->betaUrl . '/deviceManagement/reports/exportJobs',
             [
                 'reportName'       => 'DeviceRunStatesByScript',
                 'filter'           => "PolicyId eq '{$scriptId}'",
-                'select'           => [
-                    'DeviceId',
-                    'DeviceName',
-                    'RunState',
-                    'ResultMessage',
-                    'ErrorCode',
-                    'LastStateUpdateDateTime',
-                ],
+                'select'           => [],
                 'format'           => 'csv',
                 'localizationType' => 'ReplaceLocalizableValues',
             ],
@@ -1085,13 +1080,18 @@ class GraphService
      */
     public function getDeviceScriptResult(string $managedDeviceId, string $scriptId): ?array
     {
+        // The composite id on deviceManagementScriptDeviceState is "{scriptId}:{managedDeviceId}".
+        // When accessed via the managedDevice navigation the same id format is used,
+        // so we match by checking that id starts with "{scriptId}:".
         $url = $this->betaUrl
             . "/deviceManagement/managedDevices/{$managedDeviceId}/deviceManagementScriptStates";
         try {
-            $body = $this->get($url, [], self::TIMEOUT_BULK);
-            // Each device has states for every script assigned to it; find ours by policyId
+            $body = $this->get($url, [
+                '$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime',
+            ], self::TIMEOUT_BULK);
+            $prefix = $scriptId . ':';
             foreach ($body['value'] ?? [] as $state) {
-                if (($state['policyId'] ?? '') === $scriptId) {
+                if (str_starts_with($state['id'] ?? '', $prefix)) {
                     return $state;
                 }
             }
