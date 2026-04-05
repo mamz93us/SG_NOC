@@ -727,18 +727,18 @@ class GraphService
      */
     public function listScriptRunStates(string $scriptId, callable $callback): void
     {
-        // Strategy:
-        //  1. Page through ALL run states using ONLY id/runState/errorCode (no resultMessage).
-        //     Without resultMessage in $select the Intune proxy reliably returns @odata.nextLink
-        //     on every page except the last, so standard nextLink pagination works.
-        //  2. For each page, collect the composite IDs of successful runs.
-        //  3. Fetch resultMessage individually (getScriptRunState) for those devices only.
-        //     This avoids the "heavy $select kills pagination" problem while still giving
-        //     us the JSON output for every device that actually ran the script.
+        // The Intune deviceRunStates endpoint sometimes returns a nextLink that
+        // loops back to an earlier page.  We guard against this by tracking every
+        // composite ID we have already delivered and stopping as soon as any ID
+        // on the current page was seen before (= we have entered a cycle).
+        //
+        // resultMessage is included in the initial $select — the looping issue is
+        // NOT caused by heavy fields; it is an Intune proxy quirk on some tenants.
 
         $baseUrl = $this->betaUrl
             . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
 
+        $seen = [];   // composite IDs already delivered to the callback
         $page = 0;
         $url  = $baseUrl;
 
@@ -750,7 +750,8 @@ class GraphService
             $body   = $this->get(
                 $url,
                 $url === $baseUrl
-                    ? ['$select' => 'id,runState,errorCode,lastStateUpdateDateTime', '$top' => self::TOP_INTUNE]
+                    ? ['$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime',
+                       '$top'    => self::TOP_INTUNE]
                     : [],
                 self::TIMEOUT_BULK
             );
@@ -763,28 +764,22 @@ class GraphService
                 continue;
             }
 
-            // Enrich successful states with resultMessage (individual call, 1–2 s each)
-            $enriched = [];
-            foreach ($states as $state) {
-                if (($state['runState'] ?? '') === 'success') {
-                    $compositeId = $state['id'] ?? '';
-                    $parts       = explode(':', $compositeId);
-                    $deviceId    = $parts[1] ?? null;
-
-                    if ($deviceId) {
-                        usleep(500 * 1000); // 0.5 s — avoid hammering the Intune proxy
-                        $full = $this->getScriptRunState($scriptId, $deviceId);
-                        if ($full) {
-                            $state = array_merge($state, [
-                                'resultMessage' => $full['resultMessage'] ?? '',
-                            ]);
-                        }
-                    }
-                }
-                $enriched[] = $state;
+            // Check for cycling — if the FIRST id on this page was already seen,
+            // the API has looped back; stop immediately.
+            $firstId = $states[0]['id'] ?? null;
+            if ($firstId && isset($seen[$firstId])) {
+                break; // pagination loop detected — all real pages already delivered
             }
 
-            $callback($enriched);
+            // Deliver only IDs not yet seen (safety net for partial overlaps)
+            $fresh = array_filter($states, fn($s) => ! isset($seen[$s['id'] ?? '']));
+            foreach ($fresh as $s) {
+                $seen[$s['id'] ?? ''] = true;
+            }
+
+            if (! empty($fresh)) {
+                $callback(array_values($fresh));
+            }
 
             $url = $body['@odata.nextLink'] ?? null;
         } while ($url);
