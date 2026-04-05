@@ -1067,6 +1067,42 @@ class GraphService
     }
 
     /**
+     * Fetch the script run result for one device via the managedDevices navigation.
+     *
+     * The /deviceManagementScripts/{id}/deviceRunStates endpoint has two bugs:
+     *   • pagination cycles after ~50 devices
+     *   • $filter on 'id' is silently ignored (always returns first record)
+     *
+     * This endpoint is different: the device GUID lives in the URL path, so
+     * the Intune proxy returns the correct device's states every time.
+     * We scan the returned collection for the entry matching our $scriptId.
+     *
+     * Required permission: DeviceManagementConfiguration.Read.All
+     *
+     * @param  string $managedDeviceId  Intune managed device GUID
+     * @param  string $scriptId         deviceManagementScript GUID
+     * @return array|null               State with resultMessage, or null if not found
+     */
+    public function getDeviceScriptResult(string $managedDeviceId, string $scriptId): ?array
+    {
+        $url = $this->betaUrl
+            . "/deviceManagement/managedDevices/{$managedDeviceId}/deviceManagementScriptStates";
+        try {
+            $body = $this->get($url, [], self::TIMEOUT_BULK);
+            // Each device has states for every script assigned to it; find ours by policyId
+            foreach ($body['value'] ?? [] as $state) {
+                if (($state['policyId'] ?? '') === $scriptId) {
+                    return $state;
+                }
+            }
+            return null;
+        } catch (\RuntimeException $e) {
+            // 404 = device not enrolled in script; 403 = permission denied
+            return null;
+        }
+    }
+
+    /**
      * Delete an Intune device management script.
      */
     public function deleteIntuneScript(string $intuneScriptId): void

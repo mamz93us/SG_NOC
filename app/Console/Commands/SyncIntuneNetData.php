@@ -119,6 +119,33 @@ class SyncIntuneNetData extends Command
         $source = $exportUsed ? 'Export API' : 'pagination fallback';
         $this->info("  → Collected {$found} unique run states via {$source}");
 
+        // ── Step 1b: Fetch resultMessage for success devices ──────────
+        // The export CSV omits script output. For devices with runState=success
+        // we fetch resultMessage individually via managedDevices/{id}/deviceManagementScriptStates
+        // which uses the device GUID in the URL path and correctly returns per-device data.
+        $successIds   = array_keys(array_filter($runStateMap, fn($s) => $s['runState'] === 'success'));
+        $successCount = count($successIds);
+        $this->info("  → Fetching resultMessage for {$successCount} success devices...");
+        $fetched = 0;
+
+        foreach ($successIds as $i => $managedDeviceId) {
+            // 300 ms pause every 10 calls ≈ 33 req/s — well within Graph rate limits
+            if ($i > 0 && $i % 10 === 0) {
+                usleep(300 * 1000);
+            }
+            if ($verbose && $i > 0 && $i % 50 === 0) {
+                $this->line("  → Progress: {$i}/{$successCount} queried, {$fetched} with results...");
+            }
+
+            $result = $graph->getDeviceScriptResult($managedDeviceId, $scriptId);
+            if ($result !== null && ! empty($result['resultMessage'])) {
+                $runStateMap[$managedDeviceId]['resultMessage'] = $result['resultMessage'];
+                $fetched++;
+            }
+        }
+
+        $this->info("  → Got resultMessage for {$fetched}/{$successCount} success devices");
+
         // ── Step 2: Match against local AzureDevice records ──────────
         $devices = AzureDevice::whereNotNull('intune_managed_device_id')
             ->select('id', 'display_name', 'intune_managed_device_id', 'device_id',
