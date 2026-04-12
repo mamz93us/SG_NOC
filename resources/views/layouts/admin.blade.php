@@ -795,13 +795,15 @@
                                     <i class="bi bi-tags-fill me-2"></i>Asset Types & Codes
                                 </a>
                             </li>
-                            {{-- ── Internet Access Levels ── --}}
+                            {{-- ── Internet Access Levels (guarded until route is registered) ── --}}
+                            @if (Route::has('admin.settings.internet-access-levels.index'))
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.settings.internet-access-levels.*') ? 'active' : '' }}"
                                    href="{{ route('admin.settings.internet-access-levels.index') }}">
                                     <i class="bi bi-wifi me-2"></i>Internet Access Levels
                                 </a>
                             </li>
+                            @endif
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-cloud-check me-1"></i>Provisioning</h6></li>
                             <li>
