@@ -132,10 +132,11 @@ class DeviceController extends Controller
             ->limit(30)
             ->get();
 
-        // Resolve IP from DHCP leases using all known MACs (device + azure device adapters)
-        $dhcpLease  = null;
-        $rawMacs    = array_filter([$device->mac_address, $device->wifi_mac]);
-        $az         = $device->azureDevice;
+        // Resolve IPs from DHCP leases per adapter MAC — skip APIPA (169.x.x.x)
+        // Returns map: NORMALISED_MAC (no sep, upper) => ip_address
+        $dhcpByMac = [];
+        $rawMacs   = array_filter([$device->mac_address, $device->wifi_mac]);
+        $az        = $device->azureDevice;
         if ($az) {
             if ($az->ethernet_mac) $rawMacs[] = $az->ethernet_mac;
             if ($az->wifi_mac)     $rawMacs[] = $az->wifi_mac;
@@ -147,16 +148,28 @@ class DeviceController extends Controller
             array_map(fn($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), $rawMacs)
         )));
         if (!empty($normMacs)) {
-            $dhcpLease = \App\Models\DhcpLease::whereRaw(
+            \App\Models\DhcpLease::whereRaw(
                 'UPPER(REPLACE(REPLACE(mac_address,\':\',\'\'),\'-\',\'\')) IN (' .
                 implode(',', array_fill(0, count($normMacs), '?')) . ')',
                 $normMacs
-            )->latest('last_seen')->first();
+            )
+            ->where(function ($q) {
+                // Exclude APIPA (169.254.x.x) — means no real DHCP lease was obtained
+                $q->where('ip_address', 'not like', '169.%');
+            })
+            ->orderByDesc('last_seen')
+            ->get(['mac_address', 'ip_address'])
+            ->each(function ($lease) use (&$dhcpByMac) {
+                $norm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lease->mac_address));
+                if (!isset($dhcpByMac[$norm])) {
+                    $dhcpByMac[$norm] = $lease->ip_address;
+                }
+            });
         }
 
         return view('admin.devices.show', compact(
             'device', 'depreciation', 'employees',
-            'sshSessions', 'accessLogs', 'dhcpLease'
+            'sshSessions', 'accessLogs', 'dhcpByMac'
         ));
     }
 

@@ -66,10 +66,11 @@ class AzureSyncController extends Controller
             set_time_limit(300);
             $service = new AzureDeviceService();
             $result  = $service->syncDevices();
-            ActivityLog::log("Azure device sync completed: {$result['synced']} synced, {$result['new']} new, {$result['auto_linked']} auto-linked");
+            $autoAssigned = $result['auto_assigned'] ?? 0;
+            ActivityLog::log("Azure device sync completed: {$result['synced']} synced, {$result['new']} new, {$result['auto_linked']} auto-linked, {$autoAssigned} auto-assigned.");
 
             return back()->with('success',
-                "Sync complete — {$result['synced']} devices synced, {$result['new']} new, {$result['auto_linked']} auto-linked."
+                "Sync complete — {$result['synced']} devices synced, {$result['new']} new, {$result['auto_linked']} auto-linked, {$autoAssigned} auto-assigned to employees."
             );
         } catch (\Throwable $e) {
             ActivityLog::log("Azure device sync failed: " . $e->getMessage());
@@ -138,45 +139,160 @@ class AzureSyncController extends Controller
     }
 
     /**
-     * Full-page device detail — shows net data, MACs, IP, TeamViewer.
+     * Full-page device detail — shows net data, MACs, IP per adapter, TeamViewer.
      */
     public function show(AzureDevice $azureDevice)
     {
         $azureDevice->load(['device.branch', 'macs']);
 
-        // Resolve IP address — priority: linked ITAM device → DHCP lease (by any known MAC) → SNMP host
         $monitoredHost = \App\Models\MonitoredHost::where('name', $azureDevice->display_name)->first()
             ?? \App\Models\MonitoredHost::where('name', 'like', '%' . $azureDevice->display_name . '%')->first();
 
-        $ipAddress = $azureDevice->device?->ip_address;
+        // Build per-adapter IP map: normalised_mac → ip (skip 169.x.x.x APIPA)
+        $rawMacs = $azureDevice->macs->pluck('mac_address')->toArray();
+        if ($azureDevice->ethernet_mac) $rawMacs[] = $azureDevice->ethernet_mac;
+        if ($azureDevice->wifi_mac)     $rawMacs[] = $azureDevice->wifi_mac;
+        foreach ($azureDevice->usb_eth_decoded() as $usb) {
+            if (!empty($usb['mac'])) $rawMacs[] = $usb['mac'];
+        }
+        $normalised = array_values(array_unique(array_filter(
+            array_map(fn($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), $rawMacs)
+        )));
 
-        if (! $ipAddress) {
-            // Collect all known MACs for this device (ethernet, wifi, usb adapters)
-            $rawMacs = $azureDevice->macs->pluck('mac_address')->toArray();
-            if ($azureDevice->ethernet_mac) $rawMacs[] = $azureDevice->ethernet_mac;
-            if ($azureDevice->wifi_mac)     $rawMacs[] = $azureDevice->wifi_mac;
-
-            // Normalize to uppercase no-separator for comparison
-            $normalised = array_values(array_unique(array_filter(
-                array_map(fn ($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), $rawMacs)
-            )));
-
-            if (! empty($normalised)) {
-                // DHCP leases may store MAC with colons (Meraki: lowercase) or dashes — compare stripped
-                $dhcpLease = \App\Models\DhcpLease::whereRaw(
-                    'UPPER(REPLACE(REPLACE(mac_address, \':\', \'\'), \'-\', \'\')) IN (' .
-                    implode(',', array_fill(0, count($normalised), '?')) . ')',
-                    $normalised
-                )->latest('last_seen')->first();
-
-                $ipAddress = $dhcpLease?->ip_address;
-            }
+        $dhcpByMac = [];
+        if (!empty($normalised)) {
+            \App\Models\DhcpLease::whereRaw(
+                'UPPER(REPLACE(REPLACE(mac_address,\':\',\'\'),\'-\',\'\')) IN (' .
+                implode(',', array_fill(0, count($normalised), '?')) . ')',
+                $normalised
+            )
+            ->where('ip_address', 'not like', '169.%')
+            ->orderByDesc('last_seen')
+            ->get(['mac_address', 'ip_address'])
+            ->each(function ($lease) use (&$dhcpByMac) {
+                $norm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lease->mac_address));
+                if (!isset($dhcpByMac[$norm])) {
+                    $dhcpByMac[$norm] = $lease->ip_address;
+                }
+            });
         }
 
-        // Final fallback: SNMP monitored host
-        $ipAddress = $ipAddress ?? $monitoredHost?->ip;
+        // Resolve primary IP: ITAM device → ethernet DHCP → wifi DHCP → SNMP host
+        $normMac = fn(?string $m) => $m ? strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)) : null;
+        $ipAddress = $azureDevice->device?->ip_address
+            ?? $dhcpByMac[$normMac($azureDevice->ethernet_mac)] ?? null
+            ?? $dhcpByMac[$normMac($azureDevice->wifi_mac)] ?? null
+            ?? $monitoredHost?->ip;
 
-        return view('admin.itam.azure.show', compact('azureDevice', 'monitoredHost', 'ipAddress'));
+        // Auto-detect matching employee from UPN for user-link confirmation
+        $suggestedEmployee = $this->findEmployeeByUpn($azureDevice->upn);
+        $employees         = \App\Models\Employee::orderBy('name')->get(['id', 'name', 'email']);
+
+        return view('admin.itam.azure.show', compact(
+            'azureDevice', 'monitoredHost', 'ipAddress', 'dhcpByMac', 'suggestedEmployee', 'employees'
+        ));
+    }
+
+    /**
+     * Confirm user-to-device link: assigns the Azure device's ITAM asset to an employee.
+     */
+    public function confirmUserLink(Request $request, AzureDevice $azureDevice)
+    {
+        $request->validate(['employee_id' => 'required|exists:employees,id']);
+
+        if (! $azureDevice->device_id) {
+            return back()->with('error', 'Device must be linked to an ITAM asset first.');
+        }
+
+        $device   = Device::find($azureDevice->device_id);
+        $employee = \App\Models\Employee::findOrFail($request->employee_id);
+
+        if ($device) {
+            \App\Models\EmployeeAsset::updateOrCreate(
+                ['employee_id' => $employee->id, 'asset_id' => $device->id],
+                ['assigned_date' => now(), 'condition' => 'used', 'notes' => 'User link confirmed via Azure Sync page.']
+            );
+            $device->update(['status' => 'assigned']);
+            AssetHistory::record($device, 'assigned', "User link confirmed: {$employee->name} via Azure Sync.");
+        }
+
+        ActivityLog::log("User link confirmed for {$azureDevice->display_name} → {$employee->name}");
+        return back()->with('success', "Device assigned to {$employee->name}.");
+    }
+
+    /**
+     * Intune Overview — lists all Intune-synced devices with TeamViewer, completeness flags.
+     * Only devices where net_data_synced_at is not null (i.e. have HW sync data).
+     */
+    public function intuneOverview(Request $request)
+    {
+        $query = AzureDevice::whereNotNull('net_data_synced_at')
+            ->with(['device.currentAssignment.employee']);
+
+        // Filters
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(fn($q) => $q->where('display_name', 'like', "%{$s}%")->orWhere('upn', 'like', "%{$s}%"));
+        }
+        if ($request->boolean('missing_tv')) {
+            $query->whereNull('teamviewer_id');
+        }
+        if ($request->boolean('missing_asset')) {
+            $query->whereNull('device_id');
+        }
+        if ($request->boolean('missing_user')) {
+            $query->whereNull('upn');
+        }
+
+        $query->orderBy('display_name');
+        $devices = $query->paginate(100)->withQueryString();
+
+        $stats = [
+            'total'        => AzureDevice::whereNotNull('net_data_synced_at')->count(),
+            'has_tv'       => AzureDevice::whereNotNull('net_data_synced_at')->whereNotNull('teamviewer_id')->count(),
+            'missing_tv'   => AzureDevice::whereNotNull('net_data_synced_at')->whereNull('teamviewer_id')->count(),
+            'linked_asset' => AzureDevice::whereNotNull('net_data_synced_at')->whereNotNull('device_id')->count(),
+            'linked_user'  => AzureDevice::whereNotNull('net_data_synced_at')->whereNotNull('upn')->count(),
+        ];
+
+        if ($request->boolean('export')) {
+            return $this->exportIntuneOverviewCsv($query->get());
+        }
+
+        return view('admin.itam.azure.intune-overview', compact('devices', 'stats'));
+    }
+
+    private function exportIntuneOverviewCsv($devices): \Illuminate\Http\Response
+    {
+        $rows   = [];
+        $rows[] = ['Device Name', 'Asset Code', 'UPN', 'Assigned Employee', 'Branch', 'CPU', 'TeamViewer ID', 'TV Version', 'Ethernet MAC', 'WiFi MAC', 'HW Synced At', 'Has TV', 'Linked Asset', 'Linked User'];
+
+        foreach ($devices as $az) {
+            $employee = $az->device?->currentAssignment?->employee;
+            $rows[] = [
+                $az->display_name,
+                $az->device?->asset_code ?? '',
+                $az->upn ?? '',
+                $employee?->name ?? '',
+                $az->device?->branch?->name ?? '',
+                $az->cpu_name ?? '',
+                $az->teamviewer_id ?? '',
+                $az->tv_version ?? '',
+                $az->ethernet_mac ?? '',
+                $az->wifi_mac ?? '',
+                $az->net_data_synced_at?->format('Y-m-d H:i') ?? '',
+                $az->teamviewer_id ? 'Yes' : 'No',
+                $az->device_id ? 'Yes' : 'No',
+                $az->upn ? 'Yes' : 'No',
+            ];
+        }
+
+        $csv = collect($rows)->map(fn($r) => implode(',', array_map(fn($v) => '"' . str_replace('"', '""', $v) . '"', $r)))->implode("\n");
+
+        return response($csv, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="intune-overview-' . now()->format('Y-m-d') . '.csv"',
+        ]);
     }
 
     /**

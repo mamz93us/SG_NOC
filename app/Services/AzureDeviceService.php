@@ -18,13 +18,14 @@ class AzureDeviceService
 
     /**
      * Sync Azure AD / Intune devices into azure_devices table.
-     * Returns summary: ['synced' => N, 'new' => N, 'auto_linked' => N]
+     * Returns summary: ['synced' => N, 'new' => N, 'auto_linked' => N, 'auto_assigned' => N]
      */
     public function syncDevices(): array
     {
-        $synced     = 0;
-        $newCount   = 0;
-        $autoLinked = 0;
+        $synced       = 0;
+        $newCount     = 0;
+        $autoLinked   = 0;
+        $autoAssigned = 0;
 
         try {
             $azureDevices  = $this->fetchAzureAdDevices();
@@ -36,6 +37,13 @@ class AzureDeviceService
             foreach ($merged as $data) {
                 $exists = AzureDevice::where('azure_device_id', $data['azure_device_id'])->exists();
 
+                // Sanitise UPN — strip any leading hex garbage that occasionally
+                // appears when Intune concatenates the Azure AD object ID prefix.
+                $rawUpn = $data['upn'] ?? null;
+                if ($rawUpn && preg_match('/[0-9a-f]{32}(.+@.+)/i', $rawUpn, $m)) {
+                    $rawUpn = $m[1];
+                }
+
                 $azDev = AzureDevice::updateOrCreate(
                     ['azure_device_id' => $data['azure_device_id']],
                     [
@@ -46,7 +54,7 @@ class AzureDeviceService
                         'device_type'      => $data['device_type'] ?? null,
                         'os'               => $data['os'] ?? null,
                         'os_version'       => $data['os_version'] ?? null,
-                        'upn'              => $data['upn'] ?? null,
+                        'upn'              => $rawUpn,
                         'serial_number'    => $data['serial_number'] ?? null,
                         'manufacturer'     => $data['manufacturer'] ?? null,
                         'model'            => $data['model'] ?? null,
@@ -60,10 +68,19 @@ class AzureDeviceService
                 if (!$exists) $newCount++;
                 $synced++;
 
-                // Try auto-link for unlinked devices
+                // Try auto-link for unlinked devices (by serial number)
                 if ($azDev->link_status === 'unlinked' && $azDev->serial_number) {
                     $linked = $this->attemptAutoLink($azDev);
                     if ($linked) $autoLinked++;
+                }
+
+                // Auto-assign employee whenever:
+                //   • device is fully linked to an ITAM asset
+                //   • has a UPN
+                //   • the ITAM asset has no current employee assignment yet
+                if ($azDev->link_status === 'linked' && $azDev->device_id && $rawUpn) {
+                    $assigned = $this->attemptAutoAssign($azDev, $rawUpn);
+                    if ($assigned) $autoAssigned++;
                 }
             }
         } catch (\Throwable $e) {
@@ -71,7 +88,7 @@ class AzureDeviceService
             throw $e;
         }
 
-        return ['synced' => $synced, 'new' => $newCount, 'auto_linked' => $autoLinked];
+        return ['synced' => $synced, 'new' => $newCount, 'auto_linked' => $autoLinked, 'auto_assigned' => $autoAssigned];
     }
 
     /**
@@ -93,6 +110,103 @@ class AzureDeviceService
         }
 
         return false;
+    }
+
+    /**
+     * Attempt to assign the ITAM asset (linked via $azDev->device_id) to the
+     * employee matching the given UPN.  Only creates the assignment when the
+     * asset has no current employee assignment.  Returns true if a new
+     * assignment was created.
+     */
+    public function attemptAutoAssign(AzureDevice $azDev, string $upn): bool
+    {
+        $employee = $this->findEmployeeByUpn($upn);
+        if (! $employee) return false;
+
+        $device = Device::find($azDev->device_id);
+        if (! $device) return false;
+
+        // Don't overwrite an existing assignment
+        $existing = \App\Models\EmployeeAsset::where('asset_id', $device->id)
+            ->whereNull('returned_date')
+            ->first();
+        if ($existing) return false;
+
+        \App\Models\EmployeeAsset::create([
+            'employee_id'   => $employee->id,
+            'asset_id'      => $device->id,
+            'assigned_date' => now(),
+            'condition'     => 'used',
+            'notes'         => 'Auto-assigned from Intune UPN during Azure sync.',
+        ]);
+        $device->update(['status' => 'assigned']);
+
+        \App\Models\AssetHistory::record(
+            $device,
+            'assigned',
+            "Auto-assigned to {$employee->name} from Intune UPN ({$upn}) during Azure sync."
+        );
+
+        Log::info("AzureDeviceService: auto-assigned {$device->name} to {$employee->name} (UPN={$upn})");
+        return true;
+    }
+
+    /**
+     * Find (or auto-create) the Employee who owns this UPN.
+     *
+     * Lookup chain (first match wins):
+     *   1. Employee.email = upn                         (exact)
+     *   2. IdentityUser matched → Employee by azure_id  (shared object ID)
+     *   3. IdentityUser.mail    → Employee.email        (proxy address)
+     *   4. IdentityUser found + account_enabled = true  → create Employee from
+     *      IdentityUser.display_name so future syncs can also assign.
+     *      Disabled (ex-employee) accounts are intentionally skipped.
+     */
+    public function findEmployeeByUpn(?string $upn): ?\App\Models\Employee
+    {
+        if (empty($upn)) return null;
+
+        // 1. Direct email match
+        $employee = \App\Models\Employee::where('email', $upn)->first();
+        if ($employee) return $employee;
+
+        // 2 & 3. Via IdentityUser
+        $identityUser = \App\Models\IdentityUser::where('user_principal_name', $upn)
+            ->orWhere('mail', $upn)
+            ->first();
+
+        if (! $identityUser) return null;
+
+        if ($identityUser->azure_id) {
+            $employee = \App\Models\Employee::where('azure_id', $identityUser->azure_id)->first();
+            if ($employee) return $employee;
+        }
+
+        if ($identityUser->mail) {
+            $employee = \App\Models\Employee::where('email', $identityUser->mail)->first();
+            if ($employee) return $employee;
+        }
+
+        // 4. Account exists in Azure AD but no Employee record yet.
+        //    Only auto-create for ACTIVE (enabled) accounts — disabled = left the company.
+        if (! $identityUser->account_enabled) return null;
+        if (empty($identityUser->display_name)) return null;
+
+        $email = $identityUser->mail ?: $upn;
+
+        try {
+            $employee = \App\Models\Employee::create([
+                'name'      => $identityUser->display_name,
+                'email'     => $email,
+                'azure_id'  => $identityUser->azure_id,
+                'status'    => 'active',
+            ]);
+            Log::info("AzureDeviceService: auto-created Employee '{$employee->name}' ({$email}) from IdentityUser during UPN lookup.");
+            return $employee;
+        } catch (\Throwable $e) {
+            Log::warning("AzureDeviceService: failed to auto-create Employee for UPN {$upn}: " . $e->getMessage());
+            return null;
+        }
     }
 
     private function fetchAzureAdDevices(): array

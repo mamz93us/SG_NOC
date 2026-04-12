@@ -110,9 +110,18 @@ class MacAddressController extends Controller
             'devices_with_mac' => Device::whereNotNull('mac_address')->where('mac_address', '!=', '')->count(),
         ];
 
-        // ── Export CSV ────────────────────────────────────────────────
+        // ── Export CSV ─────────────────────────────────────────────────
+        // Always export ALL records — ignore search/type/source filters in export
         if ($request->boolean('export')) {
-            return $this->exportCsv($macsQuery->get(), $deviceRows, $dhcpByMac, $normMacFn);
+            $allMacs = DeviceMac::with(['azureDevice', 'device'])->orderBy('adapter_type')->orderBy('mac_address')->get();
+            $allDeviceRows = Device::whereNotNull('mac_address')->where('mac_address', '!=', '')->with(['branch'])->get()
+                ->filter(function ($device) use ($registeredMacs) {
+                    $normalized = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $device->mac_address ?? ''));
+                    if (strlen($normalized) !== 12) return true;
+                    $formatted = implode(':', str_split($normalized, 2));
+                    return ! in_array($formatted, $registeredMacs);
+                });
+            return $this->exportCsv($allMacs, $allDeviceRows, $dhcpByMac, $normMacFn);
         }
 
         return view('admin.mac_addresses.index', compact(
@@ -125,30 +134,48 @@ class MacAddressController extends Controller
         $normMac = fn(?string $m) => $m
             ? strtoupper(implode(':', str_split(strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), 2)))
             : '';
+        $getIp = function(?string $mac) use ($dhcpByMac): string {
+            if (!$mac) return '';
+            $n = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $mac));
+            return $dhcpByMac[$n] ?? '';
+        };
 
         $rows   = [];
-        $rows[] = ['MAC Address', 'Type', 'Adapter Name', 'Owner Device', 'Asset Code', 'IP Address', 'Branch', 'Source', 'Last Seen'];
+        $rows[] = [
+            'MAC Address', 'Type', 'Adapter Name', 'Owner Device', 'Asset Code',
+            'UPN', 'IP Address', 'Branch', 'Source', 'Last Seen',
+            'TeamViewer ID', 'TV Version', 'CPU',
+        ];
 
-        // Section 1: device_macs registry
+        // Section 1: device_macs registry (Intune-synced + manual)
         foreach ($registryMacs as $mac) {
-            $owner     = $mac->azureDevice?->display_name ?? $mac->device?->name ?? '';
-            $assetCode = $mac->device?->asset_code ?? '';
-            $ip        = $mac->device?->ip_address ?? '';
-            $branch    = $mac->device?->branch?->name ?? $mac->azureDevice?->device?->branch?->name ?? '';
+            $az        = $mac->azureDevice;
+            $owner     = $az?->display_name ?? $mac->device?->name ?? '';
+            $assetCode = $mac->device?->asset_code ?? $az?->device?->asset_code ?? '';
+            $upn       = $az?->upn ?? '';
+            $ip        = $mac->device?->ip_address ?: $getIp($mac->mac_address);
+            $branch    = $mac->device?->branch?->name ?? $az?->device?->branch?->name ?? '';
+            $tvId      = $az?->teamviewer_id ?? '';
+            $tvVer     = $az?->tv_version ?? '';
+            $cpu       = $az?->cpu_name ?? '';
             $rows[]    = [
                 $mac->mac_address,
                 $mac->adapterTypeLabel(),
                 $mac->adapter_name ?? '',
                 $owner,
                 $assetCode,
+                $upn,
                 $ip,
                 $branch,
                 ucfirst($mac->source),
                 $mac->last_seen_at?->format('Y-m-d H:i') ?? '',
+                $tvId,
+                $tvVer,
+                $cpu,
             ];
         }
 
-        // Section 2: devices with single mac_address (+ wifi_mac)
+        // Section 2: devices table MACs (phones, switches, etc.)
         foreach ($deviceRows as $device) {
             $lanNorm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $device->mac_address ?? ''));
             $ip      = $device->ip_address ?: ($dhcpByMac[$lanNorm] ?? '');
@@ -158,10 +185,12 @@ class MacAddressController extends Controller
                 'LAN',
                 $device->name,
                 $device->asset_code ?? '',
+                '',
                 $ip,
                 $device->branch?->name ?? '',
                 'Manual',
                 '',
+                '', '', '',
             ];
             if ($device->wifi_mac) {
                 $wifiNorm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $device->wifi_mac));
@@ -172,10 +201,12 @@ class MacAddressController extends Controller
                     'Wi-Fi',
                     $device->name,
                     $device->asset_code ?? '',
+                    '',
                     $wifiIp,
                     $device->branch?->name ?? '',
                     'Manual',
                     '',
+                    '', '', '',
                 ];
             }
         }

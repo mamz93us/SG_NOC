@@ -123,6 +123,69 @@ class GdmsService
     }
 
     /**
+     * List ALL VoIP phone devices from GDMS (excludes UCM / PBX appliances).
+     *
+     * Tries projectId=1 (VoIP phone project) first; falls back to the full list
+     * and filters by product name if the project-scoped call returns nothing.
+     * Handles pagination automatically (up to 20 pages × 200 per page = 4 000 devices).
+     *
+     * Each returned item has at minimum: mac, productName, deviceIp, firmwareVersion,
+     * deviceStatus (1=online, 0=offline), deviceName.
+     */
+    public function listAllPhoneDevices(): array
+    {
+        $all  = [];
+        $page = 1;
+
+        // ── Attempt 1: projectId=1 → VoIP phone project ─────────────────
+        try {
+            do {
+                $raw  = $this->postSigned('/v1.0.0/device/list', $page, 200, ['projectId' => 1]);
+                $list = $this->extractList($raw);
+                $all  = array_merge($all, $list);
+                $total = (int) ($raw['data']['total'] ?? count($list));
+                $page++;
+            } while (! empty($list) && count($all) < $total && $page <= 20);
+        } catch (\Throwable) {
+            $all = [];
+        }
+
+        // ── Attempt 2: no projectId filter, then exclude UCM models ──────
+        if (empty($all)) {
+            try {
+                $raw = $this->postSigned('/v1.0.0/device/list', 1, 1000);
+                $all = $this->extractList($raw);
+            } catch (\Throwable) {
+                return [];
+            }
+        }
+
+        // Normalise field names (GDMS /device/list uses different keys than /device/detail)
+        // Raw fields: deviceType → model, privateip → IP, sn → serial, status → online
+        $normalised = [];
+        foreach ($all as $d) {
+            $model = $d['deviceType'] ?? $d['productName'] ?? $d['model'] ?? '';
+            // Filter out UCM / PBX appliances
+            if (str_contains(strtoupper($model), 'UCM') || str_contains(strtoupper($model), 'PBX')) {
+                continue;
+            }
+            $normalised[] = [
+                'mac'             => $d['mac']             ?? $d['macAddr']      ?? '',
+                'productName'     => $model,
+                'sn'              => $d['sn']              ?? $d['serialNumber'] ?? null,
+                'deviceIp'        => $d['privateip']       ?? $d['deviceIp']     ?? $d['ip'] ?? null,
+                'publicIp'        => $d['publicIp']        ?? null,
+                'firmwareVersion' => $d['firmwareVersion'] ?? $d['firmware']     ?? null,
+                'deviceStatus'    => (int) ($d['status']   ?? $d['deviceStatus'] ?? 0),
+                'accountStatus'   => (int) ($d['accountStatus'] ?? 0),
+                'lastTime'        => $d['lastTime']        ?? $d['lastOnlineTime'] ?? null,
+                '_raw'            => $d,
+            ];
+        }
+        return $normalised;
+    }
+
+    /**
      * List all devices in GDMS (/v1.0.0/device/list) — phones & endpoints.
      * Optionally filter by a string that appears anywhere in productName.
      * Returns the raw list; data path tried in order: dataList → list → direct array.
@@ -246,12 +309,13 @@ class GdmsService
     /**
      * Extract the list array from a GDMS response.
      * Handles multiple possible response shapes:
-     *   data.dataList, data.list, data.ucmList, data (direct array)
+     *   data.result, data.dataList, data.list, data.ucmList, data.deviceList, data (direct array)
      */
     private function extractList(array $data): array
     {
         $d = $data['data'] ?? [];
 
+        if (isset($d['result'])    && is_array($d['result']))    return $d['result'];
         if (isset($d['dataList'])  && is_array($d['dataList']))  return $d['dataList'];
         if (isset($d['list'])      && is_array($d['list']))      return $d['list'];
         if (isset($d['ucmList'])   && is_array($d['ucmList']))   return $d['ucmList'];

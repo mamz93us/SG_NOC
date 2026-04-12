@@ -375,7 +375,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('devices/{device}',          [DeviceController::class, 'destroy'])     ->name('devices.destroy');
         Route::post('devices/{device}/assign',     [DeviceController::class, 'quickAssign']) ->name('devices.assign');
         Route::post('devices/{device}/return',     [DeviceController::class, 'quickReturn']) ->name('devices.return');
-        Route::post('devices/phone-auto-assign',   [PhoneAutoAssignController::class, 'store'])->name('devices.phone-auto-assign.store');
+        Route::post('devices/phone-auto-assign',          [PhoneAutoAssignController::class, 'store'])->name('devices.phone-auto-assign.store');
+        Route::post('devices/phone-auto-assign/create-assets', [PhoneAutoAssignController::class, 'createAssets'])->name('devices.phone-auto-assign.create-assets');
         Route::post('devices/import/preview',      [DeviceImportController::class, 'preview'])->name('devices.import.preview');
         Route::post('devices/import/apply',        [DeviceImportController::class, 'apply'])->name('devices.import.apply');
         Route::post('devices/import/manual',       [DeviceImportController::class, 'manualStore'])->name('devices.import.manual');
@@ -962,6 +963,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── Azure Device Sync ────────────────────────────────────────
     Route::middleware('permission:view-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
         Route::get('/mappings',          [AzureSyncController::class, 'mappings'])->name('mappings');
+        Route::get('/intune-overview',   [AzureSyncController::class, 'intuneOverview'])->name('intune-overview');
 
         // These specific ID routes must come before the general /{azureDevice}
         Route::get('/{azureDevice}/create-device',   [AzureSyncController::class, 'createDevice'])  ->name('create-device');
@@ -972,15 +974,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/{azureDevice}', [AzureSyncController::class, 'show']) ->name('show');
     });
     Route::middleware('permission:manage-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
-        Route::post('/sync',                       [AzureSyncController::class, 'sync'])           ->name('sync');
-        Route::post('/sync-all-hw-data',           [AzureSyncController::class, 'syncAllHwData']) ->name('sync-all-hw-data');
-        Route::patch('/{azureDevice}/approve',     [AzureSyncController::class, 'approve'])     ->name('approve');
-        Route::patch('/{azureDevice}/reject',      [AzureSyncController::class, 'reject'])      ->name('reject');
-        Route::post('/{azureDevice}/link-device',  [AzureSyncController::class, 'linkDevice'])  ->name('link-device');
-        Route::post('/{azureDevice}/import',       [AzureSyncController::class, 'importToItam'])->name('import');
-        Route::post('/{azureDevice}/sync-branch',  [AzureSyncController::class, 'reDetectBranch'])->name('sync-branch');
-        Route::post('/{azureDevice}/sync-hw-data', [AzureSyncController::class, 'syncHwData'])    ->name('sync-hw-data');
-        Route::post('/batch-import',               [AzureSyncController::class, 'batchImport'])->name('batch-import');
+        Route::post('/sync',                            [AzureSyncController::class, 'sync'])             ->name('sync');
+        Route::post('/sync-all-hw-data',                [AzureSyncController::class, 'syncAllHwData'])    ->name('sync-all-hw-data');
+        Route::patch('/{azureDevice}/approve',          [AzureSyncController::class, 'approve'])          ->name('approve');
+        Route::patch('/{azureDevice}/reject',           [AzureSyncController::class, 'reject'])           ->name('reject');
+        Route::post('/{azureDevice}/link-device',       [AzureSyncController::class, 'linkDevice'])       ->name('link-device');
+        Route::post('/{azureDevice}/import',            [AzureSyncController::class, 'importToItam'])     ->name('import');
+        Route::post('/{azureDevice}/sync-branch',       [AzureSyncController::class, 'reDetectBranch'])   ->name('sync-branch');
+        Route::post('/{azureDevice}/sync-hw-data',      [AzureSyncController::class, 'syncHwData'])       ->name('sync-hw-data');
+        Route::post('/{azureDevice}/confirm-user-link', [AzureSyncController::class, 'confirmUserLink'])  ->name('confirm-user-link');
+        Route::post('/batch-import',                    [AzureSyncController::class, 'batchImport'])      ->name('batch-import');
         
         // Branch Mapping
         Route::get('/mappings',                    [AzureSyncController::class, 'mappings'])->name('mappings');

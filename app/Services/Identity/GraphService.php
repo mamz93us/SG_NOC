@@ -783,85 +783,6 @@ class GraphService
     }
 
     /**
-     * Paginate ALL device run states for a script via the userRunStates hierarchy.
-     *
-     * The flat deviceRunStates endpoint only exposes a partial subset (~50) of
-     * devices and has a broken pagination token on most tenants.  The correct
-     * approach (matching what the Intune portal itself does) is to paginate
-     * userRunStates and expand deviceRunStates inline for each user.
-     *
-     * The callback receives the same device-state shape as listScriptRunStates,
-     * but with an extra 'managedDeviceId' field already extracted so the caller
-     * does not need to parse the composite id.
-     *
-     * @param string   $scriptId
-     * @param callable $callback  fn(array $deviceStates): void
-     */
-    public function listScriptRunStatesViaUsers(string $scriptId, callable $callback): void
-    {
-        $baseUrl = $this->betaUrl
-            . "/deviceManagement/deviceManagementScripts/{$scriptId}/userRunStates";
-
-        // Smaller page size: each user entry expands to N device records inline
-        $top  = 50;
-        $seen = [];  // user-state IDs already processed
-        $page = 0;
-        $url  = $baseUrl;
-
-        do {
-            if ($page > 0) {
-                usleep(2000 * 1000); // 2 s between pages
-            }
-
-            $body = $this->get(
-                $url,
-                $url === $baseUrl
-                    ? [
-                        '$top'    => $top,
-                        '$expand' => 'deviceRunStates',
-                      ]
-                    : [],
-                self::TIMEOUT_BULK
-            );
-
-            $userStates = $body['value'] ?? [];
-            $page++;
-
-            if (empty($userStates)) {
-                $url = $body['@odata.nextLink'] ?? null;
-                continue;
-            }
-
-            // Dedup guard: stop if we have cycled back to a user we already processed
-            $firstId = $userStates[0]['id'] ?? null;
-            if ($firstId && isset($seen[$firstId])) {
-                break;
-            }
-
-            // Flatten all device run states from every user on this page
-            $deviceStates = [];
-            foreach ($userStates as $us) {
-                $seen[$us['id'] ?? ''] = true;
-
-                foreach ($us['deviceRunStates'] ?? [] as $ds) {
-                    // Ensure managedDeviceId is set — parse from composite id if absent
-                    if (empty($ds['managedDeviceId'])) {
-                        $parts = explode(':', $ds['id'] ?? '');
-                        $ds['managedDeviceId'] = $parts[1] ?? null;
-                    }
-                    $deviceStates[] = $ds;
-                }
-            }
-
-            if (! empty($deviceStates)) {
-                $callback($deviceStates, count($userStates));
-            }
-
-            $url = $body['@odata.nextLink'] ?? null;
-        } while ($url);
-    }
-
-    /**
      * Fetch a single script run-state for one device.
      * The composite ID is "{scriptId}:{managedDeviceId}".
      * Returns the run-state object array, or null if not found.
@@ -912,8 +833,6 @@ class GraphService
         // ── 1. Create async export job ────────────────────────────────────
         // Use empty select (all columns) — Intune rejects explicit column lists
         // for this report name with HTTP 400 InvalidArgument on some tenants.
-        // ResultMessage is intentionally absent from bulk exports; we fetch it
-        // individually via getDeviceScriptResult() after building the ID map.
         $job = $this->post(
             $this->betaUrl . '/deviceManagement/reports/exportJobs',
             [
@@ -1002,22 +921,28 @@ class GraphService
             fclose($handle);
             throw new \RuntimeException('Intune export CSV has no header row');
         }
-        $headers = array_map('trim', $headers);
+        // Strip UTF-8 BOM from first header and remove surrounding quotes
+        $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headers[0]);
+        $headers = array_map(fn($h) => trim($h, " \t\n\r\0\x0B\""), $headers);
 
         if ($progress) {
             $progress("  CSV columns: " . implode(', ', $headers));
         }
 
-        // Normalise column name variations across Intune tenants/locales
+        // Normalise column name variations across Intune tenants/locales.
+        // IMPORTANT: The export CSV uses 'PolicyResultDetail' for the script
+        // stdout output, NOT 'ResultMessage'.
         $colAlias = [
             'DeviceId'                => 'deviceId',
             'ManagedDeviceId'         => 'deviceId',
             'DeviceName'              => 'deviceName',
             'RunState'                => 'runState',
             'ResultMessage'           => 'resultMessage',
+            'PolicyResultDetail'      => 'resultMessage',
             'ErrorCode'               => 'errorCode',
             'LastStateUpdateDateTime' => 'lastUpdated',
             'LastSyncDateTime'        => 'lastUpdated',
+            'ModifiedTime'            => 'lastUpdated',
         ];
 
         // Intune CSV may encode RunState as an integer; map to the string used by the JSON API
@@ -1059,47 +984,6 @@ class GraphService
         fclose($handle);
 
         return $map;
-    }
-
-    /**
-     * Fetch the script run result for one device via the managedDevices navigation.
-     *
-     * The /deviceManagementScripts/{id}/deviceRunStates endpoint has two bugs:
-     *   • pagination cycles after ~50 devices
-     *   • $filter on 'id' is silently ignored (always returns first record)
-     *
-     * This endpoint is different: the device GUID lives in the URL path, so
-     * the Intune proxy returns the correct device's states every time.
-     * We scan the returned collection for the entry matching our $scriptId.
-     *
-     * Required permission: DeviceManagementConfiguration.Read.All
-     *
-     * @param  string $managedDeviceId  Intune managed device GUID
-     * @param  string $scriptId         deviceManagementScript GUID
-     * @return array|null               State with resultMessage, or null if not found
-     */
-    public function getDeviceScriptResult(string $managedDeviceId, string $scriptId): ?array
-    {
-        // The composite id on deviceManagementScriptDeviceState is "{scriptId}:{managedDeviceId}".
-        // When accessed via the managedDevice navigation the same id format is used,
-        // so we match by checking that id starts with "{scriptId}:".
-        $url = $this->betaUrl
-            . "/deviceManagement/managedDevices/{$managedDeviceId}/deviceManagementScriptStates";
-        try {
-            $body = $this->get($url, [
-                '$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime',
-            ], self::TIMEOUT_BULK);
-            $prefix = $scriptId . ':';
-            foreach ($body['value'] ?? [] as $state) {
-                if (str_starts_with($state['id'] ?? '', $prefix)) {
-                    return $state;
-                }
-            }
-            return null;
-        } catch (\RuntimeException $e) {
-            // 404 = device not enrolled in script; 403 = permission denied
-            return null;
-        }
     }
 
     /**

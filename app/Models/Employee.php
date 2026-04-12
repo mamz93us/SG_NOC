@@ -19,6 +19,8 @@ class Employee extends Model
         'status',
         'hired_date',
         'terminated_date',
+        'azure_disabled_at',
+        'azure_removed_at',
         'notes',
         'extension_number',
         'ucm_server_id',
@@ -26,9 +28,11 @@ class Employee extends Model
     ];
 
     protected $casts = [
-        'hired_date'      => 'date',
-        'terminated_date' => 'date',
-        'ucm_server_id'   => 'integer',
+        'hired_date'        => 'date',
+        'terminated_date'   => 'date',
+        'azure_disabled_at' => 'datetime',
+        'azure_removed_at'  => 'datetime',
+        'ucm_server_id'     => 'integer',
     ];
 
     // ─────────────────────────────────────────────────────────────

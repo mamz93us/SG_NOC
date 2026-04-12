@@ -19,6 +19,40 @@
     </div>
 </div>
 
+{{-- ── Azure Account Lifecycle Alerts ─────────────────────────────────────── --}}
+@php
+    $azureCurrentlyDisabled = $employee->identityUser && ! $employee->identityUser->account_enabled;
+@endphp
+
+@if($employee->azure_removed_at)
+<div class="alert alert-danger d-flex align-items-start gap-2 mb-3" role="alert">
+    <i class="bi bi-person-x-fill fs-5 mt-1 flex-shrink-0"></i>
+    <div>
+        <strong>Azure AD Account Permanently Removed</strong>
+        — Deleted from directory on <strong>{{ $employee->azure_removed_at->format('d M Y H:i') }}</strong>.
+        Employee status has been set to <span class="badge bg-danger">Terminated</span>.
+    </div>
+</div>
+@elseif($employee->azure_disabled_at || $azureCurrentlyDisabled)
+@php $disabledActiveAssets = $employee->activeAssets; @endphp
+<div class="alert alert-warning d-flex align-items-start gap-2 mb-3" role="alert">
+    <i class="bi bi-exclamation-triangle-fill fs-5 mt-1 flex-shrink-0"></i>
+    <div>
+        <strong>Azure AD Account Disabled</strong>
+        @if($employee->azure_disabled_at)
+        — Account was disabled on <strong>{{ $employee->azure_disabled_at->format('d M Y H:i') }}</strong>.
+        @else
+        — Account is currently disabled in Azure AD.
+        @endif
+        @if($disabledActiveAssets->isNotEmpty())
+        This employee has <strong>{{ $disabledActiveAssets->count() }} active device assignment(s)</strong> that require return.
+        Please arrange device collection with the employee or their manager.
+        @endif
+    </div>
+</div>
+@endif
+{{-- ─────────────────────────────────────────────────────────────────────── --}}
+
 
 <div class="row g-4 mb-4">
 
@@ -67,6 +101,24 @@
                     @if($employee->terminated_date)
                     <dt class="col-5 text-muted">Terminated</dt>
                     <dd class="col-7">{{ $employee->terminated_date->format('d M Y') }}</dd>
+                    @endif
+
+                    @if($employee->azure_disabled_at)
+                    <dt class="col-5 text-muted">Azure Disabled</dt>
+                    <dd class="col-7">
+                        <span class="badge bg-warning text-dark">
+                            <i class="bi bi-person-slash me-1"></i>{{ $employee->azure_disabled_at->format('d M Y') }}
+                        </span>
+                    </dd>
+                    @endif
+
+                    @if($employee->azure_removed_at)
+                    <dt class="col-5 text-muted">Azure Removed</dt>
+                    <dd class="col-7">
+                        <span class="badge bg-danger">
+                            <i class="bi bi-person-x me-1"></i>{{ $employee->azure_removed_at->format('d M Y') }}
+                        </span>
+                    </dd>
                     @endif
 
                     @if($employee->identityUser?->office_location)
@@ -224,7 +276,8 @@
         @endif
 
         @if($employee->identityUser)
-        <div class="card shadow-sm border-0">
+        <div class="card shadow-sm border-0"
+             style="{{ $employee->azure_removed_at ? 'border-left:4px solid #dc3545!important' : (($employee->azure_disabled_at || $azureCurrentlyDisabled) ? 'border-left:4px solid #ffc107!important' : '') }}">
             <div class="card-header bg-transparent"><strong><i class="bi bi-microsoft me-1"></i>Azure AD</strong></div>
             <div class="card-body small">
                 <dl class="row mb-0">
@@ -233,6 +286,11 @@
                         <span class="badge {{ $employee->identityUser->account_enabled ? 'bg-success' : 'bg-danger' }}">
                             {{ $employee->identityUser->account_enabled ? 'Enabled' : 'Disabled' }}
                         </span>
+                        @if(!$employee->identityUser->account_enabled)
+                            @if($employee->azure_disabled_at)
+                            <span class="text-muted ms-1" style="font-size:.7rem">since {{ $employee->azure_disabled_at->format('d M Y') }}</span>
+                            @endif
+                        @endif
                     </dd>
                     <dt class="col-5 text-muted">Licenses</dt>
                     <dd class="col-7">{{ $employee->identityUser->licenses_count ?? 0 }}</dd>

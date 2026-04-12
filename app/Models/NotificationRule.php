@@ -58,6 +58,8 @@ class NotificationRule extends Model
             'printer_maintenance'=> 'Printer Maintenance',
             'license_alert'      => 'License Alert',
             'isp_renewal'        => 'ISP Renewal Reminder',
+            'account_disabled'   => 'Azure Account Disabled',
+            'account_removed'    => 'Azure Account Removed',
         ];
     }
 }

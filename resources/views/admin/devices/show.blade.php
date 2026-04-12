@@ -103,55 +103,71 @@
                         $normMacFn = fn(?string $m) => $m
                             ? strtoupper(implode(':', str_split(strtoupper(preg_replace('/[^a-fA-F0-9]/','',$m)),2)))
                             : null;
-                        // IP resolution: device IP → DHCP → nothing
-                        $displayIp  = $device->ip_address ?: $dhcpLease?->ip_address;
-                        $ipFromDhcp = !$device->ip_address && $dhcpLease?->ip_address;
+                        $normRaw = fn(?string $m) => $m
+                            ? strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m))
+                            : null;
                         // Azure device & Intune HW data
                         $az       = $device->azureDevice;
                         $intuneHw = $az && $az->net_data_synced_at;
-                        // MAC resolution: device field → Intune ethernet_mac → nothing
-                        $displayMac     = $device->mac_address ?: ($intuneHw ? $az->ethernet_mac : null);
-                        $macFromIntune  = !$device->mac_address && $intuneHw && $az->ethernet_mac;
-                        // WiFi MAC: device field → Intune wifi_mac → nothing
-                        $displayWifiMac    = $device->wifi_mac ?: ($intuneHw ? $az->wifi_mac : null);
-                        $wifiMacFromIntune = !$device->wifi_mac && $intuneHw && $az->wifi_mac;
+                        // MAC resolution:
+                        // Once Intune has synced (net_data_synced_at is set), it is the ONLY
+                        // source of truth — do NOT fall back to device->mac_address, which may
+                        // contain stale data from a previous broken sync.
+                        $displayMac        = $intuneHw ? $az->ethernet_mac  : $device->mac_address;
+                        $macFromIntune     = $intuneHw && $az->ethernet_mac;
+                        $displayWifiMac    = $intuneHw ? $az->wifi_mac       : $device->wifi_mac;
+                        $wifiMacFromIntune = $intuneHw && $az->wifi_mac;
+                        // Per-adapter DHCP IP lookup (dhcpByMac: normalised_mac => ip)
+                        // IPs starting with 169.x.x.x are already excluded in the controller
+                        $getAdapterIp = function(?string $mac) use ($dhcpByMac, $normRaw): ?string {
+                            if (!$mac) return null;
+                            $n = $normRaw($mac);
+                            return $dhcpByMac[$n] ?? null;
+                        };
+                        $ethernetIp = $device->ip_address ?: $getAdapterIp($displayMac);
+                        $wifiIp     = $getAdapterIp($displayWifiMac);
+                        // USB adapter IPs
+                        $usbAdapters = $intuneHw ? ($az->usb_eth_decoded() ?? []) : [];
+                        foreach ($usbAdapters as &$usbA) {
+                            $usbA['ip'] = $getAdapterIp($usbA['mac'] ?? null);
+                        } unset($usbA);
+                        $primaryIp   = $ethernetIp ?: $wifiIp;
+                        $ethernetFromDhcp = !$device->ip_address && $ethernetIp;
                     @endphp
+                    {{-- Ethernet / Primary IP --}}
                     <tr><th class="text-muted ps-3">IP</th>
                         <td class="font-monospace">
-                            <span id="dv-ip-display">
-                            @if($displayIp)
-                                {{ $displayIp }}
-                                @if($ipFromDhcp)
-                                    <span class="badge bg-info text-dark ms-1" style="font-size:.65em"
-                                          title="From DHCP lease ({{ $dhcpLease->source }}, {{ $dhcpLease->last_seen?->diffForHumans() }})">DHCP</span>
+                            @if($ethernetIp)
+                                {{ $ethernetIp }}
+                                @if($ethernetFromDhcp)
+                                    <span class="badge bg-info text-dark ms-1" style="font-size:.65em">DHCP</span>
                                 @endif
                             @else
                                 <span class="text-muted">—</span>
                             @endif
-                            </span>
                             @can('manage-network-settings')
                             <a href="{{ route('admin.network.ip-reservations.create', ['device_id' => $device->id]) }}"
                                class="btn btn-sm btn-outline-primary py-0 px-1 ms-1" style="font-size:11px">
                                 <i class="bi bi-plus"></i>
                             </a>
                             @endcan
-                            @if($displayMac || ($intuneHw && $az && $az->ethernet_mac))
-                            <button type="button" id="dv-dhcp-btn"
-                                    class="btn btn-sm btn-outline-info py-0 px-1 ms-1" style="font-size:11px"
-                                    title="Look up IP from DHCP leases"
-                                    data-mac="{{ $normMacFn($displayMac ?: ($intuneHw && $az ? $az->ethernet_mac : '')) }}"
-                                    data-lookup-url="{{ route('admin.devices.dhcp-lookup') }}">
-                                <i class="bi bi-search"></i>
-                            </button>
-                            @endif
                         </td></tr>
+                    {{-- WiFi IP (only if Intune synced and different from ethernet) --}}
+                    @if($wifiIp && $wifiIp !== $ethernetIp)
+                    <tr><th class="text-muted ps-3"><i class="bi bi-wifi me-1 text-info"></i>WiFi IP</th>
+                        <td class="font-monospace">
+                            {{ $wifiIp }}
+                            <span class="badge bg-info text-dark ms-1" style="font-size:.65em">DHCP</span>
+                        </td></tr>
+                    @endif
+                    {{-- Ethernet MAC --}}
                     <tr><th class="text-muted ps-3">
                             @if($device->type === 'phone') LAN MAC @else MAC @endif
                         </th>
                         <td class="font-monospace">
                             @if($displayMac)
                                 {{ $normMacFn($displayMac) }}
-                                @if($intuneHw && ($az->ethernet_mac || $macFromIntune))
+                                @if($macFromIntune)
                                     <span class="badge bg-success ms-1" style="font-size:.65em">Intune</span>
                                 @else
                                     <span class="badge bg-secondary ms-1" style="font-size:.65em">Manual</span>
@@ -160,6 +176,7 @@
                                 <span class="text-muted">—</span>
                             @endif
                         </td></tr>
+                    {{-- WiFi MAC --}}
                     @if($displayWifiMac || $device->type === 'phone')
                     <tr><th class="text-muted ps-3"><i class="bi bi-wifi me-1 text-info"></i>WiFi MAC</th>
                         <td class="font-monospace">
@@ -168,7 +185,7 @@
                                 @if($device->type === 'phone' && !$wifiMacFromIntune)
                                     <span class="badge bg-info text-dark ms-1" style="font-size:.65em">+1</span>
                                 @endif
-                                @if($intuneHw && ($az->wifi_mac || $wifiMacFromIntune))
+                                @if($wifiMacFromIntune)
                                     <span class="badge bg-success ms-1" style="font-size:.65em">Intune</span>
                                 @elseif(!$wifiMacFromIntune)
                                     <span class="badge bg-secondary ms-1" style="font-size:.65em">Manual</span>
@@ -178,6 +195,17 @@
                             @endif
                         </td></tr>
                     @endif
+                    {{-- USB / Dock adapter IPs (if any) --}}
+                    @foreach($usbAdapters as $usbA)
+                        @if(!empty($usbA['ip']))
+                        <tr><th class="text-muted ps-3"><i class="bi bi-usb-symbol me-1 text-warning"></i>USB IP</th>
+                            <td class="font-monospace">
+                                {{ $usbA['ip'] }}
+                                <span class="text-muted small ms-1">{{ $usbA['name'] ?? '' }}</span>
+                                <span class="badge bg-info text-dark ms-1" style="font-size:.65em">DHCP</span>
+                            </td></tr>
+                        @endif
+                    @endforeach
                     <tr><th class="text-muted ps-3">Branch</th>
                         <td>{{ $device->branch?->name ?: '—' }}</td></tr>
                     @if($device->floor || $device->office)

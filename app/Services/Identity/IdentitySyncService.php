@@ -176,14 +176,31 @@ class IdentitySyncService
     public function syncUsers(array &$errors): int
     {
         try {
-            $count     = 0;
-            $activeIds = [];
+            $count         = 0;
+            $activeIds     = [];
+            $newlyDisabled = [];
 
-            $this->graph->listUsers(function ($chunk) use (&$count, &$activeIds) {
+            // Pre-load existing account_enabled status snapshot for transition detection.
+            // We do this once before chunked processing so we compare against the
+            // state that was in the DB before this sync run started.
+            $existingEnabledMap = IdentityUser::pluck('account_enabled', 'azure_id');
+
+            $this->graph->listUsers(function ($chunk) use (&$count, &$activeIds, &$newlyDisabled, $existingEnabledMap) {
                 if (empty($chunk)) return;
 
-                DB::transaction(function () use ($chunk, &$activeIds) {
+                DB::transaction(function () use ($chunk, &$activeIds, &$newlyDisabled, $existingEnabledMap) {
                     foreach ($chunk as $u) {
+                        // ── Detect account_enabled: true → false transition ──────
+                        $wasEnabled = isset($existingEnabledMap[$u['id']])
+                            ? (bool) $existingEnabledMap[$u['id']]
+                            : null; // null = new user (never seen before)
+                        $nowEnabled = (bool) ($u['accountEnabled'] ?? true);
+
+                        if ($wasEnabled === true && ! $nowEnabled) {
+                            $newlyDisabled[] = $u['id'];
+                        }
+                        // ────────────────────────────────────────────────────────
+
                         // Extract skuIds from assignedLicenses array of objects
                         $rawLicenses = $u['assignedLicenses'] ?? [];
                         $licenseSkus = [];
@@ -223,8 +240,20 @@ class IdentitySyncService
                 gc_collect_cycles();
             });
 
+            // ── Handle newly-disabled accounts ──────────────────────────────
+            // Done OUTSIDE the transaction so notification email jobs dispatch correctly.
+            if (! empty($newlyDisabled)) {
+                $this->handleDisabledAccounts($newlyDisabled);
+            }
+
             // Remove users no longer in Azure AD
             if ($count > 0) {
+                // Capture removed azure_ids BEFORE deleting so we can notify
+                $removedAzureIds = IdentityUser::whereNotIn('azure_id', $activeIds)
+                    ->pluck('azure_id')->toArray();
+                if (! empty($removedAzureIds)) {
+                    $this->handleRemovedAccounts($removedAzureIds);
+                }
                 IdentityUser::whereNotIn('azure_id', $activeIds)->delete();
             }
 
@@ -312,6 +341,108 @@ class IdentitySyncService
         } catch (\Throwable $e) {
             $errors[] = 'Memberships: ' . $e->getMessage();
             Log::error('IdentitySyncService: Membership sync error: ' . $e->getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Azure Account Lifecycle Helpers
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Called when accounts transition from enabled → disabled in Azure AD.
+     * Sets azure_disabled_at on the linked Employee record and notifies IT so
+     * the team can arrange device return.
+     */
+    private function handleDisabledAccounts(array $azureIds): void
+    {
+        if (empty($azureIds)) return;
+
+        /** @var \App\Services\NotificationService $notifier */
+        $notifier = app(\App\Services\NotificationService::class);
+
+        foreach ($azureIds as $azureId) {
+            try {
+                $employee = \App\Models\Employee::where('azure_id', $azureId)->first();
+                if (! $employee) continue;
+
+                // Only stamp once (idempotent)
+                if (! $employee->azure_disabled_at) {
+                    $employee->update(['azure_disabled_at' => now()]);
+                }
+
+                // Collect active device assignments to mention in the alert
+                $activeAssets = $employee->activeAssets()->with('device')->get();
+                $assetNames   = $activeAssets->map(fn ($a) => $a->device?->name ?? "Asset #{$a->asset_id}")->implode(', ');
+
+                $message = "Azure AD account for {$employee->name} ({$employee->email}) was disabled.";
+                if ($activeAssets->isNotEmpty()) {
+                    $message .= " {$activeAssets->count()} device(s) still assigned and require return: {$assetNames}.";
+                }
+
+                $link = route('admin.employees.show', $employee->id);
+
+                $notifier->notifyViaRules(
+                    'account_disabled',
+                    "Azure Account Disabled: {$employee->name}",
+                    $message,
+                    $link,
+                    'warning'
+                );
+
+                Log::info("IdentitySyncService: Azure account disabled — employee={$employee->name}, azure_id={$azureId}");
+            } catch (\Throwable $e) {
+                Log::error("IdentitySyncService: handleDisabledAccounts failed for azure_id={$azureId}: " . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Called for accounts that were present in the last sync but are absent from
+     * the current Azure AD response (i.e. permanently deleted from the directory).
+     * Marks the Employee as terminated and records azure_removed_at.
+     */
+    private function handleRemovedAccounts(array $azureIds): void
+    {
+        if (empty($azureIds)) return;
+
+        /** @var \App\Services\NotificationService $notifier */
+        $notifier = app(\App\Services\NotificationService::class);
+
+        foreach ($azureIds as $azureId) {
+            try {
+                $employee = \App\Models\Employee::where('azure_id', $azureId)->first();
+                if (! $employee) continue;
+
+                // Mark employee as terminated + record removal timestamp
+                $employee->update([
+                    'azure_removed_at' => now(),
+                    'terminated_date'  => $employee->terminated_date ?? now()->toDateString(),
+                    'status'           => 'terminated',
+                ]);
+
+                // Collect active device assignments
+                $activeAssets = $employee->activeAssets()->with('device')->get();
+                $assetNames   = $activeAssets->map(fn ($a) => $a->device?->name ?? "Asset #{$a->asset_id}")->implode(', ');
+
+                $message = "Azure AD account for {$employee->name} ({$employee->email}) was permanently removed from the directory. Employee status set to Terminated.";
+                if ($activeAssets->isNotEmpty()) {
+                    $message .= " Please collect {$activeAssets->count()} device(s): {$assetNames}.";
+                }
+
+                $link = route('admin.employees.show', $employee->id);
+
+                $notifier->notifyViaRules(
+                    'account_removed',
+                    "Azure Account Removed: {$employee->name}",
+                    $message,
+                    $link,
+                    'danger'
+                );
+
+                Log::info("IdentitySyncService: Azure account removed — employee={$employee->name}, azure_id={$azureId}");
+            } catch (\Throwable $e) {
+                Log::error("IdentitySyncService: handleRemovedAccounts failed for azure_id={$azureId}: " . $e->getMessage());
+            }
         }
     }
 

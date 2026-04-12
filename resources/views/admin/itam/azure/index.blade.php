@@ -27,6 +27,9 @@
                 </button>
             </form>
             @endcan
+            <a href="{{ route('admin.itam.azure.intune-overview') }}" class="btn btn-outline-info btn-sm">
+                <i class="bi bi-display me-1"></i>Intune Overview
+            </a>
             <a href="{{ route('admin.itam.azure.mappings') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-geo-alt me-1"></i>Branch Mappings
             </a>
