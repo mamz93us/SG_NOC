@@ -239,7 +239,8 @@
       "Bash(__NEW_LINE_4d869be38b06fc15__ scp:*)",
       "Bash(__NEW_LINE_47cdeb7731d353f8__ scp:*)",
       "Bash(__NEW_LINE_47cdeb7731d353f8__ echo:*)",
-      "Bash(scp -i \"C:/Users/MohamedZahran/Downloads/SG-NOC_key.pem\" -o StrictHostKeyChecking=no azureuser@noc.samirgroup.net:~/phonebook2/database/migrations/2026_04_06_000001_add_azure_disabled_at_to_employees.php /tmp/sample_migration.php)"
+      "Bash(scp -i \"C:/Users/MohamedZahran/Downloads/SG-NOC_key.pem\" -o StrictHostKeyChecking=no azureuser@noc.samirgroup.net:~/phonebook2/database/migrations/2026_04_06_000001_add_azure_disabled_at_to_employees.php /tmp/sample_migration.php)",
+      "Bash(ssh azureuser@SG-NOC \"grep -n 'internet-access-levels' ~/phonebook2/routes/web.php\")"
     ]
   }
 }

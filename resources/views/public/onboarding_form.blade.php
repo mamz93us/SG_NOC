@@ -159,18 +159,13 @@
         <div class="section-title"><i class="bi bi-wifi me-1"></i>Internet Access Level</div>
         <label class="form-label fw-semibold">Internet Level <span class="text-danger">*</span></label>
         <div class="row g-2">
-          @foreach([
-            'business' => ['label' => 'Business', 'desc' => 'Standard business access', 'color' => 'secondary'],
-            'site'     => ['label' => 'Site',     'desc' => 'Site-wide access',          'color' => 'info'],
-            'high'     => ['label' => 'High',     'desc' => 'Elevated access',           'color' => 'warning'],
-            'vip'      => ['label' => 'VIP',      'desc' => 'Unrestricted access',       'color' => 'danger'],
-          ] as $val => $item)
+          @foreach($internetLevels as $level)
           <div class="col-6 col-md-3">
-            <label class="d-block border rounded p-2 {{ old('internet_level') === $val ? 'border-primary bg-light' : '' }}" style="cursor:pointer">
-              <input class="form-check-input me-1" type="radio" name="internet_level" value="{{ $val }}"
-                     {{ old('internet_level') === $val ? 'checked' : '' }} required>
-              <span class="badge bg-{{ $item['color'] }} me-1">{{ $item['label'] }}</span>
-              <small class="text-muted d-block mt-1" style="font-size:.75rem">{{ $item['desc'] }}</small>
+            <label class="d-block border rounded p-2 {{ old('internet_level_id') == $level->id ? 'border-primary bg-light' : '' }}" style="cursor:pointer">
+              <input class="form-check-input me-1" type="radio" name="internet_level_id" value="{{ $level->id }}"
+                     {{ old('internet_level_id') == $level->id || ($level->is_default && !old('internet_level_id')) ? 'checked' : '' }} required>
+              <span class="badge bg-primary me-1">{{ $level->label }}</span>
+              <small class="text-muted d-block mt-1" style="font-size:.75rem">{{ $level->description }}</small>
             </label>
           </div>
           @endforeach
