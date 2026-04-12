@@ -869,6 +869,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/settings/provisioning-licenses',  [SettingsController::class, 'provisioningLicenses'])->name('settings.provisioning-licenses');
     Route::post('/settings/provisioning-licenses', [SettingsController::class, 'setDefaultLicense'])   ->name('settings.provisioning-licenses.save');
 
+    // ── Internet Access Levels ────────────────────────────────────
+    Route::prefix('settings/internet-access-levels')->name('settings.internet-access-levels.')->group(function () {
+        Route::get('/',                        [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'index'])              ->name('index');
+        Route::post('/',                       [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'store'])              ->name('store');
+        Route::put('/{internetAccessLevel}',   [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'update'])             ->name('update');
+        Route::delete('/{internetAccessLevel}',[\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'destroy'])            ->name('destroy');
+        Route::get('/azure-groups/search',     [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'searchAzureGroups'])  ->name('azure-groups.search');
+    });
+
     // ─── Network Discovery ────────────────────────────────────────
     Route::middleware('permission:view-printers')->group(function () {
         Route::get('network-discovery',                                         [NetworkDiscoveryController::class, 'index'])   ->name('network-discovery.index');
