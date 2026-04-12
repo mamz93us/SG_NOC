@@ -84,6 +84,10 @@
                                 <x-dropdown-link :href="route('admin.voice-quality.dashboard')">
                                     {{ __('Voice Quality') }}
                                 </x-dropdown-link>
+                                <hr class="dropdown-divider my-1">
+                                <x-dropdown-link :href="route('admin.settings.internet-access-levels.index')">
+                                    {{ __('Internet Access Levels') }}
+                                </x-dropdown-link>
                             </x-slot>
                         </x-dropdown>
                     </div>
@@ -195,6 +199,9 @@
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('admin.network.monitoring.index')" :active="request()->routeIs('admin.network.monitoring.*')">
                     {{ __('SNMP Monitoring') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('admin.settings.internet-access-levels.index')" :active="request()->routeIs('admin.settings.internet-access-levels.*')">
+                    {{ __('Internet Access Levels') }}
                 </x-responsive-nav-link>
             </div>
         </div>
