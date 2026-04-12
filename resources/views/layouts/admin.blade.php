@@ -751,7 +751,7 @@
                     {{-- ── Settings dropdown ── --}}
                     @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-gear-fill me-1"></i>Settings
                         </a>
@@ -793,6 +793,13 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.settings.asset-types') ? 'active' : '' }}"
                                    href="{{ route('admin.settings.asset-types') }}">
                                     <i class="bi bi-tags-fill me-2"></i>Asset Types & Codes
+                                </a>
+                            </li>
+                            {{-- ── Internet Access Levels ── --}}
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.settings.internet-access-levels.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.settings.internet-access-levels.index') }}">
+                                    <i class="bi bi-wifi me-2"></i>Internet Access Levels
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>
@@ -1171,7 +1178,7 @@
                 const originalHtml = submitBtn.innerHTML;
                 submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
 
-                // If the form fails validation or doesn't cause a page reload, 
+                // If the form fails validation or doesn't cause a page reload,
                 // we want a safety to re-enable it (though typically Laravel redirects/reloads)
                 window.addEventListener('pageshow', function() {
                     submitBtn.disabled = false;
