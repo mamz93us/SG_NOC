@@ -33,13 +33,11 @@ class OnboardingFormController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Only expose non-security groups to the manager form.
-        // Security groups (security_enabled = true AND group_type != 'Unified') are
-        // internal IT groups that managers should never see or assign manually.
-        $groups = IdentityGroup::where(function ($q) {
-                $q->where('security_enabled', false)
-                  ->orWhere('group_type', 'Unified'); // M365 Groups are safe to show
-            })
+        // Only show Distribution groups (mail-enabled, not security, not M365 Unified).
+        // Security groups and M365 groups are internal IT groups managed automatically.
+        $groups = IdentityGroup::where('security_enabled', false)
+            ->where('mail_enabled', true)
+            ->whereNull('group_type')   // Unified = M365; null = Distribution
             ->orderBy('display_name')
             ->get();
 
@@ -68,14 +66,13 @@ class OnboardingFormController extends Controller
             'manager_comments' => 'nullable|string|max:2000',
         ]);
 
-        // Extra safety: re-validate that none of the submitted group IDs are
-        // pure security groups — prevents a crafted POST from sneaking them in.
+        // Extra safety: re-validate submitted IDs are distribution groups only.
+        // Prevents a crafted POST from assigning security or M365 groups.
         if (! empty($data['selected_groups'])) {
             $allowedIds = IdentityGroup::whereIn('id', $data['selected_groups'])
-                ->where(function ($q) {
-                    $q->where('security_enabled', false)
-                      ->orWhere('group_type', 'Unified');
-                })
+                ->where('security_enabled', false)
+                ->where('mail_enabled', true)
+                ->whereNull('group_type')
                 ->pluck('id')
                 ->toArray();
             $data['selected_groups'] = $allowedIds;
