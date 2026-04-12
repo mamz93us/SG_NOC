@@ -26,14 +26,22 @@ class OnboardingFormController extends Controller
         $workflow = $tokenRecord->workflow;
         $payload  = $workflow?->payload ?? [];
 
-        // Load all available floors for the workflow branch + all groups for multi-select
+        // Load floors scoped to the workflow's branch
         $branch = $workflow?->branch;
         $floors = NetworkFloor::when($branch, fn ($q) => $q->where('branch_id', $branch->id))
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
 
-        $groups = IdentityGroup::orderBy('display_name')->get();
+        // Only expose non-security groups to the manager form.
+        // Security groups (security_enabled = true AND group_type != 'Unified') are
+        // internal IT groups that managers should never see or assign manually.
+        $groups = IdentityGroup::where(function ($q) {
+                $q->where('security_enabled', false)
+                  ->orWhere('group_type', 'Unified'); // M365 Groups are safe to show
+            })
+            ->orderBy('display_name')
+            ->get();
 
         return view('public.onboarding_form', compact('tokenRecord', 'workflow', 'payload', 'floors', 'groups'));
     }
@@ -59,6 +67,19 @@ class OnboardingFormController extends Controller
             'selected_groups.*'=> 'integer|exists:identity_groups,id',
             'manager_comments' => 'nullable|string|max:2000',
         ]);
+
+        // Extra safety: re-validate that none of the submitted group IDs are
+        // pure security groups — prevents a crafted POST from sneaking them in.
+        if (! empty($data['selected_groups'])) {
+            $allowedIds = IdentityGroup::whereIn('id', $data['selected_groups'])
+                ->where(function ($q) {
+                    $q->where('security_enabled', false)
+                      ->orWhere('group_type', 'Unified');
+                })
+                ->pluck('id')
+                ->toArray();
+            $data['selected_groups'] = $allowedIds;
+        }
 
         $tokenRecord->update([
             'laptop_status'      => $data['laptop_status'],
