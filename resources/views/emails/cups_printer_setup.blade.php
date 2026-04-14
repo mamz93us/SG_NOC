@@ -65,7 +65,7 @@
                 {{-- QR Code --}}
                 <div style="text-align:center;margin:16px 0;">
                     <div style="display:inline-block;background:#ffffff;padding:12px;border:1px solid #ddd;border-radius:8px;">
-                        <img src="{{ $qrCid }}" alt="Scan to install AirPrint profile" width="180" height="180" style="display:block;">
+                        <img src="{{ $message->embed($qrImagePath) }}" alt="Scan to install AirPrint profile" width="180" height="180" style="display:block;">
                     </div>
                     <p style="margin:8px 0 0;color:#555;font-size:12px;font-weight:600;">
                         Scan with your iPhone camera

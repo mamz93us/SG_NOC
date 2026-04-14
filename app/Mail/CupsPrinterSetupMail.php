@@ -8,7 +8,6 @@ use chillerlan\QRCode\QROptions;
 use chillerlan\QRCode\Output\QRGdImagePNG;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
@@ -33,7 +32,7 @@ class CupsPrinterSetupMail extends Mailable
     {
         $domain = \App\Models\Setting::get()->cups_ipp_domain ?? 'localhost';
 
-        // Generate QR code as PNG base64
+        // Generate QR code as PNG, save to temp file for embedding
         $qrOptions = new QROptions([
             'outputInterface' => QRGdImagePNG::class,
             'scale'           => 10,
@@ -41,24 +40,20 @@ class CupsPrinterSetupMail extends Mailable
         ]);
 
         $qrBase64 = (new QRCode($qrOptions))->render($this->airprintUrl);
-
-        // Strip data URI prefix, decode to raw PNG bytes
         $qrPngData = base64_decode(preg_replace('#^data:image/png;base64,#', '', $qrBase64));
 
-        // Save temp file, then embed as CID (works in Outlook, Gmail, Apple Mail)
         $tmpPath = tempnam(sys_get_temp_dir(), 'qr_') . '.png';
         file_put_contents($tmpPath, $qrPngData);
 
-        $qrCid = $this->embed($tmpPath);
-
-        return $this->view('emails.cups_printer_setup', [
-            'cupsPrinter'   => $this->cupsPrinter,
-            'airprintUrl'   => $this->airprintUrl,
-            'recipientName' => $this->recipientName,
-            'ippAddress'    => $this->cupsPrinter->getIppAddress(),
-            'httpAddress'   => "http://{$domain}:631/printers/{$this->cupsPrinter->queue_name}",
-            'domain'        => $domain,
-            'qrCid'         => $qrCid,
-        ]);
+        return $this->view('emails.cups_printer_setup')
+            ->with([
+                'cupsPrinter'   => $this->cupsPrinter,
+                'airprintUrl'   => $this->airprintUrl,
+                'recipientName' => $this->recipientName,
+                'ippAddress'    => $this->cupsPrinter->getIppAddress(),
+                'httpAddress'   => "http://{$domain}:631/printers/{$this->cupsPrinter->queue_name}",
+                'domain'        => $domain,
+                'qrImagePath'   => $tmpPath,
+            ]);
     }
 }
