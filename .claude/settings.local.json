@@ -252,7 +252,8 @@
       "Bash(php -l database/migrations/2026_04_14_000004_add_cups_settings_to_settings.php)",
       "Bash(php -l routes/console.php)",
       "Bash(php -r ':*)",
-      "Bash(jobs -l)"
+      "Bash(jobs -l)",
+      "Bash(ls vendor/chillerlan/php-qrcode/src/Output/QRGdImage*)"
     ]
   }
 }
