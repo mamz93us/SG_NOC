@@ -107,6 +107,10 @@ class RolePermission extends Model
                 'view-documentation'   => 'View Documentation',
                 'manage-documentation' => 'Upload / Delete Documentation Files',
             ],
+            'Print Manager' => [
+                'view-print-manager'   => 'View CUPS Print Manager',
+                'manage-print-manager' => 'Manage CUPS Printers & Jobs',
+            ],
         ];
     }
 
