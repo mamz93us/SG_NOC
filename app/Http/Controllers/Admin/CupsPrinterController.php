@@ -193,6 +193,40 @@ class CupsPrinterController extends Controller
     }
 
     /**
+     * Sync print jobs from CUPS into the database.
+     */
+    public function syncJobs(CupsPrinter $cupsPrinter)
+    {
+        $cupsJobs = $this->cups->getAllJobs($cupsPrinter->queue_name);
+        $synced = 0;
+
+        foreach ($cupsJobs as $job) {
+            $existing = CupsPrintJob::where('cups_printer_id', $cupsPrinter->id)
+                ->where('cups_job_id', $job['job_id'])
+                ->first();
+
+            if ($existing) {
+                // Update status if changed
+                if ($existing->status !== $job['status'] && $existing->status !== 'cancelled') {
+                    $existing->update(['status' => $job['status']]);
+                    $synced++;
+                }
+            } else {
+                CupsPrintJob::create([
+                    'cups_printer_id' => $cupsPrinter->id,
+                    'cups_job_id'     => $job['job_id'],
+                    'title'           => $job['user'] . ' - Job #' . $job['job_id'],
+                    'status'          => $job['status'],
+                    'cups_metadata'   => $job,
+                ]);
+                $synced++;
+            }
+        }
+
+        return back()->with('success', "Synced {$synced} job(s) from CUPS.");
+    }
+
+    /**
      * Generate and download an iOS .mobileconfig AirPrint profile for this printer.
      */
     public function airprintProfile(CupsPrinter $cupsPrinter)

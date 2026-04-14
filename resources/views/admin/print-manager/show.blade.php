@@ -87,14 +87,27 @@
                     </button>
                 </div>
 
-                <h6 class="fw-semibold mt-3 mb-2">AirPrint (iPhone / iPad)</h6>
-                <a href="{{ route('admin.print-manager.airprint', $cupsPrinter) }}"
-                   class="btn btn-dark btn-sm mb-3">
-                    <i class="bi bi-apple me-1"></i>Download AirPrint Profile (.mobileconfig)
-                </a>
-                <p class="text-muted small mb-2">
-                    Open this link on your iPhone/iPad, install the profile in Settings, and the printer will appear in the print menu automatically.
-                </p>
+                <h6 class="fw-semibold mt-3 mb-2"><i class="bi bi-apple me-1"></i>AirPrint (iPhone / iPad)</h6>
+                <div class="row align-items-start g-3 mb-3">
+                    <div class="col-auto">
+                        <div id="airprint-qr" class="border rounded bg-white p-2 d-inline-block"></div>
+                    </div>
+                    <div class="col">
+                        <p class="text-muted small mb-2">
+                            Scan this QR code with your iPhone camera to install the AirPrint profile.
+                            The printer will appear automatically in the print menu.
+                        </p>
+                        <a href="{{ route('admin.print-manager.airprint', $cupsPrinter) }}"
+                           class="btn btn-dark btn-sm">
+                            <i class="bi bi-download me-1"></i>Download .mobileconfig
+                        </a>
+                        <div class="mt-2">
+                            <span class="badge bg-light text-dark border small">
+                                <i class="bi bi-info-circle me-1"></i>Settings &rarr; General &rarr; VPN &amp; Device Management &rarr; Install
+                            </span>
+                        </div>
+                    </div>
+                </div>
 
                 <h6 class="fw-semibold mt-3 mb-2">Manual Setup</h6>
                 <div class="accordion accordion-flush" id="setupGuide">
@@ -174,7 +187,17 @@
 <div class="card shadow-sm border-0 mt-4">
     <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
         <strong>Print Jobs</strong>
-        <span class="badge bg-secondary">{{ $jobs->total() }} total</span>
+        <div class="d-flex align-items-center gap-2">
+            @can('manage-print-manager')
+            <form action="{{ route('admin.print-manager.sync-jobs', $cupsPrinter) }}" method="POST" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-arrow-repeat me-1"></i>Sync from CUPS
+                </button>
+            </form>
+            @endcan
+            <span class="badge bg-secondary">{{ $jobs->total() }} total</span>
+        </div>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -227,4 +250,22 @@
 </div>
 
 {{ $jobs->links('pagination::bootstrap-5') }}
+
 @endsection
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const qrEl = document.getElementById('airprint-qr');
+    if (qrEl) {
+        new QRCode(qrEl, {
+            text: @json(route('admin.print-manager.airprint', $cupsPrinter)),
+            width: 160,
+            height: 160,
+            correctLevel: QRCode.CorrectLevel.M,
+        });
+    }
+});
+</script>
+@endpush

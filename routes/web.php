@@ -478,6 +478,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('print-manager/{cupsPrinter}/refresh',   [CupsPrinterController::class, 'refreshStatus'])->name('print-manager.refresh');
         Route::post('print-manager/{cupsPrinter}/test',      [CupsPrinterController::class, 'testPrint'])    ->name('print-manager.test');
         Route::post('print-manager/{cupsPrinter}/jobs/{cupsPrintJob}/cancel', [CupsPrinterController::class, 'cancelJob'])->name('print-manager.cancel-job');
+        Route::post('print-manager/{cupsPrinter}/sync-jobs',              [CupsPrinterController::class, 'syncJobs'])  ->name('print-manager.sync-jobs');
     });
     Route::middleware('permission:view-print-manager')->group(function () {
         Route::get('print-manager/{cupsPrinter}/airprint-profile', [CupsPrinterController::class, 'airprintProfile'])->name('print-manager.airprint');
