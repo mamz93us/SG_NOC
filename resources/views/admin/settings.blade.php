@@ -956,6 +956,67 @@
     </div>
 </div>
 
+{{-- ── CUPS Print Manager Settings ── --}}
+<div class="card mt-4" id="cups">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-printer me-2"></i>
+        <h5 class="mb-0">CUPS IPP Proxy — Print Manager</h5>
+        @if($settings->cups_enabled)
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Disabled</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Configure the CUPS IPP proxy server that allows mobile and PC clients to print via
+            <code>ipp://your-domain:631/printers/queue-name</code>.
+            The VPS must have CUPS installed (<code>scripts/setup-cups-ipp-proxy.sh</code>).
+        </div>
+        <form method="POST" action="{{ route('admin.settings.cups') }}">
+            @csrf
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Enable CUPS</label>
+                    <div class="form-check form-switch mt-2">
+                        <input type="hidden" name="cups_enabled" value="0">
+                        <input class="form-check-input" type="checkbox" name="cups_enabled" value="1" id="cups_enabled"
+                               {{ old('cups_enabled', $settings->cups_enabled) ? 'checked' : '' }}>
+                        <label class="form-check-label" for="cups_enabled">Active</label>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold">IPP Domain <span class="text-danger">*</span></label>
+                    <input type="text" name="cups_ipp_domain"
+                           class="form-control @error('cups_ipp_domain') is-invalid @enderror"
+                           value="{{ old('cups_ipp_domain', $settings->cups_ipp_domain ?? '') }}"
+                           placeholder="noc.samirgroup.net">
+                    <div class="form-text">Public hostname clients use: <code>ipp://&lt;domain&gt;:631/printers/...</code></div>
+                    @error('cups_ipp_domain')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Status Refresh Interval</label>
+                    <div class="input-group">
+                        <input type="number" name="cups_refresh_interval"
+                               class="form-control @error('cups_refresh_interval') is-invalid @enderror"
+                               value="{{ old('cups_refresh_interval', $settings->cups_refresh_interval ?? 5) }}"
+                               min="1" max="1440">
+                        <span class="input-group-text">minutes</span>
+                    </div>
+                    <div class="form-text">How often the scheduler checks printer status.</div>
+                    @error('cups_refresh_interval')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+            </div>
+            <div class="mt-3 d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-save me-1"></i>Save CUPS Settings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')

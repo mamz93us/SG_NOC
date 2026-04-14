@@ -464,6 +464,42 @@ class SettingsController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────
+    // CUPS Print Manager Settings
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateCups(Request $request)
+    {
+        $request->validate([
+            'cups_enabled'          => 'boolean',
+            'cups_ipp_domain'       => 'nullable|string|max:255',
+            'cups_refresh_interval' => 'required|integer|min:1|max:1440',
+        ]);
+
+        $settings = Setting::get();
+        $settings->cups_enabled          = $request->boolean('cups_enabled');
+        $settings->cups_ipp_domain       = $request->cups_ipp_domain;
+        $settings->cups_refresh_interval = (int) $request->cups_refresh_interval;
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id'   => 1,
+            'action'     => 'updated',
+            'changes'    => [
+                'section'          => 'cups',
+                'cups_enabled'     => $settings->cups_enabled,
+                'cups_ipp_domain'  => $settings->cups_ipp_domain,
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'CUPS Print Manager settings updated.')
+            ->withFragment('cups');
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // Provisioning Licenses — list Azure SKUs + set default
     // ─────────────────────────────────────────────────────────────
 
