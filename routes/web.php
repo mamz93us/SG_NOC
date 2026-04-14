@@ -479,6 +479,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('print-manager/{cupsPrinter}/test',      [CupsPrinterController::class, 'testPrint'])    ->name('print-manager.test');
         Route::post('print-manager/{cupsPrinter}/jobs/{cupsPrintJob}/cancel', [CupsPrinterController::class, 'cancelJob'])->name('print-manager.cancel-job');
     });
+    Route::middleware('permission:view-print-manager')->group(function () {
+        Route::get('print-manager/{cupsPrinter}/airprint-profile', [CupsPrinterController::class, 'airprintProfile'])->name('print-manager.airprint');
+    });
 
     // ─── Identity (Entra ID / Graph API) ──────────────────────
     Route::middleware('permission:view-identity')->prefix('identity')->name('identity.')->group(function () {

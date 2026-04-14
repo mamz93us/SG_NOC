@@ -87,7 +87,16 @@
                     </button>
                 </div>
 
-                <h6 class="fw-semibold mt-3 mb-2">Quick Setup</h6>
+                <h6 class="fw-semibold mt-3 mb-2">AirPrint (iPhone / iPad)</h6>
+                <a href="{{ route('admin.print-manager.airprint', $cupsPrinter) }}"
+                   class="btn btn-dark btn-sm mb-3">
+                    <i class="bi bi-apple me-1"></i>Download AirPrint Profile (.mobileconfig)
+                </a>
+                <p class="text-muted small mb-2">
+                    Open this link on your iPhone/iPad, install the profile in Settings, and the printer will appear in the print menu automatically.
+                </p>
+
+                <h6 class="fw-semibold mt-3 mb-2">Manual Setup</h6>
                 <div class="accordion accordion-flush" id="setupGuide">
                     <div class="accordion-item">
                         <h2 class="accordion-header">
@@ -113,10 +122,17 @@
                         </h2>
                         <div id="setupMac" class="accordion-collapse collapse" data-bs-parent="#setupGuide">
                             <div class="accordion-body small">
+                                <p class="fw-semibold mb-1">iPhone / iPad (easiest):</p>
+                                <ol class="mb-2">
+                                    <li>Tap the "Download AirPrint Profile" button above from your device</li>
+                                    <li>Go to Settings &rarr; General &rarr; VPN &amp; Device Management</li>
+                                    <li>Tap the downloaded profile &rarr; Install</li>
+                                    <li>The printer will appear automatically when you tap Print in any app</li>
+                                </ol>
+                                <p class="fw-semibold mb-1">macOS:</p>
                                 <ol class="mb-0">
                                     <li>System Settings &rarr; Printers &amp; Scanners &rarr; Add Printer</li>
                                     <li>Enter address: <code>{{ $cupsPrinter->getIppAddress() }}</code></li>
-                                    <li>Or use AirPrint — the printer should appear automatically if shared.</li>
                                 </ol>
                             </div>
                         </div>

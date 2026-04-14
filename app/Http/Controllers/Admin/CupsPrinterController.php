@@ -191,4 +191,80 @@ class CupsPrinterController extends Controller
 
         return back()->with('success', 'Job cancelled.');
     }
+
+    /**
+     * Generate and download an iOS .mobileconfig AirPrint profile for this printer.
+     */
+    public function airprintProfile(CupsPrinter $cupsPrinter)
+    {
+        $domain  = \App\Models\Setting::get()->cups_ipp_domain ?? request()->getHost();
+        $uuid    = strtoupper(md5('cups-printer-' . $cupsPrinter->id . '-' . $cupsPrinter->queue_name));
+        $payloadUuid = strtoupper(md5('airprint-payload-' . $cupsPrinter->id));
+
+        // Format UUIDs properly
+        $formatUuid = function (string $hex): string {
+            return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-' .
+                   substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' .
+                   substr($hex, 20, 12);
+        };
+
+        $profileUuid = $formatUuid($uuid);
+        $payloadUuid = $formatUuid($payloadUuid);
+
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+            . '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' . "\n"
+            . '<plist version="1.0">' . "\n"
+            . '<dict>' . "\n"
+            . '    <key>PayloadContent</key>' . "\n"
+            . '    <array>' . "\n"
+            . '        <dict>' . "\n"
+            . '            <key>AirPrint</key>' . "\n"
+            . '            <array>' . "\n"
+            . '                <dict>' . "\n"
+            . '                    <key>IPAddress</key>' . "\n"
+            . '                    <string>' . e($domain) . '</string>' . "\n"
+            . '                    <key>ResourcePath</key>' . "\n"
+            . '                    <string>printers/' . e($cupsPrinter->queue_name) . '</string>' . "\n"
+            . '                    <key>Port</key>' . "\n"
+            . '                    <integer>631</integer>' . "\n"
+            . '                    <key>ForceTLS</key>' . "\n"
+            . '                    <false/>' . "\n"
+            . '                </dict>' . "\n"
+            . '            </array>' . "\n"
+            . '            <key>PayloadDisplayName</key>' . "\n"
+            . '            <string>AirPrint - ' . e($cupsPrinter->name) . '</string>' . "\n"
+            . '            <key>PayloadIdentifier</key>' . "\n"
+            . '            <string>com.samirgroup.noc.airprint.' . e($cupsPrinter->queue_name) . '</string>' . "\n"
+            . '            <key>PayloadType</key>' . "\n"
+            . '            <string>com.apple.airprint</string>' . "\n"
+            . '            <key>PayloadUUID</key>' . "\n"
+            . '            <string>' . $payloadUuid . '</string>' . "\n"
+            . '            <key>PayloadVersion</key>' . "\n"
+            . '            <integer>1</integer>' . "\n"
+            . '        </dict>' . "\n"
+            . '    </array>' . "\n"
+            . '    <key>PayloadDisplayName</key>' . "\n"
+            . '    <string>' . e($cupsPrinter->name) . ' — SG NOC</string>' . "\n"
+            . '    <key>PayloadIdentifier</key>' . "\n"
+            . '    <string>com.samirgroup.noc.print.' . e($cupsPrinter->queue_name) . '</string>' . "\n"
+            . '    <key>PayloadOrganization</key>' . "\n"
+            . '    <string>Samir Group IT</string>' . "\n"
+            . '    <key>PayloadType</key>' . "\n"
+            . '    <string>Configuration</string>' . "\n"
+            . '    <key>PayloadUUID</key>' . "\n"
+            . '    <string>' . $profileUuid . '</string>' . "\n"
+            . '    <key>PayloadVersion</key>' . "\n"
+            . '    <integer>1</integer>' . "\n"
+            . '    <key>PayloadRemovalDisallowed</key>' . "\n"
+            . '    <false/>' . "\n"
+            . '</dict>' . "\n"
+            . '</plist>';
+
+        $filename = $cupsPrinter->queue_name . '-airprint.mobileconfig';
+
+        return response($xml, 200, [
+            'Content-Type'        => 'application/x-apple-aspen-config',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
 }
