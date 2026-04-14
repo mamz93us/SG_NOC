@@ -13,7 +13,7 @@
 #   sudo ./setup-cups-ipp-proxy.sh
 # ============================================================
 
-set -euo pipefail
+set -eu
 
 echo "============================================"
 echo " CUPS IPP Proxy Setup — SG NOC"

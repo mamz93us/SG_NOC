@@ -361,17 +361,6 @@
                                     <i class="bi bi-activity me-2 text-success"></i>Printer SNMP Status
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-print-manager')
-                            <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-cloud-arrow-up me-1"></i>CUPS / IPP Proxy</h6></li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/print-manager*') ? 'active' : '' }}"
-                                   href="{{ route('admin.print-manager.index') }}">
-                                    <i class="bi bi-printer me-2 text-info"></i>Print Manager
-                                </a>
-                            </li>
-                            @endcan
                             @can('manage-printers')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/intune-groups*') ? 'active' : '' }}"
@@ -384,6 +373,16 @@
                                 <a class="dropdown-item {{ request()->is('admin/network-discovery*') ? 'active' : '' }}"
                                    href="{{ route('admin.network-discovery.index') }}">
                                     <i class="bi bi-radar me-2 text-info"></i>Network Discovery
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-print-manager')
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-cloud-arrow-up me-1"></i>CUPS / IPP Proxy</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/print-manager*') ? 'active' : '' }}"
+                                   href="{{ route('admin.print-manager.index') }}">
+                                    <i class="bi bi-printer me-2 text-info"></i>Print Manager
                                 </a>
                             </li>
                             @endcan
