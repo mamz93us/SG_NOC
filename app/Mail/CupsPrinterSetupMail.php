@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Models\CupsPrinter;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
+use chillerlan\QRCode\Output\QRMarkupSVG;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -34,10 +35,9 @@ class CupsPrinterSetupMail extends Mailable
 
         // Generate QR code as base64 data URI for the AirPrint profile URL
         $qrOptions = new QROptions([
-            'outputType'   => QRCode::OUTPUT_MARKUP_SVG,
-            'svgUseCssProperties' => false,
-            'scale'        => 10,
-            'quietzoneSize' => 2,
+            'outputInterface' => QRMarkupSVG::class,
+            'scale'           => 10,
+            'quietzoneSize'   => 2,
         ]);
 
         $qrDataUri = (new QRCode($qrOptions))->render($this->airprintUrl);
