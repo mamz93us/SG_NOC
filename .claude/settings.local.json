@@ -251,7 +251,8 @@
       "Bash(php -l database/migrations/2026_04_14_000003_add_print_manager_permissions.php)",
       "Bash(php -l database/migrations/2026_04_14_000004_add_cups_settings_to_settings.php)",
       "Bash(php -l routes/console.php)",
-      "Bash(php -r ':*)"
+      "Bash(php -r ':*)",
+      "Bash(jobs -l)"
     ]
   }
 }

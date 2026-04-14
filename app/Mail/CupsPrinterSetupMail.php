@@ -3,6 +3,8 @@
 namespace App\Mail;
 
 use App\Models\CupsPrinter;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -30,15 +32,26 @@ class CupsPrinterSetupMail extends Mailable
     {
         $domain = \App\Models\Setting::get()->cups_ipp_domain ?? 'localhost';
 
+        // Generate QR code as base64 data URI for the AirPrint profile URL
+        $qrOptions = new QROptions([
+            'outputType'   => QRCode::OUTPUT_MARKUP_SVG,
+            'svgUseCssProperties' => false,
+            'scale'        => 10,
+            'quietzoneSize' => 2,
+        ]);
+
+        $qrDataUri = (new QRCode($qrOptions))->render($this->airprintUrl);
+
         return new Content(
             view: 'emails.cups_printer_setup',
             with: [
-                'cupsPrinter'  => $this->cupsPrinter,
-                'airprintUrl'  => $this->airprintUrl,
+                'cupsPrinter'   => $this->cupsPrinter,
+                'airprintUrl'   => $this->airprintUrl,
                 'recipientName' => $this->recipientName,
-                'ippAddress'   => $this->cupsPrinter->getIppAddress(),
-                'httpAddress'  => "http://{$domain}:631/printers/{$this->cupsPrinter->queue_name}",
-                'domain'       => $domain,
+                'ippAddress'    => $this->cupsPrinter->getIppAddress(),
+                'httpAddress'   => "http://{$domain}:631/printers/{$this->cupsPrinter->queue_name}",
+                'domain'        => $domain,
+                'qrDataUri'     => $qrDataUri,
             ],
         );
     }
