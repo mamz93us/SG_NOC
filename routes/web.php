@@ -480,10 +480,6 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('print-manager/{cupsPrinter}/jobs/{cupsPrintJob}/cancel', [CupsPrinterController::class, 'cancelJob'])->name('print-manager.cancel-job');
         Route::post('print-manager/{cupsPrinter}/sync-jobs',              [CupsPrinterController::class, 'syncJobs'])  ->name('print-manager.sync-jobs');
     });
-    Route::middleware('permission:view-print-manager')->group(function () {
-        Route::get('print-manager/{cupsPrinter}/airprint-profile', [CupsPrinterController::class, 'airprintProfile'])->name('print-manager.airprint');
-    });
-
     // ─── Identity (Entra ID / Graph API) ──────────────────────
     Route::middleware('permission:view-identity')->prefix('identity')->name('identity.')->group(function () {
         Route::get('/users',                          [IdentityController::class, 'users'])        ->name('users');
@@ -1200,6 +1196,11 @@ Route::post('/forms/{slug}', [\App\Http\Controllers\Public\PublicFormController:
 Route::middleware('auth')->group(function () {
     Route::get('/my/forms/{slug}',  [\App\Http\Controllers\Public\PublicFormController::class, 'show'])  ->name('forms.private.show');
     Route::post('/my/forms/{slug}', [\App\Http\Controllers\Public\PublicFormController::class, 'submit'])->name('forms.private.submit');
+});
+
+// CUPS AirPrint profile download (public — scanned via QR on mobile devices)
+Route::middleware(['throttle:20,1'])->group(function () {
+    Route::get('/airprint/{cupsPrinter}', [CupsPrinterController::class, 'airprintProfile'])->name('admin.print-manager.airprint');
 });
 
 // Printer self-service setup
