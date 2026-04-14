@@ -254,6 +254,45 @@
 
 {{ $jobs->links('pagination::bootstrap-5') }}
 
+{{-- Send Setup Email Modal --}}
+@can('manage-print-manager')
+<div class="modal fade" id="sendSetupModal" tabindex="-1" aria-labelledby="sendSetupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form action="{{ route('admin.print-manager.send-setup', $cupsPrinter) }}" method="POST">
+            @csrf
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sendSetupModalLabel">
+                        <i class="bi bi-envelope me-2"></i>Send Printer Setup Instructions
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Send setup instructions for <strong>{{ $cupsPrinter->name }}</strong> via email.
+                        The email includes steps for iPhone (AirPrint), Windows, Android, and macOS.
+                    </p>
+                    <div class="mb-3">
+                        <label for="setup-name" class="form-label">Recipient Name</label>
+                        <input type="text" class="form-control" id="setup-name" name="name" required placeholder="e.g. Ahmed Mohamed">
+                    </div>
+                    <div class="mb-3">
+                        <label for="setup-email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="setup-email" name="email" required placeholder="e.g. user@samirgroup.com">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info">
+                        <i class="bi bi-send me-1"></i>Send Email
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+@endcan
+
 @endsection
 
 @push('scripts')
