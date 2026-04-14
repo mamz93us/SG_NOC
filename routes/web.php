@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\DeviceModelController;
 use App\Http\Controllers\Admin\CredentialController;
 use App\Http\Controllers\Admin\PrinterController;
 use App\Http\Controllers\Admin\PrinterMaintenanceController;
+use App\Http\Controllers\Admin\CupsPrinterController;
 use App\Http\Controllers\Admin\IdentityController;
 use App\Http\Controllers\Admin\WorkflowController;
 use App\Http\Controllers\Admin\EmployeeController;
@@ -460,6 +461,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('printers/{printer}/snmp-poll',      [PrinterController::class, 'snmpPoll'])   ->name('printers.snmp.poll');
         Route::post('printers/snmp-poll-all',            [PrinterController::class, 'snmpPollAll'])->name('printers.snmp.poll-all');
         Route::post('printers/{printer}/snmp-toggle',    [PrinterController::class, 'toggleSnmp']) ->name('printers.snmp.toggle');
+    });
+
+    // ─── CUPS Print Manager ────────────────────────────────────
+    Route::middleware('permission:view-print-manager')->group(function () {
+        Route::get('print-manager',                          [CupsPrinterController::class, 'index'])  ->name('print-manager.index');
+        Route::get('print-manager/create',                   [CupsPrinterController::class, 'create']) ->name('print-manager.create');
+        Route::get('print-manager/{cupsPrinter}',            [CupsPrinterController::class, 'show'])   ->name('print-manager.show');
+        Route::get('print-manager/{cupsPrinter}/edit',       [CupsPrinterController::class, 'edit'])   ->name('print-manager.edit');
+    });
+    Route::middleware('permission:manage-print-manager')->group(function () {
+        Route::post('print-manager',                         [CupsPrinterController::class, 'store'])        ->name('print-manager.store');
+        Route::put('print-manager/{cupsPrinter}',            [CupsPrinterController::class, 'update'])       ->name('print-manager.update');
+        Route::delete('print-manager/{cupsPrinter}',         [CupsPrinterController::class, 'destroy'])      ->name('print-manager.destroy');
+        Route::post('print-manager/{cupsPrinter}/refresh',   [CupsPrinterController::class, 'refreshStatus'])->name('print-manager.refresh');
+        Route::post('print-manager/{cupsPrinter}/test',      [CupsPrinterController::class, 'testPrint'])    ->name('print-manager.test');
+        Route::post('print-manager/{cupsPrinter}/jobs/{cupsPrintJob}/cancel', [CupsPrinterController::class, 'cancelJob'])->name('print-manager.cancel-job');
     });
 
     // ─── Identity (Entra ID / Graph API) ──────────────────────

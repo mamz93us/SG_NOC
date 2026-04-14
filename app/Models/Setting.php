@@ -42,6 +42,10 @@ class Setting extends Model
         'smtp_from_address',
         'smtp_from_name',
         'snmp_alert_email',
+        // CUPS Print Manager
+        'cups_enabled',
+        'cups_ipp_domain',
+        'cups_refresh_interval',
         // Provisioning / UCM
         'upn_domain',
         'default_ucm_id',
@@ -89,6 +93,8 @@ class Setting extends Model
         'vq_retention_days'            => 'integer',
         'switch_drop_retention_days'   => 'integer',
         'workflow_retention_days'      => 'integer',
+        'cups_enabled'                 => 'boolean',
+        'cups_refresh_interval'        => 'integer',
     ];
 
     /**

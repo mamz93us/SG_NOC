@@ -240,7 +240,18 @@
       "Bash(__NEW_LINE_47cdeb7731d353f8__ scp:*)",
       "Bash(__NEW_LINE_47cdeb7731d353f8__ echo:*)",
       "Bash(scp -i \"C:/Users/MohamedZahran/Downloads/SG-NOC_key.pem\" -o StrictHostKeyChecking=no azureuser@noc.samirgroup.net:~/phonebook2/database/migrations/2026_04_06_000001_add_azure_disabled_at_to_employees.php /tmp/sample_migration.php)",
-      "Bash(ssh azureuser@SG-NOC \"grep -n 'internet-access-levels' ~/phonebook2/routes/web.php\")"
+      "Bash(ssh azureuser@SG-NOC \"grep -n 'internet-access-levels' ~/phonebook2/routes/web.php\")",
+      "Bash(php -l app/Models/CupsPrinter.php)",
+      "Bash(php -l app/Models/CupsPrintJob.php)",
+      "Bash(php -l app/Services/CupsService.php)",
+      "Bash(php -l app/Http/Controllers/Admin/CupsPrinterController.php)",
+      "Bash(php -l app/Console/Commands/CupsRefreshStatus.php)",
+      "Bash(php -l database/migrations/2026_04_14_000001_create_cups_printers_table.php)",
+      "Bash(php -l database/migrations/2026_04_14_000002_create_cups_print_jobs_table.php)",
+      "Bash(php -l database/migrations/2026_04_14_000003_add_print_manager_permissions.php)",
+      "Bash(php -l database/migrations/2026_04_14_000004_add_cups_settings_to_settings.php)",
+      "Bash(php -l routes/console.php)",
+      "Bash(php -r ':*)"
     ]
   }
 }

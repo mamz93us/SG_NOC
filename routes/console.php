@@ -37,6 +37,13 @@ Schedule::command('identity:sync')
     ->withoutOverlapping(30)
     ->runInBackground();
 
+// CUPS Print Manager — status refresh
+$cupsInterval = max(1, (int) ($settings?->cups_refresh_interval ?: 5));
+Schedule::command('cups:refresh-status')
+    ->cron($everyN($cupsInterval))
+    ->withoutOverlapping(5)
+    ->runInBackground();
+
 // Other internal jobs
 Schedule::job(new \App\Jobs\RunNocAlertsJob)->everyFiveMinutes();
 Schedule::job(new \App\Jobs\CheckLicenseMonitorsJob)->hourly();
