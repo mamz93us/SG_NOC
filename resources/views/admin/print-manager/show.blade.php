@@ -33,6 +33,9 @@
                 <i class="bi bi-printer me-1"></i>Test Print
             </button>
         </form>
+        <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#sendSetupModal">
+            <i class="bi bi-envelope me-1"></i>Send Setup Email
+        </button>
         <a href="{{ route('admin.print-manager.edit', $cupsPrinter) }}" class="btn btn-sm btn-outline-warning">
             <i class="bi bi-pencil me-1"></i>Edit
         </a>

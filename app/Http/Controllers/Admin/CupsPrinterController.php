@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\CupsPrinterSetupMail;
 use App\Models\Branch;
 use App\Models\CupsPrinter;
 use App\Models\CupsPrintJob;
 use App\Services\CupsService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class CupsPrinterController extends Controller
 {
@@ -224,6 +226,25 @@ class CupsPrinterController extends Controller
         }
 
         return back()->with('success', "Synced {$synced} job(s) from CUPS.");
+    }
+
+    /**
+     * Send printer setup instructions via email.
+     */
+    public function sendSetupEmail(Request $request, CupsPrinter $cupsPrinter)
+    {
+        $validated = $request->validate([
+            'email' => 'required|email',
+            'name'  => 'required|string|max:255',
+        ]);
+
+        $airprintUrl = route('admin.print-manager.airprint', $cupsPrinter);
+
+        Mail::to($validated['email'])->send(
+            new CupsPrinterSetupMail($cupsPrinter, $airprintUrl, $validated['name'])
+        );
+
+        return back()->with('success', "Setup instructions sent to {$validated['email']}.");
     }
 
     /**
