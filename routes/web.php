@@ -72,6 +72,11 @@ use App\Http\Controllers\Api\HrOffboardingController;
 use App\Http\Controllers\Api\HrGroupAssignmentController;
 use App\Http\Controllers\Api\DeviceLookupController;
 use App\Http\Controllers\Admin\DocumentationController;
+use App\Http\Controllers\Admin\DnsAccountController;
+use App\Http\Controllers\Admin\DnsDomainsController;
+use App\Http\Controllers\Admin\DnsRecordsController;
+use App\Http\Controllers\Admin\DnsNameserversController;
+use App\Http\Controllers\Admin\DnsLookupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -714,6 +719,37 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/{firewall}', [SophosFirewallController::class, 'destroy'])->name('destroy')->middleware('permission:manage-sophos');
         Route::post('/{firewall}/sync', [SophosFirewallController::class, 'sync'])->name('sync')->middleware('permission:manage-sophos');
         Route::post('/{firewall}/test', [SophosFirewallController::class, 'testConnection'])->name('test')->middleware('permission:manage-sophos');
+    });
+
+    // ─── DNS Management ──────────────────────────────────────
+    Route::prefix('network/dns')->name('network.dns.')->group(function () {
+        // Lookup (before {account} wildcard)
+        Route::get('/lookup',       [DnsLookupController::class, 'index'])->name('lookup.index')->middleware('permission:view-dns');
+        Route::post('/lookup',      [DnsLookupController::class, 'check'])->name('lookup.check')->middleware('permission:view-dns');
+
+        // Accounts CRUD
+        Route::get('/',             [DnsAccountController::class, 'index'])->name('index')->middleware('permission:view-dns');
+        Route::get('/create',       [DnsAccountController::class, 'create'])->name('create')->middleware('permission:manage-dns');
+        Route::post('/',            [DnsAccountController::class, 'store'])->name('store')->middleware('permission:manage-dns');
+        Route::get('/{account}/edit', [DnsAccountController::class, 'edit'])->name('edit')->middleware('permission:manage-dns');
+        Route::put('/{account}',    [DnsAccountController::class, 'update'])->name('update')->middleware('permission:manage-dns');
+        Route::delete('/{account}', [DnsAccountController::class, 'destroy'])->name('destroy')->middleware('permission:manage-dns');
+        Route::post('/{account}/test', [DnsAccountController::class, 'testConnection'])->name('test')->middleware('permission:manage-dns');
+
+        // Domains
+        Route::get('/{account}/domains',            [DnsDomainsController::class, 'index'])->name('domains.index')->middleware('permission:view-dns');
+        Route::get('/{account}/domains/{domain}',   [DnsDomainsController::class, 'show'])->name('domains.show')->middleware('permission:view-dns');
+        Route::patch('/{account}/domains/{domain}', [DnsDomainsController::class, 'update'])->name('domains.update')->middleware('permission:manage-dns');
+
+        // DNS Records
+        Route::get('/{account}/domains/{domain}/records',    [DnsRecordsController::class, 'index'])->name('records.index')->middleware('permission:view-dns');
+        Route::post('/{account}/domains/{domain}/records',   [DnsRecordsController::class, 'store'])->name('records.store')->middleware('permission:manage-dns');
+        Route::put('/{account}/domains/{domain}/records',    [DnsRecordsController::class, 'update'])->name('records.update')->middleware('permission:manage-dns');
+        Route::delete('/{account}/domains/{domain}/records', [DnsRecordsController::class, 'destroy'])->name('records.destroy')->middleware('permission:manage-dns');
+
+        // Nameservers
+        Route::get('/{account}/domains/{domain}/nameservers', [DnsNameserversController::class, 'show'])->name('nameservers.show')->middleware('permission:view-dns');
+        Route::put('/{account}/domains/{domain}/nameservers', [DnsNameserversController::class, 'update'])->name('nameservers.update')->middleware('permission:manage-dns');
     });
 
     // ─── Notifications (all authenticated users) ──────────────

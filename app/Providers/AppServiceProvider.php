@@ -27,6 +27,7 @@ use App\Models\RolePermission;
 use App\Models\SophosFirewall;
 use App\Models\User;
 use App\Models\VpnTunnel;
+use App\Models\DnsAccount;
 use App\Models\WorkflowRequest;
 
 // Observers
@@ -34,6 +35,7 @@ use App\Observers\AlertRuleObserver;
 use App\Observers\BranchObserver;
 use App\Observers\ContactObserver;
 use App\Observers\CredentialObserver;
+use App\Observers\DnsAccountObserver;
 use App\Observers\DeviceObserver;
 use App\Observers\EmployeeObserver;
 use App\Observers\IncidentObserver;
@@ -74,6 +76,7 @@ class AppServiceProvider extends ServiceProvider
         Branch::observe(BranchObserver::class);
         Contact::observe(ContactObserver::class);
         Credential::observe(CredentialObserver::class);
+        DnsAccount::observe(DnsAccountObserver::class);
         Device::observe(DeviceObserver::class);
         Employee::observe(EmployeeObserver::class);
         Incident::observe(IncidentObserver::class);

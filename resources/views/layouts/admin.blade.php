@@ -256,6 +256,22 @@
                             </li>
                             @endcan
                             <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-globe2 me-1"></i>DNS</h6></li>
+                            @can('view-dns')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.dns.*') && !request()->routeIs('admin.network.dns.lookup.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.dns.index') }}">
+                                    <i class="bi bi-globe2 me-2"></i>DNS Accounts
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.dns.lookup.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.dns.lookup.index') }}">
+                                    <i class="bi bi-search me-2"></i>Domain Lookup
+                                </a>
+                            </li>
+                            @endcan
+                            <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.topology.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.topology.index') }}">
