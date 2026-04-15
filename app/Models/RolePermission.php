@@ -45,6 +45,8 @@ class RolePermission extends Model
                 'view-dhcp-leases'        => 'View DHCP Leases',
                 'view-sophos'             => 'View Sophos Firewalls',
                 'manage-sophos'           => 'Manage Sophos Firewalls',
+                'view-dns'                => 'View DNS Accounts & Domains',
+                'manage-dns'              => 'Manage DNS Records & Settings',
             ],
             'Assets' => [
                 'view-assets'   => 'View Device Inventory',
@@ -140,7 +142,7 @@ class RolePermission extends Model
             'view-extensions', 'view-trunks',
             'view-network', 'view-assets', 'view-printers',
             'view-workflows', 'view-employees', 'view-noc',
-            'view-dhcp-leases', 'view-sophos', 'view-admin-links',
+            'view-dhcp-leases', 'view-sophos', 'view-dns', 'view-admin-links',
         ];
 
         return [
