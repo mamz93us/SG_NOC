@@ -259,7 +259,8 @@
       "Bash(php -l app/Exceptions/GoDaddyApiException.php)",
       "Bash(php -l app/Observers/DnsAccountObserver.php)",
       "Bash(php -l app/Http/Controllers/Admin/DnsAccountController.php)",
-      "Bash(php -r 'try { $c = file_get_contents\\('\\\\''__TRACKED_VAR__'\\\\''\\); echo '\\\\''OK'\\\\''; } catch\\(Exception $e\\) { echo '\\\\''FAIL'\\\\''; }')"
+      "Bash(php -r 'try { $c = file_get_contents\\('\\\\''__TRACKED_VAR__'\\\\''\\); echo '\\\\''OK'\\\\''; } catch\\(Exception $e\\) { echo '\\\\''FAIL'\\\\''; }')",
+      "Bash(php -l app/Models/RolePermission.php)"
     ]
   }
 }

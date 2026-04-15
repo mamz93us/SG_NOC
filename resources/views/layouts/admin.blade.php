@@ -144,7 +144,7 @@
                     @endcanany
 
                     {{-- ── Network dropdown ── --}}
-                    @can('view-network')
+                    @canany(['view-network', 'view-dns'])
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/network*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -307,7 +307,7 @@
                             @endcan
                         </ul>
                     </li>
-                    @endcan
+                    @endcanany
 
                     {{-- ── Assets + ITAM dropdown ── --}}
                     @canany(['view-assets','view-printers','view-credentials','view-employees','view-itam','view-licenses','view-accessories','view-print-manager'])
