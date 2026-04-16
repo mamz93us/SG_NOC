@@ -70,11 +70,12 @@ class AcmeService
             // Get DNS-01 authorizations
             $authorizations = $client->authorize($order);
 
-            $addedTxtRecords = [];
+            $addedTxtRecords      = [];
+            $challengesToValidate = [];
 
             foreach ($authorizations as $authorization) {
                 /** @var \Afosto\Acme\Data\Authorization $authorization */
-                $challenges = $authorization->getChallenges();
+                $challenges   = $authorization->getChallenges();
                 $dnsChallenge = null;
 
                 foreach ($challenges as $challenge) {
@@ -88,11 +89,11 @@ class AcmeService
                     throw new \RuntimeException("No DNS-01 challenge found for {$fqdn}");
                 }
 
-                // TXT record: _acme-challenge.{subdomain}
-                $txtName  = $dnsChallenge->getTxtRecord();   // e.g. _acme-challenge
+                // TXT record name & digest value from ACME
+                $txtName  = $dnsChallenge->getTxtRecord();  // e.g. _acme-challenge
                 $txtValue = $dnsChallenge->getDigest();
 
-                Log::info("AcmeService: Adding TXT record {$txtName} for {$fqdn}");
+                Log::info("AcmeService: Adding TXT record {$txtName} = {$txtValue} for {$fqdn}");
 
                 // Add TXT record via GoDaddy
                 $this->godaddy->addRecords($domain, [[
@@ -102,18 +103,21 @@ class AcmeService
                     'ttl'  => 600,
                 ]]);
 
-                $addedTxtRecords[] = $txtName;
+                $addedTxtRecords[]      = $txtName;
+                $challengesToValidate[] = $dnsChallenge;
             }
 
-            // Wait for DNS propagation
+            // Wait for DNS propagation before notifying ACME
             $waitSeconds = config('acme.dns_propagation_wait', 30);
             Log::info("AcmeService: Waiting {$waitSeconds}s for DNS propagation...");
             sleep($waitSeconds);
 
-            // Notify ACME to validate
-            $client->self_validation();
+            // Notify ACME to validate each DNS-01 challenge
+            foreach ($challengesToValidate as $pendingChallenge) {
+                $client->validate($pendingChallenge, false);
+            }
 
-            // Poll for order completion
+            // Poll for order to become ready (ACME is verifying TXT records)
             $retries = config('acme.dns_poll_retries', 12);
             for ($i = 0; $i < $retries; $i++) {
                 if ($client->isReady($order)) break;
