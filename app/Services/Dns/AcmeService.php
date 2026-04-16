@@ -54,12 +54,11 @@ class AcmeService
             // Get or create ACME account key
             $accountKey = $this->getOrCreateAccountKey($domain);
 
-            // Bootstrap ACME client
+            // Bootstrap ACME client (afosto/yaac uses directory_url to determine live vs staging)
             $client = new \Afosto\Acme\Client([
                 'username'      => config('acme.email'),
                 'account_key'   => $accountKey,
                 'directory_url' => $directoryUrl,
-                'mode'          => config('acme.use_staging') ? \Afosto\Acme\Client::MODE_STAGING : \Afosto\Acme\Client::MODE_LIVE,
             ]);
 
             Log::info("AcmeService: Starting certificate issuance for {$fqdn}");
