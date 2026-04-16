@@ -90,7 +90,10 @@ class AcmeService
                 $token      = $challenge['token'];
                 $keyAuth    = $token . '.' . $this->jwkThumbprint();
                 $dnsValue   = $this->b64u(hash('sha256', $keyAuth, true));
-                $txtName    = '_acme-challenge';
+
+                // _acme-challenge.{subdomain} for subdomains, _acme-challenge for root
+                $subPart = rtrim(str_replace('.' . $domain, '', $fqdn), '.');
+                $txtName = $subPart ? "_acme-challenge.{$subPart}" : '_acme-challenge';
 
                 Log::info("AcmeService: Adding TXT {$txtName}.{$domain} = {$dnsValue}");
 
