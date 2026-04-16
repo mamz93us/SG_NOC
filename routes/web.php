@@ -77,6 +77,8 @@ use App\Http\Controllers\Admin\DnsDomainsController;
 use App\Http\Controllers\Admin\DnsRecordsController;
 use App\Http\Controllers\Admin\DnsNameserversController;
 use App\Http\Controllers\Admin\DnsLookupController;
+use App\Http\Controllers\Admin\SubdomainController;
+use App\Http\Controllers\Admin\SslCertificateController;
 
 /*
 |--------------------------------------------------------------------------
@@ -750,6 +752,21 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         // Nameservers
         Route::get('/{account}/domains/{domain}/nameservers', [DnsNameserversController::class, 'show'])->name('nameservers.show')->middleware('permission:view-dns');
         Route::put('/{account}/domains/{domain}/nameservers', [DnsNameserversController::class, 'update'])->name('nameservers.update')->middleware('permission:manage-dns');
+
+        // Subdomains
+        Route::get('/{account}/domains/{domain}/subdomains',                    [SubdomainController::class, 'index'])->name('subdomains.index')->middleware('permission:view-dns');
+        Route::post('/{account}/domains/{domain}/subdomains',                   [SubdomainController::class, 'store'])->name('subdomains.store')->middleware('permission:manage-dns');
+        Route::delete('/{account}/domains/{domain}/subdomains/{subdomain}',     [SubdomainController::class, 'destroy'])->name('subdomains.destroy')->middleware('permission:manage-dns');
+        Route::post('/{account}/domains/{domain}/subdomains/sync',              [SubdomainController::class, 'sync'])->name('subdomains.sync')->middleware('permission:manage-dns');
+
+        // SSL Certificates
+        Route::get('/{account}/domains/{domain}/certificates',                  [SslCertificateController::class, 'index'])->name('certificates.index')->middleware('permission:view-dns');
+        Route::post('/{account}/domains/{domain}/certificates',                 [SslCertificateController::class, 'store'])->name('certificates.store')->middleware('permission:manage-dns');
+        Route::get('/{account}/domains/{domain}/certificates/{cert}',           [SslCertificateController::class, 'show'])->name('certificates.show')->middleware('permission:view-dns');
+        Route::post('/{account}/domains/{domain}/certificates/{cert}/renew',    [SslCertificateController::class, 'renew'])->name('certificates.renew')->middleware('permission:manage-dns');
+        Route::post('/{account}/domains/{domain}/certificates/{cert}/revoke',   [SslCertificateController::class, 'revoke'])->name('certificates.revoke')->middleware('permission:manage-dns');
+        Route::delete('/{account}/domains/{domain}/certificates/{cert}',        [SslCertificateController::class, 'destroy'])->name('certificates.destroy')->middleware('permission:manage-dns');
+        Route::get('/{account}/domains/{domain}/certificates/{cert}/export',    [SslCertificateController::class, 'export'])->name('certificates.export')->middleware('permission:manage-dns');
     });
 
     // ─── Notifications (all authenticated users) ──────────────

@@ -144,7 +144,7 @@
                     @endcanany
 
                     {{-- ── Network dropdown ── --}}
-                    @canany(['view-network', 'view-dns'])
+                    @can('view-network')
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/network*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -257,7 +257,6 @@
                             @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-globe2 me-1"></i>DNS</h6></li>
-                            @can('view-dns')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.dns.*') && !request()->routeIs('admin.network.dns.lookup.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.dns.index') }}">
@@ -270,7 +269,6 @@
                                     <i class="bi bi-search me-2"></i>Domain Lookup
                                 </a>
                             </li>
-                            @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.topology.*') ? 'active' : '' }}"
@@ -307,7 +305,7 @@
                             @endcan
                         </ul>
                     </li>
-                    @endcanany
+                    @endcan
 
                     {{-- ── Assets + ITAM dropdown ── --}}
                     @canany(['view-assets','view-printers','view-credentials','view-employees','view-itam','view-licenses','view-accessories','view-print-manager'])

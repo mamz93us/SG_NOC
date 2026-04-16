@@ -341,3 +341,15 @@ Schedule::command('intune:sync-net-data')
     ->withoutOverlapping(60)
     ->runInBackground()
     ->name('intune-net-data');
+
+// ─── SSL Certificate Auto-Renewal — daily at 02:00 ───────────────────────
+// Renews all ssl_certificates where status='valid', auto_renew=true,
+// and expires_at <= now()+14 days. Runs inline (not via queue) so a
+// queue worker is not required; each renewal may take up to ~60 s.
+Schedule::call(function () {
+    try {
+        (new \App\Jobs\RenewExpiringCertificatesJob)->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('SSL auto-renewal failed: ' . $e->getMessage());
+    }
+})->name('renew-expiring-certs')->withoutOverlapping(30)->dailyAt('02:00');

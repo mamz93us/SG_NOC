@@ -260,7 +260,21 @@
       "Bash(php -l app/Observers/DnsAccountObserver.php)",
       "Bash(php -l app/Http/Controllers/Admin/DnsAccountController.php)",
       "Bash(php -r 'try { $c = file_get_contents\\('\\\\''__TRACKED_VAR__'\\\\''\\); echo '\\\\''OK'\\\\''; } catch\\(Exception $e\\) { echo '\\\\''FAIL'\\\\''; }')",
-      "Bash(php -l app/Models/RolePermission.php)"
+      "Bash(php -l app/Models/RolePermission.php)",
+      "Bash(ls -1 /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/*.php)",
+      "Bash(grep -l 'protected $fillable\\\\|protected $guarded' '/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Models/*.php')",
+      "Bash(grep -L 'protected $fillable\\\\|protected $guarded' '/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Models/*.php')",
+      "Bash(ls /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Models/*.php)",
+      "Bash(grep -n 'protected $guarded = \\\\[\\\\]' '/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Models/*.php')",
+      "Bash(grep -n \"check_\\\\|debug_\\\\|force_\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/routes/*.php)",
+      "Bash(grep -n \"2fa_verified\\\\|2fa_user_id\" /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Http/Controllers/Auth/*.php /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Http/Controllers/Admin/*.php)",
+      "Bash(find /c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app -name \"*.php\" -type f -exec grep -l \"telnet\" {} \\\\;)",
+      "Bash(php -l app/Jobs/RenewExpiringCertificatesJob.php)",
+      "Bash(php -l app/Jobs/IssueSslCertificateJob.php)",
+      "Bash(php -l app/Services/Dns/AcmeService.php)",
+      "Bash(php -l app/Services/Dns/CertificateExportService.php)",
+      "Bash(php -l app/Http/Controllers/Admin/SslCertificateController.php)",
+      "Bash(php -l app/Console/Commands/RenewExpiringCertsCommand.php)"
     ]
   }
 }
