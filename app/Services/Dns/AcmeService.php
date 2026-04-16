@@ -7,33 +7,35 @@ use App\Models\DnsAccount;
 use App\Models\SslCertificate;
 use App\Models\SubdomainRecord;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use League\Flysystem\Filesystem;
-use League\Flysystem\Local\LocalFilesystemAdapter;
 
+/**
+ * ACME v2 DNS-01 client — no external library required.
+ * Uses PHP OpenSSL + Laravel Http facade.
+ */
 class AcmeService
 {
+    private const DIRECTORY_LIVE    = 'https://acme-v02.api.letsencrypt.org/directory';
+    private const DIRECTORY_STAGING = 'https://acme-staging-v02.api.letsencrypt.org/directory';
+
+    private array   $directory    = [];
+    private ?string $accountUrl   = null;
+    private ?string $lastLocation = null;
+    private mixed   $privateKey   = null; // OpenSSL key resource
+
     public function __construct(private GoDaddyService $godaddy) {}
 
-    /**
-     * Issue a new SSL certificate via ACME DNS-01 challenge.
-     *
-     * Requires the `afosto/yaac` package:
-     *   composer require afosto/yaac
-     */
+    // ─── Public API ───────────────────────────────────────────────────────
+
     public function issueCertificate(
         DnsAccount $account,
         string $fqdn,
         string $domain,
         ?User $user = null
     ): SslCertificate {
-        if (!class_exists(\Afosto\Acme\Client::class)) {
-            throw new \RuntimeException('ACME client not installed. Run: composer require afosto/yaac');
-        }
+        $userId = $user?->id ?? auth()->id();
 
-        $userId = $user?->id ?? \Illuminate\Support\Facades\Auth::id();
-
-        // Create or update the certificate record as pending
         $cert = SslCertificate::updateOrCreate(
             ['account_id' => $account->id, 'fqdn' => $fqdn],
             [
@@ -46,121 +48,134 @@ class AcmeService
             ]
         );
 
-        try {
-            // Resolve ACME directory URL
-            $directoryUrl = config('acme.use_staging')
-                ? config('acme.staging_url', 'https://acme-staging-v02.api.letsencrypt.org/directory')
-                : config('acme.directory_url', 'https://acme-v02.api.letsencrypt.org/directory');
+        $addedTxtRecords = [];
 
-            // afosto/yaac requires a Flysystem filesystem to store its account key + data
-            $storagePath = storage_path('app/acme/' . preg_replace('/[^a-z0-9_\-]/i', '_', $domain));
-            if (!is_dir($storagePath)) {
-                mkdir($storagePath, 0755, true);
+        try {
+            $directoryUrl = config('acme.use_staging', false)
+                ? self::DIRECTORY_STAGING
+                : self::DIRECTORY_LIVE;
+
+            // 1. Load ACME directory (endpoint URLs)
+            $this->loadDirectory($directoryUrl);
+
+            // 2. Load or generate RSA account key
+            $accountKeyPem    = $this->loadOrCreateAccountKey($domain);
+            $this->privateKey = openssl_pkey_get_private($accountKeyPem);
+            if (!$this->privateKey) {
+                throw new \RuntimeException('Failed to load RSA account key');
             }
 
-            $filesystem = new Filesystem(new LocalFilesystemAdapter($storagePath));
+            // 3. Register or retrieve ACME account
+            $email            = config('acme.email', 'admin@example.com');
+            $this->accountUrl = $this->registerAccount($email);
+            Log::info("AcmeService: Account: {$this->accountUrl}");
 
-            // Bootstrap ACME client — 'fs' is mandatory for afosto/yaac
-            $client = new \Afosto\Acme\Client([
-                'username'      => config('acme.email', 'admin@example.com'),
-                'fs'            => $filesystem,
-                'directory_url' => $directoryUrl,
+            // 4. Create ACME order
+            $orderData = $this->postKid($this->directory['newOrder'], [
+                'identifiers' => [['type' => 'dns', 'value' => $fqdn]],
             ]);
+            $orderUrl = $this->lastLocation;
+            Log::info("AcmeService: Order created: {$orderUrl}");
 
-            Log::info("AcmeService: Starting certificate issuance for {$fqdn}");
+            // 5. Collect authorizations and add DNS TXT records
+            foreach ($orderData['authorizations'] as $authUrl) {
+                $auth      = Http::get($authUrl)->json();
+                $challenge = collect($auth['challenges'])->firstWhere('type', 'dns-01');
 
-            // Create ACME order
-            $order = $client->createOrder([$fqdn]);
-
-            // Get DNS-01 authorizations
-            $authorizations = $client->authorize($order);
-
-            $addedTxtRecords      = [];
-            $challengesToValidate = [];
-
-            foreach ($authorizations as $authorization) {
-                $challenges   = $authorization->getChallenges();
-                $dnsChallenge = null;
-
-                foreach ($challenges as $challenge) {
-                    if ($challenge->getType() === 'dns-01') {
-                        $dnsChallenge = $challenge;
-                        break;
-                    }
+                if (!$challenge) {
+                    throw new \RuntimeException("No DNS-01 challenge available for {$fqdn}");
                 }
 
-                if (!$dnsChallenge) {
-                    throw new \RuntimeException("No DNS-01 challenge found for {$fqdn}");
-                }
+                // Compute the TXT record digest
+                $token      = $challenge['token'];
+                $keyAuth    = $token . '.' . $this->jwkThumbprint();
+                $dnsValue   = $this->b64u(hash('sha256', $keyAuth, true));
+                $txtName    = '_acme-challenge';
 
-                $txtName  = $dnsChallenge->getTxtRecord();  // e.g. _acme-challenge
-                $txtValue = $dnsChallenge->getDigest();
+                Log::info("AcmeService: Adding TXT {$txtName}.{$domain} = {$dnsValue}");
 
-                Log::info("AcmeService: Adding TXT record {$txtName} = {$txtValue} for {$fqdn}");
-
-                // Add TXT record via GoDaddy
                 $this->godaddy->addRecords($domain, [[
                     'type' => 'TXT',
                     'name' => $txtName,
-                    'data' => $txtValue,
+                    'data' => $dnsValue,
                     'ttl'  => 600,
                 ]]);
-
-                $addedTxtRecords[]      = $txtName;
-                $challengesToValidate[] = $dnsChallenge;
+                $addedTxtRecords[] = $txtName;
             }
 
-            // Wait for DNS propagation before notifying ACME
-            $waitSeconds = (int) config('acme.dns_propagation_wait', 60);
-            Log::info("AcmeService: Waiting {$waitSeconds}s for DNS propagation...");
-            sleep($waitSeconds);
+            // 6. Wait for DNS to propagate
+            $wait = (int) config('acme.dns_propagation_wait', 60);
+            Log::info("AcmeService: Waiting {$wait}s for DNS propagation...");
+            sleep($wait);
 
-            // Notify ACME to validate each DNS-01 challenge
-            foreach ($challengesToValidate as $pendingChallenge) {
-                $client->validate($pendingChallenge, false);
+            // 7. Signal ACME that challenges are ready
+            foreach ($orderData['authorizations'] as $authUrl) {
+                $auth      = Http::get($authUrl)->json();
+                $challenge = collect($auth['challenges'])->firstWhere('type', 'dns-01');
+
+                if ($challenge && in_array($challenge['status'] ?? '', ['pending', 'processing'])) {
+                    $this->postKid($challenge['url'], new \stdClass()); // empty {} payload
+                    Log::info("AcmeService: Signalled challenge ready for {$authUrl}");
+                }
             }
 
-            // Poll for order to become ready (ACME is verifying TXT records)
-            $retries = (int) config('acme.dns_poll_retries', 12);
+            // 8. Poll order until ready
+            $retries     = (int) config('acme.dns_poll_retries', 12);
+            $orderStatus = [];
             for ($i = 0; $i < $retries; $i++) {
-                if ($client->isReady($order)) break;
-                Log::info("AcmeService: Waiting for order to be ready ({$i}/{$retries})...");
+                $orderStatus = Http::get($orderUrl)->json();
+                $s = $orderStatus['status'] ?? '';
+                Log::info("AcmeService: Order status [{$i}] = {$s}");
+                if ($s === 'ready') break;
+                if ($s === 'invalid') {
+                    throw new \RuntimeException('ACME order became invalid: ' . json_encode($orderStatus['error'] ?? $orderStatus));
+                }
                 sleep(10);
             }
 
-            if (!$client->isReady($order)) {
-                throw new \RuntimeException('ACME order did not become ready after validation. Check DNS propagation.');
+            if (($orderStatus['status'] ?? '') !== 'ready') {
+                throw new \RuntimeException('Order not ready after timeout. Last status: ' . ($orderStatus['status'] ?? 'unknown'));
             }
 
-            // Generate CSR and private key
-            [$privateKey, $csr] = $client->generateCsr([$fqdn]);
+            // 9. Generate certificate key + CSR
+            [$certKeyPem, $csrPem] = $this->generateCsr($fqdn);
 
-            // Finalize the order
-            $client->finalize($order, $csr);
+            // 10. Finalize the order
+            $csrDer       = $this->pemToDer($csrPem);
+            $finalizeData = $this->postKid($orderStatus['finalize'], ['csr' => $this->b64u($csrDer)]);
+            Log::info("AcmeService: Finalize sent, status=" . ($finalizeData['status'] ?? '?'));
 
-            // Wait for certificate to be issued
+            // 11. Poll until valid
             for ($i = 0; $i < $retries; $i++) {
-                if ($client->isFinalized($order)) break;
+                $orderStatus = Http::get($orderUrl)->json();
+                $s = $orderStatus['status'] ?? '';
+                Log::info("AcmeService: Order status post-finalize [{$i}] = {$s}");
+                if ($s === 'valid') break;
+                if ($s === 'invalid') {
+                    throw new \RuntimeException('Order invalid after finalize: ' . json_encode($orderStatus));
+                }
                 sleep(5);
             }
 
-            // Download the certificate
-            $certificate = $client->getCertificate($order);
-            $fullChain   = $certificate->getFullChainPem();
-            $expiresAt   = $certificate->getExpires(); // \DateTime
+            if (($orderStatus['status'] ?? '') !== 'valid') {
+                throw new \RuntimeException('Order did not become valid after finalization');
+            }
 
-            // Persist to DB (encrypted fields)
+            // 12. Download certificate chain (POST-as-GET)
+            $certPem   = $this->postAsGet($orderStatus['certificate']);
+            $expiresAt = $this->parseCertExpiry($certPem);
+
             $cert->update([
-                'status'         => 'valid',
-                'certificate'    => $fullChain,
-                'private_key'    => $privateKey,
-                'csr'            => $csr,
-                'issued_at'      => now(),
-                'expires_at'     => $expiresAt,
-                'failure_reason' => null,
+                'status'          => 'valid',
+                'certificate'     => $certPem,
+                'private_key'     => $certKeyPem,
+                'csr'             => $csrPem,
+                'acme_account_key'=> $accountKeyPem,
+                'issued_at'       => now(),
+                'expires_at'      => $expiresAt,
+                'failure_reason'  => null,
             ]);
 
-            // Link to subdomain record if one exists
             SubdomainRecord::where('account_id', $account->id)
                 ->where('fqdn', $fqdn)
                 ->update(['ssl_certificate_id' => $cert->id]);
@@ -169,24 +184,23 @@ class AcmeService
                 'model_type' => 'DnsAccount',
                 'model_id'   => $account->id,
                 'action'     => 'certificate.issued',
-                'changes'    => ['fqdn' => $fqdn, 'issuer' => 'letsencrypt', 'expires_at' => $expiresAt],
+                'changes'    => ['fqdn' => $fqdn, 'expires_at' => $expiresAt],
                 'user_id'    => $userId,
             ]);
 
-            Log::info("AcmeService: Certificate issued successfully for {$fqdn}");
+            Log::info("AcmeService: Certificate issued for {$fqdn}, expires {$expiresAt}");
 
         } catch (\Throwable $e) {
             $cert->update(['status' => 'failed', 'failure_reason' => $e->getMessage()]);
-            Log::error("AcmeService: Certificate issuance failed for {$fqdn}: {$e->getMessage()}");
+            Log::error("AcmeService: Failed for {$fqdn}: {$e->getMessage()}");
             throw $e;
         } finally {
-            // Always clean up TXT records
-            foreach ($addedTxtRecords ?? [] as $txtName) {
+            foreach ($addedTxtRecords as $txtName) {
                 try {
                     $this->godaddy->deleteRecordsByTypeAndName($domain, 'TXT', $txtName);
-                    Log::info("AcmeService: Cleaned up TXT record {$txtName}");
-                } catch (\Throwable $cleanupErr) {
-                    Log::warning("AcmeService: Failed to clean up TXT {$txtName}: {$cleanupErr->getMessage()}");
+                    Log::info("AcmeService: Cleaned TXT {$txtName}");
+                } catch (\Throwable $ce) {
+                    Log::warning("AcmeService: Could not clean TXT {$txtName}: {$ce->getMessage()}");
                 }
             }
         }
@@ -194,14 +208,10 @@ class AcmeService
         return $cert->fresh();
     }
 
-    /**
-     * Renew an existing certificate.
-     */
     public function renewCertificate(SslCertificate $cert, DnsAccount $account): SslCertificate
     {
         $oldExpiry = $cert->expires_at;
-
-        $renewed = $this->issueCertificate($account, $cert->fqdn, $cert->domain);
+        $renewed   = $this->issueCertificate($account, $cert->fqdn, $cert->domain);
 
         $renewed->update([
             'last_renewed_at' => now(),
@@ -213,15 +223,12 @@ class AcmeService
             'model_id'   => $account->id,
             'action'     => 'certificate.renewed',
             'changes'    => ['fqdn' => $cert->fqdn, 'old_expires' => $oldExpiry, 'new_expires' => $renewed->expires_at],
-            'user_id'    => \Illuminate\Support\Facades\Auth::id(),
+            'user_id'    => auth()->id(),
         ]);
 
         return $renewed;
     }
 
-    /**
-     * Revoke a certificate (marks as revoked in DB).
-     */
     public function revokeCertificate(SslCertificate $cert): bool
     {
         $cert->update(['status' => 'revoked']);
@@ -231,9 +238,211 @@ class AcmeService
             'model_id'   => $cert->account_id,
             'action'     => 'certificate.revoked',
             'changes'    => ['fqdn' => $cert->fqdn],
-            'user_id'    => \Illuminate\Support\Facades\Auth::id(),
+            'user_id'    => auth()->id(),
         ]);
 
         return true;
+    }
+
+    // ─── ACME Protocol Helpers ────────────────────────────────────────────
+
+    private function loadDirectory(string $url): void
+    {
+        $res = Http::get($url);
+        $this->directory = $res->json() ?? [];
+
+        if (empty($this->directory['newAccount'])) {
+            throw new \RuntimeException("Failed to load ACME directory from {$url}: " . $res->body());
+        }
+    }
+
+    private function getNonce(): string
+    {
+        $res   = Http::head($this->directory['newNonce']);
+        $nonce = $res->header('Replay-Nonce');
+
+        if (!$nonce) {
+            // Fall back to GET if HEAD not supported
+            $res   = Http::get($this->directory['newNonce']);
+            $nonce = $res->header('Replay-Nonce');
+        }
+
+        if (!$nonce) {
+            throw new \RuntimeException('Could not obtain ACME nonce');
+        }
+
+        return $nonce;
+    }
+
+    private function registerAccount(string $email): string
+    {
+        $data = $this->postJwk($this->directory['newAccount'], [
+            'termsOfServiceAgreed' => true,
+            'contact'              => ['mailto:' . $email],
+        ]);
+
+        $url = $this->lastLocation;
+        if (!$url) {
+            throw new \RuntimeException('No account URL returned from ACME newAccount endpoint');
+        }
+
+        return $url;
+    }
+
+    private function postJwk(string $url, array $payload): array
+    {
+        return $this->sendJws($url, $payload, false);
+    }
+
+    private function postKid(string $url, mixed $payload): array
+    {
+        return $this->sendJws($url, $payload, true);
+    }
+
+    /** POST-as-GET to download certificate PEM chain */
+    private function postAsGet(string $url): string
+    {
+        $nonce  = $this->getNonce();
+        $header = [
+            'alg'   => 'RS256',
+            'kid'   => $this->accountUrl,
+            'nonce' => $nonce,
+            'url'   => $url,
+        ];
+
+        $protectedB64 = $this->b64u(json_encode($header));
+        $payloadB64   = ''; // empty string = POST-as-GET per RFC 8555
+
+        openssl_sign($protectedB64 . '.' . $payloadB64, $sig, $this->privateKey, OPENSSL_ALGO_SHA256);
+
+        $res = Http::withHeaders([
+            'Content-Type' => 'application/jose+json',
+            'Accept'       => 'application/pem-certificate-chain',
+        ])->post($url, [
+            'protected' => $protectedB64,
+            'payload'   => $payloadB64,
+            'signature' => $this->b64u($sig),
+        ]);
+
+        if ($res->failed()) {
+            throw new \RuntimeException("Failed to download certificate: " . $res->body());
+        }
+
+        return (string) $res->body();
+    }
+
+    private function sendJws(string $url, mixed $payload, bool $useKid): array
+    {
+        $nonce  = $this->getNonce();
+        $header = ['alg' => 'RS256', 'nonce' => $nonce, 'url' => $url];
+
+        if ($useKid) {
+            $header['kid'] = $this->accountUrl;
+        } else {
+            $header['jwk'] = $this->jwk();
+        }
+
+        $protectedB64 = $this->b64u(json_encode($header));
+
+        if ($payload instanceof \stdClass) {
+            $payloadB64 = $this->b64u('{}');
+        } elseif ($payload === null) {
+            $payloadB64 = '';
+        } else {
+            $payloadB64 = $this->b64u(json_encode($payload));
+        }
+
+        openssl_sign($protectedB64 . '.' . $payloadB64, $sig, $this->privateKey, OPENSSL_ALGO_SHA256);
+
+        $res = Http::withHeaders([
+            'Content-Type' => 'application/jose+json',
+            'Accept'       => 'application/json',
+        ])->post($url, [
+            'protected' => $protectedB64,
+            'payload'   => $payloadB64,
+            'signature' => $this->b64u($sig),
+        ]);
+
+        $this->lastLocation = $res->header('Location');
+
+        if ($res->status() >= 400) {
+            $err = $res->json() ?? [];
+            throw new \RuntimeException(
+                'ACME ' . $res->status() . ': ' . ($err['detail'] ?? ($err['type'] ?? $res->body()))
+            );
+        }
+
+        return $res->json() ?? [];
+    }
+
+    // ─── Crypto Helpers ──────────────────────────────────────────────────
+
+    private function jwk(): array
+    {
+        $details = openssl_pkey_get_details($this->privateKey);
+        return [
+            'e'   => $this->b64u($details['rsa']['e']),
+            'kty' => 'RSA',
+            'n'   => $this->b64u($details['rsa']['n']),
+        ];
+    }
+
+    private function jwkThumbprint(): string
+    {
+        $jwk = $this->jwk();
+        // RFC 7638: alphabetically sorted keys, compact JSON
+        $canonical = json_encode(['e' => $jwk['e'], 'kty' => $jwk['kty'], 'n' => $jwk['n']]);
+        return $this->b64u(hash('sha256', $canonical, true));
+    }
+
+    private function b64u(string $data): string
+    {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
+
+    private function loadOrCreateAccountKey(string $domain): string
+    {
+        $existing = SslCertificate::where('domain', $domain)
+            ->whereNotNull('acme_account_key')
+            ->value('acme_account_key');
+
+        if ($existing) {
+            Log::info("AcmeService: Reusing stored account key for {$domain}");
+            return $existing;
+        }
+
+        $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        openssl_pkey_export($key, $pem);
+        Log::info("AcmeService: Generated new account key for {$domain}");
+        return $pem;
+    }
+
+    private function generateCsr(string $fqdn): array
+    {
+        $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        $csr = openssl_csr_new(['CN' => $fqdn], $key, ['digest_alg' => 'sha256']);
+
+        openssl_pkey_export($key, $keyPem);
+        openssl_csr_export($csr, $csrPem);
+
+        return [$keyPem, $csrPem];
+    }
+
+    private function pemToDer(string $pem): string
+    {
+        $pem = preg_replace('/-----[^-]+-----/', '', $pem);
+        $pem = preg_replace('/\s+/', '', $pem);
+        return base64_decode($pem);
+    }
+
+    private function parseCertExpiry(string $certPem): ?string
+    {
+        if (preg_match('/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/s', $certPem, $m)) {
+            $data = openssl_x509_parse($m[0]);
+            if ($data && isset($data['validTo_time_t'])) {
+                return date('Y-m-d H:i:s', $data['validTo_time_t']);
+            }
+        }
+        return null;
     }
 }
