@@ -330,14 +330,15 @@ class AcmeService
 
         openssl_sign($protectedB64 . '.' . $payloadB64, $sig, $this->privateKey, OPENSSL_ALGO_SHA256);
 
-        $res = Http::withHeaders([
-            'Content-Type' => 'application/jose+json',
-            'Accept'       => 'application/pem-certificate-chain',
-        ])->post($url, [
+        $jwsJson = json_encode([
             'protected' => $protectedB64,
             'payload'   => $payloadB64,
             'signature' => $this->b64u($sig),
         ]);
+
+        $res = Http::withHeaders(['Accept' => 'application/pem-certificate-chain'])
+            ->withBody($jwsJson, 'application/jose+json')
+            ->post($url);
 
         if ($res->failed()) {
             throw new \RuntimeException("Failed to download certificate: " . $res->body());
@@ -369,14 +370,15 @@ class AcmeService
 
         openssl_sign($protectedB64 . '.' . $payloadB64, $sig, $this->privateKey, OPENSSL_ALGO_SHA256);
 
-        $res = Http::withHeaders([
-            'Content-Type' => 'application/jose+json',
-            'Accept'       => 'application/json',
-        ])->post($url, [
+        $jwsJson = json_encode([
             'protected' => $protectedB64,
             'payload'   => $payloadB64,
             'signature' => $this->b64u($sig),
         ]);
+
+        $res = Http::withHeaders(['Accept' => 'application/json'])
+            ->withBody($jwsJson, 'application/jose+json')
+            ->post($url);
 
         $this->lastLocation = $res->header('Location');
 
