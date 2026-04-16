@@ -183,13 +183,17 @@ class AcmeService
                 ->where('fqdn', $fqdn)
                 ->update(['ssl_certificate_id' => $cert->id]);
 
-            ActivityLog::create([
-                'model_type' => 'DnsAccount',
-                'model_id'   => $account->id,
-                'action'     => 'certificate.issued',
-                'changes'    => ['fqdn' => $fqdn, 'expires_at' => $expiresAt],
-                'user_id'    => $userId,
-            ]);
+            try {
+                ActivityLog::create([
+                    'model_type' => 'DnsAccount',
+                    'model_id'   => $account->id,
+                    'action'     => 'certificate.issued',
+                    'changes'    => ['fqdn' => $fqdn, 'expires_at' => $expiresAt],
+                    'user_id'    => $userId ?? 0,
+                ]);
+            } catch (\Throwable $logErr) {
+                Log::warning("AcmeService: Could not write activity log: {$logErr->getMessage()}");
+            }
 
             Log::info("AcmeService: Certificate issued for {$fqdn}, expires {$expiresAt}");
 
@@ -221,13 +225,17 @@ class AcmeService
             'auto_renew'      => $cert->auto_renew,
         ]);
 
-        ActivityLog::create([
-            'model_type' => 'DnsAccount',
-            'model_id'   => $account->id,
-            'action'     => 'certificate.renewed',
-            'changes'    => ['fqdn' => $cert->fqdn, 'old_expires' => $oldExpiry, 'new_expires' => $renewed->expires_at],
-            'user_id'    => auth()->id(),
-        ]);
+        try {
+            ActivityLog::create([
+                'model_type' => 'DnsAccount',
+                'model_id'   => $account->id,
+                'action'     => 'certificate.renewed',
+                'changes'    => ['fqdn' => $cert->fqdn, 'old_expires' => $oldExpiry, 'new_expires' => $renewed->expires_at],
+                'user_id'    => auth()->id() ?? 0,
+            ]);
+        } catch (\Throwable $logErr) {
+            Log::warning("AcmeService: Could not write renewal log: {$logErr->getMessage()}");
+        }
 
         return $renewed;
     }
@@ -236,13 +244,17 @@ class AcmeService
     {
         $cert->update(['status' => 'revoked']);
 
-        ActivityLog::create([
-            'model_type' => 'DnsAccount',
-            'model_id'   => $cert->account_id,
-            'action'     => 'certificate.revoked',
-            'changes'    => ['fqdn' => $cert->fqdn],
-            'user_id'    => auth()->id(),
-        ]);
+        try {
+            ActivityLog::create([
+                'model_type' => 'DnsAccount',
+                'model_id'   => $cert->account_id,
+                'action'     => 'certificate.revoked',
+                'changes'    => ['fqdn' => $cert->fqdn],
+                'user_id'    => auth()->id() ?? 0,
+            ]);
+        } catch (\Throwable $logErr) {
+            Log::warning("AcmeService: Could not write revoke log: {$logErr->getMessage()}");
+        }
 
         return true;
     }
