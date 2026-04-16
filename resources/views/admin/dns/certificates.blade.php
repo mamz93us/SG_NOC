@@ -81,7 +81,7 @@
                         <td>
                             <div class="btn-group btn-group-sm">
                                 @can('manage-dns')
-                                @if(in_array($cert->status, ['valid', 'expired', 'expiring_soon']))
+                                @if(in_array($cert->status, ['valid', 'expired', 'expiring_soon', 'failed', 'pending']))
                                 <button class="btn btn-outline-success"
                                         onclick="renewCert({{ $cert->id }})"
                                         title="Renew">
