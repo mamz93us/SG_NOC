@@ -85,6 +85,12 @@
                                     <a :href="baseUrl + '/domains/' + d.domain + '/records'" class="btn btn-outline-primary" title="DNS Records">
                                         <i class="bi bi-list-ul"></i>
                                     </a>
+                                    <a :href="baseUrl + '/domains/' + d.domain + '/subdomains'" class="btn btn-outline-success" title="Subdomains & SSL">
+                                        <i class="bi bi-diagram-2"></i>
+                                    </a>
+                                    <a :href="baseUrl + '/domains/' + d.domain + '/certificates'" class="btn btn-outline-warning" title="SSL Certificates">
+                                        <i class="bi bi-shield-check"></i>
+                                    </a>
                                     <a :href="baseUrl + '/domains/' + d.domain + '/nameservers'" class="btn btn-outline-info" title="Nameservers">
                                         <i class="bi bi-server"></i>
                                     </a>
