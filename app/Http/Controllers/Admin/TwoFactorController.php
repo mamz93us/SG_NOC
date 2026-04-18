@@ -39,10 +39,10 @@ class TwoFactorController extends Controller
             $secret
         );
 
-        return view('auth.two-factor.setup', [
-            'enabled' => false,
-            'qrUrl'   => $qrUrl,
-            'secret'  => $secret,
+        // Forced enrollment — render the standalone enrollment page (no admin chrome)
+        return view('auth.two-factor.enroll', [
+            'qrUrl'  => $qrUrl,
+            'secret' => $secret,
         ]);
     }
 

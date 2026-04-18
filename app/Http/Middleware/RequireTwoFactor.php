@@ -21,14 +21,21 @@ class RequireTwoFactor
             if (! $user) {
                 return $next($request);
             }
-            if (
-                $user->hasTwoFactorEnabled()
-                && ! $request->session()->get('2fa_verified')
-                && ! $this->isExcludedRoute($request)
-            ) {
-                $request->session()->put('2fa_user_id', $user->id);
-                \Illuminate\Support\Facades\Auth::logout();
-                return redirect()->route('two-factor.challenge');
+
+            if ($this->isExcludedRoute($request)) {
+                return $next($request);
+            }
+
+            if ($user->hasTwoFactorEnabled()) {
+                // Enrolled but this session hasn't passed the challenge yet → log out and redirect
+                if (! $request->session()->get('2fa_verified')) {
+                    $request->session()->put('2fa_user_id', $user->id);
+                    \Illuminate\Support\Facades\Auth::logout();
+                    return redirect()->route('two-factor.challenge');
+                }
+            } else {
+                // 2FA is mandatory — force enrollment before anything else
+                return redirect()->route('admin.two-factor.setup');
             }
         } catch (\Throwable $e) {
             // 2FA columns not yet migrated — skip silently

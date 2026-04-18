@@ -40,7 +40,8 @@ public function store(LoginRequest $request): RedirectResponse
 
     $request->session()->regenerate();
 
-    return redirect()->route('admin.dashboard');
+    // 2FA is mandatory — send users without an authenticator to the setup page
+    return redirect()->route('admin.two-factor.setup');
 }
 
 

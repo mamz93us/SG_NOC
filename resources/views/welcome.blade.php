@@ -250,7 +250,7 @@
                 <!-- Bottom links -->
                 <div class="admin-link">
                     @auth
-                        <a href="/admin/dashboard" class="admin-btn">
+                        <a href="{{ route('admin.dashboard') }}" class="admin-btn">
                             ⚙️ Admin Panel
                         </a>
                         <a href="/logout" class="admin-btn"
