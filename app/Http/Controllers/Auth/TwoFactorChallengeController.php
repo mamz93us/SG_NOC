@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use PragmaRX\Google2FA\Google2FA;
 
 class TwoFactorChallengeController extends Controller
@@ -15,8 +13,14 @@ class TwoFactorChallengeController extends Controller
      */
     public function show(Request $request)
     {
-        if (! $request->session()->has('2fa_user_id')) {
+        $user = $request->user();
+
+        if (! $user || ! $user->hasTwoFactorEnabled()) {
             return redirect()->route('login');
+        }
+
+        if ($request->session()->get('2fa_verified')) {
+            return redirect()->route('admin.dashboard');
         }
 
         return view('auth.two-factor.challenge');
@@ -31,29 +35,22 @@ class TwoFactorChallengeController extends Controller
             'code' => ['required', 'digits:6'],
         ]);
 
-        $userId = $request->session()->get('2fa_user_id');
+        $user = $request->user();
 
-        if (! $userId) {
+        if (! $user || ! $user->hasTwoFactorEnabled()) {
             return redirect()->route('login');
         }
 
-        $user = User::findOrFail($userId);
         $google2fa = new Google2FA();
-
         $valid = $google2fa->verifyKey($user->two_factor_secret, $request->input('code'));
 
         if (! $valid) {
-            return redirect()->back()->withErrors(['code' => 'The authentication code is invalid. Please try again.']);
+            return redirect()->back()->withErrors([
+                'code' => 'The authentication code is invalid. Please try again.',
+            ]);
         }
 
-        // Code is valid — complete login
-        $remember = $request->session()->get('2fa_remember', false);
-        Auth::login($user, $remember);
-
-        $request->session()->forget('2fa_user_id');
-        $request->session()->forget('2fa_remember');
         $request->session()->put('2fa_verified', true);
-
         $request->session()->regenerate();
 
         return redirect()->intended(route('admin.dashboard'));

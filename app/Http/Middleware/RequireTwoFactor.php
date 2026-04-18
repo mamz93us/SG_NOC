@@ -17,7 +17,7 @@ class RequireTwoFactor
     {
         try {
             $user = $request->user();
-            // Not authenticated yet (mid-challenge flow) — do not interfere
+            // Not authenticated — nothing to gate on
             if (! $user) {
                 return $next($request);
             }
@@ -27,10 +27,8 @@ class RequireTwoFactor
             }
 
             if ($user->hasTwoFactorEnabled()) {
-                // Enrolled but this session hasn't passed the challenge yet → log out and redirect
+                // Enrolled but this session hasn't passed the challenge yet
                 if (! $request->session()->get('2fa_verified')) {
-                    $request->session()->put('2fa_user_id', $user->id);
-                    \Illuminate\Support\Facades\Auth::logout();
                     return redirect()->route('two-factor.challenge');
                 }
             } else {

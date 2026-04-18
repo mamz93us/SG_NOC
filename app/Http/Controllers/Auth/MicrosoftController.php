@@ -46,19 +46,18 @@ class MicrosoftController extends Controller
             ]
         );
 
-        // If user has 2FA enabled, redirect to challenge instead of logging in
-        if ($user->hasTwoFactorEnabled()) {
-            session()->put('2fa_user_id', $user->id);
-            session()->put('2fa_remember', true);
+        Auth::login($user, true);
 
+        // Make sure this session is not yet considered 2FA-verified; the
+        // RequireTwoFactor middleware will route the user to the challenge
+        // (if enrolled) or the forced enrollment page (if not).
+        session()->forget('2fa_verified');
+
+        if ($user->hasTwoFactorEnabled()) {
             return redirect()->route('two-factor.challenge');
         }
 
-        Auth::login($user, true);
-
-        // Use route() directly — intended() can point back to /login if user
-        // navigated there manually, causing an infinite redirect loop.
-        return redirect()->route('admin.dashboard');
+        return redirect()->route('admin.two-factor.setup');
     }
 
     private function configureSocialite(): void

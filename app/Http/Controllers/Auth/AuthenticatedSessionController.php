@@ -22,27 +22,24 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-   
-public function store(LoginRequest $request): RedirectResponse
-{
-    $request->authenticate();
+    public function store(LoginRequest $request): RedirectResponse
+    {
+        $request->authenticate();
 
-    $user = Auth::user();
+        $user = Auth::user();
 
-    // If user has 2FA enabled, log them out and redirect to the challenge page
-    if ($user && $user->hasTwoFactorEnabled()) {
-        $request->session()->put('2fa_user_id', $user->id);
-        $request->session()->put('2fa_remember', $request->boolean('remember'));
-        Auth::logout();
+        // 2FA is mandatory for every user. The RequireTwoFactor middleware will
+        // redirect to the challenge or enrollment page as appropriate on the
+        // next request — we just need to make sure the session is NOT marked
+        // as 2FA-verified yet.
+        $request->session()->forget('2fa_verified');
 
-        return redirect()->route('two-factor.challenge');
+        if ($user && $user->hasTwoFactorEnabled()) {
+            return redirect()->route('two-factor.challenge');
+        }
+
+        return redirect()->route('admin.two-factor.setup');
     }
-
-    $request->session()->regenerate();
-
-    // 2FA is mandatory — send users without an authenticator to the setup page
-    return redirect()->route('admin.two-factor.setup');
-}
 
 
     /**
