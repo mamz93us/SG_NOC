@@ -20,6 +20,19 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);
+
+        // Trust reverse-proxy headers (X-Forwarded-Proto, etc.) so Laravel
+        // detects HTTPS correctly behind the production proxy. Without this,
+        // secure cookie handling and URL generation can be inconsistent,
+        // which is a known cause of 419 "Page Expired" on form POSTs.
+        $middleware->trustProxies(at: '*');
+
+        // The 2FA challenge relies on an authenticated session and an OTP —
+        // excluding it from CSRF avoids edge-case token-mismatch errors
+        // that can occur after session regeneration during login.
+        $middleware->validateCsrfTokens(except: [
+            'two-factor-challenge',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
