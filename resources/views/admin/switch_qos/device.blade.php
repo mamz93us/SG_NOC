@@ -284,6 +284,113 @@
     </div>
 </div>
 
+{{-- ─── Traffic + Errors + Drop% ─────────────────────────────────────── --}}
+@if($ifaceStats->isNotEmpty())
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-transparent fw-semibold d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-activity me-1"></i>Interface Traffic, Errors &amp; Drop Percentage</span>
+        <small class="text-muted fw-normal">all counters are cumulative since last <code>clear counters</code></small>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Interface</th>
+                        <th class="text-end">In Pkts</th>
+                        <th class="text-end">Out Pkts</th>
+                        <th class="text-end">QoS Drops</th>
+                        <th class="text-end">Drop %</th>
+                        <th class="text-end">Out Discards</th>
+                        <th class="text-end">FCS Err</th>
+                        <th class="text-end">Align Err</th>
+                        <th class="text-end">Rcv Err</th>
+                        <th class="text-end">Runts</th>
+                        <th class="text-end">Giants</th>
+                        <th class="text-end">Late Col</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($ifaceStats as $name => $s)
+                    @php
+                        $qos     = $interfaces->firstWhere('interface_name', $name);
+                        $drops   = $qos ? (int) $qos->total_drops : 0;
+                        $pct     = $s->drop_percentage;
+                        $anyErr  = ($s->fcs_err + $s->align_err + $s->rcv_err + $s->runts + $s->giants + $s->late_col + $s->excess_col) > 0;
+                        $rowCls  = $pct !== null && $pct >= 0.1 ? 'table-warning' : ($anyErr ? 'table-danger' : '');
+                    @endphp
+                    <tr class="{{ $rowCls }}">
+                        <td class="fw-semibold font-monospace">{{ $name }}</td>
+                        <td class="text-end text-muted">{{ number_format($s->total_in_pkts) }}</td>
+                        <td class="text-end text-muted">{{ number_format($s->total_out_pkts) }}</td>
+                        <td class="text-end">{{ number_format($drops) }}</td>
+                        <td class="text-end fw-bold">
+                            @if($pct === null || $pct === 0.0 || $pct === '0.0000')
+                                <span class="text-muted">0.00%</span>
+                            @else
+                                <span class="badge bg-{{ $pct >= 1 ? 'danger' : ($pct >= 0.1 ? 'warning text-dark' : 'info') }}">
+                                    {{ number_format($pct, 4) }}%
+                                </span>
+                            @endif
+                        </td>
+                        <td class="text-end">{{ $s->out_discards ? number_format($s->out_discards) : '—' }}</td>
+                        <td class="text-end">{{ $s->fcs_err     ? number_format($s->fcs_err)     : '—' }}</td>
+                        <td class="text-end">{{ $s->align_err   ? number_format($s->align_err)   : '—' }}</td>
+                        <td class="text-end">{{ $s->rcv_err     ? number_format($s->rcv_err)     : '—' }}</td>
+                        <td class="text-end">{{ $s->runts       ? number_format($s->runts)       : '—' }}</td>
+                        <td class="text-end">{{ $s->giants      ? number_format($s->giants)      : '—' }}</td>
+                        <td class="text-end">{{ $s->late_col    ? number_format($s->late_col)    : '—' }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- ─── CDP Neighbors ────────────────────────────────────────────────── --}}
+@if($cdpNeighbors->isNotEmpty())
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-transparent fw-semibold d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-diagram-3 me-1"></i>CDP Neighbors</span>
+        <a href="{{ route('admin.switch-qos.topology') }}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-bounding-box me-1"></i>Topology Map
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Local Interface</th>
+                        <th>Neighbor</th>
+                        <th>Neighbor IP</th>
+                        <th>Neighbor Port</th>
+                        <th>Platform</th>
+                        <th>Capabilities</th>
+                        <th>Holdtime</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($cdpNeighbors as $n)
+                    <tr>
+                        <td class="font-monospace">{{ $n->local_interface }}</td>
+                        <td class="fw-semibold">{{ $n->neighbor_device_id }}</td>
+                        <td class="font-monospace text-muted">{{ $n->neighbor_ip ?: '—' }}</td>
+                        <td class="font-monospace text-muted">{{ $n->neighbor_port ?: '—' }}</td>
+                        <td class="text-muted">{{ $n->platform ?: '—' }}</td>
+                        <td class="text-muted">{{ $n->capabilities ?: '—' }}</td>
+                        <td class="text-muted">{{ $n->holdtime ? $n->holdtime . 's' : '—' }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@endif
+
 @if($trend->isNotEmpty())
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-transparent fw-semibold"><i class="bi bi-graph-up me-1"></i>Cumulative Drop Counter — Last 24h (Top 5 Interfaces)</div>

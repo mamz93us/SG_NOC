@@ -5,8 +5,11 @@ namespace App\Console\Commands;
 use App\Models\Branch;
 use App\Models\Credential;
 use App\Models\Device;
+use App\Models\SwitchCdpNeighbor;
+use App\Models\SwitchInterfaceStat;
 use App\Models\SwitchQosStat;
 use App\Models\VqAlertEvent;
+use App\Services\CiscoInterfaceParser;
 use App\Services\CiscoTelnetClient;
 use App\Services\MlsQosParser;
 use Illuminate\Console\Command;
@@ -77,19 +80,17 @@ class SwitchPollMlsQos extends Command
     {
         $ip = $device->ip_address;
         $client = new CiscoTelnetClient();
-        $raw = '';
+        $rawQos = $rawCounters = $rawErrors = $rawCdp = '';
 
         try {
             $client->connect($ip, 23, 10.0);
 
-            // 1. Login password
+            // 1. Login
             $client->waitFor(['Password:'], 10.0);
             $client->send((string) $telnet->password);
-
-            // 2. User-mode prompt
             $client->waitForPrompt(15.0);
 
-            // 3. Enter privileged mode if we have the enable secret
+            // 2. Privileged mode
             if ($enable) {
                 $client->send('enable');
                 $client->waitFor(['Password:'], 10.0);
@@ -97,39 +98,58 @@ class SwitchPollMlsQos extends Command
                 $client->waitForPrompt(15.0);
             }
 
-            // 4. Disable pagination
+            // 3. Disable pagination
             $client->send('terminal length 0');
             $client->waitForPrompt(10.0);
 
-            // 5. Collect stats
+            // 4. Collect all data in one session
             $client->send('show mls qos interface statistics');
-            $raw = $client->waitForPrompt(60.0);
+            $rawQos = $client->waitForPrompt(60.0);
 
-            // 6. Polite exit
-            try {
-                $client->send('exit');
-            } catch (\Throwable) {
-                // ignore — connection may drop immediately on exit
-            }
+            $client->send('show interfaces counters');
+            $rawCounters = $client->waitForPrompt(30.0);
+
+            $client->send('show interfaces counters errors');
+            $rawErrors = $client->waitForPrompt(30.0);
+
+            $client->send('show cdp neighbors detail');
+            $rawCdp = $client->waitForPrompt(30.0);
+
+            try { $client->send('exit'); } catch (\Throwable) {}
         } finally {
             $client->close();
         }
 
-        $parser = new MlsQosParser();
-        $rows = $parser->parse($raw);
+        $qosParser = new MlsQosParser();
+        $ifParser  = new CiscoInterfaceParser();
 
-        if (empty($rows)) {
-            $this->warn("  x {$device->name} ({$ip}): parser returned 0 interfaces");
+        $qosRows    = $qosParser->parse($rawQos);
+        $counters   = $ifParser->parseInterfaceCounters($rawCounters);
+        $errors     = $ifParser->parseInterfaceErrors($rawErrors);
+        $cdpRows    = $ifParser->parseCdpNeighborsDetail($rawCdp);
+
+        $this->line("    qos-ifaces=" . count($qosRows)
+            . " counters=" . count($counters)
+            . " errors=" . count($errors)
+            . " cdp=" . count($cdpRows));
+
+        if (empty($qosRows) && empty($counters)) {
+            $this->warn("  x {$device->name} ({$ip}): nothing parsed");
             return;
         }
 
         if ($dryRun) {
-            $this->info("  v {$device->name} ({$ip}): parsed " . count($rows) . " interfaces (dry-run, not saved)");
+            $this->info("  v {$device->name} ({$ip}): dry-run OK (not saved)");
             return;
         }
 
         $now = now();
-        foreach ($rows as $r) {
+
+        // Index QoS rows by interface name for quick drop% lookup
+        $qosByIface = collect($qosRows)->keyBy('interface_name');
+
+        // Save QoS rows + alerting (existing behavior)
+        foreach ($qosRows as $r) {
             $previous = SwitchQosStat::where('device_ip', $ip)
                 ->where('interface_name', $r['interface_name'])
                 ->latest('polled_at')
@@ -146,7 +166,86 @@ class SwitchPollMlsQos extends Command
             $this->maybeAlert($device, $stat, $previous);
         }
 
-        $this->info("  v {$device->name} ({$ip}): saved " . count($rows) . " interface rows");
+        // Save interface counter+error rows. Union of iface names seen in counters & errors.
+        $ifaceNames = array_unique(array_merge(array_keys($counters), array_keys($errors)));
+        foreach ($ifaceNames as $name) {
+            $c = $counters[$name] ?? [];
+            $e = $errors[$name] ?? [];
+
+            $outUcast = (int)($c['out_ucast_pkts'] ?? 0);
+            $outMcast = (int)($c['out_mcast_pkts'] ?? 0);
+            $outBcast = (int)($c['out_bcast_pkts'] ?? 0);
+            $inUcast  = (int)($c['in_ucast_pkts'] ?? 0);
+            $inMcast  = (int)($c['in_mcast_pkts'] ?? 0);
+            $inBcast  = (int)($c['in_bcast_pkts'] ?? 0);
+            $totalOut = $outUcast + $outMcast + $outBcast;
+            $totalIn  = $inUcast + $inMcast + $inBcast;
+
+            // Drop% uses QoS total_drops (cumulative) vs total packets transmitted (cumulative).
+            $qos = $qosByIface->get($name);
+            $dropPct = null;
+            if ($qos && $totalOut > 0) {
+                $drops = (int) ($qos['total_drops'] ?? 0);
+                $dropPct = round($drops * 100.0 / ($totalOut + $drops), 4);
+            }
+
+            SwitchInterfaceStat::create([
+                'device_id'       => $device->id,
+                'device_name'     => $device->name,
+                'device_ip'       => $ip,
+                'branch_id'       => $device->branch_id,
+                'interface_name'  => $name,
+
+                'in_octets'       => (int)($c['in_octets'] ?? 0),
+                'in_ucast_pkts'   => $inUcast,
+                'in_mcast_pkts'   => $inMcast,
+                'in_bcast_pkts'   => $inBcast,
+                'out_octets'      => (int)($c['out_octets'] ?? 0),
+                'out_ucast_pkts'  => $outUcast,
+                'out_mcast_pkts'  => $outMcast,
+                'out_bcast_pkts'  => $outBcast,
+
+                'align_err'       => (int)($e['align_err'] ?? 0),
+                'fcs_err'         => (int)($e['fcs_err'] ?? 0),
+                'xmit_err'        => (int)($e['xmit_err'] ?? 0),
+                'rcv_err'         => (int)($e['rcv_err'] ?? 0),
+                'undersize'       => (int)($e['undersize'] ?? 0),
+                'out_discards'    => (int)($e['out_discards'] ?? 0),
+                'single_col'      => (int)($e['single_col'] ?? 0),
+                'multi_col'       => (int)($e['multi_col'] ?? 0),
+                'late_col'        => (int)($e['late_col'] ?? 0),
+                'excess_col'      => (int)($e['excess_col'] ?? 0),
+                'carri_sen'       => (int)($e['carri_sen'] ?? 0),
+                'runts'           => (int)($e['runts'] ?? 0),
+                'giants'          => (int)($e['giants'] ?? 0),
+
+                'total_out_pkts'  => $totalOut,
+                'total_in_pkts'   => $totalIn,
+                'drop_percentage' => $dropPct,
+                'polled_at'       => $now,
+            ]);
+        }
+
+        // Replace CDP snapshot for this device (latest only — old rows kept for history)
+        foreach ($cdpRows as $n) {
+            SwitchCdpNeighbor::create([
+                'device_id'          => $device->id,
+                'device_name'        => $device->name,
+                'device_ip'          => $ip,
+                'local_interface'    => $n['local_interface'],
+                'neighbor_device_id' => $n['neighbor_device_id'],
+                'neighbor_ip'        => $n['neighbor_ip'],
+                'neighbor_port'      => $n['neighbor_port'],
+                'platform'           => $n['platform'],
+                'capabilities'       => $n['capabilities'],
+                'version'            => $n['version'],
+                'holdtime'           => $n['holdtime'],
+                'polled_at'          => $now,
+            ]);
+        }
+
+        $this->info("  v {$device->name} ({$ip}): qos=" . count($qosRows)
+            . " ifaces=" . count($ifaceNames) . " cdp=" . count($cdpRows));
     }
 
     private function maybeAlert(Device $device, SwitchQosStat $current, ?SwitchQosStat $previous): void

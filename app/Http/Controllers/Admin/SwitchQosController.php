@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Credential;
 use App\Models\Device;
+use App\Models\SwitchCdpNeighbor;
+use App\Models\SwitchInterfaceStat;
 use App\Models\SwitchQosStat;
 use App\Models\VqAlertEvent;
 use App\Services\CiscoTelnetClient;
@@ -178,10 +180,117 @@ class SwitchQosController extends Controller
         $telnetCred = $device?->credentials()->where('category', 'telnet')->first();
         $enableCred = $device?->credentials()->where('category', 'enable')->first();
 
+        // Latest-per-interface traffic/error counters
+        $ifaceStats = SwitchInterfaceStat::where('device_ip', $deviceIp)
+            ->whereIn('id', function ($sub) use ($deviceIp) {
+                $sub->selectRaw('MAX(id)')
+                    ->from('switch_interface_stats')
+                    ->where('device_ip', $deviceIp)
+                    ->groupBy('interface_name');
+            })
+            ->orderBy('interface_name')
+            ->get()
+            ->keyBy('interface_name');
+
+        // Latest CDP neighbor snapshot
+        $latestCdpAt = SwitchCdpNeighbor::where('device_ip', $deviceIp)->max('polled_at');
+        $cdpNeighbors = $latestCdpAt
+            ? SwitchCdpNeighbor::where('device_ip', $deviceIp)->where('polled_at', $latestCdpAt)->orderBy('local_interface')->get()
+            : collect();
+
         return view('admin.switch_qos.device', compact(
             'latestSnapshot', 'interfaces', 'trend', 'deviceIp',
-            'device', 'telnetCred', 'enableCred'
+            'device', 'telnetCred', 'enableCred', 'ifaceStats', 'cdpNeighbors'
         ));
+    }
+
+    /**
+     * CDP-based network topology across ALL polled switches.
+     */
+    public function topology()
+    {
+        // Use the single most recent CDP snapshot per device.
+        $latestPerDevice = SwitchCdpNeighbor::select('device_ip', DB::raw('MAX(polled_at) as last_at'))
+            ->groupBy('device_ip')
+            ->get();
+
+        $edges = collect();
+        foreach ($latestPerDevice as $ld) {
+            $rows = SwitchCdpNeighbor::where('device_ip', $ld->device_ip)
+                ->where('polled_at', $ld->last_at)
+                ->get();
+            $edges = $edges->concat($rows);
+        }
+
+        // Build unique nodes
+        $nodes = [];
+        foreach ($edges as $e) {
+            $key = $e->device_ip;
+            $nodes[$key] = $nodes[$key] ?? [
+                'id'    => $key,
+                'label' => $e->device_name . "\n" . $key,
+                'group' => 'polled',
+                'title' => "{$e->device_name} ({$key})",
+            ];
+            $nkey = $e->neighbor_ip ?: $e->neighbor_device_id;
+            if (!isset($nodes[$nkey])) {
+                $nodes[$nkey] = [
+                    'id'    => $nkey,
+                    'label' => $e->neighbor_device_id . ($e->neighbor_ip ? "\n" . $e->neighbor_ip : ''),
+                    'group' => 'neighbor',
+                    'title' => ($e->platform ? $e->platform . ' — ' : '') . $e->neighbor_device_id,
+                ];
+            }
+        }
+
+        $visEdges = [];
+        $seenPairs = [];
+        foreach ($edges as $e) {
+            $from = $e->device_ip;
+            $to   = $e->neighbor_ip ?: $e->neighbor_device_id;
+            $pair = $from < $to ? "$from|$to" : "$to|$from";
+            if (isset($seenPairs[$pair])) continue;
+            $seenPairs[$pair] = true;
+
+            $visEdges[] = [
+                'from'  => $from,
+                'to'    => $to,
+                'label' => $e->local_interface . ' ↔ ' . ($e->neighbor_port ?? ''),
+                'title' => "{$e->device_name} {$e->local_interface} → {$e->neighbor_device_id} {$e->neighbor_port}",
+            ];
+        }
+
+        return view('admin.switch_qos.topology', [
+            'nodes' => array_values($nodes),
+            'edges' => $visEdges,
+            'stats' => [
+                'devices'  => count($nodes),
+                'links'    => count($visEdges),
+                'polled'   => $latestPerDevice->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * Full CDP neighbor list across all switches (flat table).
+     */
+    public function cdpIndex()
+    {
+        $latestPerDevice = SwitchCdpNeighbor::select('device_ip', DB::raw('MAX(polled_at) as last_at'))
+            ->groupBy('device_ip')
+            ->get();
+
+        $rows = collect();
+        foreach ($latestPerDevice as $ld) {
+            $rows = $rows->concat(
+                SwitchCdpNeighbor::where('device_ip', $ld->device_ip)
+                    ->where('polled_at', $ld->last_at)
+                    ->orderBy('local_interface')
+                    ->get()
+            );
+        }
+
+        return view('admin.switch_qos.cdp', ['rows' => $rows]);
     }
 
     /**

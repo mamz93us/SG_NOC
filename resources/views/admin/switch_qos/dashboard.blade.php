@@ -7,7 +7,9 @@
         <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 me-2 text-primary"></i>Switch QoS Monitor</h4>
         <small class="text-muted">Cisco MLS QoS queue drops & policer stats — {{ today()->format('d M Y') }}</small>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ route('admin.switch-qos.topology') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-bounding-box me-1"></i>Topology Map</a>
+        <a href="{{ route('admin.switch-qos.cdp') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-diagram-3 me-1"></i>CDP Neighbors</a>
         <a href="{{ route('admin.switch-qos.index') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list me-1"></i>All Stats</a>
     </div>
 </div>
