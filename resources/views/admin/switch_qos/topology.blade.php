@@ -7,9 +7,16 @@
         <h4 class="mb-0 fw-bold"><i class="bi bi-bounding-box me-2 text-primary"></i>Network Topology</h4>
         <small class="text-muted">Auto-discovered from CDP neighbors</small>
     </div>
-    <div class="d-flex gap-2">
-        <span class="badge bg-info">Devices: {{ $stats['devices'] }}</span>
-        <span class="badge bg-secondary">Links: {{ $stats['links'] }}</span>
+    <div class="d-flex gap-2 align-items-center">
+        <div class="form-check form-switch me-2 mb-0">
+            <input class="form-check-input" type="checkbox" id="hideEndUsers" checked>
+            <label class="form-check-label small" for="hideEndUsers">
+                Hide end-user devices
+                <span class="badge bg-warning text-dark ms-1" id="endUserCount">{{ $stats['end_users'] ?? 0 }}</span>
+            </label>
+        </div>
+        <span class="badge bg-info">Devices: <span id="deviceCount">{{ $stats['devices'] }}</span></span>
+        <span class="badge bg-secondary">Links: <span id="linkCount">{{ $stats['links'] }}</span></span>
         <span class="badge bg-light text-dark border">Polled: {{ $stats['polled'] }}</span>
         <a href="{{ route('admin.switch-qos.cdp') }}" class="btn btn-sm btn-outline-primary">
             <i class="bi bi-list me-1"></i>Neighbor Table
@@ -58,8 +65,10 @@ const palette = {
 };
 
 const nodeUrls = {};
+const nodeIsEndUser = {};
 const nodes = new vis.DataSet(rawNodes.map(n => {
     if (n.url) nodeUrls[n.id] = n.url;
+    nodeIsEndUser[n.id] = !!n.is_end_user;
     return {
         id: n.id,
         label: n.label,
@@ -68,10 +77,12 @@ const nodes = new vis.DataSet(rawNodes.map(n => {
         color: palette[n.group] || palette.neighbor,
         font: { multi: true, size: 12 },
         margin: 8,
+        hidden: !!n.is_end_user,   // default: hide end-user devices
     };
 }));
 
-const edges = new vis.DataSet(rawEdges.map(e => ({
+const edges = new vis.DataSet(rawEdges.map((e, i) => ({
+    id: 'e' + i,
     from: e.from,
     to:   e.to,
     label: e.label,
@@ -80,7 +91,34 @@ const edges = new vis.DataSet(rawEdges.map(e => ({
     color: { color: '#adb5bd', highlight: '#0d6efd' },
     arrows: { to: { enabled: false }, from: { enabled: false } },
     smooth: { type: 'dynamic' },
+    hidden: !!e.is_end_user,
 })));
+
+function applyEndUserFilter(hide) {
+    const nodeUpdates = [];
+    nodes.forEach(n => {
+        if (nodeIsEndUser[n.id]) nodeUpdates.push({ id: n.id, hidden: hide });
+    });
+    if (nodeUpdates.length) nodes.update(nodeUpdates);
+
+    const edgeUpdates = [];
+    edges.forEach(e => {
+        const endUserEdge = nodeIsEndUser[e.from] || nodeIsEndUser[e.to];
+        if (endUserEdge) edgeUpdates.push({ id: e.id, hidden: hide });
+    });
+    if (edgeUpdates.length) edges.update(edgeUpdates);
+
+    const visibleNodes = nodes.get().filter(n => !n.hidden).length;
+    const visibleEdges = edges.get().filter(e => !e.hidden).length;
+    document.getElementById('deviceCount').textContent = visibleNodes;
+    document.getElementById('linkCount').textContent = visibleEdges;
+}
+
+document.getElementById('hideEndUsers').addEventListener('change', (ev) => {
+    applyEndUserFilter(ev.target.checked);
+});
+// Initial count reflects the default-hidden state
+applyEndUserFilter(document.getElementById('hideEndUsers').checked);
 
 const network = new vis.Network(document.getElementById('topology'), { nodes, edges }, {
     physics: {

@@ -225,85 +225,127 @@ class SwitchQosController extends Controller
             $edges = $edges->concat($rows);
         }
 
-        // Build unique nodes
+        // Canonical key for each polled switch. Prefer its internal Device id so a
+        // neighbor that matches this Device collapses onto the same node.
+        $polledKeyByIp = [];
+        foreach ($edges as $e) {
+            if (!isset($polledKeyByIp[$e->device_ip])) {
+                $polledKeyByIp[$e->device_ip] = $e->device_id
+                    ? 'device:' . $e->device_id
+                    : 'ip:' . $e->device_ip;
+            }
+        }
+
+        // Canonical key for a neighbor edge. Matches polled switches when the IP overlaps.
+        $neighborKey = function (SwitchCdpNeighbor $e) use ($polledKeyByIp): string {
+            if ($e->matched_meraki_serial) return 'meraki:' . $e->matched_meraki_serial;
+            if ($e->matched_device_id)     return 'device:' . $e->matched_device_id;
+            if ($e->neighbor_ip && isset($polledKeyByIp[$e->neighbor_ip])) {
+                return $polledKeyByIp[$e->neighbor_ip];
+            }
+            if ($e->neighbor_ip)          return 'ip:' . $e->neighbor_ip;
+            if ($e->neighbor_mac)         return 'mac:' . $e->neighbor_mac;
+            return 'host:' . ($e->neighbor_device_id ?: 'unknown');
+        };
+
+        // CDP capability string → end-user flag. Phones and bare Hosts without bridging
+        // capability are treated as end-user endpoints.
+        $isEndUser = function (?string $capabilities): bool {
+            if (!$capabilities) return false;
+            $cap = strtolower($capabilities);
+            $infra = str_contains($cap, 'switch')
+                || str_contains($cap, 'router')
+                || str_contains($cap, 'trans-bridge')
+                || str_contains($cap, 'source-route');
+            if ($infra) return false;
+            return str_contains($cap, 'phone') || str_contains($cap, 'host');
+        };
+
+        // Build nodes: polled switches first, then each distinct neighbor.
         $nodes = [];
         foreach ($edges as $e) {
-            $key = $e->device_ip;
-            $nodes[$key] = $nodes[$key] ?? [
-                'id'    => $key,
-                'label' => $e->device_name . "\n" . $key,
-                'group' => 'polled',
-                'title' => "{$e->device_name} ({$key})",
-                'url'   => route('admin.switch-qos.device', urlencode($e->device_ip)),
-            ];
-
-            // Prefer a stable key: meraki serial > internal device id > IP > raw device id
-            if ($e->merakiSwitch) {
-                $nkey = 'meraki:' . $e->merakiSwitch->serial;
-            } elseif ($e->matchedDevice) {
-                $nkey = 'device:' . $e->matchedDevice->id;
-            } else {
-                $nkey = $e->neighbor_ip ?: $e->neighbor_device_id;
+            $pkey = $polledKeyByIp[$e->device_ip];
+            if (!isset($nodes[$pkey])) {
+                $nodes[$pkey] = [
+                    'id'         => $pkey,
+                    'label'      => $e->device_name . "\n" . $e->device_ip,
+                    'group'      => 'polled',
+                    'title'      => "{$e->device_name} ({$e->device_ip})",
+                    'url'        => route('admin.switch-qos.device', urlencode($e->device_ip)),
+                    'is_end_user'=> false,
+                ];
             }
+
+            $nkey = $neighborKey($e);
             $e->_nkey = $nkey;
 
             if (!isset($nodes[$nkey])) {
                 if ($e->merakiSwitch) {
                     $ms = $e->merakiSwitch;
                     $nodes[$nkey] = [
-                        'id'    => $nkey,
-                        'label' => ($ms->name ?: $ms->serial) . "\n" . ($ms->lan_ip ?: $ms->mac),
-                        'group' => 'meraki',
-                        'title' => "Meraki {$ms->model} — {$ms->serial}" . ($ms->lan_ip ? " ({$ms->lan_ip})" : ''),
-                        'url'   => route('admin.network.switch-detail', $ms->serial),
+                        'id'         => $nkey,
+                        'label'      => ($ms->name ?: $ms->serial) . "\n" . ($ms->lan_ip ?: $ms->mac),
+                        'group'      => 'meraki',
+                        'title'      => "Meraki {$ms->model} — {$ms->serial}" . ($ms->lan_ip ? " ({$ms->lan_ip})" : ''),
+                        'url'        => route('admin.network.switch-detail', $ms->serial),
+                        'is_end_user'=> false,
                     ];
                 } elseif ($e->matchedDevice) {
                     $md = $e->matchedDevice;
                     $nodes[$nkey] = [
-                        'id'    => $nkey,
-                        'label' => ($md->name ?: $md->ip_address) . "\n" . ($md->ip_address ?: ''),
-                        'group' => 'device',
-                        'title' => ($md->manufacturer ? $md->manufacturer . ' — ' : '') . ($md->model ?: $md->type),
-                        'url'   => in_array($md->type, ['switch', 'router'], true)
+                        'id'         => $nkey,
+                        'label'      => ($md->name ?: $md->ip_address) . "\n" . ($md->ip_address ?: ''),
+                        'group'      => 'device',
+                        'title'      => ($md->manufacturer ? $md->manufacturer . ' — ' : '') . ($md->model ?: $md->type),
+                        'url'        => in_array($md->type, ['switch', 'router'], true)
                             ? route('admin.switch-qos.setup', $md->id)
                             : null,
+                        'is_end_user'=> !in_array($md->type, ['switch', 'router'], true) && $isEndUser($e->capabilities),
                     ];
                 } else {
                     $nodes[$nkey] = [
-                        'id'    => $nkey,
-                        'label' => $e->neighbor_device_id . ($e->neighbor_ip ? "\n" . $e->neighbor_ip : ''),
-                        'group' => 'neighbor',
-                        'title' => ($e->platform ? $e->platform . ' — ' : '') . $e->neighbor_device_id,
-                        'url'   => null,
+                        'id'         => $nkey,
+                        'label'      => $e->neighbor_device_id . ($e->neighbor_ip ? "\n" . $e->neighbor_ip : ''),
+                        'group'      => 'neighbor',
+                        'title'      => ($e->platform ? $e->platform . ' — ' : '') . $e->neighbor_device_id,
+                        'url'        => null,
+                        'is_end_user'=> $isEndUser($e->capabilities),
                     ];
                 }
             }
         }
 
+        // Edges keyed by unordered (from, to) pair to avoid duplicate lines between the
+        // same two devices (both sides often show each other in their CDP tables).
         $visEdges = [];
         $seenPairs = [];
         foreach ($edges as $e) {
-            $from = $e->device_ip;
+            $from = $polledKeyByIp[$e->device_ip];
             $to   = $e->_nkey;
+            if ($from === $to) continue;
             $pair = $from < $to ? "$from|$to" : "$to|$from";
             if (isset($seenPairs[$pair])) continue;
             $seenPairs[$pair] = true;
 
             $visEdges[] = [
-                'from'  => $from,
-                'to'    => $to,
-                'label' => $e->local_interface . ' ↔ ' . ($e->neighbor_port ?? ''),
-                'title' => "{$e->device_name} {$e->local_interface} → {$e->neighbor_device_id} {$e->neighbor_port}",
+                'from'        => $from,
+                'to'          => $to,
+                'label'       => $e->local_interface . ' ↔ ' . ($e->neighbor_port ?? ''),
+                'title'       => "{$e->device_name} {$e->local_interface} → {$e->neighbor_device_id} {$e->neighbor_port}",
+                'is_end_user' => $nodes[$to]['is_end_user'] ?? false,
             ];
         }
+
+        $endUserCount = collect($nodes)->where('is_end_user', true)->count();
 
         return view('admin.switch_qos.topology', [
             'nodes' => array_values($nodes),
             'edges' => $visEdges,
             'stats' => [
-                'devices'  => count($nodes),
-                'links'    => count($visEdges),
-                'polled'   => $latestPerDevice->count(),
+                'devices'   => count($nodes),
+                'links'     => count($visEdges),
+                'polled'    => $latestPerDevice->count(),
+                'end_users' => $endUserCount,
             ],
         ]);
     }
