@@ -23,6 +23,21 @@
         <small class="text-muted font-monospace">{{ $device->ip_address }} <span class="ms-2 text-secondary">{{ $device->branch?->name }}</span></small>
     </div>
     <div class="d-flex gap-2 align-items-center">
+        @can('manage-credentials')
+        <form method="POST" action="{{ route('admin.switch-qos.poll', $device->id) }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-success" title="Run the poller now">
+                <i class="bi bi-play-fill me-1"></i>Poll Now
+            </button>
+        </form>
+        <form method="POST" action="{{ route('admin.switch-qos.clear', $device->id) }}" class="d-inline"
+              onsubmit="return confirm('Reset all MLS QoS counters on the switch?\n\nThis runs `clear mls qos interface statistics` on the device — cumulative drop counters will start from zero after the next poll.');">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Clear counters on the switch">
+                <i class="bi bi-eraser me-1"></i>Clear Stats
+            </button>
+        </form>
+        @endcan
         @if($lastPoll)
         <a href="{{ route('admin.switch-qos.device', urlencode($device->ip_address)) }}" class="btn btn-sm btn-outline-primary">
             <i class="bi bi-eye me-1"></i>View QoS Data

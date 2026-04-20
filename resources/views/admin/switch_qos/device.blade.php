@@ -18,8 +18,28 @@
         <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 me-2 text-primary"></i>{{ $latestSnapshot->device_name }}</h4>
         <small class="text-muted font-monospace">{{ $deviceIp }}</small>
     </div>
-    <div class="d-flex gap-2 align-items-center">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
         <span class="badge bg-secondary">Last polled {{ $latestSnapshot->polled_at?->diffForHumans() ?: '—' }}</span>
+        @if($device)
+            @can('manage-credentials')
+            <form method="POST" action="{{ route('admin.switch-qos.poll', $device->id) }}" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-success" title="Run the poller now">
+                    <i class="bi bi-play-fill me-1"></i>Poll Now
+                </button>
+            </form>
+            <form method="POST" action="{{ route('admin.switch-qos.clear', $device->id) }}" class="d-inline"
+                  onsubmit="return confirm('Reset all MLS QoS counters on the switch?\n\nThis runs `clear mls qos interface statistics` on the device — cumulative drop counters will start from zero after the next poll.');">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Clear counters on the switch">
+                    <i class="bi bi-eraser me-1"></i>Clear Stats
+                </button>
+            </form>
+            @endcan
+            <a href="{{ route('admin.switch-qos.setup', $device->id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-gear me-1"></i>Setup
+            </a>
+        @endif
         <a href="{{ route('admin.switch-qos.compare', urlencode($deviceIp)) }}" class="btn btn-sm btn-outline-primary">
             <i class="bi bi-arrow-left-right me-1"></i>Compare Polls
         </a>

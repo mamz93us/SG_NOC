@@ -1199,6 +1199,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         // Credential management + connectivity probe — admins only (manage-credentials).
         Route::middleware('permission:manage-credentials')->group(function () {
             Route::post('/device/{device}/test',                    [\App\Http\Controllers\Admin\SwitchQosController::class, 'testConnection'])    ->name('test');
+            Route::post('/device/{device}/poll',                    [\App\Http\Controllers\Admin\SwitchQosController::class, 'pollNow'])           ->name('poll');
+            Route::post('/device/{device}/clear-stats',             [\App\Http\Controllers\Admin\SwitchQosController::class, 'clearStats'])       ->name('clear');
             Route::post('/device/{device}/credentials',             [\App\Http\Controllers\Admin\SwitchQosController::class, 'saveCredential'])    ->name('credentials.save');
             Route::delete('/device/{device}/credentials/{credential}', [\App\Http\Controllers\Admin\SwitchQosController::class, 'deleteCredential'])->name('credentials.delete');
         });

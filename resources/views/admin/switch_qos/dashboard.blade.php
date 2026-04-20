@@ -258,6 +258,10 @@
                                 @csrf
                                 <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-1" title="Probe telnet + MLS QoS"><i class="bi bi-broadcast"></i></button>
                             </form>
+                            <form method="POST" action="{{ route('admin.switch-qos.poll', $d->id) }}" class="d-inline">
+                                @csrf
+                                <button type="submit" class="btn btn-sm btn-outline-success py-0 px-1" title="Poll now"><i class="bi bi-play-fill"></i></button>
+                            </form>
                             @endcan
                         </td>
                     </tr>

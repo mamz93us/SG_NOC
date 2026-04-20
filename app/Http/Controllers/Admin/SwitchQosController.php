@@ -11,6 +11,7 @@ use App\Models\VqAlertEvent;
 use App\Services\CiscoTelnetClient;
 use App\Services\MlsQosParser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -391,6 +392,84 @@ class SwitchQosController extends Controller
         }
 
         return back()->with('success', ucfirst($data['category']) . ' password saved.');
+    }
+
+    /**
+     * Run `switch:poll-mls-qos --device=IP` synchronously for one switch.
+     * Useful when the OS scheduler isn't configured or you need a fresh snapshot on demand.
+     */
+    public function pollNow(Device $device)
+    {
+        if (!$device->ip_address) {
+            return back()->with('error', 'Device has no IP address.');
+        }
+
+        try {
+            $exitCode = Artisan::call('switch:poll-mls-qos', [
+                '--device' => $device->ip_address,
+            ]);
+            $output = trim(Artisan::output());
+
+            if ($exitCode === 0) {
+                return back()->with('success', 'Poll complete. ' . ($output ?: 'No output.'));
+            }
+            return back()->with('error', "Poll exited with code {$exitCode}. " . $output);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Poll failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send `clear mls qos interface statistics` to the switch.
+     * Resets cumulative counters on-device — next poll will show 0 for all drops.
+     */
+    public function clearStats(Device $device)
+    {
+        $telnet = $device->credentials()->where('category', 'telnet')->first();
+        $enable = $device->credentials()->where('category', 'enable')->first();
+
+        if (!$telnet) {
+            return back()->with('error', "Device has no 'telnet' credential. Add one first.");
+        }
+
+        $client = new CiscoTelnetClient();
+        $error  = null;
+
+        try {
+            $client->connect($device->ip_address, 23, 8.0);
+            $client->waitFor(['Password:'], 8.0);
+            $client->send((string) $telnet->password);
+            $client->waitForPrompt(10.0);
+
+            if ($enable) {
+                $client->send('enable');
+                $client->waitFor(['Password:'], 8.0);
+                $client->send((string) $enable->password);
+                $client->waitForPrompt(10.0);
+            }
+
+            $client->send('terminal length 0');
+            $client->waitForPrompt(5.0);
+
+            // Clears cumulative queue-drop / policer counters for all interfaces
+            $client->send('clear mls qos interface statistics');
+            $out = $client->waitForPrompt(15.0);
+
+            if (stripos($out, 'Invalid input') !== false || stripos($out, 'Incomplete command') !== false) {
+                $error = 'Switch does not support `clear mls qos interface statistics`.';
+            }
+
+            try { $client->send('exit'); } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+        } finally {
+            $client->close();
+        }
+
+        if ($error) {
+            return back()->with('error', 'Clear failed: ' . $error);
+        }
+        return back()->with('success', 'QoS statistics cleared on the switch. Next poll will show zeroed counters.');
     }
 
     public function deleteCredential(Device $device, Credential $credential)
