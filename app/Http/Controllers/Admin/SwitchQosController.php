@@ -72,9 +72,43 @@ class SwitchQosController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
+        // All switches/routers in inventory — even if never polled.
+        // We merge in the latest-poll summary so newly-added devices appear instantly.
+        $latestPollPerIp = SwitchQosStat::select(
+                'device_ip',
+                DB::raw('MAX(polled_at) as last_polled_at'),
+                DB::raw('COUNT(DISTINCT interface_name) as interface_count')
+            )
+            ->groupBy('device_ip')
+            ->get()
+            ->keyBy('device_ip');
+
+        $inventory = Device::whereIn('type', ['switch', 'router'])
+            ->whereNotNull('ip_address')
+            ->with(['branch:id,name', 'credentials' => fn($q) => $q->whereIn('category', ['telnet','enable'])])
+            ->orderBy('name')
+            ->get()
+            ->map(function (Device $d) use ($latestPollPerIp) {
+                $poll = $latestPollPerIp->get($d->ip_address);
+                $d->has_telnet_cred = $d->credentials->contains('category', 'telnet');
+                $d->has_enable_cred = $d->credentials->contains('category', 'enable');
+                $d->last_polled_at  = $poll?->last_polled_at;
+                $d->polled_interfaces = (int) ($poll?->interface_count ?? 0);
+                return $d;
+            });
+
+        $inventoryStats = [
+            'total'              => $inventory->count(),
+            'never_polled'       => $inventory->whereNull('last_polled_at')->count(),
+            'missing_telnet'     => $inventory->where('has_telnet_cred', false)->count(),
+            'mls_qos_supported'  => $inventory->where('mls_qos_supported', true)->count(),
+            'mls_qos_unsupported'=> $inventory->where('mls_qos_supported', false)->count(),
+        ];
+
         return view('admin.switch_qos.dashboard', compact(
             'interfacesWithDrops', 'switchesPolled', 'policerOutOfProfile',
-            'topDropInterfaces', 'topDropSwitches', 'queueBreakdown', 'activeAlerts'
+            'topDropInterfaces', 'topDropSwitches', 'queueBreakdown', 'activeAlerts',
+            'inventory', 'inventoryStats'
         ));
     }
 

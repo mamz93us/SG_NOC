@@ -12,6 +12,13 @@
     </div>
 </div>
 
+@if(session('success'))
+<div class="alert alert-success alert-dismissible fade show">{{ session('success') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+@endif
+@if(session('error'))
+<div class="alert alert-warning alert-dismissible fade show">{{ session('error') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+@endif
+
 {{-- KPI Cards --}}
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
@@ -150,6 +157,107 @@
                             <span class="badge bg-{{ $i->total_drops >= 1000 ? 'danger' : ($i->total_drops >= 100 ? 'warning text-dark' : 'secondary') }}">
                                 {{ number_format($i->total_drops) }}
                             </span>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
+    </div>
+</div>
+
+{{-- ─── Switches Inventory ─────────────────────────────────────────── --}}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-diagram-3 text-primary me-1"></i>Switches &amp; Routers Inventory</span>
+        <div class="d-flex gap-2 small">
+            <span class="badge bg-light text-dark border">Total: {{ $inventoryStats['total'] }}</span>
+            <span class="badge bg-{{ $inventoryStats['never_polled'] > 0 ? 'warning text-dark' : 'success' }}">Never polled: {{ $inventoryStats['never_polled'] }}</span>
+            <span class="badge bg-{{ $inventoryStats['missing_telnet'] > 0 ? 'danger' : 'success' }}">Missing telnet: {{ $inventoryStats['missing_telnet'] }}</span>
+            <span class="badge bg-info">QoS supported: {{ $inventoryStats['mls_qos_supported'] }}</span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        @if($inventory->isEmpty())
+        <div class="text-muted text-center py-4 small">
+            No switches or routers in inventory. Add one from the Assets page to get started.
+        </div>
+        @else
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Device</th>
+                        <th>Branch</th>
+                        <th>IP</th>
+                        <th class="text-center">Telnet</th>
+                        <th class="text-center">Enable</th>
+                        <th class="text-center">MLS QoS</th>
+                        <th class="text-center">Reachable</th>
+                        <th>Last polled</th>
+                        <th class="text-center">Ifaces</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($inventory as $d)
+                    <tr>
+                        <td class="fw-semibold">
+                            <i class="bi {{ $d->type === 'router' ? 'bi-router' : 'bi-hdd-network' }} text-muted me-1"></i>{{ $d->name }}
+                        </td>
+                        <td class="text-muted">{{ $d->branch?->name ?? '—' }}</td>
+                        <td class="font-monospace text-muted">{{ $d->ip_address }}</td>
+                        <td class="text-center">
+                            @if($d->has_telnet_cred)
+                                <span class="badge bg-success" title="Telnet password is set"><i class="bi bi-key"></i></span>
+                            @else
+                                <span class="badge bg-danger" title="No telnet credential"><i class="bi bi-exclamation-triangle"></i></span>
+                            @endif
+                        </td>
+                        <td class="text-center">
+                            @if($d->has_enable_cred)
+                                <span class="badge bg-success"><i class="bi bi-key"></i></span>
+                            @else
+                                <span class="badge bg-secondary">—</span>
+                            @endif
+                        </td>
+                        <td class="text-center">
+                            @if($d->mls_qos_supported === true)
+                                <span class="badge bg-success">Yes</span>
+                            @elseif($d->mls_qos_supported === false)
+                                <span class="badge bg-warning text-dark">No</span>
+                            @else
+                                <span class="badge bg-secondary">?</span>
+                            @endif
+                        </td>
+                        <td class="text-center">
+                            @if($d->telnet_reachable === true)
+                                <span class="badge bg-success"><i class="bi bi-check"></i></span>
+                            @elseif($d->telnet_reachable === false)
+                                <span class="badge bg-danger"><i class="bi bi-x"></i></span>
+                            @else
+                                <span class="badge bg-secondary">?</span>
+                            @endif
+                        </td>
+                        <td class="text-muted">
+                            @if($d->last_polled_at)
+                                {{ \Carbon\Carbon::parse($d->last_polled_at)->diffForHumans() }}
+                            @else
+                                <span class="text-danger small"><i class="bi bi-dash-circle me-1"></i>never</span>
+                            @endif
+                        </td>
+                        <td class="text-center text-muted">{{ $d->polled_interfaces ?: '—' }}</td>
+                        <td class="text-nowrap">
+                            @if($d->last_polled_at)
+                            <a href="{{ route('admin.switch-qos.device', urlencode($d->ip_address)) }}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="View details"><i class="bi bi-eye"></i></a>
+                            @endif
+                            @can('manage-credentials')
+                            <form method="POST" action="{{ route('admin.switch-qos.test', $d->id) }}" class="d-inline">
+                                @csrf
+                                <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-1" title="Probe telnet + MLS QoS"><i class="bi bi-broadcast"></i></button>
+                            </form>
+                            @endcan
                         </td>
                     </tr>
                     @endforeach
