@@ -126,14 +126,19 @@ class NetworkDiscoveryController extends Controller
                 break;
 
             case 'switch':
-                $model = NetworkSwitch::create([
-                    'name'      => $printerName,
-                    'lan_ip'    => $result->ip_address,
-                    'mac'       => $result->mac_address,
-                    'model'     => $result->model,
-                    'branch_id' => $discoveryScan->branch_id,
+                $model = Device::create([
+                    'type'         => 'switch',
+                    'name'         => $printerName,
+                    'ip_address'   => $result->ip_address,
+                    'mac_address'  => $result->mac_address,
+                    'manufacturer' => $result->vendor,
+                    'model'        => $result->model,
+                    'branch_id'    => $discoveryScan->branch_id,
+                    'status'       => 'active',
+                    'source'       => 'discovery',
+                    'source_id'    => (string) $result->id,
                 ]);
-                $result->update(['already_imported' => true, 'imported_type' => 'switch', 'imported_id' => $model->id]);
+                $result->update(['already_imported' => true, 'imported_type' => 'device', 'imported_id' => $model->id]);
                 $label = 'Switch';
                 break;
 
