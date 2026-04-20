@@ -1189,10 +1189,18 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ─── Switch QoS (Cisco MLS QoS queue drops) ───────────────────
     Route::prefix('switch-qos')->name('switch-qos.')->middleware('permission:view-voice-quality')->group(function () {
-        Route::get('/dashboard',    [\App\Http\Controllers\Admin\SwitchQosController::class, 'dashboard']) ->name('dashboard');
-        Route::get('/export',       [\App\Http\Controllers\Admin\SwitchQosController::class, 'exportCsv']) ->name('export');
-        Route::get('/',             [\App\Http\Controllers\Admin\SwitchQosController::class, 'index'])     ->name('index');
-        Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchQosController::class, 'device'])    ->name('device')->where('ip', '[0-9a-fA-F.:]+');
+        Route::get('/dashboard',            [\App\Http\Controllers\Admin\SwitchQosController::class, 'dashboard']) ->name('dashboard');
+        Route::get('/export',               [\App\Http\Controllers\Admin\SwitchQosController::class, 'exportCsv']) ->name('export');
+        Route::get('/',                     [\App\Http\Controllers\Admin\SwitchQosController::class, 'index'])     ->name('index');
+        Route::get('/device/{ip}/compare',  [\App\Http\Controllers\Admin\SwitchQosController::class, 'compare'])   ->name('compare')->where('ip', '[0-9a-fA-F.:]+');
+        Route::get('/device/{ip}',          [\App\Http\Controllers\Admin\SwitchQosController::class, 'device'])    ->name('device')->where('ip', '[0-9a-fA-F.:]+');
+
+        // Credential management + connectivity probe — admins only (manage-credentials).
+        Route::middleware('permission:manage-credentials')->group(function () {
+            Route::post('/device/{device}/test',                    [\App\Http\Controllers\Admin\SwitchQosController::class, 'testConnection'])    ->name('test');
+            Route::post('/device/{device}/credentials',             [\App\Http\Controllers\Admin\SwitchQosController::class, 'saveCredential'])    ->name('credentials.save');
+            Route::delete('/device/{device}/credentials/{credential}', [\App\Http\Controllers\Admin\SwitchQosController::class, 'deleteCredential'])->name('credentials.delete');
+        });
     });
 
     // ─── Form Builder (admin) ──────────────────────────────────────

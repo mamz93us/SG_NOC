@@ -49,6 +49,11 @@ class Device extends Model
         'web_path',
         'ssh_port',
         'ssh_username',
+        // ── Switch QoS probe ───────────────────────────────────────────────
+        'telnet_reachable',
+        'mls_qos_supported',
+        'qos_probed_at',
+        'qos_probe_error',
     ];
 
     protected $casts = [
@@ -62,6 +67,9 @@ class Device extends Model
         'proxy_enabled'      => 'boolean',
         'web_port'           => 'integer',
         'ssh_port'           => 'integer',
+        'telnet_reachable'   => 'boolean',
+        'mls_qos_supported'  => 'boolean',
+        'qos_probed_at'      => 'datetime',
     ];
 
     // ─── Relationships ────────────────────────────────────────────

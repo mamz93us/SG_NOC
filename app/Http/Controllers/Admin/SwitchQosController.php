@@ -4,10 +4,15 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\Credential;
+use App\Models\Device;
 use App\Models\SwitchQosStat;
 use App\Models\VqAlertEvent;
+use App\Services\CiscoTelnetClient;
+use App\Services\MlsQosParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class SwitchQosController extends Controller
 {
@@ -134,7 +139,217 @@ class SwitchQosController extends Controller
             ->get()
             ->groupBy('interface_name');
 
-        return view('admin.switch_qos.device', compact('latestSnapshot', 'interfaces', 'trend', 'deviceIp'));
+        $device = Device::where('ip_address', $deviceIp)->first();
+        $telnetCred = $device?->credentials()->where('category', 'telnet')->first();
+        $enableCred = $device?->credentials()->where('category', 'enable')->first();
+
+        return view('admin.switch_qos.device', compact(
+            'latestSnapshot', 'interfaces', 'trend', 'deviceIp',
+            'device', 'telnetCred', 'enableCred'
+        ));
+    }
+
+    /**
+     * Poll-to-poll compare (delta view) — shows drops accrued between two snapshots.
+     * Cumulative counters mean `current - previous` is the real drop count for that window.
+     * Negative deltas indicate a counter reset (reboot / `clear`) and are shown as `reset`.
+     */
+    public function compare(Request $request, string $deviceIp)
+    {
+        // Distinct polled_at timestamps for this device (last 50)
+        $timestamps = SwitchQosStat::where('device_ip', $deviceIp)
+            ->select('polled_at')
+            ->distinct()
+            ->orderByDesc('polled_at')
+            ->limit(50)
+            ->pluck('polled_at');
+
+        if ($timestamps->count() < 2) {
+            return redirect()
+                ->route('admin.switch-qos.device', urlencode($deviceIp))
+                ->with('error', 'Need at least 2 polls to compare. Run the poller again in a few minutes.');
+        }
+
+        // Default to latest vs previous
+        $curAt  = $request->input('current')  ?? $timestamps[0]->format('Y-m-d H:i:s');
+        $prevAt = $request->input('previous') ?? $timestamps[1]->format('Y-m-d H:i:s');
+
+        $current  = SwitchQosStat::where('device_ip', $deviceIp)->where('polled_at', $curAt)->get()->keyBy('interface_name');
+        $previous = SwitchQosStat::where('device_ip', $deviceIp)->where('polled_at', $prevAt)->get()->keyBy('interface_name');
+
+        if ($current->isEmpty() || $previous->isEmpty()) {
+            return redirect()
+                ->route('admin.switch-qos.device', urlencode($deviceIp))
+                ->with('error', 'One of the selected polls has no data.');
+        }
+
+        $qcols = [
+            'q0_t1_drop','q0_t2_drop','q0_t3_drop',
+            'q1_t1_drop','q1_t2_drop','q1_t3_drop',
+            'q2_t1_drop','q2_t2_drop','q2_t3_drop',
+            'q3_t1_drop','q3_t2_drop','q3_t3_drop',
+        ];
+
+        $rows = [];
+        foreach ($current as $name => $cur) {
+            $prev = $previous->get($name);
+            if (!$prev) {
+                continue;
+            }
+            $totalDelta = (int) $cur->total_drops - (int) $prev->total_drops;
+            $reset      = $totalDelta < 0;
+
+            $perQueue = [];
+            foreach ($qcols as $c) {
+                $d = (int) $cur->{$c} - (int) $prev->{$c};
+                $perQueue[$c] = $reset ? null : max($d, 0);
+            }
+
+            $rows[] = (object) [
+                'interface_name' => $name,
+                'total_delta'    => $reset ? null : max($totalDelta, 0),
+                'reset'          => $reset,
+                'per_queue'      => $perQueue,
+                'cur_total'      => (int) $cur->total_drops,
+                'prev_total'     => (int) $prev->total_drops,
+            ];
+        }
+
+        // Sort by delta desc (resets to the bottom)
+        usort($rows, function ($a, $b) {
+            if ($a->reset !== $b->reset) {
+                return $a->reset ? 1 : -1;
+            }
+            return (int) ($b->total_delta ?? 0) <=> (int) ($a->total_delta ?? 0);
+        });
+
+        $summary = [
+            'interfaces_with_new_drops' => collect($rows)->where('total_delta', '>', 0)->count(),
+            'total_new_drops'           => collect($rows)->sum(fn($r) => $r->total_delta ?? 0),
+            'interfaces_reset'          => collect($rows)->where('reset', true)->count(),
+            'window_seconds'            => (int) abs(strtotime($curAt) - strtotime($prevAt)),
+        ];
+
+        $device = Device::where('ip_address', $deviceIp)->first();
+
+        return view('admin.switch_qos.compare', [
+            'deviceIp'   => $deviceIp,
+            'device'     => $device,
+            'rows'       => $rows,
+            'summary'    => $summary,
+            'curAt'      => $curAt,
+            'prevAt'     => $prevAt,
+            'timestamps' => $timestamps,
+        ]);
+    }
+
+    /**
+     * One-shot probe: telnet reachability + MLS QoS support detection.
+     * Updates device flags so UI badges stay accurate.
+     */
+    public function testConnection(Device $device)
+    {
+        $telnet = $device->credentials()->where('category', 'telnet')->first();
+        $enable = $device->credentials()->where('category', 'enable')->first();
+
+        if (!$telnet) {
+            return back()->with('error', "Device has no 'telnet' credential. Add one first.");
+        }
+
+        $client = new CiscoTelnetClient();
+        $error = null;
+        $telnetReachable = false;
+        $qosSupported = null;
+
+        try {
+            $client->connect($device->ip_address, 23, 6.0);
+            $client->waitFor(['Password:'], 6.0);
+            $client->send((string) $telnet->password);
+            $client->waitForPrompt(8.0);
+            $telnetReachable = true;
+
+            if ($enable) {
+                $client->send('enable');
+                $client->waitFor(['Password:'], 6.0);
+                $client->send((string) $enable->password);
+                $client->waitForPrompt(8.0);
+            }
+
+            $client->send('terminal length 0');
+            $client->waitForPrompt(5.0);
+
+            $client->send('show mls qos');
+            $out = $client->waitForPrompt(10.0);
+            // "QoS is enabled" / "QoS is disabled" / "% Invalid input" tell us support status
+            if (stripos($out, 'Invalid input') !== false || stripos($out, 'Incomplete command') !== false) {
+                $qosSupported = false;
+            } elseif (stripos($out, 'QoS is enabled') !== false || stripos($out, 'QoS is disabled') !== false || stripos($out, 'mls qos') !== false) {
+                $qosSupported = true;
+            } else {
+                $qosSupported = false;
+            }
+
+            try { $client->send('exit'); } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+        } finally {
+            $client->close();
+        }
+
+        $device->update([
+            'telnet_reachable'   => $telnetReachable,
+            'mls_qos_supported'  => $qosSupported,
+            'qos_probed_at'      => now(),
+            'qos_probe_error'    => $error,
+        ]);
+
+        $msg = $telnetReachable
+            ? ($qosSupported ? 'Telnet OK. MLS QoS is supported.' : 'Telnet OK. MLS QoS NOT supported on this device.')
+            : 'Telnet failed: ' . ($error ?? 'unknown error');
+
+        return back()->with($telnetReachable && $qosSupported ? 'success' : 'error', $msg);
+    }
+
+    /**
+     * Create or update telnet / enable credential inline from the device QoS page.
+     */
+    public function saveCredential(Request $request, Device $device)
+    {
+        $data = $request->validate([
+            'category' => ['required', Rule::in(['telnet', 'enable'])],
+            'password' => ['required', 'string', 'min:1', 'max:255'],
+        ]);
+
+        $cred = $device->credentials()->where('category', $data['category'])->first();
+
+        if ($cred) {
+            $cred->update([
+                'password'   => $data['password'],
+                'updated_by' => $request->user()?->id,
+            ]);
+        } else {
+            $device->credentials()->create([
+                'title'      => $data['category'] === 'telnet' ? 'Telnet vty' : 'Enable secret',
+                'category'   => $data['category'],
+                'password'   => $data['password'],
+                'created_by' => $request->user()?->id,
+                'updated_by' => $request->user()?->id,
+            ]);
+        }
+
+        return back()->with('success', ucfirst($data['category']) . ' password saved.');
+    }
+
+    public function deleteCredential(Device $device, Credential $credential)
+    {
+        if ($credential->device_id !== $device->id) {
+            abort(404);
+        }
+        if (!in_array($credential->category, ['telnet', 'enable'], true)) {
+            abort(403, 'Only telnet/enable credentials are manageable from this page.');
+        }
+        $credential->delete();
+        return back()->with('success', ucfirst($credential->category) . ' password removed.');
     }
 
     public function exportCsv(Request $request)
