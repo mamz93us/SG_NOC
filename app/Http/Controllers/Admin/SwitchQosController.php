@@ -184,6 +184,25 @@ class SwitchQosController extends Controller
     }
 
     /**
+     * Setup page: credentials + capability for a device that may have never been polled.
+     */
+    public function setup(Device $device)
+    {
+        if (!in_array($device->type, ['switch', 'router'], true)) {
+            abort(404);
+        }
+
+        $telnetCred = $device->credentials()->where('category', 'telnet')->first();
+        $enableCred = $device->credentials()->where('category', 'enable')->first();
+
+        $lastPoll = SwitchQosStat::where('device_ip', $device->ip_address)
+            ->latest('polled_at')
+            ->first();
+
+        return view('admin.switch_qos.setup', compact('device', 'telnetCred', 'enableCred', 'lastPoll'));
+    }
+
+    /**
      * Poll-to-poll compare (delta view) — shows drops accrued between two snapshots.
      * Cumulative counters mean `current - previous` is the real drop count for that window.
      * Negative deltas indicate a counter reset (reboot / `clear`) and are shown as `reset`.

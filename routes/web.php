@@ -1194,6 +1194,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/',                     [\App\Http\Controllers\Admin\SwitchQosController::class, 'index'])     ->name('index');
         Route::get('/device/{ip}/compare',  [\App\Http\Controllers\Admin\SwitchQosController::class, 'compare'])   ->name('compare')->where('ip', '[0-9a-fA-F.:]+');
         Route::get('/device/{ip}',          [\App\Http\Controllers\Admin\SwitchQosController::class, 'device'])    ->name('device')->where('ip', '[0-9a-fA-F.:]+');
+        Route::get('/setup/{device}',       [\App\Http\Controllers\Admin\SwitchQosController::class, 'setup'])     ->name('setup');
 
         // Credential management + connectivity probe — admins only (manage-credentials).
         Route::middleware('permission:manage-credentials')->group(function () {

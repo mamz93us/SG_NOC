@@ -249,8 +249,9 @@
                         </td>
                         <td class="text-center text-muted">{{ $d->polled_interfaces ?: '—' }}</td>
                         <td class="text-nowrap">
+                            <a href="{{ route('admin.switch-qos.setup', $d->id) }}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Credentials &amp; setup"><i class="bi bi-gear"></i></a>
                             @if($d->last_polled_at)
-                            <a href="{{ route('admin.switch-qos.device', urlencode($d->ip_address)) }}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="View details"><i class="bi bi-eye"></i></a>
+                            <a href="{{ route('admin.switch-qos.device', urlencode($d->ip_address)) }}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="View QoS details"><i class="bi bi-eye"></i></a>
                             @endif
                             @can('manage-credentials')
                             <form method="POST" action="{{ route('admin.switch-qos.test', $d->id) }}" class="d-inline">
