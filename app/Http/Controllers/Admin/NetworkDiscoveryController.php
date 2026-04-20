@@ -135,8 +135,7 @@ class NetworkDiscoveryController extends Controller
                     'model'        => $result->model,
                     'branch_id'    => $discoveryScan->branch_id,
                     'status'       => 'active',
-                    'source'       => 'discovery',
-                    'source_id'    => (string) $result->id,
+                    'source'       => 'manual',
                 ]);
                 $result->update(['already_imported' => true, 'imported_type' => 'device', 'imported_id' => $model->id]);
                 $label = 'Switch';
