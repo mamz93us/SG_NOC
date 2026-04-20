@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use App\Models\Branch;
 use App\Models\Credential;
 use App\Models\Device;
+use App\Models\DeviceMac;
+use App\Models\NetworkSwitch;
 use App\Models\SwitchCdpNeighbor;
 use App\Models\SwitchInterfaceStat;
 use App\Models\SwitchQosStat;
@@ -228,19 +230,49 @@ class SwitchPollMlsQos extends Command
 
         // Replace CDP snapshot for this device (latest only — old rows kept for history)
         foreach ($cdpRows as $n) {
+            // Try to derive a MAC from the CDP device-id. Cisco shows Meraki neighbors
+            // as raw hex like "5c0610617cda"; hostnames return null from normalizeMac().
+            $neighborMac = DeviceMac::normalizeMac($n['neighbor_device_id'] ?? null);
+
+            // Resolve Meraki match by MAC (stored on NetworkSwitch.mac, any format).
+            $merakiSerial = null;
+            if ($neighborMac) {
+                $hex = str_replace(':', '', $neighborMac);
+                $merakiSerial = NetworkSwitch::whereRaw(
+                    "UPPER(REPLACE(REPLACE(mac, ':', ''), '-', '')) = ?",
+                    [$hex]
+                )->value('serial');
+            }
+
+            // Resolve internal Device match by IP first, then MAC.
+            $matchedDeviceId = null;
+            if (!empty($n['neighbor_ip'])) {
+                $matchedDeviceId = Device::where('ip_address', $n['neighbor_ip'])->value('id');
+            }
+            if (!$matchedDeviceId && $neighborMac) {
+                $hex = str_replace(':', '', $neighborMac);
+                $matchedDeviceId = Device::whereRaw(
+                    "UPPER(REPLACE(REPLACE(mac_address, ':', ''), '-', '')) = ?",
+                    [$hex]
+                )->value('id');
+            }
+
             SwitchCdpNeighbor::create([
-                'device_id'          => $device->id,
-                'device_name'        => $device->name,
-                'device_ip'          => $ip,
-                'local_interface'    => $n['local_interface'],
-                'neighbor_device_id' => $n['neighbor_device_id'],
-                'neighbor_ip'        => $n['neighbor_ip'],
-                'neighbor_port'      => $n['neighbor_port'],
-                'platform'           => $n['platform'],
-                'capabilities'       => $n['capabilities'],
-                'version'            => $n['version'],
-                'holdtime'           => $n['holdtime'],
-                'polled_at'          => $now,
+                'device_id'             => $device->id,
+                'device_name'           => $device->name,
+                'device_ip'             => $ip,
+                'local_interface'       => $n['local_interface'],
+                'neighbor_device_id'    => $n['neighbor_device_id'],
+                'neighbor_ip'           => $n['neighbor_ip'],
+                'neighbor_mac'          => $neighborMac,
+                'neighbor_port'         => $n['neighbor_port'],
+                'platform'              => $n['platform'],
+                'capabilities'          => $n['capabilities'],
+                'version'               => $n['version'],
+                'holdtime'              => $n['holdtime'],
+                'matched_meraki_serial' => $merakiSerial,
+                'matched_device_id'     => $matchedDeviceId,
+                'polled_at'             => $now,
             ]);
         }
 

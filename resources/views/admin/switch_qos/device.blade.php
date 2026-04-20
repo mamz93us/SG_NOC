@@ -365,6 +365,7 @@
                     <tr>
                         <th>Local Interface</th>
                         <th>Neighbor</th>
+                        <th>Match</th>
                         <th>Neighbor IP</th>
                         <th>Neighbor Port</th>
                         <th>Platform</th>
@@ -377,6 +378,25 @@
                     <tr>
                         <td class="font-monospace">{{ $n->local_interface }}</td>
                         <td class="fw-semibold">{{ $n->neighbor_device_id }}</td>
+                        <td>
+                            @if($n->merakiSwitch)
+                                <a href="{{ route('admin.network.switch-detail', $n->merakiSwitch->serial) }}" class="badge text-decoration-none" style="background:#d1e7dd;color:#146c43;border:1px solid #146c43;">
+                                    <i class="bi bi-hdd-network me-1"></i>Meraki · {{ $n->merakiSwitch->name ?: $n->merakiSwitch->serial }}
+                                </a>
+                            @elseif($n->matchedDevice)
+                                @if(in_array($n->matchedDevice->type, ['switch','router'], true))
+                                    <a href="{{ route('admin.switch-qos.setup', $n->matchedDevice->id) }}" class="badge text-decoration-none" style="background:#fff3cd;color:#997404;border:1px solid #997404;">
+                                        <i class="bi bi-router me-1"></i>{{ $n->matchedDevice->name ?: $n->matchedDevice->ip_address }}
+                                    </a>
+                                @else
+                                    <span class="badge" style="background:#fff3cd;color:#997404;border:1px solid #997404;">
+                                        {{ $n->matchedDevice->name ?: $n->matchedDevice->ip_address }}
+                                    </span>
+                                @endif
+                            @else
+                                <span class="text-muted small">—</span>
+                            @endif
+                        </td>
                         <td class="font-monospace text-muted">{{ $n->neighbor_ip ?: '—' }}</td>
                         <td class="font-monospace text-muted">{{ $n->neighbor_port ?: '—' }}</td>
                         <td class="text-muted">{{ $n->platform ?: '—' }}</td>

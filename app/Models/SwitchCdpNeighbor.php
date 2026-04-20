@@ -9,8 +9,9 @@ class SwitchCdpNeighbor extends Model
 {
     protected $fillable = [
         'device_id', 'device_name', 'device_ip',
-        'local_interface', 'neighbor_device_id', 'neighbor_ip', 'neighbor_port',
+        'local_interface', 'neighbor_device_id', 'neighbor_ip', 'neighbor_mac', 'neighbor_port',
         'platform', 'capabilities', 'version', 'holdtime', 'polled_at',
+        'matched_meraki_serial', 'matched_device_id',
     ];
 
     protected $casts = [
@@ -20,5 +21,15 @@ class SwitchCdpNeighbor extends Model
     public function device(): BelongsTo
     {
         return $this->belongsTo(Device::class);
+    }
+
+    public function merakiSwitch(): BelongsTo
+    {
+        return $this->belongsTo(NetworkSwitch::class, 'matched_meraki_serial', 'serial');
+    }
+
+    public function matchedDevice(): BelongsTo
+    {
+        return $this->belongsTo(Device::class, 'matched_device_id');
     }
 }

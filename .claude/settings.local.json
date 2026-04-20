@@ -275,7 +275,10 @@
       "Bash(php -l app/Services/Dns/CertificateExportService.php)",
       "Bash(php -l app/Http/Controllers/Admin/SslCertificateController.php)",
       "Bash(php -l app/Console/Commands/RenewExpiringCertsCommand.php)",
-      "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Services\\\\Dns\\\\AcmeService.php\")"
+      "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Services\\\\Dns\\\\AcmeService.php\")",
+      "Bash(php -l app/Console/Commands/SwitchPollMlsQos.php)",
+      "Bash(php -l app/Http/Controllers/Admin/SwitchQosController.php)",
+      "Bash(php -l app/Models/SwitchCdpNeighbor.php)"
     ]
   }
 }

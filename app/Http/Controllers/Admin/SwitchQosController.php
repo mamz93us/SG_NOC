@@ -195,7 +195,9 @@ class SwitchQosController extends Controller
         // Latest CDP neighbor snapshot
         $latestCdpAt = SwitchCdpNeighbor::where('device_ip', $deviceIp)->max('polled_at');
         $cdpNeighbors = $latestCdpAt
-            ? SwitchCdpNeighbor::where('device_ip', $deviceIp)->where('polled_at', $latestCdpAt)->orderBy('local_interface')->get()
+            ? SwitchCdpNeighbor::with(['merakiSwitch', 'matchedDevice'])
+                ->where('device_ip', $deviceIp)->where('polled_at', $latestCdpAt)
+                ->orderBy('local_interface')->get()
             : collect();
 
         return view('admin.switch_qos.device', compact(
@@ -216,7 +218,8 @@ class SwitchQosController extends Controller
 
         $edges = collect();
         foreach ($latestPerDevice as $ld) {
-            $rows = SwitchCdpNeighbor::where('device_ip', $ld->device_ip)
+            $rows = SwitchCdpNeighbor::with(['merakiSwitch', 'matchedDevice'])
+                ->where('device_ip', $ld->device_ip)
                 ->where('polled_at', $ld->last_at)
                 ->get();
             $edges = $edges->concat($rows);
@@ -231,15 +234,49 @@ class SwitchQosController extends Controller
                 'label' => $e->device_name . "\n" . $key,
                 'group' => 'polled',
                 'title' => "{$e->device_name} ({$key})",
+                'url'   => route('admin.switch-qos.device', urlencode($e->device_ip)),
             ];
-            $nkey = $e->neighbor_ip ?: $e->neighbor_device_id;
+
+            // Prefer a stable key: meraki serial > internal device id > IP > raw device id
+            if ($e->merakiSwitch) {
+                $nkey = 'meraki:' . $e->merakiSwitch->serial;
+            } elseif ($e->matchedDevice) {
+                $nkey = 'device:' . $e->matchedDevice->id;
+            } else {
+                $nkey = $e->neighbor_ip ?: $e->neighbor_device_id;
+            }
+            $e->_nkey = $nkey;
+
             if (!isset($nodes[$nkey])) {
-                $nodes[$nkey] = [
-                    'id'    => $nkey,
-                    'label' => $e->neighbor_device_id . ($e->neighbor_ip ? "\n" . $e->neighbor_ip : ''),
-                    'group' => 'neighbor',
-                    'title' => ($e->platform ? $e->platform . ' — ' : '') . $e->neighbor_device_id,
-                ];
+                if ($e->merakiSwitch) {
+                    $ms = $e->merakiSwitch;
+                    $nodes[$nkey] = [
+                        'id'    => $nkey,
+                        'label' => ($ms->name ?: $ms->serial) . "\n" . ($ms->lan_ip ?: $ms->mac),
+                        'group' => 'meraki',
+                        'title' => "Meraki {$ms->model} — {$ms->serial}" . ($ms->lan_ip ? " ({$ms->lan_ip})" : ''),
+                        'url'   => route('admin.network.switch-detail', $ms->serial),
+                    ];
+                } elseif ($e->matchedDevice) {
+                    $md = $e->matchedDevice;
+                    $nodes[$nkey] = [
+                        'id'    => $nkey,
+                        'label' => ($md->name ?: $md->ip_address) . "\n" . ($md->ip_address ?: ''),
+                        'group' => 'device',
+                        'title' => ($md->manufacturer ? $md->manufacturer . ' — ' : '') . ($md->model ?: $md->type),
+                        'url'   => in_array($md->type, ['switch', 'router'], true)
+                            ? route('admin.switch-qos.setup', $md->id)
+                            : null,
+                    ];
+                } else {
+                    $nodes[$nkey] = [
+                        'id'    => $nkey,
+                        'label' => $e->neighbor_device_id . ($e->neighbor_ip ? "\n" . $e->neighbor_ip : ''),
+                        'group' => 'neighbor',
+                        'title' => ($e->platform ? $e->platform . ' — ' : '') . $e->neighbor_device_id,
+                        'url'   => null,
+                    ];
+                }
             }
         }
 
@@ -247,7 +284,7 @@ class SwitchQosController extends Controller
         $seenPairs = [];
         foreach ($edges as $e) {
             $from = $e->device_ip;
-            $to   = $e->neighbor_ip ?: $e->neighbor_device_id;
+            $to   = $e->_nkey;
             $pair = $from < $to ? "$from|$to" : "$to|$from";
             if (isset($seenPairs[$pair])) continue;
             $seenPairs[$pair] = true;
@@ -283,7 +320,8 @@ class SwitchQosController extends Controller
         $rows = collect();
         foreach ($latestPerDevice as $ld) {
             $rows = $rows->concat(
-                SwitchCdpNeighbor::where('device_ip', $ld->device_ip)
+                SwitchCdpNeighbor::with(['merakiSwitch', 'matchedDevice'])
+                    ->where('device_ip', $ld->device_ip)
                     ->where('polled_at', $ld->last_at)
                     ->orderBy('local_interface')
                     ->get()

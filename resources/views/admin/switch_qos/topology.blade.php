@@ -33,8 +33,12 @@
         <div id="topology" style="height: 70vh; border: 1px solid #e9ecef; border-radius: 6px;"></div>
     </div>
 </div>
-<div class="mt-2 small text-muted">
-    <i class="bi bi-info-circle me-1"></i>Drag nodes to rearrange. Scroll to zoom. Hover for details. Blue = polled switch (we manage it); grey = neighbor discovered via CDP.
+<div class="mt-2 small text-muted d-flex flex-wrap gap-3 align-items-center">
+    <span><i class="bi bi-info-circle me-1"></i>Drag to rearrange. Scroll to zoom. Click a node to open its detail page.</span>
+    <span class="badge" style="background:#cfe2ff;color:#0d6efd;border:1px solid #0d6efd;">Polled Cisco</span>
+    <span class="badge" style="background:#d1e7dd;color:#146c43;border:1px solid #146c43;">Meraki switch</span>
+    <span class="badge" style="background:#fff3cd;color:#997404;border:1px solid #997404;">Internal device</span>
+    <span class="badge" style="background:#e9ecef;color:#6c757d;border:1px solid #6c757d;">Unknown neighbor</span>
 </div>
 @endif
 @endsection
@@ -46,17 +50,26 @@
 const rawNodes = @json($nodes);
 const rawEdges = @json($edges);
 
-const nodes = new vis.DataSet(rawNodes.map(n => ({
-    id: n.id,
-    label: n.label,
-    title: n.title,
-    shape: 'box',
-    color: n.group === 'polled'
-        ? { background: '#cfe2ff', border: '#0d6efd' }
-        : { background: '#e9ecef', border: '#6c757d' },
-    font: { multi: true, size: 12 },
-    margin: 8,
-})));
+const palette = {
+    polled:   { background: '#cfe2ff', border: '#0d6efd' },
+    meraki:   { background: '#d1e7dd', border: '#146c43' },
+    device:   { background: '#fff3cd', border: '#997404' },
+    neighbor: { background: '#e9ecef', border: '#6c757d' },
+};
+
+const nodeUrls = {};
+const nodes = new vis.DataSet(rawNodes.map(n => {
+    if (n.url) nodeUrls[n.id] = n.url;
+    return {
+        id: n.id,
+        label: n.label,
+        title: n.title,
+        shape: 'box',
+        color: palette[n.group] || palette.neighbor,
+        font: { multi: true, size: 12 },
+        margin: 8,
+    };
+}));
 
 const edges = new vis.DataSet(rawEdges.map(e => ({
     from: e.from,
@@ -69,7 +82,7 @@ const edges = new vis.DataSet(rawEdges.map(e => ({
     smooth: { type: 'dynamic' },
 })));
 
-new vis.Network(document.getElementById('topology'), { nodes, edges }, {
+const network = new vis.Network(document.getElementById('topology'), { nodes, edges }, {
     physics: {
         enabled: true,
         solver: 'forceAtlas2Based',
@@ -78,6 +91,15 @@ new vis.Network(document.getElementById('topology'), { nodes, edges }, {
     },
     interaction: { hover: true, tooltipDelay: 150, zoomView: true, dragView: true }
 });
+
+network.on('doubleClick', (params) => {
+    const id = params.nodes[0];
+    if (id && nodeUrls[id]) window.open(nodeUrls[id], '_blank');
+});
+network.on('hoverNode', (params) => {
+    if (nodeUrls[params.node]) document.body.style.cursor = 'pointer';
+});
+network.on('blurNode', () => { document.body.style.cursor = 'default'; });
 </script>
 @endif
 @endpush
