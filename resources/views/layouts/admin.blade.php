@@ -206,6 +206,12 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.switch-qos.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.switch-qos.dashboard') }}">
+                                    <i class="bi bi-speedometer2 me-2 text-primary"></i>Switch QoS Monitor
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.voice-quality.*') ? 'active' : '' }}"
                                    href="{{ route('admin.voice-quality.dashboard') }}">
                                     <i class="bi bi-soundwave me-2 text-info"></i>Voice Quality

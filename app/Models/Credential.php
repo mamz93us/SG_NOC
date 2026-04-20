@@ -74,6 +74,8 @@ class Credential extends Model
             'snmp'    => 'SNMP',
             'user'    => 'User',
             'service' => 'Service Account',
+            'telnet'  => 'Telnet Login',
+            'enable'  => 'Enable Secret',
             default   => 'Other',
         };
     }
@@ -86,6 +88,8 @@ class Credential extends Model
             'snmp'    => 'bg-warning text-dark',
             'user'    => 'bg-info text-dark',
             'service' => 'bg-secondary',
+            'telnet'  => 'bg-success',
+            'enable'  => 'bg-dark',
             default   => 'bg-light text-dark border',
         };
     }

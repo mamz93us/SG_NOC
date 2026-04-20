@@ -1187,6 +1187,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchDropController::class, 'device'])     ->name('device')->where('ip', '[0-9a-fA-F.:]+');
     });
 
+    // ─── Switch QoS (Cisco MLS QoS queue drops) ───────────────────
+    Route::prefix('switch-qos')->name('switch-qos.')->middleware('permission:view-voice-quality')->group(function () {
+        Route::get('/dashboard',    [\App\Http\Controllers\Admin\SwitchQosController::class, 'dashboard']) ->name('dashboard');
+        Route::get('/export',       [\App\Http\Controllers\Admin\SwitchQosController::class, 'exportCsv']) ->name('export');
+        Route::get('/',             [\App\Http\Controllers\Admin\SwitchQosController::class, 'index'])     ->name('index');
+        Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchQosController::class, 'device'])    ->name('device')->where('ip', '[0-9a-fA-F.:]+');
+    });
+
     // ─── Form Builder (admin) ──────────────────────────────────────
     Route::prefix('forms')->name('forms.')->group(function () {
         Route::get('/',                                  [\App\Http\Controllers\Admin\FormBuilderController::class, 'index'])           ->name('index');
