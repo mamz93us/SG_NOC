@@ -379,10 +379,21 @@
                         <td class="font-monospace">{{ $n->local_interface }}</td>
                         <td class="fw-semibold">{{ $n->neighbor_device_id }}</td>
                         <td>
+                            @php($phone = $cdpPhonesByMac[$n->neighbor_mac] ?? null)
                             @if($n->merakiSwitch)
                                 <a href="{{ route('admin.network.switch-detail', $n->merakiSwitch->serial) }}" class="badge text-decoration-none" style="background:#d1e7dd;color:#146c43;border:1px solid #146c43;">
                                     <i class="bi bi-hdd-network me-1"></i>Meraki · {{ $n->merakiSwitch->name ?: $n->merakiSwitch->serial }}
                                 </a>
+                            @elseif($phone)
+                                @if($phone->extension)
+                                    <a href="{{ route('admin.extensions.details', $phone->extension) }}" class="badge text-decoration-none" style="background:#f8d7da;color:#b02a37;border:1px solid #b02a37;">
+                                        <i class="bi bi-telephone me-1"></i>Ext {{ $phone->extension }}
+                                    </a>
+                                @else
+                                    <span class="badge" style="background:#f8d7da;color:#b02a37;border:1px solid #b02a37;">
+                                        <i class="bi bi-telephone me-1"></i>Phone
+                                    </span>
+                                @endif
                             @elseif($n->matchedDevice)
                                 @if(in_array($n->matchedDevice->type, ['switch','router'], true))
                                     <a href="{{ route('admin.switch-qos.setup', $n->matchedDevice->id) }}" class="badge text-decoration-none" style="background:#fff3cd;color:#997404;border:1px solid #997404;">

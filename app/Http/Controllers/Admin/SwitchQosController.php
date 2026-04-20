@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Credential;
 use App\Models\Device;
+use App\Models\PhonePortMap;
 use App\Models\SwitchCdpNeighbor;
 use App\Models\SwitchInterfaceStat;
 use App\Models\SwitchQosStat;
@@ -200,9 +201,14 @@ class SwitchQosController extends Controller
                 ->orderBy('local_interface')->get()
             : collect();
 
+        $cdpPhonesByMac = $cdpNeighbors->pluck('neighbor_mac')->filter()->unique()->all();
+        $cdpPhonesByMac = $cdpPhonesByMac
+            ? PhonePortMap::whereIn('phone_mac', $cdpPhonesByMac)->get()->keyBy('phone_mac')
+            : collect();
+
         return view('admin.switch_qos.device', compact(
             'latestSnapshot', 'interfaces', 'trend', 'deviceIp',
-            'device', 'telnetCred', 'enableCred', 'ifaceStats', 'cdpNeighbors'
+            'device', 'telnetCred', 'enableCred', 'ifaceStats', 'cdpNeighbors', 'cdpPhonesByMac'
         ));
     }
 
@@ -248,18 +254,31 @@ class SwitchQosController extends Controller
             return 'host:' . ($e->neighbor_device_id ?: 'unknown');
         };
 
-        // CDP capability string → end-user flag. Phones and bare Hosts without bridging
-        // capability are treated as end-user endpoints.
-        $isEndUser = function (?string $capabilities): bool {
-            if (!$capabilities) return false;
-            $cap = strtolower($capabilities);
-            $infra = str_contains($cap, 'switch')
-                || str_contains($cap, 'router')
-                || str_contains($cap, 'trans-bridge')
-                || str_contains($cap, 'source-route');
-            if ($infra) return false;
-            return str_contains($cap, 'phone') || str_contains($cap, 'host');
+        // End-user detection. Match on platform prefix (IP-phone models report Trans-Bridge Host
+        // in CDP, so capabilities alone isn't enough) OR capabilities with Phone/Host but no
+        // router/switch role.
+        $phonePlatformPrefixes = ['GRP', 'GXP', 'GXV', 'HT', 'DP', 'APX', 'SPA', 'CP-',
+            'CISCO IP PHONE', 'POLYCOM', 'YEALINK', 'FANVIL', 'IP PHONE'];
+        $isEndUser = function (?string $capabilities, ?string $platform) use ($phonePlatformPrefixes): bool {
+            $plat = strtoupper((string) $platform);
+            foreach ($phonePlatformPrefixes as $p) {
+                if ($plat !== '' && str_starts_with($plat, $p)) return true;
+            }
+            $cap = strtolower((string) $capabilities);
+            if ($cap === '') return false;
+            if (str_contains($cap, 'phone')) return true;
+            $hasSwitchOrRouter = str_contains($cap, 'switch') || str_contains($cap, 'router');
+            if ($hasSwitchOrRouter) return false;
+            // "Host" alone (or Trans-Bridge Host) without Switch/Router = endpoint.
+            return str_contains($cap, 'host');
         };
+
+        // Pre-resolve phone MACs against PhonePortMap so CDP-discovered IP phones link to
+        // their extension detail page.
+        $macs = $edges->pluck('neighbor_mac')->filter()->unique()->all();
+        $phonesByMac = $macs
+            ? PhonePortMap::whereIn('phone_mac', $macs)->get()->keyBy('phone_mac')
+            : collect();
 
         // Build nodes: polled switches first, then each distinct neighbor.
         $nodes = [];
@@ -278,6 +297,7 @@ class SwitchQosController extends Controller
 
             $nkey = $neighborKey($e);
             $e->_nkey = $nkey;
+            $phone = $e->neighbor_mac ? $phonesByMac->get($e->neighbor_mac) : null;
 
             if (!isset($nodes[$nkey])) {
                 if ($e->merakiSwitch) {
@@ -290,17 +310,32 @@ class SwitchQosController extends Controller
                         'url'        => route('admin.network.switch-detail', $ms->serial),
                         'is_end_user'=> false,
                     ];
+                } elseif ($phone) {
+                    $label = ($phone->extension ? "Ext {$phone->extension}" : ($e->platform ?: 'Phone'))
+                        . "\n" . ($e->neighbor_ip ?: $e->neighbor_mac);
+                    $nodes[$nkey] = [
+                        'id'         => $nkey,
+                        'label'      => $label,
+                        'group'      => 'phone',
+                        'title'      => ($e->platform ? $e->platform . ' — ' : '') . 'Phone'
+                            . ($phone->extension ? " (Ext {$phone->extension})" : ''),
+                        'url'        => $phone->extension
+                            ? route('admin.extensions.details', $phone->extension)
+                            : null,
+                        'is_end_user'=> true,
+                    ];
                 } elseif ($e->matchedDevice) {
                     $md = $e->matchedDevice;
+                    $isInfra = in_array($md->type, ['switch', 'router'], true);
                     $nodes[$nkey] = [
                         'id'         => $nkey,
                         'label'      => ($md->name ?: $md->ip_address) . "\n" . ($md->ip_address ?: ''),
-                        'group'      => 'device',
+                        'group'      => $md->type === 'phone' ? 'phone' : 'device',
                         'title'      => ($md->manufacturer ? $md->manufacturer . ' — ' : '') . ($md->model ?: $md->type),
-                        'url'        => in_array($md->type, ['switch', 'router'], true)
+                        'url'        => $isInfra
                             ? route('admin.switch-qos.setup', $md->id)
-                            : null,
-                        'is_end_user'=> !in_array($md->type, ['switch', 'router'], true) && $isEndUser($e->capabilities),
+                            : route('admin.devices.show', $md->id),
+                        'is_end_user'=> !$isInfra && ($md->type === 'phone' || $isEndUser($e->capabilities, $e->platform)),
                     ];
                 } else {
                     $nodes[$nkey] = [
@@ -309,7 +344,7 @@ class SwitchQosController extends Controller
                         'group'      => 'neighbor',
                         'title'      => ($e->platform ? $e->platform . ' — ' : '') . $e->neighbor_device_id,
                         'url'        => null,
-                        'is_end_user'=> $isEndUser($e->capabilities),
+                        'is_end_user'=> $isEndUser($e->capabilities, $e->platform),
                     ];
                 }
             }
@@ -370,7 +405,13 @@ class SwitchQosController extends Controller
             );
         }
 
-        return view('admin.switch_qos.cdp', ['rows' => $rows]);
+        // Resolve IP phones by MAC against PhonePortMap for extension links.
+        $macs = $rows->pluck('neighbor_mac')->filter()->unique()->all();
+        $phonesByMac = $macs
+            ? PhonePortMap::whereIn('phone_mac', $macs)->get()->keyBy('phone_mac')
+            : collect();
+
+        return view('admin.switch_qos.cdp', ['rows' => $rows, 'phonesByMac' => $phonesByMac]);
     }
 
     /**

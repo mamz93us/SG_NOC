@@ -278,7 +278,9 @@
       "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Services\\\\Dns\\\\AcmeService.php\")",
       "Bash(php -l app/Console/Commands/SwitchPollMlsQos.php)",
       "Bash(php -l app/Http/Controllers/Admin/SwitchQosController.php)",
-      "Bash(php -l app/Models/SwitchCdpNeighbor.php)"
+      "Bash(php -l app/Models/SwitchCdpNeighbor.php)",
+      "Bash(grep -r 'class Extension\\\\|protected $table = '\\\\''extensions'\\\\''' 'C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models')",
+      "Bash(find \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\" -name \"*ExtensionController*\" -exec head -30 {} \\\\;)"
     ]
   }
 }

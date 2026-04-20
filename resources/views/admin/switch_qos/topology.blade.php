@@ -45,6 +45,7 @@
     <span class="badge" style="background:#cfe2ff;color:#0d6efd;border:1px solid #0d6efd;">Polled Cisco</span>
     <span class="badge" style="background:#d1e7dd;color:#146c43;border:1px solid #146c43;">Meraki switch</span>
     <span class="badge" style="background:#fff3cd;color:#997404;border:1px solid #997404;">Internal device</span>
+    <span class="badge" style="background:#f8d7da;color:#b02a37;border:1px solid #b02a37;">IP phone</span>
     <span class="badge" style="background:#e9ecef;color:#6c757d;border:1px solid #6c757d;">Unknown neighbor</span>
 </div>
 @endif
@@ -61,6 +62,7 @@ const palette = {
     polled:   { background: '#cfe2ff', border: '#0d6efd' },
     meraki:   { background: '#d1e7dd', border: '#146c43' },
     device:   { background: '#fff3cd', border: '#997404' },
+    phone:    { background: '#f8d7da', border: '#b02a37' },
     neighbor: { background: '#e9ecef', border: '#6c757d' },
 };
 
