@@ -98,26 +98,26 @@ sudo nginx -t && sudo nginx -s reload
 
 ## 6. Test from your laptop
 
-Open:
+The SG_NOC vhost is HTTPS-only (Let's Encrypt, `listen 443 ssl http2;`), so
+there is no port-80 entrypoint. Use the real hostname over HTTPS:
 
 ```
-http://<VPS_PUBLIC_IP>/s/testid/
+https://noc.samirgroup.net/s/testid/
 ```
 
-(Note: plain `http://`, NOT `https://`, NOT :18080.) Log in as `user` with
-`NEKO_USER_PASSWORD` from `.env`. You should see the streamed Chromium exactly
-as in Step 3.
+Log in as `user` with `NEKO_USER_PASSWORD` from `.env`. You should see the
+streamed Chromium exactly as in Step 3.
 
 Also verify the existing SG_NOC still loads:
 
 ```
-http://<VPS_PUBLIC_IP>/
+https://noc.samirgroup.net/
 ```
 
 ## 7. What to report back
 
-- [ ] `http://<VPS_IP>/s/testid/` streams a working Chromium (control works, WS stays open).
-- [ ] `http://<VPS_IP>/` still loads the existing SG_NOC Laravel app.
+- [ ] `https://noc.samirgroup.net/s/testid/` streams a working Chromium (control works, WS stays open).
+- [ ] `https://noc.samirgroup.net/` still loads the existing SG_NOC Laravel app.
 - [ ] `sudo ss -ltnp | grep 18080` returns nothing (port is gone).
 - [ ] Any errors in `sudo docker logs neko-test` or `sudo tail -f /var/log/nginx/error.log`? Paste the relevant lines.
 
