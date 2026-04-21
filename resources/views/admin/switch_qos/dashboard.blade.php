@@ -79,6 +79,197 @@
     </div>
 </div>
 
+{{-- ─── VoIP Diagnostics ─────────────────────────────────────────────
+     Voice (DSCP EF/46) rides on Cisco output queues Q0 or Q1 depending on
+     platform. This card focuses on those two queues only so voice issues
+     don't get drowned out by other traffic, plus it pulls in live MOS data
+     from the Voice Quality module so switch-side + call-side live together.
+--}}
+@php
+    $vqColor = \App\Models\VoiceQualityReport::mosColor($avgMos ?: 0);
+    $vqLabel = \App\Models\VoiceQualityReport::mosLabel($avgMos ?: 0);
+@endphp
+<div class="card border-0 shadow-sm mb-4 border-start border-4 border-info">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="fw-semibold"><i class="bi bi-telephone-inbound text-info me-1"></i>VoIP Diagnostics <span class="text-muted small ms-1">(voice queues Q0 + Q1)</span></span>
+        <div class="d-flex gap-2">
+            <a href="{{ route('admin.voice-quality.dashboard') }}" class="btn btn-sm btn-outline-info"><i class="bi bi-graph-up me-1"></i>Open Voice Quality</a>
+            <a href="{{ route('admin.voice-quality.statistics') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-bar-chart me-1"></i>Stats</a>
+        </div>
+    </div>
+    <div class="card-body">
+
+        {{-- Voice KPI tiles --}}
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center h-100">
+                    <div class="h4 mb-0 fw-bold text-{{ $voiceLatest->q0_drops > 0 ? 'warning' : 'success' }}">{{ number_format((int) $voiceLatest->q0_drops) }}</div>
+                    <div class="small text-muted">Q0 drops today</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center h-100">
+                    <div class="h4 mb-0 fw-bold text-{{ $voiceLatest->q1_drops > 0 ? 'warning' : 'success' }}">{{ number_format((int) $voiceLatest->q1_drops) }}</div>
+                    <div class="small text-muted">Q1 drops today</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center h-100">
+                    <div class="h4 mb-0 fw-bold text-{{ $voiceDeltaTotal > 0 ? 'danger' : 'success' }}">{{ number_format($voiceDeltaTotal) }}</div>
+                    <div class="small text-muted">Δ since last poll</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center h-100">
+                    <div class="h4 mb-0 fw-bold text-{{ $voiceLatest->voice_iface_count > 0 ? 'warning' : 'success' }}">{{ number_format((int) $voiceLatest->voice_iface_count) }}</div>
+                    <div class="small text-muted">Interfaces w/ voice drops</div>
+                </div>
+            </div>
+        </div>
+
+        @if($voiceLatest->voice_drops == 0 && $totalCalls == 0)
+            <div class="text-muted small text-center py-3"><i class="bi bi-check-circle text-success me-1"></i>No voice activity today.</div>
+        @else
+        <div class="row g-4">
+            {{-- Top Voice-Drop Interfaces --}}
+            <div class="col-lg-8">
+                <div class="small fw-semibold mb-2"><i class="bi bi-ethernet me-1"></i>Top Voice-Drop Interfaces</div>
+                @if($topVoiceIfaces->isEmpty())
+                    <div class="text-muted small text-center py-3">No interfaces with voice-queue drops in the latest poll.</div>
+                @else
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Switch</th>
+                                <th>Branch</th>
+                                <th>Interface</th>
+                                <th class="text-end">Q0</th>
+                                <th class="text-end">Q1</th>
+                                <th class="text-end">Total</th>
+                                <th class="text-end">Δ last poll</th>
+                                <th>Phone</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach($topVoiceIfaces as $row)
+                            @php
+                                $key   = $row->device_ip . '|' . $row->interface_name;
+                                $delta = $topVoiceDeltas[$key] ?? null;
+                                $cdp   = $cdpByPort->get($key);
+                                $phone = $cdp && $cdp->neighbor_mac ? $phonesByMac->get($cdp->neighbor_mac) : null;
+                            @endphp
+                            <tr>
+                                <td class="fw-semibold">
+                                    <a href="{{ route('admin.switch-qos.device', urlencode($row->device_ip)) }}" class="text-decoration-none">
+                                        <i class="bi bi-hdd-network text-muted me-1"></i>{{ $row->device_name }}
+                                    </a>
+                                    <div class="text-muted font-monospace small">{{ $row->device_ip }}</div>
+                                </td>
+                                <td class="text-muted">{{ $row->branch?->name ?? '—' }}</td>
+                                <td class="font-monospace">
+                                    <a href="{{ route('admin.switch-qos.compare', urlencode($row->device_ip)) }}" class="text-decoration-none" title="Compare polls for this interface">
+                                        {{ $row->interface_name }}
+                                    </a>
+                                </td>
+                                <td class="text-end {{ $row->q0_sum > 0 ? 'text-warning fw-semibold' : 'text-muted' }}">{{ number_format((int) $row->q0_sum) }}</td>
+                                <td class="text-end {{ $row->q1_sum > 0 ? 'text-warning fw-semibold' : 'text-muted' }}">{{ number_format((int) $row->q1_sum) }}</td>
+                                <td class="text-end fw-bold">{{ number_format((int) $row->voice_drops) }}</td>
+                                <td class="text-end">
+                                    @if($delta === null)
+                                        <span class="text-muted" title="No previous poll">—</span>
+                                    @elseif($delta > 0)
+                                        <span class="badge bg-danger">+{{ number_format($delta) }}</span>
+                                    @else
+                                        <span class="text-muted">0</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if($phone)
+                                        <a href="{{ route('admin.extensions.details', $phone->extension) }}" class="text-decoration-none">
+                                            <span class="badge bg-danger-subtle text-danger-emphasis"><i class="bi bi-telephone me-1"></i>Ext {{ $phone->extension }}</span>
+                                        </a>
+                                    @elseif($cdp)
+                                        <span class="text-muted small" title="{{ $cdp->platform }}">{{ Str::limit($cdp->neighbor_device_id, 18) }}</span>
+                                    @else
+                                        <span class="text-muted small">—</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @endif
+            </div>
+
+            {{-- Voice Quality panel --}}
+            <div class="col-lg-4">
+                <div class="small fw-semibold mb-2"><i class="bi bi-mic me-1"></i>Voice Quality (today)</div>
+                <div class="border rounded p-3 mb-3 text-center">
+                    <div class="display-6 fw-bold text-{{ $vqColor }}">{{ $totalCalls > 0 ? number_format($avgMos, 2) : '—' }}</div>
+                    <div class="small text-muted">avg MOS · <span class="text-{{ $vqColor }}">{{ $totalCalls > 0 ? $vqLabel : 'no calls' }}</span></div>
+                    <div class="small mt-2">
+                        <span class="badge bg-{{ $poorCalls > 0 ? 'danger' : 'success' }}">{{ $poorCalls }} poor</span>
+                        <span class="badge bg-light text-dark border ms-1">{{ $totalCalls }} total</span>
+                    </div>
+                </div>
+
+                <div class="small fw-semibold mb-1"><i class="bi bi-bell me-1"></i>Recent Voice Alerts</div>
+                @if($recentVqAlerts->isEmpty())
+                    <div class="text-muted small">No unresolved voice alerts.</div>
+                @else
+                    <div class="list-group list-group-flush small">
+                    @foreach($recentVqAlerts as $a)
+                        <div class="list-group-item px-0 py-2 border-0 border-bottom">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <span class="badge bg-{{ $a->severity === 'critical' ? 'danger' : 'warning text-dark' }} me-1">{{ $a->severity }}</span>
+                                <span class="text-muted small">{{ $a->created_at?->diffForHumans() }}</span>
+                            </div>
+                            <div class="fw-semibold mt-1">{{ $a->source_ref }}</div>
+                            <div class="text-muted">{{ Str::limit($a->message, 80) }}</div>
+                        </div>
+                    @endforeach
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        {{-- Correlated branches: switch voice drops AND poor MOS --}}
+        @if($correlated->isNotEmpty())
+            <hr class="my-3">
+            <div class="small fw-semibold mb-2 text-danger"><i class="bi bi-exclamation-octagon me-1"></i>Branches with BOTH voice-queue drops AND call-quality issues today</div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0 small">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Branch</th>
+                            <th class="text-end">Voice drops</th>
+                            <th class="text-end">Avg MOS</th>
+                            <th class="text-end">Poor / Total calls</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach($correlated as $c)
+                        <tr>
+                            <td class="fw-semibold"><i class="bi bi-geo-alt text-muted me-1"></i>{{ $c->branch?->name ?? '—' }}</td>
+                            <td class="text-end text-warning fw-semibold">{{ number_format($c->voice_drops) }}</td>
+                            <td class="text-end text-{{ \App\Models\VoiceQualityReport::mosColor($c->avg_mos) }} fw-semibold">{{ number_format($c->avg_mos, 2) }}</td>
+                            <td class="text-end">
+                                <span class="badge bg-{{ $c->poor_calls > 0 ? 'danger' : 'secondary' }}">{{ $c->poor_calls }}</span>
+                                <span class="text-muted">/ {{ $c->total_calls }}</span>
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+        @endif
+
+    </div>
+</div>
+
 <div class="row g-4 mb-4">
     {{-- Per-queue breakdown --}}
     <div class="col-md-5">

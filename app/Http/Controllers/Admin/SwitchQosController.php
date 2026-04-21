@@ -11,6 +11,7 @@ use App\Models\SwitchCdpNeighbor;
 use App\Models\SwitchInterfaceStat;
 use App\Models\SwitchQosStat;
 use App\Models\SwitchRunningConfig;
+use App\Models\VoiceQualityReport;
 use App\Models\VqAlertEvent;
 use App\Services\CiscoTelnetClient;
 use App\Services\MlsQosParser;
@@ -112,11 +113,159 @@ class SwitchQosController extends Controller
             'mls_qos_unsupported'=> $inventory->where('mls_qos_supported', false)->count(),
         ];
 
+        // ── VoIP Diagnostics: focus on voice queues (Q0 + Q1) ─────────────
+        $vExpr = $this->voiceDropExpr();
+
+        $voiceLatest = SwitchQosStat::whereIn('id', $latestIds)
+            ->selectRaw("
+                COALESCE(SUM(q0_t1_drop + q0_t2_drop + q0_t3_drop), 0) as q0_drops,
+                COALESCE(SUM(q1_t1_drop + q1_t2_drop + q1_t3_drop), 0) as q1_drops,
+                COALESCE(SUM($vExpr), 0) as voice_drops,
+                COALESCE(SUM(CASE WHEN $vExpr > 0 THEN 1 ELSE 0 END), 0) as voice_iface_count
+            ")->first();
+
+        // Total voice-drop delta since the previous poll, across all (device, iface).
+        // GREATEST(..., 0) zeroes counter resets (same logic as compare()).
+        $since = now()->subDay();
+        $deltaRow = DB::selectOne("
+            SELECT COALESCE(SUM(GREATEST(cur.vd - prv.vd, 0)), 0) as total_delta
+            FROM (
+                SELECT device_ip, interface_name, $vExpr as vd,
+                       ROW_NUMBER() OVER (PARTITION BY device_ip, interface_name ORDER BY polled_at DESC) as rn
+                FROM switch_qos_stats
+                WHERE polled_at >= ?
+            ) cur
+            JOIN (
+                SELECT device_ip, interface_name, $vExpr as vd,
+                       ROW_NUMBER() OVER (PARTITION BY device_ip, interface_name ORDER BY polled_at DESC) as rn
+                FROM switch_qos_stats
+                WHERE polled_at >= ?
+            ) prv USING (device_ip, interface_name)
+            WHERE cur.rn = 1 AND prv.rn = 2
+        ", [$since, $since]);
+        $voiceDeltaTotal = (int) ($deltaRow->total_delta ?? 0);
+
+        $topVoiceIfaces = SwitchQosStat::whereIn('id', $latestIds)
+            ->selectRaw("*,
+                (q0_t1_drop + q0_t2_drop + q0_t3_drop) as q0_sum,
+                (q1_t1_drop + q1_t2_drop + q1_t3_drop) as q1_sum,
+                $vExpr as voice_drops")
+            ->havingRaw("$vExpr > 0")
+            ->orderByDesc('voice_drops')
+            ->limit(10)
+            ->get();
+
+        // Per-row delta: for each top iface, diff vs its previous poll.
+        $topVoiceDeltas = [];
+        foreach ($topVoiceIfaces as $row) {
+            $prev = SwitchQosStat::where('device_ip', $row->device_ip)
+                ->where('interface_name', $row->interface_name)
+                ->where('polled_at', '<', $row->polled_at)
+                ->orderByDesc('polled_at')
+                ->first();
+            $key = $row->device_ip . '|' . $row->interface_name;
+            if (!$prev) {
+                $topVoiceDeltas[$key] = null;
+                continue;
+            }
+            $curV  = $row->q0_sum + $row->q1_sum;
+            $prevV = ($prev->q0_t1_drop + $prev->q0_t2_drop + $prev->q0_t3_drop
+                    + $prev->q1_t1_drop + $prev->q1_t2_drop + $prev->q1_t3_drop);
+            $topVoiceDeltas[$key] = max($curV - $prevV, 0);
+        }
+
+        // Phone resolution for the top-iface table: CDP latest-per-device, keyed by
+        // "device_ip|local_interface", then MAC → PhonePortMap.
+        $topIps = $topVoiceIfaces->pluck('device_ip')->unique()->values();
+        $cdpByPort  = collect();
+        $phonesByMac = collect();
+        if ($topIps->isNotEmpty()) {
+            $cdpLatest = SwitchCdpNeighbor::select('device_ip', DB::raw('MAX(polled_at) as last_at'))
+                ->whereIn('device_ip', $topIps)
+                ->groupBy('device_ip')
+                ->get();
+
+            $cdpRows = collect();
+            foreach ($cdpLatest as $l) {
+                $cdpRows = $cdpRows->concat(
+                    SwitchCdpNeighbor::where('device_ip', $l->device_ip)
+                        ->where('polled_at', $l->last_at)
+                        ->get()
+                );
+            }
+            $cdpByPort = $cdpRows->keyBy(fn ($r) => $r->device_ip . '|' . $r->local_interface);
+
+            $macs = $cdpRows->pluck('neighbor_mac')->filter()->unique()->values();
+            if ($macs->isNotEmpty()) {
+                $phonesByMac = PhonePortMap::whereIn('phone_mac', $macs)->get()->keyBy('phone_mac');
+            }
+        }
+
+        // Voice Quality summary (today).
+        $vqBase     = fn () => VoiceQualityReport::today()->whereNotNull('mos_lq');
+        $avgMos     = (float) ($vqBase()->avg('mos_lq') ?? 0);
+        $poorCalls  = (int) $vqBase()->where('mos_lq', '<', 3.0)->count();
+        $totalCalls = (int) $vqBase()->count();
+        $recentVqAlerts = VqAlertEvent::unresolved()
+            ->where('source_type', 'voice')
+            ->latest()->limit(3)->get();
+
+        // Correlated branches: both voice-queue drops AND poor MOS today.
+        $voiceDropsByBranchId = SwitchQosStat::whereIn('id', $latestIds)
+            ->selectRaw("branch_id, SUM($vExpr) as voice_drops")
+            ->whereNotNull('branch_id')
+            ->groupBy('branch_id')
+            ->havingRaw("SUM($vExpr) > 0")
+            ->pluck('voice_drops', 'branch_id');
+
+        $correlated = collect();
+        if ($voiceDropsByBranchId->isNotEmpty()) {
+            $vqByBranchId = VoiceQualityReport::today()
+                ->whereNotNull('branch_id')
+                ->whereIn('branch_id', $voiceDropsByBranchId->keys())
+                ->selectRaw('branch_id,
+                    AVG(mos_lq) as avg_mos,
+                    SUM(CASE WHEN mos_lq < 3 THEN 1 ELSE 0 END) as poor_calls,
+                    COUNT(*) as total_calls')
+                ->groupBy('branch_id')
+                ->get()->keyBy('branch_id');
+
+            $branchModels = Branch::whereIn('id', $voiceDropsByBranchId->keys())->get()->keyBy('id');
+
+            $correlated = $voiceDropsByBranchId
+                ->map(function ($drops, $bid) use ($vqByBranchId, $branchModels) {
+                    $vq = $vqByBranchId->get($bid);
+                    if (!$vq) return null;
+                    return (object) [
+                        'branch'      => $branchModels->get($bid),
+                        'voice_drops' => (int) $drops,
+                        'avg_mos'     => (float) $vq->avg_mos,
+                        'poor_calls'  => (int) $vq->poor_calls,
+                        'total_calls' => (int) $vq->total_calls,
+                    ];
+                })
+                ->filter()
+                ->sortByDesc('voice_drops')
+                ->take(10)
+                ->values();
+        }
+
         return view('admin.switch_qos.dashboard', compact(
             'interfacesWithDrops', 'switchesPolled', 'policerOutOfProfile',
             'topDropInterfaces', 'topDropSwitches', 'queueBreakdown', 'activeAlerts',
-            'inventory', 'inventoryStats'
+            'inventory', 'inventoryStats',
+            'voiceLatest', 'voiceDeltaTotal', 'topVoiceIfaces', 'topVoiceDeltas',
+            'cdpByPort', 'phonesByMac', 'avgMos', 'poorCalls', 'totalCalls',
+            'recentVqAlerts', 'correlated'
         ));
+    }
+
+    /** SQL expression that sums Q0 + Q1 drops (voice queues on Cisco MLS QoS). */
+    private function voiceDropExpr(string $prefix = ''): string
+    {
+        $p = $prefix ? $prefix . '.' : '';
+        return "({$p}q0_t1_drop + {$p}q0_t2_drop + {$p}q0_t3_drop"
+             . " + {$p}q1_t1_drop + {$p}q1_t2_drop + {$p}q1_t3_drop)";
     }
 
     public function index(Request $request)
