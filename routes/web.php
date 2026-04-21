@@ -802,9 +802,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('/heartbeat',          [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'heartbeat'])->name('heartbeat');
             Route::get('/history',             [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'history'])->name('history');
             Route::get('/{sessionId}',         [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'show'])   ->name('show')
-                ->whereAlphaNumeric('sessionId');
+                ->where('sessionId', '[a-z0-9]{12}');
             Route::delete('/{sessionId}',      [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'destroy'])->name('destroy')
-                ->whereAlphaNumeric('sessionId');
+                ->where('sessionId', '[a-z0-9]{12}');
         });
     // Admin view: list all sessions, force-stop anyone.
     Route::middleware('permission:manage-browser-portal')
@@ -815,11 +815,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('/settings',             [\App\Http\Controllers\Admin\BrowserPortal\BrowserPortalSettingsController::class, 'index'])->name('settings');
             Route::post('/settings',            [\App\Http\Controllers\Admin\BrowserPortal\BrowserPortalSettingsController::class, 'update'])->name('settings.update');
             Route::get('/{sessionId}/logs',        [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'logs'])     ->name('logs')
-                ->whereAlphaNumeric('sessionId');
+                ->where('sessionId', '[a-z0-9]{12}');
             Route::get('/{sessionId}/logs/stream', [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'logStream'])->name('logs.stream')
-                ->whereAlphaNumeric('sessionId');
+                ->where('sessionId', '[a-z0-9]{12}');
             Route::delete('/{sessionId}',       [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'destroy'])->name('destroy')
-                ->whereAlphaNumeric('sessionId');
+                ->where('sessionId', '[a-z0-9]{12}');
         });
 
     // ─── NOC Dashboard ────────────────────────────────────────
