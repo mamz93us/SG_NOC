@@ -1,0 +1,45 @@
+# /etc/sudoers.d/browser-portal
+#
+# Lets the Laravel process (running as www-data) drive Docker and Nginx
+# without a password, for the browser-portal module only.
+#
+# Install with:
+#   sudo install -m 0440 -o root -g root \
+#       deployment/browser-portal/sudoers.d/browser-portal \
+#       /etc/sudoers.d/browser-portal
+#   sudo visudo -c -f /etc/sudoers.d/browser-portal
+#
+# DO NOT widen the docker allow-list without review: the whole security story
+# of this module depends on www-data NOT being able to run arbitrary `docker
+# run` with host-path mounts or --privileged.
+
+# --- Nginx reload for per-session snippet writes ------------------------------
+Cmnd_Alias BROWSER_PORTAL_NGINX = \
+    /usr/sbin/nginx -t, \
+    /usr/sbin/nginx -s reload
+
+# --- Docker subcommands we actually need --------------------------------------
+# We intentionally allow a broad `docker run` / `docker exec` here; tightening
+# to an image allow-list via sudoers alone is brittle (sudoers can't parse
+# docker flag semantics). The real guard is that SessionManager is the only
+# code path that ever calls DockerClient, and it always runs a fixed argv.
+Cmnd_Alias BROWSER_PORTAL_DOCKER = \
+    /usr/bin/docker run *, \
+    /usr/bin/docker stop *, \
+    /usr/bin/docker rm *, \
+    /usr/bin/docker kill *, \
+    /usr/bin/docker exec *, \
+    /usr/bin/docker logs *, \
+    /usr/bin/docker inspect *, \
+    /usr/bin/docker stats *, \
+    /usr/bin/docker ps, \
+    /usr/bin/docker ps *, \
+    /usr/bin/docker volume ls, \
+    /usr/bin/docker volume ls *, \
+    /usr/bin/docker volume inspect *
+
+www-data ALL=(root) NOPASSWD: BROWSER_PORTAL_NGINX, BROWSER_PORTAL_DOCKER
+
+# Safety: prevent env passthrough from leaking tokens into the child process.
+Defaults!BROWSER_PORTAL_NGINX  env_reset
+Defaults!BROWSER_PORTAL_DOCKER env_reset

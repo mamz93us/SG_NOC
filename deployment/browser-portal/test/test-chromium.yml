@@ -10,12 +10,9 @@ services:
       - browser-net
     ports:
       # WebRTC UDP ports MUST be published at host level — WebRTC can't
-      # cleanly traverse a Docker bridge. Only the UDP range is published;
-      # the HTTP :8080 is intentionally NOT published here because in the
-      # production flow Nginx will reverse-proxy to it over the bridge.
-      # For this step we temporarily re-expose 18080 so we can verify the
-      # stream still works on browser-net. We'll drop it at Step 4.
-      - "18080:8080"
+      # cleanly traverse a Docker bridge. HTTP :8080 is NOT published:
+      # as of Step 4, Nginx on the host reverse-proxies to it over the
+      # browser-net bridge via /s/{id}/.
       - "52000-52100:52000-52100/udp"
     volumes:
       # Persistent volume so logins/cookies survive container restarts.
@@ -37,6 +34,11 @@ services:
       NEKO_WEBRTC_EPR: "52000-52100"
       NEKO_WEBRTC_NAT1TO1: "${VPS_PUBLIC_IP}"
       NEKO_WEBRTC_ICELITE: "true"
+      # Step 4: Nginx on the host proxies /s/testid/ -> this container. Neko
+      # needs to know the prefix so its generated asset URLs and WS paths
+      # stay under /s/testid/ instead of /.
+      NEKO_SERVER_PROXY: "true"
+      NEKO_SERVER_PATH_PREFIX: "/s/testid"
 
 networks:
   browser-net:
