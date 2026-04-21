@@ -255,6 +255,7 @@
                             @if($d->last_polled_at)
                             <a href="{{ route('admin.switch-qos.device', urlencode($d->ip_address)) }}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="View QoS details"><i class="bi bi-eye"></i></a>
                             @endif
+                            <a href="telnet://{{ $d->ip_address }}" class="btn btn-sm btn-outline-dark py-0 px-1" title="Open telnet session"><i class="bi bi-terminal"></i></a>
                             @can('manage-credentials')
                             <form method="POST" action="{{ route('admin.switch-qos.test', $d->id) }}" class="d-inline">
                                 @csrf
