@@ -108,6 +108,39 @@ class CiscoTelnetClient
         }
     }
 
+    /**
+     * Non-blocking drain — returns any bytes currently available (including already-buffered),
+     * up to $maxBytes. Does NOT throw on empty.
+     */
+    public function drain(int $maxBytes = 65536, float $waitSeconds = 0.1): string
+    {
+        if (!$this->sock) return '';
+
+        $read = [$this->sock]; $w = null; $e = null;
+        $secs = (int) floor($waitSeconds);
+        $usecs = (int) (($waitSeconds - $secs) * 1_000_000);
+        @stream_select($read, $w, $e, $secs, $usecs);
+
+        if (!empty($read)) {
+            $chunk = @fread($this->sock, $maxBytes);
+            if ($chunk !== false && $chunk !== '') {
+                $this->buffer .= $this->processIac($chunk);
+            }
+        }
+
+        $out = $this->buffer;
+        $this->buffer = '';
+        return $out;
+    }
+
+    /** True if the underlying socket is still open (not EOF'd). */
+    public function isConnected(): bool
+    {
+        if (!$this->sock) return false;
+        $meta = @stream_get_meta_data($this->sock);
+        return empty($meta['eof']);
+    }
+
     public function send(string $data, bool $appendNewline = true): void
     {
         if (!$this->sock) {
