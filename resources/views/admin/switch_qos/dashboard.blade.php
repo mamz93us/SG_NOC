@@ -10,6 +10,7 @@
     <div class="d-flex gap-2 flex-wrap">
         <a href="{{ route('admin.switch-qos.topology') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-bounding-box me-1"></i>Topology Map</a>
         <a href="{{ route('admin.switch-qos.cdp') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-diagram-3 me-1"></i>CDP Neighbors</a>
+        <a href="{{ route('admin.switch-qos.configs.index') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-code me-1"></i>Configs</a>
         <a href="{{ route('admin.switch-qos.index') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list me-1"></i>All Stats</a>
     </div>
 </div>
@@ -257,6 +258,10 @@
                             @endif
                             @can('manage-credentials')
                             <a href="{{ route('admin.switch-qos.telnet', $d->id) }}" class="btn btn-sm btn-outline-dark py-0 px-1" title="Open in-browser telnet console"><i class="bi bi-terminal"></i></a>
+                            <form method="POST" action="{{ route('admin.switch-qos.configs.fetch', $d->id) }}" class="d-inline">
+                                @csrf
+                                <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-1" title="Fetch running-config"><i class="bi bi-file-earmark-code"></i></button>
+                            </form>
                             @endcan
                             @can('manage-credentials')
                             <form method="POST" action="{{ route('admin.switch-qos.test', $d->id) }}" class="d-inline">

@@ -280,7 +280,9 @@
       "Bash(php -l app/Http/Controllers/Admin/SwitchQosController.php)",
       "Bash(php -l app/Models/SwitchCdpNeighbor.php)",
       "Bash(grep -r 'class Extension\\\\|protected $table = '\\\\''extensions'\\\\''' 'C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models')",
-      "Bash(find \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\" -name \"*ExtensionController*\" -exec head -30 {} \\\\;)"
+      "Bash(find \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\" -name \"*ExtensionController*\" -exec head -30 {} \\\\;)",
+      "Bash(php -l app/Models/SwitchRunningConfig.php)",
+      "Bash(php -l database/migrations/2026_04_21_000001_create_switch_running_configs_table.php)"
     ]
   }
 }

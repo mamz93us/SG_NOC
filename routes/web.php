@@ -1198,11 +1198,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/device/{ip}',          [\App\Http\Controllers\Admin\SwitchQosController::class, 'device'])    ->name('device')->where('ip', '[0-9a-fA-F.:]+');
         Route::get('/setup/{device}',       [\App\Http\Controllers\Admin\SwitchQosController::class, 'setup'])     ->name('setup');
 
+        // Running-config archive (viewable by anyone with view-voice-quality).
+        Route::get('/configs',                                    [\App\Http\Controllers\Admin\SwitchQosController::class, 'configsIndex'])  ->name('configs.index');
+        Route::get('/configs/{device}',                           [\App\Http\Controllers\Admin\SwitchQosController::class, 'configShow'])    ->name('configs.show');
+        Route::get('/configs/{device}/snapshot/{snapshotId}',     [\App\Http\Controllers\Admin\SwitchQosController::class, 'configShow'])    ->name('configs.snapshot');
+        Route::get('/configs/{device}/snapshot/{snapshotId}/download', [\App\Http\Controllers\Admin\SwitchQosController::class, 'configDownload'])->name('configs.download');
+        Route::get('/configs/{device}/diff',                      [\App\Http\Controllers\Admin\SwitchQosController::class, 'configDiff'])    ->name('configs.diff');
+
         // Credential management + connectivity probe — admins only (manage-credentials).
         Route::middleware('permission:manage-credentials')->group(function () {
             Route::post('/device/{device}/test',                    [\App\Http\Controllers\Admin\SwitchQosController::class, 'testConnection'])    ->name('test');
             Route::post('/device/{device}/poll',                    [\App\Http\Controllers\Admin\SwitchQosController::class, 'pollNow'])           ->name('poll');
             Route::post('/device/{device}/clear-stats',             [\App\Http\Controllers\Admin\SwitchQosController::class, 'clearStats'])       ->name('clear');
+            Route::post('/device/{device}/fetch-config',            [\App\Http\Controllers\Admin\SwitchQosController::class, 'fetchConfig'])      ->name('configs.fetch');
             Route::get('/device/{device}/telnet',                   [\App\Http\Controllers\Admin\SwitchQosController::class, 'telnetConsole']) ->name('telnet');
             Route::post('/device/{device}/telnet/send',             [\App\Http\Controllers\Admin\SwitchQosController::class, 'telnetSend'])    ->name('telnet.send');
             Route::post('/device/{device}/credentials',             [\App\Http\Controllers\Admin\SwitchQosController::class, 'saveCredential'])    ->name('credentials.save');

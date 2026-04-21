@@ -27,6 +27,12 @@
         <a href="{{ route('admin.switch-qos.telnet', $device->id) }}" class="btn btn-sm btn-dark" title="Open in-browser telnet console">
             <i class="bi bi-terminal me-1"></i>Open Telnet
         </a>
+        <form method="POST" action="{{ route('admin.switch-qos.configs.fetch', $device->id) }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-primary" title="Capture running-config">
+                <i class="bi bi-file-earmark-code me-1"></i>Fetch Config
+            </button>
+        </form>
         <form method="POST" action="{{ route('admin.switch-qos.poll', $device->id) }}" class="d-inline">
             @csrf
             <button type="submit" class="btn btn-sm btn-success" title="Run the poller now">
