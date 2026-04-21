@@ -21,10 +21,15 @@
         display: block;
         width: 100%; height: 100%; border: 0;
     }
+    /* Toolbar lives top-LEFT so it doesn't overlap Neko's fullscreen / settings
+       icons which sit top-right. Slight fade unless hovered so the remote
+       browser has as much unobstructed room as possible. */
     .bp-toolbar {
-        position: absolute; top: 8px; right: 8px; z-index: 1030;
+        position: absolute; top: 8px; left: 8px; z-index: 1030;
         display: flex; gap: 8px;
+        opacity: .35; transition: opacity .15s;
     }
+    .bp-toolbar:hover { opacity: 1; }
 </style>
 <div class="bp-frame-wrap">
     <div class="bp-toolbar">
@@ -93,6 +98,51 @@
         iframe.addEventListener('load', stripNekoChrome);
         // Also periodically re-apply in case Neko's SPA re-renders and removes our style node
         setInterval(stripNekoChrome, 2000);
+    }
+
+    // Auto-request control so the user doesn't have to click the lock icon after
+    // every reconnect. Neko's multiuser provider grants the first requester and
+    // then other viewers request/release as they please. Same-origin iframe so
+    // we can reach into the Vue app's store or fall back to clicking the button.
+    let controlRequested = false;
+    function autoRequestControl() {
+        if (controlRequested || !iframe) return;
+        try {
+            const win = iframe.contentWindow;
+            const doc = iframe.contentDocument;
+            if (!win || !doc) return;
+
+            // 1. Preferred: Neko's injected API (v2: window.$client / window.$neko).
+            const api = win.$client || win.$neko || win.neko;
+            if (api?.control?.request) {
+                api.control.request();
+                controlRequested = true;
+                return;
+            }
+            if (api?.sendMessage) {            // older builds
+                api.sendMessage('control/request');
+                controlRequested = true;
+                return;
+            }
+
+            // 2. Fallback: click the lock/unlock button if visible.
+            //    Neko's toggle uses an `aria-label` or an icon — match broadly.
+            const btn = doc.querySelector(
+                '[aria-label*="control" i], [title*="control" i], ' +
+                '[aria-label*="lock" i], [title*="lock" i], ' +
+                '.control-button, .toggle-control'
+            );
+            if (btn) { btn.click(); controlRequested = true; }
+        } catch (_) { /* ignore, next interval will retry */ }
+    }
+    if (iframe) {
+        iframe.addEventListener('load', () => setTimeout(autoRequestControl, 1500));
+        // Retry for ~20s in case Neko's WebSocket connect is slow.
+        const controlTimer = setInterval(() => {
+            autoRequestControl();
+            if (controlRequested) clearInterval(controlTimer);
+        }, 1500);
+        setTimeout(() => clearInterval(controlTimer), 20_000);
     }
 
     // 60s heartbeat so the 4h idle cutoff only fires when the tab is really idle.
