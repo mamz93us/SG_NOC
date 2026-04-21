@@ -37,17 +37,32 @@ if [[ ${#ALLOWED[@]} -eq 0 ]]; then
 fi
 
 # Flush any previous rules we own (identified by our comment tag).
+# `iptables -S` emits rules as "-A CHAIN ... --comment browser-portal-killswitch".
+# Using a process substitution instead of a pipe so set -o pipefail doesn't
+# blow up when grep has zero matches on a fresh install.
 flush_our_rules() {
     local table="$1" chain="$2"
-    iptables -t "$table" -S "$chain" 2>/dev/null | grep -- "-m comment --comment \"$MARK_COMMENT\"" | while read -r line; do
-        # Turn "-A CHAIN ..." into "-D CHAIN ..." to delete.
-        rule="${line/#-A/-D}"
-        iptables -t "$table" $rule || true
-    done
+    local spec
+    spec=$(iptables -t "$table" -S "$chain" 2>/dev/null || true)
+    while read -r line; do
+        [[ -z "$line" ]] && continue
+        # Turn "-A CHAIN ..." into "-D CHAIN ..." to delete. Use eval-free split.
+        local del="${line/#-A/-D}"
+        # shellcheck disable=SC2086
+        iptables -t "$table" $del 2>/dev/null || true
+    done < <(echo "$spec" | grep -F -- "--comment $MARK_COMMENT" || true)
 }
 
 flush_our_rules filter DOCKER-USER
 flush_our_rules nat    POSTROUTING
+
+# DOCKER-USER chain is created by Docker when it starts; if Docker was just
+# installed and no containers have run yet, it might be missing. Create it
+# ourselves if so.
+if ! iptables -L DOCKER-USER -n >/dev/null 2>&1; then
+    iptables -N DOCKER-USER
+    iptables -I FORWARD 1 -j DOCKER-USER
+fi
 
 # Allow established/related back to the containers (stateful).
 iptables -I DOCKER-USER 1 \
