@@ -26,16 +26,18 @@ nano .env
 #   - NEKO_USER_PASSWORD = pick a strong password (shared with test users)
 #   - NEKO_ADMIN_PASSWORD= pick a strong password (admin inside Neko)
 
-# 6. Open the firewall for the test:
-sudo ufw allow 8080/tcp
+# 6. Open the firewall for the test (we use port 18080 because 8080 is already
+#    taken by the existing SG_NOC app; this is a throwaway test port):
+sudo ufw allow 18080/tcp
 sudo ufw allow 52000:52100/udp
 sudo ufw status verbose
 
-# 7. Start the container:
-docker compose -f test-chromium.yml up -d
+# 7. Start the container (use sudo — your user isn't in the docker group yet;
+#    we'll set up sudoers for the Laravel user properly at Step 4):
+sudo docker compose -f test-chromium.yml up -d
 
 # 8. Watch the logs for ~15s until you see "neko/session" and "webrtc" lines:
-docker compose -f test-chromium.yml logs -f
+sudo docker compose -f test-chromium.yml logs -f
 # Ctrl-C to stop following.
 ```
 
@@ -44,7 +46,7 @@ docker compose -f test-chromium.yml logs -f
 From your laptop's browser (**not** the VPS), open:
 
 ```
-http://<VPS_PUBLIC_IP>:8080
+http://<VPS_PUBLIC_IP>:18080
 ```
 
 - Log in as **user** — username `user`, password = `NEKO_USER_PASSWORD` from .env.
@@ -63,14 +65,15 @@ If it didn't work, the usual culprits are:
 1. UFW blocking UDP 52000-52100 — check `sudo ufw status verbose`.
 2. `VPS_PUBLIC_IP` is wrong in `.env` (e.g. set to the internal IP).
 3. Cloud provider blocks UDP at the security-group level (check your hosting panel).
+4. Port 18080 collides with something else — check `sudo ss -ltnp | grep 18080`; pick another unused port and update both `test-chromium.yml` and the UFW rule.
 
 ## Teardown (after this step is confirmed)
 
 ```bash
-cd ~/sg_noc/deployment/browser-portal/test
-docker compose -f test-chromium.yml down
-# We'll close 8080/tcp later; leave the UDP range open, we'll reuse it.
-sudo ufw delete allow 8080/tcp
+cd ~/phonebook2/deployment/browser-portal/test
+sudo docker compose -f test-chromium.yml down
+# Leave the UDP range open, we'll reuse it in Step 3.
+sudo ufw delete allow 18080/tcp
 ```
 
 Then we proceed to Step 2 (Docker network + kill-switch).
