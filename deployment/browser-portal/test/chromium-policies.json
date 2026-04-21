@@ -1,0 +1,39 @@
+{
+  "_comment": "Managed Chromium policies for the SG_NOC browser portal. Overrides the Neko image default at /etc/chromium/policies/managed/policies.json. Loosens kiosk restrictions that would block real work (uploads, password manager, bookmarks) while keeping the security-relevant locks (DevTools off, no incognito, no Chrome sign-in, no sync).",
+
+  "BookmarkBarEnabled": true,
+  "EditBookmarksEnabled": true,
+  "PasswordManagerEnabled": true,
+
+  "AllowFileSelectionDialogs": true,
+  "DownloadRestrictions": 0,
+  "PromptForDownloadLocation": false,
+
+  "AutofillAddressEnabled": true,
+  "AutofillCreditCardEnabled": false,
+
+  "DeveloperToolsAvailability": 2,
+  "IncognitoModeAvailability": 1,
+  "BrowserSignin": 0,
+  "SyncDisabled": true,
+  "BrowserAddPersonEnabled": false,
+  "BrowserGuestModeEnabled": false,
+  "BrowserLabsEnabled": false,
+
+  "DefaultNotificationsSetting": 2,
+  "DefaultPopupsSetting": 2,
+
+  "FullscreenAllowed": true,
+  "VideoCaptureAllowed": true,
+  "AutoplayAllowed": true,
+
+  "ExtensionInstallForcelist": [
+    "ddkjiahejlhfcafbddmgiahcphecmpfh;https://clients2.google.com/service/update2/crx"
+  ],
+  "ExtensionInstallAllowlist": [
+    "ddkjiahejlhfcafbddmgiahcphecmpfh"
+  ],
+  "ExtensionInstallBlocklist": [
+    "*"
+  ]
+}

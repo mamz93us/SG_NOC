@@ -24,6 +24,10 @@ services:
       # which wipes the profile on every launch) and --disable-file-system
       # (breaks uploads). Bind-mount read-only.
       - ./chromium-supervisor.conf:/etc/neko/supervisord/chromium.conf:ro
+      # Override the image's kiosk-grade Chromium managed policy so bookmarks,
+      # uploads, password manager, etc. actually work. Keeps DevTools/incognito/
+      # Chrome-sync locked. Bind-mount read-only.
+      - ./chromium-policies.json:/etc/chromium/policies/managed/policies.json:ro
     environment:
       NEKO_DESKTOP_SCREEN: "1920x1080@30"
       NEKO_SERVER_BIND: "0.0.0.0:8080"
