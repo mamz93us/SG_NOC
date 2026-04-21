@@ -1,4 +1,5 @@
-@extends('layouts.admin')
+@php $layout = auth()->user()?->isBrowserUser() ? 'layouts.portal' : 'layouts.admin'; @endphp
+@extends($layout)
 
 @section('title', 'Remote Browser')
 

@@ -114,8 +114,9 @@ class RolePermission extends Model
                 'manage-print-manager' => 'Manage CUPS Printers & Jobs',
             ],
             'Remote Browser' => [
-                'view-browser-portal'   => 'Launch & use a remote browser session',
-                'manage-browser-portal' => 'View / force-stop any remote browser session',
+                'view-browser-portal'    => 'Launch & use a remote browser session',
+                'share-browser-session'  => 'Generate a share link to invite another user into their own session',
+                'manage-browser-portal'  => 'View / force-stop any session, view events, edit portal settings',
             ],
         ];
     }
@@ -150,9 +151,10 @@ class RolePermission extends Model
         ];
 
         return [
-            'super_admin' => $all,
-            'admin'       => $adminPerms,
-            'viewer'      => $viewerPerms,
+            'super_admin'  => $all,
+            'admin'        => $adminPerms,
+            'viewer'       => $viewerPerms,
+            'browser_user' => ['view-browser-portal'],
         ];
     }
 

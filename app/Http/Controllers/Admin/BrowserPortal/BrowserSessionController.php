@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\BrowserPortal;
 
 use App\Http\Controllers\Controller;
 use App\Models\BrowserSession;
+use App\Models\BrowserSessionEvent;
 use App\Services\BrowserPortal\SessionManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -82,6 +83,24 @@ class BrowserSessionController extends Controller
             $session->save();
         }
         return response()->json(['ok' => (bool) $session]);
+    }
+
+    /**
+     * GET /history — the user's own session history with events.
+     */
+    public function history(): View
+    {
+        $sessions = BrowserSession::where('user_id', Auth::id())
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get();
+
+        $events = BrowserSessionEvent::where('user_id', Auth::id())
+            ->orderByDesc('created_at')
+            ->limit(200)
+            ->get();
+
+        return view('admin.browser-portal.history', compact('sessions', 'events'));
     }
 
     /**

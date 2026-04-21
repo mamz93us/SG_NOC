@@ -88,13 +88,19 @@ class User extends Authenticatable
         return $this->role === 'viewer';
     }
 
+    public function isBrowserUser(): bool
+    {
+        return $this->role === 'browser_user';
+    }
+
     public static function roleLabel(string $role): string
     {
         return match($role) {
-            'super_admin' => 'Super Admin',
-            'admin'       => 'Admin',
-            'viewer'      => 'Viewer',
-            default       => ucfirst($role),
+            'super_admin'  => 'Super Admin',
+            'admin'        => 'Admin',
+            'viewer'       => 'Viewer',
+            'browser_user' => 'Browser User',
+            default        => ucfirst($role),
         };
     }
 }

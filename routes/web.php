@@ -800,6 +800,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('/',                    [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'index'])  ->name('index');
             Route::post('/',                   [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'store'])  ->name('store');
             Route::post('/heartbeat',          [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'heartbeat'])->name('heartbeat');
+            Route::get('/history',             [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'history'])->name('history');
             Route::get('/{sessionId}',         [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'show'])   ->name('show')
                 ->whereAlphaNumeric('sessionId');
             Route::delete('/{sessionId}',      [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'destroy'])->name('destroy')
@@ -809,8 +810,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:manage-browser-portal')
         ->prefix('browser-portal/admin')->name('browser-portal.admin.')
         ->group(function () {
-            Route::get('/',               [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'index'])  ->name('index');
-            Route::delete('/{sessionId}', [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'destroy'])->name('destroy')
+            Route::get('/',                     [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'index'])  ->name('index');
+            Route::get('/events',               [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'events']) ->name('events');
+            Route::get('/settings',             [\App\Http\Controllers\Admin\BrowserPortal\BrowserPortalSettingsController::class, 'index'])->name('settings');
+            Route::post('/settings',            [\App\Http\Controllers\Admin\BrowserPortal\BrowserPortalSettingsController::class, 'update'])->name('settings.update');
+            Route::get('/{sessionId}/logs',        [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'logs'])     ->name('logs')
+                ->whereAlphaNumeric('sessionId');
+            Route::get('/{sessionId}/logs/stream', [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'logStream'])->name('logs.stream')
+                ->whereAlphaNumeric('sessionId');
+            Route::delete('/{sessionId}',       [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'destroy'])->name('destroy')
                 ->whereAlphaNumeric('sessionId');
         });
 
