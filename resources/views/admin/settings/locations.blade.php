@@ -65,12 +65,17 @@
                             <i class="bi bi-layers me-2 text-secondary"></i>{{ $floor->name }}
                             <span class="text-muted fw-normal ms-1">({{ $floor->racks->count() }} rack(s), {{ $floor->offices->count() }} office(s))</span>
                             @if($floor->ext_range_start && $floor->ext_range_end)
+<<<<<<< Updated upstream
                                 <span class="badge bg-primary ms-2" title="IP Phone extension range for this floor">
                                     <i class="bi bi-telephone-fill me-1"></i>Ext {{ $floor->ext_range_start }}–{{ $floor->ext_range_end }}
                                 </span>
                             @else
                                 <span class="badge bg-light text-muted border ms-2" title="No extension range set">
                                     <i class="bi bi-telephone me-1"></i>No ext range
+=======
+                                <span class="badge bg-success ms-1" style="font-size:.65rem" title="Extension range">
+                                    ext {{ $floor->ext_range_start }}–{{ $floor->ext_range_end }}
+>>>>>>> Stashed changes
                                 </span>
                             @endif
                         </button>
