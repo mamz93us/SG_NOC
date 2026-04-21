@@ -23,10 +23,10 @@
         <small class="text-muted font-monospace">{{ $device->ip_address }} <span class="ms-2 text-secondary">{{ $device->branch?->name }}</span></small>
     </div>
     <div class="d-flex gap-2 align-items-center">
-        <a href="telnet://{{ $device->ip_address }}" class="btn btn-sm btn-dark" title="Open telnet session to {{ $device->ip_address }}">
+        @can('manage-credentials')
+        <a href="{{ route('admin.switch-qos.telnet', $device->id) }}" class="btn btn-sm btn-dark" title="Open in-browser telnet console">
             <i class="bi bi-terminal me-1"></i>Open Telnet
         </a>
-        @can('manage-credentials')
         <form method="POST" action="{{ route('admin.switch-qos.poll', $device->id) }}" class="d-inline">
             @csrf
             <button type="submit" class="btn btn-sm btn-success" title="Run the poller now">

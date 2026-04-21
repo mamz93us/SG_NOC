@@ -20,11 +20,11 @@
     </div>
     <div class="d-flex gap-2 align-items-center flex-wrap">
         <span class="badge bg-secondary">Last polled {{ $latestSnapshot->polled_at?->diffForHumans() ?: '—' }}</span>
-        <a href="telnet://{{ $deviceIp }}" class="btn btn-sm btn-dark" title="Open a telnet session to {{ $deviceIp }} using your local telnet client">
-            <i class="bi bi-terminal me-1"></i>Open Telnet
-        </a>
         @if($device)
             @can('manage-credentials')
+            <a href="{{ route('admin.switch-qos.telnet', $device->id) }}" class="btn btn-sm btn-dark" title="Open in-browser telnet console">
+                <i class="bi bi-terminal me-1"></i>Open Telnet
+            </a>
             <form method="POST" action="{{ route('admin.switch-qos.poll', $device->id) }}" class="d-inline">
                 @csrf
                 <button type="submit" class="btn btn-sm btn-success" title="Run the poller now">

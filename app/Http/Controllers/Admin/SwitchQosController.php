@@ -10,6 +10,7 @@ use App\Models\PhonePortMap;
 use App\Models\SwitchCdpNeighbor;
 use App\Models\SwitchInterfaceStat;
 use App\Models\SwitchQosStat;
+use App\Models\SwitchRunningConfig;
 use App\Models\VqAlertEvent;
 use App\Services\CiscoTelnetClient;
 use App\Services\MlsQosParser;
@@ -700,6 +701,309 @@ class SwitchQosController extends Controller
             return back()->with('error', 'Clear failed: ' . $error);
         }
         return back()->with('success', 'QoS statistics cleared on the switch. Next poll will show zeroed counters.');
+    }
+
+    /**
+     * Render the in-browser telnet console for a device.
+     */
+    public function telnetConsole(Device $device)
+    {
+        if (!in_array($device->type, ['switch', 'router'], true) || !$device->ip_address) {
+            abort(404);
+        }
+        $telnet = $device->credentials()->where('category', 'telnet')->first();
+        $enable = $device->credentials()->where('category', 'enable')->first();
+
+        return view('admin.switch_qos.telnet', compact('device', 'telnet', 'enable'));
+    }
+
+    /**
+     * Execute a single Cisco command via a fresh telnet session and return output as JSON.
+     * Each call is stateless — login, enable, run command, disconnect.
+     */
+    public function telnetSend(Request $request, Device $device)
+    {
+        $data = $request->validate([
+            'command' => ['required', 'string', 'max:512'],
+        ]);
+        $command = trim($data['command']);
+
+        if ($command === '') {
+            return response()->json(['output' => '', 'error' => null]);
+        }
+
+        $telnet = $device->credentials()->where('category', 'telnet')->first();
+        $enable = $device->credentials()->where('category', 'enable')->first();
+
+        if (!$telnet) {
+            return response()->json([
+                'output' => '',
+                'error'  => "No 'telnet' credential configured for this device.",
+            ], 422);
+        }
+
+        $client = new CiscoTelnetClient();
+        $output = '';
+        $error  = null;
+
+        try {
+            $client->connect($device->ip_address, 23, 8.0);
+            $client->waitFor(['Password:'], 8.0);
+            $client->send((string) $telnet->password);
+            $client->waitForPrompt(10.0);
+
+            if ($enable) {
+                $client->send('enable');
+                $client->waitFor(['Password:'], 8.0);
+                $client->send((string) $enable->password);
+                $client->waitForPrompt(10.0);
+            }
+
+            $client->send('terminal length 0');
+            $client->waitForPrompt(5.0);
+
+            $client->send($command);
+            $raw = $client->waitForPrompt(30.0);
+
+            // Strip the echoed command and the trailing prompt line so the user sees only the response.
+            $lines = preg_split('/\r?\n/', $raw) ?: [];
+            if (!empty($lines) && str_contains($lines[0], $command)) array_shift($lines);
+            if (!empty($lines) && preg_match('/[#>]\s*$/', end($lines))) array_pop($lines);
+            $output = implode("\n", $lines);
+
+            try { $client->send('exit'); } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+        } finally {
+            $client->close();
+        }
+
+        return response()->json(['output' => $output, 'error' => $error]);
+    }
+
+    /**
+     * Capture `show running-config` from a switch and store a new snapshot.
+     * Skips storage if the config is unchanged since the last capture (dedup by sha256).
+     */
+    public function fetchConfig(Device $device)
+    {
+        if (!in_array($device->type, ['switch', 'router'], true) || !$device->ip_address) {
+            return back()->with('error', 'Not a switch/router.');
+        }
+
+        $telnet = $device->credentials()->where('category', 'telnet')->first();
+        $enable = $device->credentials()->where('category', 'enable')->first();
+        if (!$telnet) {
+            return back()->with('error', "Device has no 'telnet' credential. Add one first.");
+        }
+
+        $client = new CiscoTelnetClient();
+        $error  = null;
+        $raw    = '';
+
+        try {
+            $client->connect($device->ip_address, 23, 10.0);
+            $client->waitFor(['Password:'], 10.0);
+            $client->send((string) $telnet->password);
+            $client->waitForPrompt(10.0);
+
+            if ($enable) {
+                $client->send('enable');
+                $client->waitFor(['Password:'], 10.0);
+                $client->send((string) $enable->password);
+                $client->waitForPrompt(10.0);
+            }
+
+            $client->send('terminal length 0');
+            $client->waitForPrompt(5.0);
+
+            $client->send('show running-config');
+            // Large configs on 48-port chassis can take several seconds to print.
+            $raw = $client->waitForPrompt(60.0);
+
+            try { $client->send('exit'); } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+        } finally {
+            $client->close();
+        }
+
+        if ($error) {
+            return back()->with('error', 'Fetch failed: ' . $error);
+        }
+
+        $config = $this->cleanRunningConfig($raw, $device->name);
+        if (trim($config) === '') {
+            return back()->with('error', 'Empty config returned. Check device permissions.');
+        }
+
+        $hash    = hash('sha256', $config);
+        $latest  = SwitchRunningConfig::where('device_id', $device->id)
+            ->latest('captured_at')->first();
+
+        if ($latest && $latest->config_hash === $hash) {
+            $latest->captured_at = now();
+            $latest->save();
+            return back()->with('success', 'Config unchanged since ' . $latest->captured_at->diffForHumans() . '. Timestamp refreshed.');
+        }
+
+        SwitchRunningConfig::create([
+            'device_id'   => $device->id,
+            'device_name' => $device->name,
+            'device_ip'   => $device->ip_address,
+            'branch_id'   => $device->branch_id,
+            'config_text' => $config,
+            'config_hash' => $hash,
+            'size_bytes'  => strlen($config),
+            'captured_at' => now(),
+        ]);
+
+        return back()->with('success', 'Running-config captured (' . number_format(strlen($config)) . ' bytes).');
+    }
+
+    /**
+     * Strip the pagination banner, timestamp header, and the trailing prompt line so
+     * consecutive captures of an unchanged config produce stable hashes.
+     */
+    private function cleanRunningConfig(string $raw, string $deviceName): string
+    {
+        $lines = preg_split('/\r?\n/', $raw) ?: [];
+
+        // Drop echoed "show running-config" + "Building configuration..." + "Current configuration : N bytes"
+        // and drop the trailing prompt line.
+        $cleaned = [];
+        foreach ($lines as $ln) {
+            $t = trim($ln);
+            if ($t === 'show running-config') continue;
+            if (str_starts_with($t, 'Building configuration')) continue;
+            if (preg_match('/^Current configuration\s*:/', $t)) continue;
+            // Prompt line at the end, e.g. "SwitchName#"
+            if (preg_match('/^\S+[#>]\s*$/', $t)) continue;
+            $cleaned[] = $ln;
+        }
+
+        return trim(implode("\n", $cleaned)) . "\n";
+    }
+
+    /**
+     * List all devices with capture counts and latest snapshot time.
+     */
+    public function configsIndex()
+    {
+        $rows = SwitchRunningConfig::select(
+                'device_id',
+                DB::raw('MAX(device_name) as device_name'),
+                DB::raw('MAX(device_ip) as device_ip'),
+                DB::raw('MAX(branch_id) as branch_id'),
+                DB::raw('COUNT(*) as capture_count'),
+                DB::raw('MAX(captured_at) as last_captured_at'),
+                DB::raw('MAX(size_bytes) as last_size')
+            )
+            ->groupBy('device_id')
+            ->orderByDesc('last_captured_at')
+            ->get();
+
+        return view('admin.switch_qos.configs_index', ['rows' => $rows]);
+    }
+
+    /**
+     * Show a specific config snapshot (or the latest if id is omitted).
+     */
+    public function configShow(Device $device, ?int $snapshotId = null)
+    {
+        $snapshot = $snapshotId
+            ? SwitchRunningConfig::where('device_id', $device->id)->findOrFail($snapshotId)
+            : SwitchRunningConfig::where('device_id', $device->id)->latest('captured_at')->firstOrFail();
+
+        $history = SwitchRunningConfig::where('device_id', $device->id)
+            ->orderByDesc('captured_at')
+            ->get(['id', 'captured_at', 'size_bytes', 'config_hash']);
+
+        return view('admin.switch_qos.configs_show', compact('device', 'snapshot', 'history'));
+    }
+
+    public function configDownload(Device $device, int $snapshotId)
+    {
+        $snapshot = SwitchRunningConfig::where('device_id', $device->id)->findOrFail($snapshotId);
+        $slug = preg_replace('/[^A-Za-z0-9_\-]/', '_', $device->name ?: $device->ip_address);
+        $stamp = $snapshot->captured_at->format('Ymd_His');
+        return response($snapshot->config_text, 200, [
+            'Content-Type'        => 'text/plain; charset=utf-8',
+            'Content-Disposition' => "attachment; filename=\"{$slug}_{$stamp}.cfg\"",
+        ]);
+    }
+
+    /**
+     * Diff two snapshots of the same device. Query params: ?from=ID&to=ID (defaults to
+     * "latest vs. previous").
+     */
+    public function configDiff(Device $device, Request $request)
+    {
+        $snapshots = SwitchRunningConfig::where('device_id', $device->id)
+            ->orderByDesc('captured_at')
+            ->get();
+
+        if ($snapshots->count() < 2) {
+            return view('admin.switch_qos.configs_diff', [
+                'device' => $device, 'snapshots' => $snapshots,
+                'from' => null, 'to' => null, 'diff' => [],
+            ]);
+        }
+
+        $toId   = (int) ($request->input('to')   ?: $snapshots[0]->id);
+        $fromId = (int) ($request->input('from') ?: $snapshots[1]->id);
+
+        $from = $snapshots->firstWhere('id', $fromId) ?? $snapshots[1];
+        $to   = $snapshots->firstWhere('id', $toId)   ?? $snapshots[0];
+
+        $diff = $this->lineDiff($from->config_text, $to->config_text);
+
+        return view('admin.switch_qos.configs_diff', compact('device', 'snapshots', 'from', 'to', 'diff'));
+    }
+
+    /**
+     * Simple line-level diff using LCS. Returns an array of ['op' => ' |-|+', 'line' => string].
+     */
+    private function lineDiff(string $a, string $b): array
+    {
+        $aLines = explode("\n", rtrim($a, "\n"));
+        $bLines = explode("\n", rtrim($b, "\n"));
+        $n = count($aLines); $m = count($bLines);
+
+        // Fast path: identical
+        if ($aLines === $bLines) {
+            return array_map(fn ($l) => ['op' => ' ', 'line' => $l], $aLines);
+        }
+
+        // Bounded LCS table — guard against huge files by chunking. For typical switch
+        // configs (<20k lines) this runs in well under a second.
+        $lcs = array_fill(0, $n + 1, array_fill(0, $m + 1, 0));
+        for ($i = 1; $i <= $n; $i++) {
+            for ($j = 1; $j <= $m; $j++) {
+                $lcs[$i][$j] = $aLines[$i - 1] === $bLines[$j - 1]
+                    ? $lcs[$i - 1][$j - 1] + 1
+                    : max($lcs[$i - 1][$j], $lcs[$i][$j - 1]);
+            }
+        }
+
+        $out = [];
+        $i = $n; $j = $m;
+        while ($i > 0 && $j > 0) {
+            if ($aLines[$i - 1] === $bLines[$j - 1]) {
+                $out[] = ['op' => ' ', 'line' => $aLines[$i - 1]];
+                $i--; $j--;
+            } elseif ($lcs[$i - 1][$j] >= $lcs[$i][$j - 1]) {
+                $out[] = ['op' => '-', 'line' => $aLines[$i - 1]];
+                $i--;
+            } else {
+                $out[] = ['op' => '+', 'line' => $bLines[$j - 1]];
+                $j--;
+            }
+        }
+        while ($i > 0) { $out[] = ['op' => '-', 'line' => $aLines[$i - 1]]; $i--; }
+        while ($j > 0) { $out[] = ['op' => '+', 'line' => $bLines[$j - 1]]; $j--; }
+
+        return array_reverse($out);
     }
 
     public function deleteCredential(Device $device, Credential $credential)
