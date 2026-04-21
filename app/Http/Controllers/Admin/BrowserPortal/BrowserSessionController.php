@@ -8,6 +8,7 @@ use App\Services\BrowserPortal\SessionManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\View\View;
 
 class BrowserSessionController extends Controller
@@ -52,7 +53,18 @@ class BrowserSessionController extends Controller
                 ->with('error', 'This session is no longer active. Launch a new one.');
         }
 
-        return view('admin.browser-portal.session', compact('session'));
+        // Decrypt the per-session Neko user password so the iframe can auto-login.
+        // Falls back to null if the column is empty (older sessions before encryption).
+        $nekoPassword = null;
+        try {
+            if ($session->neko_user_password_hash) {
+                $nekoPassword = Crypt::decryptString($session->neko_user_password_hash);
+            }
+        } catch (\Throwable) {
+            // Old bcrypt rows can't be decrypted — user will see the Neko login screen.
+        }
+
+        return view('admin.browser-portal.session', compact('session', 'nekoPassword'));
     }
 
     /**

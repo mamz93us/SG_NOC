@@ -4,6 +4,7 @@ namespace App\Services\BrowserPortal;
 
 use App\Models\BrowserSession;
 use App\Models\User;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -79,7 +80,9 @@ class SessionManager
             'webrtc_port_start'       => $portStart,
             'webrtc_port_end'         => $portEnd,
             'status'                  => 'starting',
-            'neko_user_password_hash' => bcrypt($nekoPassword),
+            // Encrypted (not hashed) so we can decrypt server-side and inject into the
+            // iframe URL as ?pwd=... — Neko's multiuser provider needs the plaintext.
+            'neko_user_password_hash' => Crypt::encryptString($nekoPassword),
             'last_active_at'          => now(),
         ]);
 

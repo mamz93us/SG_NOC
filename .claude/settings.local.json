@@ -289,7 +289,10 @@
       "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\\\\Admin\\\\SwitchQosController.php\")",
       "Bash(chmod +x \"/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/deployment/browser-portal/kill-switch.sh\" \"/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/deployment/browser-portal/bootstrap-vps.sh\")",
       "Bash(php -l config/services.php)",
-      "Bash(php -l resources/views/layouts/admin.blade.php)"
+      "Bash(php -l resources/views/layouts/admin.blade.php)",
+      "Bash(php -l app/Services/BrowserPortal/SessionManager.php)",
+      "Bash(php -l app/Http/Controllers/Admin/BrowserPortal/BrowserSessionController.php)",
+      "Bash(php -l resources/views/admin/browser-portal/session.blade.php)"
     ]
   }
 }
