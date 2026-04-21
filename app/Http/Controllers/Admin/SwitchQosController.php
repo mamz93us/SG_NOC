@@ -64,13 +64,15 @@ class SwitchQosController extends Controller
             ->limit(10)
             ->get();
 
-        // Per-queue drop breakdown across all interfaces (latest poll only)
+        // Per-queue drop breakdown across all interfaces (latest poll only).
+        // Sum each column separately so SUM's per-column NULL-skipping applies,
+        // and so the expression can't silently truncate if any cell is NULL.
         $queueBreakdown = (clone $latest)
             ->selectRaw('
-                SUM(q0_t1_drop + q0_t2_drop + q0_t3_drop) as q0,
-                SUM(q1_t1_drop + q1_t2_drop + q1_t3_drop) as q1,
-                SUM(q2_t1_drop + q2_t2_drop + q2_t3_drop) as q2,
-                SUM(q3_t1_drop + q3_t2_drop + q3_t3_drop) as q3
+                COALESCE(SUM(q0_t1_drop),0) + COALESCE(SUM(q0_t2_drop),0) + COALESCE(SUM(q0_t3_drop),0) as q0,
+                COALESCE(SUM(q1_t1_drop),0) + COALESCE(SUM(q1_t2_drop),0) + COALESCE(SUM(q1_t3_drop),0) as q1,
+                COALESCE(SUM(q2_t1_drop),0) + COALESCE(SUM(q2_t2_drop),0) + COALESCE(SUM(q2_t3_drop),0) as q2,
+                COALESCE(SUM(q3_t1_drop),0) + COALESCE(SUM(q3_t2_drop),0) + COALESCE(SUM(q3_t3_drop),0) as q3
             ')
             ->first();
 
@@ -118,9 +120,10 @@ class SwitchQosController extends Controller
 
         $voiceLatest = SwitchQosStat::whereIn('id', $latestIds)
             ->selectRaw("
-                COALESCE(SUM(q0_t1_drop + q0_t2_drop + q0_t3_drop), 0) as q0_drops,
-                COALESCE(SUM(q1_t1_drop + q1_t2_drop + q1_t3_drop), 0) as q1_drops,
-                COALESCE(SUM($vExpr), 0) as voice_drops,
+                COALESCE(SUM(q0_t1_drop),0) + COALESCE(SUM(q0_t2_drop),0) + COALESCE(SUM(q0_t3_drop),0) as q0_drops,
+                COALESCE(SUM(q1_t1_drop),0) + COALESCE(SUM(q1_t2_drop),0) + COALESCE(SUM(q1_t3_drop),0) as q1_drops,
+                COALESCE(SUM(q0_t1_drop),0) + COALESCE(SUM(q0_t2_drop),0) + COALESCE(SUM(q0_t3_drop),0)
+                    + COALESCE(SUM(q1_t1_drop),0) + COALESCE(SUM(q1_t2_drop),0) + COALESCE(SUM(q1_t3_drop),0) as voice_drops,
                 COALESCE(SUM(CASE WHEN $vExpr > 0 THEN 1 ELSE 0 END), 0) as voice_iface_count
             ")->first();
 
