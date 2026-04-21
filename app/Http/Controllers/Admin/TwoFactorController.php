@@ -72,7 +72,7 @@ class TwoFactorController extends Controller
         // Mark the current session as 2FA-verified so the middleware won't kick in
         $request->session()->put('2fa_verified', true);
 
-        return redirect()->route('admin.two-factor.setup')
+        return redirect()->route($user->homeRoute())
             ->with('success', 'Two-factor authentication has been enabled successfully.');
     }
 

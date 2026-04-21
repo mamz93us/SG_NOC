@@ -93,6 +93,15 @@ class User extends Authenticatable
         return $this->role === 'browser_user';
     }
 
+    /**
+     * Post-auth landing page for this user. browser_user goes straight into the
+     * remote-browser portal (no admin UI); everyone else hits the admin dashboard.
+     */
+    public function homeRoute(): string
+    {
+        return $this->isBrowserUser() ? 'admin.browser-portal.index' : 'admin.dashboard';
+    }
+
     public static function roleLabel(string $role): string
     {
         return match($role) {

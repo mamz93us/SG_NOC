@@ -115,6 +115,15 @@ Route::get('/auth/microsoft', [MicrosoftController::class, 'redirect'])
     ->name('auth.microsoft');
 Route::get('/auth/microsoft/callback', [MicrosoftController::class, 'callback']);
 
+// Dedicated SSO-only landing page for Remote Browser users.
+// Logged-in users are forwarded straight to the portal (no admin UI).
+Route::get('/browser', function () {
+    if (auth()->check()) {
+        return redirect()->route(auth()->user()->homeRoute());
+    }
+    return view('auth.portal-login');
+})->name('portal.login');
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated Routes

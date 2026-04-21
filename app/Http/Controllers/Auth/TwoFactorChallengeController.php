@@ -20,7 +20,7 @@ class TwoFactorChallengeController extends Controller
         }
 
         if ($request->session()->get('2fa_verified')) {
-            return redirect()->route('admin.dashboard');
+            return redirect()->route($user->homeRoute());
         }
 
         return view('auth.two-factor.challenge');
@@ -53,6 +53,6 @@ class TwoFactorChallengeController extends Controller
         $request->session()->put('2fa_verified', true);
         $request->session()->regenerate();
 
-        return redirect()->intended(route('admin.dashboard'));
+        return redirect()->intended(route($user->homeRoute()));
     }
 }
