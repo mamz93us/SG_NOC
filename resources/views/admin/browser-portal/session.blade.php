@@ -2,25 +2,30 @@
 
 @section('title', 'Remote Browser — Session')
 
-@push('head')
+@section('content')
+{{-- Inline styles: the admin layout has @stack('scripts') but not @stack('head'),
+     so @push('head') would be silently dropped. --}}
 <style>
-    body.browser-portal-session { overflow: hidden; }
+    body.browser-portal-session { overflow: hidden !important; }
+    body.browser-portal-session main,
+    body.browser-portal-session .container,
+    body.browser-portal-session .container-fluid,
+    body.browser-portal-session .py-4 { padding: 0 !important; margin: 0 !important; max-width: none !important; }
     .bp-frame-wrap {
         position: fixed;
-        inset: 56px 0 0 0; /* leave the existing top navbar visible */
+        inset: 56px 0 0 0;       /* leave the existing top navbar visible */
         background: #000;
+        z-index: 1020;
     }
     .bp-frame-wrap iframe {
+        display: block;
         width: 100%; height: 100%; border: 0;
     }
     .bp-toolbar {
-        position: absolute; top: 8px; right: 8px; z-index: 5;
+        position: absolute; top: 8px; right: 8px; z-index: 1030;
         display: flex; gap: 8px;
     }
 </style>
-@endpush
-
-@section('content')
 <div class="bp-frame-wrap">
     <div class="bp-toolbar">
         <a href="{{ route('admin.browser-portal.index') }}" class="btn btn-sm btn-secondary">
