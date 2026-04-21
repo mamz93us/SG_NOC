@@ -658,11 +658,18 @@ class SwitchQosController extends Controller
      */
     public function clearStats(Device $device)
     {
+        [$ok, $msg] = $this->runClearStats($device);
+        return back()->with($ok ? 'success' : 'error', $msg);
+    }
+
+    /** @return array{0: bool, 1: string} */
+    private function runClearStats(Device $device): array
+    {
         $telnet = $device->credentials()->where('category', 'telnet')->first();
         $enable = $device->credentials()->where('category', 'enable')->first();
 
         if (!$telnet) {
-            return back()->with('error', "Device has no 'telnet' credential. Add one first.");
+            return [false, "No 'telnet' credential."];
         }
 
         $client = new CiscoTelnetClient();
@@ -684,7 +691,6 @@ class SwitchQosController extends Controller
             $client->send('terminal length 0');
             $client->waitForPrompt(5.0);
 
-            // Clears cumulative queue-drop / policer counters for all interfaces
             $client->send('clear mls qos interface statistics');
             $out = $client->waitForPrompt(15.0);
 
@@ -699,10 +705,36 @@ class SwitchQosController extends Controller
             $client->close();
         }
 
-        if ($error) {
-            return back()->with('error', 'Clear failed: ' . $error);
+        return $error
+            ? [false, 'Clear failed: ' . $error]
+            : [true, 'QoS statistics cleared on the switch. Next poll will show zeroed counters.'];
+    }
+
+    /**
+     * Iterate all switches/routers with a telnet credential and send the clear-stats
+     * command sequentially. Reports per-device success/failure counts.
+     */
+    public function clearAllStats()
+    {
+        @set_time_limit(0);
+
+        $devices = Device::whereIn('type', ['switch', 'router'])
+            ->whereNotNull('ip_address')
+            ->whereHas('credentials', fn ($q) => $q->where('category', 'telnet'))
+            ->orderBy('name')
+            ->get();
+
+        $ok = 0; $fail = 0; $failures = [];
+        foreach ($devices as $d) {
+            [$okOne, $msg] = $this->runClearStats($d);
+            if ($okOne) { $ok++; } else { $fail++; $failures[] = "{$d->name} ({$d->ip_address}): {$msg}"; }
         }
-        return back()->with('success', 'QoS statistics cleared on the switch. Next poll will show zeroed counters.');
+
+        $summary = "Cleared on {$ok} device(s)" . ($fail ? ", {$fail} failed" : '') . '.';
+        return back()->with($fail ? 'error' : 'success',
+            $fail ? $summary . ' — ' . implode(' · ', array_slice($failures, 0, 5))
+                  . (count($failures) > 5 ? ' …' : '')
+                  : $summary);
     }
 
     /**
@@ -747,11 +779,17 @@ class SwitchQosController extends Controller
         if (!in_array($device->type, ['switch', 'router'], true) || !$device->ip_address) {
             return back()->with('error', 'Not a switch/router.');
         }
+        [$ok, $msg] = $this->runFetchConfig($device);
+        return back()->with($ok ? 'success' : 'error', $msg);
+    }
 
+    /** @return array{0: bool, 1: string} */
+    private function runFetchConfig(Device $device): array
+    {
         $telnet = $device->credentials()->where('category', 'telnet')->first();
         $enable = $device->credentials()->where('category', 'enable')->first();
         if (!$telnet) {
-            return back()->with('error', "Device has no 'telnet' credential. Add one first.");
+            return [false, "No 'telnet' credential."];
         }
 
         $client = new CiscoTelnetClient();
@@ -786,12 +824,12 @@ class SwitchQosController extends Controller
         }
 
         if ($error) {
-            return back()->with('error', 'Fetch failed: ' . $error);
+            return [false, 'Fetch failed: ' . $error];
         }
 
         $config = $this->cleanRunningConfig($raw, $device->name);
         if (trim($config) === '') {
-            return back()->with('error', 'Empty config returned. Check device permissions.');
+            return [false, 'Empty config returned. Check device permissions.'];
         }
 
         $hash    = hash('sha256', $config);
@@ -801,7 +839,7 @@ class SwitchQosController extends Controller
         if ($latest && $latest->config_hash === $hash) {
             $latest->captured_at = now();
             $latest->save();
-            return back()->with('success', 'Config unchanged since ' . $latest->captured_at->diffForHumans() . '. Timestamp refreshed.');
+            return [true, 'Config unchanged since ' . $latest->captured_at->diffForHumans() . '. Timestamp refreshed.'];
         }
 
         SwitchRunningConfig::create([
@@ -815,7 +853,35 @@ class SwitchQosController extends Controller
             'captured_at' => now(),
         ]);
 
-        return back()->with('success', 'Running-config captured (' . number_format(strlen($config)) . ' bytes).');
+        return [true, 'Running-config captured (' . number_format(strlen($config)) . ' bytes).'];
+    }
+
+    /**
+     * Sequentially capture running-config from every switch/router that has a
+     * telnet credential. Reports per-device success/failure counts.
+     */
+    public function fetchAllConfigs()
+    {
+        // Bulk telnet loops can easily run past the default PHP timeout.
+        @set_time_limit(0);
+
+        $devices = Device::whereIn('type', ['switch', 'router'])
+            ->whereNotNull('ip_address')
+            ->whereHas('credentials', fn ($q) => $q->where('category', 'telnet'))
+            ->orderBy('name')
+            ->get();
+
+        $ok = 0; $fail = 0; $failures = [];
+        foreach ($devices as $d) {
+            [$okOne, $msg] = $this->runFetchConfig($d);
+            if ($okOne) { $ok++; } else { $fail++; $failures[] = "{$d->name} ({$d->ip_address}): {$msg}"; }
+        }
+
+        $summary = "Captured from {$ok} device(s)" . ($fail ? ", {$fail} failed" : '') . '.';
+        return back()->with($fail ? 'error' : 'success',
+            $fail ? $summary . ' — ' . implode(' · ', array_slice($failures, 0, 5))
+                  . (count($failures) > 5 ? ' …' : '')
+                  : $summary);
     }
 
     /**

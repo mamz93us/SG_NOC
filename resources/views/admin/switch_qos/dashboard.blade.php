@@ -12,6 +12,18 @@
         <a href="{{ route('admin.switch-qos.cdp') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-diagram-3 me-1"></i>CDP Neighbors</a>
         <a href="{{ route('admin.switch-qos.configs.index') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-code me-1"></i>Configs</a>
         <a href="{{ route('admin.switch-qos.index') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list me-1"></i>All Stats</a>
+        @can('manage-credentials')
+        <form method="POST" action="{{ route('admin.switch-qos.configs.fetch.all') }}" class="d-inline"
+              onsubmit="return confirm('Connect to every switch/router with a telnet credential and capture its running-config?\n\nThis runs sequentially and may take a while.');">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-cloud-download me-1"></i>Fetch All Configs</button>
+        </form>
+        <form method="POST" action="{{ route('admin.switch-qos.clear.all') }}" class="d-inline"
+              onsubmit="return confirm('Send `clear mls qos interface statistics` to every switch/router with a telnet credential?\n\nThis resets cumulative counters on-device.');">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-eraser me-1"></i>Clear All Stats</button>
+        </form>
+        @endcan
     </div>
 </div>
 

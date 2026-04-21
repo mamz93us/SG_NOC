@@ -1210,7 +1210,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('/device/{device}/test',                    [\App\Http\Controllers\Admin\SwitchQosController::class, 'testConnection'])    ->name('test');
             Route::post('/device/{device}/poll',                    [\App\Http\Controllers\Admin\SwitchQosController::class, 'pollNow'])           ->name('poll');
             Route::post('/device/{device}/clear-stats',             [\App\Http\Controllers\Admin\SwitchQosController::class, 'clearStats'])       ->name('clear');
+            Route::post('/clear-all-stats',                         [\App\Http\Controllers\Admin\SwitchQosController::class, 'clearAllStats'])    ->name('clear.all');
             Route::post('/device/{device}/fetch-config',            [\App\Http\Controllers\Admin\SwitchQosController::class, 'fetchConfig'])      ->name('configs.fetch');
+            Route::post('/fetch-all-configs',                       [\App\Http\Controllers\Admin\SwitchQosController::class, 'fetchAllConfigs']) ->name('configs.fetch.all');
             Route::get('/device/{device}/telnet',                   [\App\Http\Controllers\Admin\SwitchQosController::class, 'telnetConsole']) ->name('telnet');
             Route::post('/device/{device}/credentials',             [\App\Http\Controllers\Admin\SwitchQosController::class, 'saveCredential'])    ->name('credentials.save');
             Route::delete('/device/{device}/credentials/{credential}', [\App\Http\Controllers\Admin\SwitchQosController::class, 'deleteCredential'])->name('credentials.delete');
