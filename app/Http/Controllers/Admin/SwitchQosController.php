@@ -16,7 +16,9 @@ use App\Services\CiscoTelnetClient;
 use App\Services\MlsQosParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class SwitchQosController extends Controller
@@ -704,141 +706,36 @@ class SwitchQosController extends Controller
     }
 
     /**
-     * Render the in-browser telnet console for a device.
+     * Launch the in-browser telnet terminal for a device by generating a one-time
+     * token for the existing xterm.js/WebSocket console (admin.telnet.terminal).
      */
     public function telnetConsole(Device $device)
     {
         if (!in_array($device->type, ['switch', 'router'], true) || !$device->ip_address) {
             abort(404);
         }
+
         $telnet = $device->credentials()->where('category', 'telnet')->first();
-        $enable = $device->credentials()->where('category', 'enable')->first();
-
-        return view('admin.switch_qos.telnet', compact('device', 'telnet', 'enable'));
-    }
-
-    /**
-     * Spawn a persistent telnet daemon process and return the session token.
-     * The browser then polls read/write endpoints keyed by that token.
-     */
-    public function telnetOpen(Device $device, Request $request)
-    {
-        if (!in_array($device->type, ['switch', 'router'], true) || !$device->ip_address) {
-            return response()->json(['error' => 'Not a switch/router'], 422);
-        }
-        if (!$device->credentials()->where('category', 'telnet')->exists()) {
-            return response()->json(['error' => "No 'telnet' credential configured."], 422);
+        if (!$telnet) {
+            return back()->with('error', "Device has no 'telnet' credential. Add one in Setup first.");
         }
 
-        $token = bin2hex(random_bytes(16));
-        $dir = storage_path('app/telnet-sessions/' . $token);
-        if (!is_dir($dir)) mkdir($dir, 0775, true);
+        $token = Str::random(40);
+        $ttl   = (int) config('telnet.token_ttl', 5);
 
-        file_put_contents($dir . '/meta.json', json_encode([
-            'user_id'   => auth()->id(),
-            'device_id' => $device->id,
-            'started'   => now()->toIso8601String(),
-        ]));
-        file_put_contents($dir . '/status', 'spawning');
-        file_put_contents($dir . '/out.log', '');
-        file_put_contents($dir . '/in.log', '');
+        Cache::put("telnet_token:{$token}", [
+            'host'     => $device->ip_address,
+            'port'     => 23,
+            'protocol' => 'telnet',
+            'username' => $telnet->username,
+            'password' => $telnet->password,
+            'user_id'  => auth()->id(),
+        ], now()->addMinutes($ttl));
 
-        // Under PHP-FPM, PHP_BINARY points to the FPM binary which can't run CLI commands.
-        // Prefer an explicit override, then `php` from PATH on *nix, fall back to PHP_BINARY on Windows.
-        $php = env('PHP_CLI_BINARY')
-            ?: (DIRECTORY_SEPARATOR === '\\' ? PHP_BINARY : 'php');
-        $artisan = base_path('artisan');
-        $cmd     = escapeshellarg($php) . ' ' . escapeshellarg($artisan)
-                 . ' switch:telnet-session ' . escapeshellarg((string) $device->id) . ' ' . escapeshellarg($token);
-
-        if (DIRECTORY_SEPARATOR === '\\') {
-            // Windows: detach with `start /B`.
-            pclose(popen('start /B "" ' . $cmd, 'r'));
-        } else {
-            // Linux: detach with nohup and background.
-            shell_exec('nohup ' . $cmd . ' > /dev/null 2>&1 &');
-        }
-
-        // Wait briefly for the daemon to come online.
-        $deadline = microtime(true) + 8.0;
-        $status = 'spawning';
-        while (microtime(true) < $deadline) {
-            $status = @file_get_contents($dir . '/status') ?: 'spawning';
-            if ($status === 'ready' || str_starts_with($status, 'error:')) break;
-            usleep(200_000);
-        }
-
-        return response()->json(['token' => $token, 'status' => $status]);
-    }
-
-    /** Validate token ownership, return the session dir or abort. */
-    private function telnetDir(string $token): string
-    {
-        if (!preg_match('/^[a-zA-Z0-9]{16,64}$/', $token)) abort(404);
-
-        $dir = storage_path('app/telnet-sessions/' . $token);
-        if (!is_dir($dir)) abort(404);
-
-        $meta = @json_decode((string) @file_get_contents($dir . '/meta.json'), true);
-        if (!is_array($meta) || (int) ($meta['user_id'] ?? 0) !== (int) auth()->id()) abort(403);
-
-        return $dir;
-    }
-
-    /** Browser polls this for new output. ?offset=N returns bytes since N. */
-    public function telnetRead(Request $request)
-    {
-        $token  = (string) $request->query('token', '');
-        $offset = max(0, (int) $request->query('offset', 0));
-        $dir    = $this->telnetDir($token);
-
-        $outFile = $dir . '/out.log';
-        clearstatcache(true, $outFile);
-        $size = (int) @filesize($outFile);
-        $data = '';
-        if ($size > $offset) {
-            $fh = @fopen($outFile, 'rb');
-            if ($fh) {
-                @fseek($fh, $offset);
-                $data = (string) @fread($fh, $size - $offset);
-                @fclose($fh);
-            }
-        }
-
-        $status = @file_get_contents($dir . '/status') ?: 'unknown';
-
-        return response()->json([
-            'data'   => $data,
-            'offset' => $size,
-            'status' => $status,
+        return redirect()->route('admin.telnet.terminal', [
+            'token' => $token,
+            'label' => $device->name ?: $device->ip_address,
         ]);
-    }
-
-    /** Browser sends raw keystrokes / command lines here. */
-    public function telnetWrite(Request $request)
-    {
-        $data  = $request->validate([
-            'token' => ['required', 'string'],
-            'input' => ['required', 'string'],
-        ]);
-        $dir = $this->telnetDir($data['token']);
-
-        $fh = @fopen($dir . '/in.log', 'ab');
-        if ($fh) {
-            @fwrite($fh, $data['input']);
-            @fclose($fh);
-        }
-
-        return response()->json(['ok' => true]);
-    }
-
-    /** Signal the daemon to shut down. */
-    public function telnetCloseSession(Request $request)
-    {
-        $data = $request->validate(['token' => ['required', 'string']]);
-        $dir  = $this->telnetDir($data['token']);
-        @file_put_contents($dir . '/stop', '1');
-        return response()->json(['ok' => true]);
     }
 
     /**

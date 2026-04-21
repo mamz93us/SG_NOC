@@ -284,7 +284,8 @@
       "Bash(php -l app/Models/SwitchRunningConfig.php)",
       "Bash(php -l database/migrations/2026_04_21_000001_create_switch_running_configs_table.php)",
       "Bash(php -l app/Console/Commands/SwitchTelnetSession.php)",
-      "Bash(php -l app/Services/CiscoTelnetClient.php)"
+      "Bash(php -l app/Services/CiscoTelnetClient.php)",
+      "Bash(grep -n 'username\\\\|protected $fillable\\\\|$fillable' 'C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\Credential.php')"
     ]
   }
 }
