@@ -113,6 +113,10 @@ class RolePermission extends Model
                 'view-print-manager'   => 'View CUPS Print Manager',
                 'manage-print-manager' => 'Manage CUPS Printers & Jobs',
             ],
+            'Remote Browser' => [
+                'view-browser-portal'   => 'Launch & use a remote browser session',
+                'manage-browser-portal' => 'View / force-stop any remote browser session',
+            ],
         ];
     }
 

@@ -792,6 +792,28 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::match(['GET','POST'], '/fetch', [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch');
     });
 
+    // ─── Remote Browser Portal (Neko-backed hosted Chromium) ───────
+    // User-facing: launch / view / stop own session.
+    Route::middleware(['permission:view-browser-portal', 'throttle:60,1'])
+        ->prefix('browser-portal')->name('browser-portal.')
+        ->group(function () {
+            Route::get('/',                    [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'index'])  ->name('index');
+            Route::post('/',                   [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'store'])  ->name('store');
+            Route::post('/heartbeat',          [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'heartbeat'])->name('heartbeat');
+            Route::get('/{sessionId}',         [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'show'])   ->name('show')
+                ->whereAlphaNumeric('sessionId');
+            Route::delete('/{sessionId}',      [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'destroy'])->name('destroy')
+                ->whereAlphaNumeric('sessionId');
+        });
+    // Admin view: list all sessions, force-stop anyone.
+    Route::middleware('permission:manage-browser-portal')
+        ->prefix('browser-portal/admin')->name('browser-portal.admin.')
+        ->group(function () {
+            Route::get('/',               [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'index'])  ->name('index');
+            Route::delete('/{sessionId}', [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'destroy'])->name('destroy')
+                ->whereAlphaNumeric('sessionId');
+        });
+
     // ─── NOC Dashboard ────────────────────────────────────────
     Route::middleware('permission:view-noc')->prefix('noc')->name('noc.')->group(function () {
         Route::get('/',           [NocController::class, 'dashboard']) ->name('dashboard');

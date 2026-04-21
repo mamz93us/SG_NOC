@@ -46,4 +46,10 @@ return [
         'key' => env('HR_API_KEY'),
     ],
 
+    'browser_portal' => [
+        'vps_public_ip'      => env('BROWSER_PORTAL_VPS_IP'),
+        'neko_admin_password'=> env('BROWSER_PORTAL_NEKO_ADMIN_PASSWORD'),
+        'idle_minutes'       => (int) env('BROWSER_PORTAL_IDLE_MINUTES', 240),
+    ],
+
 ];

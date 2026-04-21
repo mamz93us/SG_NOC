@@ -345,6 +345,19 @@ Schedule::command('intune:sync-net-data')
     ->runInBackground()
     ->name('intune-net-data');
 
+// ─── Browser Portal — Idle Session Cleanup (every 5 minutes) ────────────
+// Stops Neko containers whose last_active_at is older than
+// BROWSER_PORTAL_IDLE_MINUTES (default 240). Volumes are preserved.
+Schedule::call(function () {
+    try {
+        (new \App\Jobs\BrowserPortal\CleanupIdleSessionsJob)->handle(
+            app(\App\Services\BrowserPortal\SessionManager::class)
+        );
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Browser portal cleanup failed: ' . $e->getMessage());
+    }
+})->name('cleanup-browser-sessions')->withoutOverlapping(5)->everyFiveMinutes();
+
 // ─── SSL Certificate Auto-Renewal — daily at 02:00 ───────────────────────
 // Renews all ssl_certificates where status='valid', auto_renew=true,
 // and expires_at <= now()+14 days. Runs inline (not via queue) so a

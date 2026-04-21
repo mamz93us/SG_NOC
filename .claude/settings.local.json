@@ -287,7 +287,9 @@
       "Bash(php -l app/Services/CiscoTelnetClient.php)",
       "Bash(grep -n 'username\\\\|protected $fillable\\\\|$fillable' 'C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Models\\\\Credential.php')",
       "Bash(php -l \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\\\\app\\\\Http\\\\Controllers\\\\Admin\\\\SwitchQosController.php\")",
-      "Bash(chmod +x \"/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/deployment/browser-portal/kill-switch.sh\" \"/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/deployment/browser-portal/bootstrap-vps.sh\")"
+      "Bash(chmod +x \"/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/deployment/browser-portal/kill-switch.sh\" \"/c/Users/MohamedZahran/Downloads/phonebook/SG_NOC/deployment/browser-portal/bootstrap-vps.sh\")",
+      "Bash(php -l config/services.php)",
+      "Bash(php -l resources/views/layouts/admin.blade.php)"
     ]
   }
 }

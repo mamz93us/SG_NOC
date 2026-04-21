@@ -648,6 +648,14 @@
                                     <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
                                 </a>
                             </li>
+                            @can('view-browser-portal')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.browser-portal.index') }}">
+                                    <i class="bi bi-shield-lock me-2 text-warning"></i>Remote Browser (VPN)
+                                </a>
+                            </li>
+                            @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.alerts.dashboard') || request()->routeIs('admin.alert-rules.*') ? 'active' : '' }}"
