@@ -245,6 +245,19 @@
                             View reports and technical documents
                         </p>
                     </a>
+
+                    <!-- Remote Browser — shown only for users with the permission -->
+                    @auth
+                    @can('view-browser-portal')
+                    <a href="{{ route('admin.browser-portal.index') }}" class="action-card" style="background:linear-gradient(135deg,#ff9966 0%,#ff5e62 100%);color:white;">
+                        <div class="action-icon">🌐</div>
+                        <h3 class="action-title">Remote Browser</h3>
+                        <p class="action-description">
+                            Launch a secure hosted Chromium on the corporate network
+                        </p>
+                    </a>
+                    @endcan
+                    @endauth
                 </div>
 
                 <!-- Bottom links -->
