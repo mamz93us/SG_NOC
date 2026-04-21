@@ -1,7 +1,12 @@
-# Step 1 — Standalone Chromium smoke test
+# Steps 1 & 3 — Neko smoke test (host net → browser-net + volume)
 
 Goal: prove that a Neko Chromium container can stream to your browser from this
-VPS, before we layer in the kill-switch, path routing, and Laravel portal.
+VPS, before we layer in path routing and the Laravel portal.
+
+- **Step 1** used this compose with the default bridge (quick sanity check).
+- **Step 3** updated this compose to run on the kill-switched `browser-net` Docker
+  network and mount a named volume for persistence. The compose file currently
+  reflects the **Step 3** state.
 
 ## Run these commands on the VPS (SSH in first)
 
