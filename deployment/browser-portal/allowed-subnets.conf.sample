@@ -1,0 +1,20 @@
+# /etc/browser-portal/allowed-subnets.conf
+#
+# One CIDR per line. Lines starting with # or empty lines are ignored.
+# These subnets are the ONLY destinations containers on browser-net (172.30.0.0/16)
+# are allowed to reach. Everything else is DROPPED by the kill-switch.
+#
+# To apply changes:  sudo systemctl restart browser-portal-killswitch
+#
+# ------------------------------------------------------------------------
+# DEFAULT (permissive): allow everything. The kill-switch effectively
+# becomes "route through browser-net", not "enforce an allow-list".
+# To tighten: comment out 0.0.0.0/0 and list only the company subnets
+# reachable via the VPS's strongSwan tunnel (e.g. the `rightsubnet` values
+# from JED.conf and RYD.conf).
+# ------------------------------------------------------------------------
+0.0.0.0/0
+
+# Example strict allow-list (comment out 0.0.0.0/0 above and uncomment below):
+# 10.50.0.0/16
+# 192.168.100.0/24

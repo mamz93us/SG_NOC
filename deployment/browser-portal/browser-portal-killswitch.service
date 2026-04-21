@@ -1,0 +1,15 @@
+[Unit]
+Description=Browser-portal kill-switch (iptables rules for browser-net)
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/browser-portal-killswitch.sh
+# On stop, we intentionally do NOT flush the rules — leaving them in place is
+# safer than dropping all restrictions if the unit fails to restart.
+
+[Install]
+WantedBy=multi-user.target
