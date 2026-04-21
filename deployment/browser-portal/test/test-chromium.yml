@@ -20,6 +20,10 @@ services:
     volumes:
       # Persistent volume so logins/cookies survive container restarts.
       - neko_test:/home/neko
+      # Override the image's supervisord config to remove --bwsi (guest mode,
+      # which wipes the profile on every launch) and --disable-file-system
+      # (breaks uploads). Bind-mount read-only.
+      - ./chromium-supervisor.conf:/etc/neko/supervisord/chromium.conf:ro
     environment:
       NEKO_DESKTOP_SCREEN: "1920x1080@30"
       NEKO_SERVER_BIND: "0.0.0.0:8080"
