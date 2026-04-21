@@ -56,10 +56,11 @@ class CheckHostAvailabilityJob implements ShouldQueue
                         $host->status = 'up';
                     }
 
-                    // Resolve active host_down events
-                    NocEvent::where('source_id', $host->id)
-                        ->where('event_type', 'host_down')
-                        ->where('status', 'active')
+                    // Resolve open host_down events
+                    NocEvent::where('source_type', 'monitored_host')
+                        ->where('source_id', $host->id)
+                        ->where('entity_type', 'host_down')
+                        ->whereIn('status', ['open', 'acknowledged'])
                         ->update([
                             'status' => 'resolved',
                             'resolved_at' => now(),
@@ -67,19 +68,23 @@ class CheckHostAvailabilityJob implements ShouldQueue
 
                 } else {
                     $host->status = 'down';
-                    
+
                     // Create NOC alert
                     $event = NocEvent::firstOrCreate(
                         [
-                            'source_id' => $host->id,
-                            'event_type' => 'host_down',
-                            'status' => 'active',
+                            'source_type' => 'monitored_host',
+                            'source_id'   => $host->id,
+                            'entity_type' => 'host_down',
+                            'status'      => 'open',
                         ],
                         [
-                            'title' => "Host Down: {$host->name}",
-                            'description' => "Ping check failed for {$host->ip} completely.",
-                            'severity' => 'critical',
-                            'detected_at' => now(),
+                            'module'     => 'network',
+                            'entity_id'  => (string) $host->id,
+                            'title'      => "Host Down: {$host->name}",
+                            'message'    => "Ping check failed for {$host->ip} completely.",
+                            'severity'   => 'critical',
+                            'first_seen' => now(),
+                            'last_seen'  => now(),
                         ]
                     );
 
