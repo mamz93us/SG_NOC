@@ -19,6 +19,20 @@
         <a href="{{ route('admin.settings.locations') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-building me-1"></i>Manage Locations
         </a>
+        <form method="POST" action="{{ route('admin.network.switches.bulk-add-to-snmp') }}"
+              onsubmit="return confirm('Create SNMP host stubs for every switch/router/firewall that doesn\'t have one yet?\n\nStubs start with polling disabled — you still need to supply credentials or run \'Sync SNMP from Configs\'.');">
+            @csrf
+            <button type="submit" class="btn btn-outline-warning btn-sm" title="Create a MonitoredHost stub for every switch-class device without one">
+                <i class="bi bi-broadcast-pin me-1"></i>Add All to SNMP
+            </button>
+        </form>
+        <form method="POST" action="{{ route('admin.network.switches.sync-snmp-from-configs') }}"
+              onsubmit="return confirm('Parse every saved running-config and apply the SNMP community / v3 credentials to the matching SNMP host?\n\nThis will overwrite existing creds on MonitoredHost rows and enable polling where usable creds are found.');">
+            @csrf
+            <button type="submit" class="btn btn-outline-success btn-sm" title="Extract SNMP credentials from the latest running-config of each switch and push them onto its MonitoredHost">
+                <i class="bi bi-magic me-1"></i>Sync SNMP from Configs
+            </button>
+        </form>
         <form method="POST" action="{{ route('admin.network.sync') }}">
             @csrf
             <button type="submit" class="btn btn-outline-primary btn-sm">

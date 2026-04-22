@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Device;
 use App\Models\MonitoredHost;
 use App\Models\NetworkSwitch;
+use App\Services\AssetCodeService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -130,6 +131,17 @@ class SwitchReconciler
             'source_id'     => $sw->serial,
             'status'        => $device->status ?: 'active',
         ]);
+
+        // Stamp an asset_code if the device is missing one — sequential per
+        // type (SG-SW-000001, …). Done for both brand-new rows and existing
+        // rows that pre-date asset-code enforcement.
+        if (empty($device->asset_code)) {
+            try {
+                $device->asset_code = app(AssetCodeService::class)->generate('switch');
+            } catch (\Throwable $e) {
+                Log::warning('SwitchReconciler: asset code generation failed: ' . $e->getMessage());
+            }
+        }
 
         $wasNew = !$device->exists;
         $device->save();

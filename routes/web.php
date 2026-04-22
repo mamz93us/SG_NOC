@@ -610,6 +610,17 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/switches/{device}/add-to-snmp',
             [NetworkController::class, 'addToSnmp'])
             ->name('switches.add-to-snmp');
+
+        // ── Bulk: stub-create SNMP hosts for every switch-class device ─
+        Route::post('/switches/bulk-add-to-snmp',
+            [NetworkController::class, 'bulkAddToSnmp'])
+            ->name('switches.bulk-add-to-snmp');
+
+        // ── Bulk: extract SNMP creds from saved running-configs
+        //         and upsert them on the matching MonitoredHost. ─────
+        Route::post('/switches/sync-snmp-from-configs',
+            [NetworkController::class, 'syncSnmpFromConfigs'])
+            ->name('switches.sync-snmp-from-configs');
     });
 
     // ─── VPN Hub ──────────────────────────────────────────────

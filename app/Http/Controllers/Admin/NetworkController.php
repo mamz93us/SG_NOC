@@ -15,10 +15,13 @@ use App\Models\NetworkOffice;
 use App\Models\NetworkRack;
 use App\Models\Device;
 use App\Models\NetworkSwitch;
+use App\Models\MonitoredHost;
 use App\Models\NetworkSyncLog;
 use App\Models\Setting;
 use App\Models\SwitchQosStat;
+use App\Models\SwitchRunningConfig;
 use App\Services\Network\MerakiService;
+use App\Services\Network\SnmpConfigExtractor;
 use App\Services\Network\SwitchReconciler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -218,6 +221,135 @@ class NetworkController extends Controller
         return redirect()
             ->route('admin.network.monitoring.show', $host->id)
             ->with('success', "SNMP host created for {$device->name}. Configure credentials and enable polling to begin monitoring.");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Bulk: create MonitoredHost stubs for every switch-class Device
+    // that doesn't already have one. Stubs start with snmp_enabled=false
+    // so nothing polls until credentials are set (or until
+    // syncSnmpFromConfigs() populates them from the running-config).
+    // ─────────────────────────────────────────────────────────────
+
+    public function bulkAddToSnmp(SwitchReconciler $reconciler)
+    {
+        $created  = 0;
+        $skipped  = 0;
+        $existing = 0;
+
+        Device::whereIn('type', ['switch', 'router', 'firewall'])
+            ->orderBy('id')
+            ->chunkById(200, function ($devices) use ($reconciler, &$created, &$skipped, &$existing) {
+                foreach ($devices as $device) {
+                    if (!$device->ip_address) {
+                        $skipped++;
+                        continue;
+                    }
+                    $host = $reconciler->ensureMonitoredHostForDevice($device);
+                    if (!$host) {
+                        $skipped++;
+                        continue;
+                    }
+                    $host->wasRecentlyCreated ? $created++ : $existing++;
+                }
+            });
+
+        ActivityLog::create([
+            'model_type' => MonitoredHost::class,
+            'model_id'   => 0,
+            'action'     => 'bulk_add_switches_to_snmp',
+            'changes'    => ['created' => $created, 'existing' => $existing, 'skipped_no_ip' => $skipped],
+            'user_id'    => Auth::id(),
+        ]);
+
+        return back()->with('success',
+            "Added {$created} switches to SNMP monitoring ({$existing} already existed, {$skipped} skipped — no IP). "
+            . "Configure credentials per host, or click 'Sync SNMP from Configs' to auto-fill from running-configs."
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Bulk: walk every switch-class Device that has a saved running
+    // config, parse its SNMP stanzas, and upsert the credentials onto
+    // the matching MonitoredHost. Creates a host stub via the
+    // reconciler when one doesn't exist yet.
+    //
+    // Polling is only enabled when usable creds were actually parsed
+    // (i.e. at least a community string or a v3 user) so we never flip
+    // snmp_enabled=true against an empty config section.
+    // ─────────────────────────────────────────────────────────────
+
+    public function syncSnmpFromConfigs(SnmpConfigExtractor $extractor, SwitchReconciler $reconciler)
+    {
+        $updated       = 0;
+        $hostsCreated  = 0;
+        $noConfig      = 0;
+        $noCreds       = 0;
+        $skipped       = 0;
+
+        Device::whereIn('type', ['switch', 'router', 'firewall'])
+            ->orderBy('id')
+            ->chunkById(100, function ($devices) use ($extractor, $reconciler, &$updated, &$hostsCreated, &$noConfig, &$noCreds, &$skipped) {
+                foreach ($devices as $device) {
+                    if (!$device->ip_address) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $config = SwitchRunningConfig::where('device_id', $device->id)
+                        ->latest('captured_at')
+                        ->first();
+
+                    if (!$config || !$config->config_text) {
+                        $noConfig++;
+                        continue;
+                    }
+
+                    $creds = $extractor->pickForMonitoredHost($config->config_text);
+                    if (!$creds) {
+                        $noCreds++;
+                        continue;
+                    }
+
+                    $host = $device->monitoredHost;
+                    if (!$host) {
+                        $host = $reconciler->ensureMonitoredHostForDevice($device);
+                        if (!$host) {
+                            $skipped++;
+                            continue;
+                        }
+                        if ($host->wasRecentlyCreated) {
+                            $hostsCreated++;
+                        }
+                    }
+
+                    // Mutators on MonitoredHost encrypt community/auth/priv
+                    // automatically on save — assign plaintext here.
+                    $host->fill($creds);
+                    $host->snmp_enabled = true;
+                    $host->save();
+
+                    ActivityLog::create([
+                        'model_type' => MonitoredHost::class,
+                        'model_id'   => $host->id,
+                        'action'     => 'snmp_creds_synced_from_config',
+                        'changes'    => [
+                            'device_id'    => $device->id,
+                            'device_name'  => $device->name,
+                            'snmp_version' => $creds['snmp_version'] ?? null,
+                            'captured_at'  => optional($config->captured_at)->toIso8601String(),
+                        ],
+                        'user_id'    => Auth::id(),
+                    ]);
+
+                    $updated++;
+                }
+            });
+
+        $msg = "SNMP creds synced from running-configs: {$updated} hosts updated";
+        if ($hostsCreated) $msg .= " ({$hostsCreated} new host stubs created)";
+        $msg .= ". Skipped: {$noConfig} no-config, {$noCreds} no-snmp-in-config, {$skipped} no-IP.";
+
+        return back()->with('success', $msg);
     }
 
     // ─────────────────────────────────────────────────────────────

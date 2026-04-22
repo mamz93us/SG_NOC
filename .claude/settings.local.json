@@ -299,7 +299,10 @@
       "Bash(php -l app/Jobs/SyncMerakiData.php)",
       "Bash(php -l app/Http/Controllers/Admin/SnmpMonitoringController.php)",
       "Bash(php -l app/Models/NetworkSwitch.php)",
-      "Bash(php -l resources/views/admin/network/switches.blade.php)"
+      "Bash(php -l resources/views/admin/network/switches.blade.php)",
+      "Bash(php -l database/migrations/2026_04_22_000012_backfill_asset_codes_for_network_devices.php)",
+      "Bash(php -l \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Http/Controllers/Admin/NetworkController.php\")",
+      "Bash(php -l \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/routes/web.php\")"
     ]
   }
 }
