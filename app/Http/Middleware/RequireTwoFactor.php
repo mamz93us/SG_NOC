@@ -26,6 +26,12 @@ class RequireTwoFactor
                 return $next($request);
             }
 
+            // Browser-only users bypass 2FA entirely — low-privilege role,
+            // kept frictionless for SSO-first remote-browser access.
+            if (method_exists($user, 'isBrowserUser') && $user->isBrowserUser()) {
+                return $next($request);
+            }
+
             if ($user->hasTwoFactorEnabled()) {
                 // Enrolled but this session hasn't passed the challenge yet
                 if (! $request->session()->get('2fa_verified')) {

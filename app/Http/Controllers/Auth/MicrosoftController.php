@@ -64,6 +64,12 @@ class MicrosoftController extends Controller
         // lands the user there, never the admin dashboard.
         $request->session()->put('url.intended', route('portal.index'));
 
+        // Browser-only users skip 2FA — straight to the portal.
+        if ($user->isBrowserUser()) {
+            $request->session()->put('2fa_verified', true);
+            return redirect()->intended(route('portal.index'));
+        }
+
         if ($user->hasTwoFactorEnabled()) {
             return redirect()->route('two-factor.challenge');
         }

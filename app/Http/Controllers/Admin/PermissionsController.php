@@ -12,7 +12,7 @@ class PermissionsController extends Controller
 {
     public function index()
     {
-        $roles       = ['super_admin', 'admin', 'viewer'];
+        $roles       = ['super_admin', 'admin', 'viewer', 'browser_user'];
         $permissions = RolePermission::allPermissions();   // grouped
         $allSlugs    = RolePermission::allSlugs();
 
@@ -30,21 +30,30 @@ class PermissionsController extends Controller
 
     public function update(Request $request)
     {
-        $roles    = ['super_admin', 'admin', 'viewer'];
+        $roles    = ['super_admin', 'admin', 'viewer', 'browser_user'];
         $allSlugs = RolePermission::allSlugs();
 
         // super_admin always keeps manage-users and manage-permissions
         $forced = ['manage-users', 'manage-permissions'];
+
+        // Sticky baseline: even if the matrix isn't submitted for a role
+        // (e.g. browser_user is hidden in the UI), keep these defaults so
+        // a save never accidentally wipes out role permissions.
+        $sticky = [
+            'browser_user' => ['view-browser-portal'],
+        ];
 
         $now  = now();
         $rows = [];
 
         foreach ($roles as $role) {
             $submitted = $request->input("permissions.{$role}", []);
+            $stickyForRole = $sticky[$role] ?? [];
 
             foreach ($allSlugs as $slug) {
                 $has = isset($submitted[$slug])
-                    || ($role === 'super_admin' && in_array($slug, $forced));
+                    || ($role === 'super_admin' && in_array($slug, $forced))
+                    || in_array($slug, $stickyForRole);
 
                 if ($has) {
                     $rows[] = [
