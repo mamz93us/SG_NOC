@@ -8,9 +8,9 @@
             <i class="bi bi-hdd-network me-2 text-primary"></i>Network Switches
         </h4>
         <small class="text-muted">
-            All Meraki MS switches
+            Unified view — Meraki, SNMP, QoS &amp; Assets
             @if($lastSync)
-                &bull; Last sync: <span class="font-monospace">{{ \Carbon\Carbon::parse($lastSync)->diffForHumans() }}</span>
+                &bull; Last Meraki sync: <span class="font-monospace">{{ \Carbon\Carbon::parse($lastSync)->diffForHumans() }}</span>
             @endif
         </small>
     </div>
@@ -22,10 +22,54 @@
         <form method="POST" action="{{ route('admin.network.sync') }}">
             @csrf
             <button type="submit" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-arrow-repeat me-1"></i>Sync Now
+                <i class="bi bi-arrow-repeat me-1"></i>Sync Meraki
             </button>
         </form>
         @endcan
+    </div>
+</div>
+
+{{-- ── Source totals ── --}}
+<div class="row g-2 mb-3">
+    <div class="col-md col-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <div class="small text-muted">Total Switches</div>
+                <div class="h5 mb-0">{{ $totals['all'] }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md col-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <div class="small text-muted"><i class="bi bi-cloud text-primary me-1"></i>In Meraki</div>
+                <div class="h5 mb-0">{{ $totals['meraki'] }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md col-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <div class="small text-muted"><i class="bi bi-broadcast text-success me-1"></i>SNMP active</div>
+                <div class="h5 mb-0">{{ $totals['snmp'] }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md col-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <div class="small text-muted"><i class="bi bi-speedometer text-info me-1"></i>QoS polled</div>
+                <div class="h5 mb-0">{{ $totals['qos'] }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md col-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <div class="small text-muted"><i class="bi bi-exclamation-triangle text-warning me-1"></i>Incomplete</div>
+                <div class="h5 mb-0">{{ $totals['gaps'] }}</div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -51,6 +95,15 @@
         </select>
     </div>
     <div class="col-auto">
+        <select name="source" class="form-select form-select-sm">
+            <option value="">All Sources</option>
+            <option value="meraki" {{ request('source') == 'meraki' ? 'selected' : '' }}>In Meraki</option>
+            <option value="snmp"   {{ request('source') == 'snmp'   ? 'selected' : '' }}>In SNMP (active)</option>
+            <option value="qos"    {{ request('source') == 'qos'    ? 'selected' : '' }}>In QoS</option>
+            <option value="manual" {{ request('source') == 'manual' ? 'selected' : '' }}>Manual only</option>
+        </select>
+    </div>
+    <div class="col-auto">
         <button type="submit" class="btn btn-sm btn-secondary">Filter</button>
         <a href="{{ route('admin.network.switches') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
     </div>
@@ -58,10 +111,10 @@
 
 <div class="card shadow-sm">
     <div class="card-body p-0">
-        @if($switches->isEmpty())
+        @if($rows->isEmpty())
         <div class="text-center py-5 text-muted">
             <i class="bi bi-hdd-network display-4 mb-3 d-block"></i>
-            No switches found. Run a sync or check your Meraki settings.
+            No switches found across any source. Run a Meraki sync or add an asset manually.
         </div>
         @else
         <div class="table-responsive">
@@ -75,6 +128,7 @@
                         <th>IP</th>
                         <th>Network</th>
                         <th>Location</th>
+                        <th class="text-center">Sources</th>
                         <th class="text-center">Ports</th>
                         <th class="text-center">Clients</th>
                         <th>Last Seen</th>
@@ -82,24 +136,47 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($switches as $sw)
+                    @foreach($rows as $row)
+                    @php
+                        $statusBadge = match($row->status) {
+                            'online'   => 'bg-success',
+                            'offline'  => 'bg-danger',
+                            'alerting' => 'bg-warning text-dark',
+                            default    => 'bg-secondary',
+                        };
+                        $sw = $row->meraki_ref;
+                        $snmp = $row->snmp_ref;
+                    @endphp
                     <tr>
                         <td>
-                            <span class="badge {{ $sw->statusBadgeClass() }}">
-                                <i class="bi bi-circle-fill me-1" style="font-size:8px"></i>{{ ucfirst($sw->status) }}
+                            <span class="badge {{ $statusBadge }}">
+                                <i class="bi bi-circle-fill me-1" style="font-size:8px"></i>{{ ucfirst($row->status) }}
                             </span>
                         </td>
-                        <td class="fw-semibold">{{ $sw->name ?: $sw->serial }}</td>
-                        <td><span class="badge bg-secondary">{{ $sw->model }}</span></td>
-                        <td class="font-monospace small text-muted">{{ $sw->serial }}</td>
-                        <td class="font-monospace small">{{ $sw->lan_ip ?: '-' }}</td>
-                        <td class="small text-muted">{{ $sw->network_name ?: $sw->network_id ?: '-' }}</td>
-
-                        {{-- Location breadcrumb --}}
-                        <td class="small">
-                            @if($sw->branch || $sw->floor || $sw->rack)
-                                <span class="text-muted">{{ $sw->locationBreadcrumb() }}</span>
+                        <td class="fw-semibold">{{ $row->name ?: $row->serial }}</td>
+                        <td>
+                            @if($row->model)
+                                <span class="badge bg-secondary">{{ $row->model }}</span>
                             @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td class="font-monospace small text-muted">{{ $row->serial ?: '—' }}</td>
+                        <td class="font-monospace small">{{ $row->ip ?: '—' }}</td>
+                        <td class="small text-muted">{{ $row->network_name ?: $row->network_id ?: '—' }}</td>
+
+                        {{-- Location breadcrumb — only Meraki switches have a floor/rack assignment UI --}}
+                        <td class="small">
+                            @if($sw && ($sw->branch || $sw->floor || $sw->rack))
+                                <span class="text-muted">{{ $sw->locationBreadcrumb() }}</span>
+                                @can('manage-network-settings')
+                                <button class="btn btn-link btn-sm p-0 ms-1 text-secondary"
+                                        onclick="openAssignModal('{{ $sw->serial }}', '{{ addslashes($sw->name ?? $sw->serial) }}', {{ $sw->branch_id ?? 'null' }}, {{ $sw->floor_id ?? 'null' }}, {{ $sw->rack_id ?? 'null' }})"
+                                        title="Change location">
+                                    <i class="bi bi-pencil" style="font-size:11px"></i>
+                                </button>
+                                @endcan
+                            @elseif($sw)
                                 @can('manage-network-settings')
                                 <button class="btn btn-link btn-sm p-0 text-decoration-none text-muted"
                                         onclick="openAssignModal('{{ $sw->serial }}', '{{ addslashes($sw->name ?? $sw->serial) }}', {{ $sw->branch_id ?? 'null' }}, {{ $sw->floor_id ?? 'null' }}, {{ $sw->rack_id ?? 'null' }})"
@@ -109,28 +186,61 @@
                                 @else
                                 <span class="text-muted">—</span>
                                 @endcan
+                            @elseif($row->branch)
+                                <span class="text-muted">{{ $row->branch->name }}</span>
+                            @else
+                                <span class="text-muted">—</span>
                             @endif
-                            @can('manage-network-settings')
-                            @if($sw->branch || $sw->floor || $sw->rack)
-                            <button class="btn btn-link btn-sm p-0 ms-1 text-secondary"
-                                    onclick="openAssignModal('{{ $sw->serial }}', '{{ addslashes($sw->name ?? $sw->serial) }}', {{ $sw->branch_id ?? 'null' }}, {{ $sw->floor_id ?? 'null' }}, {{ $sw->rack_id ?? 'null' }})"
-                                    title="Change location">
-                                <i class="bi bi-pencil" style="font-size:11px"></i>
-                            </button>
-                            @endif
-                            @endcan
                         </td>
 
-                        <td class="text-center"><span class="badge bg-secondary">{{ $sw->port_count }}</span></td>
-                        <td class="text-center"><span class="badge bg-info text-dark">{{ $sw->clients_count }}</span></td>
+                        {{-- Source presence badges --}}
+                        <td class="text-center small">
+                            <span class="badge bg-dark me-1" title="Asset inventory">Assets</span>
+                            @if($row->in_meraki)
+                                <span class="badge bg-primary me-1" title="Synced from Meraki">Meraki</span>
+                            @endif
+                            @if($row->in_snmp)
+                                @if($row->snmp_ready)
+                                    <span class="badge bg-success me-1" title="SNMP polling enabled">SNMP</span>
+                                @else
+                                    <span class="badge bg-warning text-dark me-1" title="SNMP host registered but polling disabled — configure credentials">SNMP?</span>
+                                @endif
+                            @endif
+                            @if($row->in_qos)
+                                <span class="badge bg-info text-dark" title="QoS polled">QoS</span>
+                            @endif
+                        </td>
+
+                        <td class="text-center"><span class="badge bg-secondary">{{ $row->port_count }}</span></td>
+                        <td class="text-center"><span class="badge bg-info text-dark">{{ $row->clients }}</span></td>
                         <td class="small text-muted">
-                            {{ $sw->last_reported_at ? $sw->last_reported_at->diffForHumans() : '-' }}
+                            {{ $row->last_seen ? \Carbon\Carbon::parse($row->last_seen)->diffForHumans() : '—' }}
                         </td>
                         <td>
-                            <a href="{{ route('admin.network.switch-detail', $sw->serial) }}"
-                               class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-ethernet"></i>
-                            </a>
+                            <div class="btn-group btn-group-sm">
+                                @if($sw)
+                                <a href="{{ route('admin.network.switch-detail', $sw->serial) }}"
+                                   class="btn btn-outline-primary" title="Meraki ports &amp; clients">
+                                    <i class="bi bi-ethernet"></i>
+                                </a>
+                                @endif
+                                @if($row->in_qos)
+                                <a href="{{ route('admin.switch-qos.dashboard') }}?device_id={{ $row->id }}"
+                                   class="btn btn-outline-info" title="QoS dashboard">
+                                    <i class="bi bi-speedometer"></i>
+                                </a>
+                                @endif
+                                @if($snmp)
+                                <a href="{{ route('admin.network.monitoring.show', $snmp->id) }}"
+                                   class="btn btn-outline-success" title="SNMP host">
+                                    <i class="bi bi-broadcast"></i>
+                                </a>
+                                @endif
+                                <a href="{{ route('admin.devices.show', $row->id) }}"
+                                   class="btn btn-outline-secondary" title="Asset record">
+                                    <i class="bi bi-box"></i>
+                                </a>
+                            </div>
                         </td>
                     </tr>
                     @endforeach

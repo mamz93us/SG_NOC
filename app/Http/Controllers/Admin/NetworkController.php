@@ -13,12 +13,16 @@ use App\Models\NetworkEvent;
 use App\Models\NetworkFloor;
 use App\Models\NetworkOffice;
 use App\Models\NetworkRack;
+use App\Models\Device;
 use App\Models\NetworkSwitch;
 use App\Models\NetworkSyncLog;
 use App\Models\Setting;
+use App\Models\SwitchQosStat;
 use App\Services\Network\MerakiService;
+use App\Services\Network\SwitchReconciler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class NetworkController extends Controller
 {
@@ -62,33 +66,124 @@ class NetworkController extends Controller
     // Switch list
     // ─────────────────────────────────────────────────────────────
 
-    public function switches(Request $request)
+    public function switches(Request $request, SwitchReconciler $reconciler)
     {
-        $query = NetworkSwitch::orderByRaw("
-            CASE status
-                WHEN 'online'   THEN 1
-                WHEN 'alerting' THEN 2
-                WHEN 'offline'  THEN 3
-                ELSE 4
-            END
-        ")->orderBy('name');
+        // Link/auto-create across sources. Idempotent + lightweight after the
+        // first run (most rows already FK'd). Opt out with ?skip_reconcile=1
+        // for debugging if ever needed.
+        if (!$request->boolean('skip_reconcile')) {
+            try {
+                $reconciler->reconcileAll();
+            } catch (\Throwable $e) {
+                \Log::warning('SwitchReconciler failed: ' . $e->getMessage());
+            }
+        }
+
+        // Canonical query: every switch-class Device, eager-loading the
+        // satellite rows from each source system.
+        $query = Device::query()
+            ->whereIn('type', ['switch', 'router', 'firewall'])
+            ->with(['branch', 'floor', 'networkSwitch.branch', 'monitoredHost']);
+
+        if ($request->filled('status')) {
+            // Map status against the Meraki-sourced NetworkSwitch when present.
+            $status = $request->status;
+            $query->whereHas('networkSwitch', fn ($q) => $q->where('status', $status));
+        }
 
         if ($request->filled('network')) {
-            $query->where('network_id', $request->network);
-        }
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $networkId = $request->network;
+            $query->whereHas('networkSwitch', fn ($q) => $q->where('network_id', $networkId));
         }
 
-        $switches  = $query->with(['branch', 'floor', 'rack'])->get();
-        $networks  = NetworkSwitch::select('network_id', 'network_name')
-                        ->distinct()->orderBy('network_name')->get();
-        $lastSync  = NetworkSwitch::max('updated_at');
-        $branches  = Branch::orderBy('name')->get(['id', 'name']);
-        $floors    = NetworkFloor::with('branch')->orderBy('sort_order')->orderBy('name')->get();
-        $racks     = NetworkRack::with('floor.branch')->orderBy('sort_order')->orderBy('name')->get();
+        if ($request->filled('source')) {
+            $source = $request->source;
+            match ($source) {
+                'meraki'  => $query->whereHas('networkSwitch'),
+                'snmp'    => $query->whereHas('monitoredHost', fn ($q) => $q->where('snmp_enabled', true)),
+                'qos'     => $query->whereHas('qosStats'),
+                'manual'  => $query->where('source', 'manual'),
+                default   => null,
+            };
+        }
 
-        return view('admin.network.switches', compact('switches', 'networks', 'lastSync', 'branches', 'floors', 'racks'));
+        $devices = $query->orderBy('name')->get();
+
+        // Aggregate QoS presence for devices in one shot (avoid N+1 on hasMany).
+        $qosDeviceIds = SwitchQosStat::whereIn('device_id', $devices->pluck('id'))
+            ->pluck('device_id')
+            ->unique()
+            ->flip();
+
+        // Shape a unified row for the view. Each row answers "is this switch
+        // present in {Meraki, SNMP, QoS, Assets}?" and carries the join data
+        // needed to render it.
+        $rows = $devices->map(function (Device $d) use ($qosDeviceIds) {
+            $meraki = $d->networkSwitch;
+            $snmp   = $d->monitoredHost;
+
+            // Roll up a single status the table can sort/badge on.
+            $status = $meraki?->status
+                ?? ($snmp?->status === 'up' ? 'online'
+                    : ($snmp?->status === 'down' ? 'offline' : 'unknown'));
+
+            return (object) [
+                'device'       => $d,
+                'id'           => $d->id,
+                'name'         => $meraki?->name ?: $d->name,
+                'model'        => $d->model ?: $meraki?->model,
+                'serial'       => $d->serial_number ?: $meraki?->serial,
+                'ip'           => $d->ip_address ?: $meraki?->lan_ip,
+                'mac'          => $d->mac_address ?: $meraki?->mac,
+                'branch'       => $d->branch,
+                'floor'        => $d->floor,
+                'rack'         => $meraki?->rack,
+                'status'       => $status,
+                'network_name' => $meraki?->network_name,
+                'network_id'   => $meraki?->network_id,
+                'port_count'   => $meraki?->port_count ?? 0,
+                'clients'      => $meraki?->clients_count ?? 0,
+                'last_seen'    => $meraki?->last_reported_at ?? $snmp?->last_checked_at,
+                'in_meraki'    => (bool) $meraki,
+                'in_snmp'      => (bool) $snmp,
+                'snmp_ready'   => (bool) ($snmp?->snmp_enabled),
+                'in_qos'       => $qosDeviceIds->has($d->id),
+                'in_assets'    => true, // we're looking at devices, it's always true here
+                'meraki_ref'   => $meraki,
+                'snmp_ref'     => $snmp,
+            ];
+        })
+        // Stable sort: online → alerting → offline → unknown, then name.
+        ->sortBy(function ($r) {
+            $order = ['online' => 1, 'alerting' => 2, 'offline' => 3];
+            return [($order[$r->status] ?? 4), strtolower($r->name ?? '')];
+        })->values();
+
+        $networks = NetworkSwitch::select('network_id', 'network_name')
+            ->distinct()->orderBy('network_name')->get();
+        $lastSync = NetworkSwitch::max('updated_at');
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $floors   = NetworkFloor::with('branch')->orderBy('sort_order')->orderBy('name')->get();
+        $racks    = NetworkRack::with('floor.branch')->orderBy('sort_order')->orderBy('name')->get();
+
+        // Source totals for the top-of-page summary bar.
+        $totals = [
+            'all'    => $rows->count(),
+            'meraki' => $rows->where('in_meraki', true)->count(),
+            'snmp'   => $rows->where('in_snmp', true)->count(),
+            'qos'    => $rows->where('in_qos', true)->count(),
+            'gaps'   => $rows->filter(fn ($r) => !$r->in_meraki || !$r->snmp_ready)->count(),
+        ];
+
+        return view('admin.network.switches', [
+            'rows'     => $rows,
+            'networks' => $networks,
+            'lastSync' => $lastSync,
+            'branches' => $branches,
+            'floors'   => $floors,
+            'racks'    => $racks,
+            'totals'   => $totals,
+        ]);
     }
 
     // ─────────────────────────────────────────────────────────────

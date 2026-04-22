@@ -10,6 +10,7 @@ use App\Models\NetworkSwitch;
 use App\Models\NetworkSyncLog;
 use App\Models\Setting;
 use App\Services\Network\MerakiService;
+use App\Services\Network\SwitchReconciler;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -102,6 +103,23 @@ class SyncMerakiData implements ShouldQueue
                         'raw_data'          => $device,
                     ]
                 );
+
+                // ── Reconcile with Device/SNMP inventory ─────────────
+                // Every Meraki switch gets a corresponding Device row and an
+                // SNMP stub (disabled until credentials are supplied) so the
+                // /admin/network/switches unified view stays in sync.
+                try {
+                    $reconciler = app(SwitchReconciler::class);
+                    $device = $reconciler->ensureDeviceForMerakiSwitch($switch);
+                    if ($device && $switch->device_id !== $device->id) {
+                        $switch->forceFill(['device_id' => $device->id])->save();
+                    }
+                    if ($device) {
+                        $reconciler->ensureMonitoredHostForDevice($device);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning("SyncMerakiData: reconciler failed for {$serial}: " . $e->getMessage());
+                }
 
                 // ── Sync ports ─────────────────────────────────────────
                 $portsCount   = $this->syncPorts($meraki, $switch, $serial);

@@ -154,6 +154,21 @@ class Device extends Model
         return $this->hasOne(AzureDevice::class);
     }
 
+    public function networkSwitch(): HasOne
+    {
+        return $this->hasOne(NetworkSwitch::class);
+    }
+
+    public function monitoredHost(): HasOne
+    {
+        return $this->hasOne(MonitoredHost::class);
+    }
+
+    public function qosStats(): HasMany
+    {
+        return $this->hasMany(SwitchQosStat::class);
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────
 
     /** Types that represent personal user equipment (assignable to employees) — dynamic from DB */

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class MonitoredHost extends Model
 {
     protected $fillable = [
+        'device_id',
         'branch_id',
         'vpn_id',
         'name',
@@ -62,6 +63,11 @@ class MonitoredHost extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function device(): BelongsTo
+    {
+        return $this->belongsTo(Device::class);
     }
 
     public function vpnTunnel(): BelongsTo
