@@ -139,7 +139,37 @@ class SessionManager
             }
 
             $session->internal_ip = $ip;
-            $session->status      = 'running';
+
+            // Wait for Neko's HTTP server inside the container to actually
+            // respond before we mark running + wire up Nginx. Without this,
+            // the user lands on the session page and the iframe fires its
+            // SPA bootstrap against a not-yet-ready backend — the WebSocket
+            // handshake fails silently and the viewer stays blank until the
+            // user manually refreshes. ~15s ceiling covers cold-start + X11
+            // + supervisord bring-up on first launch.
+            $ready = false;
+            for ($i = 0; $i < 30 && !$ready; $i++) {
+                try {
+                    $ctx = stream_context_create(['http' => [
+                        'method'  => 'GET',
+                        'timeout' => 1,
+                        'ignore_errors' => true,
+                    ]]);
+                    $body = @file_get_contents("http://$ip:8080/", false, $ctx);
+                    if ($body !== false && !empty($http_response_header)) {
+                        $status = (int) (explode(' ', $http_response_header[0])[1] ?? 0);
+                        if ($status > 0 && $status < 500) { $ready = true; break; }
+                    }
+                } catch (\Throwable) { /* retry */ }
+                usleep(500_000);
+            }
+            if (!$ready) {
+                Log::warning('SessionManager: Neko HTTP readiness probe timed out; continuing anyway', [
+                    'session_id' => $sessionId, 'ip' => $ip,
+                ]);
+            }
+
+            $session->status = 'running';
             $session->save();
 
             $this->nginx->write($session);
@@ -275,8 +305,13 @@ class SessionManager
             '-e', "NEKO_SERVER_PROXY=true",
             '-e', "NEKO_SERVER_PATH_PREFIX=/s/{$session->session_id}",
             '-e', 'NEKO_MEMBER_PROVIDER=multiuser',
-            '-e', "NEKO_MEMBER_MULTIUSER_USER_PASSWORD=$nekoPassword",
-            '-e', "NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD=$adminPassword",
+            // The session OWNER logs in as admin so they get input control on
+            // first connect (user-tier in multiuser is view-only — that's what
+            // forced users to click the lock icon after every connect).
+            // Keep the shared env admin password as the "user" tier so it's
+            // still a valid credential but with no elevated rights.
+            '-e', "NEKO_MEMBER_MULTIUSER_USER_PASSWORD=$adminPassword",
+            '-e', "NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD=$nekoPassword",
             '-e', "NEKO_WEBRTC_EPR=$portRange",
             '-e', "NEKO_WEBRTC_NAT1TO1=$vpsIp",
             '-e', 'NEKO_WEBRTC_ICELITE=true',
