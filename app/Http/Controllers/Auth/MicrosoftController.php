@@ -14,26 +14,23 @@ class MicrosoftController extends Controller
     /**
      * Configure Socialite dynamically from DB settings and redirect to Microsoft.
      *
-     * If the redirect is initiated from the Remote Browser portal login page
-     * (?portal=1), remember that in the session so the callback can (a) default
-     * brand-new users to the 'browser_user' role and (b) route them to the
-     * portal — not the admin dashboard — after authentication.
+     * SSO is exclusively for the Remote Browser Portal — admins use password
+     * login. This method is always treated as a portal-initiated sign-in.
      */
     public function redirect(\Illuminate\Http\Request $request)
     {
         $this->configureSocialite();
-
-        if ($request->boolean('portal')) {
-            $request->session()->put('sso_context', 'portal');
-        } else {
-            $request->session()->forget('sso_context');
-        }
 
         return Socialite::driver('microsoft')->redirect();
     }
 
     /**
      * Handle the Microsoft OAuth callback.
+     *
+     * Every SSO sign-in lands in the Remote Browser Portal. New users get the
+     * `browser_user` role. Existing users keep whatever role they already have
+     * (so we don't accidentally demote someone who was manually promoted), but
+     * they are still routed to the portal — never the admin dashboard.
      */
     public function callback(\Illuminate\Http\Request $request)
     {
@@ -42,51 +39,37 @@ class MicrosoftController extends Controller
         try {
             $msUser = Socialite::driver('microsoft')->user();
         } catch (\Exception $e) {
-            $context = $request->session()->pull('sso_context');
-            $loginRoute = $context === 'portal' ? 'portal.login' : 'login';
-            return redirect()->route($loginRoute)
+            return redirect()->route('portal.login')
                 ->with('error', 'Microsoft login failed: ' . $e->getMessage());
         }
 
-        $context = $request->session()->pull('sso_context'); // 'portal' or null
-
-        // Portal-originated sign-ins default brand-new users to browser_user
-        // (no admin access); regular SSO falls back to sso_default_role.
-        $defaultRole = $context === 'portal'
-            ? 'browser_user'
-            : (Setting::get()->sso_default_role ?? 'viewer');
-
-        // Find or create the user
+        // Always default new SSO users to browser_user (no admin access).
         $user = User::firstOrCreate(
             ['email' => $msUser->getEmail()],
             [
                 'name'              => $msUser->getName() ?? $msUser->getEmail(),
                 'password'          => \Illuminate\Support\Str::random(32), // unusable random password
-                'role'              => $defaultRole,
+                'role'              => 'browser_user',
                 'email_verified_at' => now(),
             ]
         );
 
         Auth::login($user, true);
 
-        // Make sure this session is not yet considered 2FA-verified; the
-        // RequireTwoFactor middleware will route the user to the challenge
-        // (if enrolled) or the forced enrollment page (if not).
+        // Fresh auth session — 2FA gate applies.
         session()->forget('2fa_verified');
 
-        // Remember the intended post-auth destination so the 2FA flow
-        // (challenge or enrollment) can route the user back to the portal
-        // instead of the admin dashboard.
-        if ($context === 'portal') {
-            $request->session()->put('url.intended', route('portal.index'));
-        }
+        // Every SSO sign-in is meant for the portal; remember that as the
+        // intended destination so the 2FA flow (challenge or enrollment)
+        // lands the user there, never the admin dashboard.
+        $request->session()->put('url.intended', route('portal.index'));
 
         if ($user->hasTwoFactorEnabled()) {
             return redirect()->route('two-factor.challenge');
         }
 
-        // Need to enroll in 2FA first. After enrollment, TwoFactorController@confirm
-        // redirects to $user->homeRoute() — portal for browser_user, admin otherwise.
+        // First-time users enroll in 2FA, then the confirm handler picks up
+        // url.intended and sends them to the portal.
         return redirect()->route('admin.two-factor.setup');
     }
 

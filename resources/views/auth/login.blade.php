@@ -234,29 +234,14 @@
                     </button>
                 </form>
 
-                @php $ssoEnabled = App\Models\Setting::first()?->sso_enabled ?? false; @endphp
-                @if($ssoEnabled)
-                <div class="mt-4">
-                    <div class="d-flex align-items-center gap-2 mb-3">
-                        <hr class="flex-grow-1 m-0">
-                        <small class="text-muted px-2">or</small>
-                        <hr class="flex-grow-1 m-0">
-                    </div>
-                    <a href="{{ route('auth.microsoft') }}"
-                       class="btn w-100 d-flex align-items-center justify-content-center gap-2"
-                       style="border:2px solid #e0e0e0;border-radius:10px;padding:10px;font-weight:600;color:#333;background:#fff;transition:box-shadow .2s;"
-                       onmouseover="this.style.boxShadow='0 4px 15px rgba(0,0,0,0.15)'"
-                       onmouseout="this.style.boxShadow='none'">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23">
-                            <rect x="1" y="1" width="10" height="10" fill="#f25022"/>
-                            <rect x="12" y="1" width="10" height="10" fill="#7fba00"/>
-                            <rect x="1" y="12" width="10" height="10" fill="#00a4ef"/>
-                            <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
-                        </svg>
-                        Sign in with Microsoft
-                    </a>
+                {{-- SSO is reserved for the Remote Browser Portal.
+                     Admins use password login here; SSO users land in /portal only. --}}
+                <div class="mt-4 text-center">
+                    <small class="text-muted">
+                        Remote Browser user?
+                        <a href="{{ route('portal.login') }}" class="fw-semibold">Sign in here</a>
+                    </small>
                 </div>
-                @endif
             </div>
         </div>
         
