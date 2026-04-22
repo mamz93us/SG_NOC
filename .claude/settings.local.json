@@ -304,7 +304,9 @@
       "Bash(php -l \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Http/Controllers/Admin/NetworkController.php\")",
       "Bash(php -l \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/routes/web.php\")",
       "Bash(php -l \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Models/NotificationRule.php\")",
-      "Bash(php -l \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Http/Controllers/Admin/NotificationRuleController.php\")"
+      "Bash(php -l \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Http/Controllers/Admin/NotificationRuleController.php\")",
+      "Bash(php -r 'require '\\\\''C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/vendor/autoload.php'\\\\''; $app = require '\\\\''C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/bootstrap/app.php'\\\\''; $app->make\\('\\\\''Illuminate\\\\Contracts\\\\Console\\\\Kernel'\\\\''\\)->bootstrap\\(\\); $compiler = new \\\\Illuminate\\\\View\\\\Compilers\\\\BladeCompiler\\(new \\\\Illuminate\\\\Filesystem\\\\Filesystem\\(\\), sys_get_temp_dir\\(\\)\\); echo $compiler->compileString\\(file_get_contents\\('\\\\''C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/resources/views/admin/network/switches.blade.php'\\\\''\\)\\) === false ? '\\\\''FAIL'\\\\'' : '\\\\''OK compile'\\\\''; echo PHP_EOL;')",
+      "Bash(php -r 'require '\\\\''C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/vendor/autoload.php'\\\\''; $c = new \\\\Illuminate\\\\View\\\\Compilers\\\\BladeCompiler\\(new \\\\Illuminate\\\\Filesystem\\\\Filesystem\\(\\), sys_get_temp_dir\\(\\)\\); $out = $c->compileString\\(file_get_contents\\('\\\\''C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/resources/views/admin/network/switches.blade.php'\\\\''\\)\\); $tmp = tempnam\\(sys_get_temp_dir\\(\\),'\\\\''blade'\\\\''\\); file_put_contents\\($tmp, $out\\); $r = shell_exec\\('\\\\''php -l '\\\\''.escapeshellarg\\($tmp\\).'\\\\'' 2>&1'\\\\''\\); echo $r;')"
     ]
   }
 }

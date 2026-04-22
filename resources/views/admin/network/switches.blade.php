@@ -266,22 +266,25 @@
                                     <i class="bi bi-box"></i>
                                 </a>
                                 @can('manage-network-settings')
+                                @php
+                                    $qeData = [
+                                        'id'            => $row->id,
+                                        'name'          => $row->name,
+                                        'model'         => $row->model,
+                                        'serial_number' => $row->serial,
+                                        'mac_address'   => $row->mac,
+                                        'ip_address'    => $row->ip,
+                                        'network_id'    => $row->network_id,
+                                        'branch_id'     => $row->device?->branch_id ?? ($sw?->branch_id),
+                                        'floor_id'      => $row->device?->floor_id  ?? ($sw?->floor_id),
+                                        'rack_id'       => $sw?->rack_id,
+                                        'in_meraki'     => (bool) $sw,
+                                    ];
+                                @endphp
                                 <button type="button"
-                                        class="btn btn-outline-primary"
+                                        class="btn btn-outline-primary quick-edit-btn"
                                         title="Quick edit — name, model, serial, IP, MAC, network, location"
-                                        onclick='openQuickEdit(@json([
-                                            "id"            => $row->id,
-                                            "name"          => $row->name,
-                                            "model"         => $row->model,
-                                            "serial_number" => $row->serial,
-                                            "mac_address"   => $row->mac,
-                                            "ip_address"    => $row->ip,
-                                            "network_id"    => $row->network_id,
-                                            "branch_id"     => $row->device?->branch_id ?? ($sw?->branch_id),
-                                            "floor_id"      => $row->device?->floor_id  ?? ($sw?->floor_id),
-                                            "rack_id"       => $sw?->rack_id,
-                                            "in_meraki"     => (bool) $sw,
-                                        ], JSON_HEX_APOS | JSON_HEX_QUOT))'>
+                                        data-row="{{ json_encode($qeData, JSON_UNESCAPED_SLASHES) }}">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 @endcan
@@ -475,6 +478,18 @@ const baseQuickEditUrl = '{{ rtrim(url("admin/network/switches/__ID__/update"), 
 // ══════════════════════════════════════════════════════════════════════
 // QUICK-EDIT SWITCH MODAL
 // ══════════════════════════════════════════════════════════════════════
+// Delegated click handler — each Edit button carries a data-row attribute
+// with JSON-encoded values. We parse + pass into openQuickEdit().
+document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.quick-edit-btn');
+    if (!btn) return;
+    try {
+        openQuickEdit(JSON.parse(btn.dataset.row));
+    } catch (err) {
+        console.error('Invalid quick-edit data:', err);
+    }
+});
+
 function openQuickEdit(row) {
     const url = baseQuickEditUrl.replace('__ID__', row.id);
     const form = document.getElementById('quickEditSwitchForm');
