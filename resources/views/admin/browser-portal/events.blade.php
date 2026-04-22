@@ -7,10 +7,10 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3 class="mb-0"><i class="bi bi-journal-text me-2"></i>Remote Browser — Activity Log</h3>
         <div class="btn-group">
-            <a href="{{ route('admin.browser-portal.admin.index') }}" class="btn btn-outline-secondary btn-sm">
+            <a href="{{ route('admin.browser-portal.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-list-ul me-1"></i>Active sessions
             </a>
-            <a href="{{ route('admin.browser-portal.admin.settings') }}" class="btn btn-outline-secondary btn-sm">
+            <a href="{{ route('admin.browser-portal.settings') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-gear me-1"></i>Settings
             </a>
         </div>
@@ -38,7 +38,7 @@
             </div>
             <div class="col-md-3 d-flex align-items-end gap-2">
                 <button class="btn btn-sm btn-primary" type="submit">Filter</button>
-                <a href="{{ route('admin.browser-portal.admin.events') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                <a href="{{ route('admin.browser-portal.events') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
             </div>
         </div>
     </form>

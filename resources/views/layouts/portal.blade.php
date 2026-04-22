@@ -26,7 +26,7 @@
 @php $__settings = \App\Models\Setting::get(); @endphp
 <nav class="navbar navbar-dark bg-dark shadow-sm">
     <div class="container-fluid px-3 px-lg-4">
-        <a class="navbar-brand d-flex align-items-center gap-2 fw-bold py-1" href="{{ route('admin.browser-portal.index') }}">
+        <a class="navbar-brand d-flex align-items-center gap-2 fw-bold py-1" href="{{ route('portal.index') }}">
             @if($__settings->company_logo ?? false)
                 <img src="{{ \Illuminate\Support\Facades\Storage::url($__settings->company_logo) }}"
                      alt="Logo" style="height:34px;width:auto;object-fit:contain;">
@@ -55,18 +55,18 @@
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
-                        <a class="dropdown-item" href="{{ route('admin.browser-portal.index') }}">
+                        <a class="dropdown-item" href="{{ route('portal.index') }}">
                             <i class="bi bi-globe2 me-2"></i>Browser
                         </a>
                     </li>
                     <li>
-                        <a class="dropdown-item" href="{{ route('admin.browser-portal.history') }}">
+                        <a class="dropdown-item" href="{{ route('portal.history') }}">
                             <i class="bi bi-clock-history me-2"></i>My History
                         </a>
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
-                        <form method="POST" action="/logout">
+                        <form method="POST" action="{{ route('portal.logout') }}">
                             @csrf
                             <button type="submit" class="dropdown-item text-danger">
                                 <i class="bi bi-box-arrow-right me-2"></i>Logout

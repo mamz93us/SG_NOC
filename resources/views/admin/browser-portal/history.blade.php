@@ -1,9 +1,7 @@
 @php
-    // Browser-users get the slim portal layout; everyone else sees the full admin chrome.
-    $layout = auth()->user()?->isBrowserUser() ? 'layouts.portal' : 'layouts.admin';
     $labels = \App\Models\BrowserSessionEvent::eventTypeLabels();
 @endphp
-@extends($layout)
+@extends('layouts.portal')
 
 @section('title', 'Remote Browser — My History')
 
@@ -11,7 +9,7 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3 class="mb-0"><i class="bi bi-clock-history me-2"></i>My Remote Browser History</h3>
-        <a href="{{ route('admin.browser-portal.index') }}" class="btn btn-outline-secondary btn-sm">
+        <a href="{{ route('portal.index') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i>Back
         </a>
     </div>

@@ -115,14 +115,42 @@ Route::get('/auth/microsoft', [MicrosoftController::class, 'redirect'])
     ->name('auth.microsoft');
 Route::get('/auth/microsoft/callback', [MicrosoftController::class, 'callback']);
 
-// Dedicated SSO-only landing page for Remote Browser users.
-// Logged-in users are forwarded straight to the portal (no admin UI).
-Route::get('/browser', function () {
-    if (auth()->check()) {
-        return redirect()->route(auth()->user()->homeRoute());
-    }
-    return view('auth.portal-login');
-})->name('portal.login');
+// ─── Remote Browser Portal (isolated user-facing app) ──────────
+// Lives outside /admin so browser users never see admin chrome.
+Route::prefix('portal')->name('portal.')->group(function () {
+
+    // SSO-only login page
+    Route::get('/login', function () {
+        if (auth()->check()) {
+            return redirect()->route('portal.index');
+        }
+        return view('auth.portal-login');
+    })->name('login');
+
+    // Portal logout
+    Route::post('/logout', function (\Illuminate\Http\Request $request) {
+        \Illuminate\Support\Facades\Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return redirect()->route('portal.login');
+    })->name('logout');
+
+    // Authenticated user-facing routes
+    Route::middleware(['auth', 'permission:view-browser-portal', 'throttle:60,1'])
+        ->group(function () {
+            Route::get('/',             [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'index'])    ->name('index');
+            Route::post('/',            [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'store'])    ->name('store');
+            Route::post('/heartbeat',   [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'heartbeat'])->name('heartbeat');
+            Route::get('/history',      [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'history']) ->name('history');
+            Route::get('/{sessionId}',  [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'show'])     ->name('show')
+                ->where('sessionId', '[a-z0-9]{12}');
+            Route::delete('/{sessionId}', [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'destroy'])->name('destroy')
+                ->where('sessionId', '[a-z0-9]{12}');
+        });
+});
+
+// Legacy /browser redirect for any old bookmarks
+Route::redirect('/browser', '/portal/login');
 
 /*
 |--------------------------------------------------------------------------
@@ -153,6 +181,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // Home page — NOC Command Center (fallback to old dashboard if no permission)
     Route::get('/', function () {
+        // Browser-only users never see admin chrome — bounce to the isolated portal.
+        if (auth()->user()?->isBrowserUser()) {
+            return redirect()->route('portal.index');
+        }
         if (auth()->user() && auth()->user()->can('view-noc')) {
             return app(\App\Http\Controllers\Admin\NocController::class)->dashboard();
         }
@@ -801,33 +833,20 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::match(['GET','POST'], '/fetch', [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch');
     });
 
-    // ─── Remote Browser Portal (Neko-backed hosted Chromium) ───────
-    // User-facing: launch / view / stop own session.
-    Route::middleware(['permission:view-browser-portal', 'throttle:60,1'])
+    // ─── Remote Browser Portal — ADMIN MANAGEMENT ONLY ───────────────
+    // User-facing portal is mounted separately at /portal (isolated from admin).
+    Route::middleware('permission:manage-browser-portal')
         ->prefix('browser-portal')->name('browser-portal.')
         ->group(function () {
-            Route::get('/',                    [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'index'])  ->name('index');
-            Route::post('/',                   [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'store'])  ->name('store');
-            Route::post('/heartbeat',          [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'heartbeat'])->name('heartbeat');
-            Route::get('/history',             [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'history'])->name('history');
-            Route::get('/{sessionId}',         [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'show'])   ->name('show')
-                ->where('sessionId', '[a-z0-9]{12}');
-            Route::delete('/{sessionId}',      [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'destroy'])->name('destroy')
-                ->where('sessionId', '[a-z0-9]{12}');
-        });
-    // Admin view: list all sessions, force-stop anyone.
-    Route::middleware('permission:manage-browser-portal')
-        ->prefix('browser-portal/admin')->name('browser-portal.admin.')
-        ->group(function () {
-            Route::get('/',                     [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'index'])  ->name('index');
-            Route::get('/events',               [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'events']) ->name('events');
-            Route::get('/settings',             [\App\Http\Controllers\Admin\BrowserPortal\BrowserPortalSettingsController::class, 'index'])->name('settings');
-            Route::post('/settings',            [\App\Http\Controllers\Admin\BrowserPortal\BrowserPortalSettingsController::class, 'update'])->name('settings.update');
+            Route::get('/',                        [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'index'])  ->name('index');
+            Route::get('/events',                  [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'events']) ->name('events');
+            Route::get('/settings',                [\App\Http\Controllers\Admin\BrowserPortal\BrowserPortalSettingsController::class, 'index'])->name('settings');
+            Route::post('/settings',               [\App\Http\Controllers\Admin\BrowserPortal\BrowserPortalSettingsController::class, 'update'])->name('settings.update');
             Route::get('/{sessionId}/logs',        [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'logs'])     ->name('logs')
                 ->where('sessionId', '[a-z0-9]{12}');
             Route::get('/{sessionId}/logs/stream', [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'logStream'])->name('logs.stream')
                 ->where('sessionId', '[a-z0-9]{12}');
-            Route::delete('/{sessionId}',       [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'destroy'])->name('destroy')
+            Route::delete('/{sessionId}',          [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'destroy'])->name('destroy')
                 ->where('sessionId', '[a-z0-9]{12}');
         });
 

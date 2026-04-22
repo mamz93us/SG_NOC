@@ -21,6 +21,15 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);
 
+        // Guests hitting the isolated /portal/* routes go to the portal's SSO-only
+        // login page — not the admin login. Everyone else falls back to 'login'.
+        $middleware->redirectGuestsTo(function (\Illuminate\Http\Request $request) {
+            if ($request->is('portal') || $request->is('portal/*')) {
+                return route('portal.login');
+            }
+            return route('login');
+        });
+
         // Trust reverse-proxy headers (X-Forwarded-Proto, etc.) so Laravel
         // detects HTTPS correctly behind the production proxy. Without this,
         // secure cookie handling and URL generation can be inconsistent,

@@ -1,14 +1,13 @@
-@php $layout = auth()->user()?->isBrowserUser() ? 'layouts.portal' : 'layouts.admin'; @endphp
-@extends($layout)
+@extends('layouts.portal')
 
 @section('title', 'Remote Browser')
 
 @section('content')
-<div class="container-fluid py-4">
+<div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3 class="mb-0"><i class="bi bi-globe2 me-2"></i>Remote Browser</h3>
         @can('manage-browser-portal')
-            <a href="{{ route('admin.browser-portal.admin.index') }}" class="btn btn-outline-secondary btn-sm">
+            <a href="{{ route('admin.browser-portal.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-shield-lock me-1"></i>Admin view
             </a>
         @endcan
@@ -30,10 +29,10 @@
                     &middot; started {{ $active->created_at->diffForHumans() }}
                 </p>
                 <div class="d-flex gap-2">
-                    <a href="{{ route('admin.browser-portal.show', $active->session_id) }}" class="btn btn-primary">
+                    <a href="{{ route('portal.show', $active->session_id) }}" class="btn btn-primary">
                         <i class="bi bi-box-arrow-up-right me-1"></i>Open browser
                     </a>
-                    <form method="POST" action="{{ route('admin.browser-portal.destroy', $active->session_id) }}">
+                    <form method="POST" action="{{ route('portal.destroy', $active->session_id) }}">
                         @csrf
                         @method('DELETE')
                         <button class="btn btn-outline-danger" type="submit"
@@ -48,7 +47,7 @@
                     You'll get a hosted Chromium running on the company VPS, streamed to you over WebRTC.
                     It's on the corporate network, so internal web apps are reachable.
                 </p>
-                <form method="POST" action="{{ route('admin.browser-portal.store') }}">
+                <form method="POST" action="{{ route('portal.store') }}">
                     @csrf
                     <button class="btn btn-primary" type="submit">
                         <i class="bi bi-play-circle me-1"></i>Launch browser

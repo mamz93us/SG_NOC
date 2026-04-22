@@ -6,7 +6,7 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3 class="mb-0"><i class="bi bi-gear me-2"></i>Remote Browser — Settings</h3>
-        <a href="{{ route('admin.browser-portal.admin.index') }}" class="btn btn-outline-secondary btn-sm">
+        <a href="{{ route('admin.browser-portal.index') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i>Back
         </a>
     </div>
@@ -24,7 +24,7 @@
         </div>
     @endif
 
-    <form class="card shadow-sm" method="POST" action="{{ route('admin.browser-portal.admin.settings.update') }}">
+    <form class="card shadow-sm" method="POST" action="{{ route('admin.browser-portal.settings.update') }}">
         @csrf
         <div class="card-body">
             <div class="row g-3">

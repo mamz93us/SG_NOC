@@ -9,7 +9,7 @@
         <div class="btn-group">
             <button id="pause-btn" class="btn btn-outline-warning btn-sm"><i class="bi bi-pause-fill"></i> Pause</button>
             <button id="clear-btn" class="btn btn-outline-secondary btn-sm"><i class="bi bi-trash"></i> Clear</button>
-            <a href="{{ route('admin.browser-portal.admin.index') }}" class="btn btn-outline-secondary btn-sm">
+            <a href="{{ route('admin.browser-portal.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left me-1"></i>Back
             </a>
         </div>
@@ -41,7 +41,7 @@
     let paused = false;
     let lines  = 0;
 
-    const es = new EventSource(@json(route('admin.browser-portal.admin.logs.stream', $session->session_id)));
+    const es = new EventSource(@json(route('admin.browser-portal.logs.stream', $session->session_id)));
     es.onopen  = () => { dot.className = 'badge bg-success'; dot.textContent = 'connected'; };
     es.onerror = () => { dot.className = 'badge bg-danger';  dot.textContent = 'disconnected'; };
 

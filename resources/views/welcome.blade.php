@@ -251,7 +251,7 @@
                          logged-in users with the permission go straight to the portal. -->
                     @auth
                         @can('view-browser-portal')
-                        <a href="{{ route('admin.browser-portal.index') }}" class="action-card" style="background:linear-gradient(135deg,#ff9966 0%,#ff5e62 100%);color:white;">
+                        <a href="{{ route('portal.index') }}" class="action-card" style="background:linear-gradient(135deg,#ff9966 0%,#ff5e62 100%);color:white;">
                             <div class="action-icon">🌐</div>
                             <h3 class="action-title">Remote Browser</h3>
                             <p class="action-description">

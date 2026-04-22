@@ -1,5 +1,4 @@
-@php $layout = auth()->user()?->isBrowserUser() ? 'layouts.portal' : 'layouts.admin'; @endphp
-@extends($layout)
+@extends('layouts.portal')
 
 @section('title', 'Remote Browser — Session')
 
@@ -34,10 +33,10 @@
 </style>
 <div class="bp-frame-wrap">
     <div class="bp-toolbar">
-        <a href="{{ route('admin.browser-portal.index') }}" class="btn btn-sm btn-secondary">
+        <a href="{{ route('portal.index') }}" class="btn btn-sm btn-secondary">
             <i class="bi bi-arrow-left me-1"></i>Back
         </a>
-        <form method="POST" action="{{ route('admin.browser-portal.destroy', $session->session_id) }}">
+        <form method="POST" action="{{ route('portal.destroy', $session->session_id) }}">
             @csrf
             @method('DELETE')
             <button class="btn btn-sm btn-danger" type="submit"
@@ -147,7 +146,7 @@
     }
 
     // 60s heartbeat so the 4h idle cutoff only fires when the tab is really idle.
-    const url = @json(route('admin.browser-portal.heartbeat'));
+    const url = @json(route('portal.heartbeat'));
     const sid = @json($session->session_id);
     const token = document.querySelector('meta[name="csrf-token"]')?.content;
 

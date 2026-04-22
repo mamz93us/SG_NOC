@@ -99,7 +99,7 @@ class User extends Authenticatable
      */
     public function homeRoute(): string
     {
-        return $this->isBrowserUser() ? 'admin.browser-portal.index' : 'admin.dashboard';
+        return $this->isBrowserUser() ? 'portal.index' : 'admin.dashboard';
     }
 
     public static function roleLabel(string $role): string

@@ -37,7 +37,7 @@ class BrowserSessionController extends Controller
         } catch (\Throwable $e) {
             return back()->with('error', 'Could not launch browser session: ' . $e->getMessage());
         }
-        return redirect()->route('admin.browser-portal.show', $session->session_id);
+        return redirect()->route('portal.show', $session->session_id);
     }
 
     /**
@@ -50,7 +50,7 @@ class BrowserSessionController extends Controller
             ->firstOrFail();
 
         if (!$session->isActive()) {
-            return redirect()->route('admin.browser-portal.index')
+            return redirect()->route('portal.index')
                 ->with('error', 'This session is no longer active. Launch a new one.');
         }
 
@@ -113,7 +113,7 @@ class BrowserSessionController extends Controller
             ->firstOrFail();
 
         $this->sessions->stop($session);
-        return redirect()->route('admin.browser-portal.index')
+        return redirect()->route('portal.index')
             ->with('success', 'Browser session stopped. Your profile data is preserved for next time.');
     }
 }

@@ -650,34 +650,28 @@
                             </li>
                             @can('view-browser-portal')
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.index') || request()->routeIs('admin.browser-portal.show') || request()->routeIs('admin.browser-portal.history') ? 'active' : '' }}"
-                                   href="{{ route('admin.browser-portal.index') }}">
-                                    <i class="bi bi-shield-lock me-2 text-warning"></i>Remote Browser (VPN)
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.history') ? 'active' : '' }}"
-                                   href="{{ route('admin.browser-portal.history') }}">
-                                    <i class="bi bi-clock-history me-2 text-muted"></i>My Browser History
+                                <a class="dropdown-item" href="{{ route('portal.index') }}" target="_blank">
+                                    <i class="bi bi-shield-lock me-2 text-warning"></i>Remote Browser (Portal)
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
                                 </a>
                             </li>
                             @endcan
                             @can('manage-browser-portal')
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.admin.index') || request()->routeIs('admin.browser-portal.admin.logs') ? 'active' : '' }}"
-                                   href="{{ route('admin.browser-portal.admin.index') }}">
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.index') || request()->routeIs('admin.browser-portal.logs') ? 'active' : '' }}"
+                                   href="{{ route('admin.browser-portal.index') }}">
                                     <i class="bi bi-people-fill me-2 text-info"></i>Browser — Active Sessions
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.admin.events') ? 'active' : '' }}"
-                                   href="{{ route('admin.browser-portal.admin.events') }}">
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.events') ? 'active' : '' }}"
+                                   href="{{ route('admin.browser-portal.events') }}">
                                     <i class="bi bi-journal-text me-2 text-muted"></i>Browser — Activity Log
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.admin.settings') ? 'active' : '' }}"
-                                   href="{{ route('admin.browser-portal.admin.settings') }}">
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.settings') ? 'active' : '' }}"
+                                   href="{{ route('admin.browser-portal.settings') }}">
                                     <i class="bi bi-gear me-2 text-muted"></i>Browser — Settings
                                 </a>
                             </li>
