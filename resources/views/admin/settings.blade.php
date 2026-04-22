@@ -187,9 +187,10 @@
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Default Role for New SSO Users</label>
                     <select name="sso_default_role" class="form-select">
-                        <option value="viewer"      {{ ($settings->sso_default_role ?? 'viewer') === 'viewer'      ? 'selected' : '' }}>Viewer (read-only)</option>
-                        <option value="admin"       {{ ($settings->sso_default_role ?? '') === 'admin'       ? 'selected' : '' }}>Admin</option>
-                        <option value="super_admin" {{ ($settings->sso_default_role ?? '') === 'super_admin' ? 'selected' : '' }}>Super Admin</option>
+                        <option value="viewer"       {{ ($settings->sso_default_role ?? 'viewer') === 'viewer'       ? 'selected' : '' }}>Viewer (read-only)</option>
+                        <option value="browser_user" {{ ($settings->sso_default_role ?? '') === 'browser_user' ? 'selected' : '' }}>Browser User (portal only)</option>
+                        <option value="admin"        {{ ($settings->sso_default_role ?? '') === 'admin'        ? 'selected' : '' }}>Admin</option>
+                        <option value="super_admin"  {{ ($settings->sso_default_role ?? '') === 'super_admin'  ? 'selected' : '' }}>Super Admin</option>
                     </select>
                     <div class="form-text">Role assigned when a new Microsoft user logs in for the first time.</div>
                 </div>

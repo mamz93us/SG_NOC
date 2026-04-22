@@ -81,12 +81,28 @@ class SslCertificateController extends Controller
 
         try {
             $renewed = $acme->renewCertificate($cert, $account);
+
+            ActivityLog::create([
+                'model_type' => SslCertificate::class,
+                'model_id'   => $renewed->id,
+                'action'     => 'certificate_renewed',
+                'changes'    => ['fqdn' => $renewed->fqdn, 'new_expires_at' => $renewed->expires_at?->toDateString()],
+                'user_id'    => Auth::id(),
+            ]);
+
             return response()->json([
                 'success'    => true,
                 'message'    => "Certificate renewed. New expiry: {$renewed->expires_at?->toDateString()}",
                 'expires_at' => $renewed->expires_at?->toDateString(),
             ]);
         } catch (\Throwable $e) {
+            ActivityLog::create([
+                'model_type' => SslCertificate::class,
+                'model_id'   => $cert->id,
+                'action'     => 'certificate_renew_failed',
+                'changes'    => ['fqdn' => $cert->fqdn, 'message' => mb_substr($e->getMessage(), 0, 1000)],
+                'user_id'    => Auth::id(),
+            ]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
     }
@@ -98,8 +114,24 @@ class SslCertificateController extends Controller
 
         try {
             $acme->revokeCertificate($cert);
+
+            ActivityLog::create([
+                'model_type' => SslCertificate::class,
+                'model_id'   => $cert->id,
+                'action'     => 'certificate_revoked',
+                'changes'    => ['fqdn' => $cert->fqdn],
+                'user_id'    => Auth::id(),
+            ]);
+
             return response()->json(['success' => true, 'message' => 'Certificate revoked.']);
         } catch (\Throwable $e) {
+            ActivityLog::create([
+                'model_type' => SslCertificate::class,
+                'model_id'   => $cert->id,
+                'action'     => 'certificate_revoke_failed',
+                'changes'    => ['fqdn' => $cert->fqdn, 'message' => mb_substr($e->getMessage(), 0, 1000)],
+                'user_id'    => Auth::id(),
+            ]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
     }

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\EmailLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class EmailLogController extends Controller
 {
@@ -42,6 +44,14 @@ class EmailLogController extends Controller
 
         $count = EmailLog::count();
         EmailLog::truncate();
+
+        ActivityLog::create([
+            'model_type' => EmailLog::class,
+            'model_id'   => 0,
+            'action'     => 'email_logs_cleared',
+            'changes'    => ['rows_cleared' => $count],
+            'user_id'    => Auth::id(),
+        ]);
 
         return back()->with('success', "{$count} email log entries cleared.");
     }

@@ -24,6 +24,7 @@
                     <th>Email</th>
                     <th>Role</th>
                     <th>Last Login</th>
+                    <th>Last Login IP</th>
                     <th>Created</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -71,6 +72,13 @@
                             </span>
                         @else
                             <span class="text-muted fst-italic">Never</span>
+                        @endif
+                    </td>
+                    <td class="text-muted small">
+                        @if($user->last_login_ip)
+                            <code class="small">{{ $user->last_login_ip }}</code>
+                        @else
+                            <span class="text-muted fst-italic">—</span>
                         @endif
                     </td>
                     <td class="text-muted small">{{ $user->created_at?->format('d M Y') ?? '—' }}</td>

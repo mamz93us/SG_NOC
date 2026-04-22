@@ -79,7 +79,10 @@ class AccessoryController extends Controller
         }
 
         $name = $accessory->name;
+        $snapshot = $accessory->toArray();
         $accessory->delete();
+
+        ActivityLog::log('Deleted accessory', $accessory, $snapshot);
 
         return back()->with('success', "Accessory '{$name}' deleted.");
     }

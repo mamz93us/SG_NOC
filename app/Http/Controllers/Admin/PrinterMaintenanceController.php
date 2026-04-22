@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Printer;
 use App\Models\PrinterMaintenanceLog;
 use Illuminate\Http\Request;
@@ -43,6 +44,14 @@ class PrinterMaintenanceController extends Controller
             $printer->update(['last_service_date' => $validated['performed_at']]);
         }
 
+        ActivityLog::create([
+            'model_type' => Printer::class,
+            'model_id'   => $printer->id,
+            'action'     => 'printer_maintenance_logged',
+            'changes'    => ['log_id' => $log->id, 'type' => $validated['type'], 'performed_at' => $validated['performed_at']],
+            'user_id'    => Auth::id(),
+        ]);
+
         return back()->with('success', 'Maintenance log added successfully.');
     }
 
@@ -52,7 +61,17 @@ class PrinterMaintenanceController extends Controller
             abort(404);
         }
 
+        $snapshot = $log->toArray();
+        $id       = $log->id;
         $log->delete();
+
+        ActivityLog::create([
+            'model_type' => Printer::class,
+            'model_id'   => $printer->id,
+            'action'     => 'printer_maintenance_deleted',
+            'changes'    => ['log_id' => $id, 'snapshot' => $snapshot],
+            'user_id'    => Auth::id(),
+        ]);
 
         return back()->with('success', 'Maintenance log deleted.');
     }

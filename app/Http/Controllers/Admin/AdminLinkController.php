@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\AdminLink;
 use App\Models\AdminLinkCategory;
 use App\Models\AdminLinkClick;
@@ -83,7 +84,15 @@ class AdminLinkController extends Controller
         $validated['created_by']  = auth()->id();
         $validated['sort_order']  = $validated['sort_order'] ?? 0;
 
-        AdminLink::create($validated);
+        $link = AdminLink::create($validated);
+
+        ActivityLog::create([
+            'model_type' => AdminLink::class,
+            'model_id'   => $link->id,
+            'action'     => 'admin_link_created',
+            'changes'    => $link->toArray(),
+            'user_id'    => auth()->id(),
+        ]);
 
         return redirect()->route('admin.admin-links.manage')
             ->with('success', 'Admin link created successfully.');
@@ -110,7 +119,16 @@ class AdminLinkController extends Controller
         $validated['is_active']  = $request->boolean('is_active');
         $validated['sort_order'] = $validated['sort_order'] ?? 0;
 
+        $before = $adminLink->only(array_keys($validated));
         $adminLink->update($validated);
+
+        ActivityLog::create([
+            'model_type' => AdminLink::class,
+            'model_id'   => $adminLink->id,
+            'action'     => 'admin_link_updated',
+            'changes'    => ['old' => $before, 'new' => $adminLink->getChanges()],
+            'user_id'    => auth()->id(),
+        ]);
 
         return redirect()->route('admin.admin-links.manage')
             ->with('success', 'Admin link updated successfully.');
@@ -118,7 +136,17 @@ class AdminLinkController extends Controller
 
     public function destroy(AdminLink $adminLink)
     {
+        $snapshot = $adminLink->toArray();
+        $id       = $adminLink->id;
         $adminLink->delete();
+
+        ActivityLog::create([
+            'model_type' => AdminLink::class,
+            'model_id'   => $id,
+            'action'     => 'admin_link_deleted',
+            'changes'    => $snapshot,
+            'user_id'    => auth()->id(),
+        ]);
 
         return redirect()->route('admin.admin-links.manage')
             ->with('success', 'Admin link deleted successfully.');
@@ -136,7 +164,15 @@ class AdminLinkController extends Controller
 
         $validated['sort_order'] = $validated['sort_order'] ?? 0;
 
-        AdminLinkCategory::create($validated);
+        $category = AdminLinkCategory::create($validated);
+
+        ActivityLog::create([
+            'model_type' => AdminLinkCategory::class,
+            'model_id'   => $category->id,
+            'action'     => 'admin_link_category_created',
+            'changes'    => $category->toArray(),
+            'user_id'    => auth()->id(),
+        ]);
 
         return redirect()->route('admin.admin-links.manage')
             ->with('success', 'Category created successfully.');
@@ -150,7 +186,16 @@ class AdminLinkController extends Controller
             'sort_order' => 'nullable|integer|min:0',
         ]);
 
+        $before = $category->only(array_keys($validated));
         $category->update($validated);
+
+        ActivityLog::create([
+            'model_type' => AdminLinkCategory::class,
+            'model_id'   => $category->id,
+            'action'     => 'admin_link_category_updated',
+            'changes'    => ['old' => $before, 'new' => $category->getChanges()],
+            'user_id'    => auth()->id(),
+        ]);
 
         return redirect()->route('admin.admin-links.manage')
             ->with('success', 'Category updated successfully.');
@@ -162,7 +207,17 @@ class AdminLinkController extends Controller
             return back()->with('error', 'Cannot delete category with existing links. Move or delete them first.');
         }
 
+        $snapshot = $category->toArray();
+        $id       = $category->id;
         $category->delete();
+
+        ActivityLog::create([
+            'model_type' => AdminLinkCategory::class,
+            'model_id'   => $id,
+            'action'     => 'admin_link_category_deleted',
+            'changes'    => $snapshot,
+            'user_id'    => auth()->id(),
+        ]);
 
         return redirect()->route('admin.admin-links.manage')
             ->with('success', 'Category deleted successfully.');

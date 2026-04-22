@@ -56,6 +56,14 @@ class FormBuilderController extends Controller
 
         $form = FormTemplate::create($data);
 
+        ActivityLog::create([
+            'model_type' => FormTemplate::class,
+            'model_id'   => $form->id,
+            'action'     => 'form_template_created',
+            'changes'    => ['name' => $form->name, 'slug' => $form->slug, 'type' => $form->type],
+            'user_id'    => Auth::id(),
+        ]);
+
         return redirect()->route('admin.forms.edit', $form)
             ->with('success', 'Form "' . $form->name . '" created.');
     }
@@ -75,8 +83,17 @@ class FormBuilderController extends Controller
      */
     public function update(Request $request, FormTemplate $form): RedirectResponse
     {
-        $data = $this->validateFormRequest($request);
+        $data   = $this->validateFormRequest($request);
+        $before = $form->only(array_keys($data));
         $form->update($data);
+
+        ActivityLog::create([
+            'model_type' => FormTemplate::class,
+            'model_id'   => $form->id,
+            'action'     => 'form_template_updated',
+            'changes'    => ['old' => $before, 'new' => $form->getChanges()],
+            'user_id'    => Auth::id(),
+        ]);
 
         return back()->with('success', 'Form saved.');
     }
@@ -90,10 +107,20 @@ class FormBuilderController extends Controller
             return back()->withErrors(['form' => 'Cannot delete a form that has submissions. Archive it instead.']);
         }
 
+        $snapshot = ['name' => $form->name, 'slug' => $form->slug, 'type' => $form->type];
+        $id       = $form->id;
         $form->delete();
 
+        ActivityLog::create([
+            'model_type' => FormTemplate::class,
+            'model_id'   => $id,
+            'action'     => 'form_template_deleted',
+            'changes'    => $snapshot,
+            'user_id'    => Auth::id(),
+        ]);
+
         return redirect()->route('admin.forms.index')
-            ->with('success', 'Form "' . $form->name . '" deleted.');
+            ->with('success', 'Form "' . $snapshot['name'] . '" deleted.');
     }
 
     /**

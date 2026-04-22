@@ -114,12 +114,21 @@ class AppServiceProvider extends ServiceProvider
         // ── Auth audit trail (last-login + activity log for login/logout/fail/lockout) ─
         Event::listen(\Illuminate\Auth\Events\Login::class, function ($event) {
             if ($event->user) {
-                $event->user->forceFill(['last_login_at' => now()])->saveQuietly();
+                $ip = request()?->ip();
+                $event->user->forceFill([
+                    'last_login_at' => now(),
+                    'last_login_ip' => $ip,
+                ])->saveQuietly();
                 \App\Models\ActivityLog::create([
                     'model_type' => \App\Models\User::class,
                     'model_id'   => $event->user->id,
                     'action'     => 'login',
-                    'changes'    => ['guard' => $event->guard ?? null, 'remember' => $event->remember ?? null],
+                    'changes'    => [
+                        'guard'    => $event->guard ?? null,
+                        'remember' => $event->remember ?? null,
+                        'ip'       => $ip,
+                        'agent'    => request()?->userAgent(),
+                    ],
                     'user_id'    => $event->user->id,
                 ]);
             }

@@ -7,9 +7,11 @@ use App\Jobs\CheckHostAvailabilityJob;
 use App\Jobs\CollectSnmpMetricsJob;
 use App\Jobs\DiscoverSnmpDeviceJob;
 use App\Jobs\DiscoverSnmpInterfacesJob;
+use App\Models\ActivityLog;
 use App\Models\MonitoredHost;
 use App\Services\PingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class WorkersDashboardController extends Controller
@@ -114,7 +116,17 @@ class WorkersDashboardController extends Controller
 
     public function clearFailedJobs()
     {
+        $count = DB::table('failed_jobs')->count();
         DB::table('failed_jobs')->truncate();
+
+        ActivityLog::create([
+            'model_type' => 'FailedJobs',
+            'model_id'   => 0,
+            'action'     => 'failed_jobs_cleared',
+            'changes'    => ['rows_cleared' => $count],
+            'user_id'    => Auth::id(),
+        ]);
+
         return redirect()->route('admin.network.workers.index')
             ->with('success', 'Failed jobs queue cleared.');
     }

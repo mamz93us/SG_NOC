@@ -96,7 +96,12 @@ class ExecuteWorkflowJob implements ShouldQueue
         }
 
         if ($employee->contact_id) {
-            \App\Models\Contact::where('id', $employee->contact_id)->update(['phone' => $newPhone]);
+            // Fetch + save so ContactObserver fires and the phone change is
+            // captured in ActivityLog.
+            $contact = \App\Models\Contact::find($employee->contact_id);
+            if ($contact) {
+                $contact->update(['phone' => $newPhone]);
+            }
         } else {
             $nameParts = preg_split('/\s+/', trim((string) $employee->name), 2);
             $contact = \App\Models\Contact::create([
