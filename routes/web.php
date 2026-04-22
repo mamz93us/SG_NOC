@@ -387,6 +387,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('users.update');
         Route::delete('users/{user}', [UserController::class, 'destroy'])
             ->name('users.destroy');
+        Route::post('users/{user}/reset-2fa', [UserController::class, 'resetTwoFactor'])
+            ->name('users.reset-2fa');
     });
 
     // ─── GDMS UCM Status ──────────────────────────────────────

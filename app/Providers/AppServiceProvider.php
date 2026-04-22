@@ -105,6 +105,13 @@ class AppServiceProvider extends ServiceProvider
             \SocialiteProviders\Microsoft\MicrosoftExtendSocialite::class.'@handle'
         );
 
+        // ── Track last login timestamp ───────────────────────────────
+        Event::listen(\Illuminate\Auth\Events\Login::class, function ($event) {
+            if ($event->user) {
+                $event->user->forceFill(['last_login_at' => now()])->saveQuietly();
+            }
+        });
+
         // ── Permission Gates (DB-driven via role_permissions) ────────
         // super_admin is implicitly granted every permission — same contract
         // as EnsurePermission. Gate::before runs before every check and

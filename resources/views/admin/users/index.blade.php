@@ -23,6 +23,7 @@
                     <th>Name</th>
                     <th>Email</th>
                     <th>Role</th>
+                    <th>Last Login</th>
                     <th>Created</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -46,6 +47,12 @@
                                 {{ strtoupper(substr($user->name, 0, 1)) }}
                             </div>
                             <strong>{{ $user->name }}</strong>
+                            @if($user->hasTwoFactorEnabled())
+                                <span class="badge bg-success-subtle text-success border border-success-subtle"
+                                      title="Two-factor authentication enabled">
+                                    <i class="bi bi-shield-lock-fill"></i> 2FA
+                                </span>
+                            @endif
                             @if($user->id === auth()->id())
                                 <span class="badge bg-light text-dark border">You</span>
                             @endif
@@ -56,6 +63,15 @@
                         <span class="badge bg-{{ $roleColor }}">
                             {{ \App\Models\User::roleLabel($user->role) }}
                         </span>
+                    </td>
+                    <td class="text-muted small">
+                        @if($user->last_login_at)
+                            <span title="{{ $user->last_login_at->format('d M Y H:i') }}">
+                                {{ $user->last_login_at->diffForHumans() }}
+                            </span>
+                        @else
+                            <span class="text-muted fst-italic">Never</span>
+                        @endif
                     </td>
                     <td class="text-muted small">{{ $user->created_at?->format('d M Y') ?? '—' }}</td>
                     <td class="text-end">
@@ -114,17 +130,65 @@
                                         <input type="password" name="password" class="form-control"
                                             placeholder="Min 8 characters">
                                     </div>
+
+                                    <hr class="my-3">
+
+                                    <div>
+                                        <label class="form-label fw-semibold d-block mb-2">
+                                            <i class="bi bi-shield-lock me-1"></i>Two-Factor Authentication
+                                        </label>
+                                        @if($user->hasTwoFactorEnabled())
+                                            <div class="d-flex align-items-center justify-content-between p-2 border rounded bg-success-subtle">
+                                                <div class="small">
+                                                    <span class="badge bg-success">
+                                                        <i class="bi bi-check-circle-fill me-1"></i>Enabled
+                                                    </span>
+                                                    <span class="text-muted ms-2">
+                                                        Confirmed {{ $user->two_factor_confirmed_at?->diffForHumans() }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        @elseif($user->two_factor_secret)
+                                            <div class="p-2 border rounded bg-warning-subtle small">
+                                                <span class="badge bg-warning text-dark">
+                                                    <i class="bi bi-hourglass-split me-1"></i>Pending
+                                                </span>
+                                                <span class="text-muted ms-2">Secret generated but never confirmed.</span>
+                                            </div>
+                                        @else
+                                            <div class="p-2 border rounded bg-light small text-muted">
+                                                <i class="bi bi-x-circle me-1"></i>Not set up
+                                            </div>
+                                        @endif
+                                    </div>
                                 </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-save me-1"></i>Save Changes
-                                    </button>
+                                <div class="modal-footer d-flex justify-content-between">
+                                    <div>
+                                        @if($user->id !== auth()->id() && ($user->hasTwoFactorEnabled() || $user->two_factor_secret))
+                                            <button type="button" class="btn btn-outline-warning btn-sm"
+                                                onclick="event.preventDefault(); if(confirm('Reset 2FA for {{ $user->name }}? They will need to re-enroll on next login.')) { document.getElementById('reset2faForm{{ $user->id }}').submit(); }">
+                                                <i class="bi bi-shield-slash me-1"></i>Reset 2FA
+                                            </button>
+                                        @endif
+                                    </div>
+                                    <div>
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-save me-1"></i>Save Changes
+                                        </button>
+                                    </div>
                                 </div>
                             </form>
                         </div>
                     </div>
                 </div>
+
+                @if($user->id !== auth()->id() && ($user->hasTwoFactorEnabled() || $user->two_factor_secret))
+                <form id="reset2faForm{{ $user->id }}" method="POST"
+                      action="{{ route('admin.users.reset-2fa', $user) }}" class="d-none">
+                    @csrf
+                </form>
+                @endif
                 @endforeach
             </tbody>
         </table>

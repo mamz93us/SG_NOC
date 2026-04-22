@@ -37,6 +37,7 @@ class User extends Authenticatable
             'two_factor_enabled'     => 'boolean',
             'two_factor_confirmed_at' => 'datetime',
             'dark_mode'               => 'boolean',
+            'last_login_at'           => 'datetime',
         ];
     }
 
