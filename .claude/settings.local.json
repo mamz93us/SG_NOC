@@ -298,7 +298,8 @@
       "Bash(php -l app/Http/Controllers/Admin/NetworkController.php)",
       "Bash(php -l app/Jobs/SyncMerakiData.php)",
       "Bash(php -l app/Http/Controllers/Admin/SnmpMonitoringController.php)",
-      "Bash(php -l app/Models/NetworkSwitch.php)"
+      "Bash(php -l app/Models/NetworkSwitch.php)",
+      "Bash(php -l resources/views/admin/network/switches.blade.php)"
     ]
   }
 }

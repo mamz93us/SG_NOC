@@ -187,6 +187,40 @@ class NetworkController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Add a switch-class Device to SNMP monitoring (creates a stub
+    // MonitoredHost with polling disabled — user enables + configures it).
+    // ─────────────────────────────────────────────────────────────
+
+    public function addToSnmp(Device $device, SwitchReconciler $reconciler)
+    {
+        if (!in_array($device->type, ['switch', 'router', 'firewall'])) {
+            return back()->with('error', 'Only switches, routers, and firewalls can be added to SNMP.');
+        }
+
+        if (!$device->ip_address) {
+            return back()->with('error', "Device \"{$device->name}\" has no IP address — cannot create an SNMP host.");
+        }
+
+        $host = $reconciler->ensureMonitoredHostForDevice($device);
+
+        if (!$host) {
+            return back()->with('error', 'Could not create SNMP host.');
+        }
+
+        ActivityLog::create([
+            'model_type' => \App\Models\MonitoredHost::class,
+            'model_id'   => $host->id,
+            'action'     => 'monitored_host_added_from_switches_page',
+            'changes'    => ['device_id' => $device->id, 'device_name' => $device->name],
+            'user_id'    => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.network.monitoring.show', $host->id)
+            ->with('success', "SNMP host created for {$device->name}. Configure credentials and enable polling to begin monitoring.");
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // Switch detail (ports + clients)
     // ─────────────────────────────────────────────────────────────
 

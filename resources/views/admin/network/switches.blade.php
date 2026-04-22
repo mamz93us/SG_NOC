@@ -235,11 +235,28 @@
                                    class="btn btn-outline-success" title="SNMP host">
                                     <i class="bi bi-broadcast"></i>
                                 </a>
+                                @else
+                                    @can('manage-network-settings')
+                                    @if($row->ip)
+                                    <form method="POST" action="{{ route('admin.network.switches.add-to-snmp', $row->id) }}" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-outline-warning" title="Add this switch to SNMP monitoring">
+                                            <i class="bi bi-broadcast-pin"></i>
+                                        </button>
+                                    </form>
+                                    @endif
+                                    @endcan
                                 @endif
                                 <a href="{{ route('admin.devices.show', $row->id) }}"
                                    class="btn btn-outline-secondary" title="Asset record">
                                     <i class="bi bi-box"></i>
                                 </a>
+                                @can('manage-devices')
+                                <a href="{{ route('admin.devices.edit', $row->id) }}"
+                                   class="btn btn-outline-dark" title="Complete asset details (warranty, cost, location…)">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                @endcan
                             </div>
                         </td>
                     </tr>

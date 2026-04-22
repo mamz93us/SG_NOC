@@ -451,22 +451,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         // Web proxy — browse device management UI through the NOC server
         Route::get('devices/{device}/browse',
             [\App\Http\Controllers\Admin\DeviceProxyController::class, 'browse'])
-            ->name('admin.devices.browse');
+            ->name('devices.browse');
         Route::any('devices/{device}/proxy/{path?}',
             [\App\Http\Controllers\Admin\DeviceProxyController::class, 'proxy'])
-            ->name('admin.devices.proxy')
+            ->name('devices.proxy')
             ->where('path', '.*');
 
         // SSH terminal — tied to a device record
         Route::get('devices/{device}/ssh',
             [\App\Http\Controllers\Admin\DeviceSshController::class, 'connect'])
-            ->name('admin.devices.ssh.connect');
+            ->name('devices.ssh.connect');
         Route::post('devices/{device}/ssh',
             [\App\Http\Controllers\Admin\DeviceSshController::class, 'terminal'])
-            ->name('admin.devices.ssh.terminal');
+            ->name('devices.ssh.terminal');
         Route::post('devices/{device}/ssh/sessions/{session}/disconnect',
             [\App\Http\Controllers\Admin\DeviceSshController::class, 'disconnect'])
-            ->name('admin.devices.ssh.disconnect');
+            ->name('devices.ssh.disconnect');
     });
 
     // ─── Credentials (Password Vault) ─────────────────────────
@@ -605,6 +605,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/racks/{rack}',                    [NetworkController::class, 'destroyRack'])  ->name('racks.destroy');
 
         Route::post('/switches/{serial}/assign-location', [NetworkController::class, 'assignLocation'])->name('switches.assign-location');
+
+        // ── One-click "Add to SNMP" for a switch-class device ─────────
+        Route::post('/switches/{device}/add-to-snmp',
+            [NetworkController::class, 'addToSnmp'])
+            ->name('switches.add-to-snmp');
     });
 
     // ─── VPN Hub ──────────────────────────────────────────────
