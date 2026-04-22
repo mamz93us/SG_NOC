@@ -246,17 +246,27 @@
                         </p>
                     </a>
 
-                    <!-- Remote Browser — shown only for users with the permission -->
+                    <!-- Remote Browser — always visible.
+                         Logged-out users are routed to the SSO sign-in page;
+                         logged-in users with the permission go straight to the portal. -->
                     @auth
-                    @can('view-browser-portal')
-                    <a href="{{ route('admin.browser-portal.index') }}" class="action-card" style="background:linear-gradient(135deg,#ff9966 0%,#ff5e62 100%);color:white;">
-                        <div class="action-icon">🌐</div>
-                        <h3 class="action-title">Remote Browser</h3>
-                        <p class="action-description">
-                            Launch a secure hosted Chromium on the corporate network
-                        </p>
-                    </a>
-                    @endcan
+                        @can('view-browser-portal')
+                        <a href="{{ route('admin.browser-portal.index') }}" class="action-card" style="background:linear-gradient(135deg,#ff9966 0%,#ff5e62 100%);color:white;">
+                            <div class="action-icon">🌐</div>
+                            <h3 class="action-title">Remote Browser</h3>
+                            <p class="action-description">
+                                Launch a secure hosted Chromium on the corporate network
+                            </p>
+                        </a>
+                        @endcan
+                    @else
+                        <a href="{{ route('portal.login') }}" class="action-card" style="background:linear-gradient(135deg,#ff9966 0%,#ff5e62 100%);color:white;">
+                            <div class="action-icon">🌐</div>
+                            <h3 class="action-title">Remote Browser</h3>
+                            <p class="action-description">
+                                Sign in with Microsoft to launch a secure hosted browser
+                            </p>
+                        </a>
                     @endauth
                 </div>
 
