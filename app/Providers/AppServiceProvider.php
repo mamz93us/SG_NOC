@@ -106,6 +106,15 @@ class AppServiceProvider extends ServiceProvider
         );
 
         // ── Permission Gates (DB-driven via role_permissions) ────────
+        // super_admin is implicitly granted every permission — same contract
+        // as EnsurePermission. Gate::before runs before every check and
+        // short-circuits on `true`.
+        Gate::before(function ($user) {
+            if (($user->role ?? null) === 'super_admin') {
+                return true;
+            }
+        });
+
         $gateCheck = function ($user, string $permission): bool {
             try {
                 return RolePermission::roleHas($user->role ?? '', $permission);
