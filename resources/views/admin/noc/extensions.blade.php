@@ -242,7 +242,15 @@ function renderExtensions() {
 
     body.innerHTML = list.map(e => {
         const dotClass = ['inuse','busy','ringing'].includes(e.status) ? 'ext-inuse' : (e.status === 'idle' ? 'ext-idle' : (e.status === 'unavailable' ? 'ext-unavailable' : 'ext-default'));
-        const loc = (e.switch_name && e.switch_name !== '-') ? `${e.switch_name}${e.switch_port && e.switch_port !== '-' ? ' / ' + e.switch_port : ''}` : '<span class="text-muted">-</span>';
+        // Tiny badge next to the port so the user can see where the mapping
+        // came from — CDP = pulled from a Cisco CDP neighbor table; (no badge)
+        // = Meraki phone-port map. Helps diagnose mismatches.
+        const srcBadge = e.port_source === 'cdp'
+            ? ' <span class="badge bg-primary bg-opacity-10 text-primary border border-primary" style="font-size:.6rem" title="Source: CDP neighbor">CDP</span>'
+            : '';
+        const loc = (e.switch_name && e.switch_name !== '-')
+            ? `${e.switch_name}${e.switch_port && e.switch_port !== '-' ? ' / ' + e.switch_port : ''}${srcBadge}`
+            : '<span class="text-muted">-</span>';
         const wifiIcon = e.wifi ? ' <i class="bi bi-wifi text-info" title="Connected via WiFi MAC"></i>' : '';
         const locDisplay = e.wifi && e.switch_name === '-' ? '<span class="badge bg-info bg-opacity-10 text-info border border-info"><i class="bi bi-wifi me-1"></i>WiFi</span>' : loc;
         return `<tr>

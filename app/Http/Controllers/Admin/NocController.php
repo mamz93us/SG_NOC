@@ -296,22 +296,16 @@ class NocController extends Controller
             ->toArray();
 
         // ── CDP neighbor index ────────────────────────────────────────────
-        // Used as a fallback (or override) source of truth for which switch
-        // port a phone is connected to. PhonePortMap is Meraki-derived; CDP
-        // covers Cisco-monitored switches and is updated by the polling worker.
-        // We index by IP and by normalized MAC so we can look up by either.
+        // Source of truth for which switch port a phone is connected to on
+        // Cisco-monitored switches. We index every CDP row by IP and by
+        // normalized MAC; extension lookup tries IP first, then MAC. No
+        // platform pre-filter — Grandstream/Yealink phones often advertise
+        // model strings ("GXP2602", "GRP2601") without the word "Phone",
+        // which the earlier filter was dropping.
         $cdpByIp  = [];
         $cdpByMac = [];
         \App\Models\SwitchCdpNeighbor::query()
             ->select('device_name', 'device_ip', 'local_interface', 'neighbor_ip', 'neighbor_mac', 'platform')
-            // Phones identify themselves via CDP — filter to neighbors that look
-            // like phones to keep the in-memory index small. Capabilities/platform
-            // for a Cisco IP phone usually contain "Phone" or "CP-".
-            ->where(function ($q) {
-                $q->where('platform', 'like', '%Phone%')
-                  ->orWhere('platform', 'like', '%CP-%')
-                  ->orWhere('platform', 'like', 'IP Phone%');
-            })
             ->get()
             ->each(function ($n) use (&$cdpByIp, &$cdpByMac) {
                 if ($n->neighbor_ip)  $cdpByIp[$n->neighbor_ip] = $n;
