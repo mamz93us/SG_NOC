@@ -11,6 +11,12 @@
     body.browser-portal-session .container,
     body.browser-portal-session .container-fluid,
     body.browser-portal-session .py-4 { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+    /* Lift the top navbar above the iframe so its dropdown menu (which opens
+       below the 56px navbar, into the iframe's fixed overlay zone) isn't
+       hidden. Bootstrap's .dropdown-menu is z-index 1000 by default — we
+       bump both navbar + menu above the iframe's 1020. */
+    body.browser-portal-session .navbar { position: relative; z-index: 1040; }
+    body.browser-portal-session .dropdown-menu.show { z-index: 1050 !important; }
     .bp-frame-wrap {
         position: fixed;
         inset: 56px 0 0 0;       /* leave the existing top navbar visible */
