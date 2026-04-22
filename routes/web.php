@@ -138,13 +138,21 @@ Route::prefix('portal')->name('portal.')->group(function () {
     // Authenticated user-facing routes
     Route::middleware(['auth', 'permission:view-browser-portal', 'throttle:60,1'])
         ->group(function () {
-            Route::get('/',             [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'index'])    ->name('index');
-            Route::post('/',            [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'store'])    ->name('store');
-            Route::post('/heartbeat',   [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'heartbeat'])->name('heartbeat');
-            Route::get('/history',      [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'history']) ->name('history');
-            Route::get('/{sessionId}',  [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'show'])     ->name('show')
+            // Portal hub (new default — tiles for all user apps)
+            Route::get('/', [\App\Http\Controllers\Portal\PortalHubController::class, 'index'])->name('index');
+
+            // My Profile (employee data from Azure + edit-with-approval flow)
+            Route::get('/profile',               [\App\Http\Controllers\Portal\MyProfileController::class, 'index'])            ->name('profile');
+            Route::post('/profile/edit-request', [\App\Http\Controllers\Portal\MyProfileController::class, 'submitEditRequest'])->name('profile.edit-request');
+
+            // Remote Browser (previously at /portal — now one tile among many)
+            Route::get('/browser',                [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'index'])    ->name('browser');
+            Route::post('/browser',               [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'store'])    ->name('store');
+            Route::post('/browser/heartbeat',     [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'heartbeat'])->name('heartbeat');
+            Route::get('/browser/history',        [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'history']) ->name('history');
+            Route::get('/browser/{sessionId}',    [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'show'])     ->name('show')
                 ->where('sessionId', '[a-z0-9]{12}');
-            Route::delete('/{sessionId}', [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'destroy'])->name('destroy')
+            Route::delete('/browser/{sessionId}', [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'destroy'])->name('destroy')
                 ->where('sessionId', '[a-z0-9]{12}');
         });
 });
@@ -206,6 +214,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // XML preview (all authenticated)
     Route::get('xml-preview', [PhonebookController::class, 'preview'])
         ->name('xml.preview');
+
+    // ─── Profile Edit Requests (IT reviews user-submitted profile updates) ──
+    Route::middleware('permission:manage-profile-edits')
+        ->prefix('profile-edit-requests')
+        ->name('profile-edit-requests.')
+        ->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\ProfileEditRequestController::class, 'index'])->name('index');
+            Route::post('{profileEditRequest}/approve', [\App\Http\Controllers\Admin\ProfileEditRequestController::class, 'approve'])->name('approve');
+            Route::post('{profileEditRequest}/reject',  [\App\Http\Controllers\Admin\ProfileEditRequestController::class, 'reject'])->name('reject');
+        });
 
     // ─── Branches (CRUD — also accessible from Settings › Locations) ──
     Route::middleware('permission:view-branches')->group(function () {

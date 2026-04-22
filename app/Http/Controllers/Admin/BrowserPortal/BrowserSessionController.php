@@ -50,7 +50,7 @@ class BrowserSessionController extends Controller
             ->firstOrFail();
 
         if (!$session->isActive()) {
-            return redirect()->route('portal.index')
+            return redirect()->route('portal.browser')
                 ->with('error', 'This session is no longer active. Launch a new one.');
         }
 
@@ -113,7 +113,7 @@ class BrowserSessionController extends Controller
             ->firstOrFail();
 
         $this->sessions->stop($session);
-        return redirect()->route('portal.index')
+        return redirect()->route('portal.browser')
             ->with('success', 'Browser session stopped. Your profile data is preserved for next time.');
     }
 }

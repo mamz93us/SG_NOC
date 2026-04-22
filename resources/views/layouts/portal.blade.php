@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Remote Browser')</title>
+    <title>@yield('title', 'My Portal')</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
@@ -33,7 +33,7 @@
             @else
                 <span class="avatar-circle" style="background:linear-gradient(135deg,#1a56db,#6c47ff);font-size:15px;">SG</span>
             @endif
-            <span class="d-none d-sm-inline">Remote Browser</span>
+            <span class="d-none d-sm-inline">My Portal</span>
         </a>
 
         @auth
@@ -56,12 +56,22 @@
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <a class="dropdown-item" href="{{ route('portal.index') }}">
-                            <i class="bi bi-globe2 me-2"></i>Browser
+                            <i class="bi bi-grid-1x2 me-2"></i>My Portal
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ route('portal.profile') }}">
+                            <i class="bi bi-person-badge me-2"></i>My Profile
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ route('portal.browser') }}">
+                            <i class="bi bi-globe2 me-2"></i>Remote Browser
                         </a>
                     </li>
                     <li>
                         <a class="dropdown-item" href="{{ route('portal.history') }}">
-                            <i class="bi bi-clock-history me-2"></i>My History
+                            <i class="bi bi-clock-history me-2"></i>Browser History
                         </a>
                     </li>
                     <li><hr class="dropdown-divider"></li>
