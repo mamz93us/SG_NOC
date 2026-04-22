@@ -452,12 +452,8 @@
 ═══════════════════════════════════════════════════════════════════════ --}}
 @can('manage-network-settings')
 @php
-    use App\Models\MonitoredHost;
-    use App\Models\HostCheck;
-    use Illuminate\Support\Facades\DB;
-
     // ── Device status donut ──────────────────────────────────────────────
-    $hostStatuses = MonitoredHost::select('status', DB::raw('count(*) as total'))
+    $hostStatuses = \App\Models\MonitoredHost::select('status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
         ->groupBy('status')
         ->pluck('total', 'status')
         ->toArray();
@@ -472,9 +468,9 @@
     }, $statusLabels);
 
     // ── Alert frequency — count of 'down' host-checks per day last 7 days ──
-    $alertDays = HostCheck::select(
-            DB::raw("DATE(checked_at) as day"),
-            DB::raw("SUM(CASE WHEN status='down' THEN 1 ELSE 0 END) as downs")
+    $alertDays = \App\Models\HostCheck::select(
+            \Illuminate\Support\Facades\DB::raw("DATE(checked_at) as day"),
+            \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN status='down' THEN 1 ELSE 0 END) as downs")
         )
         ->where('checked_at', '>=', now()->subDays(6)->startOfDay())
         ->groupBy('day')
@@ -491,7 +487,7 @@
     }
 
     // ── Host type breakdown ───────────────────────────────────────────────
-    $typeBreakdown = MonitoredHost::select('type', DB::raw('count(*) as total'))
+    $typeBreakdown = \App\Models\MonitoredHost::select('type', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
         ->groupBy('type')
         ->pluck('total', 'type')
         ->toArray();
