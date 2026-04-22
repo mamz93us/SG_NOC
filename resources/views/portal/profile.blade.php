@@ -37,6 +37,7 @@
     .info-list .label { color: var(--bs-secondary-color); font-size: 13px; font-weight: 500; }
     .info-list .value { font-weight: 600; text-align: right; max-width: 60%; word-break: break-word; }
     .info-list .value.empty { color: var(--bs-secondary-color); font-weight: 400; font-style: italic; }
+    .info-list .locked  { color: var(--bs-secondary-color); font-size: 11px; margin-left: 6px; }
 
     .diff-row { font-size: 13px; }
     .diff-row .from { text-decoration: line-through; color: var(--bs-danger); }
@@ -83,21 +84,24 @@
 @else
 
     @if($pendingRequest)
+        @php $pReq = $pendingRequest->payload ?? []; @endphp
         <div class="alert alert-warning d-flex align-items-start gap-2">
             <i class="bi bi-hourglass-split fs-5 mt-1"></i>
             <div class="flex-grow-1">
-                <strong>Update request pending IT review</strong>
-                <div class="small text-muted mb-2">Submitted {{ $pendingRequest->created_at->diffForHumans() }}</div>
-                <div class="small">
-                    @foreach($pendingRequest->requested_changes as $field => $change)
-                        <div class="diff-row">
-                            <span class="label">{{ $editableFields[$field] ?? $field }}:</span>
-                            <span class="from">{{ $change['from'] ?? '—' }}</span>
-                            <span class="arrow">&rarr;</span>
-                            <span class="to">{{ $change['to'] }}</span>
-                        </div>
-                    @endforeach
+                <strong>Phone update request pending IT approval</strong>
+                <div class="small text-muted mb-2">
+                    Submitted {{ $pendingRequest->created_at->diffForHumans() }}
+                    &middot; Step {{ $pendingRequest->current_step }}/{{ $pendingRequest->total_steps }}
                 </div>
+                <div class="small diff-row">
+                    <strong>Phone:</strong>
+                    <span class="from">{{ $pReq['old_value'] ?? '—' }}</span>
+                    <span class="arrow">&rarr;</span>
+                    <span class="to">{{ $pReq['new_value'] ?? '' }}</span>
+                </div>
+                @if(!empty($pReq['user_note']))
+                    <div class="small mt-1"><em>“{{ $pReq['user_note'] }}”</em></div>
+                @endif
             </div>
         </div>
     @endif
@@ -108,52 +112,46 @@
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-transparent border-0 pt-3 pb-0">
                     <h5 class="mb-0"><i class="bi bi-info-circle me-2 text-primary"></i>Employee Information</h5>
-                    <small class="text-muted">Most fields are managed by IT in Microsoft Entra ID.</small>
+                    <small class="text-muted">Synced from Microsoft Entra ID. Managed by IT — not editable here.</small>
                 </div>
                 <div class="card-body">
                     <ul class="info-list">
                         <li>
-                            <span class="label">Full name</span>
+                            <span class="label">Full name <i class="bi bi-lock-fill locked"></i></span>
                             <span class="value {{ !$employee->name ? 'empty' : '' }}">{{ $employee->name ?: '—' }}</span>
                         </li>
                         <li>
-                            <span class="label">Email</span>
+                            <span class="label">Email <i class="bi bi-lock-fill locked"></i></span>
                             <span class="value">{{ $employee->email }}</span>
                         </li>
                         <li>
-                            <span class="label">Job title</span>
+                            <span class="label">Job title <i class="bi bi-lock-fill locked"></i></span>
                             <span class="value {{ !$employee->job_title ? 'empty' : '' }}">{{ $employee->job_title ?: 'Not set' }}</span>
                         </li>
                         <li>
-                            <span class="label">Department</span>
+                            <span class="label">Department <i class="bi bi-lock-fill locked"></i></span>
                             <span class="value {{ !$employee->department ? 'empty' : '' }}">{{ $employee->department->name ?? 'Not set' }}</span>
                         </li>
                         <li>
-                            <span class="label">Branch</span>
+                            <span class="label">Branch <i class="bi bi-lock-fill locked"></i></span>
                             <span class="value {{ !$employee->branch ? 'empty' : '' }}">{{ $employee->branch->name ?? 'Not set' }}</span>
                         </li>
                         <li>
-                            <span class="label">Manager</span>
+                            <span class="label">Manager <i class="bi bi-lock-fill locked"></i></span>
                             <span class="value {{ !$employee->manager ? 'empty' : '' }}">{{ $employee->manager->name ?? 'Not set' }}</span>
                         </li>
                         <li>
-                            <span class="label">Extension</span>
+                            <span class="label">Extension <i class="bi bi-lock-fill locked"></i></span>
                             <span class="value {{ !$employee->extension_number ? 'empty' : '' }}">{{ $employee->extension_number ?: 'Not set' }}</span>
                         </li>
                         <li>
-                            <span class="label">Phone</span>
+                            <span class="label">Phone <i class="bi bi-pencil-square text-primary ms-1" title="Editable — with IT approval"></i></span>
                             <span class="value {{ !$employee->contact?->phone ? 'empty' : '' }}">{{ $employee->contact?->phone ?: 'Not set' }}</span>
                         </li>
                         <li>
-                            <span class="label">Hired date</span>
+                            <span class="label">Hired date <i class="bi bi-lock-fill locked"></i></span>
                             <span class="value {{ !$employee->hired_date ? 'empty' : '' }}">
                                 {{ $employee->hired_date?->format('M j, Y') ?: 'Not set' }}
-                            </span>
-                        </li>
-                        <li>
-                            <span class="label">Status</span>
-                            <span class="value">
-                                <span class="badge {{ $employee->statusBadgeClass() }}">{{ ucfirst($employee->status ?? 'unknown') }}</span>
                             </span>
                         </li>
                     </ul>
@@ -161,12 +159,12 @@
             </div>
         </div>
 
-        {{-- ─── Right: Request Edit Form ─── --}}
+        {{-- ─── Right: Phone change request ─── --}}
         <div class="col-12 col-lg-5">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-transparent border-0 pt-3 pb-0">
-                    <h5 class="mb-0"><i class="bi bi-pencil-square me-2 text-primary"></i>Request an Update</h5>
-                    <small class="text-muted">Changes require approval from IT before they are applied.</small>
+                    <h5 class="mb-0"><i class="bi bi-telephone-outbound me-2 text-primary"></i>Request Phone Update</h5>
+                    <small class="text-muted">Only your phone number can be changed — and only after IT approval.</small>
                 </div>
                 <div class="card-body">
                     @if($pendingRequest)
@@ -179,42 +177,31 @@
                         <form method="POST" action="{{ route('portal.profile.edit-request') }}">
                             @csrf
 
+                            @if($errors->any())
+                                <div class="alert alert-danger py-2 small mb-3">{{ $errors->first() }}</div>
+                            @endif
+
                             <div class="mb-3">
-                                <label class="form-label small fw-semibold">Display name</label>
-                                <input type="text" name="name" class="form-control"
-                                       value="{{ old('name', $employee->name) }}"
-                                       placeholder="{{ $employee->name }}">
+                                <label class="form-label small fw-semibold">Current phone</label>
+                                <input type="text" class="form-control" value="{{ $employee->contact?->phone ?: '—' }}" disabled>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label small fw-semibold">Job title</label>
-                                <input type="text" name="job_title" class="form-control"
-                                       value="{{ old('job_title', $employee->job_title) }}"
-                                       placeholder="{{ $employee->job_title ?: 'e.g. Senior Engineer' }}">
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label small fw-semibold">Extension</label>
-                                <input type="text" name="extension_number" class="form-control"
-                                       value="{{ old('extension_number', $employee->extension_number) }}"
-                                       placeholder="{{ $employee->extension_number ?: 'e.g. 1234' }}">
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label small fw-semibold">Phone</label>
+                                <label class="form-label small fw-semibold">New phone <span class="text-danger">*</span></label>
                                 <input type="text" name="phone" class="form-control"
-                                       value="{{ old('phone', $employee->contact?->phone) }}"
-                                       placeholder="{{ $employee->contact?->phone ?: '+966 ...' }}">
+                                       value="{{ old('phone') }}"
+                                       placeholder="+966 …" required>
+                                <div class="form-text">Include country code if possible.</div>
                             </div>
 
                             <div class="mb-3">
                                 <label class="form-label small fw-semibold">Note to IT <span class="text-muted fw-normal">(optional)</span></label>
-                                <textarea name="note" class="form-control" rows="2"
-                                          placeholder="Why are you requesting this change?">{{ old('note') }}</textarea>
+                                <textarea name="note" class="form-control" rows="3"
+                                          placeholder="Why are you requesting this change? e.g. got a new work phone, transferred to another branch.">{{ old('note') }}</textarea>
                             </div>
 
                             <button type="submit" class="btn btn-primary w-100">
-                                <i class="bi bi-send me-1"></i>Submit Request
+                                <i class="bi bi-send me-1"></i>Submit to IT
                             </button>
                         </form>
                     @endif
@@ -226,7 +213,7 @@
     @if($recentRequests->isNotEmpty())
         <div class="card shadow-sm mt-3">
             <div class="card-header bg-transparent border-0 pt-3 pb-0">
-                <h6 class="mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Recent Requests</h6>
+                <h6 class="mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>My Previous Requests</h6>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -234,27 +221,24 @@
                         <thead class="table-light">
                             <tr>
                                 <th class="ps-3">Submitted</th>
-                                <th>Changes</th>
+                                <th>Change</th>
                                 <th>Status</th>
-                                <th class="pe-3">Reviewer note</th>
+                                <th class="pe-3">Progress</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($recentRequests as $r)
+                                @php $p = $r->payload ?? []; @endphp
                                 <tr>
                                     <td class="ps-3 small text-muted">{{ $r->created_at->diffForHumans() }}</td>
-                                    <td class="small">
-                                        @foreach($r->requested_changes as $field => $change)
-                                            <div class="diff-row">
-                                                <strong>{{ $editableFields[$field] ?? $field }}:</strong>
-                                                <span class="from">{{ $change['from'] ?? '—' }}</span>
-                                                <span class="arrow">&rarr;</span>
-                                                <span class="to">{{ $change['to'] }}</span>
-                                            </div>
-                                        @endforeach
+                                    <td class="small diff-row">
+                                        <strong>Phone:</strong>
+                                        <span class="from">{{ $p['old_value'] ?? '—' }}</span>
+                                        <span class="arrow">&rarr;</span>
+                                        <span class="to">{{ $p['new_value'] ?? '' }}</span>
                                     </td>
                                     <td><span class="badge {{ $r->statusBadgeClass() }}">{{ ucfirst($r->status) }}</span></td>
-                                    <td class="pe-3 small text-muted">{{ $r->reviewer_note ?: '—' }}</td>
+                                    <td class="pe-3 small text-muted">Step {{ $r->current_step }}/{{ $r->total_steps }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

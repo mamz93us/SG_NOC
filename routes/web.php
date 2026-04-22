@@ -145,6 +145,9 @@ Route::prefix('portal')->name('portal.')->group(function () {
             Route::get('/profile',               [\App\Http\Controllers\Portal\MyProfileController::class, 'index'])            ->name('profile');
             Route::post('/profile/edit-request', [\App\Http\Controllers\Portal\MyProfileController::class, 'submitEditRequest'])->name('profile.edit-request');
 
+            // My Assets (read-only view of everything assigned to this employee)
+            Route::get('/assets', [\App\Http\Controllers\Portal\MyAssetsController::class, 'index'])->name('assets');
+
             // Remote Browser (previously at /portal — now one tile among many)
             Route::get('/browser',                [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'index'])    ->name('browser');
             Route::post('/browser',               [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'store'])    ->name('store');
@@ -214,16 +217,6 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // XML preview (all authenticated)
     Route::get('xml-preview', [PhonebookController::class, 'preview'])
         ->name('xml.preview');
-
-    // ─── Profile Edit Requests (IT reviews user-submitted profile updates) ──
-    Route::middleware('permission:manage-profile-edits')
-        ->prefix('profile-edit-requests')
-        ->name('profile-edit-requests.')
-        ->group(function () {
-            Route::get('/', [\App\Http\Controllers\Admin\ProfileEditRequestController::class, 'index'])->name('index');
-            Route::post('{profileEditRequest}/approve', [\App\Http\Controllers\Admin\ProfileEditRequestController::class, 'approve'])->name('approve');
-            Route::post('{profileEditRequest}/reject',  [\App\Http\Controllers\Admin\ProfileEditRequestController::class, 'reject'])->name('reject');
-        });
 
     // ─── Branches (CRUD — also accessible from Settings › Locations) ──
     Route::middleware('permission:view-branches')->group(function () {

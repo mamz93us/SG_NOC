@@ -71,7 +71,8 @@
 
     .tile-browser { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
     .tile-profile { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-    .tile-dir     { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .tile-assets  { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .tile-dir     { background: linear-gradient(135deg, #1e90ff 0%, #00b4db 100%); }
     .tile-print   { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
     .tile-printer { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
     .tile-docs    { background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); }
@@ -149,7 +150,16 @@
         <a href="{{ route('portal.profile') }}" class="hub-tile tile-profile">
             <i class="bi bi-person-badge-fill tile-icon"></i>
             <h5 class="tile-title">My Profile</h5>
-            <p class="tile-desc">View your employee info and request updates.</p>
+            <p class="tile-desc">View your employee info and request phone updates.</p>
+        </a>
+    </div>
+
+    {{-- My Assets --}}
+    <div class="col-12 col-sm-6 col-lg-4">
+        <a href="{{ route('portal.assets') }}" class="hub-tile tile-assets">
+            <i class="bi bi-box-seam-fill tile-icon"></i>
+            <h5 class="tile-title">My Assets</h5>
+            <p class="tile-desc">Devices, items, accessories and licenses in your name.</p>
         </a>
     </div>
 

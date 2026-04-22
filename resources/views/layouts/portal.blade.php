@@ -65,6 +65,11 @@
                         </a>
                     </li>
                     <li>
+                        <a class="dropdown-item" href="{{ route('portal.assets') }}">
+                            <i class="bi bi-box-seam me-2"></i>My Assets
+                        </a>
+                    </li>
+                    <li>
                         <a class="dropdown-item" href="{{ route('portal.browser') }}">
                             <i class="bi bi-globe2 me-2"></i>Remote Browser
                         </a>

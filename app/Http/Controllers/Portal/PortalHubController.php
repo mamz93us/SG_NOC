@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Portal;
 use App\Http\Controllers\Controller;
 use App\Models\BrowserSession;
 use App\Models\Employee;
-use App\Models\ProfileEditRequest;
+use App\Models\WorkflowRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -17,11 +17,11 @@ class PortalHubController extends Controller
 
         $activeBrowser = BrowserSession::where('user_id', $user->id)->active()->first();
         $employee      = Employee::where('email', $user->email)->first();
-        $pendingEdit   = $employee
-            ? ProfileEditRequest::where('employee_id', $employee->id)
-                ->where('status', 'pending')
-                ->exists()
-            : false;
+
+        $pendingEdit = WorkflowRequest::where('requested_by', $user->id)
+            ->where('type', MyProfileController::WORKFLOW_TYPE)
+            ->whereIn('status', ['pending', 'executing', 'manager_input_pending'])
+            ->exists();
 
         return view('portal.hub', compact('activeBrowser', 'employee', 'pendingEdit'));
     }

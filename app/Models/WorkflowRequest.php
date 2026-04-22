@@ -77,6 +77,7 @@ class WorkflowRequest extends Model
             'employee_offboarding'                            => 'bg-danger',
             'license_change', 'license_purchase'              => 'bg-info text-dark',
             'group_assignment'                                => 'bg-primary',
+            'profile_update_phone'                            => 'bg-warning text-dark',
             default                                           => 'bg-secondary',
         };
     }
@@ -94,6 +95,7 @@ class WorkflowRequest extends Model
             'extension_delete'     => 'Delete Extension',
             'employee_offboarding' => 'Employee Offboarding',
             'group_assignment'     => 'Group Assignment',
+            'profile_update_phone' => 'Phone Update',
             default                => ucfirst(str_replace('_', ' ', $this->type)),
         };
     }

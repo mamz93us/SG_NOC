@@ -663,24 +663,6 @@
                                 </a>
                             </li>
                             @endcan
-                            @can('manage-profile-edits')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.profile-edit-requests.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.profile-edit-requests.index') }}">
-                                    <i class="bi bi-person-gear me-2 text-primary"></i>Profile Edit Requests
-                                    @php
-                                        try {
-                                            $__pendingProfileEdits = \App\Models\ProfileEditRequest::where('status', 'pending')->count();
-                                        } catch (\Throwable $e) {
-                                            $__pendingProfileEdits = 0;
-                                        }
-                                    @endphp
-                                    @if($__pendingProfileEdits > 0)
-                                        <span class="badge bg-warning text-dark ms-1">{{ $__pendingProfileEdits }}</span>
-                                    @endif
-                                </a>
-                            </li>
-                            @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.alerts.dashboard') || request()->routeIs('admin.alert-rules.*') ? 'active' : '' }}"
