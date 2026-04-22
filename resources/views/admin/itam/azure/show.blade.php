@@ -255,8 +255,6 @@
                                     <div class="font-monospace fw-semibold">
                                         <i class="bi bi-ethernet text-primary me-1" style="font-size:.8rem"></i>{{ $ethIp }}
                                         @if(!$azureDevice->device?->ip_address)<span class="badge bg-info text-dark ms-1" style="font-size:.6rem">DHCP</span>@endif
-                                        <a href="{{ route('admin.browser.index') }}?url=http://{{ $ethIp }}" target="_blank"
-                                           class="btn btn-link btn-sm p-0 ms-1" title="Browse"><i class="bi bi-globe2" style="font-size:.75rem"></i></a>
                                     </div>
                                     @endif
                                     {{-- WiFi IP --}}

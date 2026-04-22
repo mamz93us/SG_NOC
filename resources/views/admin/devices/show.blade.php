@@ -653,8 +653,7 @@ function openWebBrowser(deviceId, ip) {
     const portStr     = port && port !== defaultPort ? `:${port}` : '';
     const url         = `${proto}://${ip}${portStr}${path.startsWith('/') ? path : '/' + path}`;
 
-    const browserUrl  = @json(route('admin.browser.index'));
-    window.open(browserUrl + '?url=' + encodeURIComponent(url), '_blank');
+    window.open(url, '_blank');
 }
 </script>
 @endpush

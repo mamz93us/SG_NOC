@@ -827,11 +827,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/terminal',   [\App\Http\Controllers\Admin\TelnetController::class, 'terminal']) ->name('terminal');
     });
 
-    // ─── Web Browser (custom URL proxy) ──────────────────────
-    Route::middleware(['permission:view-noc', 'throttle:300,1'])->prefix('browser')->name('browser.')->group(function () {
-        Route::get('/',                [\App\Http\Controllers\Admin\WebBrowserController::class, 'index']) ->name('index');
-        Route::match(['GET','POST'], '/fetch', [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch');
-    });
+    // ─── Web Browser (custom URL proxy) — RETIRED ──────────────
+    // Replaced by the Remote Browser Portal at /portal. Routes removed so any
+    // bookmarked /admin/browser URLs 404. Controller file preserved in case we
+    // want to restore. To re-enable, un-comment the block below.
+    // Route::middleware(['permission:view-noc', 'throttle:300,1'])->prefix('browser')->name('browser.')->group(function () {
+    //     Route::get('/',                [\App\Http\Controllers\Admin\WebBrowserController::class, 'index']) ->name('index');
+    //     Route::match(['GET','POST'], '/fetch', [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch');
+    // });
 
     // ─── Remote Browser Portal — ADMIN MANAGEMENT ONLY ───────────────
     // User-facing portal is mounted separately at /portal (isolated from admin).
@@ -1132,22 +1135,24 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
 
-    // ─── IT Tasks ─────────────────────────────────────────────────
-    Route::model('task', \App\Models\ItTask::class);
-    Route::prefix('tasks')->name('tasks.')->group(function () {
-        Route::get('/',                [ItTaskController::class, 'index'])        ->name('index');
-        Route::get('/my-tasks',        [ItTaskController::class, 'myTasks'])      ->name('my-tasks');
-        Route::get('/kanban',          [ItTaskController::class, 'kanban'])       ->name('kanban');
-        Route::get('/create',          [ItTaskController::class, 'create'])       ->name('create');
-        Route::post('/',               [ItTaskController::class, 'store'])        ->name('store');
-        Route::get('/{task}',          [ItTaskController::class, 'show'])         ->name('show');
-        Route::get('/{task}/edit',     [ItTaskController::class, 'edit'])         ->name('edit');
-        Route::put('/{task}',          [ItTaskController::class, 'update'])       ->name('update');
-        Route::delete('/{task}',       [ItTaskController::class, 'destroy'])      ->name('destroy');
-        Route::post('/{task}/comment',       [ItTaskController::class, 'addComment'])    ->name('comment');
-        Route::post('/{task}/log-time',      [ItTaskController::class, 'logTime'])       ->name('log-time');
-        Route::post('/{task}/update-status', [ItTaskController::class, 'updateStatus'])  ->name('update-status');
-    })->where('task', '[0-9]+');
+    // ─── IT Tasks — RETIRED ───────────────────────────────────────
+    // Module hidden from the UI and routes disabled. Controller, model and
+    // Blade views preserved on disk. To re-enable, un-comment the block below.
+    // Route::model('task', \App\Models\ItTask::class);
+    // Route::prefix('tasks')->name('tasks.')->group(function () {
+    //     Route::get('/',                [ItTaskController::class, 'index'])        ->name('index');
+    //     Route::get('/my-tasks',        [ItTaskController::class, 'myTasks'])      ->name('my-tasks');
+    //     Route::get('/kanban',          [ItTaskController::class, 'kanban'])       ->name('kanban');
+    //     Route::get('/create',          [ItTaskController::class, 'create'])       ->name('create');
+    //     Route::post('/',               [ItTaskController::class, 'store'])        ->name('store');
+    //     Route::get('/{task}',          [ItTaskController::class, 'show'])         ->name('show');
+    //     Route::get('/{task}/edit',     [ItTaskController::class, 'edit'])         ->name('edit');
+    //     Route::put('/{task}',          [ItTaskController::class, 'update'])       ->name('update');
+    //     Route::delete('/{task}',       [ItTaskController::class, 'destroy'])      ->name('destroy');
+    //     Route::post('/{task}/comment',       [ItTaskController::class, 'addComment'])    ->name('comment');
+    //     Route::post('/{task}/log-time',      [ItTaskController::class, 'logTime'])       ->name('log-time');
+    //     Route::post('/{task}/update-status', [ItTaskController::class, 'updateStatus'])  ->name('update-status');
+    // })->where('task', '[0-9]+');
 
     // ── Branch / Department → Azure Group Mappings ───────────────
     Route::prefix('identity/group-mappings')->name('admin.identity.group-mappings.')->middleware('permission:manage-identity')->group(function () {
@@ -1236,14 +1241,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/{report}',   [\App\Http\Controllers\Admin\VoiceQualityController::class, 'show'])       ->name('show')->where('report', '[0-9]+');
     });
 
-    // ─── Switch Drops ──────────────────────────────────────────────
-    Route::prefix('switch-drops')->name('switch-drops.')->middleware('permission:view-voice-quality')->group(function () {
-        Route::get('/dashboard',    [\App\Http\Controllers\Admin\SwitchDropController::class, 'dashboard'])  ->name('dashboard');
-        Route::get('/stats',        [\App\Http\Controllers\Admin\SwitchDropController::class, 'statistics']) ->name('statistics');
-        Route::get('/export',       [\App\Http\Controllers\Admin\SwitchDropController::class, 'exportCsv'])  ->name('export');
-        Route::get('/',             [\App\Http\Controllers\Admin\SwitchDropController::class, 'index'])      ->name('index');
-        Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchDropController::class, 'device'])     ->name('device')->where('ip', '[0-9a-fA-F.:]+');
-    });
+    // ─── Switch Drops — RETIRED ────────────────────────────────────
+    // Superseded by Switch QoS dashboard. Controller preserved; routes
+    // disabled so /admin/switch-drops/* 404s. To re-enable, un-comment.
+    // Route::prefix('switch-drops')->name('switch-drops.')->middleware('permission:view-voice-quality')->group(function () {
+    //     Route::get('/dashboard',    [\App\Http\Controllers\Admin\SwitchDropController::class, 'dashboard'])  ->name('dashboard');
+    //     Route::get('/stats',        [\App\Http\Controllers\Admin\SwitchDropController::class, 'statistics']) ->name('statistics');
+    //     Route::get('/export',       [\App\Http\Controllers\Admin\SwitchDropController::class, 'exportCsv'])  ->name('export');
+    //     Route::get('/',             [\App\Http\Controllers\Admin\SwitchDropController::class, 'index'])      ->name('index');
+    //     Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchDropController::class, 'device'])     ->name('device')->where('ip', '[0-9a-fA-F.:]+');
+    // });
 
     // ─── Switch QoS (Cisco MLS QoS queue drops) ───────────────────
     Route::prefix('switch-qos')->name('switch-qos.')->middleware('permission:view-voice-quality')->group(function () {

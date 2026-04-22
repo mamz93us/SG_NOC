@@ -200,12 +200,6 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.switch-drops.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.switch-drops.dashboard') }}">
-                                    <i class="bi bi-exclamation-triangle me-2 text-warning"></i>Switch Drop Monitor
-                                </a>
-                            </li>
-                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.switch-qos.*') ? 'active' : '' }}"
                                    href="{{ route('admin.switch-qos.dashboard') }}">
                                     <i class="bi bi-speedometer2 me-2 text-primary"></i>Switch QoS Monitor
@@ -641,13 +635,6 @@
                                     <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet / SSH Client
                                 </a>
                             </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.browser.index') }}" target="_blank">
-                                    <i class="bi bi-globe me-2 text-primary"></i>Web Browser
-                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
-                                </a>
-                            </li>
                             @can('view-browser-portal')
                             <li>
                                 <a class="dropdown-item" href="{{ route('portal.index') }}" target="_blank">
@@ -696,41 +683,6 @@
                         </ul>
                     </li>
                     @endcan
-
-                    {{-- ── IT Tasks ── --}}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/tasks*') ? 'active' : '' }}"
-                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-list-task me-1"></i>Tasks
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-dark shadow">
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.index') ? 'active' : '' }}"
-                                   href="{{ route('admin.tasks.index') }}">
-                                    <i class="bi bi-table me-2"></i>All Tasks
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.my-tasks') ? 'active' : '' }}"
-                                   href="{{ route('admin.tasks.my-tasks') }}">
-                                    <i class="bi bi-person-check me-2"></i>My Tasks
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.kanban') ? 'active' : '' }}"
-                                   href="{{ route('admin.tasks.kanban') }}">
-                                    <i class="bi bi-kanban me-2"></i>Kanban Board
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.create') ? 'active' : '' }}"
-                                   href="{{ route('admin.tasks.create') }}">
-                                    <i class="bi bi-plus-circle me-2"></i>New Task
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
 
                     {{-- ── Identity dropdown ── --}}
                     @can('view-identity')
