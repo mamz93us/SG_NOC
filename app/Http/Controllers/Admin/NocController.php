@@ -295,7 +295,33 @@ class NocController extends Controller
             ->flip()
             ->toArray();
 
-        $data = $extensions->map(function ($ext) use ($portMaps, $wifiMacs) {
+        // ── CDP neighbor index ────────────────────────────────────────────
+        // Used as a fallback (or override) source of truth for which switch
+        // port a phone is connected to. PhonePortMap is Meraki-derived; CDP
+        // covers Cisco-monitored switches and is updated by the polling worker.
+        // We index by IP and by normalized MAC so we can look up by either.
+        $cdpByIp  = [];
+        $cdpByMac = [];
+        \App\Models\SwitchCdpNeighbor::query()
+            ->select('device_name', 'device_ip', 'local_interface', 'neighbor_ip', 'neighbor_mac', 'platform')
+            // Phones identify themselves via CDP — filter to neighbors that look
+            // like phones to keep the in-memory index small. Capabilities/platform
+            // for a Cisco IP phone usually contain "Phone" or "CP-".
+            ->where(function ($q) {
+                $q->where('platform', 'like', '%Phone%')
+                  ->orWhere('platform', 'like', '%CP-%')
+                  ->orWhere('platform', 'like', 'IP Phone%');
+            })
+            ->get()
+            ->each(function ($n) use (&$cdpByIp, &$cdpByMac) {
+                if ($n->neighbor_ip)  $cdpByIp[$n->neighbor_ip] = $n;
+                if ($n->neighbor_mac) {
+                    $clean = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $n->neighbor_mac));
+                    if ($clean !== '') $cdpByMac[$clean] = $n;
+                }
+            });
+
+        $data = $extensions->map(function ($ext) use ($portMaps, $wifiMacs, $cdpByIp, $cdpByMac) {
             $key = $ext->ucm_id . '-' . $ext->extension;
             $map = $portMaps[$key] ?? null;
 
@@ -303,14 +329,33 @@ class NocController extends Controller
             $macClean = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $phoneMac));
             $isWifi   = ($macClean && isset($wifiMacs[$macClean]));
 
+            // CDP fallback / enrichment. Try IP first (more reliable if extension
+            // is registered), then MAC. We prefer PhonePortMap when it has a
+            // switch_port set, since it carries VLAN/location too.
+            $switchName = $map?->switch_name ?: null;
+            $switchPort = $map?->switch_port ? 'Port ' . $map->switch_port : null;
+            $portSource = $switchPort ? 'meraki' : null;
+
+            if (!$switchPort) {
+                $cdp = ($ext->ip_address && isset($cdpByIp[$ext->ip_address]))
+                    ? $cdpByIp[$ext->ip_address]
+                    : ($macClean && isset($cdpByMac[$macClean]) ? $cdpByMac[$macClean] : null);
+                if ($cdp) {
+                    $switchName = $switchName ?: $cdp->device_name;
+                    $switchPort = $cdp->local_interface;
+                    $portSource = 'cdp';
+                }
+            }
+
             return [
                 'extension'    => $ext->extension,
                 'name'         => $ext->name ?: '-',
                 'status'       => $ext->status,
                 'status_badge' => $ext->statusBadgeClass(),
                 'ip'           => $ext->ip_address ?: '-',
-                'switch_name'  => $map?->switch_name ?: '-',
-                'switch_port'  => $map?->switch_port ? 'Port ' . $map->switch_port : '-',
+                'switch_name'  => $switchName ?: '-',
+                'switch_port'  => $switchPort ?: '-',
+                'port_source'  => $portSource,        // 'meraki' | 'cdp' | null — UI can badge
                 'location'     => $map?->locationLabel() ?: '-',
                 'vlan'         => $map?->vlan ?: '-',
                 'mac'          => $phoneMac,

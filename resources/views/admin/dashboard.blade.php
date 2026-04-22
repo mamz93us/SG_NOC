@@ -370,20 +370,24 @@
 ══════════════════════════════════════════════════════════════════════ --}}
 @can('view-printers')
 @php
-    $tonerRiskWidget = null;
-    try {
-        if (\Illuminate\Support\Facades\Schema::hasTable('printer_supplies')) {
-            $tonerRiskWidget = \App\Models\PrinterSupply::where('supply_type', 'toner')
+    // Cache the toner-risk lookup for 2 min — supplies are polled on a longer
+    // schedule than the dashboard reload cadence.
+    $tonerRiskWidget = \Illuminate\Support\Facades\Cache::remember('dashboard_toner_risk', 120, function () {
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasTable('printer_supplies')) {
+                return collect();
+            }
+            return \App\Models\PrinterSupply::where('supply_type', 'toner')
                 ->where('estimated_days_remaining', '<=', 14)
                 ->whereNotNull('estimated_days_remaining')
                 ->with('printer')
                 ->orderBy('estimated_days_remaining')
                 ->limit(10)
                 ->get();
+        } catch (\Throwable) {
+            return collect();
         }
-    } catch (\Throwable $e) {
-        $tonerRiskWidget = null;
-    }
+    });
 @endphp
 @if($tonerRiskWidget && $tonerRiskWidget->count() > 0)
 <div class="card border-warning mb-4 mt-4">
@@ -452,11 +456,38 @@
 ═══════════════════════════════════════════════════════════════════════ --}}
 @can('manage-network-settings')
 @php
-    // ── Device status donut ──────────────────────────────────────────────
-    $hostStatuses = \App\Models\MonitoredHost::select('status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
-        ->groupBy('status')
-        ->pluck('total', 'status')
-        ->toArray();
+    // Cache all three monitoring aggregations together for 60s. The 7-day
+    // host_checks scan was the slowest dashboard query — caching it brings
+    // the network-overview block down to ~0ms on subsequent loads.
+    $netOverview = \Illuminate\Support\Facades\Cache::remember('dashboard_network_overview', 60, function () {
+        $hostStatuses = \App\Models\MonitoredHost::select('status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
+            ->groupBy('status')->pluck('total', 'status')->toArray();
+
+        $alertDays = \App\Models\HostCheck::select(
+                \Illuminate\Support\Facades\DB::raw("DATE(checked_at) as day"),
+                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN status='down' THEN 1 ELSE 0 END) as downs")
+            )
+            ->where('checked_at', '>=', now()->subDays(6)->startOfDay())
+            ->groupBy('day')->orderBy('day')->get()->keyBy('day');
+
+        $alertLabels = [];
+        $alertValues = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $day = now()->subDays($i)->format('Y-m-d');
+            $alertLabels[] = now()->subDays($i)->format('D d');
+            $alertValues[] = (int) ($alertDays[$day]->downs ?? 0);
+        }
+
+        $typeBreakdown = \App\Models\MonitoredHost::select('type', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
+            ->groupBy('type')->pluck('total', 'type')->toArray();
+
+        return compact('hostStatuses', 'alertLabels', 'alertValues', 'typeBreakdown');
+    });
+
+    $hostStatuses = $netOverview['hostStatuses'];
+    $alertLabels  = $netOverview['alertLabels'];
+    $alertValues  = $netOverview['alertValues'];
+    $typeBreakdown = $netOverview['typeBreakdown'];
 
     $statusLabels = array_keys($hostStatuses);
     $statusCounts = array_values($hostStatuses);
@@ -467,36 +498,12 @@
         default    => '#6c757d',
     }, $statusLabels);
 
-    // ── Alert frequency — count of 'down' host-checks per day last 7 days ──
-    $alertDays = \App\Models\HostCheck::select(
-            \Illuminate\Support\Facades\DB::raw("DATE(checked_at) as day"),
-            \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN status='down' THEN 1 ELSE 0 END) as downs")
-        )
-        ->where('checked_at', '>=', now()->subDays(6)->startOfDay())
-        ->groupBy('day')
-        ->orderBy('day')
-        ->get()
-        ->keyBy('day');
-
-    $alertLabels = [];
-    $alertValues = [];
-    for ($i = 6; $i >= 0; $i--) {
-        $day = now()->subDays($i)->format('Y-m-d');
-        $alertLabels[] = now()->subDays($i)->format('D d');
-        $alertValues[] = (int) ($alertDays[$day]->downs ?? 0);
-    }
-
-    // ── Host type breakdown ───────────────────────────────────────────────
-    $typeBreakdown = \App\Models\MonitoredHost::select('type', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
-        ->groupBy('type')
-        ->pluck('total', 'type')
-        ->toArray();
     $typeLabels = array_map('ucfirst', array_keys($typeBreakdown));
     $typeCounts = array_values($typeBreakdown);
 
-    $totalHosts    = array_sum($statusCounts);
-    $upHosts       = $hostStatuses['up'] ?? 0;
-    $downHosts     = $hostStatuses['down'] ?? 0;
+    $totalHosts = array_sum($statusCounts);
+    $upHosts    = $hostStatuses['up']   ?? 0;
+    $downHosts  = $hostStatuses['down'] ?? 0;
 @endphp
 
 @if($totalHosts > 0)
