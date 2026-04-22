@@ -167,9 +167,13 @@
                     <label class="form-label">IP Address</label>
                     <div class="input-group">
                         <input type="text" name="ip_address" id="dv_ip" class="form-control font-monospace"
-                               value="{{ old('ip_address', $device->ip_address ?? '') }}" placeholder="192.168.1.1">
+                               value="{{ old('ip_address', $device->ip_address ?? '') }}" placeholder="192.168.1.1"
+                               oninput="dvDhcpAutoLookup('ip')">
                         <button type="button" class="btn btn-outline-secondary" id="dv_ipFromMac" title="Look up IP from MAC via DHCP">
                             <i class="bi bi-arrow-repeat" id="dv_ipFromMacIcon"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="dv_macFromIp" title="Look up MAC from IP via DHCP">
+                            <i class="bi bi-hdd-network" id="dv_macFromIpIcon"></i>
                         </button>
                     </div>
                     <div class="form-text" id="dv_dhcpHint" style="display:none"></div>
@@ -624,38 +628,74 @@ function dvLoadOffices(floorId, keepOfficeId) {
 }
 
 // ── DHCP Lookup ───────────────────────────────────────────────────────
+// One entry point, two directions:
+//   paramKey='mac' → fills IP when empty
+//   paramKey='ip'  → fills MAC when empty
+// Either direction writes the hint line showing the lease source.
 let dv_dhcpTimer;
 async function dvDhcpLookup(paramKey, paramVal) {
-    const hint    = document.getElementById('dv_dhcpHint');
-    const icon    = document.getElementById('dv_ipFromMacIcon');
+    const hint     = document.getElementById('dv_dhcpHint');
+    const macIcon  = document.getElementById('dv_ipFromMacIcon');
+    const ipIcon   = document.getElementById('dv_macFromIpIcon');
+    const spinning = paramKey === 'mac' ? macIcon : ipIcon;
     if (!paramVal) return;
-    if (icon) { icon.classList.add('spin'); }
+    if (spinning) spinning.classList.add('spin');
     try {
         const r    = await fetch(`${dv_dhcpLookupUrl}?${paramKey}=${encodeURIComponent(paramVal)}`,
                          { headers: { 'Accept': 'application/json' } });
         const data = await r.json();
         if (data && data.ip) {
-            const ipIn = document.getElementById('dv_ip');
-            if (ipIn && !ipIn.value) ipIn.value = data.ip;
+            const ipIn  = document.getElementById('dv_ip');
+            const macIn = document.getElementById('dv_mac');
+            // Fill the *other* field — don't clobber what the user typed.
+            if (paramKey === 'mac' && ipIn  && !ipIn.value)  ipIn.value  = data.ip;
+            if (paramKey === 'ip'  && macIn && !macIn.value && data.mac_fmt) {
+                macIn.value = data.mac_fmt;
+                // A phone's WiFi MAC is derived from the LAN MAC, recalc.
+                if (typeof dvAutoCalcWifiMac === 'function') dvAutoCalcWifiMac(macIn.value);
+            }
             if (hint) {
-                hint.textContent = `DHCP: ${data.ip}${data.hostname ? ' ('+data.hostname+')' : ''} — ${data.source}, ${data.last_seen}`;
+                hint.textContent = `DHCP: ${data.ip} ${data.mac_fmt ? '· '+data.mac_fmt : ''} ${data.hostname ? '('+data.hostname+')' : ''} — ${data.source}, ${data.last_seen}`;
                 hint.style.display = '';
             }
         } else {
-            if (hint) { hint.textContent = 'No DHCP lease found for this MAC.'; hint.style.display = ''; }
+            if (hint) {
+                hint.textContent = paramKey === 'mac'
+                    ? 'No DHCP lease found for this MAC.'
+                    : 'No DHCP lease found for this IP.';
+                hint.style.display = '';
+            }
         }
     } catch(e) {}
-    if (icon) { icon.classList.remove('spin'); }
+    if (spinning) spinning.classList.remove('spin');
 }
 
-// Auto-trigger DHCP lookup 800ms after MAC stops changing
+// Simple IPv4 sanity check — avoids hitting the API on partial input
+// like "192.168." on every keystroke.
+function dvIsValidIp(s) {
+    if (!s) return false;
+    const m = s.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (!m) return false;
+    for (let i = 1; i <= 4; i++) if (parseInt(m[i], 10) > 255) return false;
+    return true;
+}
+
+// Auto-trigger DHCP lookup 800ms after MAC/IP stops changing.
 function dvDhcpAutoLookup(fromField) {
     clearTimeout(dv_dhcpTimer);
     dv_dhcpTimer = setTimeout(() => {
         if (fromField === 'mac') {
-            const mac = document.getElementById('dv_mac')?.value?.trim();
+            const mac   = document.getElementById('dv_mac')?.value?.trim();
             const clean = mac ? mac.replace(/[^a-fA-F0-9]/g,'') : '';
             if (clean.length === 12) dvDhcpLookup('mac', mac);
+        } else if (fromField === 'ip') {
+            const ip    = document.getElementById('dv_ip')?.value?.trim();
+            const macIn = document.getElementById('dv_mac');
+            // Only auto-fill when MAC is blank — don't surprise the admin
+            // by overwriting a MAC they're still in the middle of typing.
+            if (dvIsValidIp(ip) && macIn && !macIn.value) {
+                dvDhcpLookup('ip', ip);
+            }
         }
     }, 800);
 }
@@ -669,6 +709,21 @@ document.getElementById('dv_ipFromMac')?.addEventListener('click', function() {
         return;
     }
     dvDhcpLookup('mac', mac);
+});
+
+// Manual sync button: look up MAC from current IP
+document.getElementById('dv_macFromIp')?.addEventListener('click', function() {
+    const ip = document.getElementById('dv_ip')?.value?.trim();
+    const hint = document.getElementById('dv_dhcpHint');
+    if (!ip) {
+        if (hint) { hint.textContent = 'Enter an IP address first.'; hint.style.display = ''; }
+        return;
+    }
+    if (!dvIsValidIp(ip)) {
+        if (hint) { hint.textContent = 'That doesn\'t look like a valid IPv4 address.'; hint.style.display = ''; }
+        return;
+    }
+    dvDhcpLookup('ip', ip);
 });
 
 // ── MAC autocomplete ──────────────────────────────────────────────────

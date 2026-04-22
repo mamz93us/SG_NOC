@@ -109,9 +109,19 @@
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Event Type</label>
                         <select name="event_type" class="form-select">
-                            @foreach($eventTypes as $val => $label)
-                            <option value="{{ $val }}" {{ $rule->event_type === $val ? 'selected' : '' }}>{{ $label }}</option>
+                            @foreach($eventGroups as $group => $items)
+                            <optgroup label="{{ $group }}">
+                                @foreach($items as $val => $label)
+                                <option value="{{ $val }}" {{ $rule->event_type === $val ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </optgroup>
                             @endforeach
+                            {{-- Preserve unknown / legacy event_type values so editing a rule doesn't silently change its target. --}}
+                            @if(!array_key_exists($rule->event_type, $eventTypes))
+                            <optgroup label="Unknown / legacy">
+                                <option value="{{ $rule->event_type }}" selected>{{ $rule->event_type }} (unregistered)</option>
+                            </optgroup>
+                            @endif
                         </select>
                     </div>
                     <div class="mb-3">
@@ -195,8 +205,12 @@
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Event Type <span class="text-danger">*</span></label>
                         <select name="event_type" class="form-select" required>
-                            @foreach($eventTypes as $val => $label)
-                            <option value="{{ $val }}">{{ $label }}</option>
+                            @foreach($eventGroups as $group => $items)
+                            <optgroup label="{{ $group }}">
+                                @foreach($items as $val => $label)
+                                <option value="{{ $val }}">{{ $label }}</option>
+                                @endforeach
+                            </optgroup>
                             @endforeach
                         </select>
                     </div>

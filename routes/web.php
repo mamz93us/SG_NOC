@@ -606,6 +606,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
         Route::post('/switches/{serial}/assign-location', [NetworkController::class, 'assignLocation'])->name('switches.assign-location');
 
+        // ── Quick-edit a switch from the unified switches table.
+        //    Canonical write goes to devices; Meraki + SNMP rows are
+        //    synced where they exist. ────────────────────────────────
+        Route::put('/switches/{device}/update',
+            [NetworkController::class, 'updateSwitch'])
+            ->name('switches.update');
+
         // ── One-click "Add to SNMP" for a switch-class device ─────────
         Route::post('/switches/{device}/add-to-snmp',
             [NetworkController::class, 'addToSnmp'])

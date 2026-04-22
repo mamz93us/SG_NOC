@@ -13,11 +13,12 @@ class NotificationRuleController extends Controller
     {
         $this->authorize('manage-notification-rules');
 
-        $rules     = NotificationRule::with('recipientUser')->orderBy('event_type')->get();
-        $users     = User::orderBy('name')->get(['id', 'name', 'email']);
-        $eventTypes = NotificationRule::eventTypeLabels();
+        $rules       = NotificationRule::with('recipientUser')->orderBy('event_type')->get();
+        $users       = User::orderBy('name')->get(['id', 'name', 'email']);
+        $eventTypes  = NotificationRule::eventTypeLabels();
+        $eventGroups = NotificationRule::eventTypeGroups();
 
-        return view('admin.notifications.rules', compact('rules', 'users', 'eventTypes'));
+        return view('admin.notifications.rules', compact('rules', 'users', 'eventTypes', 'eventGroups'));
     }
 
     public function store(Request $request)

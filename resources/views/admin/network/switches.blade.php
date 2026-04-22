@@ -265,6 +265,26 @@
                                    class="btn btn-outline-secondary" title="Asset record">
                                     <i class="bi bi-box"></i>
                                 </a>
+                                @can('manage-network-settings')
+                                <button type="button"
+                                        class="btn btn-outline-primary"
+                                        title="Quick edit — name, model, serial, IP, MAC, network, location"
+                                        onclick='openQuickEdit(@json([
+                                            "id"            => $row->id,
+                                            "name"          => $row->name,
+                                            "model"         => $row->model,
+                                            "serial_number" => $row->serial,
+                                            "mac_address"   => $row->mac,
+                                            "ip_address"    => $row->ip,
+                                            "network_id"    => $row->network_id,
+                                            "branch_id"     => $row->device?->branch_id ?? ($sw?->branch_id),
+                                            "floor_id"      => $row->device?->floor_id  ?? ($sw?->floor_id),
+                                            "rack_id"       => $sw?->rack_id,
+                                            "in_meraki"     => (bool) $sw,
+                                        ], JSON_HEX_APOS | JSON_HEX_QUOT))'>
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                @endcan
                                 @can('manage-devices')
                                 <a href="{{ route('admin.devices.edit', $row->id) }}"
                                    class="btn btn-outline-dark" title="Complete asset details (warranty, cost, location…)">
@@ -281,6 +301,104 @@
         @endif
     </div>
 </div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- QUICK-EDIT SWITCH MODAL                                         --}}
+{{-- Writes canonical device row; NetworkSwitch + MonitoredHost      --}}
+{{-- are synced server-side where they exist.                        --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+@can('manage-network-settings')
+<div class="modal fade" id="quickEditSwitchModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <form method="POST" id="quickEditSwitchForm" class="modal-content">
+            @csrf
+            @method('PUT')
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Edit Switch</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info small py-2 mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Changes are written to the <strong>Assets</strong> record (canonical) and synced
+                    to <strong>Meraki</strong> / <strong>SNMP</strong> views when a linked row exists.
+                    Values may be overwritten on the next Meraki sync.
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="qe_name" class="form-control" required maxlength="255">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Model</label>
+                        <input type="text" name="model" id="qe_model" class="form-control" maxlength="100"
+                               placeholder="e.g. MS225-24P">
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Serial Number</label>
+                        <input type="text" name="serial_number" id="qe_serial" class="form-control font-monospace"
+                               maxlength="100">
+                    </div>
+                    <div class="col-md-6" id="qe_networkWrap">
+                        <label class="form-label fw-semibold">Network <span class="text-muted small">(Meraki only)</span></label>
+                        <select name="network_id" id="qe_network" class="form-select">
+                            <option value="">— None —</option>
+                            @foreach($networks as $net)
+                            <option value="{{ $net->network_id }}">
+                                {{ $net->network_name ?: $net->network_id }}
+                            </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">IP Address</label>
+                        <input type="text" name="ip_address" id="qe_ip" class="form-control font-monospace"
+                               placeholder="192.168.1.1">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">MAC Address</label>
+                        <input type="text" name="mac_address" id="qe_mac" class="form-control font-monospace"
+                               maxlength="20" placeholder="AA:BB:CC:DD:EE:FF">
+                    </div>
+                </div>
+
+                <hr>
+                <p class="fw-semibold small text-muted mb-2"><i class="bi bi-geo-alt me-1"></i>Location</p>
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <label class="form-label">Branch</label>
+                        <select name="branch_id" id="qe_branch" class="form-select" onchange="qeUpdateFloorOptions()">
+                            <option value="">— None —</option>
+                            @foreach($branches as $b)
+                            <option value="{{ $b->id }}">{{ $b->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Floor</label>
+                        <select name="floor_id" id="qe_floor" class="form-select" onchange="qeUpdateRackOptions()">
+                            <option value="">— None —</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Rack <span class="text-muted small">(Meraki only)</span></label>
+                        <select name="rack_id" id="qe_rack" class="form-select">
+                            <option value="">— None —</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endcan
 
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- ASSIGN LOCATION MODAL                                           --}}
@@ -352,6 +470,79 @@ const allFloors = @json($floors->map(fn($f) => ['id' => $f->id, 'branch_id' => $
 const allRacks  = @json($racks->map(fn($r)  => ['id' => $r->id, 'floor_id'  => $r->floor_id,  'label' => ($r->floor?->branch?->name ?? '') . ' › ' . ($r->floor?->name ?? '') . ' › ' . $r->name]));
 
 const baseAssignUrl = '{{ rtrim(url("admin/network/switches/__SERIAL__/assign-location"), "/") }}';
+const baseQuickEditUrl = '{{ rtrim(url("admin/network/switches/__ID__/update"), "/") }}';
+
+// ══════════════════════════════════════════════════════════════════════
+// QUICK-EDIT SWITCH MODAL
+// ══════════════════════════════════════════════════════════════════════
+function openQuickEdit(row) {
+    const url = baseQuickEditUrl.replace('__ID__', row.id);
+    const form = document.getElementById('quickEditSwitchForm');
+    form.action = url;
+
+    document.getElementById('qe_name').value   = row.name ?? '';
+    document.getElementById('qe_model').value  = row.model ?? '';
+    document.getElementById('qe_serial').value = row.serial_number ?? '';
+    document.getElementById('qe_ip').value     = row.ip_address ?? '';
+    document.getElementById('qe_mac').value    = row.mac_address ?? '';
+
+    // Network dropdown — show only for Meraki-sourced switches; editing
+    // it on a non-Meraki row has no canonical destination yet.
+    const netWrap = document.getElementById('qe_networkWrap');
+    const netSel  = document.getElementById('qe_network');
+    if (row.in_meraki) {
+        netWrap.style.display = '';
+        netSel.value = row.network_id ?? '';
+        netSel.disabled = false;
+    } else {
+        netWrap.style.display = 'none';
+        netSel.value = '';
+        netSel.disabled = true;
+    }
+
+    // Same caveat for rack — only Meraki rows have a rack assignment path.
+    const rackSel = document.getElementById('qe_rack');
+    rackSel.disabled = !row.in_meraki;
+
+    document.getElementById('qe_branch').value = row.branch_id ?? '';
+    qeUpdateFloorOptions(row.floor_id);
+    qeUpdateRackOptions(row.rack_id);
+
+    new bootstrap.Modal(document.getElementById('quickEditSwitchModal')).show();
+}
+
+function qeUpdateFloorOptions(selectedFloorId) {
+    const branchId = parseInt(document.getElementById('qe_branch').value) || null;
+    const floorSel = document.getElementById('qe_floor');
+    const prevVal  = selectedFloorId !== undefined ? selectedFloorId : (parseInt(floorSel.value) || null);
+
+    floorSel.innerHTML = '<option value="">— None —</option>';
+    allFloors
+        .filter(f => !branchId || f.branch_id === branchId)
+        .forEach(f => {
+            const opt = new Option(f.label, f.id);
+            if (prevVal && f.id === prevVal) opt.selected = true;
+            floorSel.appendChild(opt);
+        });
+
+    qeUpdateRackOptions(selectedFloorId !== undefined ? null : undefined);
+}
+
+function qeUpdateRackOptions(selectedRackId) {
+    const floorId = parseInt(document.getElementById('qe_floor').value) || null;
+    const rackSel = document.getElementById('qe_rack');
+    const prevVal = selectedRackId !== undefined ? selectedRackId : (parseInt(rackSel.value) || null);
+
+    rackSel.innerHTML = '<option value="">— None —</option>';
+    allRacks
+        .filter(r => !floorId || r.floor_id === floorId)
+        .forEach(r => {
+            const opt = new Option(r.label, r.id);
+            if (prevVal && r.id === prevVal) opt.selected = true;
+            rackSel.appendChild(opt);
+        });
+}
+
 
 function openAssignModal(serial, name, branchId, floorId, rackId) {
     const url = baseAssignUrl.replace('__SERIAL__', serial);

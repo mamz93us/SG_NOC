@@ -224,6 +224,109 @@ class NetworkController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Quick-edit a switch-class Device from the unified switches page.
+    //
+    // Device is canonical — always updated. Satellite rows (NetworkSwitch
+    // from Meraki, MonitoredHost for SNMP) are synced for fields they
+    // actually own so the three views stay in lockstep.
+    //
+    // Fields editable from the switches page: name, model, serial, IP,
+    // MAC, network (Meraki network_id/name — only applies to Meraki-
+    // sourced switches), branch, floor, rack.
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateSwitch(Request $request, Device $device)
+    {
+        if (!in_array($device->type, ['switch', 'router', 'firewall'])) {
+            return back()->with('error', 'Only switch-class assets can be edited here.');
+        }
+
+        $data = $request->validate([
+            'name'          => 'required|string|max:255',
+            'model'         => 'nullable|string|max:100',
+            'serial_number' => 'nullable|string|max:100',
+            'mac_address'   => 'nullable|string|max:20',
+            'ip_address'    => 'nullable|ip',
+            'network_id'    => 'nullable|string|max:100',
+            'branch_id'     => 'nullable|exists:branches,id',
+            'floor_id'      => 'nullable|exists:network_floors,id',
+            'rack_id'       => 'nullable|exists:network_racks,id',
+        ]);
+
+        $original = $device->only([
+            'name', 'model', 'serial_number', 'mac_address', 'ip_address', 'branch_id', 'floor_id',
+        ]);
+
+        // 1. Canonical Device row.
+        $device->fill([
+            'name'          => $data['name'],
+            'model'         => $data['model'] ?: null,
+            'serial_number' => $data['serial_number'] ?: null,
+            'mac_address'   => $data['mac_address'] ?: null,
+            'ip_address'    => $data['ip_address'] ?: null,
+            'branch_id'     => $data['branch_id'] ?: null,
+            'floor_id'      => $data['floor_id'] ?: null,
+        ]);
+        $device->save();
+
+        // 2. Meraki-side NetworkSwitch row (only when one exists — we don't
+        //    conjure a Meraki record out of thin air because its identity
+        //    is serial+org and Meraki will overwrite on next sync).
+        if ($sw = $device->networkSwitch) {
+            $sw->fill([
+                'name'      => $data['name'],
+                'model'     => $data['model'] ?: $sw->model,
+                'serial'    => $data['serial_number'] ?: $sw->serial,
+                'mac'       => $data['mac_address'] ?: $sw->mac,
+                'lan_ip'    => $data['ip_address'] ?: $sw->lan_ip,
+                'branch_id' => $data['branch_id'] ?: null,
+                'floor_id'  => $data['floor_id']  ?: null,
+                'rack_id'   => $data['rack_id']   ?: null,
+            ]);
+            if (array_key_exists('network_id', $data) && $data['network_id']) {
+                $sw->network_id = $data['network_id'];
+                // Back-fill the network_name from an existing sibling row
+                // (Meraki sync will overwrite next time — we just want a
+                // human label in the table immediately).
+                $named = NetworkSwitch::where('network_id', $data['network_id'])
+                    ->whereNotNull('network_name')
+                    ->value('network_name');
+                if ($named) $sw->network_name = $named;
+            }
+            $sw->save();
+        }
+
+        // 3. SNMP MonitoredHost row (if one exists, keep IP/name/branch
+        //    in sync so polling targets the right box after a move).
+        if ($host = $device->monitoredHost) {
+            $host->fill([
+                'name'      => $data['name'],
+                'ip'        => $data['ip_address'] ?: $host->ip,
+                'branch_id' => $data['branch_id'] ?: null,
+            ]);
+            $host->save();
+        }
+
+        ActivityLog::create([
+            'model_type' => Device::class,
+            'model_id'   => $device->id,
+            'action'     => 'switch_quick_edited',
+            'changes'    => [
+                'before' => $original,
+                'after'  => $device->only(array_keys($original)),
+                'synced' => [
+                    'meraki' => (bool) $device->networkSwitch,
+                    'snmp'   => (bool) $device->monitoredHost,
+                ],
+            ],
+            'user_id'    => Auth::id(),
+        ]);
+
+        return back()->with('success', "Switch \"{$device->name}\" updated across "
+            . (($device->networkSwitch || $device->monitoredHost) ? 'Assets + linked sources.' : 'Assets.'));
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // Bulk: create MonitoredHost stubs for every switch-class Device
     // that doesn't already have one. Stubs start with snmp_enabled=false
     // so nothing polls until credentials are set (or until
