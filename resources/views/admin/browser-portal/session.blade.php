@@ -47,12 +47,16 @@
     </div>
 
     {{-- Query string:
+          - usr=   display name passed to Neko's multiuser provider. REQUIRED
+                   alongside pwd= to auto-connect — without it the "YOU HAVE
+                   BEEN INVITED TO THIS ROOM" prompt appears at every session.
           - pwd=   auto-login to Neko's multiuser provider (decrypted server-side).
           - embed=1  hides Neko's "n.eko" header + control bar, leaves only the viewport.
-          - nv=1     "no volume" indicator; avoids the microphone/audio prompt overlay.
      --}}
     @php
+        $displayName = auth()->user()?->name ?: ('user-' . $session->session_id);
         $qs = http_build_query(array_filter([
+            'usr'   => $displayName,
             'pwd'   => $nekoPassword,
             'embed' => 1,
         ]));
