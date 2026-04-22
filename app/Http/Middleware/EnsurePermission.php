@@ -22,6 +22,14 @@ class EnsurePermission
             return redirect()->route('login');
         }
 
+        // super_admin has implicit access to every permission. This matches
+        // the role's intent (name = "can do everything") and protects against
+        // accidental lockouts when a permissions-matrix save wipes a row that
+        // wasn't ticked in the UI.
+        if ($user->role === 'super_admin') {
+            return $next($request);
+        }
+
         foreach ($permissions as $permission) {
             if (RolePermission::roleHas($user->role, $permission)) {
                 return $next($request);
