@@ -115,7 +115,7 @@
         </div>
 
         <div class="col-12 col-md-6 col-lg-4">
-            <a href="{{ route('admin.my-printers') }}" class="portal-tile tile-info">
+            <a href="/admin/my-printers" class="portal-tile tile-info">
                 <i class="bi bi-printer tile-icon"></i>
                 <h5 class="tile-title">My Printers</h5>
                 <p class="tile-desc">Set up and connect printers for your office.</p>
