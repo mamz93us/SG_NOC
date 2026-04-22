@@ -128,11 +128,15 @@ class VpnControlService
         $config .= "    }\n";
         $config .= "}\n\n";
         
+        // Escape PSK for swanctl: wrap in double quotes, escape backslashes and quotes.
+        $psk       = (string) $tunnel->pre_shared_key;
+        $pskEscaped = str_replace(['\\', '"'], ['\\\\', '\\"'], $psk);
+
         $config .= "secrets {\n";
         $config .= "    ike-{$tunnel->name} {\n";
         $config .= "        id-0 = {$localId}\n";
         $config .= "        id-1 = {$remoteId}\n";
-        $config .= "        secret = \"{$tunnel->pre_shared_key}\"\n";
+        $config .= "        secret = \"{$pskEscaped}\"\n";
         $config .= "    }\n";
         $config .= "}\n";
 
@@ -152,9 +156,13 @@ class VpnControlService
         }
 
         try {
-            // Use sudo wrapper if needed, but for now try direct write
-            // (Assumes permissions are handled or directory is writable by www-data)
-            return file_put_contents($path, $config) !== false;
+            // Config contains the pre-shared key — must be readable only by root/strongSwan.
+            $result = file_put_contents($path, $config);
+            if ($result === false) {
+                return false;
+            }
+            @chmod($path, 0600);
+            return true;
         } catch (\Exception $e) {
             Log::error("VpnControlService: Failed to save config for {$tunnel->name}", ['error' => $e->getMessage()]);
             return false;

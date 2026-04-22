@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\FormSubmission;
 use App\Models\FormTemplate;
 use App\Models\FormToken;
@@ -146,6 +147,17 @@ class FormBuilderController extends Controller
     {
         $submissions = $form->submissions()->with('submittedBy')->get();
         $fieldNames  = collect($form->schema)->pluck('name')->toArray();
+
+        ActivityLog::create([
+            'model_type' => FormTemplate::class,
+            'model_id'   => $form->id,
+            'action'     => 'submissions_exported',
+            'changes'    => [
+                'form_slug' => $form->slug,
+                'count'     => $submissions->count(),
+            ],
+            'user_id' => Auth::id(),
+        ]);
 
         $headers = ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="form_' . $form->slug . '_submissions.csv"'];
 

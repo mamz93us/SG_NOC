@@ -225,6 +225,19 @@ class WorkflowController extends Controller
         $step = $workflow->currentStepRecord();
         $this->engine->approveStep($workflow, $user, $comments);
 
+        \App\Models\ActivityLog::create([
+            'model_type' => \App\Models\WorkflowRequest::class,
+            'model_id'   => $workflow->id,
+            'action'     => 'workflow_step_approved',
+            'changes'    => [
+                'step_id'     => $step?->id,
+                'step_role'   => $step?->assignee_role ?? $step?->role,
+                'type'        => $workflow->type,
+                'comments'    => $comments,
+            ],
+            'user_id'    => $user->id,
+        ]);
+
         return redirect()
             ->route('admin.workflows.show', $id)
             ->with('success', 'Step approved successfully.');
@@ -244,6 +257,17 @@ class WorkflowController extends Controller
 
         $this->engine->rejectStep($workflow, $user, $request->input('comments'));
 
+        \App\Models\ActivityLog::create([
+            'model_type' => \App\Models\WorkflowRequest::class,
+            'model_id'   => $workflow->id,
+            'action'     => 'workflow_step_rejected',
+            'changes'    => [
+                'type'     => $workflow->type,
+                'comments' => $request->input('comments'),
+            ],
+            'user_id'    => $user->id,
+        ]);
+
         return redirect()
             ->route('admin.workflows.show', $id)
             ->with('success', 'Request rejected.');
@@ -258,6 +282,14 @@ class WorkflowController extends Controller
             ->firstOrFail();
 
         $workflow->update(['status' => 'rejected']);
+
+        \App\Models\ActivityLog::create([
+            'model_type' => \App\Models\WorkflowRequest::class,
+            'model_id'   => $workflow->id,
+            'action'     => 'workflow_cancelled',
+            'changes'    => ['type' => $workflow->type],
+            'user_id'    => Auth::id(),
+        ]);
 
         return redirect()
             ->route('admin.workflows.my-requests')
@@ -312,6 +344,18 @@ class WorkflowController extends Controller
             'completed_at' => now(),
             'completed_by' => Auth::id(),
             'notes'        => $request->input('notes'),
+        ]);
+
+        \App\Models\ActivityLog::create([
+            'model_type' => \App\Models\WorkflowTask::class,
+            'model_id'   => $task->id,
+            'action'     => 'workflow_task_completed',
+            'changes'    => [
+                'workflow_id' => $task->workflow_id,
+                'title'       => $task->title ?? null,
+                'notes'       => $request->input('notes'),
+            ],
+            'user_id'    => Auth::id(),
         ]);
 
         // Check if all tasks for this workflow are now done — notify IT team

@@ -264,6 +264,14 @@ class AzureSyncController extends Controller
 
     private function exportIntuneOverviewCsv($devices): \Illuminate\Http\Response
     {
+        ActivityLog::create([
+            'model_type' => AzureDevice::class,
+            'model_id'   => 0,
+            'action'     => 'intune_overview_exported',
+            'changes'    => ['count' => $devices->count()],
+            'user_id'    => auth()->id(),
+        ]);
+
         $rows   = [];
         $rows[] = ['Device Name', 'Asset Code', 'UPN', 'Assigned Employee', 'Branch', 'CPU', 'TeamViewer ID', 'TV Version', 'Ethernet MAC', 'WiFi MAC', 'HW Synced At', 'Has TV', 'Linked Asset', 'Linked User'];
 

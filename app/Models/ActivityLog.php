@@ -14,7 +14,26 @@ class ActivityLog extends Model
         'action',
         'changes',
         'user_id',
+        'ip_address',
+        'user_agent',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $log) {
+            if (app()->runningInConsole() && !request()) {
+                return;
+            }
+            try {
+                $req = request();
+                if ($req) {
+                    $log->ip_address ??= $req->ip();
+                    $log->user_agent ??= substr((string) $req->header('User-Agent'), 0, 512);
+                }
+            } catch (\Throwable) {
+            }
+        });
+    }
 
     protected $casts = [
         'changes' => 'array',

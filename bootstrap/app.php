@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);
+        $middleware->appendToGroup('web', \App\Http\Middleware\SecurityHeaders::class);
 
         // Guests hitting the isolated /portal/* routes go to the portal's SSO-only
         // login page — not the admin login. Everyone else falls back to 'login'.

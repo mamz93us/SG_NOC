@@ -127,6 +127,12 @@ class SettingsController extends Controller
         ]);
 
         $settings = Setting::get();
+        $before = [
+            'sso_enabled'      => (bool) $settings->sso_enabled,
+            'sso_tenant_id'    => $settings->sso_tenant_id,
+            'sso_client_id'    => $settings->sso_client_id,
+            'sso_default_role' => $settings->sso_default_role,
+        ];
         $settings->sso_enabled      = $request->boolean('sso_enabled');
         $settings->sso_tenant_id    = $request->sso_tenant_id;
         $settings->sso_client_id    = $request->sso_client_id;
@@ -138,16 +144,21 @@ class SettingsController extends Controller
 
         $settings->save();
 
+        $after = [
+            'sso_enabled'      => (bool) $settings->sso_enabled,
+            'sso_tenant_id'    => $settings->sso_tenant_id,
+            'sso_client_id'    => $settings->sso_client_id,
+            'sso_default_role' => $settings->sso_default_role,
+        ];
+
         ActivityLog::create([
             'model_type' => 'Setting',
             'model_id'   => 1,
-            'action'     => 'updated',
+            'action'     => 'sso_updated',
             'changes'    => [
-                'sso_enabled'      => $settings->sso_enabled,
-                'sso_tenant_id'    => $request->sso_tenant_id,
-                'sso_client_id'    => $request->sso_client_id,
-                'sso_default_role' => $request->sso_default_role,
-                'secret_changed'   => $request->filled('sso_client_secret'),
+                'before'         => $before,
+                'after'          => $after,
+                'secret_changed' => $request->filled('sso_client_secret'),
             ],
             'user_id' => Auth::id(),
         ]);
@@ -173,6 +184,11 @@ class SettingsController extends Controller
         ]);
 
         $settings = Setting::get();
+        $before = [
+            'meraki_enabled'          => (bool) $settings->meraki_enabled,
+            'meraki_org_id'           => $settings->meraki_org_id,
+            'meraki_polling_interval' => $settings->meraki_polling_interval,
+        ];
         $settings->meraki_enabled          = $request->boolean('meraki_enabled');
         $settings->meraki_org_id           = $request->meraki_org_id;
         $settings->meraki_polling_interval = (int) $request->meraki_polling_interval;
@@ -186,12 +202,15 @@ class SettingsController extends Controller
         ActivityLog::create([
             'model_type' => 'Setting',
             'model_id'   => 1,
-            'action'     => 'updated',
+            'action'     => 'meraki_updated',
             'changes'    => [
-                'meraki_enabled'          => $settings->meraki_enabled,
-                'meraki_org_id'           => $request->meraki_org_id,
-                'meraki_polling_interval' => $settings->meraki_polling_interval,
-                'api_key_changed'         => $request->filled('meraki_api_key'),
+                'before' => $before,
+                'after'  => [
+                    'meraki_enabled'          => (bool) $settings->meraki_enabled,
+                    'meraki_org_id'           => $settings->meraki_org_id,
+                    'meraki_polling_interval' => $settings->meraki_polling_interval,
+                ],
+                'api_key_changed' => $request->filled('meraki_api_key'),
             ],
             'user_id' => Auth::id(),
         ]);
@@ -217,6 +236,13 @@ class SettingsController extends Controller
         ]);
 
         $settings = Setting::get();
+        $before = [
+            'identity_sync_enabled' => (bool) $settings->identity_sync_enabled,
+            'graph_tenant_id'       => $settings->graph_tenant_id,
+            'graph_client_id'       => $settings->graph_client_id,
+            'identity_sync_interval'=> $settings->identity_sync_interval,
+            'intune_net_data_script_id' => $settings->intune_net_data_script_id,
+        ];
         $settings->identity_sync_enabled      = $request->boolean('identity_sync_enabled');
         $settings->graph_tenant_id            = $request->graph_tenant_id;
         $settings->graph_client_id            = $request->graph_client_id;
@@ -234,11 +260,18 @@ class SettingsController extends Controller
         ActivityLog::create([
             'model_type' => 'Setting',
             'model_id'   => 1,
-            'action'     => 'updated',
+            'action'     => 'graph_updated',
             'changes'    => [
-                'identity_sync_enabled' => $settings->identity_sync_enabled,
-                'graph_tenant_id'       => $request->graph_tenant_id,
-                'secret_changed'        => $request->filled('graph_client_secret'),
+                'before' => $before,
+                'after'  => [
+                    'identity_sync_enabled'     => (bool) $settings->identity_sync_enabled,
+                    'graph_tenant_id'           => $settings->graph_tenant_id,
+                    'graph_client_id'           => $settings->graph_client_id,
+                    'identity_sync_interval'    => $settings->identity_sync_interval,
+                    'intune_net_data_script_id' => $settings->intune_net_data_script_id,
+                ],
+                'secret_changed'         => $request->filled('graph_client_secret'),
+                'default_password_changed' => $request->filled('graph_default_password'),
             ],
             'user_id' => Auth::id(),
         ]);
@@ -264,6 +297,12 @@ class SettingsController extends Controller
         ]);
 
         $settings = Setting::get();
+        $before = [
+            'gdms_base_url'  => $settings->gdms_base_url,
+            'gdms_client_id' => $settings->gdms_client_id,
+            'gdms_org_id'    => $settings->gdms_org_id,
+            'gdms_username'  => $settings->gdms_username,
+        ];
         $settings->gdms_base_url      = $request->gdms_base_url ?: 'https://www.gdms.cloud/oapi';
         $settings->gdms_client_id     = $request->gdms_client_id;
         $settings->gdms_org_id        = $request->gdms_org_id;
@@ -279,9 +318,19 @@ class SettingsController extends Controller
         ActivityLog::create([
             'model_type' => 'Setting',
             'model_id'   => 1,
-            'action'     => 'updated',
-            'changes'    => ['section' => 'gdms', 'gdms_org_id' => $request->gdms_org_id],
-            'user_id'    => Auth::id(),
+            'action'     => 'gdms_updated',
+            'changes'    => [
+                'before' => $before,
+                'after'  => [
+                    'gdms_base_url'  => $settings->gdms_base_url,
+                    'gdms_client_id' => $settings->gdms_client_id,
+                    'gdms_org_id'    => $settings->gdms_org_id,
+                    'gdms_username'  => $settings->gdms_username,
+                ],
+                'secret_changed'          => $request->filled('gdms_client_secret'),
+                'password_hash_changed'   => $request->filled('gdms_password_hash'),
+            ],
+            'user_id' => Auth::id(),
         ]);
 
         return redirect()
@@ -308,6 +357,15 @@ class SettingsController extends Controller
         ]);
 
         $settings = Setting::get();
+        $before = [
+            'smtp_host'         => $settings->smtp_host,
+            'smtp_port'         => $settings->smtp_port,
+            'smtp_encryption'   => $settings->smtp_encryption,
+            'smtp_username'     => $settings->smtp_username,
+            'smtp_from_address' => $settings->smtp_from_address,
+            'smtp_from_name'    => $settings->smtp_from_name,
+            'snmp_alert_email'  => $settings->snmp_alert_email,
+        ];
         $settings->smtp_host         = $request->smtp_host;
         $settings->smtp_port         = $request->smtp_port ?: 587;
         $settings->smtp_encryption   = $request->smtp_encryption ?: 'tls';
@@ -325,14 +383,19 @@ class SettingsController extends Controller
         ActivityLog::create([
             'model_type' => 'Setting',
             'model_id'   => 1,
-            'action'     => 'updated',
+            'action'     => 'smtp_updated',
             'changes'    => [
-                'smtp_host'         => $request->smtp_host,
-                'smtp_port'         => $settings->smtp_port,
-                'smtp_encryption'   => $settings->smtp_encryption,
-                'smtp_username'     => $settings->smtp_username,
-                'smtp_from_address' => $settings->smtp_from_address,
-                'password_changed'  => $request->filled('smtp_password'),
+                'before' => $before,
+                'after'  => [
+                    'smtp_host'         => $settings->smtp_host,
+                    'smtp_port'         => $settings->smtp_port,
+                    'smtp_encryption'   => $settings->smtp_encryption,
+                    'smtp_username'     => $settings->smtp_username,
+                    'smtp_from_address' => $settings->smtp_from_address,
+                    'smtp_from_name'    => $settings->smtp_from_name,
+                    'snmp_alert_email'  => $settings->snmp_alert_email,
+                ],
+                'password_changed' => $request->filled('smtp_password'),
             ],
             'user_id' => Auth::id(),
         ]);
@@ -395,6 +458,14 @@ class SettingsController extends Controller
 
         $dept = Department::create($data);
 
+        ActivityLog::create([
+            'model_type' => Department::class,
+            'model_id'   => $dept->id,
+            'action'     => 'created',
+            'changes'    => $data,
+            'user_id'    => Auth::id(),
+        ]);
+
         if ($request->expectsJson()) {
             return response()->json(['id' => $dept->id, 'name' => $dept->name], 201);
         }
@@ -410,14 +481,34 @@ class SettingsController extends Controller
             'sort_order'  => 'nullable|integer|min:0',
         ]);
 
+        $before = $department->only(['name', 'description', 'sort_order']);
         $department->update($data);
+
+        ActivityLog::create([
+            'model_type' => Department::class,
+            'model_id'   => $department->id,
+            'action'     => 'updated',
+            'changes'    => ['before' => $before, 'after' => $department->only(['name', 'description', 'sort_order'])],
+            'user_id'    => Auth::id(),
+        ]);
+
         return back()->with('success', "Department \"{$department->name}\" updated.");
     }
 
     public function destroyDepartment(Department $department)
     {
         $name = $department->name;
+        $id   = $department->id;
         $department->delete();
+
+        ActivityLog::create([
+            'model_type' => Department::class,
+            'model_id'   => $id,
+            'action'     => 'deleted',
+            'changes'    => ['name' => $name],
+            'user_id'    => Auth::id(),
+        ]);
+
         return back()->with('success', "Department \"{$name}\" deleted.");
     }
 

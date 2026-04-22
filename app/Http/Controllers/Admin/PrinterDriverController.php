@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Printer;
 use App\Models\PrinterDriver;
 use Illuminate\Http\RedirectResponse;
@@ -138,6 +139,17 @@ class PrinterDriverController extends Controller
     public function download(PrinterDriver $printerDriver)
     {
         abort_if(! $printerDriver->driver_file_path, 404, 'No file attached to this driver.');
+
+        ActivityLog::create([
+            'model_type' => PrinterDriver::class,
+            'model_id'   => $printerDriver->id,
+            'action'     => 'downloaded',
+            'changes'    => [
+                'driver_name' => $printerDriver->driver_name,
+                'filename'    => $printerDriver->original_filename,
+            ],
+            'user_id' => auth()->id(),
+        ]);
 
         return Storage::disk('private')->download(
             $printerDriver->driver_file_path,

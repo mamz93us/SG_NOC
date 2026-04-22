@@ -31,4 +31,12 @@ return [
     | Default Telnet port
     */
     'default_port' => 23,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Per-user cap on concurrent active SSH/Telnet terminal sessions. Stale
+    | rows (older than 2h) are auto-expired before the count, so a crashed
+    | browser can't permanently consume a slot.
+    */
+    'max_concurrent_sessions' => env('TELNET_MAX_CONCURRENT_SESSIONS', 3),
 ];

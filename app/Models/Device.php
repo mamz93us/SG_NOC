@@ -47,6 +47,7 @@ class Device extends Model
         'web_protocol',
         'web_port',
         'web_path',
+        'proxy_legacy_tls',
         'ssh_port',
         'ssh_username',
         // ── Switch QoS probe ───────────────────────────────────────────────
@@ -65,6 +66,7 @@ class Device extends Model
         'current_value'      => 'decimal:2',
         'depreciation_years' => 'integer',
         'proxy_enabled'      => 'boolean',
+        'proxy_legacy_tls'   => 'boolean',
         'web_port'           => 'integer',
         'ssh_port'           => 'integer',
         'telnet_reachable'   => 'boolean',

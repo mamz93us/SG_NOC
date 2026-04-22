@@ -475,8 +475,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('credentials/generate',            [CredentialController::class, 'generate']) ->name('credentials.generate');
         Route::get('credentials/create',              [CredentialController::class, 'create'])   ->name('credentials.create');
         Route::get('credentials/{credential}/edit',   [CredentialController::class, 'edit'])     ->name('credentials.edit');
-        // Reveal password: GET (read-only, permission-gated in controller)
-        Route::get('credentials/{credential}/reveal', [CredentialController::class, 'reveal'])   ->name('credentials.reveal');
+        // Reveal password: POST (no browser history, permission-gated in controller, rate-limited)
+        Route::post('credentials/{credential}/reveal', [CredentialController::class, 'reveal'])
+            ->middleware('throttle:20,1')
+            ->name('credentials.reveal');
     });
     Route::middleware('permission:manage-credentials')->group(function () {
         Route::post('credentials',                            [CredentialController::class, 'store'])    ->name('credentials.store');

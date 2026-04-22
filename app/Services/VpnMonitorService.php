@@ -42,12 +42,15 @@ class VpnMonitorService
             if ($newStatus === 'down') {
                 $this->triggerAlert($tunnel);
             } else {
-                // Tunnel came back up — resolve open NOC events
+                // Tunnel came back up — resolve open NOC events. Iterate+save
+                // (not ->update()) so NocEventObserver::updated fires and the
+                // auto-escalated incident is closed in lockstep.
                 NocEvent::where('module', 'VPN_HUB')
                     ->where('entity_type', 'vpn_tunnel')
                     ->where('entity_id', $tunnel->id)
                     ->where('status', 'open')
-                    ->update(['status' => 'resolved', 'resolved_at' => now()]);
+                    ->get()
+                    ->each(fn ($ev) => $ev->update(['status' => 'resolved', 'resolved_at' => now()]));
             }
         }
 

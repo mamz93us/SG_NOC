@@ -37,7 +37,7 @@ class VpnHubController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $data = $request->validate([
             'branch_id'        => 'required|exists:branches,id',
             'name'             => 'required|string|max:255|unique:vpn_tunnels,name|regex:/^[a-zA-Z0-9_]+$/',
             'remote_public_ip' => 'required|string|max:255',
@@ -57,7 +57,7 @@ class VpnHubController extends Controller
         try {
             DB::beginTransaction();
 
-            $tunnel = VpnTunnel::create($request->all());
+            $tunnel = VpnTunnel::create($data);
 
             // Generate and save swanctl config
             $config = $this->vpnService->generateConfig($tunnel);
@@ -103,7 +103,7 @@ class VpnHubController extends Controller
 
     public function update(Request $request, VpnTunnel $tunnel)
     {
-        $request->validate([
+        $data = $request->validate([
             'branch_id'        => 'required|exists:branches,id',
             'name'             => 'required|string|max:255|unique:vpn_tunnels,name,' . $tunnel->id . '|regex:/^[a-zA-Z0-9_]+$/',
             'remote_public_ip' => 'required|string|max:255',
@@ -124,7 +124,6 @@ class VpnHubController extends Controller
             DB::beginTransaction();
 
             $oldName = $tunnel->name;
-            $data = $request->all();
             if (empty($data['pre_shared_key'])) {
                 unset($data['pre_shared_key']);
             }

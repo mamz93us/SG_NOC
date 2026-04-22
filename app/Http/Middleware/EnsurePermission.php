@@ -36,6 +36,24 @@ class EnsurePermission
             }
         }
 
+        // Audit the denial for privilege-escalation forensics.
+        try {
+            \App\Models\ActivityLog::create([
+                'model_type' => \App\Models\User::class,
+                'model_id'   => $user->id,
+                'action'     => 'permission_denied',
+                'changes'    => [
+                    'required' => $permissions,
+                    'role'     => $user->role,
+                    'path'     => $request->path(),
+                    'method'   => $request->method(),
+                ],
+                'user_id'    => $user->id,
+            ]);
+        } catch (\Throwable) {
+            // Never let logging failures bubble up to a 500.
+        }
+
         if ($request->expectsJson()) {
             return response()->json(['error' => 'Forbidden'], 403);
         }

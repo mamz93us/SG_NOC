@@ -116,7 +116,11 @@ class EmployeeController extends Controller
             ->orderBy('name')->get();
 
         // Available licenses (with seats remaining) for the assign modal
-        $availableLicenses = \App\Models\License::all()->filter(fn($l) => $l->availableSeats() > 0)->values();
+        // Eager-count assignments and filter in SQL to avoid N+1 usedSeats() calls.
+        $availableLicenses = \App\Models\License::withCount('assignments')
+            ->get()
+            ->filter(fn($l) => ($l->seats - $l->assignments_count) > 0)
+            ->values();
 
         // License assignments for this employee (morphMany)
         $licenseAssignments = \App\Models\LicenseAssignment::with('license')
@@ -247,19 +251,26 @@ class EmployeeController extends Controller
 
     public function returnAsset(Request $request, Employee $employee, EmployeeAsset $asset)
     {
+        // Guard against URL tampering: the assignment must belong to this employee
+        // and must still be an open (not-yet-returned) assignment.
+        abort_unless($asset->employee_id === $employee->id, 404);
+        abort_if($asset->returned_date !== null, 409, 'Asset has already been returned.');
+
         $request->validate([
             'returned_date' => 'required|date',
             'condition'     => 'required|in:good,fair,poor',
             'notes'         => 'nullable|string|max:500',
         ]);
 
-        $asset->update([
-            'returned_date' => $request->returned_date,
-            'condition'     => $request->condition,
-            'notes'         => $request->notes,
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($asset, $request) {
+            $asset->update([
+                'returned_date' => $request->returned_date,
+                'condition'     => $request->condition,
+                'notes'         => $request->notes,
+            ]);
 
-        Device::where('id', $asset->asset_id)->update(['status' => 'available']);
+            Device::where('id', $asset->asset_id)->update(['status' => 'available']);
+        });
 
         return back()->with('success', 'Asset returned successfully.');
     }

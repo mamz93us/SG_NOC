@@ -21,7 +21,14 @@ class IncidentController extends Controller
             ->orderByDesc('created_at');
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            // "pending"/"active" are UX synonyms for the open+investigating
+            // bucket; otherwise only honor statuses defined by the model.
+            $status = $request->status;
+            if (in_array($status, ['pending', 'active'], true)) {
+                $query->open();
+            } elseif (array_key_exists($status, Incident::statuses())) {
+                $query->where('status', $status);
+            }
         }
         if ($request->filled('severity')) {
             $query->where('severity', $request->severity);

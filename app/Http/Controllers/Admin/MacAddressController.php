@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Device;
 use App\Models\DeviceMac;
 use Illuminate\Http\Request;
@@ -131,6 +132,17 @@ class MacAddressController extends Controller
 
     private function exportCsv($registryMacs, $deviceRows, array $dhcpByMac = [], ?callable $normMacFn = null): Response
     {
+        ActivityLog::create([
+            'model_type' => DeviceMac::class,
+            'model_id'   => 0,
+            'action'     => 'exported',
+            'changes'    => [
+                'registry_count' => method_exists($registryMacs, 'count') ? $registryMacs->count() : count($registryMacs),
+                'device_count'   => method_exists($deviceRows, 'count') ? $deviceRows->count() : count($deviceRows),
+            ],
+            'user_id' => auth()->id(),
+        ]);
+
         $normMac = fn(?string $m) => $m
             ? strtoupper(implode(':', str_split(strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), 2)))
             : '';

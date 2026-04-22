@@ -48,6 +48,14 @@ Schedule::command('cups:refresh-status')
 Schedule::job(new \App\Jobs\RunNocAlertsJob)->everyFiveMinutes();
 Schedule::job(new \App\Jobs\CheckLicenseMonitorsJob)->hourly();
 
+// Daily expiry scan — software licenses (ITAM) and SSL certificates.
+// Raises NocEvents so the existing notification rules pick them up.
+Schedule::call(function () {
+    try { (new \App\Jobs\CheckExpiryAlertsJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Expiry alerts check failed: ' . $e->getMessage());
+    }
+})->name('check-expiry-alerts')->withoutOverlapping(30)->dailyAt('07:00');
+
 // Warranty Expiry Check — weekly (runs inline)
 Schedule::call(function () {
     try { (new \App\Jobs\CheckWarrantyExpiryJob)->handle(); } catch (\Throwable $e) {}

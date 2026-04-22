@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Exports\ContactsExport;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Validation\Rule;
+use App\Models\ActivityLog;
 
 class ContactController extends Controller
 {
@@ -55,6 +56,18 @@ class ContactController extends Controller
 
         $filename = 'contacts_' . date('Y-m-d_His') . '.xlsx';
 
+        ActivityLog::create([
+            'model_type' => \App\Models\Contact::class,
+            'model_id'   => 0,
+            'action'     => 'exported',
+            'changes'    => [
+                'format' => 'xlsx',
+                'count'  => $contacts->count(),
+                'search' => $request->input('search'),
+            ],
+            'user_id' => auth()->id(),
+        ]);
+
         return Excel::download(new ContactsExport($contacts), $filename);
     }
 
@@ -79,16 +92,12 @@ class ContactController extends Controller
             return response()->json(['exists' => false]);
         }
 
-        $query = Contact::where('email', $email);
+        $duplicate = Contact::with('branch')
+            ->where('email', $email)
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->first();
 
-        if ($excludeId) {
-            $query->where('id', '!=', $excludeId);
-        }
-
-        $exists = $query->exists();
-
-        if ($exists) {
-            $duplicate = $query->first();
+        if ($duplicate) {
             return response()->json([
                 'exists' => true,
                 'contact' => [

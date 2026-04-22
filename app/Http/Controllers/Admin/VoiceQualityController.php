@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Events\PoorVoiceQualityDetected;
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\VoiceQualityReport;
 use App\Models\VqAlertEvent;
@@ -217,6 +218,17 @@ class VoiceQualityController extends Controller
         if ($request->filled('date_to'))   $query->whereDate('created_at', '<=', $request->date_to);
 
         $rows = $query->orderByDesc('created_at')->limit(10000)->get();
+
+        ActivityLog::create([
+            'model_type' => VoiceQualityReport::class,
+            'model_id'   => 0,
+            'action'     => 'exported',
+            'changes'    => [
+                'count'   => $rows->count(),
+                'filters' => $request->only(['branch','extension','date_from','date_to']),
+            ],
+            'user_id' => auth()->id(),
+        ]);
 
         $headers = ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="voice_quality_export.csv"'];
 

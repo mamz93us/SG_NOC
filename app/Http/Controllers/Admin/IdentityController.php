@@ -506,6 +506,22 @@ class IdentityController extends Controller
     {
         $msg = $e->getMessage();
 
+        try {
+            ActivityLog::create([
+                'model_type' => 'GraphApi',
+                'model_id'   => 0,
+                'action'     => 'api_failed',
+                'changes'    => [
+                    'service' => 'MicrosoftGraph',
+                    'message' => mb_substr($msg, 0, 1000),
+                    'route'   => request()?->route()?->getName(),
+                ],
+                'user_id' => Auth::id(),
+            ]);
+        } catch (\Throwable) {
+            // Never let audit logging mask the original failure.
+        }
+
         if (str_contains($msg, 'Authorization_RequestDenied') || str_contains($msg, 'Insufficient privileges')) {
             return 'Azure AD permission denied. The app registration is missing write permissions. '
                  . 'Please add the User.ReadWrite.All (Application) permission in Azure AD portal '

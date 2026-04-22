@@ -51,6 +51,8 @@ class DeviceProxyController extends Controller
     public function proxy(Request $request, Device $device, string $path = ''): Response|\Illuminate\Http\RedirectResponse
     {
         abort_unless($device->ip_address, 422);
+        abort_unless($device->proxy_enabled, 403, 'Proxy disabled for this device.');
+        abort_unless($this->isPrivateIp($device->ip_address), 403, 'Proxy target must be on a private network.');
 
         $protocol = $device->web_protocol ?? 'http';
         $port     = $device->web_port     ?? ($protocol === 'https' ? 443 : 80);
@@ -61,19 +63,23 @@ class DeviceProxyController extends Controller
             $target .= '?' . $qs;
         }
 
+        // Legacy TLS downgrade is OFF by default — opt-in per device via proxy_legacy_tls flag.
+        $curlOptions = [
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+        ];
+        if ($device->proxy_legacy_tls) {
+            $curlOptions[CURLOPT_SSLVERSION]      = CURL_SSLVERSION_TLSv1;
+            $curlOptions[CURLOPT_SSL_CIPHER_LIST] = 'DEFAULT@SECLEVEL=0';
+        }
+
         try {
             $response = Http::withOptions([
                 'verify'          => false,   // Many devices use self-signed TLS certs
                 'timeout'         => 12,
                 'connect_timeout' => 5,
                 'allow_redirects' => false,
-                // Full legacy SSL for old device firmware (TLS 1.0/1.1, MD5/SHA1 sigalgs)
-                'curl' => [
-                    CURLOPT_SSLVERSION      => CURL_SSLVERSION_TLSv1,
-                    CURLOPT_SSL_VERIFYPEER  => false,
-                    CURLOPT_SSL_VERIFYHOST  => 0,
-                    CURLOPT_SSL_CIPHER_LIST => 'DEFAULT@SECLEVEL=0',
-                ],
+                'curl'            => $curlOptions,
             ])
             ->withHeaders(['X-Forwarded-For' => $request->ip()])
             ->send(
@@ -178,5 +184,17 @@ class DeviceProxyController extends Controller
 
         // Relative URL — prepend proxy base
         return $proxyBase . ltrim($url, '/');
+    }
+
+    /**
+     * Guard against SSRF: only allow proxying to RFC1918 / RFC4193 / loopback.
+     */
+    protected function isPrivateIp(string $ip): bool
+    {
+        return filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+        ) === false && filter_var($ip, FILTER_VALIDATE_IP) !== false;
     }
 }

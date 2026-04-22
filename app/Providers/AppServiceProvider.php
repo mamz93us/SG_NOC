@@ -14,7 +14,9 @@ use App\Models\Contact;
 use App\Models\Credential;
 use App\Models\Device;
 use App\Models\Employee;
+use App\Models\EmployeeAsset;
 use App\Models\Incident;
+use App\Models\NocEvent;
 use App\Models\IpamSubnet;
 use App\Models\IpReservation;
 use App\Models\IspConnection;
@@ -38,7 +40,9 @@ use App\Observers\CredentialObserver;
 use App\Observers\DnsAccountObserver;
 use App\Observers\DeviceObserver;
 use App\Observers\EmployeeObserver;
+use App\Observers\EmployeeAssetObserver;
 use App\Observers\IncidentObserver;
+use App\Observers\NocEventObserver;
 use App\Observers\IpamSubnetObserver;
 use App\Observers\IpReservationObserver;
 use App\Observers\IspConnectionObserver;
@@ -79,7 +83,9 @@ class AppServiceProvider extends ServiceProvider
         DnsAccount::observe(DnsAccountObserver::class);
         Device::observe(DeviceObserver::class);
         Employee::observe(EmployeeObserver::class);
+        EmployeeAsset::observe(EmployeeAssetObserver::class);
         Incident::observe(IncidentObserver::class);
+        NocEvent::observe(NocEventObserver::class);
         IpamSubnet::observe(IpamSubnetObserver::class);
         IpReservation::observe(IpReservationObserver::class);
         IspConnection::observe(IspConnectionObserver::class);
@@ -105,11 +111,58 @@ class AppServiceProvider extends ServiceProvider
             \SocialiteProviders\Microsoft\MicrosoftExtendSocialite::class.'@handle'
         );
 
-        // ── Track last login timestamp ───────────────────────────────
+        // ── Auth audit trail (last-login + activity log for login/logout/fail/lockout) ─
         Event::listen(\Illuminate\Auth\Events\Login::class, function ($event) {
             if ($event->user) {
                 $event->user->forceFill(['last_login_at' => now()])->saveQuietly();
+                \App\Models\ActivityLog::create([
+                    'model_type' => \App\Models\User::class,
+                    'model_id'   => $event->user->id,
+                    'action'     => 'login',
+                    'changes'    => ['guard' => $event->guard ?? null, 'remember' => $event->remember ?? null],
+                    'user_id'    => $event->user->id,
+                ]);
             }
+        });
+
+        Event::listen(\Illuminate\Auth\Events\Logout::class, function ($event) {
+            if ($event->user) {
+                \App\Models\ActivityLog::create([
+                    'model_type' => \App\Models\User::class,
+                    'model_id'   => $event->user->id,
+                    'action'     => 'logout',
+                    'changes'    => ['guard' => $event->guard ?? null],
+                    'user_id'    => $event->user->id,
+                ]);
+            }
+        });
+
+        Event::listen(\Illuminate\Auth\Events\Failed::class, function ($event) {
+            \App\Models\ActivityLog::create([
+                'model_type' => \App\Models\User::class,
+                'model_id'   => $event->user?->id ?? 0,
+                'action'     => 'login_failed',
+                'changes'    => [
+                    'guard'       => $event->guard ?? null,
+                    'attempted'   => [
+                        'email' => $event->credentials['email'] ?? null,
+                    ],
+                    'matched_user' => $event->user?->id,
+                ],
+                'user_id'    => $event->user?->id,
+            ]);
+        });
+
+        Event::listen(\Illuminate\Auth\Events\Lockout::class, function ($event) {
+            \App\Models\ActivityLog::create([
+                'model_type' => \App\Models\User::class,
+                'model_id'   => 0,
+                'action'     => 'login_lockout',
+                'changes'    => [
+                    'email' => $event->request->input('email'),
+                ],
+                'user_id'    => null,
+            ]);
         });
 
         // ── Permission Gates (DB-driven via role_permissions) ────────

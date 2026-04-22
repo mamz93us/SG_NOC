@@ -224,19 +224,11 @@ class WorkflowEngine
         $connections = data_get($current, "outputs.{$outputPort}.connections", []);
 
         if (empty($connections)) {
-            // No more nodes — workflow is done
+            // No more nodes — workflow is done. Requester notification is
+            // handled centrally by WorkflowRequestObserver so every completion
+            // path (engine, job, offboarding form) produces exactly one.
             $workflow->update(['status' => 'completed']);
             $this->logEvent($workflow, 'success', 'Workflow completed successfully.');
-            if ($workflow->requested_by) {
-                $this->notifications->notify(
-                    $workflow->requested_by,
-                    'workflow_completed',
-                    "Request Completed — {$workflow->title}",
-                    'Your workflow request has been completed successfully.',
-                    route('admin.workflows.show', $workflow->id),
-                    'success'
-                );
-            }
             return;
         }
 
