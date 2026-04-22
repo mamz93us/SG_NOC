@@ -69,7 +69,7 @@
         @php $ssoEnabled = \App\Models\Setting::first()?->sso_enabled ?? false; @endphp
 
         @if ($ssoEnabled)
-            <a href="{{ route('auth.microsoft') }}" class="sso-btn">
+            <a href="{{ route('auth.microsoft', ['portal' => 1]) }}" class="sso-btn">
                 <img src="https://learn.microsoft.com/en-us/entra/identity-platform/media/howto-add-branding-in-apps/ms-symbollockup_mssymbol_19.svg" alt="">
                 Sign in with Microsoft
             </a>

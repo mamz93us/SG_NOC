@@ -13,10 +13,21 @@ class MicrosoftController extends Controller
 {
     /**
      * Configure Socialite dynamically from DB settings and redirect to Microsoft.
+     *
+     * If the redirect is initiated from the Remote Browser portal login page
+     * (?portal=1), remember that in the session so the callback can (a) default
+     * brand-new users to the 'browser_user' role and (b) route them to the
+     * portal — not the admin dashboard — after authentication.
      */
-    public function redirect()
+    public function redirect(\Illuminate\Http\Request $request)
     {
         $this->configureSocialite();
+
+        if ($request->boolean('portal')) {
+            $request->session()->put('sso_context', 'portal');
+        } else {
+            $request->session()->forget('sso_context');
+        }
 
         return Socialite::driver('microsoft')->redirect();
     }
@@ -24,16 +35,26 @@ class MicrosoftController extends Controller
     /**
      * Handle the Microsoft OAuth callback.
      */
-    public function callback()
+    public function callback(\Illuminate\Http\Request $request)
     {
         $this->configureSocialite();
 
         try {
             $msUser = Socialite::driver('microsoft')->user();
         } catch (\Exception $e) {
-            return redirect()->route('login')
+            $context = $request->session()->pull('sso_context');
+            $loginRoute = $context === 'portal' ? 'portal.login' : 'login';
+            return redirect()->route($loginRoute)
                 ->with('error', 'Microsoft login failed: ' . $e->getMessage());
         }
+
+        $context = $request->session()->pull('sso_context'); // 'portal' or null
+
+        // Portal-originated sign-ins default brand-new users to browser_user
+        // (no admin access); regular SSO falls back to sso_default_role.
+        $defaultRole = $context === 'portal'
+            ? 'browser_user'
+            : (Setting::get()->sso_default_role ?? 'viewer');
 
         // Find or create the user
         $user = User::firstOrCreate(
@@ -41,7 +62,7 @@ class MicrosoftController extends Controller
             [
                 'name'              => $msUser->getName() ?? $msUser->getEmail(),
                 'password'          => \Illuminate\Support\Str::random(32), // unusable random password
-                'role'              => Setting::get()->sso_default_role ?? 'viewer',
+                'role'              => $defaultRole,
                 'email_verified_at' => now(),
             ]
         );
@@ -53,10 +74,19 @@ class MicrosoftController extends Controller
         // (if enrolled) or the forced enrollment page (if not).
         session()->forget('2fa_verified');
 
+        // Remember the intended post-auth destination so the 2FA flow
+        // (challenge or enrollment) can route the user back to the portal
+        // instead of the admin dashboard.
+        if ($context === 'portal') {
+            $request->session()->put('url.intended', route('portal.index'));
+        }
+
         if ($user->hasTwoFactorEnabled()) {
             return redirect()->route('two-factor.challenge');
         }
 
+        // Need to enroll in 2FA first. After enrollment, TwoFactorController@confirm
+        // redirects to $user->homeRoute() — portal for browser_user, admin otherwise.
         return redirect()->route('admin.two-factor.setup');
     }
 
