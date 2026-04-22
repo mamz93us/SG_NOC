@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ config('app.name', 'Company Directory') }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
     <style>
         body {
             min-height: 100vh;
@@ -16,12 +17,7 @@
             margin: 0;
             padding: 20px;
         }
-        
-        .welcome-container {
-            max-width: 800px;
-            width: 100%;
-        }
-        
+        .welcome-container { max-width: 900px; width: 100%; }
         .welcome-card {
             background: white;
             border-radius: 30px;
@@ -29,151 +25,89 @@
             overflow: hidden;
             animation: fadeInUp 0.8s ease-out;
         }
-        
         @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(40px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(40px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
-        
         .welcome-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 60px 40px;
+            padding: 50px 40px;
             text-align: center;
             color: white;
         }
-        
         .company-logo {
-            max-width: 180px;
-            max-height: 120px;
-            margin-bottom: 20px;
+            max-width: 160px;
+            max-height: 110px;
+            margin-bottom: 18px;
             background: white;
-            padding: 20px;
-            border-radius: 20px;
+            padding: 16px;
+            border-radius: 18px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
         }
-        
         .welcome-title {
-            font-size: 42px;
+            font-size: 38px;
             font-weight: 700;
             margin: 0;
             text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
         }
-        
-        .welcome-subtitle {
-            font-size: 18px;
-            margin: 15px 0 0 0;
-            opacity: 0.95;
-        }
-        
-        .welcome-body {
+        .welcome-subtitle { font-size: 17px; margin: 12px 0 0 0; opacity: 0.95; }
+
+        /* Exactly two big sign-in tiles. On small screens they stack. */
+        .signin-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 28px;
             padding: 50px 40px;
         }
-        
-        .action-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 25px;
-            margin-top: 30px;
+        @media (max-width: 640px) {
+            .signin-grid { grid-template-columns: 1fr; }
         }
-        
-        .action-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            border-radius: 20px;
-            padding: 35px 30px;
+        .signin-card {
+            border-radius: 24px;
+            padding: 55px 30px;
             text-align: center;
-            transition: all 0.3s;
-            border: none;
             text-decoration: none;
-            color: #333;
-            display: block;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            color: white;
+            transition: transform .25s, box-shadow .25s;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+            min-height: 280px;
         }
-        
-        .action-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-            color: #333;
-        }
-        
-        .action-card.primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .signin-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22);
             color: white;
         }
-        
-        .action-card.primary:hover {
-            color: white;
-        }
-        
-        .action-card.success {
+        .signin-card.user {
             background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            color: white;
         }
-        
-        .action-card.success:hover {
-            color: white;
+        .signin-card.admin {
+            background: linear-gradient(135deg, #434a5c 0%, #1a1f2c 100%);
         }
-        
-        .action-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-        
-        .action-title {
-            font-size: 22px;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-        
-        .action-description {
-            font-size: 14px;
-            opacity: 0.9;
-            margin: 0;
-        }
-        
-        .admin-link {
-            margin-top: 30px;
-            padding-top: 30px;
-            border-top: 2px solid #f0f0f0;
-            text-align: center;
+        .signin-icon { font-size: 78px; line-height: 1; }
+        .signin-title { font-size: 28px; font-weight: 700; margin: 0; }
+        .signin-sub { font-size: 14px; opacity: .92; margin: 0; max-width: 280px; }
+        .signin-method {
+            font-size: 12px;
+            opacity: .8;
+            margin-top: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,.18);
+            padding: 5px 12px;
+            border-radius: 100px;
         }
 
-        .admin-btn {
-            display: inline-block;
-            padding: 12px 30px;
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-            border-radius: 10px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s;
-            margin: 5px;
-        }
-
-        .admin-btn:hover {
-            background: #667eea;
-            color: white;
-        }
-
-        .action-card.info {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-        }
-        .action-card.info:hover {
-            color: white;
-        }
-        
         .footer-text {
             text-align: center;
             color: white;
-            margin-top: 30px;
-            font-size: 14px;
+            margin-top: 24px;
+            font-size: 13px;
             opacity: 0.9;
         }
     </style>
@@ -184,115 +118,42 @@
             @php
                 $settings = App\Models\Setting::first();
             @endphp
-            
-            <!-- Header -->
+
             <div class="welcome-header">
                 @if($settings && $settings->company_logo)
-                    <img 
-                        src="{{ asset('storage/' . $settings->company_logo) }}" 
-                        alt="{{ $settings->company_name ?? 'Company' }} Logo" 
-                        class="company-logo"
-                    >
+                    <img src="{{ asset('storage/' . $settings->company_logo) }}"
+                         alt="{{ $settings->company_name ?? 'Company' }} Logo"
+                         class="company-logo">
                 @else
-                    <div style="font-size: 72px; margin-bottom: 20px;">📱</div>
+                    <div style="font-size: 68px; margin-bottom: 16px;">📱</div>
                 @endif
-                
-                <h1 class="welcome-title">
-                    {{ $settings->company_name ?? 'Company Directory' }}
-                </h1>
-                <p class="welcome-subtitle">
-                    Your Complete Employee Contact Directory
-                </p>
+                <h1 class="welcome-title">{{ $settings->company_name ?? 'Company Directory' }}</h1>
+                <p class="welcome-subtitle">Sign in to continue</p>
             </div>
-            
-            <!-- Body -->
-            <div class="welcome-body">
-                <div class="action-grid">
-                    <!-- View Contacts -->
-                    <a href="/contacts" class="action-card primary">
-                        <div class="action-icon">👥</div>
-                        <h3 class="action-title">Browse Directory</h3>
-                        <p class="action-description">
-                            Search and view all employee contacts
-                        </p>
-                    </a>
 
-                    <!-- Print Directory -->
-                    <a href="/contacts/print" target="_blank" class="action-card success">
-                        <div class="action-icon">🖨️</div>
-                        <h3 class="action-title">Print Directory</h3>
-                        <p class="action-description">
-                            Print or save contacts as PDF
-                        </p>
-                    </a>
+            <div class="signin-grid">
+                {{-- User sign-in — SSO-only. Lands in the user portal. --}}
+                <a href="{{ route('portal.login') }}" class="signin-card user">
+                    <i class="bi bi-person-circle signin-icon"></i>
+                    <h2 class="signin-title">User Sign In</h2>
+                    <p class="signin-sub">Directory, printers, remote browser &amp; more</p>
+                    <span class="signin-method">
+                        <i class="bi bi-microsoft"></i> Microsoft SSO
+                    </span>
+                </a>
 
-                    <!-- My Printers — shown only for logged-in users -->
-                    @auth
-                    <a href="/admin/my-printers" class="action-card info">
-                        <div class="action-icon">🖨️</div>
-                        <h3 class="action-title">My Printers</h3>
-                        <p class="action-description">
-                            Set up and connect printers for your office
-                        </p>
-                    </a>
-                    @endauth
-
-                    <!-- Documentation -->
-                    <a href="/documentation" class="action-card" style="background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);color:white;">
-                        <div class="action-icon">📄</div>
-                        <h3 class="action-title">Documentation</h3>
-                        <p class="action-description">
-                            View reports and technical documents
-                        </p>
-                    </a>
-
-                    <!-- Remote Browser — always visible.
-                         Logged-out users are routed to the SSO sign-in page;
-                         logged-in users with the permission go straight to the portal. -->
-                    @auth
-                        @can('view-browser-portal')
-                        <a href="{{ route('portal.index') }}" class="action-card" style="background:linear-gradient(135deg,#ff9966 0%,#ff5e62 100%);color:white;">
-                            <div class="action-icon">🌐</div>
-                            <h3 class="action-title">Remote Browser</h3>
-                            <p class="action-description">
-                                Launch a secure hosted Chromium on the corporate network
-                            </p>
-                        </a>
-                        @endcan
-                    @else
-                        <a href="{{ route('portal.login') }}" class="action-card" style="background:linear-gradient(135deg,#ff9966 0%,#ff5e62 100%);color:white;">
-                            <div class="action-icon">🌐</div>
-                            <h3 class="action-title">Remote Browser</h3>
-                            <p class="action-description">
-                                Sign in with Microsoft to launch a secure hosted browser
-                            </p>
-                        </a>
-                    @endauth
-                </div>
-
-                <!-- Bottom links -->
-                <div class="admin-link">
-                    @auth
-                        <a href="{{ route('admin.dashboard') }}" class="admin-btn">
-                            ⚙️ Admin Panel
-                        </a>
-                        <a href="/logout" class="admin-btn"
-                           onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                            🚪 Sign Out
-                        </a>
-                        <form id="logout-form" action="/logout" method="POST" style="display:none;">
-                            @csrf
-                        </form>
-                    @else
-                        <a href="/login" class="admin-btn">
-                            🔐 Admin Login
-                        </a>
-                    @endauth
-                </div>
+                {{-- Admin sign-in — username + password. --}}
+                <a href="{{ route('login') }}" class="signin-card admin">
+                    <i class="bi bi-shield-lock-fill signin-icon"></i>
+                    <h2 class="signin-title">Admin Sign In</h2>
+                    <p class="signin-sub">Operators & administrators</p>
+                    <span class="signin-method">
+                        <i class="bi bi-key-fill"></i> Username / password
+                    </span>
+                </a>
             </div>
         </div>
-        
-        <!-- Footer -->
+
         <div class="footer-text">
             <p>&copy; {{ date('Y') }} {{ $settings->company_name ?? 'Company' }}. All rights reserved.</p>
         </div>
