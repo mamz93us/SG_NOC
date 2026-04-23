@@ -616,7 +616,10 @@ class WorkflowEngine
             return;
         }
 
-        $this->notifications->notifyAdmins(
+        // Honor Notification Routing Rules — if a rule targets 'approval_request'
+        // (or wildcard '*') only its recipients receive the email. Falls back to
+        // notifyAdmins() when no rule is configured, so approvals never vanish.
+        $this->notifications->notifyViaRules(
             'approval_request',
             "Approval Required — {$workflow->title}",
             "A workflow request requires {$step->approverRoleLabel()} approval (Step {$stepNumber}).",
