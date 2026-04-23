@@ -319,7 +319,8 @@
       "Bash(php -l app/Http/Controllers/Public/OnboardingFormController.php)",
       "Bash(php -l app/Jobs/SendOnboardingManagerFormJob.php)",
       "Bash(php -l app/Console/Commands/RemindOnboardingManagers.php)",
-      "Bash(php -l app/Models/OnboardingManagerToken.php)"
+      "Bash(php -l app/Models/OnboardingManagerToken.php)",
+      "Bash(php -l database/migrations/2026_04_23_000003_widen_workflow_requests_status.php)"
     ]
   }
 }
