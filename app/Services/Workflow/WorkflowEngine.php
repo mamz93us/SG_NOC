@@ -540,7 +540,10 @@ class WorkflowEngine
         }
 
         try {
-            SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
+            // Dispatch to the default queue — that's where the worker is actually
+            // running. An `emails` queue is referenced elsewhere but has no worker
+            // so jobs sent there would sit in the jobs table indefinitely.
+            SendOnboardingManagerFormJob::dispatch($workflow->id);
             $this->logEvent($workflow, 'info', "Manager setup form email queued for {$managerEmail}.");
         } catch (\Throwable $e) {
             Log::error("[WorkflowEngine] Failed to queue manager form email for workflow #{$workflow->id}: {$e->getMessage()}");

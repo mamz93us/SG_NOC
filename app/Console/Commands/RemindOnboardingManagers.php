@@ -86,7 +86,7 @@ class RemindOnboardingManagers extends Command
             }
 
             try {
-                SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
+                SendOnboardingManagerFormJob::dispatch($workflow->id);
 
                 $token->update([
                     'reminded_at'    => now(),

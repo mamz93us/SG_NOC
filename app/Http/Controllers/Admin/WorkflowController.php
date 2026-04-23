@@ -401,8 +401,8 @@ class WorkflowController extends Controller
             'manager_name'  => $managerName,
         ]);
 
-        // Send the email
-        SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
+        // Send the email (default queue — that's where the worker is running)
+        SendOnboardingManagerFormJob::dispatch($workflow->id);
 
         return redirect()
             ->route('admin.workflows.show', $workflow->id)

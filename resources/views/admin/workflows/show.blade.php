@@ -60,28 +60,20 @@
         {{-- Cancel: any non-terminal workflow (approvers + owner-on-draft) --}}
         @if(! in_array($workflow->status, ['completed', 'rejected', 'failed', 'cancelled']))
         @can('manage-workflows')
-        <form method="POST" action="{{ route('admin.workflows.cancel', $workflow->id) }}" class="d-inline"
-              onsubmit="const r=prompt('Optional reason for cancellation:'); if(r===null){return false;} this.reason.value=r||'';">
-            @csrf
-            <input type="hidden" name="reason" value="">
-            <button type="submit" class="btn btn-outline-warning btn-sm">
-                <i class="bi bi-x-circle me-1"></i>Cancel
-            </button>
-        </form>
+        <button type="button" class="btn btn-outline-warning btn-sm"
+                data-bs-toggle="modal" data-bs-target="#cancelWorkflowModal">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </button>
         @endcan
         @endif
 
         {{-- Delete: terminal states only, approver permission --}}
         @if(in_array($workflow->status, ['completed', 'rejected', 'failed', 'cancelled']))
         @can('approve-workflows')
-        <form method="POST" action="{{ route('admin.workflows.destroy', $workflow->id) }}" class="d-inline"
-              onsubmit="return confirm('Permanently delete this workflow and all its steps, logs, tasks, and tokens? This cannot be undone.');">
-            @csrf
-            @method('DELETE')
-            <button type="submit" class="btn btn-outline-danger btn-sm">
-                <i class="bi bi-trash me-1"></i>Delete
-            </button>
-        </form>
+        <button type="button" class="btn btn-outline-danger btn-sm"
+                data-bs-toggle="modal" data-bs-target="#deleteWorkflowModal">
+            <i class="bi bi-trash me-1"></i>Delete
+        </button>
         @endcan
         @endif
 
@@ -569,4 +561,66 @@
         </div>
     </div>
 </div>
+
+{{-- Cancel Workflow modal --}}
+@if(! in_array($workflow->status, ['completed', 'rejected', 'failed', 'cancelled']))
+<div class="modal fade" id="cancelWorkflowModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ route('admin.workflows.cancel', $workflow->id) }}">
+                @csrf
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title"><i class="bi bi-x-circle me-2"></i>Cancel Workflow</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">
+                        This workflow will be marked as <strong>cancelled</strong>. Pending approval steps
+                        will be skipped, and any unfilled manager setup tokens will be expired.
+                        Provisioning will <strong>not</strong> run.
+                    </p>
+                    <label class="form-label small">Reason (optional)</label>
+                    <textarea name="reason" class="form-control form-control-sm" rows="3"
+                              placeholder="Why is this being cancelled? Visible in the workflow event log."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Keep Workflow</button>
+                    <button type="submit" class="btn btn-sm btn-warning"><i class="bi bi-x-lg me-1"></i>Cancel Workflow</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- Delete Workflow modal --}}
+@if(in_array($workflow->status, ['completed', 'rejected', 'failed', 'cancelled']))
+<div class="modal fade" id="deleteWorkflowModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ route('admin.workflows.destroy', $workflow->id) }}">
+                @csrf
+                @method('DELETE')
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Delete Workflow</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">
+                        Permanently delete <strong>{{ $workflow->title }}</strong>?
+                    </p>
+                    <p class="small text-muted mb-0">
+                        This removes the workflow and all related steps, event logs, tasks, and manager
+                        setup tokens. <strong>This action cannot be undone.</strong>
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Keep</button>
+                    <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash me-1"></i>Delete Permanently</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
 @endsection
