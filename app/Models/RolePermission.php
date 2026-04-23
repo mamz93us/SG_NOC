@@ -79,6 +79,9 @@ class RolePermission extends Model
                 'view-employees'   => 'View Employee Directory',
                 'manage-employees' => 'Create / Edit Employees & Assign Assets',
             ],
+            'HR' => [
+                'submit-hr-onboarding' => 'Submit HR Onboarding Requests (portal)',
+            ],
             'NOC' => [
                 'view-noc'        => 'View NOC Dashboard & Events',
                 'manage-noc'      => 'Acknowledge / Resolve NOC Events',

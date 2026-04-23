@@ -158,6 +158,16 @@ Route::prefix('portal')->name('portal.')->group(function () {
             Route::delete('/browser/{sessionId}', [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'destroy'])->name('destroy')
                 ->where('sessionId', '[a-z0-9]{12}');
         });
+
+    // HR onboarding (portal) — gated by submit-hr-onboarding permission.
+    // Does NOT require view-browser-portal so a dedicated HR user can access this page only.
+    Route::middleware(['auth', 'permission:submit-hr-onboarding', 'throttle:60,1'])
+        ->prefix('hr/onboarding')->name('hr.onboarding.')
+        ->group(function () {
+            Route::get('/',       [\App\Http\Controllers\Portal\HrOnboardingController::class, 'index'])->name('index');
+            Route::get('/create', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'create'])->name('create');
+            Route::post('/',      [\App\Http\Controllers\Portal\HrOnboardingController::class, 'store'])->name('store');
+        });
 });
 
 // Legacy /browser redirect for any old bookmarks

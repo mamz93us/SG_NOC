@@ -76,6 +76,7 @@
     .tile-print   { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
     .tile-printer { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
     .tile-docs    { background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); }
+    .tile-hr      { background: linear-gradient(135deg, #8e2de2 0%, #4a00e0 100%); }
 
     .pending-banner {
         border-left: 4px solid #ffc107;
@@ -198,5 +199,16 @@
             <p class="tile-desc">Reports, guides and technical documents.</p>
         </a>
     </div>
+
+    {{-- HR Onboarding (visible only with permission) --}}
+    @can('submit-hr-onboarding')
+    <div class="col-12 col-sm-6 col-lg-4">
+        <a href="{{ route('portal.hr.onboarding.index') }}" class="hub-tile tile-hr">
+            <i class="bi bi-person-plus-fill tile-icon"></i>
+            <h5 class="tile-title">HR Onboarding</h5>
+            <p class="tile-desc">Submit a new hire for IT to provision accounts, extensions and licenses.</p>
+        </a>
+    </div>
+    @endcan
 </div>
 @endsection

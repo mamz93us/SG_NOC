@@ -353,39 +353,73 @@ class UserProvisioningService
                 'Set a UCM server on the branch, on the floor\'s branch, or as the global default in Settings.');
         }
 
-        // ── Step 5: Update Azure profile with templates (branch-aware) ──
-        // Branch templates override global settings.
+        // ── Step 5: Update Azure profile (branch-aware) ──
+        // Fields set (when data is available):
+        //   - city            = branch name
+        //   - officeLocation  = rendered office template (falls back to branch name)
+        //   - businessPhones  = rendered phone template, or "{branch_phone} EXT {extension}"
+        //   - mobilePhone     = payload mobile_phone (HR form)
         $officeTemplate = $branch ? $branch->effectiveOfficeTemplate($settings) : $settings->profile_office_template;
         $phoneTemplate  = $branch ? $branch->effectivePhoneTemplate($settings)  : $settings->profile_phone_template;
+        $mobilePhone    = trim((string) ($payload['mobile_phone'] ?? ''));
 
-        if ($branch && ($officeTemplate || $phoneTemplate)) {
+        $updateData = [];
+
+        if ($branch) {
+            // City — always branch name
+            if (! empty($branch->name)) {
+                $updateData['city'] = $branch->name;
+            }
+
+            // Rendered templates (if configured)
+            $profileFields = $this->extProvisioning->buildProfileFields(
+                $branch,
+                $extension ?? '',
+                $firstName,
+                $lastName,
+                $upn,
+                [
+                    'officeLocation' => $officeTemplate,
+                    'phone'          => $phoneTemplate,
+                ]
+            );
+
+            if (! empty($profileFields['officeLocation'])) {
+                $updateData['officeLocation'] = $profileFields['officeLocation'];
+            } elseif (! empty($branch->name)) {
+                // Sensible default when no template is configured
+                $updateData['officeLocation'] = $branch->name;
+            }
+
+            // Office phone: prefer rendered template, otherwise compose
+            // "{branch phone} EXT {extension}" if both pieces exist.
+            if (! empty($profileFields['phone'])) {
+                $updateData['businessPhones'] = [$profileFields['phone']];
+            } elseif (! empty($branch->phone_number) && ! empty($extension)) {
+                $updateData['businessPhones'] = [trim($branch->phone_number) . ' EXT ' . $extension];
+            } elseif (! empty($branch->phone_number)) {
+                $updateData['businessPhones'] = [trim($branch->phone_number)];
+            }
+        }
+
+        // Mobile phone from HR intake
+        if ($mobilePhone !== '') {
+            $updateData['mobilePhone'] = $mobilePhone;
+        }
+
+        if (! empty($updateData)) {
             try {
-                $this->engine->logEvent($workflow, 'info', 'Updating Azure profile with templates...');
-
-                $profileFields = $this->extProvisioning->buildProfileFields(
-                    $branch,
-                    $extension ?? '',
-                    $firstName,
-                    $lastName,
-                    $upn,
-                    [
-                        'officeLocation' => $officeTemplate,
-                        'phone'          => $phoneTemplate,
-                    ]
-                );
-
-                $updateData = [];
-                if (! empty($profileFields['officeLocation'])) {
-                    $updateData['officeLocation'] = $profileFields['officeLocation'];
+                $summary = [];
+                foreach (['city', 'officeLocation', 'mobilePhone'] as $f) {
+                    if (! empty($updateData[$f])) $summary[] = "{$f}={$updateData[$f]}";
                 }
-                if (! empty($profileFields['phone'])) {
-                    $updateData['businessPhones'] = [$profileFields['phone']];
+                if (! empty($updateData['businessPhones'][0])) {
+                    $summary[] = "businessPhones={$updateData['businessPhones'][0]}";
                 }
+                $this->engine->logEvent($workflow, 'info', 'Updating Azure profile: ' . implode(', ', $summary));
 
-                if (! empty($updateData)) {
-                    $graph->updateUser($azureId, $updateData);
-                    $this->engine->logEvent($workflow, 'success', 'Azure profile updated with office/phone templates.');
-                }
+                $graph->updateUser($azureId, $updateData);
+                $this->engine->logEvent($workflow, 'success', 'Azure profile updated.');
             } catch (\Throwable $e) {
                 $this->engine->logEvent($workflow, 'warning', 'Azure profile update failed (non-fatal): ' . $e->getMessage());
             }
