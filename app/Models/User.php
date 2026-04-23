@@ -100,12 +100,20 @@ class User extends Authenticatable
     }
 
     /**
-     * Post-auth landing page for this user. browser_user goes straight into the
-     * remote-browser portal (no admin UI); everyone else hits the admin dashboard.
+     * Portal-only roles never see admin chrome.
+     */
+    public function usesPortal(): bool
+    {
+        return $this->isBrowserUser() || $this->isHr();
+    }
+
+    /**
+     * Post-auth landing page for this user. Portal-only roles (browser_user, hr)
+     * go straight into the portal; everyone else hits the admin dashboard.
      */
     public function homeRoute(): string
     {
-        return $this->isBrowserUser() ? 'portal.index' : 'admin.dashboard';
+        return $this->usesPortal() ? 'portal.index' : 'admin.dashboard';
     }
 
     public static function roleLabel(string $role): string

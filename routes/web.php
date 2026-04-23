@@ -202,8 +202,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // Home page — NOC Command Center (fallback to old dashboard if no permission)
     Route::get('/', function () {
-        // Browser-only users never see admin chrome — bounce to the isolated portal.
-        if (auth()->user()?->isBrowserUser()) {
+        // Portal-only roles (browser_user, hr) never see admin chrome — bounce to the isolated portal.
+        if (auth()->user()?->usesPortal()) {
             return redirect()->route('portal.index');
         }
         if (auth()->user() && auth()->user()->can('view-noc')) {
