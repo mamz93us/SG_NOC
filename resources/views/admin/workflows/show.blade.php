@@ -56,6 +56,35 @@
         </form>
         @endcan
         @endif
+
+        {{-- Cancel: any non-terminal workflow (approvers + owner-on-draft) --}}
+        @if(! in_array($workflow->status, ['completed', 'rejected', 'failed', 'cancelled']))
+        @can('manage-workflows')
+        <form method="POST" action="{{ route('admin.workflows.cancel', $workflow->id) }}" class="d-inline"
+              onsubmit="const r=prompt('Optional reason for cancellation:'); if(r===null){return false;} this.reason.value=r||'';">
+            @csrf
+            <input type="hidden" name="reason" value="">
+            <button type="submit" class="btn btn-outline-warning btn-sm">
+                <i class="bi bi-x-circle me-1"></i>Cancel
+            </button>
+        </form>
+        @endcan
+        @endif
+
+        {{-- Delete: terminal states only, approver permission --}}
+        @if(in_array($workflow->status, ['completed', 'rejected', 'failed', 'cancelled']))
+        @can('approve-workflows')
+        <form method="POST" action="{{ route('admin.workflows.destroy', $workflow->id) }}" class="d-inline"
+              onsubmit="return confirm('Permanently delete this workflow and all its steps, logs, tasks, and tokens? This cannot be undone.');">
+            @csrf
+            @method('DELETE')
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-trash me-1"></i>Delete
+            </button>
+        </form>
+        @endcan
+        @endif
+
         <a href="{{ route('admin.workflows.index') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i>Back
         </a>

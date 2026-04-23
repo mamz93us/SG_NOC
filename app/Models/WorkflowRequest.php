@@ -63,6 +63,7 @@ class WorkflowRequest extends Model
             'awaiting_manager_form'   => 'bg-warning text-dark',
             'approved'                => 'bg-info text-dark',
             'rejected'                => 'bg-danger',
+            'cancelled'               => 'bg-secondary',
             'executing'               => 'bg-primary',
             'completed'               => 'bg-success',
             'failed'                  => 'bg-danger',

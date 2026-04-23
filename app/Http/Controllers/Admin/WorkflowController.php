@@ -273,27 +273,104 @@ class WorkflowController extends Controller
             ->with('success', 'Request rejected.');
     }
 
-    // Cancel draft
-    public function cancel(int $id)
+    // Cancel a workflow (requester on their own draft, OR an approver on any non-terminal workflow)
+    public function cancel(Request $request, int $id)
     {
-        $workflow = WorkflowRequest::where('id', $id)
-            ->where('requested_by', Auth::id())
-            ->where('status', 'draft')
-            ->firstOrFail();
+        $workflow = WorkflowRequest::findOrFail($id);
+        $user     = Auth::user();
 
-        $workflow->update(['status' => 'rejected']);
+        // Terminal states — nothing to cancel
+        if (in_array($workflow->status, ['completed', 'rejected', 'failed', 'cancelled'])) {
+            return back()->with('error', "Workflow is already {$workflow->status} — cannot cancel.");
+        }
+
+        // Authorization: requester on their own draft, OR a user with
+        // approve-workflows / manage-workflows permission.
+        $isOwner    = $workflow->requested_by === $user?->id;
+        $canApprove = $user?->can('approve-workflows') || $user?->can('manage-workflows');
+
+        if (! $isOwner && ! $canApprove) {
+            abort(403, 'You are not allowed to cancel this workflow.');
+        }
+
+        $reason = trim((string) $request->input('reason', ''));
+
+        $workflow->update(['status' => 'cancelled']);
+
+        // Cancel any pending approval steps so dashboards reflect state.
+        // workflow_steps.status is an ENUM — reuse 'skipped' for cancelled runs.
+        WorkflowStep::where('workflow_id', $workflow->id)
+            ->where('status', 'pending')
+            ->update(['status' => 'skipped']);
+
+        // Expire any unfilled manager tokens so the link can't be used later
+        OnboardingManagerToken::where('workflow_id', $workflow->id)
+            ->whereNull('responded_at')
+            ->whereNull('used_at')
+            ->update(['expires_at' => now()->subMinute()]);
+
+        $this->engine->logEvent(
+            $workflow,
+            'warning',
+            'Workflow cancelled by ' . ($user?->name ?? 'system') . ($reason !== '' ? ": {$reason}" : '.')
+        );
 
         \App\Models\ActivityLog::create([
             'model_type' => \App\Models\WorkflowRequest::class,
             'model_id'   => $workflow->id,
             'action'     => 'workflow_cancelled',
-            'changes'    => ['type' => $workflow->type],
-            'user_id'    => Auth::id(),
+            'changes'    => [
+                'type'   => $workflow->type,
+                'reason' => $reason ?: null,
+            ],
+            'user_id'    => $user?->id,
         ]);
+
+        // Send the user back to where they came from (show page for approvers,
+        // my-requests list for the requester cancelling their own draft).
+        if ($canApprove && ! $request->has('from_my_requests')) {
+            return redirect()
+                ->route('admin.workflows.show', $workflow->id)
+                ->with('success', 'Workflow cancelled.');
+        }
 
         return redirect()
             ->route('admin.workflows.my-requests')
             ->with('success', 'Request cancelled.');
+    }
+
+    // Permanently delete a workflow and its related rows.
+    // Only terminal states are deletable to prevent orphaning an in-flight
+    // provisioning run.
+    public function destroy(int $id)
+    {
+        $workflow = WorkflowRequest::findOrFail($id);
+        $user     = Auth::user();
+
+        if (! in_array($workflow->status, ['completed', 'rejected', 'failed', 'cancelled'])) {
+            return back()->with('error',
+                "Workflow must be completed, rejected, failed, or cancelled before it can be deleted (current: {$workflow->status}).");
+        }
+
+        $typeLabel = $workflow->typeLabel();
+        $title     = $workflow->title;
+        $workflowId = $workflow->id;
+
+        // Related rows cascade via foreign-key constraints:
+        //   workflow_steps, workflow_logs, workflow_tasks, onboarding_manager_tokens
+        $workflow->delete();
+
+        \App\Models\ActivityLog::create([
+            'model_type' => \App\Models\WorkflowRequest::class,
+            'model_id'   => $workflowId,
+            'action'     => 'workflow_deleted',
+            'changes'    => ['type' => $typeLabel, 'title' => $title],
+            'user_id'    => $user?->id,
+        ]);
+
+        return redirect()
+            ->route('admin.workflows.index')
+            ->with('success', "Workflow \"{$title}\" deleted.");
     }
 
     // (Re)create manager form token and dispatch email — useful for existing workflows
