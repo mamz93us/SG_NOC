@@ -51,7 +51,7 @@ class CupsPrinterSetupMail extends Mailable
                 'airprintUrl'   => $this->airprintUrl,
                 'recipientName' => $this->recipientName,
                 'ippAddress'    => $this->cupsPrinter->getIppAddress(),
-                'httpAddress'   => "http://{$domain}:631/printers/{$this->cupsPrinter->queue_name}",
+                'httpAddress'   => "https://{$domain}:631/printers/{$this->cupsPrinter->queue_name}",
                 'domain'        => $domain,
                 'qrImagePath'   => $tmpPath,
             ]);

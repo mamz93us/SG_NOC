@@ -69,7 +69,7 @@ class CupsPrinter extends Model
     {
         $domain = Setting::get()->cups_ipp_domain ?? 'localhost';
 
-        return "ipp://{$domain}:631/printers/{$this->queue_name}";
+        return "ipps://{$domain}:631/printers/{$this->queue_name}";
     }
 
     /**
