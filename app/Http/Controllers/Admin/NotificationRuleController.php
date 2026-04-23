@@ -28,7 +28,7 @@ class NotificationRuleController extends Controller
         $validated = $request->validate([
             'event_type'        => 'required|string|max:50',
             'recipient_type'    => 'required|in:role,user',
-            'recipient_role'    => 'nullable|required_if:recipient_type,role|in:super_admin,admin,viewer',
+            'recipient_role'    => 'nullable|required_if:recipient_type,role|in:super_admin,admin,hr,viewer',
             'recipient_user_id' => 'nullable|required_if:recipient_type,user|exists:users,id',
             'send_email'        => 'boolean',
             'send_in_app'       => 'boolean',
@@ -55,7 +55,7 @@ class NotificationRuleController extends Controller
         $validated = $request->validate([
             'event_type'        => 'required|string|max:50',
             'recipient_type'    => 'required|in:role,user',
-            'recipient_role'    => 'nullable|required_if:recipient_type,role|in:super_admin,admin,viewer',
+            'recipient_role'    => 'nullable|required_if:recipient_type,role|in:super_admin,admin,hr,viewer',
             'recipient_user_id' => 'nullable|required_if:recipient_type,user|exists:users,id',
             'send_email'        => 'boolean',
             'send_in_app'       => 'boolean',

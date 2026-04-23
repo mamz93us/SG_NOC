@@ -337,7 +337,18 @@
       "Bash(php -l app/Http/Controllers/Portal/HrOnboardingController.php)",
       "Bash(ssh -o StrictHostKeyChecking=no -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" azureuser@noc.samirgroup.net \"echo '---swanctl conf paths---' && ls -la /etc/swanctl/ /etc/swanctl/conf.d/ 2>/dev/null ; echo '---legacy ipsec.conf?---' && ls -la /etc/ipsec.conf /etc/ipsec.d/ 2>/dev/null ; echo '---tinyproxy installed?---' && which tinyproxy 3proxy squid 2>/dev/null ; apt-cache policy tinyproxy 2>/dev/null | head -5 ; echo '---iptables-persistent?---' && dpkg -l iptables-persistent netfilter-persistent 2>/dev/null | tail -3 ; echo '---systemd-networkd or netplan?---' && ls /etc/netplan/ 2>/dev/null ; echo '---existing ip rules/tables---' && ip rule show ; echo '---rt_tables---' && cat /etc/iproute2/rt_tables\")",
       "Bash(ssh -o StrictHostKeyChecking=no -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" azureuser@noc.samirgroup.net \"sudo cat /etc/swanctl/conf.d/JED.conf\")",
-      "Bash(ssh -o StrictHostKeyChecking=no -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" azureuser@noc.samirgroup.net \"sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tinyproxy iptables-persistent netfilter-persistent 2>&1 | tail -20\")"
+      "Bash(ssh -o StrictHostKeyChecking=no -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" azureuser@noc.samirgroup.net \"sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tinyproxy iptables-persistent netfilter-persistent 2>&1 | tail -20\")",
+      "Bash(ssh -o StrictHostKeyChecking=no -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" azureuser@noc.samirgroup.net \"sudo useradd -r -s /usr/sbin/nologin jedproxy 2>&1 || echo 'user exists' ; id jedproxy ; echo '---tinyproxy default user---' && grep -E '^User|^Group|^Listen|^Port|^Allow' /etc/tinyproxy/tinyproxy.conf | head -10\")",
+      "Bash(ssh -o StrictHostKeyChecking=no -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" azureuser@noc.samirgroup.net \"sudo sed -i -e 's/^User tinyproxy/User jedproxy/' -e 's/^Group tinyproxy/Group jedproxy/' -e 's/^Port 8888/Port 3128/' -e '/^#Listen 192.168.0.1/a\\\\\\\\Listen 127.0.0.1' /etc/tinyproxy/tinyproxy.conf ; echo '---verify---' ; grep -E '^User|^Group|^Listen|^Port|^Allow' /etc/tinyproxy/tinyproxy.conf | head -10 ; sudo systemctl restart tinyproxy && sleep 1 && sudo systemctl status tinyproxy --no-pager | head -10 ; echo '---listening?---' ; sudo ss -tlnp | grep -E ':3128|tinyproxy'\")",
+      "Bash(ssh -o StrictHostKeyChecking=no -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" azureuser@noc.samirgroup.net \"echo '---baseline: tinyproxy egress IP \\(should be Azure 20.82.165.228 right now\\)---' ; curl -sx http://127.0.0.1:3128 --max-time 8 https://api.ipify.org ; echo\")",
+      "Bash(ssh -o StrictHostKeyChecking=no -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" azureuser@noc.samirgroup.net \"sudo iptables -t mangle -A OUTPUT -m owner --uid-owner jedproxy -j MARK --set-mark 42 && echo '---mangle OUTPUT---' && sudo iptables -t mangle -nvL OUTPUT\")",
+      "Bash(ssh -o StrictHostKeyChecking=no -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" azureuser@noc.samirgroup.net \"sudo cp /etc/swanctl/conf.d/JED.conf /etc/swanctl/conf.d/JED.conf.bak.\\\\$\\(date +%s\\) && ls -la /etc/swanctl/conf.d/JED.conf*\")",
+      "Bash(ssh -o *)",
+      "Bash(ping -n 4 noc.samirgroup.net)",
+      "Bash(php -l app/Models/User.php)",
+      "Bash(php -l app/Http/Controllers/Admin/UserController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/NotificationRuleController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/PermissionsController.php)"
     ]
   }
 }

@@ -12,7 +12,7 @@ class PermissionsController extends Controller
 {
     public function index()
     {
-        $roles       = ['super_admin', 'admin', 'viewer', 'browser_user'];
+        $roles       = ['super_admin', 'admin', 'hr', 'viewer', 'browser_user'];
         $permissions = RolePermission::allPermissions();   // grouped
         $allSlugs    = RolePermission::allSlugs();
 
@@ -30,7 +30,7 @@ class PermissionsController extends Controller
 
     public function update(Request $request)
     {
-        $roles    = ['super_admin', 'admin', 'viewer', 'browser_user'];
+        $roles    = ['super_admin', 'admin', 'hr', 'viewer', 'browser_user'];
         $allSlugs = RolePermission::allSlugs();
 
         // super_admin always keeps manage-users and manage-permissions

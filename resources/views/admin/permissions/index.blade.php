@@ -30,8 +30,8 @@
                             @foreach($roles as $role)
                             <th class="text-center" style="width:20%">
                                 @php
-                                    $labels = ['super_admin' => 'Super Admin', 'admin' => 'Admin', 'viewer' => 'Viewer', 'browser_user' => 'Browser User'];
-                                    $colors = ['super_admin' => 'bg-danger', 'admin' => 'bg-primary', 'viewer' => 'bg-secondary', 'browser_user' => 'bg-warning text-dark'];
+                                    $labels = ['super_admin' => 'Super Admin', 'admin' => 'Admin', 'hr' => 'HR', 'viewer' => 'Viewer', 'browser_user' => 'Browser User'];
+                                    $colors = ['super_admin' => 'bg-danger', 'admin' => 'bg-primary', 'hr' => 'bg-info', 'viewer' => 'bg-secondary', 'browser_user' => 'bg-warning text-dark'];
                                 @endphp
                                 <span class="badge {{ $colors[$role] ?? 'bg-secondary' }} px-3 py-2 fs-6">
                                     {{ $labels[$role] ?? $role }}

@@ -152,10 +152,18 @@ class RolePermission extends Model
             'view-workflows', 'view-employees', 'view-noc',
             'view-dhcp-leases', 'view-sophos', 'view-dns', 'view-admin-links',
         ];
+        $hrPerms = [
+            'submit-hr-onboarding',
+            'view-workflows',
+            'view-employees',
+            'view-contacts',
+            'view-browser-portal',
+        ];
 
         return [
             'super_admin'  => $all,
             'admin'        => $adminPerms,
+            'hr'           => $hrPerms,
             'viewer'       => $viewerPerms,
             'browser_user' => ['view-browser-portal'],
         ];

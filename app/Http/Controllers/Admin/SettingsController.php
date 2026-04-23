@@ -123,7 +123,7 @@ class SettingsController extends Controller
             'sso_tenant_id'     => 'nullable|string|max:100',
             'sso_client_id'     => 'nullable|string|max:100',
             'sso_client_secret' => 'nullable|string|max:500',
-            'sso_default_role'  => 'required|in:super_admin,admin,viewer,browser_user',
+            'sso_default_role'  => 'required|in:super_admin,admin,hr,viewer,browser_user',
         ]);
 
         $settings = Setting::get();

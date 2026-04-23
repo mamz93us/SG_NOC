@@ -94,6 +94,11 @@ class User extends Authenticatable
         return $this->role === 'browser_user';
     }
 
+    public function isHr(): bool
+    {
+        return $this->role === 'hr';
+    }
+
     /**
      * Post-auth landing page for this user. browser_user goes straight into the
      * remote-browser portal (no admin UI); everyone else hits the admin dashboard.
@@ -108,6 +113,7 @@ class User extends Authenticatable
         return match($role) {
             'super_admin'  => 'Super Admin',
             'admin'        => 'Admin',
+            'hr'           => 'HR',
             'viewer'       => 'Viewer',
             'browser_user' => 'Browser User',
             default        => ucfirst($role),

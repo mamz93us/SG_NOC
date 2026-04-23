@@ -24,7 +24,7 @@ class UserController extends Controller
             'name'     => 'required|string|max:100',
             'email'    => 'required|email|unique:users,email',
             'password' => ['required', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
-            'role'     => 'required|in:super_admin,admin,viewer,browser_user',
+            'role'     => 'required|in:super_admin,admin,hr,viewer,browser_user',
         ]);
 
         $user = User::create([
@@ -51,7 +51,7 @@ class UserController extends Controller
         $data = $request->validate([
             'name'     => 'required|string|max:100',
             'email'    => 'required|email|unique:users,email,' . $user->id,
-            'role'     => 'required|in:super_admin,admin,viewer,browser_user',
+            'role'     => 'required|in:super_admin,admin,hr,viewer,browser_user',
             'password' => ['nullable', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
         ]);
 

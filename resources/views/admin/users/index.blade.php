@@ -35,6 +35,7 @@
                     $roleColor = match($user->role) {
                         'super_admin'  => 'danger',
                         'admin'        => 'primary',
+                        'hr'           => 'info',
                         'viewer'       => 'secondary',
                         'browser_user' => 'warning',
                         default        => 'secondary',
@@ -127,6 +128,7 @@
                                         <select name="role" class="form-select" required>
                                             <option value="super_admin"  {{ $user->role === 'super_admin'  ? 'selected' : '' }}>Super Admin</option>
                                             <option value="admin"        {{ $user->role === 'admin'        ? 'selected' : '' }}>Admin</option>
+                                            <option value="hr"           {{ $user->role === 'hr'           ? 'selected' : '' }}>HR</option>
                                             <option value="viewer"       {{ $user->role === 'viewer'       ? 'selected' : '' }}>Viewer</option>
                                             <option value="browser_user" {{ $user->role === 'browser_user' ? 'selected' : '' }}>Browser User</option>
                                         </select>
@@ -227,12 +229,14 @@
                         <select name="role" class="form-select" required>
                             <option value="viewer" selected>Viewer (read-only)</option>
                             <option value="browser_user">Browser User (portal only)</option>
+                            <option value="hr">HR (portal + HR onboarding)</option>
                             <option value="admin">Admin</option>
                             <option value="super_admin">Super Admin</option>
                         </select>
                         <div class="form-text">
                             <strong>Viewer</strong> – read-only &nbsp;|&nbsp;
                             <strong>Browser User</strong> – remote browser portal only &nbsp;|&nbsp;
+                            <strong>HR</strong> – submit onboarding requests &nbsp;|&nbsp;
                             <strong>Admin</strong> – full access &nbsp;|&nbsp;
                             <strong>Super Admin</strong> – + user management
                         </div>
