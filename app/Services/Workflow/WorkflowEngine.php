@@ -4,6 +4,8 @@ namespace App\Services\Workflow;
 
 use App\Jobs\ContinueWorkflowAfterWaitJob;
 use App\Jobs\ExecuteWorkflowJob;
+use App\Jobs\SendOnboardingManagerFormJob;
+use App\Models\OnboardingManagerToken;
 use App\Models\WorkflowLog;
 use App\Models\WorkflowRequest;
 use App\Models\WorkflowStep;
@@ -441,9 +443,109 @@ class WorkflowEngine
 
     public function executeWorkflow(WorkflowRequest $workflow): void
     {
+        // For create_user workflows with a manager email, send the manager
+        // setup form NOW (post IT approval) and pause execution until the
+        // manager submits the form. Provisioning must not start before the
+        // manager has declared whether an extension is needed, chosen
+        // internet access level, floor, groups, etc.
+        if ($this->shouldWaitForManagerForm($workflow)) {
+            $this->dispatchManagerFormEmail($workflow);
+            $workflow->update(['status' => 'awaiting_manager_form']);
+            $this->logEvent(
+                $workflow,
+                'info',
+                'Approvals complete. Manager setup form sent — waiting for manager response before provisioning.'
+            );
+            return;
+        }
+
         $workflow->update(['status' => 'executing']);
         $this->logEvent($workflow, 'info', 'Executing workflow...');
         ExecuteWorkflowJob::dispatchSync($workflow->id);
+    }
+
+    /**
+     * Called from OnboardingFormController once the manager submits the form.
+     * Resumes execution of a workflow that was paused in awaiting_manager_form.
+     */
+    public function resumeAfterManagerForm(WorkflowRequest $workflow): void
+    {
+        $workflow->refresh();
+
+        if ($workflow->status !== 'awaiting_manager_form') {
+            // Already executing/completed/failed — don't double-run.
+            return;
+        }
+
+        $this->logEvent($workflow, 'info', 'Manager submitted setup form. Resuming provisioning.');
+        $workflow->update(['status' => 'executing']);
+        ExecuteWorkflowJob::dispatchSync($workflow->id);
+    }
+
+    /**
+     * True when the workflow is a create_user with a manager_email and no
+     * form response yet. The manager must fill the form before provisioning.
+     */
+    private function shouldWaitForManagerForm(WorkflowRequest $workflow): bool
+    {
+        if ($workflow->type !== 'create_user') {
+            return false;
+        }
+
+        $payload      = $workflow->payload ?? [];
+        $managerEmail = $payload['manager_email'] ?? null;
+
+        if (! $managerEmail) {
+            return false;
+        }
+
+        // If a manager form response has already been saved into the
+        // payload (manager filled it while IT was approving), don't wait.
+        if (! empty($payload['manager_form_token_id'])) {
+            return false;
+        }
+
+        // If any token for this workflow has responded_at set, don't wait.
+        $responded = OnboardingManagerToken::where('workflow_id', $workflow->id)
+            ->whereNotNull('responded_at')
+            ->exists();
+
+        return ! $responded;
+    }
+
+    /**
+     * Dispatch the manager form email. Reuses the existing valid token
+     * (created synchronously at workflow creation) or generates one.
+     */
+    private function dispatchManagerFormEmail(WorkflowRequest $workflow): void
+    {
+        $payload      = $workflow->payload ?? [];
+        $managerEmail = $payload['manager_email'] ?? null;
+
+        if (! $managerEmail) {
+            return;
+        }
+
+        $token = OnboardingManagerToken::where('workflow_id', $workflow->id)
+            ->whereNull('responded_at')
+            ->latest()
+            ->first();
+
+        if (! $token || ! $token->isValid()) {
+            $managerName = ucfirst(explode('.', explode('@', $managerEmail)[0])[0] ?? 'Manager');
+            OnboardingManagerToken::generate($workflow->id, [
+                'manager_email' => $managerEmail,
+                'manager_name'  => $managerName,
+            ]);
+        }
+
+        try {
+            SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
+            $this->logEvent($workflow, 'info', "Manager setup form email queued for {$managerEmail}.");
+        } catch (\Throwable $e) {
+            Log::error("[WorkflowEngine] Failed to queue manager form email for workflow #{$workflow->id}: {$e->getMessage()}");
+            $this->logEvent($workflow, 'warning', "Failed to queue manager form email: {$e->getMessage()}");
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

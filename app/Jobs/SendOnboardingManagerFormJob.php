@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Mail\OnboardingManagerFormMail;
 use App\Models\OnboardingManagerToken;
+use App\Models\WorkflowLog;
 use App\Models\WorkflowRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,6 +36,8 @@ class SendOnboardingManagerFormJob implements ShouldQueue
 
         if (! $managerEmail) {
             Log::info("SendOnboardingManagerFormJob: no manager_email in workflow #{$this->workflowId} — skipping.");
+            $this->logToWorkflow($workflow->id, 'warning',
+                'Manager form email skipped — no manager_email on workflow payload.');
             return;
         }
 
@@ -55,8 +58,42 @@ class SendOnboardingManagerFormJob implements ShouldQueue
             ]);
         }
 
-        Mail::to($managerEmail)->send(new OnboardingManagerFormMail($workflow, $token));
+        try {
+            Mail::to($managerEmail)->send(new OnboardingManagerFormMail($workflow, $token));
 
-        Log::info("SendOnboardingManagerFormJob: form email sent to {$managerEmail} for workflow #{$workflow->id}");
+            Log::info("SendOnboardingManagerFormJob: form email sent to {$managerEmail} for workflow #{$workflow->id}");
+            $this->logToWorkflow($workflow->id, 'success',
+                "Manager setup form email sent to {$managerEmail}.");
+        } catch (\Throwable $e) {
+            Log::error(
+                "SendOnboardingManagerFormJob: failed to send to {$managerEmail} for workflow #{$workflow->id}: "
+                . $e->getMessage()
+            );
+            $this->logToWorkflow($workflow->id, 'error',
+                "Manager form email send failed for {$managerEmail}: {$e->getMessage()}");
+            throw $e; // let queue retry
+        }
+    }
+
+    public function failed(\Throwable $e): void
+    {
+        Log::error("SendOnboardingManagerFormJob permanently failed for workflow #{$this->workflowId}: "
+            . $e->getMessage());
+        $this->logToWorkflow($this->workflowId, 'error',
+            "Manager form email permanently failed after retries: {$e->getMessage()}");
+    }
+
+    private function logToWorkflow(int $workflowId, string $level, string $message): void
+    {
+        try {
+            WorkflowLog::create([
+                'workflow_id' => $workflowId,
+                'level'       => $level,
+                'message'     => $message,
+                'created_at'  => now(),
+            ]);
+        } catch (\Throwable) {
+            // never let logging break the job
+        }
     }
 }

@@ -63,6 +63,34 @@
 </div>
 
 
+{{-- Awaiting-manager-form banner (create_user only) --}}
+@if($isCreateUser && $workflow->status === 'awaiting_manager_form' && $managerToken)
+<div class="alert alert-warning border-warning shadow-sm mb-4 d-flex align-items-start gap-3">
+    <i class="bi bi-hourglass-split fs-4 text-warning"></i>
+    <div class="flex-grow-1">
+        <strong class="d-block mb-1">Waiting for Manager to Fill Setup Form</strong>
+        <div class="small text-muted">
+            IT approval is complete. Provisioning will start automatically once
+            <strong>{{ $managerToken->manager_email }}</strong> submits the form.
+            @if($managerToken->reminded_at)
+                Last reminder sent {{ $managerToken->reminded_at->diffForHumans() }}
+                ({{ $managerToken->reminder_count }} total).
+            @else
+                Daily reminders will be sent until the form is filled.
+            @endif
+        </div>
+    </div>
+    @if($managerToken->isValid())
+    @can('approve-workflows')
+    <a href="{{ route('onboarding.form', $managerToken->token) }}" target="_blank"
+       class="btn btn-warning btn-sm">
+        <i class="bi bi-clipboard-check me-1"></i>Fill on Behalf
+    </a>
+    @endcan
+    @endif
+</div>
+@endif
+
 {{-- ✅ Provisioned Account card (create_user completed only) --}}
 @if($isCreateUser && $isCompleted)
 @php
@@ -165,7 +193,7 @@
             <div class="card-body small">
                 <dl class="row mb-0">
                     <dt class="col-5 text-muted">Status</dt>
-                    <dd class="col-7"><span class="badge {{ $workflow->statusBadgeClass() }}">{{ ucfirst($workflow->status) }}</span></dd>
+                    <dd class="col-7"><span class="badge {{ $workflow->statusBadgeClass() }}">{{ ucwords(str_replace('_', ' ', $workflow->status)) }}</span></dd>
                     <dt class="col-5 text-muted">Type</dt>
                     <dd class="col-7"><span class="badge {{ $workflow->typeBadgeClass() }}">{{ $workflow->typeLabel() }}</span></dd>
                     <dt class="col-5 text-muted">Requested by</dt>

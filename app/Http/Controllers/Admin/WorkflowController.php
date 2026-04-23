@@ -193,8 +193,9 @@ class WorkflowController extends Controller
             description: $validated['description'] ?? null,
         );
 
-        // For create_user workflows: create manager form token immediately
-        // so it appears on the workflow page, then queue the email.
+        // For create_user workflows: create manager form token immediately so
+        // it appears on the workflow page. The email is dispatched by the
+        // engine AFTER IT approval completes — not now.
         if ($validated['type'] === 'create_user' && ! empty($payload['manager_email'])) {
             $managerEmail = $payload['manager_email'];
             $managerName  = ucfirst(explode('.', explode('@', $managerEmail)[0])[0] ?? 'Manager');
@@ -202,7 +203,6 @@ class WorkflowController extends Controller
                 'manager_email' => $managerEmail,
                 'manager_name'  => $managerName,
             ]);
-            SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
         }
 
         return redirect()

@@ -57,15 +57,16 @@ class WorkflowRequest extends Model
     public function statusBadgeClass(): string
     {
         return match ($this->status) {
-            'draft'                  => 'bg-secondary',
-            'pending'                => 'bg-warning text-dark',
-            'manager_input_pending'  => 'bg-warning text-dark',
-            'approved'               => 'bg-info text-dark',
-            'rejected'               => 'bg-danger',
-            'executing'              => 'bg-primary',
-            'completed'              => 'bg-success',
-            'failed'                 => 'bg-danger',
-            default                  => 'bg-secondary',
+            'draft'                   => 'bg-secondary',
+            'pending'                 => 'bg-warning text-dark',
+            'manager_input_pending'   => 'bg-warning text-dark',
+            'awaiting_manager_form'   => 'bg-warning text-dark',
+            'approved'                => 'bg-info text-dark',
+            'rejected'                => 'bg-danger',
+            'executing'               => 'bg-primary',
+            'completed'               => 'bg-success',
+            'failed'                  => 'bg-danger',
+            default                   => 'bg-secondary',
         };
     }
 

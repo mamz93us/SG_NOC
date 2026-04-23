@@ -377,3 +377,11 @@ Schedule::call(function () {
         \Illuminate\Support\Facades\Log::error('SSL auto-renewal failed: ' . $e->getMessage());
     }
 })->name('renew-expiring-certs')->withoutOverlapping(30)->dailyAt('02:00');
+
+// ─── Onboarding Manager-Form Reminders — daily at 09:00 ──────────────────
+// For every workflow still in 'awaiting_manager_form', re-send the setup
+// form email (up to 3 reminders, once per 24h) until the manager fills it.
+Schedule::command('onboarding:remind-managers')
+    ->dailyAt('09:00')
+    ->withoutOverlapping(30)
+    ->name('remind-onboarding-managers');

@@ -314,7 +314,12 @@
       "Bash(php -l app/Models/Setting.php)",
       "Bash(php -l database/migrations/2026_04_23_000001_add_ticketing_api_to_settings.php)",
       "Bash(php -r 'require '\\\\''vendor/autoload.php'\\\\''; $c=file_get_contents\\('\\\\''resources/views/admin/settings.blade.php'\\\\''\\); echo \"lines: \",substr_count\\($c,\"\\\\n\"\\),\"\\\\n\";')",
-      "Bash(php -r '$c=file_get_contents\\('\\\\''resources/views/admin/workflows/show.blade.php'\\\\''\\); echo \"show lines: \",substr_count\\($c,\"\\\\n\"\\),\"\\\\n\";')"
+      "Bash(php -r '$c=file_get_contents\\('\\\\''resources/views/admin/workflows/show.blade.php'\\\\''\\); echo \"show lines: \",substr_count\\($c,\"\\\\n\"\\),\"\\\\n\";')",
+      "Bash(php -l app/Services/Workflow/WorkflowEngine.php)",
+      "Bash(php -l app/Http/Controllers/Public/OnboardingFormController.php)",
+      "Bash(php -l app/Jobs/SendOnboardingManagerFormJob.php)",
+      "Bash(php -l app/Console/Commands/RemindOnboardingManagers.php)",
+      "Bash(php -l app/Models/OnboardingManagerToken.php)"
     ]
   }
 }
