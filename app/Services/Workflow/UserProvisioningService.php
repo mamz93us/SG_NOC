@@ -281,9 +281,13 @@ class UserProvisioningService
         $floor   = $floorId ? NetworkFloor::find($floorId) : null;
 
         if ($floor && $floor->ext_range_start && $floor->ext_range_end) {
-            $ucmServer = $branch ? $branch->effectiveUcmServer($settings)
-                                 : ($settings->default_ucm_id ? UcmServer::find($settings->default_ucm_id) : null);
-            $extRange  = [
+            // Prefer workflow's branch; fall back to the floor's own branch so
+            // we can still resolve a UCM server when the workflow isn't tied
+            // to a branch directly.
+            $floorBranch = $branch ?: ($floor->branch_id ? Branch::find($floor->branch_id) : null);
+            $ucmServer   = $floorBranch ? $floorBranch->effectiveUcmServer($settings)
+                                        : ($settings->default_ucm_id ? UcmServer::find($settings->default_ucm_id) : null);
+            $extRange    = [
                 'start' => (int) $floor->ext_range_start,
                 'end'   => (int) $floor->ext_range_end,
             ];
@@ -341,6 +345,12 @@ class UserProvisioningService
                     $this->engine->logEvent($workflow, 'warning', "UCM extension creation failed (non-fatal): {$errMsg}");
                 }
             }
+        } else {
+            // needs_extension=true, no existing extension, but no UCM server could
+            // be resolved (no branch on workflow/floor, no default_ucm_id in settings).
+            $this->engine->logEvent($workflow, 'warning',
+                'Extension requested but no UCM server is configured. ' .
+                'Set a UCM server on the branch, on the floor\'s branch, or as the global default in Settings.');
         }
 
         // ── Step 5: Update Azure profile with templates (branch-aware) ──
