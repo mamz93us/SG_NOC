@@ -953,6 +953,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('workflows/{workflow}',       [WorkflowController::class, 'destroy']) ->name('workflows.destroy');
         Route::patch('workflows/tasks/{task}/complete', [WorkflowController::class, 'completeTask'])->name('workflows.tasks.complete');
         Route::post('workflows/{workflow}/resend-manager-form', [WorkflowController::class, 'resendManagerForm'])->name('workflows.resend-manager-form');
+        Route::post('workflows/{workflow}/assign-device', [WorkflowController::class, 'assignDevice'])->name('workflows.assign-device');
+        Route::post('workflows/{workflow}/return-device/{assignment}', [WorkflowController::class, 'returnDevice'])->name('workflows.return-device');
     });
     Route::middleware('permission:view-workflows')->group(function () {
         Route::get('workflows/{workflow}',   [WorkflowController::class, 'show'])       ->name('workflows.show');

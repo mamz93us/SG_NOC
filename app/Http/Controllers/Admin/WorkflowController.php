@@ -7,6 +7,9 @@ use App\Jobs\SendOnboardingManagerFormJob;
 use App\Models\AllowedDomain;
 use App\Models\Branch;
 use App\Models\Department;
+use App\Models\Device;
+use App\Models\Employee;
+use App\Models\EmployeeAsset;
 use App\Models\OnboardingManagerToken;
 use App\Models\Setting;
 use App\Models\UcmServer;
@@ -72,7 +75,47 @@ class WorkflowController extends Controller
 
         $canApprove = $workflow->isAwaitingMyApproval(Auth::id());
 
-        return view('admin.workflows.show', compact('workflow', 'canApprove'));
+        // Device assignment panel (post-provisioning, create_user only).
+        // Only load the picker data when an employee has been created for
+        // this workflow — avoids unnecessary queries on other workflow types.
+        $employeeId        = $workflow->payload['employee_id'] ?? null;
+        $employee          = $employeeId ? Employee::find($employeeId) : null;
+        $currentAssignments = collect();
+        $availableDevices   = collect();
+
+        if ($employee) {
+            $currentAssignments = EmployeeAsset::with('device')
+                ->where('employee_id', $employee->id)
+                ->whereNull('returned_date')
+                ->orderByDesc('assigned_date')
+                ->get();
+
+            // Prefer devices in the workflow's branch; if none, show all
+            // available. Keeps the picker useful when branch isn't set.
+            $availableQuery = Device::where('status', 'available');
+            if ($workflow->branch_id) {
+                $branchScoped = (clone $availableQuery)
+                    ->where('branch_id', $workflow->branch_id);
+                $availableDevices = $branchScoped
+                    ->orderBy('type')->orderBy('name')
+                    ->get(['id', 'name', 'type', 'asset_code', 'serial_number']);
+                if ($availableDevices->isEmpty()) {
+                    $availableDevices = $availableQuery
+                        ->with('branch:id,name')
+                        ->orderBy('type')->orderBy('name')
+                        ->get(['id', 'name', 'type', 'asset_code', 'serial_number', 'branch_id']);
+                }
+            } else {
+                $availableDevices = $availableQuery
+                    ->with('branch:id,name')
+                    ->orderBy('type')->orderBy('name')
+                    ->get(['id', 'name', 'type', 'asset_code', 'serial_number', 'branch_id']);
+            }
+        }
+
+        return view('admin.workflows.show', compact(
+            'workflow', 'canApprove', 'employee', 'currentAssignments', 'availableDevices'
+        ));
     }
 
     // Create form
@@ -457,6 +500,89 @@ class WorkflowController extends Controller
         }
 
         return back()->with('success', 'Task marked as completed.');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Assign a device (asset) to the employee created by this workflow.
+    // Post-provisioning manual step — visible on the workflow show page.
+    // ─────────────────────────────────────────────────────────────
+    public function assignDevice(Request $request, int $id)
+    {
+        $workflow = WorkflowRequest::findOrFail($id);
+
+        $employeeId = $workflow->payload['employee_id'] ?? null;
+        if (! $employeeId) {
+            return back()->with('error', 'No employee is linked to this workflow yet — provisioning must finish first.');
+        }
+        $employee = Employee::find($employeeId);
+        if (! $employee) {
+            return back()->with('error', 'The employee for this workflow could not be found.');
+        }
+
+        $validated = $request->validate([
+            'asset_id'  => 'required|exists:devices,id',
+            'condition' => 'required|in:good,fair,poor',
+            'notes'     => 'nullable|string|max:500',
+        ]);
+
+        // Guard: not already actively assigned to someone else
+        $active = EmployeeAsset::where('asset_id', $validated['asset_id'])
+            ->whereNull('returned_date')
+            ->first();
+        if ($active) {
+            $assignedTo = $active->employee?->name ?? 'another employee';
+            return back()->with('error', "This device is already assigned to {$assignedTo}.");
+        }
+
+        $device = Device::find($validated['asset_id']);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($employee, $validated) {
+            EmployeeAsset::create([
+                'employee_id'   => $employee->id,
+                'asset_id'      => $validated['asset_id'],
+                'assigned_date' => now()->toDateString(),
+                'condition'     => $validated['condition'],
+                'notes'         => $validated['notes'] ?? null,
+            ]);
+            Device::where('id', $validated['asset_id'])->update(['status' => 'assigned']);
+        });
+
+        $deviceLabel = trim(($device->type ?? '') . ' ' . ($device->name ?? $device->asset_code ?? "#{$device->id}"));
+        $this->engine->logEvent($workflow, 'info',
+            "Device assigned to {$employee->name}: {$deviceLabel} (by " . Auth::user()->name . ').');
+
+        return back()->with('success', "Device '{$deviceLabel}' assigned to {$employee->name}.");
+    }
+
+    public function returnDevice(int $id, int $assignmentId)
+    {
+        $workflow = WorkflowRequest::findOrFail($id);
+
+        $assignment = EmployeeAsset::find($assignmentId);
+        if (! $assignment) {
+            return back()->with('error', 'Assignment not found.');
+        }
+        if ($assignment->returned_date !== null) {
+            return back()->with('error', 'This device has already been returned.');
+        }
+        if (($workflow->payload['employee_id'] ?? null) !== $assignment->employee_id) {
+            return back()->with('error', 'This assignment does not belong to this workflow\'s employee.');
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($assignment) {
+            $assignment->update([
+                'returned_date' => now()->toDateString(),
+            ]);
+            Device::where('id', $assignment->asset_id)->update(['status' => 'available']);
+        });
+
+        $device  = Device::find($assignment->asset_id);
+        $label   = $device ? trim(($device->type ?? '') . ' ' . ($device->name ?? $device->asset_code ?? "#{$device->id}")) : "#{$assignment->asset_id}";
+        $empName = $assignment->employee?->name ?? 'employee';
+        $this->engine->logEvent($workflow, 'info',
+            "Device returned from {$empName}: {$label} (by " . Auth::user()->name . ').');
+
+        return back()->with('success', "Device '{$label}' returned.");
     }
 
     // Retry a failed workflow execution (skips approval — already approved)

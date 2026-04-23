@@ -81,6 +81,7 @@ class NotificationRule extends Model
                 'workflow_notification'   => 'Workflow Custom Notification',
                 'workflow_tasks_created'  => 'Workflow Setup Tasks Created',
                 'workflow_all_tasks_done' => 'All Workflow Tasks Complete',
+                'it_onboarding_summary'   => 'IT Onboarding Summary (new-hire credentials)',
             ],
             'NOC & Monitoring' => [
                 'noc_alert'           => 'NOC Alert (switch / VPN / UCM)',

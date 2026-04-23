@@ -423,6 +423,119 @@
 </div>
 @endif
 
+{{-- ── Device / Asset Assignment (create_user only, post-provisioning) ── --}}
+@if($isCreateUser && $employee)
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent d-flex align-items-center gap-2">
+        <i class="bi bi-laptop text-primary"></i>
+        <strong>Assigned Devices</strong>
+        <span class="text-muted small ms-2">— for {{ $employee->name }}</span>
+        <span class="badge bg-light text-dark ms-auto">{{ $currentAssignments->count() }} active</span>
+    </div>
+    <div class="card-body small">
+
+        {{-- Current assignments --}}
+        @if($currentAssignments->isNotEmpty())
+        <div class="table-responsive mb-3">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Device</th>
+                        <th>Type</th>
+                        <th>Asset Code</th>
+                        <th>Serial</th>
+                        <th>Assigned</th>
+                        <th>Condition</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($currentAssignments as $a)
+                    <tr>
+                        <td class="fw-semibold">{{ $a->device?->name ?? '—' }}</td>
+                        <td><span class="badge bg-secondary">{{ $a->device?->type ?? '—' }}</span></td>
+                        <td><code>{{ $a->device?->asset_code ?? '—' }}</code></td>
+                        <td class="text-muted">{{ $a->device?->serial_number ?? '—' }}</td>
+                        <td>{{ $a->assigned_date?->format('d M Y') ?? '—' }}</td>
+                        <td><span class="badge {{ $a->conditionBadgeClass() }}">{{ ucfirst($a->condition ?? '—') }}</span></td>
+                        <td class="text-end">
+                            @can('approve-workflows')
+                            <form method="POST" action="{{ route('admin.workflows.return-device', ['workflow' => $workflow->id, 'assignment' => $a->id]) }}"
+                                  class="d-inline"
+                                  onsubmit="return confirm('Return this device? It will be marked as available.');">
+                                @csrf
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-arrow-return-left me-1"></i>Return
+                                </button>
+                            </form>
+                            @endcan
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @else
+        <p class="text-muted mb-3"><i class="bi bi-info-circle me-1"></i>No devices are currently assigned to this employee.</p>
+        @endif
+
+        {{-- Assign a new device form --}}
+        @can('approve-workflows')
+        @if($availableDevices->isNotEmpty())
+        <form method="POST" action="{{ route('admin.workflows.assign-device', $workflow->id) }}" class="row g-2 align-items-end">
+            @csrf
+            <div class="col-md-5">
+                <label class="form-label small fw-semibold mb-1">Select Device</label>
+                <select name="asset_id" class="form-select form-select-sm" required>
+                    <option value="">— Choose a device —</option>
+                    @foreach($availableDevices as $dev)
+                    <option value="{{ $dev->id }}">
+                        {{ $dev->type ? strtoupper($dev->type) . ' · ' : '' }}{{ $dev->name }}
+                        @if($dev->asset_code) ({{ $dev->asset_code }}) @endif
+                        @if($dev->serial_number) — SN: {{ $dev->serial_number }}@endif
+                        @if($workflow->branch_id === null && $dev->branch)
+                            — {{ $dev->branch->name }}
+                        @endif
+                    </option>
+                    @endforeach
+                </select>
+                @if($workflow->branch_id)
+                <div class="form-text">Showing available devices in this workflow's branch.</div>
+                @else
+                <div class="form-text">No branch on workflow — showing all available devices.</div>
+                @endif
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Condition</label>
+                <select name="condition" class="form-select form-select-sm" required>
+                    <option value="good" selected>Good</option>
+                    <option value="fair">Fair</option>
+                    <option value="poor">Poor</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold mb-1">Notes <span class="text-muted">(optional)</span></label>
+                <input type="text" name="notes" class="form-control form-control-sm" maxlength="500" placeholder="e.g. handed at desk">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">
+                    <i class="bi bi-plus-circle me-1"></i>Assign
+                </button>
+            </div>
+        </form>
+        @else
+        <div class="alert alert-light border small mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            No available (unassigned) devices found{{ $workflow->branch_id ? ' in this branch' : '' }}.
+            <a href="{{ route('admin.devices.index') }}" class="ms-1">Manage devices →</a>
+        </div>
+        @endif
+        @endcan
+
+    </div>
+</div>
+@endif
+
 {{-- ── Workflow Tasks ── --}}
 @if($workflowTasks->isNotEmpty())
 <div class="card shadow-sm border-0 mb-4">

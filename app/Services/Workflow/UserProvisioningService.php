@@ -498,71 +498,30 @@ class UserProvisioningService
         ?string         $extension,
         ?UcmServer      $ucmServer
     ): void {
-        $displayName  = $payload['display_name'] ?? 'New Employee';
-        $laptopStatus = $payload['laptop_status'] ?? null;
-        $needsExt     = $payload['needs_extension'] ?? ($extension !== null);
-        $tasks        = [];
-
-        // Laptop task (only if new or used)
-        if (in_array($laptopStatus, ['new', 'used'])) {
-            $laptopLabel = $laptopStatus === 'new' ? 'New' : 'Used / Refurbished';
-            $task = WorkflowTask::create([
-                'workflow_id' => $workflow->id,
-                'type'        => 'laptop_assign',
-                'title'       => "Assign Laptop to {$displayName}",
-                'description' => "Prepare and assign a {$laptopLabel} laptop to the new employee.",
-                'status'      => 'pending',
-                'payload'     => [
-                    'laptop_type'  => $laptopStatus,
-                    'employee_upn' => $payload['upn'] ?? null,
-                    'branch_id'    => $workflow->branch_id,
-                ],
-            ]);
-            $tasks[] = $task;
-            $this->engine->logEvent($workflow, 'info', "Task created: Assign {$laptopLabel} Laptop to {$displayName}");
-        }
-
-        // IP phone task (only if extension was requested and created)
-        if ($needsExt && $extension && $ucmServer) {
-            $ucmIp   = $ucmServer->url ?? '—';
-            $ucmUser = $extension;
-            // The UCM password was generated inside createForUser() and stored in payload
-            $ucmPass = $payload['ucm_extension_secret'] ?? '(reset via UCM admin panel)';
-
-            $task = WorkflowTask::create([
-                'workflow_id' => $workflow->id,
-                'type'        => 'ip_phone_assign',
-                'title'       => "Set Up IP Phone for {$displayName} (Ext. {$extension})",
-                'description' => "Configure and assign the IP phone for the new employee.",
-                'status'      => 'pending',
-                'payload'     => [
-                    'extension'      => $extension,
-                    'ucm_ip'         => $ucmIp,
-                    'ucm_username'   => $ucmUser,
-                    'ucm_password'   => $ucmPass,
-                    'ucm_server_id'  => $ucmServer->id,
-                    'ucm_server_name'=> $ucmServer->name,
-                    'employee_upn'   => $payload['upn'] ?? null,
-                ],
-            ]);
-            $tasks[] = $task;
-            $this->engine->logEvent($workflow, 'info', "Task created: Set Up IP Phone for {$displayName} (ext. {$extension})");
-        }
-
-        // Notify IT team via system notification + email
-        if (! empty($tasks)) {
-            $taskCount = count($tasks);
-            $this->notifications->notifyAdmins(
-                'workflow_tasks_created',
-                'New Employee Setup Tasks',
-                "{$taskCount} task(s) created for '{$displayName}' — please complete setup.",
-                route('admin.workflows.show', $workflow->id),
-                'info'
-            );
-        }
+        // Internal WorkflowTask rows (laptop/IP phone) were removed — the
+        // external ticketing system owns laptop/phone provisioning, and the
+        // IT summary email (sent below) covers credentials/handoff.
 
         // ── External ticketing API call ───────────────────────────
         $this->createExternalTickets($workflow, $payload, $extension, $ucmServer);
+
+        // ── IT team summary email (routable via Notification Rules) ──
+        try {
+            \App\Jobs\SendItOnboardingSummaryJob::dispatch($workflow->id);
+            $this->engine->logEvent($workflow, 'info', 'IT onboarding summary email queued.');
+        } catch (\Throwable $e) {
+            $this->engine->logEvent($workflow, 'warning',
+                'Failed to queue IT onboarding summary email: ' . $e->getMessage());
+        }
+
+        // ── Welcome email to the new employee ─────────────────────
+        try {
+            \App\Jobs\SendEmployeeWelcomeJob::dispatch($workflow->id);
+            $this->engine->logEvent($workflow, 'info', 'Welcome email queued for new employee.');
+        } catch (\Throwable $e) {
+            $this->engine->logEvent($workflow, 'warning',
+                'Failed to queue employee welcome email: ' . $e->getMessage());
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
