@@ -22,7 +22,8 @@ class UserProvisioningService
     public function __construct(
         private WorkflowEngine              $engine,
         private ExtensionProvisioningService $extProvisioning,
-        private NotificationService          $notifications
+        private NotificationService          $notifications,
+        private TicketingApiService          $ticketing
     ) {}
 
     // ─────────────────────────────────────────────────────────────
@@ -241,6 +242,29 @@ class UserProvisioningService
             }
         }
 
+        // ── Step 3d: Assign internet access level group ───────────
+        // Internet tier chosen on the manager form maps to a specific Azure group.
+        $internetAzureGroupId = $payload['internet_access_group_id'] ?? null;
+        $internetLevelLabel   = $payload['internet_access_group_name'] ?? ($payload['internet_level'] ?? null);
+        if ($internetAzureGroupId) {
+            try {
+                $this->engine->logEvent($workflow, 'info',
+                    "Assigning internet access group: {$internetLevelLabel}");
+                $graph->addUserToGroup($azureId, $internetAzureGroupId);
+                $this->engine->logEvent($workflow, 'success',
+                    "Internet access group '{$internetLevelLabel}' assigned.");
+                sleep(1);
+            } catch (\Throwable $e) {
+                if (str_contains($e->getMessage(), '409')) {
+                    $this->engine->logEvent($workflow, 'info',
+                        "Already in internet access group: {$internetLevelLabel}");
+                } else {
+                    $this->engine->logEvent($workflow, 'warning',
+                        "Internet access group '{$internetLevelLabel}' assignment failed (non-fatal): " . $e->getMessage());
+                }
+            }
+        }
+
         // ── Step 4: Create UCM extension (floor-aware, then branch-aware) ──
         // Priority: floor ext range → branch ext range → global settings.
         // Only create extension if manager form says needs_extension (or form not filled yet).
@@ -392,11 +416,14 @@ class UserProvisioningService
         }
 
         // ── Step 7: Notify admins ─────────────────────────────────
-        $extInfo = $extension ? " Extension: {$extension}." : '';
+        $extInfo     = $extension ? " Extension: {$extension}." : '';
+        $commentInfo = ! empty($payload['manager_comments'])
+            ? " Manager comments: \"{$payload['manager_comments']}\"."
+            : '';
         $this->notifications->notifyAdmins(
             'workflow_complete',
             'User Provisioned',
-            "New user '{$displayName}' ({$upn}) has been successfully provisioned.{$extInfo}",
+            "New user '{$displayName}' ({$upn}) has been successfully provisioned.{$extInfo}{$commentInfo}",
             route('admin.workflows.show', $workflow->id),
             'info'
         );
@@ -522,6 +549,108 @@ class UserProvisioningService
                 route('admin.workflows.show', $workflow->id),
                 'info'
             );
+        }
+
+        // ── External ticketing API call ───────────────────────────
+        $this->createExternalTickets($workflow, $payload, $extension, $ucmServer);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Create tickets in the external ticketing system
+    // (idempotent: skips if tickets were already created in a prior run)
+    // ─────────────────────────────────────────────────────────────
+
+    private function createExternalTickets(
+        WorkflowRequest $workflow,
+        array           $payload,
+        ?string         $extension,
+        ?UcmServer      $ucmServer
+    ): void {
+        if (! empty($payload['ticketing']['laptop_ticket_id'])) {
+            $this->engine->logEvent($workflow, 'info',
+                'Resuming — ticketing tickets already created, skipping API call.');
+            return;
+        }
+
+        $displayName = $payload['display_name']
+            ?? trim(($payload['first_name'] ?? '') . ' ' . ($payload['last_name'] ?? ''))
+            ?: 'New Employee';
+        $upn         = $payload['upn'] ?? null;
+        if (! $upn) {
+            $this->engine->logEvent($workflow, 'warning',
+                'Ticketing API skipped — UPN not available for new user.');
+            return;
+        }
+
+        // Title — "New Employee - {full name}"
+        $title = "New Employee - {$displayName}";
+
+        // Description — manager laptop response + extension details
+        $laptopStatus = $payload['laptop_status'] ?? 'unspecified';
+        $laptopLine   = match ($laptopStatus) {
+            'new'  => 'Laptop: NEW',
+            'used' => 'Laptop: USED / REFURBISHED',
+            'none' => 'Laptop: NOT REQUIRED',
+            default => 'Laptop: ' . strtoupper((string) $laptopStatus),
+        };
+
+        $descParts = [$laptopLine];
+        if ($extension) {
+            $ucmHost = $ucmServer->url ?? ($ucmServer->name ?? 'UCM');
+            $ucmPass = $payload['ucm_extension_secret'] ?? '(reset via UCM admin)';
+            $descParts[] = "Extension Number: {$extension}";
+            $descParts[] = "Extension ID (UCM login): {$extension}";
+            $descParts[] = "Extension Password: {$ucmPass}";
+            $descParts[] = "UCM Server: {$ucmHost}";
+        } else {
+            $descParts[] = 'Extension: NOT REQUIRED';
+        }
+        if (! empty($payload['manager_comments'])) {
+            $descParts[] = 'Manager comments: ' . $payload['manager_comments'];
+        }
+        $description = implode("\n", $descParts);
+
+        // Location — take the first 3 uppercase letters of the branch name
+        $branch   = $workflow->branch_id ? Branch::find($workflow->branch_id) : null;
+        $location = $branch
+            ? strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $branch->name ?? ''), 0, 3))
+            : '';
+        if (! $location) {
+            $location = 'N/A';
+        }
+
+        try {
+            $this->engine->logEvent($workflow, 'info',
+                "Calling ticketing API to create laptop/phone tickets for {$upn} ({$location})...");
+
+            $result = $this->ticketing->provisionNewEmployee(
+                title:       $title,
+                description: $description,
+                location:    $location,
+                callerEmail: $upn
+            );
+
+            if ($result === null) {
+                $this->engine->logEvent($workflow, 'info',
+                    'Ticketing API not enabled/configured — skipped.');
+                return;
+            }
+
+            $payload['ticketing'] = [
+                'laptop_ticket_id'     => $result['laptopTicketId']              ?? null,
+                'phone_ticket_id'      => $result['phoneTicketId']               ?? null,
+                'laptop_engineer_email'=> $result['laptopAssignedEngineerEmail'] ?? null,
+                'phone_engineer_email' => $result['phoneAssignedEngineerEmail']  ?? null,
+                'created_at'           => now()->toIso8601String(),
+            ];
+            $workflow->payload = $payload;
+            $workflow->save();
+
+            $this->engine->logEvent($workflow, 'success',
+                "Ticketing API returned tickets — laptop #{$payload['ticketing']['laptop_ticket_id']} ({$payload['ticketing']['laptop_engineer_email']}), phone #{$payload['ticketing']['phone_ticket_id']} ({$payload['ticketing']['phone_engineer_email']}).");
+        } catch (\Throwable $e) {
+            $this->engine->logEvent($workflow, 'warning',
+                'Ticketing API call failed (non-fatal): ' . $e->getMessage());
         }
     }
 

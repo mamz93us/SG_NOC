@@ -439,6 +439,57 @@
 </div>
 @endif
 
+{{-- ── External Tickets (from ticketing API) ── --}}
+@if($isCreateUser && !empty($payload['ticketing']))
+@php $tk = $payload['ticketing']; @endphp
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent d-flex align-items-center gap-2">
+        <i class="bi bi-ticket-detailed-fill text-primary"></i>
+        <strong>External Tickets</strong>
+        <span class="badge bg-success ms-auto">Created</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm align-middle small mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Ticket Type</th>
+                    <th>Ticket #</th>
+                    <th>Assigned Engineer</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if(!empty($tk['laptop_ticket_id']))
+                <tr>
+                    <td class="ps-3 fw-semibold"><i class="bi bi-laptop me-1 text-primary"></i>Laptop</td>
+                    <td><span class="badge bg-primary fs-6 px-2">#{{ $tk['laptop_ticket_id'] }}</span></td>
+                    <td>
+                        @if(!empty($tk['laptop_engineer_email']))
+                            <a href="mailto:{{ $tk['laptop_engineer_email'] }}">{{ $tk['laptop_engineer_email'] }}</a>
+                        @else
+                            <span class="text-muted">—</span>
+                        @endif
+                    </td>
+                </tr>
+                @endif
+                @if(!empty($tk['phone_ticket_id']))
+                <tr>
+                    <td class="ps-3 fw-semibold"><i class="bi bi-telephone-fill me-1 text-primary"></i>IP Phone</td>
+                    <td><span class="badge bg-primary fs-6 px-2">#{{ $tk['phone_ticket_id'] }}</span></td>
+                    <td>
+                        @if(!empty($tk['phone_engineer_email']))
+                            <a href="mailto:{{ $tk['phone_engineer_email'] }}">{{ $tk['phone_engineer_email'] }}</a>
+                        @else
+                            <span class="text-muted">—</span>
+                        @endif
+                    </td>
+                </tr>
+                @endif
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
+
 {{-- Reject modal --}}
 <div class="modal fade" id="rejectModal" tabindex="-1">
     <div class="modal-dialog modal-sm">

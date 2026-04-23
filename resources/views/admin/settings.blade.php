@@ -627,6 +627,67 @@
 </div>
 
 {{-- ─────────────────────────────────────────────────────── --}}
+{{-- Ticketing API Section                                  --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="ticketing">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-ticket-detailed-fill text-primary fs-5"></i>
+        <h5 class="mb-0">Ticketing API (New Employee Tickets)</h5>
+        @if($settings->ticketing_api_enabled && $settings->ticketing_api_url)
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @elseif($settings->ticketing_api_url)
+            <span class="badge bg-warning text-dark ms-auto">Configured (disabled)</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Not Configured</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            External ticketing system endpoint called at the end of the onboarding workflow
+            to auto-create laptop &amp; IP phone tickets. The returned ticket numbers
+            are stored on the workflow.
+        </div>
+        <form method="POST" action="{{ route('admin.settings.ticketing') }}">
+            @csrf
+            <div class="row g-3 mb-3">
+                <div class="col-md-12">
+                    <label class="form-label fw-semibold">API Endpoint URL</label>
+                    <input type="url" name="ticketing_api_url" class="form-control font-monospace"
+                           value="{{ old('ticketing_api_url', $settings->ticketing_api_url) }}"
+                           placeholder="https://sgprd.samirgroup.com/SamirTicketingAPIs/ticketing/api/provisionNewEmployee">
+                    <div class="form-text">Full URL — the workflow POSTs the new-employee payload here.</div>
+                </div>
+
+                <div class="col-md-12">
+                    <label class="form-label fw-semibold">X-API-Key</label>
+                    <input type="password" name="ticketing_api_key" class="form-control"
+                           placeholder="{{ $settings->ticketing_api_key ? '•••••• (leave blank to keep current)' : 'Paste X-API-Key here' }}">
+                    <div class="form-text">Stored encrypted at rest. Sent as <code>X-API-Key</code> header.</div>
+                </div>
+
+                <div class="col-md-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="ticketing_api_enabled" name="ticketing_api_enabled" value="1"
+                               {{ $settings->ticketing_api_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="ticketing_api_enabled">
+                            Enable — call this API when provisioning tasks are created
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1"></i>Save Ticketing Settings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- ─────────────────────────────────────────────────────── --}}
 {{-- SMTP Email (Outgoing Mail) Section                     --}}
 {{-- ─────────────────────────────────────────────────────── --}}
 <div class="card mt-4" id="smtp">

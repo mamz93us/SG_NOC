@@ -355,6 +355,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         // ── SMTP / Outgoing Mail ──────────────────────────────────────
         Route::post('settings/cups',      [SettingsController::class, 'updateCups'])  ->name('settings.cups');
         Route::post('settings/itam',      [SettingsController::class, 'updateItam'])  ->name('settings.itam');
+        Route::post('settings/ticketing', [SettingsController::class, 'updateTicketing'])->name('settings.ticketing');
         Route::post('settings/smtp',      [SettingsController::class, 'updateSmtp']) ->name('settings.smtp');
         Route::post('settings/test-smtp', [SettingsController::class, 'testSmtp'])   ->name('settings.test-smtp');
 

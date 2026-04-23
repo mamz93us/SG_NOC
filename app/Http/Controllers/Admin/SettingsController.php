@@ -653,6 +653,52 @@ class SettingsController extends Controller
             : 'Default provisioning license cleared.');
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Ticketing API (external ticket system for new-employee tickets)
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateTicketing(Request $request)
+    {
+        $request->validate([
+            'ticketing_api_url' => 'nullable|url|max:500',
+            'ticketing_api_key' => 'nullable|string|max:500',
+        ]);
+
+        $settings = Setting::get();
+        $before = [
+            'ticketing_api_enabled' => (bool) $settings->ticketing_api_enabled,
+            'ticketing_api_url'     => $settings->ticketing_api_url,
+        ];
+        $settings->ticketing_api_enabled = $request->boolean('ticketing_api_enabled');
+        $settings->ticketing_api_url     = $request->ticketing_api_url;
+
+        if ($request->filled('ticketing_api_key')) {
+            $settings->ticketing_api_key = $request->ticketing_api_key;
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id'   => 1,
+            'action'     => 'ticketing_updated',
+            'changes'    => [
+                'before'      => $before,
+                'after'       => [
+                    'ticketing_api_enabled' => (bool) $settings->ticketing_api_enabled,
+                    'ticketing_api_url'     => $settings->ticketing_api_url,
+                ],
+                'key_changed' => $request->filled('ticketing_api_key'),
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'Ticketing API settings updated.')
+            ->withFragment('ticketing');
+    }
+
     public function updateItam(Request $request)
     {
         $request->validate([
