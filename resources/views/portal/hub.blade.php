@@ -128,7 +128,8 @@
 @endif
 
 <div class="row g-3">
-    {{-- Remote Browser --}}
+    {{-- Remote Browser (visible only with permission) --}}
+    @can('view-browser-portal')
     <div class="col-12 col-sm-6 col-lg-4">
         <a href="{{ route('portal.browser') }}" class="hub-tile tile-browser">
             @if($activeBrowser)
@@ -145,6 +146,7 @@
             </p>
         </a>
     </div>
+    @endcan
 
     {{-- My Profile --}}
     <div class="col-12 col-sm-6 col-lg-4">

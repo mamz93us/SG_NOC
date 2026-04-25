@@ -88,6 +88,12 @@ class VpnControlService
         $config .= "        version = " . ($tunnel->ike_version === 'IKEv2' ? '2' : '1') . "\n";
         $config .= "        proposals = {$proposals}\n";
         $config .= "        rekey_time = {$tunnel->lifetime}\n";
+        // Retry IKE forever — default of 3 makes a tunnel give up permanently after a brief outage.
+        $config .= "        keyingtries = 0\n";
+        // DPD frequency — strongSwan ignores it unless set at conn (IKE) level.
+        if (!empty($tunnel->dpd_delay)) {
+            $config .= "        dpd_delay = {$tunnel->dpd_delay}\n";
+        }
         $localId = $tunnel->local_id ?: config('vpn.local_id', 'noc.samirgroup.net');
         $remoteId = $tunnel->remote_id ?: $tunnel->remote_public_ip;
 

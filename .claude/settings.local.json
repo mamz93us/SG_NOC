@@ -348,7 +348,11 @@
       "Bash(php -l app/Models/User.php)",
       "Bash(php -l app/Http/Controllers/Admin/UserController.php)",
       "Bash(php -l app/Http/Controllers/Admin/NotificationRuleController.php)",
-      "Bash(php -l app/Http/Controllers/Admin/PermissionsController.php)"
+      "Bash(php -l app/Http/Controllers/Admin/PermissionsController.php)",
+      "Bash(php -l app/Http/Middleware/EnsurePermission.php)",
+      "Bash(nslookup noc.samirgroup.net 8.8.8.8)",
+      "Bash(ping -n 2 noc.samirgroup.net)",
+      "Bash(scp -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" -o StrictHostKeyChecking=no \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Services/VpnMonitorService.php\" \"C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/app/Services/VpnControlService.php\" azureuser@noc.samirgroup.net:/tmp/)"
     ]
   }
 }

@@ -58,6 +58,14 @@ class EnsurePermission
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
+        // Portal-only roles (browser_user, hr) should never be sent to admin.dashboard —
+        // /admin/ bounces them back to /portal, causing an infinite redirect. Instead,
+        // send them to the portal hub (which is unguarded) with the error message.
+        if (method_exists($user, 'usesPortal') && $user->usesPortal()) {
+            return redirect()->route('portal.index')
+                ->with('error', 'You do not have permission to access that page.');
+        }
+
         return redirect()->route('admin.dashboard')
             ->with('error', 'You do not have permission to access that page.');
     }

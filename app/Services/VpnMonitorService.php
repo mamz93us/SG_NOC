@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\NocEvent;
 use App\Models\VpnLog;
 use App\Models\VpnTunnel;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class VpnMonitorService
@@ -19,8 +20,24 @@ class VpnMonitorService
         $status = $this->vpnService->status();
         $output = $status['output'] ?? '';
 
-        foreach (VpnTunnel::all() as $tunnel) {
+        $tunnels = VpnTunnel::all();
+
+        foreach ($tunnels as $tunnel) {
             $this->updateTunnelStatus($tunnel, $output);
+        }
+
+        // strongSwan caches the resolved IP from `remote_addrs` at load time and
+        // never re-resolves it — `dpd_action = restart` retries the stale IP forever.
+        // If any down tunnel uses a hostname, trigger one `swanctl --load-all` so the
+        // next IKE attempt picks up the current DNS answer. Throttled to avoid
+        // hammering the daemon when many tunnels share the same outage.
+        $hasDownHostnameTunnel = $tunnels->contains(fn ($t) =>
+            $t->status === 'down' && !filter_var($t->remote_public_ip, FILTER_VALIDATE_IP)
+        );
+
+        if ($hasDownHostnameTunnel && Cache::add('vpn_dns_reload_lock', true, 120)) {
+            Log::info('VpnMonitor: DDNS-based tunnel down — reloading swanctl conns to refresh DNS.');
+            $this->vpnService->reload();
         }
     }
 
@@ -59,13 +76,15 @@ class VpnMonitorService
 
     protected function triggerAlert(VpnTunnel $tunnel): void
     {
+        $branchName = $tunnel->branch->name ?? 'Unknown';
+
         NocEvent::create([
             'module'      => 'VPN_HUB',
             'entity_type' => 'vpn_tunnel',
             'entity_id'   => $tunnel->id,
             'severity'    => 'critical',
             'title'       => "VPN Tunnel Down: {$tunnel->name}",
-            'message'     => "The IPsec tunnel to {$tunnel->remote_public_ip} ({$tunnel->branch->name ?? 'Unknown'}) has been detected as DOWN.",
+            'message'     => "The IPsec tunnel to {$tunnel->remote_public_ip} ({$branchName}) has been detected as DOWN.",
             'first_seen'  => now(),
             'last_seen'   => now(),
             'status'      => 'open',

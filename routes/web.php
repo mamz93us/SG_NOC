@@ -135,8 +135,9 @@ Route::prefix('portal')->name('portal.')->group(function () {
         return redirect()->route('portal.login');
     })->name('logout');
 
-    // Authenticated user-facing routes
-    Route::middleware(['auth', 'permission:view-browser-portal', 'throttle:60,1'])
+    // Shared portal routes — any authenticated user can see their own hub, profile, and assets.
+    // Individual tiles on the hub are permission-gated with @can(...).
+    Route::middleware(['auth', 'throttle:60,1'])
         ->group(function () {
             // Portal hub (new default — tiles for all user apps)
             Route::get('/', [\App\Http\Controllers\Portal\PortalHubController::class, 'index'])->name('index');
@@ -147,8 +148,11 @@ Route::prefix('portal')->name('portal.')->group(function () {
 
             // My Assets (read-only view of everything assigned to this employee)
             Route::get('/assets', [\App\Http\Controllers\Portal\MyAssetsController::class, 'index'])->name('assets');
+        });
 
-            // Remote Browser (previously at /portal — now one tile among many)
+    // Remote Browser — requires explicit permission.
+    Route::middleware(['auth', 'permission:view-browser-portal', 'throttle:60,1'])
+        ->group(function () {
             Route::get('/browser',                [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'index'])    ->name('browser');
             Route::post('/browser',               [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'store'])    ->name('store');
             Route::post('/browser/heartbeat',     [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'heartbeat'])->name('heartbeat');
