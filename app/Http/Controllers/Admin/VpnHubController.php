@@ -224,13 +224,17 @@ class VpnHubController extends Controller
     public function reload()
     {
         $result = $this->vpnService->reload();
-        
+
+        // Redirect to index, not back() — a browser refresh on /reload would
+        // re-issue a GET against the POST-only route and 405.
+        $redirect = redirect()->route('admin.network.vpn.index');
+
         if ($result['status'] === 'success') {
             \App\Models\ActivityLog::log('VPN', "Reloaded all VPN configurations", 'info');
-            return back()->with('success', "All VPN configurations reloaded successfully.");
+            return $redirect->with('success', "All VPN configurations reloaded successfully.");
         }
 
-        return back()->with('error', "Reload failed: " . ($result['message'] ?? 'Unknown error'));
+        return $redirect->with('error', "Reload failed: " . ($result['message'] ?? 'Unknown error'));
     }
 
     public function checkStatus(VpnTunnel $tunnel)
