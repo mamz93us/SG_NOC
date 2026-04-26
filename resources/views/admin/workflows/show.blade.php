@@ -13,7 +13,315 @@
 
     // Workflow tasks
     $workflowTasks = \App\Models\WorkflowTask::where('workflow_id', $workflow->id)->orderBy('created_at')->get();
+
+    // ── Onboarding progress checklist (create_user only) ────────────
+    // Each entry: ['label' => ..., 'icon' => ..., 'state' => 'done|current|pending|failed']
+    $onboardingSteps = [];
+    if ($isCreateUser) {
+        $status         = $workflow->status;
+        $approvalsDone  = !in_array($status, ['draft', 'pending']);
+        $managerDone    = $managerToken && $managerToken->hasResponse();
+        $managerSkipped = empty($payload['manager_email']);
+        $isExecuting    = $status === 'executing';
+        $isFailed       = in_array($status, ['failed', 'rejected', 'cancelled']);
+
+        // 1. Submitted — always done once workflow exists
+        $onboardingSteps[] = [
+            'label' => 'Submitted',
+            'icon'  => 'bi-send-fill',
+            'state' => 'done',
+        ];
+
+        // 2. Approvals
+        $onboardingSteps[] = [
+            'label' => 'Approvals',
+            'icon'  => 'bi-check2-circle',
+            'state' => $status === 'rejected' ? 'failed'
+                     : ($approvalsDone ? 'done' : ($status === 'pending' ? 'current' : 'pending')),
+        ];
+
+        // 3. Manager Form (skipped marker when no manager email)
+        if (!$managerSkipped) {
+            $onboardingSteps[] = [
+                'label' => 'Manager Form',
+                'icon'  => 'bi-clipboard-check',
+                'state' => $managerDone ? 'done'
+                         : ($status === 'awaiting_manager_form' ? 'current'
+                             : ($approvalsDone ? 'current' : 'pending')),
+            ];
+        }
+
+        // 4. Provisioning
+        $onboardingSteps[] = [
+            'label' => 'Provisioning',
+            'icon'  => 'bi-gear-fill',
+            'state' => $status === 'completed' ? 'done'
+                     : ($isFailed && $status === 'failed' ? 'failed'
+                         : ($isExecuting ? 'current' : 'pending')),
+        ];
+
+        // 5. Completed
+        $onboardingSteps[] = [
+            'label' => 'Completed',
+            'icon'  => 'bi-flag-fill',
+            'state' => $status === 'completed' ? 'done'
+                     : ($isFailed ? 'failed' : 'pending'),
+        ];
+    }
+
+    // ── Provisioning sub-steps (create_user only — vertical detailed list) ─
+    // State derived from payload evidence: presence of azure_id, assigned_licenses,
+    // group ids, extension, employee_id, ticketing tickets, etc.
+    $provisioningSteps = [];
+    if ($isCreateUser) {
+        $st = $workflow->status;
+        $reachedProvisioning = in_array($st, ['executing', 'completed', 'failed']);
+        $isComplete = $st === 'completed';
+        $isExecutingNow = $st === 'executing';
+        $isProvFailed = $st === 'failed';
+
+        $hasAzure       = !empty($payload['azure_id']) && !empty($payload['upn']);
+        $hasLicenses    = !empty($payload['assigned_licenses']);
+        $hasGroups      = !empty($payload['auto_assigned_groups'])
+                          || !empty($payload['manager_groups'])
+                          || !empty($payload['internet_access_group_id']);
+        $hasExtension   = !empty($payload['extension']);
+        $needsExtension = $payload['needs_extension'] ?? null; // null = manager form not filled yet
+        $hasEmployee    = !empty($payload['employee_id']);
+        $hasTickets     = !empty($payload['ticketing']['laptop_ticket_id'])
+                          || !empty($payload['ticketing']['phone_ticket_id']);
+
+        // Helper: when provisioning has run (or is running) but no evidence is present,
+        // we mark as 'skipped' if completed (e.g. nothing to assign), 'current' if executing,
+        // else 'pending' (waiting for provisioning to start).
+        $stateFor = function ($evidence, $isOptional = false) use ($isComplete, $isExecutingNow, $isProvFailed, $reachedProvisioning) {
+            if ($evidence) return 'done';
+            if ($isProvFailed && $reachedProvisioning) return 'failed';
+            if ($isComplete) return $isOptional ? 'skipped' : 'failed';
+            if ($isExecutingNow) return 'current';
+            return 'pending';
+        };
+
+        // 1. Azure account (UPN + user creation)
+        $provisioningSteps[] = [
+            'label'  => 'Azure Account / UPN',
+            'detail' => $hasAzure ? ($payload['upn'] ?? '') : 'Create Azure AD user with UPN',
+            'icon'   => 'bi-microsoft',
+            'state'  => $stateFor($hasAzure, false),
+        ];
+
+        // 2. Licenses
+        $licenseDetail = $hasLicenses
+            ? collect($payload['assigned_licenses'])->pluck('name')->filter()->implode(', ')
+            : 'Assign Microsoft 365 license(s)';
+        $provisioningSteps[] = [
+            'label'  => 'License Assignment',
+            'detail' => $licenseDetail ?: 'Assign Microsoft 365 license(s)',
+            'icon'   => 'bi-key-fill',
+            'state'  => $stateFor($hasLicenses, true),
+        ];
+
+        // 3. Groups
+        $groupCount = collect([
+                $payload['auto_assigned_groups'] ?? [],
+                $payload['manager_groups']        ?? [],
+            ])->map(fn($g) => is_array($g) ? count($g) : 0)->sum()
+            + (!empty($payload['internet_access_group_id']) ? 1 : 0);
+        $provisioningSteps[] = [
+            'label'  => 'Group Membership',
+            'detail' => $hasGroups ? "{$groupCount} group(s) assigned" : 'Assign Azure groups (branch + manager + internet)',
+            'icon'   => 'bi-people-fill',
+            'state'  => $stateFor($hasGroups, true),
+        ];
+
+        // 4. Extension (UCM)
+        if ($needsExtension === false) {
+            $provisioningSteps[] = [
+                'label'  => 'IP Phone Extension',
+                'detail' => 'Skipped — manager said no extension needed',
+                'icon'   => 'bi-telephone-x',
+                'state'  => 'skipped',
+            ];
+        } else {
+            $provisioningSteps[] = [
+                'label'  => 'IP Phone Extension',
+                'detail' => $hasExtension ? "Extension {$payload['extension']} on UCM" : 'Provision UCM extension',
+                'icon'   => 'bi-telephone-fill',
+                'state'  => $stateFor($hasExtension, true),
+            ];
+        }
+
+        // 5. Employee record
+        $provisioningSteps[] = [
+            'label'  => 'Employee Record',
+            'detail' => $hasEmployee ? "Created (ID #{$payload['employee_id']})" : 'Create internal employee record',
+            'icon'   => 'bi-person-badge-fill',
+            'state'  => $stateFor($hasEmployee, false),
+        ];
+
+        // 6. External tickets (laptop / phone)
+        $ticketDetail = $hasTickets
+            ? trim(
+                (!empty($payload['ticketing']['laptop_ticket_id']) ? 'Laptop #' . $payload['ticketing']['laptop_ticket_id'] : '')
+                . (!empty($payload['ticketing']['phone_ticket_id']) ? '  ·  Phone #' . $payload['ticketing']['phone_ticket_id'] : '')
+            )
+            : 'Create laptop & phone tickets in helpdesk';
+        $provisioningSteps[] = [
+            'label'  => 'External Tickets',
+            'detail' => $ticketDetail,
+            'icon'   => 'bi-ticket-detailed-fill',
+            'state'  => $stateFor($hasTickets, true),
+        ];
+
+        // 7. Notification emails (welcome + IT summary) — assumed sent on completion
+        $provisioningSteps[] = [
+            'label'  => 'Notification Emails',
+            'detail' => $isComplete ? 'Welcome email + IT summary sent' : 'Send welcome + IT onboarding summary',
+            'icon'   => 'bi-envelope-paper-fill',
+            'state'  => $stateFor($isComplete, true),
+        ];
+    }
 @endphp
+
+@if($isCreateUser && !empty($onboardingSteps))
+<style>
+    .onb-stepper {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0;
+        padding: 8px 4px 0;
+    }
+    .onb-step {
+        flex: 1 1 0;
+        text-align: center;
+        position: relative;
+        min-width: 0;
+    }
+    .onb-step + .onb-step::before {
+        content: '';
+        position: absolute;
+        top: 22px;
+        left: -50%;
+        right: 50%;
+        height: 3px;
+        background: #e9ecef;
+        z-index: 0;
+    }
+    .onb-step.done + .onb-step::before { background: #198754; }
+    .onb-step.current::before { background: linear-gradient(90deg, #198754 0%, #e9ecef 100%); }
+    .onb-step + .onb-step.failed::before { background: #dc3545; }
+    .onb-circle {
+        position: relative;
+        z-index: 1;
+        width: 46px; height: 46px;
+        border-radius: 50%;
+        background: #fff;
+        border: 3px solid #e9ecef;
+        color: #adb5bd;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        margin: 0 auto 6px;
+        transition: all .2s;
+    }
+    .onb-step.done .onb-circle {
+        background: #198754; border-color: #198754; color: #fff;
+        box-shadow: 0 2px 6px rgba(25,135,84,.3);
+    }
+    .onb-step.current .onb-circle {
+        background: #fff; border-color: #0d6efd; color: #0d6efd;
+        box-shadow: 0 0 0 4px rgba(13,110,253,.15);
+        animation: onb-pulse 1.6s ease-in-out infinite;
+    }
+    .onb-step.failed .onb-circle {
+        background: #dc3545; border-color: #dc3545; color: #fff;
+    }
+    @keyframes onb-pulse {
+        0%, 100% { box-shadow: 0 0 0 4px rgba(13,110,253,.15); }
+        50%      { box-shadow: 0 0 0 8px rgba(13,110,253,.05); }
+    }
+    .onb-label {
+        font-size: .8rem; font-weight: 600; color: #6c757d;
+        line-height: 1.2;
+    }
+    .onb-step.done .onb-label    { color: #198754; }
+    .onb-step.current .onb-label { color: #0d6efd; }
+    .onb-step.failed .onb-label  { color: #dc3545; }
+    .onb-sub {
+        font-size: .68rem; color: #adb5bd; margin-top: 2px; display: block;
+    }
+
+    /* ── Vertical provisioning checklist ─────────────────────── */
+    .prov-list { position: relative; padding-left: 8px; }
+    .prov-item {
+        position: relative;
+        padding: 10px 0 10px 38px;
+        min-height: 44px;
+    }
+    .prov-item:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        left: 14px;
+        top: 36px;
+        bottom: -4px;
+        width: 2px;
+        background: #e9ecef;
+    }
+    .prov-item.done:not(:last-child)::after { background: #198754; }
+    .prov-item.failed:not(:last-child)::after { background: #dc3545; }
+    .prov-dot {
+        position: absolute;
+        left: 0; top: 10px;
+        width: 28px; height: 28px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid #e9ecef;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #adb5bd;
+        font-size: 13px;
+        z-index: 1;
+    }
+    .prov-item.done .prov-dot {
+        background: #198754; border-color: #198754; color: #fff;
+    }
+    .prov-item.current .prov-dot {
+        background: #fff; border-color: #0d6efd; color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13,110,253,.15);
+        animation: onb-pulse 1.6s ease-in-out infinite;
+    }
+    .prov-item.failed .prov-dot {
+        background: #dc3545; border-color: #dc3545; color: #fff;
+    }
+    .prov-item.skipped .prov-dot {
+        background: #f8f9fa; border-color: #ced4da; color: #adb5bd;
+        border-style: dashed;
+    }
+    .prov-title {
+        font-size: .82rem; font-weight: 600; color: #212529;
+        line-height: 1.2;
+    }
+    .prov-item.skipped .prov-title { color: #6c757d; }
+    .prov-detail {
+        font-size: .72rem; color: #6c757d; margin-top: 2px;
+        word-break: break-word;
+    }
+    .prov-status-pill {
+        font-size: .62rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .04em;
+        padding: 2px 7px; border-radius: 10px;
+        margin-left: 6px; vertical-align: middle;
+    }
+    .prov-item.done .prov-status-pill    { background: #d1e7dd; color: #0a6e3a; }
+    .prov-item.current .prov-status-pill { background: #cfe2ff; color: #0a4ea8; }
+    .prov-item.failed .prov-status-pill  { background: #f8d7da; color: #842029; }
+    .prov-item.skipped .prov-status-pill { background: #e9ecef; color: #6c757d; }
+    .prov-item.pending .prov-status-pill { background: #fff3cd; color: #664d03; }
+</style>
+@endif
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -204,6 +512,48 @@
 </div>
 @endif
 
+{{-- ── Onboarding progress checklist (create_user only) ── --}}
+@if($isCreateUser && !empty($onboardingSteps))
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent d-flex align-items-center gap-2">
+        <i class="bi bi-list-check text-primary"></i>
+        <strong>Onboarding Progress</strong>
+        @php
+            $doneCount  = collect($onboardingSteps)->where('state', 'done')->count();
+            $totalCount = count($onboardingSteps);
+        @endphp
+        <span class="badge bg-light text-dark border ms-auto">{{ $doneCount }}/{{ $totalCount }} steps</span>
+    </div>
+    <div class="card-body pb-3">
+        <div class="onb-stepper">
+            @foreach($onboardingSteps as $step)
+            <div class="onb-step {{ $step['state'] }}">
+                <div class="onb-circle">
+                    @if($step['state'] === 'done')
+                        <i class="bi bi-check-lg"></i>
+                    @elseif($step['state'] === 'failed')
+                        <i class="bi bi-x-lg"></i>
+                    @else
+                        <i class="bi {{ $step['icon'] }}"></i>
+                    @endif
+                </div>
+                <div class="onb-label">{{ $step['label'] }}</div>
+                @if($step['state'] === 'current')
+                    <span class="onb-sub">In progress…</span>
+                @elseif($step['state'] === 'failed')
+                    <span class="onb-sub text-danger">{{ ucfirst($workflow->status) }}</span>
+                @elseif($step['state'] === 'done')
+                    <span class="onb-sub text-success">Done</span>
+                @else
+                    <span class="onb-sub">Pending</span>
+                @endif
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
+@endif
+
 <div class="row g-4">
     {{-- Left: Metadata --}}
     <div class="col-12 col-lg-4">
@@ -233,6 +583,57 @@
         <div class="card shadow-sm border-0 mb-3">
             <div class="card-header bg-transparent"><strong><i class="bi bi-chat-text me-1"></i>Description</strong></div>
             <div class="card-body small">{{ $workflow->description }}</div>
+        </div>
+        @endif
+
+        {{-- ── Vertical provisioning sub-step checklist (create_user only) ── --}}
+        @if($isCreateUser && !empty($provisioningSteps))
+        @php
+            $provDone    = collect($provisioningSteps)->where('state', 'done')->count();
+            $provSkipped = collect($provisioningSteps)->where('state', 'skipped')->count();
+            $provTotal   = count($provisioningSteps);
+        @endphp
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header bg-transparent d-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3 text-primary"></i>
+                <strong>Provisioning Steps</strong>
+                <span class="badge bg-light text-dark border ms-auto"
+                      title="{{ $provDone }} done, {{ $provSkipped }} skipped, {{ $provTotal }} total">
+                    {{ $provDone }}/{{ $provTotal }}
+                </span>
+            </div>
+            <div class="card-body py-2">
+                <div class="prov-list">
+                    @foreach($provisioningSteps as $ps)
+                    <div class="prov-item {{ $ps['state'] }}">
+                        <span class="prov-dot">
+                            @if($ps['state'] === 'done')
+                                <i class="bi bi-check-lg"></i>
+                            @elseif($ps['state'] === 'failed')
+                                <i class="bi bi-x-lg"></i>
+                            @elseif($ps['state'] === 'skipped')
+                                <i class="bi bi-dash-lg"></i>
+                            @else
+                                <i class="bi {{ $ps['icon'] }}"></i>
+                            @endif
+                        </span>
+                        <div class="prov-title">
+                            {{ $ps['label'] }}
+                            <span class="prov-status-pill">
+                                @switch($ps['state'])
+                                    @case('done')    Done    @break
+                                    @case('current') Running @break
+                                    @case('failed')  Failed  @break
+                                    @case('skipped') Skipped @break
+                                    @default        Pending
+                                @endswitch
+                            </span>
+                        </div>
+                        <div class="prov-detail">{{ $ps['detail'] }}</div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
         </div>
         @endif
 

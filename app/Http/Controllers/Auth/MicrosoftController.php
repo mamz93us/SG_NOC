@@ -14,12 +14,16 @@ class MicrosoftController extends Controller
     /**
      * Configure Socialite dynamically from DB settings and redirect to Microsoft.
      *
-     * SSO is exclusively for the Remote Browser Portal — admins use password
-     * login. This method is always treated as a portal-initiated sign-in.
+     * SSO can be initiated from either the Remote Browser Portal or the admin
+     * login screen. The `from` query param ('admin' or 'portal') is stashed in
+     * the session so the callback knows where to land the user.
      */
     public function redirect(\Illuminate\Http\Request $request)
     {
         $this->configureSocialite();
+
+        $from = $request->query('from') === 'admin' ? 'admin' : 'portal';
+        $request->session()->put('sso_from', $from);
 
         return Socialite::driver('microsoft')->redirect();
     }
@@ -27,19 +31,22 @@ class MicrosoftController extends Controller
     /**
      * Handle the Microsoft OAuth callback.
      *
-     * Every SSO sign-in lands in the Remote Browser Portal. New users get the
-     * `browser_user` role. Existing users keep whatever role they already have
-     * (so we don't accidentally demote someone who was manually promoted), but
-     * they are still routed to the portal — never the admin dashboard.
+     * Routing depends on where SSO was initiated and what role the user has:
+     *   - Portal-initiated, or any portal-only role (browser_user, hr) → portal
+     *   - Admin-initiated AND user has admin/staff role → admin dashboard
+     * New users always get `browser_user` (never auto-promoted to admin).
      */
     public function callback(\Illuminate\Http\Request $request)
     {
         $this->configureSocialite();
 
+        $from = $request->session()->pull('sso_from', 'portal');
+
         try {
             $msUser = Socialite::driver('microsoft')->user();
         } catch (\Exception $e) {
-            return redirect()->route('portal.login')
+            $errorRoute = $from === 'admin' ? 'login' : 'portal.login';
+            return redirect()->route($errorRoute)
                 ->with('error', 'Microsoft login failed: ' . $e->getMessage());
         }
 
@@ -59,10 +66,14 @@ class MicrosoftController extends Controller
         // Fresh auth session — 2FA gate applies.
         session()->forget('2fa_verified');
 
-        // Every SSO sign-in is meant for the portal; remember that as the
-        // intended destination so the 2FA flow (challenge or enrollment)
-        // lands the user there, never the admin dashboard.
-        $request->session()->put('url.intended', route('portal.index'));
+        // Portal-only users always land in the portal, regardless of where
+        // SSO was initiated. Admin-initiated SSO for an admin-capable user
+        // lands in the admin dashboard.
+        $landing = ($from === 'admin' && !$user->usesPortal())
+            ? route($user->homeRoute())
+            : route('portal.index');
+
+        $request->session()->put('url.intended', $landing);
 
         // Browser-only users skip 2FA — straight to the portal.
         if ($user->isBrowserUser()) {
@@ -75,7 +86,7 @@ class MicrosoftController extends Controller
         }
 
         // First-time users enroll in 2FA, then the confirm handler picks up
-        // url.intended and sends them to the portal.
+        // url.intended and sends them to their landing page.
         return redirect()->route('admin.two-factor.setup');
     }
 

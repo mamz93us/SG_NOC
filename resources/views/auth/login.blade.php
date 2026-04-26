@@ -123,6 +123,41 @@
             border-radius: 10px;
             border: none;
         }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            color: #999;
+            font-size: 0.85rem;
+            margin: 20px 0;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .divider:not(:empty)::before { margin-right: 12px; }
+        .divider:not(:empty)::after { margin-left: 12px; }
+
+        .sso-btn {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: #fff;
+            color: #222;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: box-shadow .15s, transform .05s;
+            text-decoration: none;
+        }
+        .sso-btn:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); color: #222; }
+        .sso-btn:active { transform: translateY(1px); }
+        .sso-btn img { width: 20px; height: 20px; }
     </style>
 </head>
 <body>
@@ -234,14 +269,14 @@
                     </button>
                 </form>
 
-                {{-- SSO is reserved for the Remote Browser Portal.
-                     Admins use password login here; SSO users land in /portal only. --}}
-                <div class="mt-4 text-center">
-                    <small class="text-muted">
-                        Remote Browser user?
-                        <a href="{{ route('portal.login') }}" class="fw-semibold">Sign in here</a>
-                    </small>
-                </div>
+                @php $ssoEnabled = \App\Models\Setting::first()?->sso_enabled ?? false; @endphp
+                @if ($ssoEnabled)
+                    <div class="divider">or</div>
+                    <a href="{{ route('auth.microsoft', ['from' => 'admin']) }}" class="sso-btn">
+                        <img src="https://learn.microsoft.com/en-us/entra/identity-platform/media/howto-add-branding-in-apps/ms-symbollockup_mssymbol_19.svg" alt="">
+                        Sign in with Microsoft
+                    </a>
+                @endif
             </div>
         </div>
         
