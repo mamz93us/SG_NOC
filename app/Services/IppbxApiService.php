@@ -399,6 +399,8 @@ class IppbxApiService
         }
 
         // 3. Update User Profile (requires getUser to fetch user_id & privilege first)
+        // SIP fields are already applied above — failures here only affect the
+        // user record (name/email/department/phone), not the dialable extension.
         if (!empty($userData)) {
             $userResp = $this->post([
                 'action'    => 'getUser',
@@ -406,63 +408,121 @@ class IppbxApiService
                 'user_name' => $extension,
             ]);
 
-            if (($userResp['status'] ?? -1) === 0 && !empty($userResp['response']['user_name'])) {
-                $compUser = $userResp['response']['user_name'];
-                
-                $firstName = $userData['first_name'] ?? $compUser['first_name'] ?? '';
-                $lastName  = $userData['last_name']  ?? $compUser['last_name']  ?? '';
-                
-                // Fallback: split fullname into first_name and last_name if necessary
-                if (isset($userData['fullname']) && !isset($userData['first_name'])) {
-                    $parts = explode(' ', trim($userData['fullname']), 2);
-                    $firstName = $parts[0] ?? '';
-                    $lastName  = $parts[1] ?? '';
-                }
+            if (($userResp['status'] ?? -1) !== 0 || empty($userResp['response']['user_name'])) {
+                \Illuminate\Support\Facades\Log::error('updateExtension: getUser returned no user record', [
+                    'extension' => $extension,
+                    'response'  => $userResp,
+                ]);
+                throw new \RuntimeException(
+                    "Cannot update user profile for extension {$extension} — no user record found in UCM. " .
+                    "getUser response: " . json_encode($userResp)
+                );
+            }
 
-                $updateUserPayload = [
-                    'action'     => 'updateUser',
-                    'cookie'     => $this->cookie,
-                    'user_id'    => (string) ($compUser['user_id'] ?? ''),
-                    'user_name'  => $extension,
-                    'privilege'  => (string) ($compUser['privilege'] ?? '3'), // default privilege
-                    'first_name' => $firstName,
-                    'last_name'  => $lastName,
-                    'email'      => $userData['email'] ?? $compUser['email'] ?? '',
-                    'department' => $userData['department'] ?? $compUser['department'] ?? '',
-                    'phone_number' => $userData['phone_number'] ?? $compUser['phone_number'] ?? '',
-                ];
+            $compUser = $userResp['response']['user_name'];
 
-                $uResp = $this->post($updateUserPayload);
-                if (($uResp['status'] ?? -1) !== 0) {
-                    \Illuminate\Support\Facades\Log::warning('updateUser failed', ['payload' => $updateUserPayload, 'response' => $uResp]);
-                }
+            $firstName = $userData['first_name'] ?? $compUser['first_name'] ?? '';
+            $lastName  = $userData['last_name']  ?? $compUser['last_name']  ?? '';
+
+            // Fallback: split fullname into first_name and last_name if necessary
+            if (isset($userData['fullname']) && !isset($userData['first_name'])) {
+                $parts = explode(' ', trim($userData['fullname']), 2);
+                $firstName = $parts[0] ?? '';
+                $lastName  = $parts[1] ?? '';
+            }
+
+            $updateUserPayload = [
+                'action'       => 'updateUser',
+                'cookie'       => $this->cookie,
+                'user_id'      => (string) ($compUser['user_id'] ?? ''),
+                'user_name'    => $extension,
+                'privilege'    => (string) ($compUser['privilege'] ?? '3'), // default privilege
+                'first_name'   => $firstName,
+                'last_name'    => $lastName,
+                'email'        => $userData['email']        ?? $compUser['email']        ?? '',
+                'department'   => $userData['department']   ?? $compUser['department']   ?? '',
+                'phone_number' => $userData['phone_number'] ?? $compUser['phone_number'] ?? '',
+            ];
+
+            $uResp = $this->post($updateUserPayload);
+            if (($uResp['status'] ?? -1) !== 0) {
+                \Illuminate\Support\Facades\Log::error('updateExtension: updateUser failed', [
+                    'extension' => $extension,
+                    'payload'   => $updateUserPayload,
+                    'response'  => $uResp,
+                ]);
+                throw new \RuntimeException(
+                    "Failed to update user profile for extension {$extension}. " .
+                    "updateUser response: " . json_encode($uResp)
+                );
             }
         }
 
-        // Removed $this->applyChanges() to prevent -45 "Operating too frequently" 
+        // Removed $this->applyChanges() to prevent -45 "Operating too frequently"
         // when updateExtension is called immediately after createExtension.
+        // Caller is responsible for invoking applyChanges() after the cooldown.
         return $resp;
     }
 
     /**
-     * Delete an extension
+     * Delete an extension.
+     *
+     * Symmetric with createExtension (which uses addSIPAccountAndUser to create
+     * BOTH the SIP account and the user record): we tear down both. Calling only
+     * one would leave the other orphaned in UCM (e.g. an extension that still
+     * registers but has no user record, or vice versa).
+     *
+     * Either side can succeed independently — UCM may have already cascade-removed
+     * the other when the first call ran. We only fail if BOTH calls fail.
      */
     public function deleteExtension(string $extension): array
     {
         $this->ensureCookie();
 
-        $resp = $this->post([
+        // 1. Delete the SIP account (the dialable extension number).
+        $sipResp = $this->post([
+            'action'    => 'deleteSIPAccount',
+            'cookie'    => $this->cookie,
+            'extension' => $extension,
+        ]);
+        $sipDeleted = ($sipResp['status'] ?? -1) === 0;
+
+        // 2. Delete the user record (web account / softphone login).
+        $userResp = $this->post([
             'action'    => 'deleteUser',
             'cookie'    => $this->cookie,
             'user_name' => $extension,
         ]);
+        $userDeleted = ($userResp['status'] ?? -1) === 0;
 
-        if (($resp['status'] ?? -1) !== 0) {
-            throw new \RuntimeException('deleteUser failed: ' . json_encode($resp));
+        if (!$sipDeleted && !$userDeleted) {
+            throw new \RuntimeException(
+                "Failed to delete extension {$extension}. " .
+                "deleteSIPAccount: " . json_encode($sipResp) . ' | ' .
+                "deleteUser: "       . json_encode($userResp)
+            );
+        }
+
+        if (!$sipDeleted) {
+            \Illuminate\Support\Facades\Log::warning('deleteExtension: SIP delete failed but user delete succeeded', [
+                'extension' => $extension,
+                'response'  => $sipResp,
+            ]);
+        }
+        if (!$userDeleted) {
+            \Illuminate\Support\Facades\Log::warning('deleteExtension: user delete failed but SIP delete succeeded', [
+                'extension' => $extension,
+                'response'  => $userResp,
+            ]);
         }
 
         $this->applyChanges();
-        return $resp;
+
+        return [
+            'status'       => 0,
+            'sip_deleted'  => $sipDeleted,
+            'user_deleted' => $userDeleted,
+        ];
     }
 
     // ─────────────────────────────────────────────
@@ -614,7 +674,42 @@ class IppbxApiService
             return [];
         }
 
-        return $resp['response']['active_calls'] ?? $resp['response']['activecall'] ?? [];
+        $response = $resp['response'] ?? [];
+
+        // Grandstream firmware uses different keys depending on version:
+        //   UCM62xx / UCM63xx newer:  response.active_call   (singular, underscore)
+        //   Some firmware:            response.active_calls  (plural)
+        //   Older firmware:           response.activecall    (no underscore)
+        $calls = $response['active_call']
+              ?? $response['active_calls']
+              ?? $response['activecall']
+              ?? null;
+
+        // Defensive fallback — pick the first array of associative rows we find.
+        if ($calls === null) {
+            foreach ($response as $key => $value) {
+                if (is_array($value) && !empty($value) && is_array(reset($value))) {
+                    Log::debug("IppbxApiService: listActiveCalls used fallback key '{$key}'");
+                    return $value;
+                }
+            }
+            Log::debug('IppbxApiService: listActiveCalls returned no recognizable calls array', [
+                'keys' => array_keys($response),
+            ]);
+            return [];
+        }
+
+        if (!is_array($calls)) {
+            return [];
+        }
+
+        // UCM may return a single call as an associative array instead of a list of calls.
+        // Wrap it so the caller can always foreach over a list.
+        if (!empty($calls) && (isset($calls['caller_id']) || isset($calls['caller']) || isset($calls['src']))) {
+            return [$calls];
+        }
+
+        return $calls;
     }
 
     // ─────────────────────────────────────────────

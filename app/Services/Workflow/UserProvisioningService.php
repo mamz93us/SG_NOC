@@ -321,6 +321,8 @@ class UserProvisioningService
 
                 // createForUser returns the extension details including the generated secret
                 $extDetails = $this->extProvisioning->createForUser($ucmServer, $extension, $displayName, $upn, [
+                    'first_name'   => $firstName,
+                    'last_name'    => $lastName,
                     'department'   => $payload['department'] ?? '',
                     'location'     => 'SA', // Requested: location should be SA
                     'phone_number' => $payload['mobile_phone'] ?? $payload['businessPhones'][0] ?? '',
