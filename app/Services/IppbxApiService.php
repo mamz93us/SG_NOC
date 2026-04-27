@@ -668,9 +668,17 @@ class IppbxApiService
             'sord'     => 'asc',
         ]);
 
-        // Some UCM firmware may not support this action — gracefully return empty
         if (($resp['status'] ?? -1) !== 0) {
-            Log::debug('IppbxApiService: listActiveCalls returned status ' . ($resp['status'] ?? 'null'));
+            $code = $resp['status'] ?? 'null';
+            // -47 = "No privilege" — the UCM API user is missing the privilege
+            // to query active calls. Fix in UCM admin: Maintenance → User
+            // Management → edit the API user → grant "Real-Time Status / CDR"
+            // privilege (or use the super-admin account).
+            if ((int) $code === -47) {
+                Log::warning("IppbxApiService: listActiveCalls denied by UCM ({$this->server->name}) — API user '{$this->server->api_username}' lacks privilege. Grant 'Real-Time Status / Active Calls / CDR' on the UCM web admin.");
+            } else {
+                Log::debug("IppbxApiService: listActiveCalls returned status {$code} on {$this->server->name}");
+            }
             return [];
         }
 
