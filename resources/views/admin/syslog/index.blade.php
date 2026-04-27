@@ -18,6 +18,16 @@
         <button type="button" class="btn btn-outline-secondary btn-sm" id="syslog-tail-toggle">
             <i class="bi bi-broadcast me-1"></i>Live Tail: <span id="tail-state">off</span>
         </button>
+        @can('manage-syslog')
+        <form method="POST" action="{{ route('admin.syslog.clear') }}" class="d-inline"
+              onsubmit="var v = prompt('This will DELETE every row in syslog_messages.\n\nType CLEAR to confirm.'); if (v === 'CLEAR') { this.confirm.value = v; return true; } return false;">
+            @csrf
+            <input type="hidden" name="confirm" value="">
+            <button type="submit" class="btn btn-outline-danger btn-sm" title="Wipe all syslog rows">
+                <i class="bi bi-trash3 me-1"></i>Clear all
+            </button>
+        </form>
+        @endcan
     </div>
 </div>
 

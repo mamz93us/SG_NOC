@@ -963,6 +963,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::put('/rules/{rule}',          [\App\Http\Controllers\Admin\SyslogController::class, 'rulesUpdate'])->name('rules.update');
         Route::delete('/rules/{rule}',       [\App\Http\Controllers\Admin\SyslogController::class, 'rulesDestroy'])->name('rules.destroy');
         Route::post('/run-processors',       [\App\Http\Controllers\Admin\SyslogController::class, 'runProcessors'])->name('run-processors');
+        Route::post('/clear',                [\App\Http\Controllers\Admin\SyslogController::class, 'clearAll'])->name('clear');
     });
 
     // ─── Workflows ────────────────────────────────────────────

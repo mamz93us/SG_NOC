@@ -285,6 +285,30 @@ class SyslogController extends Controller
         }
     }
 
+    /**
+     * Wipe the syslog_messages table. Destructive — guarded by a typed
+     * confirmation token from the form so it can't be hit accidentally.
+     * Alert rules and their match counts are NOT touched.
+     */
+    public function clearAll(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'confirm' => 'required|in:CLEAR',
+        ], [
+            'confirm.in' => 'Type CLEAR to confirm — the wipe was not performed.',
+        ]);
+
+        try {
+            $deleted = DB::table('syslog_messages')->count();
+            DB::table('syslog_messages')->truncate();
+
+            return redirect()->route('admin.syslog.index')
+                ->with('success', "Cleared {$deleted} syslog messages.");
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Clear failed: ' . $e->getMessage());
+        }
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────
 
     /**
