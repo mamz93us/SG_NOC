@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -18,10 +19,23 @@ use Illuminate\Support\Facades\Log;
  *
  * Runs every minute alongside the tagger. Operates idempotently: rows
  * that already have parsed != NULL are skipped.
+ *
+ * Bulk strategy:
+ *   - Pull a large window of unprocessed rows in one SELECT (no Eloquent
+ *     hydration; raw rowsets are 10x cheaper than models for this).
+ *   - Parse in PHP.
+ *   - UPDATE in batches of 1000 via a single CASE WHEN statement, so
+ *     each batch is one round-trip instead of 1000.
  */
 class ParseSyslogPayloadsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    /** Max rows pulled into memory per job run. Tune if memory pressure. */
+    private const BATCH = 25000;
+
+    /** Rows per UPDATE … CASE WHEN statement. Keep packet size sane. */
+    private const UPDATE_CHUNK = 1000;
 
     public function __construct()
     {
@@ -30,43 +44,79 @@ class ParseSyslogPayloadsJob implements ShouldQueue
 
     public function handle(): void
     {
-        // Only source_types with a registered parser are eligible.
         $parsable = ['sophos'];
 
-        $rows = SyslogMessage::query()
+        $rows = DB::table('syslog_messages')
+            ->select(['id', 'source_type', 'raw', 'program', 'message'])
             ->whereIn('source_type', $parsable)
             ->whereNull('parsed')
             ->where('received_at', '>=', now()->subHours(6))
-            ->orderBy('received_at')
-            ->limit(10000)
+            ->orderBy('id')
+            ->limit(self::BATCH)
             ->get();
 
         if ($rows->isEmpty()) return;
 
-        $sophosParser = app(SophosSyslogParser::class);
+        $started = microtime(true);
+        $sophos  = app(SophosSyslogParser::class);
+
+        // id => json string. We pre-encode here so the DB layer doesn't
+        // re-encode on every row.
+        $pairs = [];
         $parsed = 0;
         $empty  = 0;
 
         foreach ($rows as $row) {
             // Prefer the untouched raw packet — rsyslog's RFC3164 parser
-            // tends to misinterpret the leading device_name="…" KV pair
-            // as the syslog tag, so `message` would be missing it.
-            // Fall back to program+message in case `raw` is empty.
-            $body = $row->raw ?: trim($row->program . ' ' . $row->message);
+            // misinterprets the leading device_name="…" KV pair as the
+            // syslog tag, so `message` is missing it. Fall back to
+            // program+message when raw is empty.
+            $body = $row->raw !== null && $row->raw !== ''
+                ? $row->raw
+                : trim(($row->program ?? '') . ' ' . ($row->message ?? ''));
 
             $fields = match ($row->source_type) {
-                'sophos' => $sophosParser->parse($body),
+                'sophos' => $sophos->parse($body),
                 default  => [],
             };
 
-            // Store [] (empty array) for rows that didn't parse, so we
-            // don't keep re-trying them every run. JSON cast keeps it
-            // round-trippable.
-            $row->update(['parsed' => $fields]);
+            $pairs[(int) $row->id] = json_encode($fields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
             if (empty($fields)) $empty++; else $parsed++;
         }
 
-        Log::info("ParseSyslogPayloadsJob: parsed {$parsed} rows ({$empty} empty) across " . count($parsable) . " source types.");
+        // Bulk UPDATE in chunks. One round-trip per chunk instead of
+        // one per row.
+        foreach (array_chunk($pairs, self::UPDATE_CHUNK, true) as $chunk) {
+            $this->bulkUpdate($chunk);
+        }
+
+        $ms = (int) round((microtime(true) - $started) * 1000);
+        Log::info("ParseSyslogPayloadsJob: parsed {$parsed} rows ({$empty} empty) in {$ms}ms.");
+    }
+
+    /**
+     * Run one UPDATE … SET parsed = CASE id WHEN ? THEN ? … END WHERE id IN (…)
+     * with prepared bindings.
+     */
+    private function bulkUpdate(array $pairs): void
+    {
+        if (empty($pairs)) return;
+
+        $ids = array_keys($pairs);
+        $idList = implode(',', array_map('intval', $ids));   // safe: ints
+
+        $caseSql  = '';
+        $bindings = [];
+        foreach ($pairs as $id => $json) {
+            $caseSql   .= 'WHEN ? THEN ? ';
+            $bindings[] = $id;
+            $bindings[] = $json;
+        }
+
+        DB::statement(
+            "UPDATE syslog_messages SET parsed = CASE id {$caseSql} END WHERE id IN ({$idList})",
+            $bindings
+        );
     }
 }
