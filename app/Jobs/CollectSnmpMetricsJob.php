@@ -316,27 +316,29 @@ class CollectSnmpMetricsJob implements ShouldQueue
         if ((int) $value === 2) {
             // Value 2 = half-duplex — possible duplex mismatch
             $existingEvent = NocEvent::where('source_id', $host->id)
-                ->where('event_type', 'snmp_threshold')
-                ->where('status', 'active')
+                ->where('source_type', 'snmp_threshold')
+                ->where('status', 'open')
                 ->where('title', $eventTitle)
                 ->first();
 
             if (!$existingEvent) {
                 NocEvent::create([
-                    'event_type'  => 'snmp_threshold',
+                    'module'      => 'snmp',
+                    'source_type' => 'snmp_threshold',
                     'source_id'   => $host->id,
                     'title'       => $eventTitle,
-                    'description' => "Interface {$sensorName} is operating in half-duplex mode — possible duplex mismatch",
+                    'message'     => "Interface {$sensorName} is operating in half-duplex mode — possible duplex mismatch",
                     'severity'    => 'warning',
-                    'status'      => 'active',
-                    'detected_at' => now(),
+                    'status'      => 'open',
+                    'first_seen'  => now(),
+                    'last_seen'   => now(),
                 ]);
             }
         } else {
             // Value is no longer 2 (full-duplex or unknown) — auto-resolve
             NocEvent::where('source_id', $host->id)
-                ->where('event_type', 'snmp_threshold')
-                ->where('status', 'active')
+                ->where('source_type', 'snmp_threshold')
+                ->where('status', 'open')
                 ->where('title', $eventTitle)
                 ->update([
                     'status'      => 'resolved',
@@ -379,20 +381,22 @@ class CollectSnmpMetricsJob implements ShouldQueue
                 : "Sensor value {$valDisplay} exceeded {$severity} threshold.";
 
             $existingEvent = NocEvent::where('source_id', $host->id)
-                ->where('event_type', 'snmp_threshold')
-                ->where('status', 'active')
+                ->where('source_type', 'snmp_threshold')
+                ->where('status', 'open')
                 ->where('title', $eventTitle)
                 ->first();
 
             if (!$existingEvent) {
                 NocEvent::create([
-                    'event_type' => 'snmp_threshold',
-                    'source_id' => $host->id,
-                    'title' => $eventTitle,
-                    'description' => $message,
-                    'severity' => $severity,
-                    'status' => 'active',
-                    'detected_at' => now(),
+                    'module'      => 'snmp',
+                    'source_type' => 'snmp_threshold',
+                    'source_id'   => $host->id,
+                    'title'       => $eventTitle,
+                    'message'     => $message,
+                    'severity'    => $severity,
+                    'status'      => 'open',
+                    'first_seen'  => now(),
+                    'last_seen'   => now(),
                 ]);
 
                 // Send in-app notification + email to all admins for toner/supply alerts
@@ -411,10 +415,10 @@ class CollectSnmpMetricsJob implements ShouldQueue
                 }
             }
         } else {
-            // Auto-resolve active threshold events when value drops below thresholds
+            // Auto-resolve open threshold events when value drops below thresholds
             NocEvent::where('source_id', $host->id)
-                ->where('event_type', 'snmp_threshold')
-                ->where('status', 'active')
+                ->where('source_type', 'snmp_threshold')
+                ->where('status', 'open')
                 ->where('title', $eventTitle)
                 ->update([
                     'status' => 'resolved',

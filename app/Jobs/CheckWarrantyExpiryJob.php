@@ -26,18 +26,17 @@ class CheckWarrantyExpiryJob implements ShouldQueue
 
             NocEvent::firstOrCreate(
                 [
-                    'source_type' => 'warranty',
+                    'source_type' => 'warranty_expiring',
                     'source_id'   => $device->id,
-                    'event_type'  => 'warranty_expiring',
                     'status'      => 'open',
                 ],
                 [
-                    'module'      => 'asset',
-                    'title'       => "Warranty Expiring: {$device->name}",
-                    'description' => "Device \"{$device->name}\" (S/N: {$device->serial_number}) warranty expires in {$daysLeft} days ({$device->warranty_expiry->format('Y-m-d')}).",
-                    'severity'    => $daysLeft <= 7 ? 'critical' : 'warning',
-                    'detected_at' => now(),
-                    'last_seen'   => now(),
+                    'module'     => 'assets',
+                    'title'      => "Warranty Expiring: {$device->name}",
+                    'message'    => "Device \"{$device->name}\" (S/N: {$device->serial_number}) warranty expires in {$daysLeft} days ({$device->warranty_expiry->format('Y-m-d')}).",
+                    'severity'   => $daysLeft <= 7 ? 'critical' : 'warning',
+                    'first_seen' => now(),
+                    'last_seen'  => now(),
                 ]
             );
         }
@@ -50,18 +49,17 @@ class CheckWarrantyExpiryJob implements ShouldQueue
         foreach ($expired as $device) {
             NocEvent::firstOrCreate(
                 [
-                    'source_type' => 'warranty',
+                    'source_type' => 'warranty_expired',
                     'source_id'   => $device->id,
-                    'event_type'  => 'warranty_expired',
                     'status'      => 'open',
                 ],
                 [
-                    'module'      => 'asset',
-                    'title'       => "Warranty Expired: {$device->name}",
-                    'description' => "Device \"{$device->name}\" (S/N: {$device->serial_number}) warranty expired on {$device->warranty_expiry->format('Y-m-d')}.",
-                    'severity'    => 'info',
-                    'detected_at' => now(),
-                    'last_seen'   => now(),
+                    'module'     => 'assets',
+                    'title'      => "Warranty Expired: {$device->name}",
+                    'message'    => "Device \"{$device->name}\" (S/N: {$device->serial_number}) warranty expired on {$device->warranty_expiry->format('Y-m-d')}.",
+                    'severity'   => 'info',
+                    'first_seen' => now(),
+                    'last_seen'  => now(),
                 ]
             );
         }

@@ -56,10 +56,10 @@ class CheckHostAvailabilityJob implements ShouldQueue
                         $host->status = 'up';
                     }
 
-                    // Resolve active host_down events
+                    // Resolve open host_down events
                     NocEvent::where('source_id', $host->id)
-                        ->where('event_type', 'host_down')
-                        ->where('status', 'active')
+                        ->where('source_type', 'host_down')
+                        ->where('status', 'open')
                         ->update([
                             'status' => 'resolved',
                             'resolved_at' => now(),
@@ -67,19 +67,21 @@ class CheckHostAvailabilityJob implements ShouldQueue
 
                 } else {
                     $host->status = 'down';
-                    
+
                     // Create NOC alert
                     $event = NocEvent::firstOrCreate(
                         [
-                            'source_id' => $host->id,
-                            'event_type' => 'host_down',
-                            'status' => 'active',
+                            'source_id'   => $host->id,
+                            'source_type' => 'host_down',
+                            'status'      => 'open',
                         ],
                         [
-                            'title' => "Host Down: {$host->name}",
-                            'description' => "Ping check failed for {$host->ip} completely.",
-                            'severity' => 'critical',
-                            'detected_at' => now(),
+                            'module'     => 'ping',
+                            'title'      => "Host Down: {$host->name}",
+                            'message'    => "Ping check failed for {$host->ip} completely.",
+                            'severity'   => 'critical',
+                            'first_seen' => now(),
+                            'last_seen'  => now(),
                         ]
                     );
 

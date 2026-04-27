@@ -47,18 +47,17 @@ class CheckExpiryAlertsJob implements ShouldQueue
 
             NocEvent::firstOrCreate(
                 [
-                    'source_type' => 'license',
+                    'source_type' => 'license_expiring',
                     'source_id'   => $license->id,
-                    'event_type'  => 'license_expiring',
                     'status'      => 'open',
                 ],
                 [
-                    'module'      => 'asset',
-                    'title'       => "License Expiring: {$license->license_name}",
-                    'description' => "License \"{$license->license_name}\" (vendor: " . ($license->vendor ?? 'n/a') . ") expires in {$daysLeft} days ({$license->expiry_date->format('Y-m-d')}).",
-                    'severity'    => $daysLeft <= 7 ? 'critical' : 'warning',
-                    'detected_at' => now(),
-                    'last_seen'   => now(),
+                    'module'     => 'assets',
+                    'title'      => "License Expiring: {$license->license_name}",
+                    'message'    => "License \"{$license->license_name}\" (vendor: " . ($license->vendor ?? 'n/a') . ") expires in {$daysLeft} days ({$license->expiry_date->format('Y-m-d')}).",
+                    'severity'   => $daysLeft <= 7 ? 'critical' : 'warning',
+                    'first_seen' => now(),
+                    'last_seen'  => now(),
                 ]
             );
         }
@@ -70,18 +69,17 @@ class CheckExpiryAlertsJob implements ShouldQueue
         foreach ($expired as $license) {
             NocEvent::firstOrCreate(
                 [
-                    'source_type' => 'license',
+                    'source_type' => 'license_expired',
                     'source_id'   => $license->id,
-                    'event_type'  => 'license_expired',
                     'status'      => 'open',
                 ],
                 [
-                    'module'      => 'asset',
-                    'title'       => "License Expired: {$license->license_name}",
-                    'description' => "License \"{$license->license_name}\" expired on {$license->expiry_date->format('Y-m-d')}.",
-                    'severity'    => 'warning',
-                    'detected_at' => now(),
-                    'last_seen'   => now(),
+                    'module'     => 'assets',
+                    'title'      => "License Expired: {$license->license_name}",
+                    'message'    => "License \"{$license->license_name}\" expired on {$license->expiry_date->format('Y-m-d')}.",
+                    'severity'   => 'warning',
+                    'first_seen' => now(),
+                    'last_seen'  => now(),
                 ]
             );
         }
@@ -109,19 +107,18 @@ class CheckExpiryAlertsJob implements ShouldQueue
 
             NocEvent::firstOrCreate(
                 [
-                    'source_type' => 'ssl_certificate',
+                    'source_type' => 'ssl_expiring',
                     'source_id'   => $cert->id,
-                    'event_type'  => 'ssl_expiring',
                     'status'      => 'open',
                 ],
                 [
-                    'module'      => 'network',
-                    'title'       => "SSL Expiring: {$cert->fqdn}",
-                    'description' => "Certificate for {$cert->fqdn} expires in {$daysLeft} day(s) on {$cert->expires_at->format('Y-m-d')}."
-                                   . ($cert->auto_renew ? ' Auto-renew is enabled but has not completed — check RenewExpiringCertificatesJob logs.' : ' Auto-renew is OFF.'),
-                    'severity'    => $daysLeft <= 3 ? 'critical' : 'warning',
-                    'detected_at' => now(),
-                    'last_seen'   => now(),
+                    'module'     => 'network',
+                    'title'      => "SSL Expiring: {$cert->fqdn}",
+                    'message'    => "Certificate for {$cert->fqdn} expires in {$daysLeft} day(s) on {$cert->expires_at->format('Y-m-d')}."
+                                  . ($cert->auto_renew ? ' Auto-renew is enabled but has not completed — check RenewExpiringCertificatesJob logs.' : ' Auto-renew is OFF.'),
+                    'severity'   => $daysLeft <= 3 ? 'critical' : 'warning',
+                    'first_seen' => now(),
+                    'last_seen'  => now(),
                 ]
             );
         }
@@ -134,18 +131,17 @@ class CheckExpiryAlertsJob implements ShouldQueue
         foreach ($expired as $cert) {
             NocEvent::firstOrCreate(
                 [
-                    'source_type' => 'ssl_certificate',
+                    'source_type' => 'ssl_expired',
                     'source_id'   => $cert->id,
-                    'event_type'  => 'ssl_expired',
                     'status'      => 'open',
                 ],
                 [
-                    'module'      => 'network',
-                    'title'       => "SSL Expired: {$cert->fqdn}",
-                    'description' => "Certificate for {$cert->fqdn} expired on {$cert->expires_at->format('Y-m-d')}.",
-                    'severity'    => 'critical',
-                    'detected_at' => now(),
-                    'last_seen'   => now(),
+                    'module'     => 'network',
+                    'title'      => "SSL Expired: {$cert->fqdn}",
+                    'message'    => "Certificate for {$cert->fqdn} expired on {$cert->expires_at->format('Y-m-d')}.",
+                    'severity'   => 'critical',
+                    'first_seen' => now(),
+                    'last_seen'  => now(),
                 ]
             );
         }

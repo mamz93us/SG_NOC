@@ -88,15 +88,15 @@ Schedule::call(function () {
 
             if (!$result['success']) {
                 $event = \App\Models\NocEvent::firstOrCreate(
-                    ['source_id' => $host->id, 'event_type' => 'host_down', 'status' => 'active'],
-                    ['title' => "Host Down: {$host->name}", 'description' => "Ping failed for {$host->ip}.", 'severity' => 'critical', 'detected_at' => now()]
+                    ['source_id' => $host->id, 'source_type' => 'host_down', 'status' => 'open'],
+                    ['module' => 'ping', 'title' => "Host Down: {$host->name}", 'message' => "Ping failed for {$host->ip}.", 'severity' => 'critical', 'first_seen' => now(), 'last_seen' => now()]
                 );
                 if ($event->wasRecentlyCreated && $host->alert_email) {
                     \Illuminate\Support\Facades\Notification::route('mail', $host->alert_email)
                         ->notify(new \App\Notifications\HostOfflineNotification($host));
                 }
             } else {
-                \App\Models\NocEvent::where('source_id', $host->id)->where('event_type', 'host_down')->where('status', 'active')
+                \App\Models\NocEvent::where('source_id', $host->id)->where('source_type', 'host_down')->where('status', 'open')
                     ->update(['status' => 'resolved', 'resolved_at' => now()]);
             }
         } catch (\Throwable $e) {}
