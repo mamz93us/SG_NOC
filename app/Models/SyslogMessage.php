@@ -12,7 +12,7 @@ class SyslogMessage extends Model
     protected $fillable = [
         'received_at', 'device_time', 'facility', 'severity',
         'host', 'source_ip', 'program', 'message', 'raw',
-        'source_type', 'source_id', 'processed_at',
+        'source_type', 'source_id', 'processed_at', 'parsed',
     ];
 
     protected $casts = [
@@ -22,6 +22,7 @@ class SyslogMessage extends Model
         'facility'     => 'integer',
         'severity'     => 'integer',
         'source_id'    => 'integer',
+        'parsed'       => 'array',
     ];
 
     // ─── Severity helpers (RFC 5424) ──────────────────────────────────────

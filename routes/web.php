@@ -952,6 +952,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:view-syslog')->prefix('syslog')->name('syslog.')->group(function () {
         Route::get('/',         [\App\Http\Controllers\Admin\SyslogController::class, 'index'])->name('index');
         Route::get('/tail',     [\App\Http\Controllers\Admin\SyslogController::class, 'tail'])->name('tail');
+        Route::get('/sophos',   [\App\Http\Controllers\Admin\SyslogController::class, 'sophos'])->name('sophos');
         Route::get('/{id}',     [\App\Http\Controllers\Admin\SyslogController::class, 'show'])->name('show')->whereNumber('id');
     });
     Route::middleware('permission:manage-syslog')->prefix('syslog')->name('syslog.')->group(function () {

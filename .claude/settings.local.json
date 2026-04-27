@@ -370,7 +370,12 @@
       "Bash(php -l app/Jobs/TagSyslogSourcesJob.php)",
       "Bash(php -l app/Jobs/MatchSyslogAlertsJob.php)",
       "Bash(php -l app/Jobs/PruneOldSyslogJob.php)",
-      "Bash(php -r 'require '\\\\''vendor/autoload.php'\\\\''; $app = require '\\\\''bootstrap/app.php'\\\\''; $app->make\\(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class\\)->bootstrap\\(\\); echo route\\('\\\\''admin.syslog.show'\\\\'', ['\\\\''id'\\\\'' => 0]\\) . PHP_EOL; echo route\\('\\\\''admin.syslog.tail'\\\\''\\) . PHP_EOL; echo route\\('\\\\''admin.syslog.index'\\\\''\\) . PHP_EOL; echo route\\('\\\\''admin.syslog.rules.index'\\\\''\\) . PHP_EOL;')"
+      "Bash(php -r 'require '\\\\''vendor/autoload.php'\\\\''; $app = require '\\\\''bootstrap/app.php'\\\\''; $app->make\\(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class\\)->bootstrap\\(\\); echo route\\('\\\\''admin.syslog.show'\\\\'', ['\\\\''id'\\\\'' => 0]\\) . PHP_EOL; echo route\\('\\\\''admin.syslog.tail'\\\\''\\) . PHP_EOL; echo route\\('\\\\''admin.syslog.index'\\\\''\\) . PHP_EOL; echo route\\('\\\\''admin.syslog.rules.index'\\\\''\\) . PHP_EOL;')",
+      "Bash(php -r ' *)",
+      "Bash(php -l app/Services/SophosSyslogParser.php)",
+      "Bash(php -l app/Jobs/ParseSyslogPayloadsJob.php)",
+      "Bash(php -l app/Http/Controllers/Admin/SyslogController.php)",
+      "Bash(php -l database/migrations/2026_04_27_100004_add_parsed_to_syslog_messages.php)"
     ]
   }
 }

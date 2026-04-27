@@ -83,6 +83,29 @@
             </div>
         </div>
 
+        @if(!empty($message->parsed) && is_array($message->parsed))
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header py-2 d-flex justify-content-between">
+                <strong>Parsed fields</strong>
+                <span class="text-muted small">{{ count($message->parsed) }} keys</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height:420px">
+                    <table class="table table-sm mb-0 small">
+                        <tbody>
+                            @foreach($message->parsed as $k => $v)
+                            <tr>
+                                <th class="ps-3 text-muted text-nowrap" style="width:180px">{{ $k }}</th>
+                                <td class="font-monospace" style="word-break:break-word">{{ is_scalar($v) ? $v : json_encode($v) }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        @endif
+
         @if($message->raw)
         <div class="card shadow-sm border-0">
             <div class="card-header py-2"><strong>Raw packet</strong></div>

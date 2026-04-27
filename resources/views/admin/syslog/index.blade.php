@@ -7,6 +7,9 @@
         <small class="text-muted">Centralized log receiver — rsyslog → MySQL</small>
     </div>
     <div class="d-flex gap-2">
+        <a href="{{ route('admin.syslog.sophos') }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-shield-fill-check me-1"></i>Sophos viewer
+        </a>
         @can('manage-syslog')
         <a href="{{ route('admin.syslog.rules.index') }}" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-bell me-1"></i>Alert Rules

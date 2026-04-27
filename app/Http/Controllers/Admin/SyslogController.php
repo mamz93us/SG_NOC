@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\MatchSyslogAlertsJob;
+use App\Jobs\ParseSyslogPayloadsJob;
 use App\Jobs\TagSyslogSourcesJob;
 use App\Models\SyslogAlertRule;
 use App\Models\SyslogMessage;
@@ -79,6 +80,105 @@ class SyslogController extends Controller
     {
         $message = SyslogMessage::findOrFail($id);
         return view('admin.syslog.show', compact('message'));
+    }
+
+    /**
+     * Sophos firewall log viewer — wide table that mirrors the columns
+     * shown by the Sophos device's own Log Viewer (component, subtype,
+     * fw_rule, src/dst, ports, protocol, …). Reads from the `parsed`
+     * JSON column populated by ParseSyslogPayloadsJob.
+     */
+    public function sophos(Request $request): View
+    {
+        $q = SyslogMessage::query()->where('source_type', 'sophos');
+
+        $filters = [
+            'host'      => trim((string) $request->get('host', '')),
+            'subtype'   => (string) $request->get('subtype', ''),
+            'component' => (string) $request->get('component', ''),
+            'src_ip'    => trim((string) $request->get('src_ip', '')),
+            'dst_ip'    => trim((string) $request->get('dst_ip', '')),
+            'fw_rule'   => trim((string) $request->get('fw_rule', '')),
+            'search'    => trim((string) $request->get('search', '')),
+            'since'     => (string) $request->get('since', '24h'),
+        ];
+
+        if ($filters['host'] !== '') {
+            $q->where('host', 'like', '%' . $filters['host'] . '%');
+        }
+        if ($filters['subtype'] !== '') {
+            $q->whereJsonContains('parsed->log_subtype', $filters['subtype']);
+        }
+        if ($filters['component'] !== '') {
+            $q->whereJsonContains('parsed->log_component', $filters['component']);
+        }
+        if ($filters['src_ip'] !== '') {
+            $q->where('parsed->src_ip', $filters['src_ip']);
+        }
+        if ($filters['dst_ip'] !== '') {
+            $q->where('parsed->dst_ip', $filters['dst_ip']);
+        }
+        if ($filters['fw_rule'] !== '') {
+            // fw_rule_id is stored as int, value here is a string from the
+            // query string — compare loosely against either.
+            $q->where(function ($sub) use ($filters) {
+                $sub->where('parsed->fw_rule_id', (int) $filters['fw_rule'])
+                    ->orWhere('parsed->fw_rule_id', $filters['fw_rule']);
+            });
+        }
+        if ($filters['search'] !== '') {
+            $q->where('message', 'like', '%' . $filters['search'] . '%');
+        }
+
+        $since = $this->parseSince($filters['since']);
+        if ($since) {
+            $q->where('received_at', '>=', $since);
+        }
+
+        $messages = $q->orderByDesc('received_at')->paginate(75)->withQueryString();
+
+        // Pull distinct values for the subtype/component dropdowns —
+        // limited to recent rows to keep the query fast.
+        $distinct = $this->sophosDistincts($since);
+
+        return view('admin.syslog.sophos', [
+            'messages'   => $messages,
+            'filters'    => $filters,
+            'subtypes'   => $distinct['subtypes'],
+            'components' => $distinct['components'],
+        ]);
+    }
+
+    private function sophosDistincts(?\Illuminate\Support\Carbon $since): array
+    {
+        $base = SyslogMessage::query()
+            ->where('source_type', 'sophos')
+            ->whereNotNull('parsed');
+
+        if ($since) {
+            $base->where('received_at', '>=', $since);
+        }
+
+        // JSON_UNQUOTE keeps the values clean (no surrounding quotes).
+        $components = (clone $base)
+            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.log_component')) AS v")
+            ->whereRaw("JSON_EXTRACT(parsed, '$.log_component') IS NOT NULL")
+            ->orderBy('v')
+            ->pluck('v')
+            ->filter()
+            ->values()
+            ->all();
+
+        $subtypes = (clone $base)
+            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.log_subtype')) AS v")
+            ->whereRaw("JSON_EXTRACT(parsed, '$.log_subtype') IS NOT NULL")
+            ->orderBy('v')
+            ->pluck('v')
+            ->filter()
+            ->values()
+            ->all();
+
+        return ['components' => $components, 'subtypes' => $subtypes];
     }
 
     /**
@@ -177,8 +277,9 @@ class SyslogController extends Controller
     {
         try {
             (new TagSyslogSourcesJob())->handle();
+            (new ParseSyslogPayloadsJob())->handle();
             (new MatchSyslogAlertsJob())->handle();
-            return back()->with('success', 'Source tagger and alert matcher ran successfully.');
+            return back()->with('success', 'Source tagger, payload parser, and alert matcher ran successfully.');
         } catch (\Throwable $e) {
             return back()->with('error', 'Processor run failed: ' . $e->getMessage());
         }

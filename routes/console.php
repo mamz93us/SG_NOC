@@ -408,6 +408,14 @@ Schedule::call(function () {
     }
 })->name('match-syslog-alerts')->withoutOverlapping(5)->everyMinute();
 
+// Parse vendor-specific KV payloads (Sophos firewalls today; Cisco/UCM
+// can be added later) into the syslog_messages.parsed JSON column.
+Schedule::call(function () {
+    try { (new \App\Jobs\ParseSyslogPayloadsJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('ParseSyslogPayloadsJob failed: ' . $e->getMessage());
+    }
+})->name('parse-syslog-payloads')->withoutOverlapping(5)->everyMinute();
+
 // Daily prune — drops syslog_messages rows older than the retention
 // window (Setting::syslog_retention_days, default 30).
 Schedule::call(function () {
