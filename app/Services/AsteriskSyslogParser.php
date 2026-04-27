@@ -28,12 +28,18 @@ class AsteriskSyslogParser
 
         $body = ltrim($body);
         $body = preg_replace('/^<\d+>/', '', $body);
-
-        // Strip the trailing newline rsyslog sometimes leaves.
         $body = rtrim($body, "\r\n");
 
+        // Some Grandstream firmwares prepend their own app-level
+        // timestamp before the [HOSTID] tag — e.g. "Apr 27 20:41:56.207 ".
+        // Strip everything before the first bracketed token so the
+        // shape regexes line up regardless of any prefix junk.
+        if (preg_match('/\[[A-Fa-f0-9:]+\].*$/s', $body, $m)) {
+            $body = $m[0];
+        }
+
         // 1) Asterisk core line.
-        $core = '/^\[(?P<host_id>[A-Fa-f0-9]+)\]\s+'
+        $core = '/^\[(?P<host_id>[A-Fa-f0-9:]+)\]\s+'
               . '(?P<program>\w+)\[(?P<pid>\d+)\]:\s+'
               . '(?P<asterisk_severity>[A-Z]+)\[(?P<task_id>\d+)\]'
               . '(?:\[C-(?P<call_id>[A-Fa-f0-9]+)\])?:\s+'
@@ -44,7 +50,7 @@ class AsteriskSyslogParser
         }
 
         // 2) Grandstream subsystems — "[ SEVERITY ] [task] (file:line): body".
-        $gs = '/^\[(?P<host_id>[A-Fa-f0-9]+)\]\s+'
+        $gs = '/^\[(?P<host_id>[A-Fa-f0-9:]+)\]\s+'
             . '(?P<program>[A-Za-z_][\w]*):\s+'
             . '\[\s*(?P<asterisk_severity>[A-Z]+)\s*\]\s+'
             . '\[(?P<task_id>[^\]]+)\]\s+'
@@ -55,7 +61,7 @@ class AsteriskSyslogParser
         }
 
         // 3) Grandstream CGI shape — no severity field; rely on rsyslog severity.
-        $cgi = '/^\[(?P<host_id>[A-Fa-f0-9]+)\]\s+'
+        $cgi = '/^\[(?P<host_id>[A-Fa-f0-9:]+)\]\s+'
              . '(?P<program>cgi)\s+\[(?P<pid>\d+)\]\s+'
              . '\[(?P<file>[^:\]]+):(?P<line>\d+)\]'
              . '(?P<text>.*)$/s';
@@ -64,7 +70,7 @@ class AsteriskSyslogParser
         }
 
         // 4) Bare "[HOSTID] anything else" — keep host_id, dump the rest as text.
-        if (preg_match('/^\[(?P<host_id>[A-Fa-f0-9]+)\]\s*(?P<text>.*)$/s', $body, $m)) {
+        if (preg_match('/^\[(?P<host_id>[A-Fa-f0-9:]+)\]\s*(?P<text>.*)$/s', $body, $m)) {
             return [
                 'host_id' => $m['host_id'],
                 'text'    => trim($m['text']),

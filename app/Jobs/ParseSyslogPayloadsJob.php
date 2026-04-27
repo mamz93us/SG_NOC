@@ -69,13 +69,21 @@ class ParseSyslogPayloadsJob implements ShouldQueue
         $empty  = 0;
 
         foreach ($rows as $row) {
-            // Prefer the untouched raw packet — rsyslog's RFC3164 parser
-            // misinterprets the leading device_name="…" KV pair as the
-            // syslog tag, so `message` is missing it. Fall back to
-            // program+message when raw is empty.
-            $body = $row->raw !== null && $row->raw !== ''
-                ? $row->raw
-                : trim(($row->program ?? '') . ' ' . ($row->message ?? ''));
+            // Body source depends on the vendor:
+            //   - Sophos: rsyslog ate the first "device_name=…" KV pair as
+            //     the syslog tag, so we use `raw` (the full untouched packet)
+            //     and let SophosSyslogParser strip the <PRI> prefix itself.
+            //   - UCM: rsyslog parses the standard RFC3164 header correctly,
+            //     so `message` already contains the Asterisk app-level line
+            //     (with its own embedded timestamp + [HOSTID] tag). Using
+            //     `raw` here would re-introduce the syslog header.
+            $body = match ($row->source_type) {
+                'sophos' => $row->raw !== null && $row->raw !== ''
+                    ? $row->raw
+                    : trim(($row->program ?? '') . ' ' . ($row->message ?? '')),
+                'ucm'    => (string) ($row->message ?? ''),
+                default  => (string) ($row->message ?? ''),
+            };
 
             $fields = match ($row->source_type) {
                 'sophos' => $sophos->parse($body),
