@@ -13,9 +13,11 @@ use App\Models\Printer;
 use App\Models\UcmActiveCall;
 use App\Models\UcmExtensionCache;
 use App\Models\UcmTrunkCache;
+use App\Models\UcmServer;
 use App\Services\HealthScoringService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class NocController extends Controller
 {
@@ -281,32 +283,49 @@ class NocController extends Controller
 
     public function extensionGrid()
     {
-        $extensions = UcmExtensionCache::with('ucmServer')
-            ->orderBy('extension')
-            ->get();
+        // Memory-efficient version. Earlier rev hydrated every PhonePortMap
+        // and every SwitchCdpNeighbor row into Eloquent models — with tens of
+        // thousands of CDP rows, that exhausted the 512M FPM memory_limit
+        // (logged as "Allowed memory size of 536870912 bytes exhausted" in
+        // GuardsAttributes.php / HasAttributes.php). Switching to raw DB
+        // queries + a cursor for the main loop keeps usage flat regardless
+        // of how big the CDP table grows.
 
-        $portMaps = PhonePortMap::all()->keyBy(fn ($m) => $m->ucm_server_id . '-' . $m->extension);
+        // {ucm_id => name} — replaces the per-extension ->ucmServer eager load.
+        $ucmNames = UcmServer::pluck('name', 'id')->all();
 
-        // Build a normalized set of known WiFi MACs for phones (for WiFi detection)
-        $wifiMacs = \App\Models\Device::where('type', 'phone')
+        // Phone-port map keyed by "{ucm_id}-{extension}".
+        $portMaps = [];
+        DB::table('phone_port_map')
+            ->select('ucm_server_id', 'extension', 'phone_mac', 'switch_name', 'switch_port', 'vlan')
+            ->orderBy('id')
+            ->cursor()
+            ->each(function ($m) use (&$portMaps) {
+                $portMaps[$m->ucm_server_id . '-' . $m->extension] = $m;
+            });
+
+        // Set of WiFi MACs (uppercased, hex-only) used by registered phones.
+        $wifiMacs = [];
+        DB::table('devices')
+            ->where('type', 'phone')
             ->whereNotNull('wifi_mac')
             ->pluck('wifi_mac')
-            ->map(fn ($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)))
-            ->flip()
-            ->toArray();
+            ->each(function ($m) use (&$wifiMacs) {
+                $clean = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m));
+                if ($clean !== '') {
+                    $wifiMacs[$clean] = true;
+                }
+            });
 
-        // ── CDP neighbor index ────────────────────────────────────────────
-        // Source of truth for which switch port a phone is connected to on
-        // Cisco-monitored switches. We index every CDP row by IP and by
-        // normalized MAC; extension lookup tries IP first, then MAC. No
-        // platform pre-filter — Grandstream/Yealink phones often advertise
-        // model strings ("GXP2602", "GRP2601") without the word "Phone",
-        // which the earlier filter was dropping.
+        // CDP neighbor index — built from raw stdClass rows. Source of truth
+        // for which switch port a phone is on for Cisco-monitored switches.
+        // Index by IP and by normalized MAC; lookup tries IP first, then MAC.
         $cdpByIp  = [];
         $cdpByMac = [];
-        \App\Models\SwitchCdpNeighbor::query()
+        DB::table('switch_cdp_neighbors')
             ->select('device_name', 'device_ip', 'local_interface', 'neighbor_ip', 'neighbor_mac', 'platform')
-            ->get()
+            ->orderBy('id')
+            ->cursor()
             ->each(function ($n) use (&$cdpByIp, &$cdpByMac) {
                 if ($n->neighbor_ip)  $cdpByIp[$n->neighbor_ip] = $n;
                 if ($n->neighbor_mac) {
@@ -315,55 +334,73 @@ class NocController extends Controller
                 }
             });
 
-        $data = $extensions->map(function ($ext) use ($portMaps, $wifiMacs, $cdpByIp, $cdpByMac) {
-            $key = $ext->ucm_id . '-' . $ext->extension;
-            $map = $portMaps[$key] ?? null;
+        // Main extension loop via cursor — one row at a time, GC-friendly.
+        $data = [];
+        UcmExtensionCache::orderBy('extension')->cursor()->each(
+            function ($ext) use (&$data, $portMaps, $wifiMacs, $cdpByIp, $cdpByMac, $ucmNames) {
+                $key = $ext->ucm_id . '-' . $ext->extension;
+                $map = $portMaps[$key] ?? null;
 
-            $phoneMac = $map?->phone_mac ?: '-';
-            $macClean = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $phoneMac));
-            $isWifi   = ($macClean && isset($wifiMacs[$macClean]));
+                $phoneMac = $map->phone_mac ?? '-';
+                $macClean = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $phoneMac));
+                $isWifi   = ($macClean !== '' && isset($wifiMacs[$macClean]));
 
-            // CDP fallback / enrichment. Try IP first (more reliable if extension
-            // is registered), then MAC. We prefer PhonePortMap when it has a
-            // switch_port set, since it carries VLAN/location too.
-            $switchName = $map?->switch_name ?: null;
-            $switchPort = $map?->switch_port ? 'Port ' . $map->switch_port : null;
-            $portSource = $switchPort ? 'meraki' : null;
+                // Prefer PhonePortMap when it has a port (carries VLAN/location);
+                // fall back to CDP neighbor lookup by IP, then MAC.
+                $switchName = $map->switch_name ?? null;
+                $switchPort = ($map && $map->switch_port) ? 'Port ' . $map->switch_port : null;
+                $portSource = $switchPort ? 'meraki' : null;
 
-            if (!$switchPort) {
-                $cdp = ($ext->ip_address && isset($cdpByIp[$ext->ip_address]))
-                    ? $cdpByIp[$ext->ip_address]
-                    : ($macClean && isset($cdpByMac[$macClean]) ? $cdpByMac[$macClean] : null);
-                if ($cdp) {
-                    $switchName = $switchName ?: $cdp->device_name;
-                    $switchPort = $cdp->local_interface;
-                    $portSource = 'cdp';
+                if (!$switchPort) {
+                    $cdp = ($ext->ip_address && isset($cdpByIp[$ext->ip_address]))
+                        ? $cdpByIp[$ext->ip_address]
+                        : (($macClean !== '' && isset($cdpByMac[$macClean])) ? $cdpByMac[$macClean] : null);
+                    if ($cdp) {
+                        $switchName = $switchName ?: $cdp->device_name;
+                        $switchPort = $cdp->local_interface;
+                        $portSource = 'cdp';
+                    }
                 }
+
+                $location = ($map && $map->switch_name && $map->switch_port)
+                    ? "{$map->switch_name} / Port {$map->switch_port}"
+                    : '-';
+
+                $data[] = [
+                    'extension'    => $ext->extension,
+                    'name'         => $ext->name ?: '-',
+                    'status'       => $ext->status,
+                    'status_badge' => $ext->statusBadgeClass(),
+                    'ip'           => $ext->ip_address ?: '-',
+                    'switch_name'  => $switchName ?: '-',
+                    'switch_port'  => $switchPort ?: '-',
+                    'port_source'  => $portSource,
+                    'location'     => $location,
+                    'vlan'         => $map->vlan ?? '-',
+                    'mac'          => $phoneMac,
+                    'wifi'         => $isWifi,
+                    'server'       => $ucmNames[$ext->ucm_id] ?? '-',
+                ];
             }
+        );
 
-            return [
-                'extension'    => $ext->extension,
-                'name'         => $ext->name ?: '-',
-                'status'       => $ext->status,
-                'status_badge' => $ext->statusBadgeClass(),
-                'ip'           => $ext->ip_address ?: '-',
-                'switch_name'  => $switchName ?: '-',
-                'switch_port'  => $switchPort ?: '-',
-                'port_source'  => $portSource,        // 'meraki' | 'cdp' | null — UI can badge
-                'location'     => $map?->locationLabel() ?: '-',
-                'vlan'         => $map?->vlan ?: '-',
-                'mac'          => $phoneMac,
-                'wifi'         => $isWifi,
-                'server'       => $ext->ucmServer?->name ?: '-',
-            ];
-        });
-
-        $activeCalls = UcmActiveCall::with('ucmServer')->orderByDesc('start_time')->get()->map(fn ($c) => [
-            'caller'   => $c->caller,
-            'callee'   => $c->callee,
-            'duration' => $c->durationFormatted(),
-            'server'   => $c->ucmServer?->name ?: '-',
-        ]);
+        // Active calls — small table, but join the server name in SQL so we
+        // don't re-instantiate UcmServer eager-loads per row.
+        $activeCalls = DB::table('ucm_active_calls as c')
+            ->leftJoin('ucm_servers as s', 'c.ucm_id', '=', 's.id')
+            ->select('c.caller', 'c.callee', 'c.start_time', 's.name as server_name')
+            ->orderByDesc('c.start_time')
+            ->get()
+            ->map(function ($c) {
+                $start    = $c->start_time ? \Carbon\Carbon::parse($c->start_time) : null;
+                $duration = $start ? gmdate('H:i:s', max(0, now()->diffInSeconds($start))) : '-';
+                return [
+                    'caller'   => $c->caller,
+                    'callee'   => $c->callee,
+                    'duration' => $duration,
+                    'server'   => $c->server_name ?: '-',
+                ];
+            });
 
         return response()->json([
             'extensions'   => $data,
