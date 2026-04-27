@@ -102,7 +102,7 @@ logger -n 127.0.0.1 -P 514 -d --rfc3164 -t syslog-smoke "hello from VPS"
 Then check the table:
 
 ```bash
-mysql -u root -p sg_noc -e \
+mysql -u root -p phonebook2 -e \
   "SELECT id, received_at, host, severity, program, message
    FROM syslog_messages ORDER BY id DESC LIMIT 5;"
 ```

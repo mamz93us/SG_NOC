@@ -16,7 +16,7 @@ CREATE USER IF NOT EXISTS 'rsyslog'@'localhost'
     IDENTIFIED BY 'REPLACE_ME';
 
 -- Only INSERT — rsyslog should never read or modify rows.
-GRANT INSERT ON sg_noc.syslog_messages TO 'rsyslog'@'localhost';
+GRANT INSERT ON phonebook2.syslog_messages TO 'rsyslog'@'localhost';
 
 FLUSH PRIVILEGES;
 
