@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Models\UcmServer;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class IppbxApiService
 {
+    protected UcmServer $server;
     protected string $baseUrl;
     protected string $originUrl;   // base URL without /api — used for headers
     protected string $username;
@@ -15,8 +17,13 @@ class IppbxApiService
     protected ?string $cookie      = null;
     protected ?string $cloudDomain = null;  // GDMS cloud relay override for Wave QR
 
+    // Grandstream UCM idle cookie timeout is ~5 min. Cache slightly under that
+    // so reused cookies don't time out mid-call.
+    private const COOKIE_TTL_SECONDS = 240;
+
     public function __construct(UcmServer $server)
     {
+        $this->server      = $server;
         $this->originUrl   = rtrim($server->url, '/');
         $this->baseUrl     = $this->originUrl . '/api';
         $this->username    = $server->api_username;
@@ -123,9 +130,55 @@ class IppbxApiService
     // ─────────────────────────────────────────────
 
     /**
-     * Full login flow: challenge → MD5 token → login → return cookie
+     * Get a valid cookie, reusing a cached one if available, otherwise
+     * performing a fresh challenge→login under a per-UCM lock.
+     *
+     * Why the cache + lock: Grandstream's challenge action is session-bound.
+     * If two processes call `challenge` for the same user concurrently, the
+     * second one invalidates the first, and the first's `login` then fails
+     * with status=-37 ("Wrong account or password"). Existing cookies on
+     * other processes can also get invalidated, returning -6 mid-call.
+     * Sharing one cookie across all callers eliminates both races.
      */
     public function login(): string
+    {
+        $cacheKey = $this->cookieCacheKey();
+
+        $cached = Cache::get($cacheKey);
+        if (is_string($cached) && $cached !== '') {
+            $this->cookie = $cached;
+            return $this->cookie;
+        }
+
+        // Serialize logins per UCM. Other processes block here until the
+        // first one populates the cache, then they read the shared cookie.
+        $lock = Cache::lock("ucm_login_lock_{$this->server->id}", 10);
+
+        try {
+            $lock->block(8); // wait up to 8s for an in-flight login to finish
+
+            // Re-check cache: another process may have logged in while we waited.
+            $cached = Cache::get($cacheKey);
+            if (is_string($cached) && $cached !== '') {
+                $this->cookie = $cached;
+                return $this->cookie;
+            }
+
+            $cookie = $this->doLogin();
+            Cache::put($cacheKey, $cookie, self::COOKIE_TTL_SECONDS);
+
+            $this->cookie = $cookie;
+            return $this->cookie;
+        } finally {
+            optional($lock)->release();
+        }
+    }
+
+    /**
+     * Raw challenge → MD5 token → login. Use login() instead — it adds
+     * caching and per-UCM locking on top of this.
+     */
+    protected function doLogin(): string
     {
         // Step 1: get challenge
         $challengeResp = $this->post([
@@ -154,8 +207,22 @@ class IppbxApiService
             throw new \RuntimeException('UCM login failed: ' . json_encode($loginResp));
         }
 
-        $this->cookie = $loginResp['response']['cookie'];
-        return $this->cookie;
+        return $loginResp['response']['cookie'];
+    }
+
+    protected function cookieCacheKey(): string
+    {
+        return "ucm_cookie_{$this->server->id}";
+    }
+
+    /**
+     * Drop the shared cookie cache so the next login() does a fresh handshake.
+     * Call this on -6 (cookie invalid) responses.
+     */
+    protected function invalidateCachedCookie(): void
+    {
+        Cache::forget($this->cookieCacheKey());
+        $this->cookie = null;
     }
 
     /**
@@ -173,7 +240,7 @@ class IppbxApiService
         // -6 = invalid/expired cookie → re-login and retry once
         if (($resp['status'] ?? null) === -6) {
             Log::warning('IppbxApiService: applyChanges got -6 (expired cookie), re-logging in.');
-            $this->cookie = null;
+            $this->invalidateCachedCookie();
             $this->login();
 
             $resp = $this->post([
@@ -770,6 +837,30 @@ class IppbxApiService
     }
 
     protected function post(array $payload, int $timeout = 15): array
+    {
+        $resp = $this->doPost($payload, $timeout);
+
+        // Auto-recover from a stale shared cookie. If this was a cookie-bearing
+        // call and the UCM rejected the cookie (-6), drop the cache, re-login,
+        // and retry once. applyChanges() has its own retry logic, so skip it.
+        $action = $payload['action'] ?? '';
+        if (
+            isset($payload['cookie'])
+            && ($resp['status'] ?? null) === -6
+            && $action !== 'applyChanges'
+            && $action !== ''
+        ) {
+            Log::info("IppbxApiService: cookie -6 on '{$action}' for {$this->server->name} — re-login + retry");
+            $this->invalidateCachedCookie();
+            $this->login();
+            $payload['cookie'] = $this->cookie;
+            $resp = $this->doPost($payload, $timeout);
+        }
+
+        return $resp;
+    }
+
+    protected function doPost(array $payload, int $timeout): array
     {
         try {
             $body = json_encode(['request' => $payload]);
