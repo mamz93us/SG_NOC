@@ -26,6 +26,27 @@
     </div>
 </div>
 
+@php
+    $backlog = \App\Models\SyslogMessage::where('source_type', 'sophos')
+                ->whereNull('parsed')->count();
+@endphp
+@if($backlog > 0)
+<div class="alert alert-info py-2 mb-3 d-flex justify-content-between align-items-center">
+    <div>
+        <i class="bi bi-hourglass-split me-1"></i>
+        <strong>{{ number_format($backlog) }}</strong> Sophos rows pending parse — the scheduler drains up to 25,000/min.
+    </div>
+    @can('manage-syslog')
+    <form method="POST" action="{{ route('admin.syslog.run-processors') }}" class="d-inline m-0">
+        @csrf
+        <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-play-fill me-1"></i>Run parser now
+        </button>
+    </form>
+    @endcan
+</div>
+@endif
+
 {{-- Filters --}}
 <form method="GET" class="card shadow-sm border-0 mb-3">
     <div class="card-body py-2">

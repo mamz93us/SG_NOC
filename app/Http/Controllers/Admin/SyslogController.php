@@ -349,14 +349,22 @@ class SyslogController extends Controller
             ->groupBy('st')
             ->pluck('c', 'st');
 
+        // Parser backlog — rows tagged with a parsable source_type but
+        // not yet processed by ParseSyslogPayloadsJob.
+        $parserPending = SyslogMessage::query()
+            ->whereIn('source_type', ['sophos'])
+            ->whereNull('parsed')
+            ->count();
+
         return [
-            'total'       => (clone $base)->count(),
-            'critical'    => collect($bySeverity)->filter(fn($_, $sev) => (int)$sev <= 2)->sum(),
-            'errors'      => (int) ($bySeverity[3] ?? 0),
-            'warnings'    => (int) ($bySeverity[4] ?? 0),
-            'by_severity' => $bySeverity->toArray(),
-            'by_source'   => $bySource->toArray(),
-            'unique_hosts'=> (clone $base)->distinct('host')->count('host'),
+            'total'          => (clone $base)->count(),
+            'critical'       => collect($bySeverity)->filter(fn($_, $sev) => (int)$sev <= 2)->sum(),
+            'errors'         => (int) ($bySeverity[3] ?? 0),
+            'warnings'       => (int) ($bySeverity[4] ?? 0),
+            'by_severity'    => $bySeverity->toArray(),
+            'by_source'      => $bySource->toArray(),
+            'unique_hosts'   => (clone $base)->distinct('host')->count('host'),
+            'parser_pending' => $parserPending,
         ];
     }
 
