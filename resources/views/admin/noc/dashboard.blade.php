@@ -93,10 +93,11 @@
     </div>
 
     <div class="col-md-6 col-xl-3">
+        <a href="{{ route('admin.noc.extensions') }}" class="text-decoration-none text-reset d-block h-100" title="Open Extension Grid">
         <div class="card shadow-sm noc-card h-100 p-3">
             <div class="d-flex justify-content-between align-items-start mb-3">
                 <div>
-                    <h6 class="text-muted text-uppercase small mb-1">VoIP Extensions</h6>
+                    <h6 class="text-muted text-uppercase small mb-1">VoIP Extensions <i class="bi bi-box-arrow-up-right ms-1 small"></i></h6>
                     <h3 class="mb-0 fw-bold text-info">{{ number_format($totalExt) }}</h3>
                 </div>
                 <div class="icon-box bg-info bg-opacity-10 text-info">
@@ -114,8 +115,9 @@
                 </div>
             </div>
         </div>
+        </a>
     </div>
-    
+
     <div class="col-md-6 col-xl-3">
         <div class="card shadow-sm noc-card h-100 p-3">
             <div class="d-flex justify-content-between align-items-start mb-3">
@@ -418,8 +420,14 @@
     <div class="col-12">
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white d-flex align-items-center">
-                <h5 class="mb-0 fw-semibold"><i class="bi bi-telephone-fill me-2 text-primary"></i>Extension Grid</h5>
+                <a href="{{ route('admin.noc.extensions') }}" class="text-decoration-none d-inline-flex align-items-center" title="Open full Extension Grid">
+                    <h5 class="mb-0 fw-semibold"><i class="bi bi-telephone-fill me-2 text-primary"></i>Extension Grid</h5>
+                    <i class="bi bi-box-arrow-up-right ms-2 text-muted small"></i>
+                </a>
                 <div class="ms-auto d-flex gap-2">
+                    <a href="{{ route('admin.noc.extensions') }}" class="btn btn-sm btn-outline-primary" title="Open full Extension Grid page">
+                        <i class="bi bi-arrows-fullscreen me-1"></i>Full Page
+                    </a>
                     <a href="{{ route('admin.noc.wallboard') }}" target="_blank" class="btn btn-sm btn-outline-dark" title="Open Wallboard">
                         <i class="bi bi-display me-1"></i>Wallboard
                     </a>
