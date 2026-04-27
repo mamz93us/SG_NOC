@@ -266,19 +266,30 @@ class CollectSnmpMetricsJob implements ShouldQueue
 
     protected function parseValue(string $value): float
     {
-        // Handle numeric values
+        // Strip SNMP type prefix and surrounding quotes once up front. Grandstream
+        // returns disk/CPU/memory as OCTET STRING like  STRING: "11.837062%"  or
+        // STRING: "27"  — without this strip, the regex below misses both.
+        $clean = preg_replace('/^[A-Z][A-Z0-9-]*:\s*/i', '', trim($value));
+        $clean = trim($clean, " \t\n\r\0\x0B\"'");
+
+        // Numeric Gauge32 / Counter32 / Counter64 / Integer / TimeTicks etc.
         if (preg_match('/(?:INTEGER|Gauge32|Counter32|Counter64|Unsigned32|TimeTicks):\s*(-?\d+)/i', $value, $matches)) {
             return (float) $matches[1];
         }
 
-        // Counter64, Counter32, Gauge32, INTEGER, etc.
-        // We look for a colon or space followed by digits to skip "64" in "Counter64: 123"
+        // Number with optional trailing percent — "11.83%", "27%", "4", "0.5"
+        if (preg_match('/^(-?\d+(?:\.\d+)?)\s*%?\s*$/', $clean, $matches)) {
+            return (float) $matches[1];
+        }
+
+        // Bare numeric anywhere — fallback for "Counter64: 123" style strings
+        // not caught by the typed regex above.
         if (preg_match('/(?:[:\s]|^)(-?\d+(?:\.\d+)?)\s*$/', $value, $matches)) {
             return (float) $matches[1];
         }
 
         // STRING-like status conversions
-        $lower = strtolower($value);
+        $lower = strtolower($clean);
         $downStates = ['unreachable', 'unavailable', 'down', 'inactive', 'notconnect', 'unregistered'];
         $upStates = ['reachable', 'up', 'running', 'active', 'idle', 'registered', 'ringing', 'inuse'];
 
