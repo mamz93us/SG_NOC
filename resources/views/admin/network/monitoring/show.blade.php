@@ -167,6 +167,10 @@
     $memRaw     = $host->latestMemory();
     if ($memRaw && !empty($memRaw['physical_used']) && !empty($memRaw['physical_total'])) {
         $memNow = round($memRaw['physical_used'] / $memRaw['physical_total'] * 100, 1);
+    } elseif ($memRaw && isset($memRaw['physical_pct']) && $memRaw['physical_pct'] !== null) {
+        // Grandstream UCMs only expose a single "X%" string for memory;
+        // latestMemory() promotes that to physical_pct.
+        $memNow = round((float) $memRaw['physical_pct'], 1);
     }
     $storagePct = $host->latestMetric('storage_pct');
 @endphp
@@ -287,7 +291,7 @@
                                 <div class="progress" style="height:10px">
                                     <div class="progress-bar bg-info" :style="'width:'+physPct+'%'"></div>
                                 </div>
-                                <div class="text-muted x-small mt-1" x-text="physUsedFmt + ' / ' + physTotalFmt"></div>
+                                <div class="text-muted x-small mt-1" x-show="physUsedFmt" x-text="physUsedFmt + ' / ' + physTotalFmt"></div>
                             </div>
                             <div class="col-sm-6" x-show="virtUsedFmt">
                                 <div class="d-flex justify-content-between small mb-1">
@@ -467,12 +471,30 @@
                 const d    = await res.json();
                 if (!d.available) return;
                 this.available = true;
-                const used  = d.physical_used  || 0;
-                const total = d.physical_total || 0;
-                this.physPct       = total ? Math.round(used / total * 100) : 0;
-                this.physUsedFmt   = fmtBytes(used);
-                this.physTotalFmt  = fmtBytes(total);
-                const virt = d.virtual_used || 0;
+                const used  = +d.physical_used  || 0;
+                const total = +d.physical_total || 0;
+                const pct   = (d.physical_pct !== null && d.physical_pct !== undefined)
+                    ? +d.physical_pct
+                    : null;
+
+                if (total > 0) {
+                    // Standard host-resources style: used + total in bytes.
+                    this.physPct       = Math.round(used / total * 100);
+                    this.physUsedFmt   = fmtBytes(used);
+                    this.physTotalFmt  = fmtBytes(total);
+                } else if (pct !== null) {
+                    // Percentage-only sensor (Grandstream sMemoryUsage etc.) —
+                    // show the bar but skip the meaningless "X B / 0 B" line.
+                    this.physPct       = Math.round(pct);
+                    this.physUsedFmt   = '';
+                    this.physTotalFmt  = '';
+                } else {
+                    this.physPct       = 0;
+                    this.physUsedFmt   = fmtBytes(used);
+                    this.physTotalFmt  = fmtBytes(total);
+                }
+
+                const virt = +d.virtual_used || 0;
                 this.virtPct       = total ? Math.round(virt / total * 100) : 0;
                 this.virtUsedFmt   = virt ? fmtBytes(virt) : '';
                 this.cachedFmt     = d.cached  ? fmtBytes(d.cached)  : '';

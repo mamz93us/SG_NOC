@@ -176,7 +176,7 @@ class MonitoredHost extends Model
     public function latestMemory(): ?array
     {
         $sensors = $this->snmpSensors()
-            ->whereIn('sensor_group', ['memory', 'memory_used', 'memory_total',
+            ->whereIn('sensor_group', ['memory', 'memory_used', 'memory_total', 'memory_pct',
                                        'memory_cached', 'memory_buffers', 'memory_shared', 'virtual_used'])
             ->with('latestMetric')
             ->get()
@@ -198,9 +198,27 @@ class MonitoredHost extends Model
 
         $val = fn($group) => $sensors->get($group)?->first()?->latestMetric?->value;
 
+        $physTotal = $val('memory_total');
+        $physUsed  = $val('memory_used') ?? $val('memory');
+        $physPct   = $val('memory_pct');
+
+        // Grandstream UCMs (and similar) only expose memory as a single percent
+        // string (sMemoryUsage = "27%"). When we have a value but no total, and
+        // the value is in 0..100 range, treat it as a percentage so the view can
+        // render the bar without bogus "27 B / 0 B" labels.
+        if ($physPct === null
+            && $physTotal === null
+            && $physUsed !== null
+            && (float) $physUsed >= 0
+            && (float) $physUsed <= 100) {
+            $physPct  = (float) $physUsed;
+            $physUsed = null;
+        }
+
         return [
-            'physical_used'  => $val('memory_used')  ?? $val('memory'),
-            'physical_total' => $val('memory_total'),
+            'physical_used'  => $physUsed,
+            'physical_total' => $physTotal,
+            'physical_pct'   => $physPct,
             'virtual_used'   => $val('virtual_used'),
             'cached'         => $val('memory_cached'),
             'buffers'        => $val('memory_buffers'),

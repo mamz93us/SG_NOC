@@ -277,6 +277,23 @@ class CollectSnmpMetricsJob implements ShouldQueue
             return (float) $matches[1];
         }
 
+        // Time-formatted uptime — Grandstream's sUptime is OCTET STRING formatted
+        // as "5 days 03:42:17", "03:42:17", "5d 3h 42m". Convert to total seconds
+        // so the view's `unit=s` path renders days/hours/minutes correctly.
+        // Place before the bare-numeric fallback so e.g. "03:42:17" doesn't get
+        // truncated to just "17".
+        if (preg_match('/(?:(\d+)\s*days?[,\s]+)?(\d+):(\d{1,2})(?::(\d{1,2}))?\s*$/i', $clean, $m)) {
+            $days  = (int) ($m[1] ?? 0);
+            $hours = (int) $m[2];
+            $mins  = (int) $m[3];
+            $secs  = (int) ($m[4] ?? 0);
+            $total = $days * 86400 + $hours * 3600 + $mins * 60 + $secs;
+            if ($total > 0) return (float) $total;
+        }
+        if (preg_match('/(\d+)\s*d(?:ays?)?\s+(\d+)\s*h(?:ours?)?\s+(\d+)\s*m(?:in(?:utes?)?)?/i', $clean, $m)) {
+            return (float) ($m[1] * 86400 + $m[2] * 3600 + $m[3] * 60);
+        }
+
         // Number with optional trailing percent — "11.83%", "27%", "4", "0.5"
         if (preg_match('/^(-?\d+(?:\.\d+)?)\s*%?\s*$/', $clean, $matches)) {
             return (float) $matches[1];
