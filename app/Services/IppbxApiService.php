@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\MonitoredHost;
 use App\Models\UcmServer;
+use App\Services\Snmp\SnmpClient;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -65,13 +67,11 @@ class IppbxApiService
                     \Log::warning("UCM {$server->name}: listVoIPTrunks failed — {$trunkError}");
                 }
 
-                // Storage is optional — Grandstream firmware varies
-                $storage = [];
-                try {
-                    $storage = $api->getStorageStatus();
-                } catch (\Exception $se) {
-                    \Log::warning("UCM {$server->name}: getStorageStatus failed — " . $se->getMessage());
-                }
+                // Disk / memory / CPU via SNMP using the matching MonitoredHost.
+                // The Grandstream HTTPS API gates these behind a "System Status"
+                // permission that's typically not granted to API users; SNMP is
+                // already in use for extension/trunk sensors so it's free.
+                $resources = self::collectSnmpResources($server);
 
                 // Format the uptime with days
                 if (!empty($system['up-time'])) {
@@ -123,7 +123,7 @@ class IppbxApiService
                     'trunk_counts'=> $trunkCounts,
                     'extensions_list' => $extensions,
                     'trunks_list' => $trunks,
-                    'storage'     => $storage,
+                    'resources'   => $resources,
                 ];
             } catch (\Exception $e) {
                 return [
@@ -823,6 +823,121 @@ class IppbxApiService
         }
 
         return $resp['response'] ?? [];
+    }
+
+    // ─────────────────────────────────────────────
+    // SNMP system resources (disk / memory / CPU)
+    // ─────────────────────────────────────────────
+
+    // Grandstream UCM63xx SNMP MIB — gsObject.IppbxMib.sSysinfo.*
+    // See GS-UCM63XX-SNMP-MIB published by Grandstream.
+    private const SNMP_OID_DISK_USAGE   = '1.3.6.1.4.1.12581.2.2.6';
+    private const SNMP_OID_MEMORY_USAGE = '1.3.6.1.4.1.12581.2.2.7';
+    private const SNMP_OID_CPU_USAGE    = '1.3.6.1.4.1.12581.2.2.8';
+
+    /**
+     * Collect disk / memory / CPU usage via SNMP for a given UCM.
+     *
+     * The HTTPS API actions (getStorageStatus etc.) require the "System Status"
+     * permission which is typically not granted on the API user. SNMP exposes
+     * the same data via the GS-UCM63XX-SNMP-MIB sSysinfo OIDs and is already
+     * used elsewhere in the app, so we leverage that.
+     *
+     * Returns an array with disk/memory/cpu sections, or an empty array if the
+     * UCM has no matching MonitoredHost or SNMP is disabled/unreachable.
+     */
+    public static function collectSnmpResources(UcmServer $server): array
+    {
+        $host = self::matchSnmpHost($server);
+        if (!$host) {
+            return [];
+        }
+
+        try {
+            $client = (new SnmpClient($host))->connect();
+            $raw = $client->getMultiple([
+                self::SNMP_OID_DISK_USAGE,
+                self::SNMP_OID_MEMORY_USAGE,
+                self::SNMP_OID_CPU_USAGE,
+            ]);
+            $client->close();
+        } catch (\Throwable $e) {
+            Log::debug("UCM {$server->name}: SNMP resources query failed — " . $e->getMessage());
+            return [];
+        }
+
+        if (empty($raw)) {
+            return [];
+        }
+
+        $disk   = self::pickSnmpValue($raw, self::SNMP_OID_DISK_USAGE);
+        $memory = self::pickSnmpValue($raw, self::SNMP_OID_MEMORY_USAGE);
+        $cpu    = self::pickSnmpValue($raw, self::SNMP_OID_CPU_USAGE);
+
+        $out = [];
+        if ($disk   !== null) $out['disk']   = self::parseSnmpUsage($disk);
+        if ($memory !== null) $out['memory'] = self::parseSnmpUsage($memory);
+        if ($cpu    !== null) $out['cpu']    = self::parseSnmpUsage($cpu);
+
+        return $out;
+    }
+
+    /**
+     * Find the MonitoredHost that matches a UCM by its IP/host portion of url.
+     * Returns null if not found or SNMP isn't enabled for that host.
+     */
+    protected static function matchSnmpHost(UcmServer $server): ?MonitoredHost
+    {
+        $host = parse_url($server->url, PHP_URL_HOST);
+        if (!$host) {
+            return null;
+        }
+
+        $mh = MonitoredHost::where('ip', $host)->where('snmp_enabled', true)->first();
+        return $mh ?: null;
+    }
+
+    /**
+     * SnmpClient::getMultiple() may key results by either the dotted-numeric
+     * OID (the format we asked for) or a stringified textual OID; tolerate
+     * both, and also any single-value response shape.
+     */
+    protected static function pickSnmpValue(array $raw, string $oid): ?string
+    {
+        if (array_key_exists($oid, $raw))         return is_string($raw[$oid]) ? $raw[$oid] : (string) $raw[$oid];
+        if (array_key_exists(".{$oid}", $raw))    return (string) $raw[".{$oid}"];
+
+        // Fallback: a key that ends with the OID's last segments.
+        $tail = implode('.', array_slice(explode('.', $oid), -3));
+        foreach ($raw as $k => $v) {
+            if (str_ends_with((string) $k, $tail)) {
+                return is_scalar($v) ? (string) $v : null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Parse a Grandstream sysinfo SNMP value like "4%", "used 4% of 250M",
+     * "12.3%" into a percent-used integer plus the original raw label.
+     */
+    protected static function parseSnmpUsage(string $raw): array
+    {
+        // Strip SNMP type prefixes that snmpget CLI mode sometimes prepends
+        // (e.g. 'STRING: "4%"' or 'INTEGER: 4').
+        $clean = preg_replace('/^[A-Z][A-Z0-9-]*:\s*/i', '', trim($raw));
+        $clean = trim($clean, " \t\n\r\0\x0B\"'");
+
+        $percent = null;
+        if (preg_match('/(\d+(?:\.\d+)?)\s*%/', $clean, $m)) {
+            $percent = (int) round((float) $m[1]);
+            $percent = max(0, min(100, $percent));
+        }
+
+        return [
+            'percent' => $percent,
+            'raw'     => $clean,
+        ];
     }
 
     /**
