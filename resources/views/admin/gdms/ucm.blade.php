@@ -51,6 +51,7 @@
     $gen             = $result['general'];
     $exts            = $result['extensions'];
     $trunks          = $result['trunks'];
+    $storage         = $result['storage'] ?? [];
     $sum             = $result['summary'];
     $tsum            = $result['trunk_summary'];
     $mac             = $result['mac'];
@@ -116,7 +117,37 @@
                 </div>
             </div>
 
-            <div class="col-12 col-lg-5">
+            @if(count($storage) > 0)
+            <div class="col-12 col-md-6 col-lg-2">
+                <h6 class="text-muted text-uppercase small fw-semibold mb-2">Storage</h6>
+                <div class="d-flex flex-column gap-2">
+                    @foreach($storage as $dev)
+                        @php
+                            $pct      = $dev['percent'] ?? null;
+                            $barClass = $pct === null ? 'bg-secondary'
+                                      : ($pct >= 90  ? 'bg-danger'
+                                      : ($pct >= 75  ? 'bg-warning'
+                                      :                'bg-success'));
+                            $label    = $dev['name'] ?: ($dev['media'] ?: 'Storage');
+                        @endphp
+                        <div>
+                            <div class="d-flex justify-content-between align-items-baseline small">
+                                <span class="fw-semibold text-truncate" title="{{ $label }}@if($dev['path']) — {{ $dev['path'] }}@endif" style="max-width:75%">{{ $label }}</span>
+                                <span class="text-muted font-monospace">{{ $pct === null ? '—' : $pct . '%' }}</span>
+                            </div>
+                            <div class="progress" style="height:6px" role="progressbar" aria-valuenow="{{ $pct ?? 0 }}" aria-valuemin="0" aria-valuemax="100">
+                                <div class="progress-bar {{ $barClass }}" style="width: {{ $pct ?? 0 }}%"></div>
+                            </div>
+                            @if($dev['used'] || $dev['total'])
+                                <div class="small text-muted font-monospace">{{ $dev['used'] ?? '?' }} / {{ $dev['total'] ?? '?' }}</div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
+            <div class="col-12 {{ count($storage) > 0 ? 'col-lg-3' : 'col-lg-5' }}">
                 @if(count($exts) > 0)
                 <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">

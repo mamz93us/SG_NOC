@@ -28,6 +28,7 @@ class GdmsController extends Controller
                 'mac'        => null,
                 'extensions' => [],
                 'trunks'     => [],
+                'storage'    => [],
                 'summary'    => ['total' => 0, 'idle' => 0, 'inuse' => 0, 'unavailable' => 0, 'other' => 0],
                 'trunk_summary' => ['total' => 0, 'reachable' => 0, 'unreachable' => 0],
             ];
@@ -46,6 +47,7 @@ class GdmsController extends Controller
                 $item['mac']           = $stats['mac'] ?? '';
                 $item['extensions']    = $stats['extensions_list'] ?? [];
                 $item['trunks']        = $stats['trunks_list'] ?? [];
+                $item['storage']       = $stats['storage'] ?? [];
                 $item['summary']       = $stats['extensions'] ?? ['total' => 0, 'idle' => 0, 'inuse' => 0, 'unavailable' => 0, 'other' => 0];
                 $item['trunk_summary'] = $stats['trunk_counts'] ?? ['total' => 0, 'reachable' => 0, 'unreachable' => 0];
             }

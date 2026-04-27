@@ -65,6 +65,14 @@ class IppbxApiService
                     \Log::warning("UCM {$server->name}: listVoIPTrunks failed — {$trunkError}");
                 }
 
+                // Storage is optional — Grandstream firmware varies
+                $storage = [];
+                try {
+                    $storage = $api->getStorageStatus();
+                } catch (\Exception $se) {
+                    \Log::warning("UCM {$server->name}: getStorageStatus failed — " . $se->getMessage());
+                }
+
                 // Format the uptime with days
                 if (!empty($system['up-time'])) {
                     $system['up-time-formatted'] = self::formatUptime($system['up-time']);
@@ -115,6 +123,7 @@ class IppbxApiService
                     'trunk_counts'=> $trunkCounts,
                     'extensions_list' => $extensions,
                     'trunks_list' => $trunks,
+                    'storage'     => $storage,
                 ];
             } catch (\Exception $e) {
                 return [
@@ -632,6 +641,163 @@ class IppbxApiService
         }
 
         return $resp['response'] ?? [];
+    }
+
+    /**
+     * Get storage device status (internal disk, SD, USB) with usage info.
+     *
+     * Grandstream renamed this action across firmware revisions, so we try
+     * the known candidates in order and return the first one that succeeds.
+     * Returns an empty array if no candidate is supported — caller should
+     * treat storage as optional.
+     *
+     * Each device in the returned list is normalized to:
+     *   ['name' => ..., 'media' => ..., 'total' => ..., 'used' => ...,
+     *    'available' => ..., 'percent' => 0..100, 'path' => ...]
+     */
+    public function getStorageStatus(): array
+    {
+        $this->ensureCookie();
+
+        $candidates = ['getStorageStatus', 'getStorageDeviceList', 'getStorageInfo'];
+
+        foreach ($candidates as $action) {
+            try {
+                $resp = $this->post([
+                    'action' => $action,
+                    'cookie' => $this->cookie,
+                ]);
+            } catch (\Throwable $e) {
+                continue;
+            }
+
+            if (($resp['status'] ?? -1) !== 0) {
+                continue;
+            }
+
+            $devices = $this->extractStorageDevices($resp['response'] ?? []);
+            if (!empty($devices)) {
+                return $devices;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Normalize a Grandstream storage response into a flat list of devices.
+     * Grandstream firmware uses different keys/shapes (storage_device,
+     * storage_list, devices, …) so we probe a few and fall back to picking
+     * the first array of associative rows.
+     */
+    protected function extractStorageDevices(array $response): array
+    {
+        $list = $response['storage_device']
+             ?? $response['storage_list']
+             ?? $response['devices']
+             ?? $response['storage']
+             ?? null;
+
+        if ($list === null) {
+            // Fallback: first array-of-objects we find.
+            foreach ($response as $value) {
+                if (is_array($value) && !empty($value) && is_array(reset($value))) {
+                    $list = $value;
+                    break;
+                }
+            }
+        }
+
+        if (!is_array($list)) {
+            return [];
+        }
+
+        // Single device returned as an associative array — wrap it.
+        if (!empty($list) && (isset($list['total']) || isset($list['used']) || isset($list['media']))) {
+            $list = [$list];
+        }
+
+        $out = [];
+        foreach ($list as $dev) {
+            if (!is_array($dev)) {
+                continue;
+            }
+
+            $total     = $dev['total']     ?? $dev['size']      ?? $dev['capacity']  ?? null;
+            $used      = $dev['used']      ?? $dev['used_size'] ?? null;
+            $available = $dev['available'] ?? $dev['free']      ?? $dev['free_size'] ?? null;
+            $percent   = $dev['percent']   ?? $dev['usage']     ?? null;
+
+            if ($percent === null) {
+                $percent = self::computeStoragePercent($total, $used, $available);
+            } else {
+                // Some firmware returns "45%" or "45" — strip and clamp.
+                $percent = (int) preg_replace('/[^0-9]/', '', (string) $percent);
+                $percent = max(0, min(100, $percent));
+            }
+
+            $out[] = [
+                'name'      => $dev['name']  ?? $dev['label']  ?? $dev['media'] ?? 'Storage',
+                'media'     => $dev['media'] ?? $dev['type']   ?? '',
+                'path'      => $dev['path']  ?? $dev['mount']  ?? '',
+                'total'     => $total,
+                'used'      => $used,
+                'available' => $available,
+                'percent'   => $percent,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Best-effort percent-used given any combination of total/used/available.
+     * Handles unit-suffixed strings like "16G", "200M", "1.2T".
+     */
+    protected static function computeStoragePercent($total, $used, $available): ?int
+    {
+        $totalB = self::parseSize($total);
+        $usedB  = self::parseSize($used);
+        $availB = self::parseSize($available);
+
+        if ($totalB > 0 && $usedB !== null) {
+            return max(0, min(100, (int) round($usedB / $totalB * 100)));
+        }
+        if ($totalB > 0 && $availB !== null) {
+            return max(0, min(100, (int) round(($totalB - $availB) / $totalB * 100)));
+        }
+        return null;
+    }
+
+    /**
+     * Parse a Grandstream size string ("16G", "200M", "1.2T", "1234567")
+     * into bytes. Returns null if unparseable.
+     */
+    protected static function parseSize($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        if (!preg_match('/^\s*([\d.]+)\s*([KMGTP]?)B?\s*$/i', (string) $value, $m)) {
+            return null;
+        }
+
+        $num    = (float) $m[1];
+        $unit   = strtoupper($m[2] ?? '');
+        $factor = match ($unit) {
+            'K'     => 1024,
+            'M'     => 1024 ** 2,
+            'G'     => 1024 ** 3,
+            'T'     => 1024 ** 4,
+            'P'     => 1024 ** 5,
+            default => 1,
+        };
+
+        return $num * $factor;
     }
 
     // ─────────────────────────────────────────────
