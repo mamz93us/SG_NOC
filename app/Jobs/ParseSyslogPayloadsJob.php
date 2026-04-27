@@ -36,9 +36,9 @@ class ParseSyslogPayloadsJob implements ShouldQueue
         $rows = SyslogMessage::query()
             ->whereIn('source_type', $parsable)
             ->whereNull('parsed')
-            ->where('received_at', '>=', now()->subHours(2))
+            ->where('received_at', '>=', now()->subHours(6))
             ->orderBy('received_at')
-            ->limit(2000)
+            ->limit(10000)
             ->get();
 
         if ($rows->isEmpty()) return;
@@ -48,7 +48,11 @@ class ParseSyslogPayloadsJob implements ShouldQueue
         $empty  = 0;
 
         foreach ($rows as $row) {
-            $body = $row->message ?: $row->raw;
+            // Prefer the untouched raw packet — rsyslog's RFC3164 parser
+            // tends to misinterpret the leading device_name="…" KV pair
+            // as the syslog tag, so `message` would be missing it.
+            // Fall back to program+message in case `raw` is empty.
+            $body = $row->raw ?: trim($row->program . ' ' . $row->message);
 
             $fields = match ($row->source_type) {
                 'sophos' => $sophosParser->parse($body),
