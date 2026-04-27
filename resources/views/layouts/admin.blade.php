@@ -607,6 +607,14 @@
                                     <i class="bi bi-clock-history me-2"></i>Events Log
                                 </a>
                             </li>
+                            @can('view-syslog')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.syslog.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.syslog.index') }}">
+                                    <i class="bi bi-journal-code me-2"></i>Syslog
+                                </a>
+                            </li>
+                            @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.noc.wallboard') ? 'active' : '' }}"

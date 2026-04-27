@@ -87,6 +87,8 @@ class RolePermission extends Model
                 'manage-noc'      => 'Acknowledge / Resolve NOC Events',
                 'view-incidents'  => 'View Incidents',
                 'manage-incidents'=> 'Create / Edit / Close Incidents',
+                'view-syslog'     => 'View Syslog Messages & Search',
+                'manage-syslog'   => 'Manage Syslog Alert Rules',
             ],
             'Platform' => [
                 'manage-workflow-templates' => 'Edit Workflow Types & Approval Chains',
@@ -151,6 +153,7 @@ class RolePermission extends Model
             'view-network', 'view-assets', 'view-printers',
             'view-workflows', 'view-employees', 'view-noc',
             'view-dhcp-leases', 'view-sophos', 'view-dns', 'view-admin-links',
+            'view-syslog',
         ];
         $hrPerms = [
             'submit-hr-onboarding',

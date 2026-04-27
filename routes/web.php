@@ -948,6 +948,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::post('alert-states/{alertState}/acknowledge',[AlertRuleController::class, 'acknowledge']) ->name('alert-states.acknowledge');
     Route::get('alerts/dashboard',                      [AlertRuleController::class, 'alerts'])      ->name('alerts.dashboard');
 
+    // ─── Syslog (rsyslog → MySQL → UI) ───────────────────────
+    Route::middleware('permission:view-syslog')->prefix('syslog')->name('syslog.')->group(function () {
+        Route::get('/',         [\App\Http\Controllers\Admin\SyslogController::class, 'index'])->name('index');
+        Route::get('/tail',     [\App\Http\Controllers\Admin\SyslogController::class, 'tail'])->name('tail');
+        Route::get('/{id}',     [\App\Http\Controllers\Admin\SyslogController::class, 'show'])->name('show')->whereNumber('id');
+    });
+    Route::middleware('permission:manage-syslog')->prefix('syslog')->name('syslog.')->group(function () {
+        Route::get('/rules',                 [\App\Http\Controllers\Admin\SyslogController::class, 'rulesIndex'])->name('rules.index');
+        Route::get('/rules/create',          [\App\Http\Controllers\Admin\SyslogController::class, 'rulesCreate'])->name('rules.create');
+        Route::post('/rules',                [\App\Http\Controllers\Admin\SyslogController::class, 'rulesStore'])->name('rules.store');
+        Route::get('/rules/{rule}/edit',     [\App\Http\Controllers\Admin\SyslogController::class, 'rulesEdit'])->name('rules.edit');
+        Route::put('/rules/{rule}',          [\App\Http\Controllers\Admin\SyslogController::class, 'rulesUpdate'])->name('rules.update');
+        Route::delete('/rules/{rule}',       [\App\Http\Controllers\Admin\SyslogController::class, 'rulesDestroy'])->name('rules.destroy');
+        Route::post('/run-processors',       [\App\Http\Controllers\Admin\SyslogController::class, 'runProcessors'])->name('run-processors');
+    });
+
     // ─── Workflows ────────────────────────────────────────────
     Route::middleware('permission:view-workflows')->group(function () {
         Route::get('workflows',              [WorkflowController::class, 'index'])      ->name('workflows.index');

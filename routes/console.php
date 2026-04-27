@@ -385,3 +385,33 @@ Schedule::command('onboarding:remind-managers')
     ->dailyAt('09:00')
     ->withoutOverlapping(30)
     ->name('remind-onboarding-managers');
+
+// ──────────────────────────────────────────────────────────────────────
+// Syslog pipeline — rsyslog writes raw rows directly into MySQL via
+// ommysql; the jobs below classify senders and turn matching rows into
+// NocEvents. They run inline (no queue worker on shared hosting).
+// ──────────────────────────────────────────────────────────────────────
+
+// Tag source_type / source_id on freshly-received syslog rows by IP
+// against SophosFirewall / UcmServer / Printer / MonitoredHost.
+Schedule::call(function () {
+    try { (new \App\Jobs\TagSyslogSourcesJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('TagSyslogSourcesJob failed: ' . $e->getMessage());
+    }
+})->name('tag-syslog-sources')->withoutOverlapping(5)->everyMinute();
+
+// Run user-defined alert rules over recent syslog rows and surface
+// matches as NocEvents (so the existing notification routing fires).
+Schedule::call(function () {
+    try { (new \App\Jobs\MatchSyslogAlertsJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('MatchSyslogAlertsJob failed: ' . $e->getMessage());
+    }
+})->name('match-syslog-alerts')->withoutOverlapping(5)->everyMinute();
+
+// Daily prune — drops syslog_messages rows older than the retention
+// window (Setting::syslog_retention_days, default 30).
+Schedule::call(function () {
+    try { (new \App\Jobs\PruneOldSyslogJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('PruneOldSyslogJob failed: ' . $e->getMessage());
+    }
+})->name('prune-old-syslog')->withoutOverlapping(60)->dailyAt('03:30');
