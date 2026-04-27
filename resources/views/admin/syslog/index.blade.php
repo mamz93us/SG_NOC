@@ -10,6 +10,9 @@
         <a href="{{ route('admin.syslog.sophos') }}" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-shield-fill-check me-1"></i>Sophos viewer
         </a>
+        <a href="{{ route('admin.syslog.ucm') }}" class="btn btn-outline-info btn-sm">
+            <i class="bi bi-telephone-fill me-1"></i>UCM viewer
+        </a>
         @can('manage-syslog')
         <a href="{{ route('admin.syslog.rules.index') }}" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-bell me-1"></i>Alert Rules

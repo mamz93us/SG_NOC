@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\SyslogMessage;
+use App\Services\AsteriskSyslogParser;
 use App\Services\SophosSyslogParser;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -44,7 +45,7 @@ class ParseSyslogPayloadsJob implements ShouldQueue
 
     public function handle(): void
     {
-        $parsable = ['sophos'];
+        $parsable = ['sophos', 'ucm'];
 
         $rows = DB::table('syslog_messages')
             ->select(['id', 'source_type', 'raw', 'program', 'message'])
@@ -57,8 +58,9 @@ class ParseSyslogPayloadsJob implements ShouldQueue
 
         if ($rows->isEmpty()) return;
 
-        $started = microtime(true);
-        $sophos  = app(SophosSyslogParser::class);
+        $started  = microtime(true);
+        $sophos   = app(SophosSyslogParser::class);
+        $asterisk = app(AsteriskSyslogParser::class);
 
         // id => json string. We pre-encode here so the DB layer doesn't
         // re-encode on every row.
@@ -77,6 +79,7 @@ class ParseSyslogPayloadsJob implements ShouldQueue
 
             $fields = match ($row->source_type) {
                 'sophos' => $sophos->parse($body),
+                'ucm'    => $asterisk->parse($body),
                 default  => [],
             };
 

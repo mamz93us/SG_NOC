@@ -149,6 +149,93 @@ class SyslogController extends Controller
         ]);
     }
 
+    /**
+     * UCM / Asterisk log viewer — single line per event with the
+     * Asterisk-internal severity (NOTICE/WARNING/ERROR/SECURITY) shown
+     * separately from the syslog severity, plus call_id / file:line /
+     * function pulled out of the parsed JSON.
+     */
+    public function ucm(Request $request): View
+    {
+        $q = SyslogMessage::query()->where('source_type', 'ucm');
+
+        $filters = [
+            'host'              => trim((string) $request->get('host', '')),
+            'asterisk_severity' => (string) $request->get('asterisk_severity', ''),
+            'program'           => (string) $request->get('program', ''),
+            'call_id'           => trim((string) $request->get('call_id', '')),
+            'security'          => (string) $request->get('security', ''),
+            'search'            => trim((string) $request->get('search', '')),
+            'since'             => (string) $request->get('since', '24h'),
+        ];
+
+        if ($filters['host'] !== '') {
+            $q->where('host', 'like', '%' . $filters['host'] . '%');
+        }
+        if ($filters['asterisk_severity'] !== '') {
+            $q->whereJsonContains('parsed->asterisk_severity', $filters['asterisk_severity']);
+        }
+        if ($filters['program'] !== '') {
+            $q->whereJsonContains('parsed->program', $filters['program']);
+        }
+        if ($filters['call_id'] !== '') {
+            $q->whereJsonContains('parsed->call_id', $filters['call_id']);
+        }
+        if ($filters['security'] === '1') {
+            // Only rows that carry a SecurityEvent tag.
+            $q->whereRaw("JSON_EXTRACT(parsed, '$.security_event') IS NOT NULL");
+        }
+        if ($filters['search'] !== '') {
+            $q->where('message', 'like', '%' . $filters['search'] . '%');
+        }
+
+        $since = $this->parseSince($filters['since']);
+        if ($since) {
+            $q->where('received_at', '>=', $since);
+        }
+
+        $messages = $q->orderByDesc('received_at')->paginate(75)->withQueryString();
+        $distinct = $this->ucmDistincts($since);
+
+        return view('admin.syslog.ucm', [
+            'messages' => $messages,
+            'filters'  => $filters,
+            'severities' => $distinct['severities'],
+            'programs'   => $distinct['programs'],
+        ]);
+    }
+
+    private function ucmDistincts(?\Illuminate\Support\Carbon $since): array
+    {
+        $base = SyslogMessage::query()
+            ->where('source_type', 'ucm')
+            ->whereNotNull('parsed');
+
+        if ($since) {
+            $base->where('received_at', '>=', $since);
+        }
+
+        $severities = (clone $base)
+            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.asterisk_severity')) AS v")
+            ->whereRaw("JSON_EXTRACT(parsed, '$.asterisk_severity') IS NOT NULL")
+            ->orderBy('v')
+            ->pluck('v')
+            ->filter()
+            ->values()
+            ->all();
+
+        $programs = (clone $base)
+            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.program')) AS v")
+            ->whereRaw("JSON_EXTRACT(parsed, '$.program') IS NOT NULL")
+            ->orderBy('v')
+            ->pluck('v')
+            ->filter()
+            ->values()
+            ->all();
+
+        return ['severities' => $severities, 'programs' => $programs];
+    }
+
     private function sophosDistincts(?\Illuminate\Support\Carbon $since): array
     {
         $base = SyslogMessage::query()
@@ -352,7 +439,7 @@ class SyslogController extends Controller
         // Parser backlog — rows tagged with a parsable source_type but
         // not yet processed by ParseSyslogPayloadsJob.
         $parserPending = SyslogMessage::query()
-            ->whereIn('source_type', ['sophos'])
+            ->whereIn('source_type', ['sophos', 'ucm'])
             ->whereNull('parsed')
             ->count();
 

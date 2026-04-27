@@ -375,7 +375,8 @@
       "Bash(php -l app/Services/SophosSyslogParser.php)",
       "Bash(php -l app/Jobs/ParseSyslogPayloadsJob.php)",
       "Bash(php -l app/Http/Controllers/Admin/SyslogController.php)",
-      "Bash(php -l database/migrations/2026_04_27_100004_add_parsed_to_syslog_messages.php)"
+      "Bash(php -l database/migrations/2026_04_27_100004_add_parsed_to_syslog_messages.php)",
+      "Bash(php -l app/Services/AsteriskSyslogParser.php)"
     ]
   }
 }
