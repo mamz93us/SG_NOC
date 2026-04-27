@@ -58,17 +58,13 @@ class CollectSnmpMetricsJob implements ShouldQueue
             return;
         }
 
-        // Redis cache lock: skip if this host was recently polled
-        try {
-            if (Cache::store('redis')->has("snmp_lock_{$host->id}")) {
-                Log::debug("CollectSnmpMetricsJob: Skipping host {$host->ip} (ID: {$host->id}) — cache lock active.");
-                return;
-            }
-        } catch (\Throwable $e) {
-            // Redis unavailable — continue polling regardless
-            Log::debug("CollectSnmpMetricsJob: Redis cache check failed for host {$host->id}, continuing poll.", [
-                'error' => $e->getMessage(),
-            ]);
+        // Cache lock: skip if this host was recently polled. Uses the default
+        // cache store (database, redis, file — whatever CACHE_STORE is set to).
+        // Hardcoding Cache::store('redis') broke on installs without phpredis
+        // and spammed the log every poll with "Class \"Redis\" not found".
+        if (Cache::has("snmp_lock_{$host->id}")) {
+            Log::debug("CollectSnmpMetricsJob: Skipping host {$host->ip} (ID: {$host->id}) — cache lock active.");
+            return;
         }
 
         $client = null;
@@ -174,15 +170,8 @@ class CollectSnmpMetricsJob implements ShouldQueue
                 }
                 $host->save();
 
-                // Set Redis cache lock after successful poll (240 second TTL)
-                try {
-                    Cache::store('redis')->put("snmp_lock_{$host->id}", true, 240);
-                } catch (\Throwable $e) {
-                    // Redis unavailable — continue without lock
-                    Log::debug("CollectSnmpMetricsJob: Failed to set Redis cache lock for host {$host->id}.", [
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+                // Set cache lock after successful poll (240 second TTL).
+                Cache::put("snmp_lock_{$host->id}", true, 240);
             }
 
         } catch (\Exception $e) {
