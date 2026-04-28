@@ -47,7 +47,7 @@
     <div class="col-6 col-md-2"><div class="card border-0 shadow-sm"><div class="card-body py-2"><div class="text-muted small">Critical (≤crit)</div><div class="fs-5 fw-bold text-danger">{{ number_format($stats['critical']) }}</div></div></div></div>
     <div class="col-6 col-md-2"><div class="card border-0 shadow-sm"><div class="card-body py-2"><div class="text-muted small">Errors</div><div class="fs-5 fw-bold text-danger">{{ number_format($stats['errors']) }}</div></div></div></div>
     <div class="col-6 col-md-2"><div class="card border-0 shadow-sm"><div class="card-body py-2"><div class="text-muted small">Warnings</div><div class="fs-5 fw-bold text-warning">{{ number_format($stats['warnings']) }}</div></div></div></div>
-    <div class="col-6 col-md-2"><div class="card border-0 shadow-sm"><div class="card-body py-2"><div class="text-muted small">Unique hosts</div><div class="fs-5 fw-bold">{{ number_format($stats['unique_hosts']) }}</div></div></div></div>
+    <div class="col-6 col-md-2"><div class="card border-0 shadow-sm"><div class="card-body py-2"><div class="text-muted small">Source kinds</div><div class="fs-5 fw-bold">{{ number_format($stats['active_sources']) }}</div></div></div></div>
     <div class="col-6 col-md-2"><div class="card border-0 shadow-sm"><div class="card-body py-2"><div class="text-muted small d-flex justify-content-between"><span>Parser backlog</span>@if($stats['parser_pending'] > 0)<i class="bi bi-hourglass-split text-warning" title="Rows tagged but not yet parsed"></i>@endif</div><div class="fs-5 fw-bold {{ $stats['parser_pending'] > 0 ? 'text-warning' : 'text-success' }}">{{ number_format($stats['parser_pending']) }}</div></div></div></div>
 </div>
 

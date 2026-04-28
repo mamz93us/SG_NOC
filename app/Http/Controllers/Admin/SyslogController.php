@@ -55,13 +55,18 @@ class SyslogController extends Controller
             $q->where('received_at', '>=', $since);
         }
 
+        // simplePaginate avoids the COUNT(*) that paginate() runs every
+        // page hit. With 1M+ rows that COUNT was the bottleneck — we
+        // trade away "page 14 of 14,732" footer for fast loads.
         $messages = $q->orderByDesc('received_at')
-            ->paginate(100)
+            ->simplePaginate(100)
             ->withQueryString();
 
-        // Headline counters for the top of the page (cheap separate
-        // queries — they all hit the same indexes).
-        $stats = $this->stats($since);
+        // Stats aggregations would otherwise full-scan even with a 24h
+        // window when total volume is high. Cache the whole bundle for
+        // 60s — the dashboard tolerates that level of staleness.
+        $statsKey = 'syslog.stats:' . md5(serialize($filters));
+        $stats = cache()->remember($statsKey, 60, fn () => $this->stats($since));
 
         return view('admin.syslog.index', [
             'messages'      => $messages,
@@ -135,7 +140,7 @@ class SyslogController extends Controller
             $q->where('received_at', '>=', $since);
         }
 
-        $messages = $q->orderByDesc('received_at')->paginate(75)->withQueryString();
+        $messages = $q->orderByDesc('received_at')->simplePaginate(75)->withQueryString();
 
         // Pull distinct values for the subtype/component dropdowns —
         // limited to recent rows to keep the query fast.
@@ -194,7 +199,7 @@ class SyslogController extends Controller
             $q->where('received_at', '>=', $since);
         }
 
-        $messages = $q->orderByDesc('received_at')->paginate(75)->withQueryString();
+        $messages = $q->orderByDesc('received_at')->simplePaginate(75)->withQueryString();
         $distinct = $this->ucmDistincts($since);
 
         return view('admin.syslog.ucm', [
@@ -419,11 +424,13 @@ class SyslogController extends Controller
 
     private function stats(?\Illuminate\Support\Carbon $since): array
     {
+        // Stats are bounded by the time window — without one, a multi-
+        // million row table makes every aggregate slow. Force a cap.
         $base = SyslogMessage::query();
-        if ($since) {
-            $base->where('received_at', '>=', $since);
-        }
+        $base->where('received_at', '>=', $since ?? now()->subDay());
 
+        // Single GROUP BY over (severity) — uses (severity, received_at)
+        // index. Same for source_type below.
         $bySeverity = (clone $base)
             ->selectRaw('severity, COUNT(*) as c')
             ->groupBy('severity')
@@ -446,14 +453,20 @@ class SyslogController extends Controller
                 ->count()
         );
 
+        // Total derives from the per-source breakdown — no extra query.
+        $total = (int) collect($bySource)->sum();
+
         return [
-            'total'          => (clone $base)->count(),
+            'total'          => $total,
             'critical'       => collect($bySeverity)->filter(fn($_, $sev) => (int)$sev <= 2)->sum(),
             'errors'         => (int) ($bySeverity[3] ?? 0),
             'warnings'       => (int) ($bySeverity[4] ?? 0),
             'by_severity'    => $bySeverity->toArray(),
             'by_source'      => $bySource->toArray(),
-            'unique_hosts'   => (clone $base)->distinct('host')->count('host'),
+            // Counting DISTINCT host requires a full scan + sort with no
+            // useful index — drop it for the cheap "active source kinds"
+            // gauge instead, which the same GROUP BY already produced.
+            'active_sources' => count($bySource),
             'parser_pending' => $parserPending,
         ];
     }
