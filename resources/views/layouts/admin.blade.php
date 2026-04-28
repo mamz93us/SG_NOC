@@ -255,6 +255,22 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('manage-radius')
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-shield-lock me-1"></i>RADIUS / 802.1X</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.radius.nas.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.radius.nas.index') }}">
+                                    <i class="bi bi-router me-2"></i>NAS Clients
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.radius.vlan.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.radius.vlan.index') }}">
+                                    <i class="bi bi-diagram-3 me-2"></i>VLAN Policy
+                                </a>
+                            </li>
+                            @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-globe2 me-1"></i>DNS</h6></li>
                             <li>

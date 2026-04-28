@@ -1,0 +1,69 @@
+# =============================================================================
+# SG-NOC MAB virtual server
+# =============================================================================
+# MAC Authentication Bypass: switch sends Access-Request where User-Name is
+# the MAC. We normalise the MAC, look it up in device_macs, and answer
+# Accept (with VLAN) or Reject. No EAP, no inner-tunnel.
+#
+# Symlink: /etc/freeradius/3.0/sites-enabled/sg-noc-mab → this file
+# Disable the bundled `default` and `inner-tunnel` sites — we don't need them.
+# =============================================================================
+
+server sg-noc-mab {
+
+    listen {
+        type   = auth
+        ipaddr = *
+        port   = 1812
+    }
+
+    authorize {
+        # 1. Normalise User-Name and Calling-Station-Id to AA:BB:CC:DD:EE:FF.
+        sg_mac_normalize
+
+        # 2. Reject with a clear reason if the MAC didn't normalise (User-Name
+        #    isn't a valid MAC at all). Prevents bogus rows in the SQL log.
+        if (User-Name !~ /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/) {
+            update reply { Reply-Message := "invalid-mac-format" }
+            reject
+        }
+
+        # 3. Allow only MAB-style requests. Switches set Service-Type=Call-Check
+        #    for MAB; reject anything else (PAP/CHAP/EAP) at this server because
+        #    we deliberately don't handle EAP in v1.
+        if (&Service-Type && &Service-Type != "Call-Check") {
+            update reply { Reply-Message := "service-type-not-supported" }
+            reject
+        }
+
+        # 4. Look up the MAC. authorize_check_query sets Auth-Type := Accept
+        #    when allowed; nothing matches → notfound.
+        sql
+
+        if (notfound) {
+            update reply { Reply-Message := "mac-not-registered" }
+            reject
+        }
+
+        if (ok || updated) {
+            # authorize_reply_query has already populated Tunnel-* attrs
+            # (or returned no rows → switch falls back to its default VLAN).
+        }
+    }
+
+    # MAB short-circuits authentication via Auth-Type := Accept set in
+    # authorize. There is no real authenticate phase to run, but FreeRADIUS
+    # requires the section to exist.
+    authenticate {
+    }
+
+    post-auth {
+        # No SQL post-auth insert in MVP — auditing relies on the FreeRADIUS
+        # log file (/var/log/freeradius/radius.log). v2 adds a log table.
+
+        Post-Auth-Type REJECT {
+            # Rejected by the policy. Nothing extra to do — Reply-Message
+            # is already set from the authorize stage.
+        }
+    }
+}

@@ -207,65 +207,63 @@ class SyslogController extends Controller
 
     private function ucmDistincts(?\Illuminate\Support\Carbon $since): array
     {
-        $base = SyslogMessage::query()
-            ->where('source_type', 'ucm')
-            ->whereNotNull('parsed');
+        // JSON_EXTRACT can't use indexes, so on a multi-million row table
+        // these DISTINCT queries are the slowest thing on the page.
+        // Cache for 5 minutes, and always scope to the last 24h so we
+        // never full-scan the whole partition.
+        return cache()->remember('syslog.ucm.distincts', 300, function () {
+            $base = SyslogMessage::query()
+                ->where('source_type', 'ucm')
+                ->whereNotNull('parsed')
+                ->where('received_at', '>=', now()->subDay());
 
-        if ($since) {
-            $base->where('received_at', '>=', $since);
-        }
+            $severities = (clone $base)
+                ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.asterisk_severity')) AS v")
+                ->whereRaw("JSON_EXTRACT(parsed, '$.asterisk_severity') IS NOT NULL")
+                ->orderBy('v')
+                ->pluck('v')
+                ->filter()->values()->all();
 
-        $severities = (clone $base)
-            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.asterisk_severity')) AS v")
-            ->whereRaw("JSON_EXTRACT(parsed, '$.asterisk_severity') IS NOT NULL")
-            ->orderBy('v')
-            ->pluck('v')
-            ->filter()
-            ->values()
-            ->all();
+            $programs = (clone $base)
+                ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.program')) AS v")
+                ->whereRaw("JSON_EXTRACT(parsed, '$.program') IS NOT NULL")
+                ->orderBy('v')
+                ->pluck('v')
+                ->filter()->values()->all();
 
-        $programs = (clone $base)
-            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.program')) AS v")
-            ->whereRaw("JSON_EXTRACT(parsed, '$.program') IS NOT NULL")
-            ->orderBy('v')
-            ->pluck('v')
-            ->filter()
-            ->values()
-            ->all();
-
-        return ['severities' => $severities, 'programs' => $programs];
+            return ['severities' => $severities, 'programs' => $programs];
+        });
     }
 
     private function sophosDistincts(?\Illuminate\Support\Carbon $since): array
     {
-        $base = SyslogMessage::query()
-            ->where('source_type', 'sophos')
-            ->whereNotNull('parsed');
+        // JSON_EXTRACT bypasses indexes, so on a multi-million row Sophos
+        // partition the original "scan everything since the filter window"
+        // approach hits PHP-FPM's max_execution_time and the page 504s.
+        // Cache the dropdown values for 5 minutes; always scope to the
+        // last 24h so we never full-scan the whole partition.
+        return cache()->remember('syslog.sophos.distincts', 300, function () {
+            $base = SyslogMessage::query()
+                ->where('source_type', 'sophos')
+                ->whereNotNull('parsed')
+                ->where('received_at', '>=', now()->subDay());
 
-        if ($since) {
-            $base->where('received_at', '>=', $since);
-        }
+            $components = (clone $base)
+                ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.log_component')) AS v")
+                ->whereRaw("JSON_EXTRACT(parsed, '$.log_component') IS NOT NULL")
+                ->orderBy('v')
+                ->pluck('v')
+                ->filter()->values()->all();
 
-        // JSON_UNQUOTE keeps the values clean (no surrounding quotes).
-        $components = (clone $base)
-            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.log_component')) AS v")
-            ->whereRaw("JSON_EXTRACT(parsed, '$.log_component') IS NOT NULL")
-            ->orderBy('v')
-            ->pluck('v')
-            ->filter()
-            ->values()
-            ->all();
+            $subtypes = (clone $base)
+                ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.log_subtype')) AS v")
+                ->whereRaw("JSON_EXTRACT(parsed, '$.log_subtype') IS NOT NULL")
+                ->orderBy('v')
+                ->pluck('v')
+                ->filter()->values()->all();
 
-        $subtypes = (clone $base)
-            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(parsed, '$.log_subtype')) AS v")
-            ->whereRaw("JSON_EXTRACT(parsed, '$.log_subtype') IS NOT NULL")
-            ->orderBy('v')
-            ->pluck('v')
-            ->filter()
-            ->values()
-            ->all();
-
-        return ['components' => $components, 'subtypes' => $subtypes];
+            return ['components' => $components, 'subtypes' => $subtypes];
+        });
     }
 
     /**
@@ -437,11 +435,16 @@ class SyslogController extends Controller
             ->pluck('c', 'st');
 
         // Parser backlog — rows tagged with a parsable source_type but
-        // not yet processed by ParseSyslogPayloadsJob.
-        $parserPending = SyslogMessage::query()
-            ->whereIn('source_type', ['sophos', 'ucm'])
-            ->whereNull('parsed')
-            ->count();
+        // not yet processed by ParseSyslogPayloadsJob. Cached for 60s
+        // because at multi-million-row scale this COUNT runs on every
+        // page load even though the answer barely moves between ticks.
+        $parserPending = cache()->remember(
+            'syslog.parser_pending', 60,
+            fn () => SyslogMessage::query()
+                ->whereIn('source_type', ['sophos', 'ucm'])
+                ->whereNull('parsed')
+                ->count()
+        );
 
         return [
             'total'          => (clone $base)->count(),

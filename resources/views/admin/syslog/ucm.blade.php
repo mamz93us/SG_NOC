@@ -27,8 +27,11 @@
 </div>
 
 @php
-    $backlog = \App\Models\SyslogMessage::where('source_type', 'ucm')
-                ->whereNull('parsed')->count();
+    $backlog = \Illuminate\Support\Facades\Cache::remember(
+        'syslog.ucm.backlog', 60,
+        fn () => \App\Models\SyslogMessage::where('source_type', 'ucm')
+                    ->whereNull('parsed')->count()
+    );
 @endphp
 <div class="alert {{ $backlog > 0 ? 'alert-warning' : 'alert-success' }} py-2 mb-3 d-flex justify-content-between align-items-center">
     <div>

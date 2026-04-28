@@ -24,7 +24,9 @@ class MacAddressController extends Controller
     public function index(Request $request)
     {
         // ── 1. device_macs table (Intune-synced) ─────────────────────
-        $macsQuery = DeviceMac::with(['azureDevice', 'device'])
+        // Eager-load radiusOverride so the view can render the RADIUS
+        // allow/deny + VLAN override column without N+1 queries.
+        $macsQuery = DeviceMac::with(['azureDevice', 'device', 'radiusOverride'])
             ->when($request->filled('search'), function ($q) use ($request) {
                 $s = $request->search;
                 $q->where(function ($inner) use ($s) {

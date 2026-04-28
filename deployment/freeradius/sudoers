@@ -1,0 +1,21 @@
+# =============================================================================
+# /etc/sudoers.d/sg-radius
+# =============================================================================
+# Lets the webserver user invoke `sg-radius-control` for the two whitelisted
+# subcommands below — nothing else. Keep this file mode 0440 root:root.
+#
+# Install:
+#   sudo cp deployment/freeradius/sudoers /etc/sudoers.d/sg-radius
+#   sudo chmod 0440 /etc/sudoers.d/sg-radius
+#   sudo visudo -c -f /etc/sudoers.d/sg-radius   # validate before reload
+# =============================================================================
+
+# Adjust the user name to match your PHP-FPM pool / nginx worker.
+# Common values:  www-data (Ubuntu/Debian), nginx (RHEL), azureuser (this repo).
+azureuser ALL=(root) NOPASSWD: /usr/local/bin/sg-radius-control reload-clients
+azureuser ALL=(root) NOPASSWD: /usr/local/bin/sg-radius-control restart
+www-data  ALL=(root) NOPASSWD: /usr/local/bin/sg-radius-control reload-clients
+www-data  ALL=(root) NOPASSWD: /usr/local/bin/sg-radius-control restart
+
+# Block everything else explicitly.
+Defaults!/usr/local/bin/sg-radius-control !requiretty

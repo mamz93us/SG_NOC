@@ -27,8 +27,14 @@
 </div>
 
 @php
-    $backlog = \App\Models\SyslogMessage::where('source_type', 'sophos')
-                ->whereNull('parsed')->count();
+    // Cached for 60s — count(*) on millions of rows is fast with the
+    // (source_type, received_at) index but still adds up when the page
+    // is hit frequently.
+    $backlog = \Illuminate\Support\Facades\Cache::remember(
+        'syslog.sophos.backlog', 60,
+        fn () => \App\Models\SyslogMessage::where('source_type', 'sophos')
+                    ->whereNull('parsed')->count()
+    );
 @endphp
 <div class="alert {{ $backlog > 0 ? 'alert-warning' : 'alert-success' }} py-2 mb-3 d-flex justify-content-between align-items-center">
     <div>

@@ -376,7 +376,18 @@
       "Bash(php -l app/Jobs/ParseSyslogPayloadsJob.php)",
       "Bash(php -l app/Http/Controllers/Admin/SyslogController.php)",
       "Bash(php -l database/migrations/2026_04_27_100004_add_parsed_to_syslog_messages.php)",
-      "Bash(php -l app/Services/AsteriskSyslogParser.php)"
+      "Bash(php -l app/Services/AsteriskSyslogParser.php)",
+      "Bash(ssh -t -i \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\SG-NOC_key.pem\" azureuser@noc.samirgroup.net \"sudo resize2fs -P /dev/sda1; echo '---'; sudo tune2fs -l /dev/sda1 | grep -E 'Block count|Block size|Reserved'\")",
+      "Bash(php -l app/Models/RadiusNasClient.php)",
+      "Bash(php -l app/Models/RadiusBranchVlanPolicy.php)",
+      "Bash(php -l app/Models/RadiusMacOverride.php)",
+      "Bash(php -l app/Models/DeviceMac.php)",
+      "Bash(php -l app/Services/RadiusVlanPolicyResolver.php)",
+      "Bash(php -l database/migrations/2026_04_28_100001_create_radius_nas_clients_table.php)",
+      "Bash(php -l database/migrations/2026_04_28_100002_create_radius_branch_vlan_policy_table.php)",
+      "Bash(php -l database/migrations/2026_04_28_100003_create_radius_mac_overrides_table.php)",
+      "Bash(php -l database/migrations/2026_04_28_100010_add_radius_permissions.php)",
+      "Bash(php -l config/radius.php)"
     ]
   }
 }

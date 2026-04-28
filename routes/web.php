@@ -1103,6 +1103,32 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/mac-address', [\App\Http\Controllers\Admin\MacAddressController::class, 'index'])->name('mac-address');
     });
 
+    // ─── RADIUS (MAC Authentication / MAB) ────────────────────────
+    Route::middleware('permission:manage-radius')->prefix('radius')->name('radius.')->group(function () {
+        Route::redirect('/', '/admin/radius/nas');
+
+        // NAS clients (switches / APs allowed to query us)
+        Route::get('nas',                    [\App\Http\Controllers\Admin\RadiusNasController::class, 'index'])  ->name('nas.index');
+        Route::get('nas/create',             [\App\Http\Controllers\Admin\RadiusNasController::class, 'create']) ->name('nas.create');
+        Route::post('nas',                   [\App\Http\Controllers\Admin\RadiusNasController::class, 'store'])  ->name('nas.store');
+        Route::get('nas/{nas}/edit',         [\App\Http\Controllers\Admin\RadiusNasController::class, 'edit'])   ->name('nas.edit');
+        Route::put('nas/{nas}',              [\App\Http\Controllers\Admin\RadiusNasController::class, 'update']) ->name('nas.update');
+        Route::delete('nas/{nas}',           [\App\Http\Controllers\Admin\RadiusNasController::class, 'destroy'])->name('nas.destroy');
+        Route::post('nas/reload',            [\App\Http\Controllers\Admin\RadiusNasController::class, 'reload']) ->name('nas.reload');
+
+        // VLAN policy (per-branch defaults)
+        Route::get('vlan-policy',            [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'index'])  ->name('vlan.index');
+        Route::get('vlan-policy/create',     [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'create']) ->name('vlan.create');
+        Route::post('vlan-policy',           [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'store'])  ->name('vlan.store');
+        Route::get('vlan-policy/preview',    [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'preview'])->name('vlan.preview');
+        Route::get('vlan-policy/{policy}/edit',  [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'edit'])   ->name('vlan.edit');
+        Route::put('vlan-policy/{policy}',       [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'update']) ->name('vlan.update');
+        Route::delete('vlan-policy/{policy}',    [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'destroy'])->name('vlan.destroy');
+
+        // Per-MAC override (called from /admin/itam/mac-address modal)
+        Route::post('mac-overrides/{deviceMac}', [\App\Http\Controllers\Admin\RadiusMacOverrideController::class, 'upsert'])->name('mac-overrides.upsert');
+    });
+
     // ─── Suppliers ────────────────────────────────────────────────
     Route::middleware('permission:view-itam')->prefix('itam/suppliers')->name('itam.suppliers.')->group(function () {
         Route::get('/', [SupplierController::class, 'index'])->name('index');

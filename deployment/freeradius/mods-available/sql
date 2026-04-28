@@ -1,0 +1,185 @@
+# =============================================================================
+# SG-NOC FreeRADIUS rlm_sql configuration
+# =============================================================================
+# Reads from the existing Laravel `phonebook2` MySQL database.
+#
+# Replaces the stock /etc/freeradius/3.0/mods-available/sql.
+# Self-contained — does NOT $INCLUDE the bundled queries.conf, because that
+# file references radcheck/radreply/radusergroup tables we don't create.
+# Every query that FreeRADIUS calls is defined explicitly below.
+#
+# Connection password is in mods-config/sql/secret.conf (mode 640 root:freerad)
+# and pulled in via $INCLUDE. Never put the password directly in this file.
+# =============================================================================
+
+sql {
+    driver  = "rlm_sql_mysql"
+    dialect = "mysql"
+
+    server   = "127.0.0.1"
+    port     = 3306
+    login    = "freeradius"
+    radius_db = "phonebook2"
+
+    # Pulled in: defines `password = "..."` (chmod 640 root:freerad).
+    $INCLUDE ${modconfdir}/${.:name}/secret.conf
+
+    # ----- Schema discovery is OFF -----
+    # We don't use the default radacct/radpostauth/radcheck/radreply tables.
+    # Set the names to obviously-bogus values so any stray reference fails
+    # loudly during config check (`freeradius -CX`) rather than silently.
+    acct_table1   = "_unused_acct1"
+    acct_table2   = "_unused_acct2"
+    postauth_table = "_unused_postauth"
+    authcheck_table = "_unused_authcheck"
+    authreply_table = "_unused_authreply"
+    groupcheck_table = "_unused_groupcheck"
+    groupreply_table = "_unused_groupreply"
+    usergroup_table = "_unused_usergroup"
+
+    # ----- NAS clients (switches/APs allowed to query us) -----
+    # Read from radius_nas_clients on startup and on `radmin reload clients`.
+    read_clients = yes
+    client_table = "radius_nas_clients"
+
+    # The default client_query references columns we don't have (server/community).
+    # We provide constants for those so the module's parser is satisfied.
+    client_query = "\
+SELECT id, nasname, shortname, type, secret, '' AS server, 0 AS ports, \
+       '' AS community, COALESCE(description, '') AS description \
+FROM   radius_nas_clients \
+WHERE  is_active = 1"
+
+    # ----- Authorization: lookup the MAC -----
+    # Returns one row when:
+    #   - MAC exists in device_macs
+    #   - device_macs.is_active = 1
+    #   - radius_mac_overrides.radius_enabled = 1 (or no override row)
+    #
+    # The Auth-Type := Accept trick short-circuits the authenticate stage so we
+    # never need a "password" — this is MAC Authentication Bypass (MAB).
+    #
+    # %{User-Name} has already been normalised to AA:BB:CC:DD:EE:FF by
+    # policy.d/mac_normalize before this query runs.
+    authorize_check_query = "\
+SELECT dm.id AS id, '%{SQL-User-Name}' AS username, \
+       'Auth-Type' AS attribute, 'Accept' AS value, ':=' AS op \
+FROM   device_macs dm \
+LEFT JOIN radius_mac_overrides ovr ON ovr.device_mac_id = dm.id \
+WHERE  dm.mac_address = '%{SQL-User-Name}' \
+  AND  dm.is_active = 1 \
+  AND  COALESCE(ovr.radius_enabled, 1) = 1 \
+LIMIT  1"
+
+    # ----- Authorization: build the VLAN reply -----
+    # Returns the three RFC 3580 attributes when a VLAN can be resolved
+    # (per-MAC override > most-specific branch policy). When no VLAN
+    # resolves, returns zero rows → switch falls back to its own default
+    # VLAN. Failsafe for rollout.
+    #
+    # Branch is taken from devices.branch_id, falling back to
+    # azure_devices → devices.branch_id.
+    authorize_reply_query = "\
+SELECT id, username, attribute, value, op FROM ( \
+    SELECT \
+        dm.id AS id, \
+        '%{SQL-User-Name}' AS username, \
+        'Tunnel-Type' AS attribute, \
+        'VLAN' AS value, \
+        ':=' AS op, \
+        1 AS sort \
+    FROM device_macs dm \
+    LEFT JOIN radius_mac_overrides ovr ON ovr.device_mac_id = dm.id \
+    LEFT JOIN devices d                ON d.id = dm.device_id \
+    LEFT JOIN azure_devices ad         ON ad.id = dm.azure_device_id \
+    LEFT JOIN devices ad_dev           ON ad_dev.id = ad.device_id \
+    LEFT JOIN radius_branch_vlan_policy p \
+           ON p.branch_id = COALESCE(d.branch_id, ad_dev.branch_id) \
+          AND p.adapter_type IN (dm.adapter_type, 'any') \
+          AND (p.device_type IS NULL OR p.device_type = COALESCE(d.type, '')) \
+    WHERE dm.mac_address = '%{SQL-User-Name}' \
+      AND dm.is_active = 1 \
+      AND COALESCE(ovr.radius_enabled, 1) = 1 \
+      AND COALESCE(ovr.vlan_override, p.vlan_id) IS NOT NULL \
+    ORDER BY \
+        CASE WHEN p.adapter_type = dm.adapter_type THEN 0 ELSE 1 END, \
+        CASE WHEN p.device_type IS NOT NULL THEN 0 ELSE 1 END, \
+        p.priority \
+    LIMIT 1 \
+) t \
+UNION ALL \
+SELECT dm.id, '%{SQL-User-Name}', 'Tunnel-Medium-Type', 'IEEE-802', ':=', 2 \
+FROM device_macs dm \
+LEFT JOIN radius_mac_overrides ovr ON ovr.device_mac_id = dm.id \
+LEFT JOIN devices d                ON d.id = dm.device_id \
+LEFT JOIN azure_devices ad         ON ad.id = dm.azure_device_id \
+LEFT JOIN devices ad_dev           ON ad_dev.id = ad.device_id \
+LEFT JOIN radius_branch_vlan_policy p \
+       ON p.branch_id = COALESCE(d.branch_id, ad_dev.branch_id) \
+      AND p.adapter_type IN (dm.adapter_type, 'any') \
+      AND (p.device_type IS NULL OR p.device_type = COALESCE(d.type, '')) \
+WHERE dm.mac_address = '%{SQL-User-Name}' \
+  AND dm.is_active = 1 \
+  AND COALESCE(ovr.radius_enabled, 1) = 1 \
+  AND COALESCE(ovr.vlan_override, p.vlan_id) IS NOT NULL \
+GROUP BY dm.id \
+UNION ALL \
+SELECT \
+    dm.id, \
+    '%{SQL-User-Name}', \
+    'Tunnel-Private-Group-Id', \
+    CAST(COALESCE(ovr.vlan_override, ( \
+        SELECT p2.vlan_id \
+        FROM radius_branch_vlan_policy p2 \
+        WHERE p2.branch_id = COALESCE(d.branch_id, ad_dev.branch_id) \
+          AND p2.adapter_type IN (dm.adapter_type, 'any') \
+          AND (p2.device_type IS NULL OR p2.device_type = COALESCE(d.type, '')) \
+        ORDER BY \
+            CASE WHEN p2.adapter_type = dm.adapter_type THEN 0 ELSE 1 END, \
+            CASE WHEN p2.device_type IS NOT NULL THEN 0 ELSE 1 END, \
+            p2.priority \
+        LIMIT 1 \
+    )) AS CHAR), \
+    ':=', \
+    3 \
+FROM device_macs dm \
+LEFT JOIN radius_mac_overrides ovr ON ovr.device_mac_id = dm.id \
+LEFT JOIN devices d                ON d.id = dm.device_id \
+LEFT JOIN azure_devices ad         ON ad.id = dm.azure_device_id \
+LEFT JOIN devices ad_dev           ON ad_dev.id = ad.device_id \
+WHERE dm.mac_address = '%{SQL-User-Name}' \
+  AND dm.is_active = 1 \
+  AND COALESCE(ovr.radius_enabled, 1) = 1 \
+  AND COALESCE(ovr.vlan_override, ( \
+        SELECT p3.vlan_id \
+        FROM radius_branch_vlan_policy p3 \
+        WHERE p3.branch_id = COALESCE(d.branch_id, ad_dev.branch_id) \
+          AND p3.adapter_type IN (dm.adapter_type, 'any') \
+          AND (p3.device_type IS NULL OR p3.device_type = COALESCE(d.type, '')) \
+        LIMIT 1 \
+  )) IS NOT NULL \
+ORDER BY 6"
+
+    # We do not use the legacy radusergroup / radgroupcheck / radgroupreply
+    # tables. Force the group lookup to a no-op so FreeRADIUS doesn't try.
+    authorize_group_check_query  = "SELECT id, username, attribute, value, op FROM ( SELECT 0 AS id, '' AS username, '' AS attribute, '' AS value, '' AS op ) t WHERE 0"
+    authorize_group_reply_query  = "SELECT id, username, attribute, value, op FROM ( SELECT 0 AS id, '' AS username, '' AS attribute, '' AS value, '' AS op ) t WHERE 0"
+    group_membership_query       = "SELECT '' WHERE 0"
+
+    # We don't run accounting in MVP. Disable simul_count_query so the
+    # session counter doesn't try to query a table we don't have.
+    simul_count_query = ""
+    simul_verify_query = ""
+
+    # Connection pool — adequate for branch-scale traffic.
+    pool {
+        start    = 5
+        min      = 4
+        max      = 32
+        spare    = 3
+        uses     = 0
+        retry_delay = 30
+        lifetime = 0
+        idle_timeout = 60
+    }
+}
