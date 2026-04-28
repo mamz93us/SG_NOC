@@ -92,6 +92,11 @@ sudo rm -f /etc/freeradius/3.0/sites-enabled/inner-tunnel
 #     `Auth-Type EAP` section that lived in the `default` site we just
 #     removed. MAB doesn't use EAP, so just unlink it.
 sudo rm -f /etc/freeradius/3.0/mods-enabled/eap
+
+# 4h. Enable the control-socket site so `radmin` (and our reload wrapper)
+#     can talk to the running daemon. Ships in sites-available but is not
+#     symlinked by default on Ubuntu.
+sudo ln -sf /etc/freeradius/3.0/sites-available/control-socket /etc/freeradius/3.0/sites-enabled/control-socket
 ```
 
 ---

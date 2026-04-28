@@ -26,9 +26,16 @@ fi
 
 case "$1" in
     reload-clients)
-        # `radmin -e "reload clients"` re-reads the SQL clients table without
-        # restarting the daemon. -e exits non-zero on failure.
-        exec /usr/sbin/radmin -e "reload clients"
+        # FreeRADIUS 3.x has no granular "reload clients" command — that's
+        # a v4 feature. To refresh the SQL clients table we send SIGHUP,
+        # which re-reads the entire config (including read_clients=yes).
+        #
+        # Try `radmin -e "hup"` first (no downtime), fall back to
+        # systemctl reload (also SIGHUP via the unit's ExecReload).
+        if /usr/sbin/radmin -e "hup" 2>/dev/null; then
+            exit 0
+        fi
+        exec /usr/bin/systemctl reload freeradius
         ;;
 
     restart)
