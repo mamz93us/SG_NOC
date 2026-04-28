@@ -166,10 +166,10 @@ ORDER BY 6"
     authorize_group_reply_query  = "SELECT id, username, attribute, value, op FROM ( SELECT 0 AS id, '' AS username, '' AS attribute, '' AS value, '' AS op ) t WHERE 0"
     group_membership_query       = "SELECT '' WHERE 0"
 
-    # We don't run accounting in MVP. Disable simul_count_query so the
-    # session counter doesn't try to query a table we don't have.
-    simul_count_query = ""
-    simul_verify_query = ""
+    # We don't run accounting in MVP, and we don't use simultaneous-use
+    # checks (which would need their own table). Leave simul_count_query
+    # and simul_verify_query unset entirely — FreeRADIUS warns if they're
+    # present-but-empty. Same applies to default_user_profile.
 
     # Connection pool — adequate for branch-scale traffic.
     pool {

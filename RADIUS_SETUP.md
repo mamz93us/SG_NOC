@@ -87,6 +87,11 @@ sudo ln -sf /etc/freeradius/3.0/mods-available/sql /etc/freeradius/3.0/mods-enab
 sudo ln -sf /etc/freeradius/3.0/sites-available/sg-noc-mab /etc/freeradius/3.0/sites-enabled/sg-noc-mab
 sudo rm -f /etc/freeradius/3.0/sites-enabled/default
 sudo rm -f /etc/freeradius/3.0/sites-enabled/inner-tunnel
+
+# 4g. Disable the EAP module — it's enabled by default but expects an
+#     `Auth-Type EAP` section that lived in the `default` site we just
+#     removed. MAB doesn't use EAP, so just unlink it.
+sudo rm -f /etc/freeradius/3.0/mods-enabled/eap
 ```
 
 ---
