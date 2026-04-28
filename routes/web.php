@@ -1105,7 +1105,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ─── RADIUS (MAC Authentication / MAB) ────────────────────────
     Route::middleware('permission:manage-radius')->prefix('radius')->name('radius.')->group(function () {
-        Route::redirect('/', '/admin/radius/nas');
+        Route::redirect('/', '/admin/radius/macs');
+
+        // MAC registry — RADIUS-focused view + manual add
+        Route::get('macs',                   [\App\Http\Controllers\Admin\RadiusMacRegistryController::class, 'index'])  ->name('macs.index');
+        Route::get('macs/create',            [\App\Http\Controllers\Admin\RadiusMacRegistryController::class, 'create']) ->name('macs.create');
+        Route::post('macs',                  [\App\Http\Controllers\Admin\RadiusMacRegistryController::class, 'store'])  ->name('macs.store');
+        Route::delete('macs/{mac}',          [\App\Http\Controllers\Admin\RadiusMacRegistryController::class, 'destroy'])->name('macs.destroy');
+        Route::post('macs/sync',             [\App\Http\Controllers\Admin\RadiusMacRegistryController::class, 'sync'])   ->name('macs.sync');
 
         // NAS clients (switches / APs allowed to query us)
         Route::get('nas',                    [\App\Http\Controllers\Admin\RadiusNasController::class, 'index'])  ->name('nas.index');

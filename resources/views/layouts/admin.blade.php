@@ -259,6 +259,12 @@
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-shield-lock me-1"></i>RADIUS / 802.1X</h6></li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.radius.macs.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.radius.macs.index') }}">
+                                    <i class="bi bi-fingerprint me-2"></i>MAC Registry
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.radius.nas.*') ? 'active' : '' }}"
                                    href="{{ route('admin.radius.nas.index') }}">
                                     <i class="bi bi-router me-2"></i>NAS Clients

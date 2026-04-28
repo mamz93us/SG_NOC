@@ -387,7 +387,9 @@
       "Bash(php -l database/migrations/2026_04_28_100002_create_radius_branch_vlan_policy_table.php)",
       "Bash(php -l database/migrations/2026_04_28_100003_create_radius_mac_overrides_table.php)",
       "Bash(php -l database/migrations/2026_04_28_100010_add_radius_permissions.php)",
-      "Bash(php -l config/radius.php)"
+      "Bash(php -l config/radius.php)",
+      "Bash(php -l app/Console/Commands/SyncRadiusMacs.php)",
+      "Bash(php -l app/Http/Controllers/Admin/RadiusMacRegistryController.php)"
     ]
   }
 }

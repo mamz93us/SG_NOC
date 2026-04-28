@@ -353,6 +353,16 @@ Schedule::command('intune:sync-net-data')
     ->runInBackground()
     ->name('intune-net-data');
 
+// ─── RADIUS MAC Registry Sync — hourly ───────────────────────────────────
+// Pulls MACs from `devices` (phones, switches, APs, printers) into the
+// `device_macs` registry so they become RADIUS-eligible. Idempotent —
+// only writes when something changed.
+Schedule::command('radius:sync-macs')
+    ->hourly()
+    ->withoutOverlapping(15)
+    ->runInBackground()
+    ->name('radius-sync-macs');
+
 // ─── Browser Portal — Idle Session Cleanup (every 5 minutes) ────────────
 // Stops Neko containers whose last_active_at is older than
 // BROWSER_PORTAL_IDLE_MINUTES (default 240). Volumes are preserved.
