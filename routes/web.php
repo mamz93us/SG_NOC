@@ -1429,6 +1429,13 @@ Route::post('/api/internal/vq-report', [\App\Http\Controllers\Admin\VoiceQuality
     ->middleware('internal.ip')
     ->name('api.vq-report');
 
+// Graylog webhook — receives alert notifications from Event Definitions
+// and turns them into NocEvent rows so the existing notification routing
+// fires. Auth is via X-Graylog-Secret header (see config/services.php).
+Route::post('/api/graylog/webhook', \App\Http\Controllers\Api\GraylogWebhookController::class)
+    ->middleware('throttle:60,1')
+    ->name('api.graylog.webhook');
+
 /*
 |--------------------------------------------------------------------------
 | Public Routes (no auth required)

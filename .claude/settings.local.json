@@ -389,7 +389,8 @@
       "Bash(php -l database/migrations/2026_04_28_100010_add_radius_permissions.php)",
       "Bash(php -l config/radius.php)",
       "Bash(php -l app/Console/Commands/SyncRadiusMacs.php)",
-      "Bash(php -l app/Http/Controllers/Admin/RadiusMacRegistryController.php)"
+      "Bash(php -l app/Http/Controllers/Admin/RadiusMacRegistryController.php)",
+      "Bash(php -l app/Http/Controllers/Api/GraylogWebhookController.php)"
     ]
   }
 }

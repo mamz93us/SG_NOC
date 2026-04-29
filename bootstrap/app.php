@@ -40,8 +40,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // The 2FA challenge relies on an authenticated session and an OTP —
         // excluding it from CSRF avoids edge-case token-mismatch errors
         // that can occur after session regeneration during login.
+        // Machine-to-machine webhooks (Graylog) authenticate by shared
+        // secret in their own header — they have no CSRF token to send.
         $middleware->validateCsrfTokens(except: [
             'two-factor-challenge',
+            'api/graylog/webhook',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

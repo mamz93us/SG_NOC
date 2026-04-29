@@ -636,6 +636,14 @@
                                     <i class="bi bi-journal-code me-2"></i>Syslog
                                 </a>
                             </li>
+                            @if(config('services.graylog.url'))
+                            <li>
+                                <a class="dropdown-item" href="{{ config('services.graylog.url') }}" target="_blank" rel="noopener">
+                                    <i class="bi bi-graph-up-arrow me-2 text-info"></i>Logs (Graylog)
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
+                                </a>
+                            </li>
+                            @endif
                             @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>
