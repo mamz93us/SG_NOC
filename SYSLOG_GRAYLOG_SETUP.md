@@ -335,6 +335,76 @@ can hide their navbar entries and drive everything through Graylog.
   Watch journal utilization and process-buffer load — both should sit
   below 50% in normal operation.
 - **Upgrades**: bump the image tag in `docker-compose.yml`,
-  `docker compose pull && docker compose up -d`. Read the Graylog 6.x
+  `docker compose pull && docker compose up -d`. Read the Graylog
   release notes — major version bumps occasionally need an OpenSearch
-  index reindex.
+  index reindex. See § 11 for the full upgrade procedure.
+
+## 11. Upgrading Graylog (major version bumps, e.g. 6.x → 7.0)
+
+Graylog migrates Mongo schemas on first boot of a new major; that
+migration is irreversible. Always snapshot Mongo first so you have a
+clean rollback path.
+
+```bash
+cd /home/azureuser/phonebook2/deployment/graylog
+
+# 1. Snapshot Mongo (config + dashboards + alerts).
+mkdir -p backups
+docker exec graylog-mongo mongodump --archive --gzip > \
+    backups/mongo-$(date +%F-%H%M).archive.gz
+ls -lh backups/   # confirm a non-empty file landed
+
+# 2. Note the OpenSearch + Mongo container versions you're running now,
+#    in case you need to roll back.
+docker compose ps
+docker inspect graylog-opensearch --format '{{.Config.Image}}'
+docker inspect graylog-mongo      --format '{{.Config.Image}}'
+```
+
+Do the upgrade itself with the repo as source of truth:
+
+```bash
+cd /home/azureuser/phonebook2
+git pull                                    # picks up the new image tag
+
+cd deployment/graylog
+docker compose pull graylog                 # downloads the new image
+docker compose up -d graylog                # recreates only the Graylog container
+
+# Watch first-boot migrations — can take a few minutes.
+docker compose logs -f graylog | grep -iE "migration|cluster|started|error"
+# Ctrl-C once you see "Server up and running"
+```
+
+Verify post-upgrade:
+
+1. UI loads at https://logs.samirgroup.net (you may need to log in again)
+2. **System → Overview** shows the new version
+3. **System → Inputs** — the Syslog UDP input is still green
+4. Top-right `X in/s` rate is non-zero
+5. **System → Indices** — your default index set is still listed and
+   accepting writes (latest index has a recent `created_at`)
+
+### Rollback (if the upgrade fails or the UI is stuck)
+
+```bash
+cd /home/azureuser/phonebook2/deployment/graylog
+
+# 1. Stop Graylog (leave Mongo + OpenSearch running so we can restore).
+docker compose stop graylog
+
+# 2. Restore the Mongo snapshot (overwrites the migrated schema).
+gunzip -c backups/mongo-<TIMESTAMP>.archive.gz | \
+    docker exec -i graylog-mongo mongorestore --archive --drop
+
+# 3. Pin docker-compose.yml back to the previous image tag, e.g.
+#    image: graylog/graylog:6.1
+sed -i 's|graylog/graylog:.*|graylog/graylog:6.1|' docker-compose.yml
+
+# 4. Start the old version back up.
+docker compose up -d graylog
+```
+
+OpenSearch indices themselves don't change format on a Graylog major,
+so the messages already ingested under the old version remain readable
+after rollback.

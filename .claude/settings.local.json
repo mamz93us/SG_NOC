@@ -390,7 +390,10 @@
       "Bash(php -l config/radius.php)",
       "Bash(php -l app/Console/Commands/SyncRadiusMacs.php)",
       "Bash(php -l app/Http/Controllers/Admin/RadiusMacRegistryController.php)",
-      "Bash(php -l app/Http/Controllers/Api/GraylogWebhookController.php)"
+      "Bash(php -l app/Http/Controllers/Api/GraylogWebhookController.php)",
+      "WebFetch(domain:go2docs.graylog.org)",
+      "WebFetch(domain:www.graylog.org)",
+      "WebFetch(domain:hub.docker.com)"
     ]
   }
 }
