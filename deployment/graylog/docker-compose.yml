@@ -41,7 +41,13 @@ services:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
       - action.auto_create_index=false
-      - plugins.security.disabled=true
+      # OpenSearch 2.12+ enabled the Security plugin by default; the
+      # entrypoint script bails unless we either provide an admin password
+      # OR set both of these to skip security entirely. Graylog talks to
+      # OpenSearch over the internal Docker network, so disabling auth is
+      # safe (the port isn't exposed).
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - DISABLE_SECURITY_PLUGIN=true
       # OpenSearch heap — half of the RAM you allocate to this container.
       # 2g heap → ~4-6g container working set comfortably handles 10M/day.
       - "OPENSEARCH_JAVA_OPTS=-Xms2g -Xmx2g"
