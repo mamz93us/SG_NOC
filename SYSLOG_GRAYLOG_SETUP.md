@@ -408,3 +408,26 @@ docker compose up -d graylog
 OpenSearch indices themselves don't change format on a Graylog major,
 so the messages already ingested under the old version remain readable
 after rollback.
+
+### Bumping MongoDB alongside Graylog
+
+Graylog majors regularly raise the MongoDB minimum (Graylog 7.0 requires
+Mongo 7.0). MongoDB only supports **one major version at a time** — so
+6.0 → 7.0 is fine, but 4.4 → 7.0 needs intermediate hops (4.4 → 5.0 →
+6.0 → 7.0), each step booting fully and the FCV bumped before moving
+on.
+
+For a single-major step, the data volume is forward-compatible — just
+change the image tag and recreate:
+
+```bash
+cd /home/azureuser/phonebook2/deployment/graylog
+docker compose pull mongo
+docker compose up -d mongo
+docker compose up -d graylog        # restart Graylog so its preflight passes
+
+# Once Graylog is healthy, raise the Mongo feature-compatibility version
+# so the new server can use 7.0-only features (queries, indexes, etc).
+docker exec graylog-mongo mongosh --eval \
+    'db.adminCommand({setFeatureCompatibilityVersion: "7.0", confirm: true})'
+```
