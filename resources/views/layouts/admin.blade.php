@@ -490,6 +490,47 @@
                                 </a>
                             </li>
                             @endcan
+
+                            {{-- ── Asset Operations: Transfer / Stores / Scrap / Reports ── --}}
+                            @canany(['manage-itam','view-itam','request-scrap'])
+                            <li><hr class="dropdown-divider"></li>
+                            @endcanany
+                            @can('manage-itam')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.transfer.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.transfer.index') }}">
+                                    <i class="bi bi-arrow-left-right me-2"></i>Asset Transfer
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-itam')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.stores.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.stores.index') }}">
+                                    <i class="bi bi-box-seam me-2"></i>Branch Stores
+                                </a>
+                            </li>
+                            @endcan
+                            @can('request-scrap')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.scrap.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.scrap.index') }}">
+                                    <i class="bi bi-trash3 me-2"></i>Scrap Requests
+                                    @php $__scrapPending = \App\Models\WorkflowRequest::where('type','asset_scrap')->where('status','pending')->count(); @endphp
+                                    @if($__scrapPending > 0)
+                                    <span class="badge bg-warning text-dark ms-1">{{ $__scrapPending }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-itam')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.reports.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.reports.index') }}">
+                                    <i class="bi bi-file-earmark-bar-graph me-2"></i>Asset Reports
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-assets')
                             <li><hr class="dropdown-divider"></li>
                             <li>

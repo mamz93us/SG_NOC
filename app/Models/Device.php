@@ -26,6 +26,8 @@ class Device extends Model
         'office_id',
         'department_id',
         'location_description',
+        'storage_location',
+        'scrap_workflow_id',
         'notes',
         'source',
         'source_id',
@@ -143,6 +145,18 @@ class Device extends Model
         return $this->hasMany(AssetHistory::class)->orderByDesc('created_at');
     }
 
+    public function scrapWorkflow(): BelongsTo
+    {
+        return $this->belongsTo(WorkflowRequest::class, 'scrap_workflow_id');
+    }
+
+    /** Scope: assets currently sitting in a branch store (no active employee assignment, storage_location set) */
+    public function scopeInStorage($query)
+    {
+        return $query->whereNotNull('storage_location')
+            ->whereDoesntHave('currentAssignment');
+    }
+
     public function licenseAssignments(): HasMany
     {
         return $this->hasMany(LicenseAssignment::class, 'assignable_id')
@@ -219,6 +233,7 @@ class Device extends Model
             'repair'      => 'bg-warning text-dark',
             'retired'     => 'bg-secondary',
             'maintenance' => 'bg-warning text-dark',
+            'scrapped'    => 'bg-danger',
             default       => 'bg-secondary',
         };
     }

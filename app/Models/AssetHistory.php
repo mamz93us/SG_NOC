@@ -21,6 +21,8 @@ class AssetHistory extends Model
     const EVENT_TYPES = [
         'created', 'assigned', 'returned', 'maintenance', 'repair',
         'retired', 'disposed', 'license_assigned', 'license_removed', 'note_added',
+        'transferred', 'moved_to_storage',
+        'scrap_requested', 'scrap_approved', 'scrap_rejected', 'scrapped',
     ];
 
     const EVENT_ICONS = [
@@ -34,6 +36,12 @@ class AssetHistory extends Model
         'license_assigned' => 'bi-key text-info',
         'license_removed'  => 'bi-key-fill text-secondary',
         'note_added'       => 'bi-sticky text-secondary',
+        'transferred'      => 'bi-arrow-left-right text-primary',
+        'moved_to_storage' => 'bi-box-seam text-info',
+        'scrap_requested'  => 'bi-trash3 text-warning',
+        'scrap_approved'   => 'bi-check2-circle text-success',
+        'scrap_rejected'   => 'bi-x-circle text-secondary',
+        'scrapped'         => 'bi-trash3-fill text-danger',
     ];
 
     public function device(): BelongsTo

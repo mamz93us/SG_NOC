@@ -1101,6 +1101,42 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:view-itam')->prefix('itam')->name('itam.')->group(function () {
         Route::get('/',            [ItamController::class, 'dashboard']) ->name('dashboard');
         Route::get('/mac-address', [\App\Http\Controllers\Admin\MacAddressController::class, 'index'])->name('mac-address');
+
+        // Branch Stores (view)
+        Route::get('stores',           [\App\Http\Controllers\Admin\BranchStoreController::class, 'index'])->name('stores.index');
+        Route::get('stores/{branch}',  [\App\Http\Controllers\Admin\BranchStoreController::class, 'show'])->name('stores.show');
+
+        // Reports
+        Route::prefix('reports')->name('reports.')->group(function () {
+            Route::get('/',                [\App\Http\Controllers\Admin\AssetReportController::class, 'index'])->name('index');
+            Route::get('all-assets',       [\App\Http\Controllers\Admin\AssetReportController::class, 'allAssets'])->name('all-assets');
+            Route::get('by-branch',        [\App\Http\Controllers\Admin\AssetReportController::class, 'byBranch'])->name('by-branch');
+            Route::get('by-employee',      [\App\Http\Controllers\Admin\AssetReportController::class, 'byEmployee'])->name('by-employee');
+            Route::get('transfer-history', [\App\Http\Controllers\Admin\AssetReportController::class, 'transferHistory'])->name('transfers');
+            Route::get('scrap-history',    [\App\Http\Controllers\Admin\AssetReportController::class, 'scrapHistory'])->name('scraps');
+        });
+    });
+
+    // ─── Asset Transfer ───────────────────────────────────────────
+    Route::middleware('permission:manage-itam')->prefix('itam/transfer')->name('itam.transfer.')->group(function () {
+        Route::get('/',                              [\App\Http\Controllers\Admin\AssetTransferController::class, 'index'])->name('index');
+        Route::get('employee/{employee}/assets',     [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForEmployee'])->name('employee-assets');
+        Route::post('/',                             [\App\Http\Controllers\Admin\AssetTransferController::class, 'store'])->name('store');
+        Route::get('{group}/print',                  [\App\Http\Controllers\Admin\AssetTransferController::class, 'print'])->name('print');
+    });
+
+    // ─── Asset Scrap (request) ────────────────────────────────────
+    Route::middleware('permission:request-scrap')->prefix('itam/scrap')->name('itam.scrap.')->group(function () {
+        Route::get('/',                  [\App\Http\Controllers\Admin\AssetScrapController::class, 'index'])->name('index');
+        Route::get('create',             [\App\Http\Controllers\Admin\AssetScrapController::class, 'create'])->name('create');
+        Route::post('/',                 [\App\Http\Controllers\Admin\AssetScrapController::class, 'store'])->name('store');
+        Route::get('{workflow}',         [\App\Http\Controllers\Admin\AssetScrapController::class, 'show'])->name('show');
+        Route::get('{workflow}/print',   [\App\Http\Controllers\Admin\AssetScrapController::class, 'print'])->name('print');
+    });
+    // ─── Asset Scrap (approve / reject) ───────────────────────────
+    Route::middleware('permission:approve-scrap')->prefix('itam/scrap')->name('itam.scrap.')->group(function () {
+        Route::post('{workflow}/approve', [\App\Http\Controllers\Admin\AssetScrapController::class, 'approve'])->name('approve');
+        Route::post('{workflow}/reject',  [\App\Http\Controllers\Admin\AssetScrapController::class, 'reject'])->name('reject');
     });
 
     // ─── RADIUS (MAC Authentication / MAB) ────────────────────────

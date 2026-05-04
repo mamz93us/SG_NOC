@@ -76,7 +76,7 @@ class WorkflowRequest extends Model
         return match ($this->type) {
             'create_user', 'extension_create', 'asset_assign' => 'bg-success',
             'delete_user', 'extension_delete', 'asset_return',
-            'employee_offboarding'                            => 'bg-danger',
+            'employee_offboarding', 'asset_scrap'             => 'bg-danger',
             'license_change', 'license_purchase'              => 'bg-info text-dark',
             'group_assignment'                                => 'bg-primary',
             'profile_update_phone'                            => 'bg-warning text-dark',
@@ -93,6 +93,7 @@ class WorkflowRequest extends Model
             'license_purchase'     => 'License Purchase',
             'asset_assign'         => 'Asset Assignment',
             'asset_return'         => 'Asset Return',
+            'asset_scrap'          => 'Asset Scrap',
             'extension_create'     => 'Create Extension',
             'extension_delete'     => 'Delete Extension',
             'employee_offboarding' => 'Employee Offboarding',

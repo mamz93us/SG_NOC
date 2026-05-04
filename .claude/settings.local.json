@@ -393,7 +393,10 @@
       "Bash(php -l app/Http/Controllers/Api/GraylogWebhookController.php)",
       "WebFetch(domain:go2docs.graylog.org)",
       "WebFetch(domain:www.graylog.org)",
-      "WebFetch(domain:hub.docker.com)"
+      "WebFetch(domain:hub.docker.com)",
+      "Bash(php -l app/Http/Controllers/Admin/AssetReportController.php)",
+      "Bash(php -l app/Models/AssetHistory.php app/Models/WorkflowRequest.php app/Models/RolePermission.php)",
+      "Bash(composer dump-autoload *)"
     ]
   }
 }

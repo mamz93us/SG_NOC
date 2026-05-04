@@ -99,12 +99,14 @@ class RolePermission extends Model
             ],
             'ITAM' => [
                 'view-itam'           => 'View ITAM Dashboard',
-                'manage-itam'         => 'Manage ITAM (Azure Sync)',
+                'manage-itam'         => 'Manage ITAM (Azure Sync, Transfer, Branch Stores)',
                 'manage-suppliers'    => 'Manage Suppliers',
                 'view-licenses'       => 'View Software Licenses',
                 'manage-licenses'     => 'Create / Edit / Delete Licenses & Assign',
                 'view-accessories'    => 'View Accessories',
                 'manage-accessories'  => 'Create / Edit / Delete Accessories & Assign',
+                'request-scrap'       => 'Submit Asset Scrap Requests',
+                'approve-scrap'       => 'Approve / Reject Asset Scrap Requests',
             ],
             'Admin Tools' => [
                 'view-admin-links'   => 'View Admin Tools / Quick Links',
