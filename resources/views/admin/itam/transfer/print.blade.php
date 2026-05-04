@@ -1,4 +1,31 @@
 @php($settings = \App\Models\Setting::first())
+@php
+    $sourceLabel = match($sourceType) {
+        'employee'        => $fromEmployee?->name ?? '—',
+        'branch_store'    => ($fromBranchName ?? $fromBranch?->name ?? 'Branch') . ' Store' . ($fromStorageLocation ? " ({$fromStorageLocation})" : ''),
+        'universal_store' => 'Universal Store' . ($fromStorageLocation ? " ({$fromStorageLocation})" : ''),
+        default           => '—',
+    };
+    $targetLabel = match($targetType) {
+        'employee'        => $toEmployee?->name ?? '—',
+        'branch_store'    => ($toBranchName ?? $toBranch?->name ?? 'Branch') . ' Store' . ($toStorageLocation ? " ({$toStorageLocation})" : ''),
+        'universal_store' => 'Universal Store' . ($toStorageLocation ? " ({$toStorageLocation})" : ''),
+        default           => '—',
+    };
+    $outgoingPartyLabel = match($sourceType) {
+        'employee'        => 'Outgoing (' . ($fromEmployee?->name ?? '—') . ')',
+        'branch_store'    => ($fromBranchName ?? $fromBranch?->name ?? 'Branch') . ' Store Custodian',
+        'universal_store' => 'Universal Store Custodian',
+        default           => 'Outgoing',
+    };
+    $incomingPartyLabel = match($targetType) {
+        'employee'        => 'Incoming (' . ($toEmployee?->name ?? '—') . ')',
+        'branch_store'    => ($toBranchName ?? $toBranch?->name ?? 'Branch') . ' Store Custodian',
+        'universal_store' => 'Universal Store Custodian',
+        default           => 'Incoming',
+    };
+    $transferTypeLabel = ucfirst(str_replace('_',' ', $sourceType)) . ' → ' . ucfirst(str_replace('_',' ', $targetType));
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -78,27 +105,15 @@
             </div>
             <div class="info-item">
                 <span class="info-label">Transfer Type</span>
-                <span class="info-value">
-                    @if($isStore)
-                        <strong style="color:#0dcaf0">Employee &rarr; Branch Store</strong>
-                    @else
-                        <strong style="color:#0d6efd">Employee &rarr; Employee</strong>
-                    @endif
-                </span>
+                <span class="info-value"><strong>{{ $transferTypeLabel }}</strong></span>
             </div>
             <div class="info-item">
                 <span class="info-label">From</span>
-                <span class="info-value">{{ $fromEmployee?->name ?? '—' }} ({{ $fromEmployee?->email ?? '' }})</span>
+                <span class="info-value">{{ $sourceLabel }}</span>
             </div>
             <div class="info-item">
                 <span class="info-label">To</span>
-                <span class="info-value">
-                    @if($isStore)
-                        {{ $toBranch?->name }} — {{ $storageLocation }}
-                    @else
-                        {{ $toEmployee?->name ?? '—' }} ({{ $toEmployee?->email ?? '' }})
-                    @endif
-                </span>
+                <span class="info-value">{{ $targetLabel }}</span>
             </div>
         </div>
     </div>
@@ -133,17 +148,11 @@
 
     <div class="signatures">
         <div class="signature-block">
-            <div class="signature-line">Outgoing ({{ $fromEmployee?->name ?? '—' }})</div>
+            <div class="signature-line">{{ $outgoingPartyLabel }}</div>
             <div class="signature-date">Signature & Date</div>
         </div>
         <div class="signature-block">
-            <div class="signature-line">
-                @if($isStore)
-                    Branch Store Custodian
-                @else
-                    Incoming ({{ $toEmployee?->name ?? '—' }})
-                @endif
-            </div>
+            <div class="signature-line">{{ $incomingPartyLabel }}</div>
             <div class="signature-date">Signature & Date</div>
         </div>
         <div class="signature-block">

@@ -1103,8 +1103,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/mac-address', [\App\Http\Controllers\Admin\MacAddressController::class, 'index'])->name('mac-address');
 
         // Branch Stores (view)
-        Route::get('stores',           [\App\Http\Controllers\Admin\BranchStoreController::class, 'index'])->name('stores.index');
-        Route::get('stores/{branch}',  [\App\Http\Controllers\Admin\BranchStoreController::class, 'show'])->name('stores.show');
+        Route::get('stores',                   [\App\Http\Controllers\Admin\BranchStoreController::class, 'index'])->name('stores.index');
+        Route::get('stores/universal',         [\App\Http\Controllers\Admin\BranchStoreController::class, 'showUniversal'])->name('stores.universal');
+        Route::get('stores/{branch}',          [\App\Http\Controllers\Admin\BranchStoreController::class, 'show'])->name('stores.show');
 
         // Reports
         Route::prefix('reports')->name('reports.')->group(function () {
@@ -1119,10 +1120,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ─── Asset Transfer ───────────────────────────────────────────
     Route::middleware('permission:manage-itam')->prefix('itam/transfer')->name('itam.transfer.')->group(function () {
-        Route::get('/',                              [\App\Http\Controllers\Admin\AssetTransferController::class, 'index'])->name('index');
-        Route::get('employee/{employee}/assets',     [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForEmployee'])->name('employee-assets');
-        Route::post('/',                             [\App\Http\Controllers\Admin\AssetTransferController::class, 'store'])->name('store');
-        Route::get('{group}/print',                  [\App\Http\Controllers\Admin\AssetTransferController::class, 'print'])->name('print');
+        Route::get('/',                                  [\App\Http\Controllers\Admin\AssetTransferController::class, 'index'])->name('index');
+        Route::get('employee/{employee}/assets',         [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForEmployee'])->name('employee-assets');
+        Route::get('branch-store/{branch}/assets',       [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForBranchStore'])->name('branch-store-assets');
+        Route::get('universal-store/assets',             [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForUniversalStore'])->name('universal-store-assets');
+        Route::post('/',                                 [\App\Http\Controllers\Admin\AssetTransferController::class, 'store'])->name('store');
+        Route::get('{group}/print',                      [\App\Http\Controllers\Admin\AssetTransferController::class, 'print'])->name('print');
     });
 
     // ─── Asset Scrap (request) ────────────────────────────────────

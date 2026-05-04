@@ -396,7 +396,10 @@
       "WebFetch(domain:hub.docker.com)",
       "Bash(php -l app/Http/Controllers/Admin/AssetReportController.php)",
       "Bash(php -l app/Models/AssetHistory.php app/Models/WorkflowRequest.php app/Models/RolePermission.php)",
-      "Bash(composer dump-autoload *)"
+      "Bash(composer dump-autoload *)",
+      "Bash(php -l app/Http/Controllers/Admin/AssetTransferController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/BranchStoreController.php)",
+      "Bash(php -l app/Models/Device.php)"
     ]
   }
 }

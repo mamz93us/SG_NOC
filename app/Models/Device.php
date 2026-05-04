@@ -150,11 +150,23 @@ class Device extends Model
         return $this->belongsTo(WorkflowRequest::class, 'scrap_workflow_id');
     }
 
-    /** Scope: assets currently sitting in a branch store (no active employee assignment, storage_location set) */
+    /** Scope: assets currently sitting in any store — i.e. unassigned, not scrapped/retired. */
     public function scopeInStorage($query)
     {
-        return $query->whereNotNull('storage_location')
+        return $query->whereNotIn('status', ['scrapped', 'retired'])
             ->whereDoesntHave('currentAssignment');
+    }
+
+    /** Scope: assets in the universal store (no branch assigned). */
+    public function scopeInUniversalStore($query)
+    {
+        return $query->inStorage()->whereNull('branch_id');
+    }
+
+    /** Scope: assets in a specific branch's store. */
+    public function scopeInBranchStore($query, int $branchId)
+    {
+        return $query->inStorage()->where('branch_id', $branchId);
     }
 
     public function licenseAssignments(): HasMany

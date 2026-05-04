@@ -64,6 +64,23 @@
                 </thead>
                 <tbody>
                     @forelse($events as $e)
+                        @php
+                            $m = $e->meta ?? [];
+                            $sourceType = $m['source_type'] ?? ($m['from_employee_id'] ?? null ? 'employee' : null);
+                            $targetType = $m['target_type'] ?? ($e->event_type === 'transferred' ? 'employee' : 'branch_store');
+                            $fromLabel = match($sourceType) {
+                                'employee'        => $m['from_employee'] ?? '—',
+                                'branch_store'    => ($m['from_branch_name'] ?? 'Branch') . ' Store',
+                                'universal_store' => 'Universal Store',
+                                default           => $m['from_employee'] ?? '—',
+                            };
+                            $toLabel = match($targetType) {
+                                'employee'        => $m['to_employee'] ?? '—',
+                                'branch_store'    => ($m['to_branch_name'] ?? $m['branch_name'] ?? 'Branch') . ' Store',
+                                'universal_store' => 'Universal Store',
+                                default           => $m['to_employee'] ?? $m['branch_name'] ?? '—',
+                            };
+                        @endphp
                         <tr>
                             <td>{{ $e->created_at?->format('d M Y H:i') }}</td>
                             <td>
@@ -77,13 +94,16 @@
                                 <code>{{ $e->device?->asset_code ?? '—' }}</code>
                                 <span class="text-muted small">{{ $e->device?->name }}</span>
                             </td>
-                            <td>{{ $e->meta['from_employee'] ?? '—' }}</td>
                             <td>
-                                @if($e->event_type === 'transferred')
-                                    {{ $e->meta['to_employee'] ?? '—' }}
-                                @else
-                                    {{ $e->meta['branch_name'] ?? '—' }}
-                                    <small class="text-muted d-block">{{ $e->meta['storage_location'] ?? '' }}</small>
+                                {{ $fromLabel }}
+                                @if(!empty($m['from_storage_location']))
+                                    <small class="text-muted d-block">{{ $m['from_storage_location'] }}</small>
+                                @endif
+                            </td>
+                            <td>
+                                {{ $toLabel }}
+                                @if(!empty($m['storage_location']))
+                                    <small class="text-muted d-block">{{ $m['storage_location'] }}</small>
                                 @endif
                             </td>
                             <td>{{ $e->user?->name ?? '—' }}</td>
