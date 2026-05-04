@@ -11,7 +11,7 @@ class AssetHistory extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['device_id', 'event_type', 'user_id', 'description', 'meta'];
+    protected $fillable = ['device_id', 'event_type', 'user_id', 'description', 'meta', 'created_at'];
 
     protected $casts = [
         'meta'       => 'array',

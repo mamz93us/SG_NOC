@@ -74,7 +74,7 @@
         <div class="info-grid">
             <div class="info-item">
                 <span class="info-label">Transfer Date</span>
-                <span class="info-value">{{ $transferDate->format('d M Y') }}</span>
+                <span class="info-value">{{ optional($transferDate)->format('d M Y') ?? now()->format('d M Y') }}</span>
             </div>
             <div class="info-item">
                 <span class="info-label">Transfer Type</span>
