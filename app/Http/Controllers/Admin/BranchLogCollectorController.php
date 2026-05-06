@@ -76,9 +76,10 @@ class BranchLogCollectorController extends Controller
     }
 
     /**
-     * AJAX: probe the branch's /api/health endpoint and update the row's
-     * last_seen_at + status. Returns JSON the UI uses to update the
-     * row in place without a full page reload.
+     * AJAX: probe the branch's /api/stats endpoint, persist the disk /
+     * DB / ingestion snapshot to branch_log_collectors so the index
+     * page can show it at a glance, and return a JSON payload the UI
+     * uses to update the row in place.
      */
     public function test(BranchLogCollector $logCollector): JsonResponse
     {
@@ -93,10 +94,10 @@ class BranchLogCollectorController extends Controller
 
         try {
             $resp = Http::withToken($logCollector->api_token)
-                ->timeout(5)
+                ->timeout(8)
                 ->connectTimeout(2)
                 ->withOptions(['verify' => false])
-                ->get($logCollector->baseUrl() . '/api/health');
+                ->get($logCollector->baseUrl() . '/api/stats');
 
             if ($resp->status() === 401) {
                 $logCollector->markHealth('unauthorized', 'Token rejected');
@@ -116,13 +117,29 @@ class BranchLogCollectorController extends Controller
                 return response()->json(['ok' => false, 'status' => 'error'], 200);
             }
 
+            // Persist the snapshot so the index page can render it without
+            // re-querying the branch on every page load.
             $logCollector->markHealth('healthy');
+            $logCollector->forceFill([
+                'last_disk_used_pct' => $body['disk']['used_pct']           ?? null,
+                'last_db_size_gb'    => $body['db']['size_gb']              ?? null,
+                'last_db_rows'       => $body['db']['rows']                 ?? null,
+                'last_rows_5min'     => $body['ingestion']['rows_last_5min']?? null,
+                'last_ram_used_pct'  => $body['ram']['used_pct']            ?? null,
+                'last_stats_at'      => now(),
+            ])->save();
+
             return response()->json([
                 'ok'           => true,
                 'status'       => 'healthy',
-                'service'      => $body['service'] ?? null,
-                'time'         => $body['time']    ?? null,
                 'last_seen_at' => $logCollector->fresh()->last_seen_at?->toDateTimeString(),
+                'stats'        => [
+                    'disk'      => $body['disk']      ?? null,
+                    'ram'       => $body['ram']       ?? null,
+                    'db'        => $body['db']        ?? null,
+                    'ingestion' => $body['ingestion'] ?? null,
+                    'host'      => $body['host']      ?? null,
+                ],
             ]);
 
         } catch (\Throwable $e) {
@@ -133,6 +150,49 @@ class BranchLogCollectorController extends Controller
                 'error'  => $e->getMessage(),
             ], 200);
         }
+    }
+
+    /**
+     * AJAX: refresh stats for ALL enabled branches in parallel. Used
+     * by the "Refresh all" button on the index page.
+     */
+    public function refreshAll(): JsonResponse
+    {
+        $branches = BranchLogCollector::ready()->get();
+        $results  = [];
+
+        // Sequential is fine for 9 branches; could parallelise via Http::pool
+        // if it ever becomes the bottleneck.
+        foreach ($branches as $b) {
+            try {
+                $r = Http::withToken($b->api_token)
+                    ->timeout(8)
+                    ->connectTimeout(2)
+                    ->withOptions(['verify' => false])
+                    ->get($b->baseUrl() . '/api/stats');
+                if ($r->ok() && ($r->json('ok') === true)) {
+                    $j = $r->json();
+                    $b->markHealth('healthy');
+                    $b->forceFill([
+                        'last_disk_used_pct' => $j['disk']['used_pct']            ?? null,
+                        'last_db_size_gb'    => $j['db']['size_gb']               ?? null,
+                        'last_db_rows'       => $j['db']['rows']                  ?? null,
+                        'last_rows_5min'     => $j['ingestion']['rows_last_5min'] ?? null,
+                        'last_ram_used_pct'  => $j['ram']['used_pct']             ?? null,
+                        'last_stats_at'      => now(),
+                    ])->save();
+                    $results[$b->code] = ['ok' => true];
+                } else {
+                    $b->markHealth('error', "HTTP {$r->status()}");
+                    $results[$b->code] = ['ok' => false, 'error' => "HTTP {$r->status()}"];
+                }
+            } catch (\Throwable $e) {
+                $b->markHealth('unreachable', $e->getMessage());
+                $results[$b->code] = ['ok' => false, 'error' => $e->getMessage()];
+            }
+        }
+
+        return response()->json(['ok' => true, 'results' => $results]);
     }
 
     /**

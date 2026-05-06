@@ -20,6 +20,7 @@ declare(strict_types=1);
 require __DIR__ . '/../lib/Env.php';
 require __DIR__ . '/../lib/Db.php';
 require __DIR__ . '/../lib/SearchService.php';
+require __DIR__ . '/../lib/StatsService.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -48,6 +49,12 @@ try {
     if ($method === 'GET' && $path === '/api/logs/aggregate') {
         $r = $svc->aggregate($_GET);
         echo json_encode($r, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    if ($method === 'GET' && $path === '/api/stats') {
+        $stats = (new StatsService(Db::pdo()))->collect();
+        echo json_encode(['ok' => true] + $stats, JSON_UNESCAPED_SLASHES);
         exit;
     }
 

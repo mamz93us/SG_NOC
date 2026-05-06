@@ -980,6 +980,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::put('/{logCollector}',            [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'update'])        ->name('update');
         Route::delete('/{logCollector}',         [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'destroy'])       ->name('destroy');
         Route::post('/{logCollector}/test',      [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'test'])          ->name('test');
+        Route::post('/refresh-all',              [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'refreshAll'])    ->name('refresh-all');
     });
 
     Route::middleware('permission:manage-syslog')->prefix('syslog')->name('syslog.')->group(function () {

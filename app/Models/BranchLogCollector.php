@@ -30,6 +30,8 @@ class BranchLogCollector extends Model
         'api_token'          => 'encrypted',
         'enabled'            => 'boolean',
         'last_seen_at'       => 'datetime',
+        'last_stats_at'      => 'datetime',
+        'last_db_size_gb'    => 'decimal:2',
     ];
 
     /**
