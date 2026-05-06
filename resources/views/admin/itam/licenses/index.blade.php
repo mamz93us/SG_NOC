@@ -317,8 +317,8 @@ function editLicense(lic) {
     form.querySelector('[name=license_name]').value = lic.license_name || '';
     form.querySelector('[name=vendor]').value = lic.vendor || '';
     form.querySelector('[name=license_type]').value = lic.license_type || '';
-    form.querySelector('[name=purchase_date]').value = lic.purchase_date || '';
-    form.querySelector('[name=expiry_date]').value = lic.expiry_date || '';
+    form.querySelector('[name=purchase_date]').value = lic.purchase_date ? lic.purchase_date.substring(0, 10) : '';
+    form.querySelector('[name=expiry_date]').value = lic.expiry_date ? lic.expiry_date.substring(0, 10) : '';
     form.querySelector('[name=cost]').value = lic.cost || '';
     form.querySelector('[name=currency]').value = lic.currency || 'USD';
     form.querySelector('[name=seats]').value = lic.seats || 1;
