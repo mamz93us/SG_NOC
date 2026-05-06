@@ -154,42 +154,48 @@
                         </thead>
                         <tbody>
                         @forelse($results['results'] as $i => $r)
+                            @php
+                                // Defensive — older branch APIs may not return every column;
+                                // the message string + extra-KV pre-parse fills the gaps.
+                                $get = fn ($k, $default = '') => $r[$k] ?? $default;
+                                $subtype = $get('sophos_log_subtype');
+                            @endphp
                             <tr>
                                 <td class="text-nowrap font-monospace">
-                                    {{ \Illuminate\Support\Str::of($r['received_at'])->limit(19, '') }}
+                                    {{ \Illuminate\Support\Str::of($get('received_at'))->limit(19, '') }}
                                 </td>
-                                <td><span class="badge bg-secondary">{{ $r['branch_id'] }}</span></td>
+                                <td><span class="badge bg-secondary">{{ $get('branch_id') }}</span></td>
                                 <td>
-                                    <i class="bi bi-shield-shaded me-1 text-{{ $r['sophos_log_subtype']==='Denied' ? 'danger' : 'success' }}"></i>
-                                    <span title="{{ $r['sophos_log_type'] }}">{{ $r['sophos_log_component'] ?: '—' }}</span>
+                                    <i class="bi bi-shield-shaded me-1 text-{{ $subtype === 'Denied' ? 'danger' : 'success' }}"></i>
+                                    <span title="{{ $get('sophos_log_type') }}">{{ $get('sophos_log_component') ?: '—' }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge {{ $subtypeBadge($r['sophos_log_subtype']) }}">
-                                        {{ $r['sophos_log_subtype'] ?: '—' }}
+                                    <span class="badge {{ $subtypeBadge($subtype) }}">
+                                        {{ $subtype ?: '—' }}
                                     </span>
                                 </td>
-                                <td class="text-truncate" style="max-width:170px;" title="{{ $r['sophos_user_name'] }}">
-                                    {{ $r['sophos_user_name'] ?: '' }}
+                                <td class="text-truncate" style="max-width:170px;" title="{{ $get('sophos_user_name') }}">
+                                    {{ $get('sophos_user_name') }}
                                 </td>
                                 <td class="text-end font-monospace small text-muted">
-                                    {{ $r['kv_fw_rule_id'] ?: '' }}
+                                    {{ $get('kv_fw_rule_id') }}
                                 </td>
-                                <td class="text-truncate" style="max-width:160px;" title="{{ $r['sophos_fw_rule_name'] }}">
-                                    {{ $r['sophos_fw_rule_name'] ?: '' }}
-                                </td>
-                                <td class="font-monospace small">
-                                    {{ $r['kv_in_interface'] ?: '?' }}<i class="bi bi-arrow-right mx-1 text-muted"></i>{{ $r['kv_out_interface'] ?: '?' }}
+                                <td class="text-truncate" style="max-width:160px;" title="{{ $get('sophos_fw_rule_name') }}">
+                                    {{ $get('sophos_fw_rule_name') }}
                                 </td>
                                 <td class="font-monospace small">
-                                    {{ $r['sophos_src_ip'] ?: '' }}@if($r['sophos_src_port']):<span class="text-muted">{{ $r['sophos_src_port'] }}</span>@endif
+                                    {{ $get('kv_in_interface') ?: '?' }}<i class="bi bi-arrow-right mx-1 text-muted"></i>{{ $get('kv_out_interface') ?: '?' }}
                                 </td>
                                 <td class="font-monospace small">
-                                    {{ $r['sophos_dst_ip'] ?: '' }}@if($r['sophos_dst_port']):<span class="text-muted">{{ $r['sophos_dst_port'] }}</span>@endif
-                                    @if($r['kv_dst_country'] && $r['kv_dst_country'] !== 'R1')
-                                        <span class="badge bg-light text-dark ms-1">{{ $r['kv_dst_country'] }}</span>
+                                    {{ $get('sophos_src_ip') }}@if($get('sophos_src_port')):<span class="text-muted">{{ $get('sophos_src_port') }}</span>@endif
+                                </td>
+                                <td class="font-monospace small">
+                                    {{ $get('sophos_dst_ip') }}@if($get('sophos_dst_port')):<span class="text-muted">{{ $get('sophos_dst_port') }}</span>@endif
+                                    @if($get('kv_dst_country') && $get('kv_dst_country') !== 'R1')
+                                        <span class="badge bg-light text-dark ms-1">{{ $get('kv_dst_country') }}</span>
                                     @endif
                                 </td>
-                                <td>{{ $r['sophos_protocol'] ?: '' }}</td>
+                                <td>{{ $get('sophos_protocol') }}</td>
                                 <td class="text-end">
                                     <button type="button" class="btn btn-sm btn-link p-0 raw-toggle"
                                             data-target="raw-{{ $i }}" title="Show raw message">

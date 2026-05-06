@@ -19,6 +19,11 @@ class Supplier extends Model
         return $this->hasMany(Accessory::class);
     }
 
+    public function licenses(): HasMany
+    {
+        return $this->hasMany(License::class);
+    }
+
     /**
      * Total spend grouped by currency (since costs are stored in their original
      * currency without conversion). Returns e.g. ['USD' => 1500.00, 'SAR' => 800.00].
@@ -37,11 +42,16 @@ class Supplier extends Model
             $totals[$code] = ($totals[$code] ?? 0) + (float) $a->purchase_cost;
         }
 
+        foreach ($this->licenses()->whereNotNull('cost')->get(['cost', 'currency']) as $l) {
+            $code = $l->currency ?: 'USD';
+            $totals[$code] = ($totals[$code] ?? 0) + (float) $l->cost;
+        }
+
         return $totals;
     }
 
     public function assetCount(): int
     {
-        return $this->devices()->count();
+        return $this->devices()->count() + $this->accessories()->count() + $this->licenses()->count();
     }
 }

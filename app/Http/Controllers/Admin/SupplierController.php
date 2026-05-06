@@ -10,7 +10,7 @@ class SupplierController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Supplier::withCount('devices')->with('accessories');
+        $query = Supplier::withCount(['devices', 'accessories', 'licenses']);
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -24,6 +24,17 @@ class SupplierController extends Controller
         $suppliers = $query->orderBy('name')->paginate(25)->withQueryString();
 
         return view('admin.itam.suppliers.index', compact('suppliers'));
+    }
+
+    public function show(Supplier $supplier)
+    {
+        $supplier->loadCount(['devices', 'accessories', 'licenses']);
+
+        $devices     = $supplier->devices()->with('branch')->orderBy('name')->get();
+        $accessories = $supplier->accessories()->orderBy('name')->get();
+        $licenses    = $supplier->licenses()->orderBy('license_name')->get();
+
+        return view('admin.itam.suppliers.show', compact('supplier', 'devices', 'accessories', 'licenses'));
     }
 
     public function store(Request $request)
@@ -66,8 +77,8 @@ class SupplierController extends Controller
 
     public function destroy(Supplier $supplier)
     {
-        if ($supplier->devices()->count() > 0 || $supplier->accessories()->count() > 0) {
-            return back()->with('error', 'Cannot delete supplier with linked assets or accessories.');
+        if ($supplier->devices()->count() > 0 || $supplier->accessories()->count() > 0 || $supplier->licenses()->count() > 0) {
+            return back()->with('error', 'Cannot delete supplier with linked assets, accessories, or licenses.');
         }
 
         $name = $supplier->name;

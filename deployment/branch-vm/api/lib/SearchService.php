@@ -79,9 +79,11 @@ class SearchService
 
         $dataSql = "SELECT id, received_at, branch, source, source_ip, program,
                            facility, severity, message,
-                           sophos_log_type, sophos_log_subtype, sophos_src_ip,
-                           sophos_dst_ip, sophos_src_port, sophos_dst_port,
-                           sophos_fw_rule_name
+                           sophos_log_type, sophos_log_subtype, sophos_log_component,
+                           sophos_src_ip, sophos_dst_ip,
+                           sophos_src_port, sophos_dst_port,
+                           sophos_protocol, sophos_fw_rule_name,
+                           sophos_user_name, sophos_application
                     FROM syslog_messages
                     WHERE $whereSql
                     ORDER BY received_at DESC, id DESC
