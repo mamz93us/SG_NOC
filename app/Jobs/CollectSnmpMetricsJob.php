@@ -58,13 +58,17 @@ class CollectSnmpMetricsJob implements ShouldQueue
             return;
         }
 
-        // Cache lock: skip if this host was recently polled. Uses the default
-        // cache store (database, redis, file — whatever CACHE_STORE is set to).
-        // Hardcoding Cache::store('redis') broke on installs without phpredis
-        // and spammed the log every poll with "Class \"Redis\" not found".
-        if (Cache::has("snmp_lock_{$host->id}")) {
-            Log::debug("CollectSnmpMetricsJob: Skipping host {$host->ip} (ID: {$host->id}) — cache lock active.");
-            return;
+        // Redis cache lock: skip if this host was recently polled
+        try {
+            if (Cache::store('redis')->has("snmp_lock_{$host->id}")) {
+                Log::debug("CollectSnmpMetricsJob: Skipping host {$host->ip} (ID: {$host->id}) — cache lock active.");
+                return;
+            }
+        } catch (\Throwable $e) {
+            // Redis unavailable — continue polling regardless
+            Log::debug("CollectSnmpMetricsJob: Redis cache check failed for host {$host->id}, continuing poll.", [
+                'error' => $e->getMessage(),
+            ]);
         }
 
         $client = null;
@@ -170,8 +174,15 @@ class CollectSnmpMetricsJob implements ShouldQueue
                 }
                 $host->save();
 
-                // Set cache lock after successful poll (240 second TTL).
-                Cache::put("snmp_lock_{$host->id}", true, 240);
+                // Set Redis cache lock after successful poll (240 second TTL)
+                try {
+                    Cache::store('redis')->put("snmp_lock_{$host->id}", true, 240);
+                } catch (\Throwable $e) {
+                    // Redis unavailable — continue without lock
+                    Log::debug("CollectSnmpMetricsJob: Failed to set Redis cache lock for host {$host->id}.", [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
         } catch (\Exception $e) {
@@ -266,47 +277,19 @@ class CollectSnmpMetricsJob implements ShouldQueue
 
     protected function parseValue(string $value): float
     {
-        // Strip SNMP type prefix and surrounding quotes once up front. Grandstream
-        // returns disk/CPU/memory as OCTET STRING like  STRING: "11.837062%"  or
-        // STRING: "27"  — without this strip, the regex below misses both.
-        $clean = preg_replace('/^[A-Z][A-Z0-9-]*:\s*/i', '', trim($value));
-        $clean = trim($clean, " \t\n\r\0\x0B\"'");
-
-        // Numeric Gauge32 / Counter32 / Counter64 / Integer / TimeTicks etc.
+        // Handle numeric values
         if (preg_match('/(?:INTEGER|Gauge32|Counter32|Counter64|Unsigned32|TimeTicks):\s*(-?\d+)/i', $value, $matches)) {
             return (float) $matches[1];
         }
 
-        // Time-formatted uptime — Grandstream's sUptime is OCTET STRING formatted
-        // as "5 days 03:42:17", "03:42:17", "5d 3h 42m". Convert to total seconds
-        // so the view's `unit=s` path renders days/hours/minutes correctly.
-        // Place before the bare-numeric fallback so e.g. "03:42:17" doesn't get
-        // truncated to just "17".
-        if (preg_match('/(?:(\d+)\s*days?[,\s]+)?(\d+):(\d{1,2})(?::(\d{1,2}))?\s*$/i', $clean, $m)) {
-            $days  = (int) ($m[1] ?? 0);
-            $hours = (int) $m[2];
-            $mins  = (int) $m[3];
-            $secs  = (int) ($m[4] ?? 0);
-            $total = $days * 86400 + $hours * 3600 + $mins * 60 + $secs;
-            if ($total > 0) return (float) $total;
-        }
-        if (preg_match('/(\d+)\s*d(?:ays?)?\s+(\d+)\s*h(?:ours?)?\s+(\d+)\s*m(?:in(?:utes?)?)?/i', $clean, $m)) {
-            return (float) ($m[1] * 86400 + $m[2] * 3600 + $m[3] * 60);
-        }
-
-        // Number with optional trailing percent — "11.83%", "27%", "4", "0.5"
-        if (preg_match('/^(-?\d+(?:\.\d+)?)\s*%?\s*$/', $clean, $matches)) {
-            return (float) $matches[1];
-        }
-
-        // Bare numeric anywhere — fallback for "Counter64: 123" style strings
-        // not caught by the typed regex above.
+        // Counter64, Counter32, Gauge32, INTEGER, etc.
+        // We look for a colon or space followed by digits to skip "64" in "Counter64: 123"
         if (preg_match('/(?:[:\s]|^)(-?\d+(?:\.\d+)?)\s*$/', $value, $matches)) {
             return (float) $matches[1];
         }
 
         // STRING-like status conversions
-        $lower = strtolower($clean);
+        $lower = strtolower($value);
         $downStates = ['unreachable', 'unavailable', 'down', 'inactive', 'notconnect', 'unregistered'];
         $upStates = ['reachable', 'up', 'running', 'active', 'idle', 'registered', 'ringing', 'inuse'];
 
@@ -332,16 +315,19 @@ class CollectSnmpMetricsJob implements ShouldQueue
 
         if ((int) $value === 2) {
             // Value 2 = half-duplex — possible duplex mismatch
-            $existingEvent = NocEvent::where('source_id', $host->id)
-                ->where('source_type', 'snmp_threshold')
+            $existingEvent = NocEvent::where('source_type', 'monitored_host')
+                ->where('source_id', $host->id)
+                ->where('entity_type', 'snmp_threshold')
                 ->where('status', 'open')
                 ->where('title', $eventTitle)
                 ->first();
 
             if (!$existingEvent) {
                 NocEvent::create([
-                    'module'      => 'snmp',
-                    'source_type' => 'snmp_threshold',
+                    'module'      => 'network',
+                    'entity_type' => 'snmp_threshold',
+                    'entity_id'   => (string) $sensor->id,
+                    'source_type' => 'monitored_host',
                     'source_id'   => $host->id,
                     'title'       => $eventTitle,
                     'message'     => "Interface {$sensorName} is operating in half-duplex mode — possible duplex mismatch",
@@ -353,8 +339,9 @@ class CollectSnmpMetricsJob implements ShouldQueue
             }
         } else {
             // Value is no longer 2 (full-duplex or unknown) — auto-resolve
-            NocEvent::where('source_id', $host->id)
-                ->where('source_type', 'snmp_threshold')
+            NocEvent::where('source_type', 'monitored_host')
+                ->where('source_id', $host->id)
+                ->where('entity_type', 'snmp_threshold')
                 ->where('status', 'open')
                 ->where('title', $eventTitle)
                 ->update([
@@ -397,16 +384,19 @@ class CollectSnmpMetricsJob implements ShouldQueue
                 ? "{$sensorName} is low ({$valDisplay}). Please replace or refill."
                 : "Sensor value {$valDisplay} exceeded {$severity} threshold.";
 
-            $existingEvent = NocEvent::where('source_id', $host->id)
-                ->where('source_type', 'snmp_threshold')
+            $existingEvent = NocEvent::where('source_type', 'monitored_host')
+                ->where('source_id', $host->id)
+                ->where('entity_type', 'snmp_threshold')
                 ->where('status', 'open')
                 ->where('title', $eventTitle)
                 ->first();
 
             if (!$existingEvent) {
                 NocEvent::create([
-                    'module'      => 'snmp',
-                    'source_type' => 'snmp_threshold',
+                    'module'      => 'network',
+                    'entity_type' => 'snmp_threshold',
+                    'entity_id'   => (string) $sensor->id,
+                    'source_type' => 'monitored_host',
                     'source_id'   => $host->id,
                     'title'       => $eventTitle,
                     'message'     => $message,
@@ -433,8 +423,9 @@ class CollectSnmpMetricsJob implements ShouldQueue
             }
         } else {
             // Auto-resolve open threshold events when value drops below thresholds
-            NocEvent::where('source_id', $host->id)
-                ->where('source_type', 'snmp_threshold')
+            NocEvent::where('source_type', 'monitored_host')
+                ->where('source_id', $host->id)
+                ->where('entity_type', 'snmp_threshold')
                 ->where('status', 'open')
                 ->where('title', $eventTitle)
                 ->update([

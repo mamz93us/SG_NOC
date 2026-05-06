@@ -57,9 +57,10 @@ class CheckHostAvailabilityJob implements ShouldQueue
                     }
 
                     // Resolve open host_down events
-                    NocEvent::where('source_id', $host->id)
-                        ->where('source_type', 'host_down')
-                        ->where('status', 'open')
+                    NocEvent::where('source_type', 'monitored_host')
+                        ->where('source_id', $host->id)
+                        ->where('entity_type', 'host_down')
+                        ->whereIn('status', ['open', 'acknowledged'])
                         ->update([
                             'status' => 'resolved',
                             'resolved_at' => now(),
@@ -71,12 +72,14 @@ class CheckHostAvailabilityJob implements ShouldQueue
                     // Create NOC alert
                     $event = NocEvent::firstOrCreate(
                         [
+                            'source_type' => 'monitored_host',
                             'source_id'   => $host->id,
-                            'source_type' => 'host_down',
+                            'entity_type' => 'host_down',
                             'status'      => 'open',
                         ],
                         [
-                            'module'     => 'ping',
+                            'module'     => 'network',
+                            'entity_id'  => (string) $host->id,
                             'title'      => "Host Down: {$host->name}",
                             'message'    => "Ping check failed for {$host->ip} completely.",
                             'severity'   => 'critical',
