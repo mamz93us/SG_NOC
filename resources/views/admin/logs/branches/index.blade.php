@@ -147,6 +147,11 @@
                         showing first {{ count($results['results']) }} —
                         took {{ $results['took_ms'] }} ms
                     </small>
+                    <a href="?{{ http_build_query(array_merge(request()->query(), ['export' => 'csv', 'rows' => 5000])) }}"
+                       class="btn btn-sm btn-outline-success"
+                       title="Up to 5,000 rows per branch (Excel-friendly UTF-8)">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
+                    </a>
 
                     @if(!empty($results['errors']))
                         <small class="text-warning">

@@ -7,6 +7,7 @@ use App\Services\BranchLogClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Admin viewer for distributed branch logs.
@@ -23,11 +24,35 @@ class BranchLogController extends Controller
     /**
      * GET /admin/logs/branches
      */
-    public function index(Request $request): View
+    public function index(Request $request)
     {
         $branches = $this->client->enabledBranches();
         $selected = $this->parseSelectedBranches($request, $branches);
         $filters  = $this->extractFilters($request);
+
+        // CSV export bypasses HTML rendering
+        if ($request->get('export') === 'csv') {
+            $rows = max(50, min(10000, (int) $request->get('rows', 5000)));
+            $results = $this->client->search($selected, $this->toApiParams($filters), limit: $rows);
+
+            return $this->streamCsv(
+                'branch-logs-' . date('Ymd-His') . '.csv',
+                ['time_utc', 'branch', 'severity', 'source', 'source_ip', 'program', 'message'],
+                function ($fh) use ($results) {
+                    foreach ($results['results'] as $r) {
+                        fputcsv($fh, [
+                            $r['received_at'] ?? '',
+                            $r['branch_id']   ?? '',
+                            $r['severity']    ?? '',
+                            $r['source']      ?? '',
+                            $r['source_ip']   ?? '',
+                            $r['program']     ?? '',
+                            $r['message']     ?? '',
+                        ]);
+                    }
+                }
+            );
+        }
 
         $results = null;
         if ($request->boolean('search')) {
@@ -55,23 +80,59 @@ class BranchLogController extends Controller
      * to filter to firewall messages and pre-parses extra KV fields
      * (interfaces, NAT rule, fw_rule_id) that aren't in the schema yet.
      */
-    public function sophos(Request $request): View
+    public function sophos(Request $request)
     {
         $branches = $this->client->enabledBranches();
         $selected = $this->parseSelectedBranches($request, $branches);
         $filters  = $this->extractFilters($request);
 
+        $apiParams = $this->toApiParams($filters) + ['is_sophos' => 1];
+        foreach (['sophos_dst_ip', 'sophos_src_ip'] as $f) {
+            if (!empty($filters[$f])) $apiParams[$f] = $filters[$f];
+        }
+
+        // CSV export
+        if ($request->get('export') === 'csv') {
+            $rows    = max(50, min(10000, (int) $request->get('rows', 5000)));
+            $results = $this->client->search($selected, $apiParams, limit: $rows);
+            $results['results'] = array_map(
+                fn ($row) => $row + $this->extraSophosFields($row['message'] ?? ''),
+                $results['results']
+            );
+            return $this->streamCsv(
+                'branch-logs-sophos-' . date('Ymd-His') . '.csv',
+                ['time_utc', 'branch', 'component', 'subtype', 'user',
+                 'rule_id', 'rule_name', 'in_interface', 'out_interface',
+                 'src_ip', 'src_port', 'dst_ip', 'dst_port', 'protocol',
+                 'src_country', 'dst_country', 'message'],
+                function ($fh) use ($results) {
+                    foreach ($results['results'] as $r) {
+                        fputcsv($fh, [
+                            $r['received_at']           ?? '',
+                            $r['branch_id']             ?? '',
+                            $r['sophos_log_component']  ?? '',
+                            $r['sophos_log_subtype']    ?? '',
+                            $r['sophos_user_name']      ?? '',
+                            $r['kv_fw_rule_id']         ?? '',
+                            $r['sophos_fw_rule_name']   ?? '',
+                            $r['kv_in_interface']       ?? '',
+                            $r['kv_out_interface']      ?? '',
+                            $r['sophos_src_ip']         ?? '',
+                            $r['sophos_src_port']       ?? '',
+                            $r['sophos_dst_ip']         ?? '',
+                            $r['sophos_dst_port']       ?? '',
+                            $r['sophos_protocol']       ?? '',
+                            $r['kv_src_country']        ?? '',
+                            $r['kv_dst_country']        ?? '',
+                            $r['message']               ?? '',
+                        ]);
+                    }
+                }
+            );
+        }
+
         $results = null;
         if ($request->boolean('search')) {
-            $apiParams = $this->toApiParams($filters) + ['is_sophos' => 1];
-
-            // Sophos-specific filters that map to dedicated DB columns
-            foreach (['sophos_dst_ip', 'sophos_src_ip'] as $f) {
-                if (!empty($filters[$f])) {
-                    $apiParams[$f] = $filters[$f];
-                }
-            }
-
             // Per-branch row cap (max 1000 by SearchService::boundedInt).
             // Default 500; user can pick 200 / 500 / 1000 in the form.
             $rows = (int) $request->get('rows', 500);
@@ -104,18 +165,53 @@ class BranchLogController extends Controller
      * out into severity / call_id / file:line / function / body columns
      * (parsed from the raw message at render time).
      */
-    public function ucm(Request $request): View
+    public function ucm(Request $request)
     {
         $branches = $this->client->enabledBranches();
         $selected = $this->parseSelectedBranches($request, $branches);
         $filters  = $this->extractFilters($request);
         $sourceIp = trim((string) $request->get('source_ip', ''));
 
+        $apiParams = $this->toApiParams($filters);
+        if ($sourceIp !== '') $apiParams['source_ip'] = $sourceIp;
+
+        // CSV export
+        if ($request->get('export') === 'csv') {
+            $rows    = max(50, min(10000, (int) $request->get('rows', 5000)));
+            $results = $this->client->search($selected, $apiParams, limit: $rows);
+            $results['results'] = array_map(
+                fn ($row) => $row + $this->extraAsteriskFields($row['message'] ?? ''),
+                $results['results']
+            );
+            return $this->streamCsv(
+                'branch-logs-ucm-' . date('Ymd-His') . '.csv',
+                ['time_utc', 'branch', 'source_ip', 'severity_text',
+                 'asterisk_severity', 'call_id', 'pid', 'task_id',
+                 'file', 'line', 'function', 'body', 'message'],
+                function ($fh) use ($results) {
+                    foreach ($results['results'] as $r) {
+                        fputcsv($fh, [
+                            $r['received_at'] ?? '',
+                            $r['branch_id']   ?? '',
+                            $r['source_ip']   ?? '',
+                            $r['severity']    ?? '',
+                            $r['a_severity']  ?? '',
+                            $r['a_call_id']   ?? '',
+                            $r['a_pid']       ?? '',
+                            $r['a_task']      ?? '',
+                            $r['a_file']      ?? '',
+                            $r['a_line']      ?? '',
+                            $r['a_func']      ?? '',
+                            $r['a_body']      ?? '',
+                            $r['message']     ?? '',
+                        ]);
+                    }
+                }
+            );
+        }
+
         $results = null;
         if ($request->boolean('search')) {
-            $apiParams = $this->toApiParams($filters);
-            if ($sourceIp !== '') $apiParams['source_ip'] = $sourceIp;
-
             $rows = (int) $request->get('rows', 500);
             $rows = max(50, min(1000, $rows));
 
@@ -133,6 +229,24 @@ class BranchLogController extends Controller
             'filters'          => $filters,
             'sourceIp'         => $sourceIp,
             'results'          => $results,
+        ]);
+    }
+
+    /**
+     * Stream a CSV download. UTF-8 BOM up front so Excel renders Arabic
+     * / accented chars correctly when the file is double-clicked.
+     */
+    private function streamCsv(string $filename, array $headers, \Closure $rowsCallback): StreamedResponse
+    {
+        return response()->streamDownload(function () use ($headers, $rowsCallback) {
+            $fh = fopen('php://output', 'w');
+            fwrite($fh, "\xEF\xBB\xBF");
+            fputcsv($fh, $headers);
+            $rowsCallback($fh);
+            fclose($fh);
+        }, $filename, [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Cache-Control'       => 'no-store, no-cache, must-revalidate',
         ]);
     }
 

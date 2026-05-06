@@ -672,12 +672,6 @@
                             </li>
                             @can('view-syslog')
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.syslog.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.syslog.index') }}">
-                                    <i class="bi bi-journal-code me-2"></i>Syslog
-                                </a>
-                            </li>
-                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.index') ? 'active' : '' }}"
                                    href="{{ route('admin.logs.branches.index') }}">
                                     <i class="bi bi-diagram-3 me-2 text-success"></i>Branch Logs
@@ -703,14 +697,6 @@
                                 </a>
                             </li>
                             @endcan
-                            @if(config('services.graylog.url'))
-                            <li>
-                                <a class="dropdown-item" href="{{ config('services.graylog.url') }}" target="_blank" rel="noopener">
-                                    <i class="bi bi-graph-up-arrow me-2 text-info"></i>Logs (Graylog)
-                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
-                                </a>
-                            </li>
-                            @endif
                             @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>

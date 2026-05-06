@@ -139,15 +139,22 @@
                         took {{ $results['took_ms'] }} ms
                     </span>
 
-                    @if(!empty($results['errors']))
-                        <span class="text-warning">
-                            <i class="bi bi-exclamation-triangle me-1"></i>
-                            {{ count($results['errors']) }} branch error(s):
-                            @foreach($results['errors'] as $bid => $err)
-                                <span title="{{ $err }}">{{ $bid }}</span>@if(!$loop->last), @endif
-                            @endforeach
-                        </span>
-                    @endif
+                    <div class="d-flex gap-2 align-items-center">
+                        @if(!empty($results['errors']))
+                            <span class="text-warning">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                {{ count($results['errors']) }} branch error(s):
+                                @foreach($results['errors'] as $bid => $err)
+                                    <span title="{{ $err }}">{{ $bid }}</span>@if(!$loop->last), @endif
+                                @endforeach
+                            </span>
+                        @endif
+                        <a href="?{{ http_build_query(array_merge(request()->query(), ['export' => 'csv', 'rows' => 5000])) }}"
+                           class="btn btn-sm btn-outline-success"
+                           title="Up to 5,000 rows per branch (Excel-friendly UTF-8)">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
+                        </a>
+                    </div>
                 </div>
 
                 <div class="table-responsive" style="max-height: 75vh;">
