@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Bootstrap a fresh Ubuntu 24.04 branch VM from scratch.
+#
+# Prerequisites on the VM:
+#   - Fresh Ubuntu 24.04.4 server, SSH reachable, sudoer user with key auth
+#
+# Usage:
+#   ansible-playbook -i inventory.yml install-branch.yml --limit jed-noc \
+#     -e "noc_allowed_cidr=10.0.0.0/8 retention_days=60 timezone=Asia/Riyadh"
+#
+# After this completes you still need to put DB_PASSWORD/API_TOKEN
+# somewhere safe (the playbook prints them at the end).
+# ─────────────────────────────────────────────────────────────────────────
+
+- name: Bootstrap SG_NOC branch VM
+  hosts: branch-vms
+  gather_facts: true
+
+  vars:
+    repo_url: "https://github.com/mamz93us/SG_NOC.git"
+    repo_dir: /opt/sg-noc
+    noc_allowed_cidr: "10.0.0.0/8"
+    retention_days: 60
+    timezone: Asia/Riyadh
+
+  tasks:
+    - name: Ensure git is installed
+      apt:
+        name: git
+        state: present
+        update_cache: true
+
+    - name: Clone SG_NOC repo
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ repo_dir }}"
+        version: main
+        update: true
+
+    - name: Render /etc/sg-noc-branch.env
+      copy:
+        dest: /etc/sg-noc-branch.env
+        mode: '0600'
+        content: |
+          BRANCH_ID={{ branch_id }}
+          BRANCH_NAME="{{ branch_id | upper }}"
+          TIMEZONE={{ timezone }}
+          RETENTION_DAYS={{ retention_days }}
+          DB_NAME=sg_noc_branch
+          DB_USER=sg_noc
+          DB_PASSWORD=
+          API_TOKEN=
+          NOC_ALLOWED_CIDR={{ noc_allowed_cidr }}
+        force: false        # don't clobber an existing file (preserves saved secrets)
+
+    - name: Run install.sh
+      command:
+        cmd: bash /opt/sg-noc/deployment/branch-vm/install.sh
+        creates: /etc/systemd/system/sg-noc-ingester.service
+
+    - name: Read back generated secrets
+      slurp:
+        src: /etc/sg-noc-branch.env
+      register: env_after
+
+    - name: Show secrets to copy into NOC .env
+      debug:
+        msg: |
+          ─────────────────────────────────────────────────────
+          {{ inventory_hostname }} ({{ branch_id }}) bootstrap complete.
+
+          Add to NOC Laravel .env:
+            BRANCH_API_TOKEN_{{ branch_id | upper }}=<see API_TOKEN below>
+
+          /etc/sg-noc-branch.env contents (copy to a password manager):
+          {{ env_after.content | b64decode }}
+          ─────────────────────────────────────────────────────
+      no_log: false   # we WANT this on the operator's terminal exactly once

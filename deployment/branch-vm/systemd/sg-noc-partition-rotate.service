@@ -1,0 +1,10 @@
+[Unit]
+Description=SG_NOC nightly partition rotation (creates tomorrow, drops old)
+After=mariadb.service
+Requires=mariadb.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/sg-noc-branch/partition-rotate.sh --cron
+StandardOutput=journal
+StandardError=journal

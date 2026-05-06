@@ -956,6 +956,28 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/ucm',      [\App\Http\Controllers\Admin\SyslogController::class, 'ucm'])->name('ucm');
         Route::get('/{id}',     [\App\Http\Controllers\Admin\SyslogController::class, 'show'])->name('show')->whereNumber('id');
     });
+    // ─── Branch Logs (per-branch VM, queried over IPsec) ─────
+    Route::middleware('permission:view-syslog')->prefix('logs/branches')->name('logs.branches.')->group(function () {
+        Route::get('/',               [\App\Http\Controllers\Admin\BranchLogController::class, 'index'])    ->name('index');
+        Route::get('/aggregate.json', [\App\Http\Controllers\Admin\BranchLogController::class, 'aggregate'])->name('aggregate');
+    });
+
+    // ─── Branch Log Collector management (CRUD) ──────────────
+    // Manages the list of branch VMs the NOC queries: host, port, bearer token.
+    Route::middleware('permission:manage-syslog')
+         ->prefix('branches/log-collectors')
+         ->name('branches.log-collectors.')
+         ->group(function () {
+        Route::get('/',                          [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'index'])         ->name('index');
+        Route::get('/create',                    [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'create'])        ->name('create');
+        Route::post('/',                         [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'store'])         ->name('store');
+        Route::post('/generate-token',           [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'generateToken'])->name('generate-token');
+        Route::get('/{logCollector}/edit',       [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'edit'])          ->name('edit');
+        Route::put('/{logCollector}',            [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'update'])        ->name('update');
+        Route::delete('/{logCollector}',         [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'destroy'])       ->name('destroy');
+        Route::post('/{logCollector}/test',      [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'test'])          ->name('test');
+    });
+
     Route::middleware('permission:manage-syslog')->prefix('syslog')->name('syslog.')->group(function () {
         Route::get('/rules',                 [\App\Http\Controllers\Admin\SyslogController::class, 'rulesIndex'])->name('rules.index');
         Route::get('/rules/create',          [\App\Http\Controllers\Admin\SyslogController::class, 'rulesCreate'])->name('rules.create');

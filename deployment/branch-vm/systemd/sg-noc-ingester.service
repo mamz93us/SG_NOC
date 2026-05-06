@@ -1,0 +1,28 @@
+[Unit]
+Description=SG_NOC branch syslog ingester (JSONL → MariaDB)
+After=mariadb.service rsyslog.service
+Requires=mariadb.service
+PartOf=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/php /opt/sg-noc-branch/ingester.php
+Restart=always
+RestartSec=5
+# Run as root so we can read the syslog-owned spool file. Could also be
+# run as a less-privileged user that's a member of the 'adm' group;
+# leaving as root keeps install simpler.
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal
+# Hardening — won't impact functionality, just denies any compromised
+# ingester from doing more than it needs.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sg-noc-ingest /var/log
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

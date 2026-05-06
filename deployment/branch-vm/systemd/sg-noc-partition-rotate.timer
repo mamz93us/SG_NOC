@@ -1,0 +1,12 @@
+[Unit]
+Description=Run sg-noc-partition-rotate daily at 00:30 local time
+
+[Timer]
+# Run at 00:30 every day. Persistent=true means if the VM was off
+# at 00:30, the rotation runs at next boot.
+OnCalendar=*-*-* 00:30:00
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

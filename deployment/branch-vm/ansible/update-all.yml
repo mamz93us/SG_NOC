@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Push the latest code from git to every branch VM and reload services.
+#
+# Usage:
+#   ansible-playbook -i inventory.yml update-all.yml
+#
+# Subset to one branch:
+#   ansible-playbook -i inventory.yml update-all.yml --limit jed-noc
+# ─────────────────────────────────────────────────────────────────────────
+
+- name: Update SG_NOC branch VMs
+  hosts: branch-vms
+  serial: 3            # roll out 3 at a time so a bad commit can't down all 9 at once
+  any_errors_fatal: false
+  gather_facts: false
+
+  tasks:
+    - name: Verify install dir exists (skip host if not bootstrapped)
+      stat:
+        path: /opt/sg-noc/.git
+      register: install_dir
+
+    - name: Skip un-bootstrapped hosts
+      meta: end_host
+      when: not install_dir.stat.exists
+
+    - name: Run update.sh on each branch
+      command:
+        cmd: bash /opt/sg-noc/deployment/branch-vm/update.sh
+      register: update_result
+      changed_when: "'Already up-to-date' not in update_result.stdout"
+
+    - name: Show last 30 lines of update output
+      debug:
+        var: update_result.stdout_lines | last(30)
+      when: update_result.changed
+
+    - name: Health check after update
+      uri:
+        url: http://127.0.0.1:8514/api/health
+        return_content: true
+      register: health
+      retries: 3
+      delay: 2
+
+    - name: Confirm health
+      assert:
+        that:
+          - health.json.ok | default(false)
+        fail_msg: "Health check failed on {{ inventory_hostname }} — investigate manually"
+        success_msg: "{{ inventory_hostname }}: API healthy"

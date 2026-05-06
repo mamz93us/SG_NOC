@@ -1,0 +1,4 @@
+# Per-VM environment file lives at /etc/sg-noc-branch.env, NOT in repo.
+# This is just a guard in case anyone copies it into the repo dir.
+.env
+sg-noc-branch.env

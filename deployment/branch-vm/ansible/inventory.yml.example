@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Ansible inventory for SG_NOC branch VMs.
+#
+# Copy to inventory.yml and fill in:
+#   - ansible_host: the tunnel-side IP of each branch VM (reachable from
+#                   wherever you run ansible-playbook)
+#   - branch_id  : the BRANCH_ID set in /etc/sg-noc-branch.env on the VM
+#
+# Sanity-check connectivity before running playbooks:
+#   ansible -i inventory.yml branch-vms -m ping
+# ─────────────────────────────────────────────────────────────────────────
+
+all:
+  vars:
+    ansible_user: azureuser
+    ansible_ssh_private_key_file: ~/.ssh/sg-noc-branches.pem
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_become: true                 # use sudo for all commands
+
+  children:
+    branch-vms:
+      hosts:
+        jed-noc:
+          ansible_host: 10.1.0.5
+          branch_id: jed
+        ryd-noc:
+          ansible_host: 10.2.0.5
+          branch_id: ryd
+        mak-noc:
+          ansible_host: 10.3.0.5
+          branch_id: mak
+        dam-noc:
+          ansible_host: 10.4.0.5
+          branch_id: dam
+        med-noc:
+          ansible_host: 10.5.0.5
+          branch_id: med
+        tab-noc:
+          ansible_host: 10.6.0.5
+          branch_id: tab
+        hfr-noc:
+          ansible_host: 10.7.0.5
+          branch_id: hfr
+        abh-noc:
+          ansible_host: 10.8.0.5
+          branch_id: abh
+        sam-noc:
+          ansible_host: 10.9.0.5
+          branch_id: sam

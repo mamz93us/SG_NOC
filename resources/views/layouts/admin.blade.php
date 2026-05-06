@@ -677,6 +677,20 @@
                                     <i class="bi bi-journal-code me-2"></i>Syslog
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.logs.branches.index') }}">
+                                    <i class="bi bi-diagram-3 me-2 text-success"></i>Branch Logs
+                                </a>
+                            </li>
+                            @can('manage-syslog')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.branches.log-collectors.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.branches.log-collectors.index') }}">
+                                    <i class="bi bi-hdd-network me-2 text-secondary"></i>Branch Log Collectors
+                                </a>
+                            </li>
+                            @endcan
                             @if(config('services.graylog.url'))
                             <li>
                                 <a class="dropdown-item" href="{{ config('services.graylog.url') }}" target="_blank" rel="noopener">
