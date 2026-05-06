@@ -10,7 +10,7 @@ class Accessory extends Model
 {
     protected $fillable = [
         'name', 'category', 'quantity_total', 'quantity_available',
-        'supplier_id', 'purchase_cost', 'notes',
+        'supplier_id', 'purchase_cost', 'currency', 'notes',
     ];
 
     protected $casts = [

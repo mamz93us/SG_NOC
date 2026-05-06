@@ -110,9 +110,13 @@
                         <div class="col-md-4">
                             <label class="form-label">Purchase Cost (per unit)</label>
                             <div class="input-group">
-                                <span class="input-group-text small">SAR</span>
-                                <input type="number" name="purchase_cost" class="form-control" 
+                                <input type="number" name="purchase_cost" class="form-control"
                                        value="{{ old('purchase_cost') }}" min="0" step="0.01">
+                                <select name="currency" class="form-select" style="max-width:90px">
+                                    @foreach(\App\Support\Currency::CODES as $code)
+                                    <option value="{{ $code }}" {{ old('currency', \App\Support\Currency::DEFAULT) === $code ? 'selected' : '' }}>{{ $code }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                         </div>
 

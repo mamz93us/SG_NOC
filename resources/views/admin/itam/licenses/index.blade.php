@@ -84,7 +84,7 @@
                                 <span class="text-muted">—</span>
                             @endif
                         </td>
-                        <td class="font-monospace">${{ $lic->cost ? number_format($lic->cost, 0) : '—' }}</td>
+                        <td class="font-monospace">{{ $lic->cost ? ($lic->currency ?? 'USD') . ' ' . number_format($lic->cost, 0) : '—' }}</td>
                         <td class="text-end">
                             @can('manage-licenses')
                             <button class="btn btn-sm btn-outline-primary" title="Assign"
@@ -320,6 +320,7 @@ function editLicense(lic) {
     form.querySelector('[name=purchase_date]').value = lic.purchase_date || '';
     form.querySelector('[name=expiry_date]').value = lic.expiry_date || '';
     form.querySelector('[name=cost]').value = lic.cost || '';
+    form.querySelector('[name=currency]').value = lic.currency || 'USD';
     form.querySelector('[name=seats]').value = lic.seats || 1;
     form.querySelector('[name=notes]').value = lic.notes || '';
 }

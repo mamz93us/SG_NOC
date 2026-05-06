@@ -279,10 +279,14 @@
                 <div class="col-md-3">
                     <label class="form-label">Purchase Cost</label>
                     <div class="input-group">
-                        <span class="input-group-text small">SAR</span>
                         <input type="number" name="purchase_cost" class="form-control"
                                value="{{ old('purchase_cost', $device->purchase_cost ?? '') }}"
                                min="0" step="0.01" placeholder="0.00">
+                        <select name="currency" class="form-select" style="max-width:90px">
+                            @foreach(\App\Support\Currency::CODES as $code)
+                            <option value="{{ $code }}" {{ old('currency', $device->currency ?? \App\Support\Currency::DEFAULT) === $code ? 'selected' : '' }}>{{ $code }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
                 <div class="col-md-3">

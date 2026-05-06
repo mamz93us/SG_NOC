@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Device;
 use App\Models\Supplier;
 use App\Models\ActivityLog;
+use App\Support\Currency;
 use Illuminate\Http\Request;
 
 class AccessoryController extends Controller
@@ -45,6 +46,7 @@ class AccessoryController extends Controller
             'quantity_available' => 'required|integer|min:0',
             'supplier_id'        => 'nullable|exists:suppliers,id',
             'purchase_cost'      => 'nullable|numeric|min:0',
+            'currency'           => 'required|in:' . implode(',', Currency::CODES),
             'notes'              => 'nullable|string',
         ]);
 
@@ -63,6 +65,7 @@ class AccessoryController extends Controller
             'quantity_available' => 'required|integer|min:0',
             'supplier_id'        => 'nullable|exists:suppliers,id',
             'purchase_cost'      => 'nullable|numeric|min:0',
+            'currency'           => 'required|in:' . implode(',', Currency::CODES),
             'notes'              => 'nullable|string',
         ]);
 

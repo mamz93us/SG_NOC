@@ -10,7 +10,7 @@ class License extends Model
 {
     protected $fillable = [
         'license_name', 'vendor', 'license_key', 'license_type',
-        'purchase_date', 'expiry_date', 'cost', 'seats', 'notes',
+        'purchase_date', 'expiry_date', 'cost', 'currency', 'seats', 'notes',
     ];
 
     protected $casts = [

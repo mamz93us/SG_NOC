@@ -39,6 +39,7 @@ class Device extends Model
         // ── ITAM ──────────────────────────────────────────────────────
         'asset_code',
         'purchase_cost',
+        'currency',
         'supplier_id',
         'condition',
         'depreciation_method',

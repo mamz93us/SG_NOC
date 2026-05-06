@@ -8,6 +8,7 @@ use App\Models\Device;
 use App\Models\Employee;
 use App\Models\AssetHistory;
 use App\Models\ActivityLog;
+use App\Support\Currency;
 use Illuminate\Http\Request;
 
 class LicenseController extends Controller
@@ -58,6 +59,7 @@ class LicenseController extends Controller
             'purchase_date' => 'nullable|date',
             'expiry_date'   => 'nullable|date|after_or_equal:purchase_date',
             'cost'          => 'nullable|numeric|min:0',
+            'currency'      => 'required|in:' . implode(',', Currency::CODES),
             'seats'         => 'required|integer|min:1',
             'notes'         => 'nullable|string',
         ]);
@@ -78,6 +80,7 @@ class LicenseController extends Controller
             'purchase_date' => 'nullable|date',
             'expiry_date'   => 'nullable|date',
             'cost'          => 'nullable|numeric|min:0',
+            'currency'      => 'required|in:' . implode(',', Currency::CODES),
             'seats'         => 'required|integer|min:1',
             'notes'         => 'nullable|string',
         ]);

@@ -30,8 +30,15 @@
         <input type="number" name="quantity_available" class="form-control" min="0" value="0" required>
     </div>
     <div class="col-md-4">
-        <label class="form-label">Cost ($)</label>
-        <input type="number" name="purchase_cost" class="form-control" step="0.01" min="0">
+        <label class="form-label">Cost</label>
+        <div class="input-group">
+            <input type="number" name="purchase_cost" class="form-control" step="0.01" min="0">
+            <select name="currency" class="form-select" style="max-width:80px">
+                @foreach(\App\Support\Currency::CODES as $code)
+                <option value="{{ $code }}" {{ old('currency', \App\Support\Currency::DEFAULT) === $code ? 'selected' : '' }}>{{ $code }}</option>
+                @endforeach
+            </select>
+        </div>
     </div>
 </div>
 <div class="mt-3">

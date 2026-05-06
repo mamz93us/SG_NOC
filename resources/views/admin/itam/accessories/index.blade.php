@@ -65,7 +65,7 @@
                             <span class="text-muted">0</span>
                             @endif
                         </td>
-                        <td class="font-monospace">${{ $acc->purchase_cost ? number_format($acc->purchase_cost, 0) : '—' }}</td>
+                        <td class="font-monospace">{{ $acc->purchase_cost ? ($acc->currency ?? 'USD') . ' ' . number_format($acc->purchase_cost, 0) : '—' }}</td>
                         <td class="text-end">
                             @can('manage-accessories')
                             <button class="btn btn-sm btn-outline-primary" title="Assign"
@@ -289,6 +289,7 @@ function editAccessory(a) {
     form.querySelector('[name=quantity_available]').value = a.quantity_available || 0;
     if (form.querySelector('[name=supplier_id]')) form.querySelector('[name=supplier_id]').value = a.supplier_id || '';
     form.querySelector('[name=purchase_cost]').value = a.purchase_cost || '';
+    form.querySelector('[name=currency]').value = a.currency || 'USD';
     form.querySelector('[name=notes]').value = a.notes || '';
 }
 </script>

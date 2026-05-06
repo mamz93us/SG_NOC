@@ -77,7 +77,7 @@
                             <td>{{ $d->currentAssignment?->employee?->name ?? '—' }}</td>
                             <td>{{ $d->storage_location ?? '—' }}</td>
                             <td><span class="badge {{ $d->conditionBadgeClass() }}">{{ $d->conditionLabel() }}</span></td>
-                            <td class="text-end">{{ $d->purchase_cost ? number_format($d->purchase_cost, 2) : '—' }}</td>
+                            <td class="text-end">{{ $d->purchase_cost ? ($d->currency ?? 'USD') . ' ' . number_format($d->purchase_cost, 2) : '—' }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="9" class="text-center py-5 text-muted">No assets match your filters.</td></tr>

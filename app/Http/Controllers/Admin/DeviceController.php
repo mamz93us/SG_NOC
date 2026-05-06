@@ -17,6 +17,7 @@ use App\Models\LicenseAssignment;
 use App\Models\Supplier;
 use App\Services\AssetCodeService;
 use App\Services\DepreciationService;
+use App\Support\Currency;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -241,6 +242,7 @@ class DeviceController extends Controller
             // ITAM fields
             'asset_code'           => 'nullable|string|max:50|unique:devices,asset_code',
             'purchase_cost'        => 'nullable|numeric|min:0',
+            'currency'             => 'required|in:' . implode(',', Currency::CODES),
             'supplier_id'          => 'nullable|exists:suppliers,id',
             'condition'            => 'nullable|in:new,used,refurbished,damaged',
             'depreciation_method'  => 'nullable|in:straight_line,none',
@@ -326,6 +328,7 @@ class DeviceController extends Controller
             'serials'         => 'required|string', // newline separated
             'purchase_date'   => 'nullable|date',
             'purchase_cost'   => 'nullable|numeric',
+            'currency'        => 'required|in:' . implode(',', Currency::CODES),
             'supplier_id'     => 'nullable|exists:suppliers,id',
             'condition'       => 'required|string',
         ]);
@@ -355,6 +358,7 @@ class DeviceController extends Controller
                 'status'          => $request->status,
                 'purchase_date'   => $request->purchase_date,
                 'purchase_cost'   => $request->purchase_cost,
+                'currency'        => $request->currency,
                 'supplier_id'     => $request->supplier_id,
                 'condition'       => $request->condition,
                 'source'          => 'manual',
@@ -419,6 +423,7 @@ class DeviceController extends Controller
             // ITAM fields
             'asset_code'           => 'nullable|string|max:50|unique:devices,asset_code,' . $device->id,
             'purchase_cost'        => 'nullable|numeric|min:0',
+            'currency'             => 'required|in:' . implode(',', Currency::CODES),
             'supplier_id'          => 'nullable|exists:suppliers,id',
             'condition'            => 'nullable|in:new,used,refurbished,damaged',
             'depreciation_method'  => 'nullable|in:straight_line,none',

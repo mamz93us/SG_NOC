@@ -262,7 +262,7 @@
                     <tr><th class="text-muted ps-3">Supplier</th>
                         <td>{{ $device->supplier?->name ?: '—' }}</td></tr>
                     <tr><th class="text-muted ps-3">Purchase Cost</th>
-                        <td>{{ $device->purchase_cost ? 'SAR ' . number_format($device->purchase_cost, 2) : '—' }}</td></tr>
+                        <td>{{ $device->purchase_cost ? ($device->currency ?? 'USD') . ' ' . number_format($device->purchase_cost, 2) : '—' }}</td></tr>
                     <tr><th class="text-muted ps-3">Condition</th>
                         <td>
                             @if($device->condition)
@@ -281,7 +281,7 @@
                         </td></tr>
                     @if($device->purchase_cost && $device->depreciation_method === 'straight_line')
                     <tr><th class="text-muted ps-3">Current Value</th>
-                        <td class="fw-semibold">SAR {{ number_format($depreciation->currentValue($device), 2) }}
+                        <td class="fw-semibold">{{ $device->currency ?? 'USD' }} {{ number_format($depreciation->currentValue($device), 2) }}
                             <small class="text-muted">({{ number_format($depreciation->percentDepreciated($device), 0) }}% depreciated)</small>
                         </td></tr>
                     @endif
