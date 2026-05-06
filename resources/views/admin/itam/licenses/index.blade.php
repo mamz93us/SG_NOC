@@ -44,7 +44,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>License</th>
-                        <th>Vendor</th>
+                        <th>Supplier</th>
                         <th>Type</th>
                         <th>Seats Used</th>
                         <th class="text-center">Assigned To</th>
@@ -57,7 +57,7 @@
                     @forelse($licenses as $lic)
                     <tr>
                         <td class="fw-semibold">{{ $lic->license_name }}</td>
-                        <td>{{ $lic->vendor ?: '—' }}</td>
+                        <td>{{ $lic->vendorDisplay() ?: '—' }}</td>
                         <td><span class="badge bg-secondary">{{ ucfirst($lic->license_type) }}</span></td>
                         <td style="min-width:150px">
                             <div class="d-flex align-items-center gap-2">
@@ -315,7 +315,7 @@ function editLicense(lic) {
     const form = document.getElementById('editLicenseForm');
     form.action = `/admin/itam/licenses/${lic.id}`;
     form.querySelector('[name=license_name]').value = lic.license_name || '';
-    form.querySelector('[name=vendor]').value = lic.vendor || '';
+    form.querySelector('[name=supplier_id]').value = lic.supplier_id || '';
     form.querySelector('[name=license_type]').value = lic.license_type || '';
     form.querySelector('[name=purchase_date]').value = lic.purchase_date ? lic.purchase_date.substring(0, 10) : '';
     form.querySelector('[name=expiry_date]').value = lic.expiry_date ? lic.expiry_date.substring(0, 10) : '';

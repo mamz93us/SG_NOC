@@ -8,6 +8,7 @@ use App\Models\Device;
 use App\Models\Employee;
 use App\Models\AssetHistory;
 use App\Models\ActivityLog;
+use App\Models\Supplier;
 use App\Support\Currency;
 use Illuminate\Http\Request;
 
@@ -15,13 +16,14 @@ class LicenseController extends Controller
 {
     public function index(Request $request)
     {
-        $query = License::with(['assignments.assignable'])->withCount('assignments');
+        $query = License::with(['supplier', 'assignments.assignable'])->withCount('assignments');
 
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('license_name', 'like', "%{$s}%")
-                  ->orWhere('vendor', 'like', "%{$s}%");
+                  ->orWhere('vendor', 'like', "%{$s}%")
+                  ->orWhereHas('supplier', fn($sq) => $sq->where('name', 'like', "%{$s}%"));
             });
         }
 
@@ -45,15 +47,16 @@ class LicenseController extends Controller
 
         $licenses     = $query->orderBy('license_name')->paginate(25)->withQueryString();
         $licenseTypes = License::TYPES;
+        $suppliers    = Supplier::orderBy('name')->get();
 
-        return view('admin.itam.licenses.index', compact('licenses', 'licenseTypes'));
+        return view('admin.itam.licenses.index', compact('licenses', 'licenseTypes', 'suppliers'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
             'license_name'  => 'required|string|max:255',
-            'vendor'        => 'nullable|string|max:255',
+            'supplier_id'   => 'nullable|exists:suppliers,id',
             'license_key'   => 'nullable|string',
             'license_type'  => 'required|in:' . implode(',', License::TYPES),
             'purchase_date' => 'nullable|date',
@@ -74,7 +77,7 @@ class LicenseController extends Controller
     {
         $data = $request->validate([
             'license_name'  => 'required|string|max:255',
-            'vendor'        => 'nullable|string|max:255',
+            'supplier_id'   => 'nullable|exists:suppliers,id',
             'license_key'   => 'nullable|string',
             'license_type'  => 'required|in:' . implode(',', License::TYPES),
             'purchase_date' => 'nullable|date',

@@ -12,8 +12,13 @@
         </select>
     </div>
     <div class="col-md-6">
-        <label class="form-label">Vendor</label>
-        <input type="text" name="vendor" class="form-control">
+        <label class="form-label">Supplier</label>
+        <select name="supplier_id" class="form-select">
+            <option value="">— None —</option>
+            @foreach($suppliers ?? [] as $sup)
+            <option value="{{ $sup->id }}" {{ old('supplier_id') == $sup->id ? 'selected' : '' }}>{{ $sup->name }}</option>
+            @endforeach
+        </select>
     </div>
     <div class="col-md-3">
         <label class="form-label">Seats <span class="text-danger">*</span></label>

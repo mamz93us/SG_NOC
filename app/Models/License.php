@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
 
 class License extends Model
 {
     protected $fillable = [
-        'license_name', 'vendor', 'license_key', 'license_type',
+        'license_name', 'vendor', 'supplier_id', 'license_key', 'license_type',
         'purchase_date', 'expiry_date', 'cost', 'currency', 'seats', 'notes',
     ];
 
@@ -42,9 +43,20 @@ class License extends Model
         }
     }
 
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
     public function assignments(): HasMany
     {
         return $this->hasMany(LicenseAssignment::class);
+    }
+
+    /** Display name for the license vendor — supplier relation, or legacy free-text fallback. */
+    public function vendorDisplay(): ?string
+    {
+        return $this->supplier?->name ?? $this->vendor ?: null;
     }
 
     public function usedSeats(): int
