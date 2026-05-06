@@ -42,9 +42,9 @@ class Supplier extends Model
             $totals[$code] = ($totals[$code] ?? 0) + ((float) $a->purchase_cost * (int) $a->quantity_total);
         }
 
-        foreach ($this->licenses()->whereNotNull('cost')->get(['cost', 'currency']) as $l) {
+        foreach ($this->licenses()->whereNotNull('cost')->get(['cost', 'seats', 'currency']) as $l) {
             $code = $l->currency ?: 'USD';
-            $totals[$code] = ($totals[$code] ?? 0) + (float) $l->cost;
+            $totals[$code] = ($totals[$code] ?? 0) + ((float) $l->cost * max(1, (int) $l->seats));
         }
 
         return $totals;

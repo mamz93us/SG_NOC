@@ -168,7 +168,8 @@
                             <th>Type</th>
                             <th>Seats</th>
                             <th>Expiry</th>
-                            <th class="text-end">Cost</th>
+                            <th class="text-end">Cost (per seat)</th>
+                            <th class="text-end">Line Total</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -186,6 +187,9 @@
                             </td>
                             <td class="text-end font-monospace">
                                 {{ $l->cost ? ($l->currency ?? 'USD') . ' ' . number_format($l->cost, 2) : '—' }}
+                            </td>
+                            <td class="text-end font-monospace fw-semibold">
+                                {{ $l->cost ? ($l->currency ?? 'USD') . ' ' . number_format($l->cost * max(1, $l->seats), 2) : '—' }}
                             </td>
                         </tr>
                         @endforeach

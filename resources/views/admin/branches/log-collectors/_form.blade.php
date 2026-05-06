@@ -18,11 +18,13 @@
                class="form-control"
                placeholder="jed, ryd, mak…"
                maxlength="8"
-               {{ $collector->exists ? 'readonly' : 'required' }}>
+               required>
         <small class="text-muted">
-            2–8 lowercase letters/digits. Must match <code>BRANCH_ID</code> on the VM.
+            2–8 lowercase letters/digits. Must match <code>BRANCH_ID</code> in
+            <code>/etc/sg-noc-branch.env</code> on the VM.
             @if($collector->exists)
-                <em>(can't change after creation)</em>
+                <br><span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Renaming
+                affects how rows tagged with this branch show up in search results.</span>
             @endif
         </small>
     </div>
