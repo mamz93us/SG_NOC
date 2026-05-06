@@ -962,6 +962,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── Branch Logs (per-branch VM, queried over IPsec) ─────
     Route::middleware('permission:view-syslog')->prefix('logs/branches')->name('logs.branches.')->group(function () {
         Route::get('/',               [\App\Http\Controllers\Admin\BranchLogController::class, 'index'])    ->name('index');
+        Route::get('/sophos',         [\App\Http\Controllers\Admin\BranchLogController::class, 'sophos'])   ->name('sophos');
         Route::get('/aggregate.json', [\App\Http\Controllers\Admin\BranchLogController::class, 'aggregate'])->name('aggregate');
     });
 

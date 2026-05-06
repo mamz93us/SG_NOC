@@ -678,9 +678,15 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.*') ? 'active' : '' }}"
+                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.index') ? 'active' : '' }}"
                                    href="{{ route('admin.logs.branches.index') }}">
                                     <i class="bi bi-diagram-3 me-2 text-success"></i>Branch Logs
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.sophos') ? 'active' : '' }}"
+                                   href="{{ route('admin.logs.branches.sophos') }}">
+                                    <i class="bi bi-shield-shaded me-2 text-danger"></i>Branch Logs · Sophos
                                 </a>
                             </li>
                             @can('manage-syslog')

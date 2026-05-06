@@ -54,6 +54,18 @@ class SearchService
             $where[] = 'sophos_log_subtype = :sub';
             $params[':sub'] = (string) $q['sophos_subtype'];
         }
+        if (!empty($q['is_sophos'])) {
+            // Restrict to messages parsed as Sophos firewall logs
+            $where[] = 'sophos_log_subtype IS NOT NULL';
+        }
+        if (!empty($q['sophos_dst_ip'])) {
+            $where[] = 'sophos_dst_ip = :dst_ip';
+            $params[':dst_ip'] = (string) $q['sophos_dst_ip'];
+        }
+        if (!empty($q['sophos_src_ip'])) {
+            $where[] = 'sophos_src_ip = :src_ip';
+            $params[':src_ip'] = (string) $q['sophos_src_ip'];
+        }
 
         $whereSql = implode(' AND ', $where);
 
