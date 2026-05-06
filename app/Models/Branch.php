@@ -19,6 +19,8 @@ class Branch extends Model
         'id',
         'name',
         'phone_number',
+        'city',
+        'street',
         'ucm_server_id',
         'ext_range_start',
         'ext_range_end',

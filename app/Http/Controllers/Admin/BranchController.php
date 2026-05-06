@@ -32,6 +32,8 @@ class BranchController extends Controller
             'id'                      => 'required|integer|unique:branches,id',
             'name'                    => 'required|string|max:255',
             'phone_number'            => 'nullable|string|max:50',
+            'city'                    => 'nullable|string|max:100',
+            'street'                  => 'nullable|string|max:255',
             'ucm_server_id'           => 'nullable|exists:ucm_servers,id',
             'ext_range_start'         => 'nullable|integer|min:1',
             'ext_range_end'           => 'nullable|integer|min:1',
@@ -40,7 +42,7 @@ class BranchController extends Controller
         ]);
 
         Branch::create($request->only([
-            'id', 'name', 'phone_number',
+            'id', 'name', 'phone_number', 'city', 'street',
             'ucm_server_id', 'ext_range_start', 'ext_range_end',
             'profile_office_template', 'profile_phone_template',
         ]));
@@ -62,6 +64,8 @@ class BranchController extends Controller
             'id'                      => 'required|integer|unique:branches,id,' . $branch->id,
             'name'                    => 'required|string|max:255',
             'phone_number'            => 'nullable|string|max:50',
+            'city'                    => 'nullable|string|max:100',
+            'street'                  => 'nullable|string|max:255',
             'ucm_server_id'           => 'nullable|exists:ucm_servers,id',
             'ext_range_start'         => 'nullable|integer|min:1',
             'ext_range_end'           => 'nullable|integer|min:1',
@@ -70,7 +74,7 @@ class BranchController extends Controller
         ]);
 
         $branch->update($request->only([
-            'id', 'name', 'phone_number',
+            'id', 'name', 'phone_number', 'city', 'street',
             'ucm_server_id', 'ext_range_start', 'ext_range_end',
             'profile_office_template', 'profile_phone_template',
         ]));

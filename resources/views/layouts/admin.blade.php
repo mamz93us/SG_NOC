@@ -814,6 +814,12 @@
                             @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.identity.contact-sync') ? 'active' : '' }}"
+                                   href="{{ route('admin.identity.contact-sync') }}">
+                                    <i class="bi bi-arrow-repeat me-2"></i>Contact Sync
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.identity.sync-logs') ? 'active' : '' }}"
                                    href="{{ route('admin.identity.sync-logs') }}">
                                     <i class="bi bi-clock-history me-2"></i>Sync Logs
