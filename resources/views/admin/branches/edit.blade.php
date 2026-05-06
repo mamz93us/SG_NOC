@@ -38,6 +38,18 @@
                     <input type="text" name="phone_number" class="form-control" value="{{ old('phone_number', $branch->phone_number) }}" placeholder="+20 2 1234 5678">
                     @error('phone_number') <span class="text-danger small">{{ $message }}</span> @enderror
                 </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">City</label>
+                    <input type="text" name="city" class="form-control" value="{{ old('city', $branch->city) }}" placeholder="e.g. Jeddah">
+                    <small class="text-muted">Used as Azure AD <code>city</code> for employees in this branch.</small>
+                    @error('city') <span class="text-danger small">{{ $message }}</span> @enderror
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Street Address</label>
+                    <input type="text" name="street" class="form-control" value="{{ old('street', $branch->street) }}" placeholder="e.g. King Abdulaziz Rd, Tower 5">
+                    <small class="text-muted">Used as Azure AD <code>streetAddress</code> for employees in this branch.</small>
+                    @error('street') <span class="text-danger small">{{ $message }}</span> @enderror
+                </div>
             </div>
         </div>
     </div>

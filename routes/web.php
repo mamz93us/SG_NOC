@@ -567,6 +567,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/groups',                       [IdentityController::class, 'groups'])       ->name('groups');
         Route::get('/groups/{azureId}/members',     [IdentityController::class, 'groupMembers'])->name('group.members');
         Route::get('/sync-logs',                    [IdentityController::class, 'syncLogs'])     ->name('sync-logs');
+        Route::get('/contact-sync',                 [IdentityController::class, 'contactSyncIndex'])->name('contact-sync');
     });
     Route::middleware('permission:manage-identity')->prefix('identity')->name('identity.')->group(function () {
         Route::post('/sync',                                     [IdentityController::class, 'sync'])           ->name('sync');
@@ -578,6 +579,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/users/{azureId}/add-group',                [IdentityController::class, 'addGroup'])       ->name('user.add-group');
         Route::delete('/users/{azureId}/remove-group',           [IdentityController::class, 'removeGroup'])    ->name('user.remove-group');
         Route::delete('/users/{azureId}/delete',                 [IdentityController::class, 'destroyUser'])    ->name('user.destroy');
+        Route::post('/contact-sync/apply',                       [IdentityController::class, 'contactSyncApply'])               ->name('contact-sync.apply');
+        Route::post('/contact-sync/send-reminders',              [IdentityController::class, 'contactSyncSendMobileReminders']) ->name('contact-sync.send-reminders');
     });
     Route::middleware('permission:manage-identity-settings')->prefix('identity')->name('identity.')->group(function () {
         Route::post('/test-connection',  [IdentityController::class, 'testConnection']) ->name('test-connection');
