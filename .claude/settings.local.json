@@ -399,7 +399,10 @@
       "Bash(composer dump-autoload *)",
       "Bash(php -l app/Http/Controllers/Admin/AssetTransferController.php)",
       "Bash(php -l app/Http/Controllers/Admin/BranchStoreController.php)",
-      "Bash(php -l app/Models/Device.php)"
+      "Bash(php -l app/Models/Device.php)",
+      "Bash(php -l resources/views/admin/itam/transfer/print.blade.php)",
+      "Bash(php -l resources/views/admin/itam/stores/universal.blade.php)",
+      "Bash(php -l resources/views/admin/itam/stores/index.blade.php)"
     ]
   }
 }
