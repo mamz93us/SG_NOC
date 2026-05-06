@@ -98,7 +98,17 @@
                            class="form-control form-control-sm">
                 </div>
 
-                <div class="col-md-3 mt-2 d-flex gap-2">
+                @php $rowsSelected = (int) request('rows', 500); @endphp
+                <div class="col-md-1 mt-2">
+                    <label class="form-label small text-muted mb-1">Rows</label>
+                    <select name="rows" class="form-select form-select-sm">
+                        @foreach([200, 500, 1000] as $opt)
+                            <option value="{{ $opt }}" @if($rowsSelected === $opt) selected @endif>{{ $opt }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="col-md-2 mt-2 d-flex gap-2">
                     <button type="submit" class="btn btn-sm btn-primary">
                         <i class="bi bi-search me-1"></i>Search
                     </button>

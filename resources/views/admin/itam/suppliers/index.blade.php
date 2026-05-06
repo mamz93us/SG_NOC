@@ -31,7 +31,9 @@
                         <th>Contact</th>
                         <th>Email</th>
                         <th>Phone</th>
-                        <th class="text-center">Assets</th>
+                        <th class="text-center">Devices</th>
+                        <th class="text-center">Accessories</th>
+                        <th class="text-center">Licenses</th>
                         <th class="text-end">Total Spend</th>
                         <th></th>
                     </tr>
@@ -39,7 +41,9 @@
                 <tbody>
                     @forelse($suppliers as $supplier)
                     <tr>
-                        <td class="fw-semibold">{{ $supplier->name }}</td>
+                        <td class="fw-semibold">
+                            <a href="{{ route('admin.itam.suppliers.show', $supplier) }}" class="text-decoration-none">{{ $supplier->name }}</a>
+                        </td>
                         <td>{{ $supplier->contact_person ?: '—' }}</td>
                         <td>
                             @if($supplier->email)
@@ -51,6 +55,12 @@
                         <td class="font-monospace">{{ $supplier->phone ?: '—' }}</td>
                         <td class="text-center">
                             <span class="badge bg-primary">{{ $supplier->devices_count }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-info">{{ $supplier->accessories_count }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-success">{{ $supplier->licenses_count }}</span>
                         </td>
                         <td class="text-end font-monospace small">
                             @php($spend = $supplier->totalSpendByCurrency())
@@ -76,7 +86,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="7" class="text-center text-muted py-4">No suppliers found.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">No suppliers found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

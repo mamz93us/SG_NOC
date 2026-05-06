@@ -72,7 +72,12 @@ class BranchLogController extends Controller
                 }
             }
 
-            $results = $this->client->search($selected, $apiParams, limit: 500);
+            // Per-branch row cap (max 1000 by SearchService::boundedInt).
+            // Default 500; user can pick 200 / 500 / 1000 in the form.
+            $rows = (int) $request->get('rows', 500);
+            $rows = max(50, min(1000, $rows));
+
+            $results = $this->client->search($selected, $apiParams, limit: $rows);
 
             // Pre-parse Sophos KV fields not stored as columns (interface,
             // rule_id, NAT). Done here once so the Blade view stays clean.

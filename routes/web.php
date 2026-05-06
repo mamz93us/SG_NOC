@@ -1203,7 +1203,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ─── Suppliers ────────────────────────────────────────────────
     Route::middleware('permission:view-itam')->prefix('itam/suppliers')->name('itam.suppliers.')->group(function () {
-        Route::get('/', [SupplierController::class, 'index'])->name('index');
+        Route::get('/',            [SupplierController::class, 'index'])->name('index');
+        Route::get('/{supplier}',  [SupplierController::class, 'show'])->name('show');
     });
     Route::middleware('permission:manage-itam')->prefix('itam/suppliers')->name('itam.suppliers.')->group(function () {
         Route::post('/',              [SupplierController::class, 'store'])   ->name('store');

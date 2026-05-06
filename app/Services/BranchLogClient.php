@@ -59,6 +59,13 @@ class BranchLogClient
             return ['ok' => true, 'results' => [], 'errors' => [], 'branches' => [], 'total' => 0];
         }
 
+        // Tell each branch how many rows it should return — otherwise the
+        // branch API defaults to 200 regardless of our global merge cap.
+        // Capped at 1000 by SearchService::boundedInt() on the branch side.
+        if (!isset($params['limit'])) {
+            $params['limit'] = min($limit, 1000);
+        }
+
         $started   = microtime(true);
         $responses = $this->fanOut($branches, '/api/logs/search', $params);
 
