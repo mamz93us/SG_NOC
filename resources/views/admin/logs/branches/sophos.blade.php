@@ -11,6 +11,26 @@
             default     => 'bg-secondary',
         };
     };
+
+    // Storage is UTC (correct); display in the app's configured timezone.
+    // Override with ?tz=Asia/Riyadh if you ever need a different one.
+    $displayTz = request('tz') ?: config('app.timezone', 'UTC');
+    $tzLabel   = (function ($tz) {
+        try {
+            $offset = (new DateTime('now', new DateTimeZone($tz)))->format('P');  // +03:00
+            return $tz . ' (UTC' . ($offset === '+00:00' ? '' : $offset) . ')';
+        } catch (Throwable) {
+            return $tz;
+        }
+    })($displayTz);
+
+    $fmtTime = function (?string $utc) use ($displayTz) {
+        if (!$utc) return '';
+        try {
+            return \Illuminate\Support\Carbon::parse($utc, 'UTC')
+                ->setTimezone($displayTz)->format('Y-m-d H:i:s');
+        } catch (Throwable) { return $utc; }
+    };
 @endphp
 
 @section('content')
@@ -148,7 +168,7 @@
                     <table class="table table-sm table-striped table-hover small mb-0 align-middle">
                         <thead class="sticky-top bg-light">
                             <tr>
-                                <th style="width:140px;">Time (UTC)</th>
+                                <th style="width:170px;" title="{{ $tzLabel }}">Time</th>
                                 <th style="width: 56px;">Branch</th>
                                 <th style="width: 90px;">Component</th>
                                 <th style="width: 80px;">Action</th>
@@ -171,8 +191,8 @@
                                 $subtype = $get('sophos_log_subtype');
                             @endphp
                             <tr>
-                                <td class="text-nowrap font-monospace">
-                                    {{ \Illuminate\Support\Str::of($get('received_at'))->limit(19, '') }}
+                                <td class="text-nowrap font-monospace" title="UTC: {{ $get('received_at') }}">
+                                    {{ $fmtTime($get('received_at')) }}
                                 </td>
                                 <td><span class="badge bg-secondary">{{ $get('branch_id') }}</span></td>
                                 <td>

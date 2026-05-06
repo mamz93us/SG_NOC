@@ -2,6 +2,23 @@
 
 @section('title', 'Branch Logs')
 
+@php
+    $displayTz = request('tz') ?: config('app.timezone', 'UTC');
+    $tzLabel   = (function ($tz) {
+        try {
+            $off = (new DateTime('now', new DateTimeZone($tz)))->format('P');
+            return $tz . ' (UTC' . ($off === '+00:00' ? '' : $off) . ')';
+        } catch (Throwable) { return $tz; }
+    })($displayTz);
+    $fmtTime = function (?string $utc) use ($displayTz) {
+        if (!$utc) return '';
+        try {
+            return \Illuminate\Support\Carbon::parse($utc, 'UTC')
+                ->setTimezone($displayTz)->format('Y-m-d H:i:s');
+        } catch (Throwable) { return $utc; }
+    };
+@endphp
+
 @section('content')
 <div class="container-fluid py-3">
 
@@ -146,7 +163,7 @@
                     <table class="table table-sm table-striped table-hover small mb-0">
                         <thead class="sticky-top bg-light">
                             <tr>
-                                <th style="width:160px;">Time (UTC)</th>
+                                <th style="width:170px;" title="{{ $tzLabel }}">Time</th>
                                 <th style="width: 60px;">Branch</th>
                                 <th style="width: 90px;">Severity</th>
                                 <th style="width:140px;">Source</th>
@@ -157,7 +174,9 @@
                         <tbody>
                         @forelse($results['results'] as $r)
                             <tr>
-                                <td class="text-nowrap font-monospace">{{ $r['received_at'] }}</td>
+                                <td class="text-nowrap font-monospace" title="UTC: {{ $r['received_at'] }}">
+                                    {{ $fmtTime($r['received_at']) }}
+                                </td>
                                 <td><span class="badge bg-secondary">{{ $r['branch_id'] }}</span></td>
                                 <td>
                                     @php $sev = (int) ($r['severity'] ?? 6); @endphp

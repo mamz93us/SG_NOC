@@ -128,6 +128,7 @@
                             <th class="text-center">Total</th>
                             <th class="text-center">Available</th>
                             <th class="text-end">Cost (per unit)</th>
+                            <th class="text-end">Line Total</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -139,6 +140,9 @@
                             <td class="text-center"><span class="badge bg-{{ $a->availabilityBadgeClass() }}">{{ $a->quantity_available }}</span></td>
                             <td class="text-end font-monospace">
                                 {{ $a->purchase_cost ? ($a->currency ?? 'USD') . ' ' . number_format($a->purchase_cost, 2) : '—' }}
+                            </td>
+                            <td class="text-end font-monospace fw-semibold">
+                                {{ $a->purchase_cost ? ($a->currency ?? 'USD') . ' ' . number_format($a->purchase_cost * $a->quantity_total, 2) : '—' }}
                             </td>
                         </tr>
                         @endforeach

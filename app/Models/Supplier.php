@@ -37,9 +37,9 @@ class Supplier extends Model
             $totals[$code] = ($totals[$code] ?? 0) + (float) $d->purchase_cost;
         }
 
-        foreach ($this->accessories()->whereNotNull('purchase_cost')->get(['purchase_cost', 'currency']) as $a) {
+        foreach ($this->accessories()->whereNotNull('purchase_cost')->get(['purchase_cost', 'quantity_total', 'currency']) as $a) {
             $code = $a->currency ?: 'USD';
-            $totals[$code] = ($totals[$code] ?? 0) + (float) $a->purchase_cost;
+            $totals[$code] = ($totals[$code] ?? 0) + ((float) $a->purchase_cost * (int) $a->quantity_total);
         }
 
         foreach ($this->licenses()->whereNotNull('cost')->get(['cost', 'currency']) as $l) {
