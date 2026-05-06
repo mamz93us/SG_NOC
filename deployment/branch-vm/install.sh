@@ -133,6 +133,25 @@ install_rsyslog_config() {
     # Sanity check syntax
     rsyslogd -N1 -f /etc/rsyslog.d/10-branch-collector.conf
 
+    # Ubuntu 24.04 rsyslog ships with an AppArmor profile that whitelists
+    # /var/log/** and /var/spool/rsyslog/** but NOT our custom spool path.
+    # Drop a local allow-list rider so the omfile actions can write to
+    # /var/spool/sg-noc-ingest/ and /var/log/branch/.
+    if [[ -d /etc/apparmor.d/local ]]; then
+        cat > /etc/apparmor.d/local/usr.sbin.rsyslogd <<'EOF'
+# SG_NOC branch VM — paths the branch collector ruleset writes to.
+/var/spool/sg-noc-ingest/ rw,
+/var/spool/sg-noc-ingest/** rw,
+/var/log/branch/ rw,
+/var/log/branch/** rw,
+EOF
+        # Reload the profile (no-op if AppArmor isn't enforcing)
+        if command -v apparmor_parser >/dev/null 2>&1 \
+           && [[ -f /etc/apparmor.d/usr.sbin.rsyslogd ]]; then
+            apparmor_parser -r /etc/apparmor.d/usr.sbin.rsyslogd 2>/dev/null || true
+        fi
+    fi
+
     systemctl restart rsyslog
 }
 
