@@ -38,6 +38,12 @@ class SearchService
             $where[] = 'source LIKE :source';
             $params[':source'] = '%' . trim((string) $q['source']) . '%';
         }
+        if (!empty($q['source_ip'])) {
+            // Exact-match on the IP — fast, indexed, useful for "all logs
+            // from device X" queries (UCM page, switch debugging, etc).
+            $where[] = 'source_ip = :source_ip';
+            $params[':source_ip'] = trim((string) $q['source_ip']);
+        }
         if (!empty($q['program'])) {
             $where[] = 'program LIKE :program';
             $params[':program'] = '%' . trim((string) $q['program']) . '%';

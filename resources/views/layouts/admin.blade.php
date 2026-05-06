@@ -689,6 +689,12 @@
                                     <i class="bi bi-shield-shaded me-2 text-danger"></i>Branch Logs · Sophos
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.ucm') ? 'active' : '' }}"
+                                   href="{{ route('admin.logs.branches.ucm') }}">
+                                    <i class="bi bi-telephone-fill me-2 text-warning"></i>Branch Logs · UCM (by IP)
+                                </a>
+                            </li>
                             @can('manage-syslog')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.branches.log-collectors.*') ? 'active' : '' }}"

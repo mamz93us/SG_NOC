@@ -96,6 +96,81 @@ class BranchLogController extends Controller
     }
 
     /**
+     * GET /admin/logs/branches/ucm
+     *
+     * Per-IP log viewer aimed at UCM (Asterisk) servers. Primary filter
+     * is source_ip — once the operator types the UCM's IP, every line
+     * that device sent shows up, with Asterisk-format messages broken
+     * out into severity / call_id / file:line / function / body columns
+     * (parsed from the raw message at render time).
+     */
+    public function ucm(Request $request): View
+    {
+        $branches = $this->client->enabledBranches();
+        $selected = $this->parseSelectedBranches($request, $branches);
+        $filters  = $this->extractFilters($request);
+        $sourceIp = trim((string) $request->get('source_ip', ''));
+
+        $results = null;
+        if ($request->boolean('search')) {
+            $apiParams = $this->toApiParams($filters);
+            if ($sourceIp !== '') $apiParams['source_ip'] = $sourceIp;
+
+            $rows = (int) $request->get('rows', 500);
+            $rows = max(50, min(1000, $rows));
+
+            $results = $this->client->search($selected, $apiParams, limit: $rows);
+
+            $results['results'] = array_map(
+                fn ($row) => $row + $this->extraAsteriskFields($row['message'] ?? ''),
+                $results['results']
+            );
+        }
+
+        return view('admin.logs.branches.ucm', [
+            'branches'         => $branches,
+            'selectedBranches' => $selected,
+            'filters'          => $filters,
+            'sourceIp'         => $sourceIp,
+            'results'          => $results,
+        ]);
+    }
+
+    /**
+     * Parse the Asterisk message shape:
+     *   [HOST_MAC] asterisk[PID]: SEVERITY[task][C-callid]: file:line in func: body
+     */
+    private function extractAsteriskFields(string $msg): array
+    {
+        $out = [
+            'a_severity' => '', 'a_pid' => '', 'a_task' => '', 'a_call_id' => '',
+            'a_file'     => '', 'a_line' => '', 'a_func' => '', 'a_body' => '',
+        ];
+        if (preg_match(
+            '/asterisk\[(?<pid>\d+)\]:\s+(?<sev>[A-Z]+)\[(?<task>\d+)\](?:\[C-(?<call>[A-Fa-f0-9]+)\])?:\s+(?<file>[^:\s]+):(?<line>\d+)\s+in\s+(?<func>\w+):\s*(?<body>.*)/',
+            $msg,
+            $m
+        )) {
+            $out = [
+                'a_severity' => $m['sev']  ?? '',
+                'a_pid'      => $m['pid']  ?? '',
+                'a_task'     => $m['task'] ?? '',
+                'a_call_id'  => $m['call'] ?? '',
+                'a_file'     => $m['file'] ?? '',
+                'a_line'     => $m['line'] ?? '',
+                'a_func'     => $m['func'] ?? '',
+                'a_body'     => $m['body'] ?? '',
+            ];
+        }
+        return $out;
+    }
+
+    private function extraAsteriskFields(string $msg): array
+    {
+        return $this->extractAsteriskFields($msg);
+    }
+
+    /**
      * GET /admin/logs/branches/aggregate.json
      * Returns top-N grouped counts (used by the in-page chart).
      */
