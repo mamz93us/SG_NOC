@@ -39,7 +39,7 @@
         <input type="date" name="expiry_date" class="form-control">
     </div>
     <div class="col-12">
-        <label class="form-label">License Key <small class="text-muted">(stored encrypted)</small></label>
+        <label class="form-label">License Key <small class="text-muted">(stored encrypted — leave blank when editing to keep existing)</small></label>
         <input type="text" name="license_key" class="form-control font-monospace">
     </div>
     <div class="col-12">

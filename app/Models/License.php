@@ -20,6 +20,9 @@ class License extends Model
         'seats'         => 'integer',
     ];
 
+    // Never serialize the decrypted key into JSON / HTML attributes
+    protected $hidden = ['license_key'];
+
     const TYPES = ['subscription', 'perpetual', 'oem', 'freeware'];
 
     // ─── Encrypt license_key at rest ─────────────────────────────

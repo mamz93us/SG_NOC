@@ -19,9 +19,25 @@ class Supplier extends Model
         return $this->hasMany(Accessory::class);
     }
 
-    public function totalSpend(): float
+    /**
+     * Total spend grouped by currency (since costs are stored in their original
+     * currency without conversion). Returns e.g. ['USD' => 1500.00, 'SAR' => 800.00].
+     */
+    public function totalSpendByCurrency(): array
     {
-        return (float) $this->devices()->sum('purchase_cost') + (float) $this->accessories()->sum('purchase_cost');
+        $totals = [];
+
+        foreach ($this->devices()->whereNotNull('purchase_cost')->get(['purchase_cost', 'currency']) as $d) {
+            $code = $d->currency ?: 'USD';
+            $totals[$code] = ($totals[$code] ?? 0) + (float) $d->purchase_cost;
+        }
+
+        foreach ($this->accessories()->whereNotNull('purchase_cost')->get(['purchase_cost', 'currency']) as $a) {
+            $code = $a->currency ?: 'USD';
+            $totals[$code] = ($totals[$code] ?? 0) + (float) $a->purchase_cost;
+        }
+
+        return $totals;
     }
 
     public function assetCount(): int

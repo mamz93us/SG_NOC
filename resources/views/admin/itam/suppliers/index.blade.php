@@ -52,7 +52,16 @@
                         <td class="text-center">
                             <span class="badge bg-primary">{{ $supplier->devices_count }}</span>
                         </td>
-                        <td class="text-end font-monospace">${{ number_format($supplier->totalSpend(), 0) }}</td>
+                        <td class="text-end font-monospace small">
+                            @php($spend = $supplier->totalSpendByCurrency())
+                            @if(empty($spend))
+                                —
+                            @else
+                                @foreach($spend as $code => $amount)
+                                    <div>{{ $code }} {{ number_format($amount, 0) }}</div>
+                                @endforeach
+                            @endif
+                        </td>
                         <td class="text-end">
                             <button class="btn btn-sm btn-outline-secondary"
                                 onclick="editSupplier({{ json_encode($supplier) }})"

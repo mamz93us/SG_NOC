@@ -61,9 +61,21 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body py-3">
                     <div class="text-muted small mb-1">Total Cost</div>
-                    <div class="fw-bold text-dark">${{ number_format($totalCost, 0) }}</div>
+                    @if(empty($totalCostByCurrency))
+                        <div class="fw-bold text-dark">—</div>
+                    @else
+                        @foreach($totalCostByCurrency as $code => $amount)
+                            <div class="fw-bold text-dark small">{{ $code }} {{ number_format($amount, 0) }}</div>
+                        @endforeach
+                    @endif
                     <div class="text-muted small mt-1">Book Value</div>
-                    <div class="fw-bold text-success">${{ number_format($totalCurrentValue, 0) }}</div>
+                    @if(empty($totalCurrentValueByCurrency))
+                        <div class="fw-bold text-success">—</div>
+                    @else
+                        @foreach($totalCurrentValueByCurrency as $code => $amount)
+                            <div class="fw-bold text-success small">{{ $code }} {{ number_format($amount, 0) }}</div>
+                        @endforeach
+                    @endif
                 </div>
             </div>
         </div>

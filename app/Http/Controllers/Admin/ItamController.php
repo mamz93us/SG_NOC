@@ -21,9 +21,18 @@ class ItamController extends Controller
             'retired'     => Device::where('status', 'retired')->count(),
         ];
 
-        // Financial
-        $totalCost         = Device::whereNotNull('purchase_cost')->sum('purchase_cost');
-        $totalCurrentValue = Device::whereNotNull('current_value')->sum('current_value');
+        // Financial — grouped by currency since costs are stored without conversion
+        $totalCostByCurrency = Device::whereNotNull('purchase_cost')
+            ->selectRaw("COALESCE(currency, 'USD') as currency, SUM(purchase_cost) as total")
+            ->groupBy('currency')
+            ->pluck('total', 'currency')
+            ->toArray();
+
+        $totalCurrentValueByCurrency = Device::whereNotNull('current_value')
+            ->selectRaw("COALESCE(currency, 'USD') as currency, SUM(current_value) as total")
+            ->groupBy('currency')
+            ->pluck('total', 'currency')
+            ->toArray();
 
         // Warranty expiring within 30 days
         $warrantyExpiring = Device::whereNotNull('warranty_expiry')
@@ -67,7 +76,7 @@ class ItamController extends Controller
         $supplierCount = Supplier::count();
 
         return view('admin.itam.dashboard', compact(
-            'stats', 'totalCost', 'totalCurrentValue',
+            'stats', 'totalCostByCurrency', 'totalCurrentValueByCurrency',
             'warrantyExpiring', 'licensesExpiring',
             'byType', 'byBranch', 'recentActivity', 'supplierCount'
         ));

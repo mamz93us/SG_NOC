@@ -85,6 +85,13 @@ class LicenseController extends Controller
             'notes'         => 'nullable|string',
         ]);
 
+        // The edit modal does not pre-fill license_key (it's never sent to the
+        // browser). Treat a blank submission as "no change" so existing keys
+        // are preserved on every edit.
+        if (empty($data['license_key'])) {
+            unset($data['license_key']);
+        }
+
         $license->update($data);
         ActivityLog::log('Updated license', $license, $data);
 
