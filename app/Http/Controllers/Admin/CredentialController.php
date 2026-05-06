@@ -148,9 +148,34 @@ class CredentialController extends Controller
             abort(403);
         }
 
+        // Require POST only (no browser history, no caching)
+        if (!$request->isMethod('post')) {
+            abort(405);
+        }
+
+        $reason = (string) $request->input('reason', '');
+        if (mb_strlen($reason) > 500) {
+            $reason = mb_substr($reason, 0, 500);
+        }
+
         $credential->logAccess('viewed', Auth::id(), $request->ip());
 
-        return response()->json(['password' => $credential->password]);
+        ActivityLog::create([
+            'model_type' => 'Credential',
+            'model_id'   => $credential->id,
+            'action'     => 'revealed',
+            'changes'    => [
+                'title'  => $credential->title,
+                'reason' => $reason ?: null,
+            ],
+            'user_id'    => Auth::id(),
+        ]);
+
+        return response()
+            ->json(['password' => $credential->password])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+            ->header('Pragma',        'no-cache')
+            ->header('X-Content-Type-Options', 'nosniff');
     }
 
     /**

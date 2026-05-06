@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\SwitchDropStat;
 use App\Models\VqAlertEvent;
@@ -153,6 +154,18 @@ class SwitchDropController extends Controller
         if ($request->filled('date_to'))     $query->whereDate('polled_at', '<=', $request->date_to);
 
         $rows = $query->orderByDesc('polled_at')->limit(10000)->get();
+
+        ActivityLog::create([
+            'model_type' => SwitchDropStat::class,
+            'model_id'   => 0,
+            'action'     => 'exported',
+            'changes'    => [
+                'count'   => $rows->count(),
+                'filters' => $request->only(['branch','device_name','date_from','date_to']),
+            ],
+            'user_id' => auth()->id(),
+        ]);
+
         $headers = ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="switch_drops_export.csv"'];
 
         $callback = function () use ($rows) {

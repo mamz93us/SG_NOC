@@ -18,6 +18,7 @@ class DnsRecordsController extends Controller
         try {
             $records = $service->getRecords($domain);
         } catch (\Throwable $e) {
+            $this->logDnsFailure($account, 'getRecords', $domain, $e);
             return redirect()->route('admin.network.dns.domains.index', $account)
                 ->with('error', "Failed to load records: {$e->getMessage()}");
         }
@@ -61,6 +62,7 @@ class DnsRecordsController extends Controller
 
             return response()->json(['success' => true, 'message' => 'Record added successfully.']);
         } catch (\Throwable $e) {
+            $this->logDnsFailure($account, 'addRecord', $domain, $e, ['record' => $record]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
     }
@@ -99,6 +101,7 @@ class DnsRecordsController extends Controller
 
             return response()->json(['success' => true, 'message' => 'Record updated successfully.']);
         } catch (\Throwable $e) {
+            $this->logDnsFailure($account, 'updateRecord', $domain, $e, ['type' => $validated['type'], 'name' => $validated['name']]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
     }
@@ -125,7 +128,28 @@ class DnsRecordsController extends Controller
 
             return response()->json(['success' => true, 'message' => 'Record deleted successfully.']);
         } catch (\Throwable $e) {
+            $this->logDnsFailure($account, 'deleteRecord', $domain, $e, ['type' => $validated['type'], 'name' => $validated['name']]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    private function logDnsFailure(DnsAccount $account, string $operation, string $domain, \Throwable $e, array $extra = []): void
+    {
+        try {
+            ActivityLog::create([
+                'model_type' => 'DnsAccount',
+                'model_id'   => $account->id,
+                'action'     => 'api_failed',
+                'changes'    => array_merge([
+                    'service'   => 'GoDaddy',
+                    'operation' => $operation,
+                    'domain'    => $domain,
+                    'message'   => mb_substr($e->getMessage(), 0, 1000),
+                ], $extra),
+                'user_id' => Auth::id(),
+            ]);
+        } catch (\Throwable) {
+            // Never mask the original failure with audit errors.
         }
     }
 }

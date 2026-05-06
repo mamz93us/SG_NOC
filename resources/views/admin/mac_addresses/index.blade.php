@@ -135,6 +135,9 @@
                             <th style="width:100px">Source</th>
                             <th style="width:130px">Last Seen</th>
                             <th style="width:60px">Primary</th>
+                            @can('manage-radius')
+                            <th style="width:140px">RADIUS</th>
+                            @endcan
                         </tr>
                     </thead>
                     <tbody>
@@ -202,6 +205,35 @@
                                 <i class="bi bi-dash text-muted"></i>
                                 @endif
                             </td>
+                            @can('manage-radius')
+                            <td>
+                                @php
+                                    $ovr = $mac->radiusOverride;
+                                    $enabled = $ovr ? $ovr->radius_enabled : true;
+                                    $vlanOverride = $ovr?->vlan_override;
+                                @endphp
+                                <button type="button"
+                                        class="btn btn-sm btn-link p-0 text-decoration-none"
+                                        data-bs-toggle="modal" data-bs-target="#radiusModal"
+                                        data-id="{{ $mac->id }}"
+                                        data-mac="{{ $mac->mac_address }}"
+                                        data-enabled="{{ $enabled ? 1 : 0 }}"
+                                        data-vlan="{{ $vlanOverride }}"
+                                        data-notes="{{ $ovr?->notes }}"
+                                        title="Edit RADIUS override">
+                                    @if(!$enabled)
+                                        <span class="badge bg-danger">Denied</span>
+                                    @elseif($vlanOverride !== null)
+                                        <span class="badge bg-warning text-dark">VLAN {{ $vlanOverride }}</span>
+                                    @elseif($ovr)
+                                        <span class="badge bg-info text-dark">Override</span>
+                                    @else
+                                        <span class="badge bg-light text-muted border">Default</span>
+                                    @endif
+                                    <i class="bi bi-pencil-square ms-1 text-muted" style="font-size:.75rem"></i>
+                                </button>
+                            </td>
+                            @endcan
                         </tr>
                         @endforeach
                     </tbody>
@@ -307,6 +339,88 @@
         </div>
     </div>
     @endif
+
+    @can('manage-radius')
+    {{-- ── RADIUS override modal (rendered once, populated by JS) ─── --}}
+    <div class="modal fade" id="radiusModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form id="radiusModalForm" method="POST" action="">
+                @csrf
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-shield-lock me-2"></i>RADIUS Override —
+                            <code id="radiusModalMac" class="ms-1"></code>
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input type="hidden" name="radius_enabled" value="0">
+                                <input type="checkbox" name="radius_enabled" id="radiusEnabled"
+                                       value="1" class="form-check-input" checked>
+                                <label class="form-check-label fw-semibold" for="radiusEnabled">
+                                    Allow RADIUS authentication for this MAC
+                                </label>
+                            </div>
+                            <small class="text-muted">When off, RADIUS rejects this MAC even if <code>device_macs.is_active=1</code>.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">VLAN override (optional)</label>
+                            <input type="number" name="vlan_override" id="radiusVlan"
+                                   class="form-control" min="1" max="4094"
+                                   placeholder="Leave blank to use branch VLAN policy">
+                            <small class="text-muted">When set, wins over branch policy on Access-Accept.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Notes</label>
+                            <input type="text" name="notes" id="radiusNotes" class="form-control" maxlength="255"
+                                   placeholder="e.g. quarantine until investigation closes">
+                        </div>
+                        <div class="alert alert-secondary small mb-0">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Saving with default settings (allowed, no VLAN override, no notes)
+                            removes the override row entirely.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        const modal      = document.getElementById('radiusModal');
+        const form       = document.getElementById('radiusModalForm');
+        const macLabel   = document.getElementById('radiusModalMac');
+        const enabledChk = document.getElementById('radiusEnabled');
+        const vlanInput  = document.getElementById('radiusVlan');
+        const notesInput = document.getElementById('radiusNotes');
+        // {macId} placeholder swapped at trigger time.
+        const urlTemplate = "{{ route('admin.radius.mac-overrides.upsert', ['deviceMac' => '__ID__']) }}";
+
+        modal.addEventListener('show.bs.modal', (event) => {
+            const btn = event.relatedTarget;
+            const id      = btn.getAttribute('data-id');
+            const mac     = btn.getAttribute('data-mac');
+            const enabled = btn.getAttribute('data-enabled') === '1';
+            const vlan    = btn.getAttribute('data-vlan');
+            const notes   = btn.getAttribute('data-notes');
+
+            form.action       = urlTemplate.replace('__ID__', id);
+            macLabel.textContent = mac;
+            enabledChk.checked   = enabled;
+            vlanInput.value      = vlan && vlan !== 'null' ? vlan : '';
+            notesInput.value     = notes && notes !== 'null' ? notes : '';
+        });
+    })();
+    </script>
+    @endcan
 
 </div>
 @endsection

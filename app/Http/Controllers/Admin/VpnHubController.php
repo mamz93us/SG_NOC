@@ -37,7 +37,7 @@ class VpnHubController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $data = $request->validate([
             'branch_id'        => 'required|exists:branches,id',
             'name'             => 'required|string|max:255|unique:vpn_tunnels,name|regex:/^[a-zA-Z0-9_]+$/',
             'remote_public_ip' => 'required|string|max:255',
@@ -57,7 +57,7 @@ class VpnHubController extends Controller
         try {
             DB::beginTransaction();
 
-            $tunnel = VpnTunnel::create($request->all());
+            $tunnel = VpnTunnel::create($data);
 
             // Generate and save swanctl config
             $config = $this->vpnService->generateConfig($tunnel);
@@ -103,7 +103,7 @@ class VpnHubController extends Controller
 
     public function update(Request $request, VpnTunnel $tunnel)
     {
-        $request->validate([
+        $data = $request->validate([
             'branch_id'        => 'required|exists:branches,id',
             'name'             => 'required|string|max:255|unique:vpn_tunnels,name,' . $tunnel->id . '|regex:/^[a-zA-Z0-9_]+$/',
             'remote_public_ip' => 'required|string|max:255',
@@ -124,7 +124,6 @@ class VpnHubController extends Controller
             DB::beginTransaction();
 
             $oldName = $tunnel->name;
-            $data = $request->all();
             if (empty($data['pre_shared_key'])) {
                 unset($data['pre_shared_key']);
             }
@@ -225,13 +224,17 @@ class VpnHubController extends Controller
     public function reload()
     {
         $result = $this->vpnService->reload();
-        
+
+        // Redirect to index, not back() — a browser refresh on /reload would
+        // re-issue a GET against the POST-only route and 405.
+        $redirect = redirect()->route('admin.network.vpn.index');
+
         if ($result['status'] === 'success') {
             \App\Models\ActivityLog::log('VPN', "Reloaded all VPN configurations", 'info');
-            return back()->with('success', "All VPN configurations reloaded successfully.");
+            return $redirect->with('success', "All VPN configurations reloaded successfully.");
         }
 
-        return back()->with('error', "Reload failed: " . ($result['message'] ?? 'Unknown error'));
+        return $redirect->with('error', "Reload failed: " . ($result['message'] ?? 'Unknown error'));
     }
 
     public function checkStatus(VpnTunnel $tunnel)

@@ -223,7 +223,10 @@ class PrinterController extends Controller
                 'office_id'     => $data['office_id'] ?? null,
                 'department_id' => $data['department_id'] ?? null,
                 'source'        => 'printer',
-                'source_id'     => $data['serial_number'] ?? null,
+                // Fall back to a synthetic id when no serial is provided, so
+                // multiple serialless printers don't collide under the
+                // devices.(source, source_id) unique index.
+                'source_id'     => $data['serial_number'] ?: ('printer-' . \Illuminate\Support\Str::random(12)),
                 'status'        => 'active',
                 'asset_code'    => $assetCode,
             ]);

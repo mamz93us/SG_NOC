@@ -23,8 +23,8 @@ class UserController extends Controller
         $data = $request->validate([
             'name'     => 'required|string|max:100',
             'email'    => 'required|email|unique:users,email',
-            'password' => ['required', Password::min(8)],
-            'role'     => 'required|in:super_admin,admin,viewer',
+            'password' => ['required', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
+            'role'     => 'required|in:super_admin,admin,hr,viewer,browser_user',
         ]);
 
         $user = User::create([
@@ -51,8 +51,8 @@ class UserController extends Controller
         $data = $request->validate([
             'name'     => 'required|string|max:100',
             'email'    => 'required|email|unique:users,email,' . $user->id,
-            'role'     => 'required|in:super_admin,admin,viewer',
-            'password' => ['nullable', Password::min(8)],
+            'role'     => 'required|in:super_admin,admin,hr,viewer,browser_user',
+            'password' => ['nullable', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
         ]);
 
         $old = $user->only(['name', 'email', 'role']);
@@ -80,6 +80,36 @@ class UserController extends Controller
 
         return redirect()->route('admin.users.index')
             ->with('success', "User {$user->name} updated successfully.");
+    }
+
+    public function resetTwoFactor(User $user)
+    {
+        if ($user->id === Auth::id()) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'Use the Two-Factor settings page to manage your own 2FA.');
+        }
+
+        if (!$user->hasTwoFactorEnabled() && empty($user->two_factor_secret)) {
+            return redirect()->route('admin.users.index')
+                ->with('error', "Two-factor authentication is not set up for {$user->name}.");
+        }
+
+        $user->forceFill([
+            'two_factor_secret'       => null,
+            'two_factor_enabled'      => false,
+            'two_factor_confirmed_at' => null,
+        ])->save();
+
+        ActivityLog::create([
+            'model_type' => 'User',
+            'model_id'   => $user->id,
+            'action'     => 'two_factor_reset',
+            'changes'    => ['name' => $user->name, 'email' => $user->email],
+            'user_id'    => Auth::id(),
+        ]);
+
+        return redirect()->route('admin.users.index')
+            ->with('success', "Two-factor authentication reset for {$user->name}. They must re-enroll on next login.");
     }
 
     public function destroy(User $user)

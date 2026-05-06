@@ -303,7 +303,22 @@ class SnmpMonitoringController extends Controller
             $data['snmp_context_name']   = null;
         }
 
-        MonitoredHost::create($data);
+        $host = MonitoredHost::create($data);
+
+        // Link to an existing Device (switch/router/firewall) if one matches by
+        // IP or name+branch — keeps the unified /admin/network/switches view
+        // consistent when an SNMP host is added for a known asset.
+        if (in_array($host->type, ['switch', 'router', 'firewall'])) {
+            try {
+                $match = app(\App\Services\Network\SwitchReconciler::class)
+                    ->matchDevice(null, null, $host->ip, $host->name, $host->branch_id);
+                if ($match) {
+                    $host->forceFill(['device_id' => $match->id])->save();
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('SNMP host create: device link failed: ' . $e->getMessage());
+            }
+        }
 
         return redirect()->route('admin.network.monitoring.index')
             ->with('success', 'Monitored host added successfully.');

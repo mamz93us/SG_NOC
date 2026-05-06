@@ -12,7 +12,7 @@ class CupsService
     public function addPrinter(CupsPrinter $printer): array
     {
         $cmd = sprintf(
-            'sudo lpadmin -p %s -E -v %s -m %s -L %s -o printer-is-shared=%s 2>&1',
+            'sudo lpadmin -p %s -E -v %s -m %s -L %s -o printer-is-shared=%s -o printer-error-policy=retry-current-job 2>&1',
             escapeshellarg($printer->queue_name),
             escapeshellarg($printer->getCupsUri()),
             escapeshellarg($printer->driver ?: 'everywhere'),

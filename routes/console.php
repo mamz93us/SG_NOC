@@ -48,6 +48,14 @@ Schedule::command('cups:refresh-status')
 Schedule::job(new \App\Jobs\RunNocAlertsJob)->everyFiveMinutes();
 Schedule::job(new \App\Jobs\CheckLicenseMonitorsJob)->hourly();
 
+// Daily expiry scan — software licenses (ITAM) and SSL certificates.
+// Raises NocEvents so the existing notification rules pick them up.
+Schedule::call(function () {
+    try { (new \App\Jobs\CheckExpiryAlertsJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Expiry alerts check failed: ' . $e->getMessage());
+    }
+})->name('check-expiry-alerts')->withoutOverlapping(30)->dailyAt('07:00');
+
 // Warranty Expiry Check — weekly (runs inline)
 Schedule::call(function () {
     try { (new \App\Jobs\CheckWarrantyExpiryJob)->handle(); } catch (\Throwable $e) {}
@@ -80,15 +88,15 @@ Schedule::call(function () {
 
             if (!$result['success']) {
                 $event = \App\Models\NocEvent::firstOrCreate(
-                    ['source_id' => $host->id, 'event_type' => 'host_down', 'status' => 'active'],
-                    ['title' => "Host Down: {$host->name}", 'description' => "Ping failed for {$host->ip}.", 'severity' => 'critical', 'detected_at' => now()]
+                    ['source_id' => $host->id, 'source_type' => 'host_down', 'status' => 'open'],
+                    ['module' => 'ping', 'title' => "Host Down: {$host->name}", 'message' => "Ping failed for {$host->ip}.", 'severity' => 'critical', 'first_seen' => now(), 'last_seen' => now()]
                 );
                 if ($event->wasRecentlyCreated && $host->alert_email) {
                     \Illuminate\Support\Facades\Notification::route('mail', $host->alert_email)
                         ->notify(new \App\Notifications\HostOfflineNotification($host));
                 }
             } else {
-                \App\Models\NocEvent::where('source_id', $host->id)->where('event_type', 'host_down')->where('status', 'active')
+                \App\Models\NocEvent::where('source_id', $host->id)->where('source_type', 'host_down')->where('status', 'open')
                     ->update(['status' => 'resolved', 'resolved_at' => now()]);
             }
         } catch (\Throwable $e) {}
@@ -345,6 +353,16 @@ Schedule::command('intune:sync-net-data')
     ->runInBackground()
     ->name('intune-net-data');
 
+// ─── RADIUS MAC Registry Sync — hourly ───────────────────────────────────
+// Pulls MACs from `devices` (phones, switches, APs, printers) into the
+// `device_macs` registry so they become RADIUS-eligible. Idempotent —
+// only writes when something changed.
+Schedule::command('radius:sync-macs')
+    ->hourly()
+    ->withoutOverlapping(15)
+    ->runInBackground()
+    ->name('radius-sync-macs');
+
 // ─── Browser Portal — Idle Session Cleanup (every 5 minutes) ────────────
 // Stops Neko containers whose last_active_at is older than
 // BROWSER_PORTAL_IDLE_MINUTES (default 240). Volumes are preserved.
@@ -369,3 +387,49 @@ Schedule::call(function () {
         \Illuminate\Support\Facades\Log::error('SSL auto-renewal failed: ' . $e->getMessage());
     }
 })->name('renew-expiring-certs')->withoutOverlapping(30)->dailyAt('02:00');
+
+// ─── Onboarding Manager-Form Reminders — daily at 09:00 ──────────────────
+// For every workflow still in 'awaiting_manager_form', re-send the setup
+// form email (up to 3 reminders, once per 24h) until the manager fills it.
+Schedule::command('onboarding:remind-managers')
+    ->dailyAt('09:00')
+    ->withoutOverlapping(30)
+    ->name('remind-onboarding-managers');
+
+// ──────────────────────────────────────────────────────────────────────
+// Syslog pipeline — rsyslog writes raw rows directly into MySQL via
+// ommysql; the jobs below classify senders and turn matching rows into
+// NocEvents. They run inline (no queue worker on shared hosting).
+// ──────────────────────────────────────────────────────────────────────
+
+// Tag source_type / source_id on freshly-received syslog rows by IP
+// against SophosFirewall / UcmServer / Printer / MonitoredHost.
+Schedule::call(function () {
+    try { (new \App\Jobs\TagSyslogSourcesJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('TagSyslogSourcesJob failed: ' . $e->getMessage());
+    }
+})->name('tag-syslog-sources')->withoutOverlapping(5)->everyMinute();
+
+// Run user-defined alert rules over recent syslog rows and surface
+// matches as NocEvents (so the existing notification routing fires).
+Schedule::call(function () {
+    try { (new \App\Jobs\MatchSyslogAlertsJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('MatchSyslogAlertsJob failed: ' . $e->getMessage());
+    }
+})->name('match-syslog-alerts')->withoutOverlapping(5)->everyMinute();
+
+// Parse vendor-specific KV payloads (Sophos firewalls today; Cisco/UCM
+// can be added later) into the syslog_messages.parsed JSON column.
+Schedule::call(function () {
+    try { (new \App\Jobs\ParseSyslogPayloadsJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('ParseSyslogPayloadsJob failed: ' . $e->getMessage());
+    }
+})->name('parse-syslog-payloads')->withoutOverlapping(5)->everyMinute();
+
+// Daily prune — drops syslog_messages rows older than the retention
+// window (Setting::syslog_retention_days, default 30).
+Schedule::call(function () {
+    try { (new \App\Jobs\PruneOldSyslogJob)->handle(); } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('PruneOldSyslogJob failed: ' . $e->getMessage());
+    }
+})->name('prune-old-syslog')->withoutOverlapping(60)->dailyAt('03:30');

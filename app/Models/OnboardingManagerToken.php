@@ -20,6 +20,8 @@ class OnboardingManagerToken extends Model
         'selected_group_ids',
         'manager_comments',
         'responded_at',
+        'reminded_at',
+        'reminder_count',
         'used_at',
         'expires_at',
     ];
@@ -28,6 +30,8 @@ class OnboardingManagerToken extends Model
         'selected_group_ids' => 'array',
         'needs_extension'    => 'boolean',
         'responded_at'       => 'datetime',
+        'reminded_at'        => 'datetime',
+        'reminder_count'     => 'integer',
         'used_at'            => 'datetime',
         'expires_at'         => 'datetime',
     ];

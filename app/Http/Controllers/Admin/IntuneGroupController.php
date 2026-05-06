@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\IntuneGroup;
@@ -19,6 +20,25 @@ use Illuminate\Http\Request;
 class IntuneGroupController extends Controller
 {
     public function __construct(private GraphService $graph) {}
+
+    private function logGraphFailure(string $operation, \Throwable $e, array $extra = []): void
+    {
+        try {
+            ActivityLog::create([
+                'model_type' => 'GraphApi',
+                'model_id'   => 0,
+                'action'     => 'api_failed',
+                'changes'    => array_merge([
+                    'service'   => 'Intune',
+                    'operation' => $operation,
+                    'message'   => mb_substr($e->getMessage(), 0, 1000),
+                ], $extra),
+                'user_id' => auth()->id(),
+            ]);
+        } catch (\Throwable) {
+            // Never mask the original failure with audit errors.
+        }
+    }
 
     /**
      * GET /admin/intune-groups
@@ -71,6 +91,7 @@ class IntuneGroupController extends Controller
             }
         } catch (\Throwable $e) {
             $action = $linking ? 'fetch' : 'create';
+            $this->logGraphFailure("group_{$action}", $e, ['name' => $data['name']]);
             return back()->withInput()->withErrors(['graph' => "Azure group {$action} failed: " . $e->getMessage()]);
         }
 
@@ -158,6 +179,7 @@ class IntuneGroupController extends Controller
         try {
             $this->graph->addUserToGroup($data['azure_user_id'], $intuneGroup->azure_group_id);
         } catch (\Throwable $e) {
+            $this->logGraphFailure('add_member', $e, ['group_id' => $intuneGroup->id, 'user_upn' => $data['user_upn']]);
             return back()->withErrors(['graph' => 'Failed to add member: ' . $e->getMessage()]);
         }
 
@@ -178,6 +200,7 @@ class IntuneGroupController extends Controller
             try {
                 $this->graph->removeUserFromGroup($userId, $intuneGroup->azure_group_id);
             } catch (\Throwable $e) {
+                $this->logGraphFailure('remove_member', $e, ['group_id' => $intuneGroup->id, 'user_id' => $userId]);
                 return back()->withErrors(['graph' => 'Failed to remove member: ' . $e->getMessage()]);
             }
         }
@@ -236,6 +259,10 @@ class IntuneGroupController extends Controller
 
             $this->graph->assignIntuneScriptToGroup($scriptId, $intuneGroup->azure_group_id);
         } catch (\Throwable $e) {
+            $this->logGraphFailure('deploy_printer', $e, [
+                'group_id'   => $intuneGroup->id,
+                'printer_id' => $printer->id,
+            ]);
             return back()->withErrors(['graph' => 'Intune deploy failed: ' . $e->getMessage()]);
         }
 

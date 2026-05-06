@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\NotificationSetting;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
@@ -61,13 +62,24 @@ class NotificationController extends Controller
             'notify_in_app' => 'boolean',
         ]);
 
-        NotificationSetting::updateOrCreate(
+        $setting = NotificationSetting::updateOrCreate(
             ['user_id' => Auth::id()],
             [
                 'notify_email'  => $request->boolean('notify_email'),
                 'notify_in_app' => $request->boolean('notify_in_app'),
             ]
         );
+
+        ActivityLog::create([
+            'model_type' => NotificationSetting::class,
+            'model_id'   => $setting->id,
+            'action'     => 'notification_settings_updated',
+            'changes'    => [
+                'notify_email'  => $setting->notify_email,
+                'notify_in_app' => $setting->notify_in_app,
+            ],
+            'user_id' => Auth::id(),
+        ]);
 
         return back()->with('success', 'Notification preferences saved.');
     }

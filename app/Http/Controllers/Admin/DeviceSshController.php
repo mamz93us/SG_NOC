@@ -56,6 +56,24 @@ class DeviceSshController extends Controller
             'password' => ['required', 'string', 'max:200'],
         ]);
 
+        // Per-user concurrent-session cap. Dangling "active" rows from crashed
+        // terminals would lock users out forever, so auto-close rows older than
+        // the SSH token TTL before counting — the real session can't outlive
+        // its credential cache.
+        $maxConcurrent = (int) config('telnet.max_concurrent_sessions', 3);
+        DeviceSshSession::where('user_id', $request->user()->id)
+            ->where('status', 'active')
+            ->where('started_at', '<', now()->subHours(2))
+            ->update(['status' => 'expired', 'ended_at' => now()]);
+
+        $active = DeviceSshSession::where('user_id', $request->user()->id)
+            ->where('status', 'active')
+            ->count();
+        if ($active >= $maxConcurrent) {
+            return redirect()->route('admin.devices.ssh.connect', $device)
+                ->withErrors(['limit' => "You already have {$active} active SSH session(s). Close one before opening another (max {$maxConcurrent})."]);
+        }
+
         // Create session record (credentials NOT stored here)
         $session = DeviceSshSession::create([
             'device_id'    => $device->id,
@@ -72,7 +90,8 @@ class DeviceSshController extends Controller
             ['ssh_session_id' => $session->id, 'ssh_username' => $validated['username']]
         );
 
-        // Store connection details in cache — credentials only survive here (30 min)
+        // Store connection details in cache — credentials live 5 min only (terminal WS grabs
+        // them on first connect; after that they can expire).
         $token = Str::random(40);
         Cache::put("telnet_token:{$token}", [
             'host'       => $device->ip_address,   // ALWAYS device's own stored IP
@@ -82,7 +101,7 @@ class DeviceSshController extends Controller
             'password'   => $validated['password'], // only in cache, never in DB
             'user_id'    => $request->user()->id,
             'session_id' => $session->id,
-        ], now()->addMinutes(30));
+        ], now()->addMinutes(5));
 
         $wsUrl = rtrim(config('telnet.ws_url', 'wss://noc.samirgroup.net/ws/telnet'), '/');
 

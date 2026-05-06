@@ -13,12 +13,19 @@ use App\Models\NetworkEvent;
 use App\Models\NetworkFloor;
 use App\Models\NetworkOffice;
 use App\Models\NetworkRack;
+use App\Models\Device;
 use App\Models\NetworkSwitch;
+use App\Models\MonitoredHost;
 use App\Models\NetworkSyncLog;
 use App\Models\Setting;
+use App\Models\SwitchQosStat;
+use App\Models\SwitchRunningConfig;
 use App\Services\Network\MerakiService;
+use App\Services\Network\SnmpConfigExtractor;
+use App\Services\Network\SwitchReconciler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class NetworkController extends Controller
 {
@@ -62,33 +69,390 @@ class NetworkController extends Controller
     // Switch list
     // ─────────────────────────────────────────────────────────────
 
-    public function switches(Request $request)
+    public function switches(Request $request, SwitchReconciler $reconciler)
     {
-        $query = NetworkSwitch::orderByRaw("
-            CASE status
-                WHEN 'online'   THEN 1
-                WHEN 'alerting' THEN 2
-                WHEN 'offline'  THEN 3
-                ELSE 4
-            END
-        ")->orderBy('name');
+        // Link/auto-create across sources. Idempotent + lightweight after the
+        // first run (most rows already FK'd). Opt out with ?skip_reconcile=1
+        // for debugging if ever needed.
+        if (!$request->boolean('skip_reconcile')) {
+            try {
+                $reconciler->reconcileAll();
+            } catch (\Throwable $e) {
+                \Log::warning('SwitchReconciler failed: ' . $e->getMessage());
+            }
+        }
+
+        // Canonical query: every switch-class Device, eager-loading the
+        // satellite rows from each source system.
+        $query = Device::query()
+            ->whereIn('type', ['switch', 'router', 'firewall'])
+            ->with(['branch', 'floor', 'networkSwitch.branch', 'monitoredHost']);
+
+        if ($request->filled('status')) {
+            // Map status against the Meraki-sourced NetworkSwitch when present.
+            $status = $request->status;
+            $query->whereHas('networkSwitch', fn ($q) => $q->where('status', $status));
+        }
 
         if ($request->filled('network')) {
-            $query->where('network_id', $request->network);
-        }
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $networkId = $request->network;
+            $query->whereHas('networkSwitch', fn ($q) => $q->where('network_id', $networkId));
         }
 
-        $switches  = $query->with(['branch', 'floor', 'rack'])->get();
-        $networks  = NetworkSwitch::select('network_id', 'network_name')
-                        ->distinct()->orderBy('network_name')->get();
-        $lastSync  = NetworkSwitch::max('updated_at');
-        $branches  = Branch::orderBy('name')->get(['id', 'name']);
-        $floors    = NetworkFloor::with('branch')->orderBy('sort_order')->orderBy('name')->get();
-        $racks     = NetworkRack::with('floor.branch')->orderBy('sort_order')->orderBy('name')->get();
+        if ($request->filled('source')) {
+            $source = $request->source;
+            match ($source) {
+                'meraki'  => $query->whereHas('networkSwitch'),
+                'snmp'    => $query->whereHas('monitoredHost', fn ($q) => $q->where('snmp_enabled', true)),
+                'qos'     => $query->whereHas('qosStats'),
+                'manual'  => $query->where('source', 'manual'),
+                default   => null,
+            };
+        }
 
-        return view('admin.network.switches', compact('switches', 'networks', 'lastSync', 'branches', 'floors', 'racks'));
+        $devices = $query->orderBy('name')->get();
+
+        // Aggregate QoS presence for devices in one shot (avoid N+1 on hasMany).
+        $qosDeviceIds = SwitchQosStat::whereIn('device_id', $devices->pluck('id'))
+            ->pluck('device_id')
+            ->unique()
+            ->flip();
+
+        // Shape a unified row for the view. Each row answers "is this switch
+        // present in {Meraki, SNMP, QoS, Assets}?" and carries the join data
+        // needed to render it.
+        $rows = $devices->map(function (Device $d) use ($qosDeviceIds) {
+            $meraki = $d->networkSwitch;
+            $snmp   = $d->monitoredHost;
+
+            // Roll up a single status the table can sort/badge on.
+            $status = $meraki?->status
+                ?? ($snmp?->status === 'up' ? 'online'
+                    : ($snmp?->status === 'down' ? 'offline' : 'unknown'));
+
+            return (object) [
+                'device'       => $d,
+                'id'           => $d->id,
+                'name'         => $meraki?->name ?: $d->name,
+                'model'        => $d->model ?: $meraki?->model,
+                'serial'       => $d->serial_number ?: $meraki?->serial,
+                'ip'           => $d->ip_address ?: $meraki?->lan_ip,
+                'mac'          => $d->mac_address ?: $meraki?->mac,
+                'branch'       => $d->branch,
+                'floor'        => $d->floor,
+                'rack'         => $meraki?->rack,
+                'status'       => $status,
+                'network_name' => $meraki?->network_name,
+                'network_id'   => $meraki?->network_id,
+                'port_count'   => $meraki?->port_count ?? 0,
+                'clients'      => $meraki?->clients_count ?? 0,
+                'last_seen'    => $meraki?->last_reported_at ?? $snmp?->last_checked_at,
+                'in_meraki'    => (bool) $meraki,
+                'in_snmp'      => (bool) $snmp,
+                'snmp_ready'   => (bool) ($snmp?->snmp_enabled),
+                'in_qos'       => $qosDeviceIds->has($d->id),
+                'in_assets'    => true, // we're looking at devices, it's always true here
+                'meraki_ref'   => $meraki,
+                'snmp_ref'     => $snmp,
+            ];
+        })
+        // Stable sort: online → alerting → offline → unknown, then name.
+        ->sortBy(function ($r) {
+            $order = ['online' => 1, 'alerting' => 2, 'offline' => 3];
+            return [($order[$r->status] ?? 4), strtolower($r->name ?? '')];
+        })->values();
+
+        $networks = NetworkSwitch::select('network_id', 'network_name')
+            ->distinct()->orderBy('network_name')->get();
+        $lastSync = NetworkSwitch::max('updated_at');
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $floors   = NetworkFloor::with('branch')->orderBy('sort_order')->orderBy('name')->get();
+        $racks    = NetworkRack::with('floor.branch')->orderBy('sort_order')->orderBy('name')->get();
+
+        // Source totals for the top-of-page summary bar.
+        $totals = [
+            'all'    => $rows->count(),
+            'meraki' => $rows->where('in_meraki', true)->count(),
+            'snmp'   => $rows->where('in_snmp', true)->count(),
+            'qos'    => $rows->where('in_qos', true)->count(),
+            'gaps'   => $rows->filter(fn ($r) => !$r->in_meraki || !$r->snmp_ready)->count(),
+        ];
+
+        return view('admin.network.switches', [
+            'rows'     => $rows,
+            'networks' => $networks,
+            'lastSync' => $lastSync,
+            'branches' => $branches,
+            'floors'   => $floors,
+            'racks'    => $racks,
+            'totals'   => $totals,
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Add a switch-class Device to SNMP monitoring (creates a stub
+    // MonitoredHost with polling disabled — user enables + configures it).
+    // ─────────────────────────────────────────────────────────────
+
+    public function addToSnmp(Device $device, SwitchReconciler $reconciler)
+    {
+        if (!in_array($device->type, ['switch', 'router', 'firewall'])) {
+            return back()->with('error', 'Only switches, routers, and firewalls can be added to SNMP.');
+        }
+
+        if (!$device->ip_address) {
+            return back()->with('error', "Device \"{$device->name}\" has no IP address — cannot create an SNMP host.");
+        }
+
+        $host = $reconciler->ensureMonitoredHostForDevice($device);
+
+        if (!$host) {
+            return back()->with('error', 'Could not create SNMP host.');
+        }
+
+        ActivityLog::create([
+            'model_type' => \App\Models\MonitoredHost::class,
+            'model_id'   => $host->id,
+            'action'     => 'monitored_host_added_from_switches_page',
+            'changes'    => ['device_id' => $device->id, 'device_name' => $device->name],
+            'user_id'    => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.network.monitoring.show', $host->id)
+            ->with('success', "SNMP host created for {$device->name}. Configure credentials and enable polling to begin monitoring.");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Quick-edit a switch-class Device from the unified switches page.
+    //
+    // Device is canonical — always updated. Satellite rows (NetworkSwitch
+    // from Meraki, MonitoredHost for SNMP) are synced for fields they
+    // actually own so the three views stay in lockstep.
+    //
+    // Fields editable from the switches page: name, model, serial, IP,
+    // MAC, network (Meraki network_id/name — only applies to Meraki-
+    // sourced switches), branch, floor, rack.
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateSwitch(Request $request, Device $device)
+    {
+        if (!in_array($device->type, ['switch', 'router', 'firewall'])) {
+            return back()->with('error', 'Only switch-class assets can be edited here.');
+        }
+
+        $data = $request->validate([
+            'name'          => 'required|string|max:255',
+            'model'         => 'nullable|string|max:100',
+            'serial_number' => 'nullable|string|max:100',
+            'mac_address'   => 'nullable|string|max:20',
+            'ip_address'    => 'nullable|ip',
+            'network_id'    => 'nullable|string|max:100',
+            'branch_id'     => 'nullable|exists:branches,id',
+            'floor_id'      => 'nullable|exists:network_floors,id',
+            'rack_id'       => 'nullable|exists:network_racks,id',
+        ]);
+
+        $original = $device->only([
+            'name', 'model', 'serial_number', 'mac_address', 'ip_address', 'branch_id', 'floor_id',
+        ]);
+
+        // 1. Canonical Device row.
+        $device->fill([
+            'name'          => $data['name'],
+            'model'         => $data['model'] ?: null,
+            'serial_number' => $data['serial_number'] ?: null,
+            'mac_address'   => $data['mac_address'] ?: null,
+            'ip_address'    => $data['ip_address'] ?: null,
+            'branch_id'     => $data['branch_id'] ?: null,
+            'floor_id'      => $data['floor_id'] ?: null,
+        ]);
+        $device->save();
+
+        // 2. Meraki-side NetworkSwitch row (only when one exists — we don't
+        //    conjure a Meraki record out of thin air because its identity
+        //    is serial+org and Meraki will overwrite on next sync).
+        if ($sw = $device->networkSwitch) {
+            $sw->fill([
+                'name'      => $data['name'],
+                'model'     => $data['model'] ?: $sw->model,
+                'serial'    => $data['serial_number'] ?: $sw->serial,
+                'mac'       => $data['mac_address'] ?: $sw->mac,
+                'lan_ip'    => $data['ip_address'] ?: $sw->lan_ip,
+                'branch_id' => $data['branch_id'] ?: null,
+                'floor_id'  => $data['floor_id']  ?: null,
+                'rack_id'   => $data['rack_id']   ?: null,
+            ]);
+            if (array_key_exists('network_id', $data) && $data['network_id']) {
+                $sw->network_id = $data['network_id'];
+                // Back-fill the network_name from an existing sibling row
+                // (Meraki sync will overwrite next time — we just want a
+                // human label in the table immediately).
+                $named = NetworkSwitch::where('network_id', $data['network_id'])
+                    ->whereNotNull('network_name')
+                    ->value('network_name');
+                if ($named) $sw->network_name = $named;
+            }
+            $sw->save();
+        }
+
+        // 3. SNMP MonitoredHost row (if one exists, keep IP/name/branch
+        //    in sync so polling targets the right box after a move).
+        if ($host = $device->monitoredHost) {
+            $host->fill([
+                'name'      => $data['name'],
+                'ip'        => $data['ip_address'] ?: $host->ip,
+                'branch_id' => $data['branch_id'] ?: null,
+            ]);
+            $host->save();
+        }
+
+        ActivityLog::create([
+            'model_type' => Device::class,
+            'model_id'   => $device->id,
+            'action'     => 'switch_quick_edited',
+            'changes'    => [
+                'before' => $original,
+                'after'  => $device->only(array_keys($original)),
+                'synced' => [
+                    'meraki' => (bool) $device->networkSwitch,
+                    'snmp'   => (bool) $device->monitoredHost,
+                ],
+            ],
+            'user_id'    => Auth::id(),
+        ]);
+
+        return back()->with('success', "Switch \"{$device->name}\" updated across "
+            . (($device->networkSwitch || $device->monitoredHost) ? 'Assets + linked sources.' : 'Assets.'));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Bulk: create MonitoredHost stubs for every switch-class Device
+    // that doesn't already have one. Stubs start with snmp_enabled=false
+    // so nothing polls until credentials are set (or until
+    // syncSnmpFromConfigs() populates them from the running-config).
+    // ─────────────────────────────────────────────────────────────
+
+    public function bulkAddToSnmp(SwitchReconciler $reconciler)
+    {
+        $created  = 0;
+        $skipped  = 0;
+        $existing = 0;
+
+        Device::whereIn('type', ['switch', 'router', 'firewall'])
+            ->orderBy('id')
+            ->chunkById(200, function ($devices) use ($reconciler, &$created, &$skipped, &$existing) {
+                foreach ($devices as $device) {
+                    if (!$device->ip_address) {
+                        $skipped++;
+                        continue;
+                    }
+                    $host = $reconciler->ensureMonitoredHostForDevice($device);
+                    if (!$host) {
+                        $skipped++;
+                        continue;
+                    }
+                    $host->wasRecentlyCreated ? $created++ : $existing++;
+                }
+            });
+
+        ActivityLog::create([
+            'model_type' => MonitoredHost::class,
+            'model_id'   => 0,
+            'action'     => 'bulk_add_switches_to_snmp',
+            'changes'    => ['created' => $created, 'existing' => $existing, 'skipped_no_ip' => $skipped],
+            'user_id'    => Auth::id(),
+        ]);
+
+        return back()->with('success',
+            "Added {$created} switches to SNMP monitoring ({$existing} already existed, {$skipped} skipped — no IP). "
+            . "Configure credentials per host, or click 'Sync SNMP from Configs' to auto-fill from running-configs."
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Bulk: walk every switch-class Device that has a saved running
+    // config, parse its SNMP stanzas, and upsert the credentials onto
+    // the matching MonitoredHost. Creates a host stub via the
+    // reconciler when one doesn't exist yet.
+    //
+    // Polling is only enabled when usable creds were actually parsed
+    // (i.e. at least a community string or a v3 user) so we never flip
+    // snmp_enabled=true against an empty config section.
+    // ─────────────────────────────────────────────────────────────
+
+    public function syncSnmpFromConfigs(SnmpConfigExtractor $extractor, SwitchReconciler $reconciler)
+    {
+        $updated       = 0;
+        $hostsCreated  = 0;
+        $noConfig      = 0;
+        $noCreds       = 0;
+        $skipped       = 0;
+
+        Device::whereIn('type', ['switch', 'router', 'firewall'])
+            ->orderBy('id')
+            ->chunkById(100, function ($devices) use ($extractor, $reconciler, &$updated, &$hostsCreated, &$noConfig, &$noCreds, &$skipped) {
+                foreach ($devices as $device) {
+                    if (!$device->ip_address) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $config = SwitchRunningConfig::where('device_id', $device->id)
+                        ->latest('captured_at')
+                        ->first();
+
+                    if (!$config || !$config->config_text) {
+                        $noConfig++;
+                        continue;
+                    }
+
+                    $creds = $extractor->pickForMonitoredHost($config->config_text);
+                    if (!$creds) {
+                        $noCreds++;
+                        continue;
+                    }
+
+                    $host = $device->monitoredHost;
+                    if (!$host) {
+                        $host = $reconciler->ensureMonitoredHostForDevice($device);
+                        if (!$host) {
+                            $skipped++;
+                            continue;
+                        }
+                        if ($host->wasRecentlyCreated) {
+                            $hostsCreated++;
+                        }
+                    }
+
+                    // Mutators on MonitoredHost encrypt community/auth/priv
+                    // automatically on save — assign plaintext here.
+                    $host->fill($creds);
+                    $host->snmp_enabled = true;
+                    $host->save();
+
+                    ActivityLog::create([
+                        'model_type' => MonitoredHost::class,
+                        'model_id'   => $host->id,
+                        'action'     => 'snmp_creds_synced_from_config',
+                        'changes'    => [
+                            'device_id'    => $device->id,
+                            'device_name'  => $device->name,
+                            'snmp_version' => $creds['snmp_version'] ?? null,
+                            'captured_at'  => optional($config->captured_at)->toIso8601String(),
+                        ],
+                        'user_id'    => Auth::id(),
+                    ]);
+
+                    $updated++;
+                }
+            });
+
+        $msg = "SNMP creds synced from running-configs: {$updated} hosts updated";
+        if ($hostsCreated) $msg .= " ({$hostsCreated} new host stubs created)";
+        $msg .= ". Skipped: {$noConfig} no-config, {$noCreds} no-snmp-in-config, {$skipped} no-IP.";
+
+        return back()->with('success', $msg);
     }
 
     // ─────────────────────────────────────────────────────────────

@@ -63,8 +63,12 @@
         <i class="bi bi-printer display-5 text-secondary mb-3 d-block"></i>
         <h5 class="fw-semibold mb-2">No Printers Configured</h5>
         <p class="text-muted mb-0">
-            No printers are configured for <strong>{{ $branch->name }}</strong> yet.<br>
-            Contact IT to have printers added to your branch.
+            @if($branch)
+                No printers are configured for <strong>{{ $branch->name }}</strong> yet.<br>
+            @else
+                No printers are assigned to your account yet.<br>
+            @endif
+            Contact IT to have printers added.
         </p>
     </div>
 </div>

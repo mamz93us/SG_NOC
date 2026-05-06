@@ -4,6 +4,11 @@
 .DS_Store
 .env.backup
 .env.production
+
+# Deployment templates (per-service .env.example) ARE tracked, so the
+# repo carries the expected secret-set for each docker-compose stack.
+# Actual .env files in those dirs remain ignored by the rules above.
+!deployment/**/.env.example
 .phpactor.json
 .phpunit.result.cache
 /.fleet

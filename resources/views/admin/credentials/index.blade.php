@@ -148,7 +148,7 @@ async function togglePassword(id, btn) {
         btn.innerHTML = '<i class="bi bi-eye"></i>';
         return;
     }
-    const res  = await fetch(revealUrl.replace('__ID__', id), { headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' } });
+    const res  = await fetch(revealUrl.replace('__ID__', id), { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' } });
     const data = await res.json();
     mask.textContent      = data.password;
     mask.dataset.revealed = '1';
@@ -159,7 +159,7 @@ async function copyPassword(id, btn) {
     const mask = document.querySelector(`.password-mask[data-id="${id}"]`);
     let pw = mask.dataset.revealed === '1' ? mask.textContent : null;
     if (!pw) {
-        const res = await fetch(revealUrl.replace('__ID__', id), { headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' } });
+        const res = await fetch(revealUrl.replace('__ID__', id), { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' } });
         pw = (await res.json()).password;
     }
     await navigator.clipboard.writeText(pw);

@@ -6,8 +6,8 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Remote Browser — All Sessions</h3>
-        <a href="{{ route('admin.browser-portal.index') }}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left me-1"></i>My dashboard
+        <a href="{{ route('portal.index') }}" class="btn btn-outline-secondary btn-sm" target="_blank">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Open portal
         </a>
     </div>
 
@@ -56,7 +56,7 @@
                             <td><small>{{ $stats[$s->container_name]['cpu'] ?? '—' }}</small></td>
                             <td><small>{{ $stats[$s->container_name]['mem'] ?? '—' }}</small></td>
                             <td class="text-end">
-                                <form method="POST" action="{{ route('admin.browser-portal.admin.destroy', $s->session_id) }}" class="d-inline">
+                                <form method="POST" action="{{ route('admin.browser-portal.destroy', $s->session_id) }}" class="d-inline">
                                     @csrf
                                     @method('DELETE')
                                     <button class="btn btn-sm btn-outline-danger" type="submit"

@@ -1,6 +1,9 @@
 {
   "_comment": "Managed Chromium policies for the SG_NOC browser portal. Overrides the Neko image default at /etc/chromium/policies/managed/policies.json. Loosens kiosk restrictions that would block real work (uploads, password manager, bookmarks) while keeping the security-relevant locks (DevTools off, no incognito, no Chrome sign-in, no sync).",
 
+  "_comment_sandbox": "Chromium runs with --no-sandbox inside the Neko container (Linux user-namespace sandbox is unavailable in the image's pid/user setup). This suppresses the yellow 'unsupported command line flag' infobar at the top of the viewport.",
+  "CommandLineFlagSecurityWarningsEnabled": false,
+
   "BookmarkBarEnabled": true,
   "EditBookmarksEnabled": true,
   "PasswordManagerEnabled": true,

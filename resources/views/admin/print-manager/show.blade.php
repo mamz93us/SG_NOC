@@ -125,7 +125,7 @@
                                 <ol class="mb-0">
                                     <li>Settings &rarr; Printers &amp; Scanners &rarr; Add a printer</li>
                                     <li>"The printer I want isn't listed" &rarr; "Select a shared printer by name"</li>
-                                    <li>Enter: <code>{{ str_replace('ipp://', 'http://', $cupsPrinter->getIppAddress()) }}</code></li>
+                                    <li>Enter: <code>{{ str_replace('ipps://', 'https://', $cupsPrinter->getIppAddress()) }}</code></li>
                                 </ol>
                             </div>
                         </div>

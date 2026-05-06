@@ -20,5 +20,6 @@ class VerifyCsrfToken extends Middleware
         'api/hr/*',
         'admin/browser/fetch',
         'internal/*',
+        'api/graylog/webhook',
     ];
 }

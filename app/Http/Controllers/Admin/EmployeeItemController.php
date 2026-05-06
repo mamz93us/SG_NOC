@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Employee;
 use App\Models\EmployeeItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class EmployeeItemController extends Controller
 {
@@ -23,7 +25,15 @@ class EmployeeItemController extends Controller
             'notes'         => 'nullable|string|max:1000',
         ]);
 
-        $employee->items()->create($validated);
+        $item = $employee->items()->create($validated);
+
+        ActivityLog::create([
+            'model_type' => EmployeeItem::class,
+            'model_id'   => $item->id,
+            'action'     => 'employee_item_created',
+            'changes'    => ['employee_id' => $employee->id] + $item->toArray(),
+            'user_id'    => Auth::id(),
+        ]);
 
         return back()->with('success', "Item \"{$validated['item_name']}\" added to {$employee->name}.");
     }
@@ -44,6 +54,14 @@ class EmployeeItemController extends Controller
             'returned_date' => $request->returned_date,
         ]);
 
+        ActivityLog::create([
+            'model_type' => EmployeeItem::class,
+            'model_id'   => $item->id,
+            'action'     => 'employee_item_returned',
+            'changes'    => ['employee_id' => $employee->id, 'item_name' => $item->item_name, 'returned_date' => $request->returned_date],
+            'user_id'    => Auth::id(),
+        ]);
+
         return back()->with('success', "Item \"{$item->item_name}\" marked as returned.");
     }
 
@@ -56,7 +74,16 @@ class EmployeeItemController extends Controller
         }
 
         $name = $item->item_name;
+        $snapshot = $item->toArray();
         $item->delete();
+
+        ActivityLog::create([
+            'model_type' => EmployeeItem::class,
+            'model_id'   => $item->id,
+            'action'     => 'employee_item_deleted',
+            'changes'    => $snapshot,
+            'user_id'    => Auth::id(),
+        ]);
 
         return back()->with('success', "Item \"{$name}\" removed.");
     }

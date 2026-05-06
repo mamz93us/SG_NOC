@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class NetworkSwitch extends Model
 {
     protected $fillable = [
+        'device_id',
         'serial',
         'network_id',
         'network_name',
@@ -56,6 +57,11 @@ class NetworkSwitch extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function device(): BelongsTo
+    {
+        return $this->belongsTo(Device::class);
     }
 
     public function floor(): BelongsTo

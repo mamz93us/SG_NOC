@@ -7,6 +7,9 @@ use App\Jobs\SendOnboardingManagerFormJob;
 use App\Models\AllowedDomain;
 use App\Models\Branch;
 use App\Models\Department;
+use App\Models\Device;
+use App\Models\Employee;
+use App\Models\EmployeeAsset;
 use App\Models\OnboardingManagerToken;
 use App\Models\Setting;
 use App\Models\UcmServer;
@@ -72,7 +75,47 @@ class WorkflowController extends Controller
 
         $canApprove = $workflow->isAwaitingMyApproval(Auth::id());
 
-        return view('admin.workflows.show', compact('workflow', 'canApprove'));
+        // Device assignment panel (post-provisioning, create_user only).
+        // Only load the picker data when an employee has been created for
+        // this workflow — avoids unnecessary queries on other workflow types.
+        $employeeId        = $workflow->payload['employee_id'] ?? null;
+        $employee          = $employeeId ? Employee::find($employeeId) : null;
+        $currentAssignments = collect();
+        $availableDevices   = collect();
+
+        if ($employee) {
+            $currentAssignments = EmployeeAsset::with('device')
+                ->where('employee_id', $employee->id)
+                ->whereNull('returned_date')
+                ->orderByDesc('assigned_date')
+                ->get();
+
+            // Prefer devices in the workflow's branch; if none, show all
+            // available. Keeps the picker useful when branch isn't set.
+            $availableQuery = Device::where('status', 'available');
+            if ($workflow->branch_id) {
+                $branchScoped = (clone $availableQuery)
+                    ->where('branch_id', $workflow->branch_id);
+                $availableDevices = $branchScoped
+                    ->orderBy('type')->orderBy('name')
+                    ->get(['id', 'name', 'type', 'asset_code', 'serial_number']);
+                if ($availableDevices->isEmpty()) {
+                    $availableDevices = $availableQuery
+                        ->with('branch:id,name')
+                        ->orderBy('type')->orderBy('name')
+                        ->get(['id', 'name', 'type', 'asset_code', 'serial_number', 'branch_id']);
+                }
+            } else {
+                $availableDevices = $availableQuery
+                    ->with('branch:id,name')
+                    ->orderBy('type')->orderBy('name')
+                    ->get(['id', 'name', 'type', 'asset_code', 'serial_number', 'branch_id']);
+            }
+        }
+
+        return view('admin.workflows.show', compact(
+            'workflow', 'canApprove', 'employee', 'currentAssignments', 'availableDevices'
+        ));
     }
 
     // Create form
@@ -193,8 +236,9 @@ class WorkflowController extends Controller
             description: $validated['description'] ?? null,
         );
 
-        // For create_user workflows: create manager form token immediately
-        // so it appears on the workflow page, then queue the email.
+        // For create_user workflows: create manager form token immediately so
+        // it appears on the workflow page. The email is dispatched by the
+        // engine AFTER IT approval completes — not now.
         if ($validated['type'] === 'create_user' && ! empty($payload['manager_email'])) {
             $managerEmail = $payload['manager_email'];
             $managerName  = ucfirst(explode('.', explode('@', $managerEmail)[0])[0] ?? 'Manager');
@@ -202,7 +246,6 @@ class WorkflowController extends Controller
                 'manager_email' => $managerEmail,
                 'manager_name'  => $managerName,
             ]);
-            SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
         }
 
         return redirect()
@@ -225,6 +268,19 @@ class WorkflowController extends Controller
         $step = $workflow->currentStepRecord();
         $this->engine->approveStep($workflow, $user, $comments);
 
+        \App\Models\ActivityLog::create([
+            'model_type' => \App\Models\WorkflowRequest::class,
+            'model_id'   => $workflow->id,
+            'action'     => 'workflow_step_approved',
+            'changes'    => [
+                'step_id'     => $step?->id,
+                'step_role'   => $step?->assignee_role ?? $step?->role,
+                'type'        => $workflow->type,
+                'comments'    => $comments,
+            ],
+            'user_id'    => $user->id,
+        ]);
+
         return redirect()
             ->route('admin.workflows.show', $id)
             ->with('success', 'Step approved successfully.');
@@ -244,24 +300,120 @@ class WorkflowController extends Controller
 
         $this->engine->rejectStep($workflow, $user, $request->input('comments'));
 
+        \App\Models\ActivityLog::create([
+            'model_type' => \App\Models\WorkflowRequest::class,
+            'model_id'   => $workflow->id,
+            'action'     => 'workflow_step_rejected',
+            'changes'    => [
+                'type'     => $workflow->type,
+                'comments' => $request->input('comments'),
+            ],
+            'user_id'    => $user->id,
+        ]);
+
         return redirect()
             ->route('admin.workflows.show', $id)
             ->with('success', 'Request rejected.');
     }
 
-    // Cancel draft
-    public function cancel(int $id)
+    // Cancel a workflow (requester on their own draft, OR an approver on any non-terminal workflow)
+    public function cancel(Request $request, int $id)
     {
-        $workflow = WorkflowRequest::where('id', $id)
-            ->where('requested_by', Auth::id())
-            ->where('status', 'draft')
-            ->firstOrFail();
+        $workflow = WorkflowRequest::findOrFail($id);
+        $user     = Auth::user();
 
-        $workflow->update(['status' => 'rejected']);
+        // Terminal states — nothing to cancel
+        if (in_array($workflow->status, ['completed', 'rejected', 'failed', 'cancelled'])) {
+            return back()->with('error', "Workflow is already {$workflow->status} — cannot cancel.");
+        }
+
+        // Authorization: requester on their own draft, OR a user with
+        // approve-workflows / manage-workflows permission.
+        $isOwner    = $workflow->requested_by === $user?->id;
+        $canApprove = $user?->can('approve-workflows') || $user?->can('manage-workflows');
+
+        if (! $isOwner && ! $canApprove) {
+            abort(403, 'You are not allowed to cancel this workflow.');
+        }
+
+        $reason = trim((string) $request->input('reason', ''));
+
+        $workflow->update(['status' => 'cancelled']);
+
+        // Cancel any pending approval steps so dashboards reflect state.
+        // workflow_steps.status is an ENUM — reuse 'skipped' for cancelled runs.
+        WorkflowStep::where('workflow_id', $workflow->id)
+            ->where('status', 'pending')
+            ->update(['status' => 'skipped']);
+
+        // Expire any unfilled manager tokens so the link can't be used later
+        OnboardingManagerToken::where('workflow_id', $workflow->id)
+            ->whereNull('responded_at')
+            ->whereNull('used_at')
+            ->update(['expires_at' => now()->subMinute()]);
+
+        $this->engine->logEvent(
+            $workflow,
+            'warning',
+            'Workflow cancelled by ' . ($user?->name ?? 'system') . ($reason !== '' ? ": {$reason}" : '.')
+        );
+
+        \App\Models\ActivityLog::create([
+            'model_type' => \App\Models\WorkflowRequest::class,
+            'model_id'   => $workflow->id,
+            'action'     => 'workflow_cancelled',
+            'changes'    => [
+                'type'   => $workflow->type,
+                'reason' => $reason ?: null,
+            ],
+            'user_id'    => $user?->id,
+        ]);
+
+        // Send the user back to where they came from (show page for approvers,
+        // my-requests list for the requester cancelling their own draft).
+        if ($canApprove && ! $request->has('from_my_requests')) {
+            return redirect()
+                ->route('admin.workflows.show', $workflow->id)
+                ->with('success', 'Workflow cancelled.');
+        }
 
         return redirect()
             ->route('admin.workflows.my-requests')
             ->with('success', 'Request cancelled.');
+    }
+
+    // Permanently delete a workflow and its related rows.
+    // Only terminal states are deletable to prevent orphaning an in-flight
+    // provisioning run.
+    public function destroy(int $id)
+    {
+        $workflow = WorkflowRequest::findOrFail($id);
+        $user     = Auth::user();
+
+        if (! in_array($workflow->status, ['completed', 'rejected', 'failed', 'cancelled'])) {
+            return back()->with('error',
+                "Workflow must be completed, rejected, failed, or cancelled before it can be deleted (current: {$workflow->status}).");
+        }
+
+        $typeLabel = $workflow->typeLabel();
+        $title     = $workflow->title;
+        $workflowId = $workflow->id;
+
+        // Related rows cascade via foreign-key constraints:
+        //   workflow_steps, workflow_logs, workflow_tasks, onboarding_manager_tokens
+        $workflow->delete();
+
+        \App\Models\ActivityLog::create([
+            'model_type' => \App\Models\WorkflowRequest::class,
+            'model_id'   => $workflowId,
+            'action'     => 'workflow_deleted',
+            'changes'    => ['type' => $typeLabel, 'title' => $title],
+            'user_id'    => $user?->id,
+        ]);
+
+        return redirect()
+            ->route('admin.workflows.index')
+            ->with('success', "Workflow \"{$title}\" deleted.");
     }
 
     // (Re)create manager form token and dispatch email — useful for existing workflows
@@ -292,8 +444,8 @@ class WorkflowController extends Controller
             'manager_name'  => $managerName,
         ]);
 
-        // Send the email
-        SendOnboardingManagerFormJob::dispatch($workflow->id)->onQueue('emails');
+        // Send the email (default queue — that's where the worker is running)
+        SendOnboardingManagerFormJob::dispatch($workflow->id);
 
         return redirect()
             ->route('admin.workflows.show', $workflow->id)
@@ -312,6 +464,18 @@ class WorkflowController extends Controller
             'completed_at' => now(),
             'completed_by' => Auth::id(),
             'notes'        => $request->input('notes'),
+        ]);
+
+        \App\Models\ActivityLog::create([
+            'model_type' => \App\Models\WorkflowTask::class,
+            'model_id'   => $task->id,
+            'action'     => 'workflow_task_completed',
+            'changes'    => [
+                'workflow_id' => $task->workflow_id,
+                'title'       => $task->title ?? null,
+                'notes'       => $request->input('notes'),
+            ],
+            'user_id'    => Auth::id(),
         ]);
 
         // Check if all tasks for this workflow are now done — notify IT team
@@ -336,6 +500,89 @@ class WorkflowController extends Controller
         }
 
         return back()->with('success', 'Task marked as completed.');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Assign a device (asset) to the employee created by this workflow.
+    // Post-provisioning manual step — visible on the workflow show page.
+    // ─────────────────────────────────────────────────────────────
+    public function assignDevice(Request $request, int $id)
+    {
+        $workflow = WorkflowRequest::findOrFail($id);
+
+        $employeeId = $workflow->payload['employee_id'] ?? null;
+        if (! $employeeId) {
+            return back()->with('error', 'No employee is linked to this workflow yet — provisioning must finish first.');
+        }
+        $employee = Employee::find($employeeId);
+        if (! $employee) {
+            return back()->with('error', 'The employee for this workflow could not be found.');
+        }
+
+        $validated = $request->validate([
+            'asset_id'  => 'required|exists:devices,id',
+            'condition' => 'required|in:good,fair,poor',
+            'notes'     => 'nullable|string|max:500',
+        ]);
+
+        // Guard: not already actively assigned to someone else
+        $active = EmployeeAsset::where('asset_id', $validated['asset_id'])
+            ->whereNull('returned_date')
+            ->first();
+        if ($active) {
+            $assignedTo = $active->employee?->name ?? 'another employee';
+            return back()->with('error', "This device is already assigned to {$assignedTo}.");
+        }
+
+        $device = Device::find($validated['asset_id']);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($employee, $validated) {
+            EmployeeAsset::create([
+                'employee_id'   => $employee->id,
+                'asset_id'      => $validated['asset_id'],
+                'assigned_date' => now()->toDateString(),
+                'condition'     => $validated['condition'],
+                'notes'         => $validated['notes'] ?? null,
+            ]);
+            Device::where('id', $validated['asset_id'])->update(['status' => 'assigned']);
+        });
+
+        $deviceLabel = trim(($device->type ?? '') . ' ' . ($device->name ?? $device->asset_code ?? "#{$device->id}"));
+        $this->engine->logEvent($workflow, 'info',
+            "Device assigned to {$employee->name}: {$deviceLabel} (by " . Auth::user()->name . ').');
+
+        return back()->with('success', "Device '{$deviceLabel}' assigned to {$employee->name}.");
+    }
+
+    public function returnDevice(int $id, int $assignmentId)
+    {
+        $workflow = WorkflowRequest::findOrFail($id);
+
+        $assignment = EmployeeAsset::find($assignmentId);
+        if (! $assignment) {
+            return back()->with('error', 'Assignment not found.');
+        }
+        if ($assignment->returned_date !== null) {
+            return back()->with('error', 'This device has already been returned.');
+        }
+        if (($workflow->payload['employee_id'] ?? null) !== $assignment->employee_id) {
+            return back()->with('error', 'This assignment does not belong to this workflow\'s employee.');
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($assignment) {
+            $assignment->update([
+                'returned_date' => now()->toDateString(),
+            ]);
+            Device::where('id', $assignment->asset_id)->update(['status' => 'available']);
+        });
+
+        $device  = Device::find($assignment->asset_id);
+        $label   = $device ? trim(($device->type ?? '') . ' ' . ($device->name ?? $device->asset_code ?? "#{$device->id}")) : "#{$assignment->asset_id}";
+        $empName = $assignment->employee?->name ?? 'employee';
+        $this->engine->logEvent($workflow, 'info',
+            "Device returned from {$empName}: {$label} (by " . Auth::user()->name . ').');
+
+        return back()->with('success', "Device '{$label}' returned.");
     }
 
     // Retry a failed workflow execution (skips approval — already approved)

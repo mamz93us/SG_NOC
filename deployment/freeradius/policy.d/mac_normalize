@@ -1,0 +1,35 @@
+# =============================================================================
+# sg_mac_normalize policy
+# =============================================================================
+# Normalises User-Name and Calling-Station-Id to AA:BB:CC:DD:EE:FF before SQL
+# lookup. Mirrors App\Models\DeviceMac::normalizeMac() exactly so the MAC
+# stored in the registry is always what the SQL WHERE clause sees.
+#
+# Accepts:
+#   aa-bb-cc-dd-ee-ff   (dash)
+#   aabb.ccdd.eeff      (Cisco dotted)
+#   aa:bb:cc:dd:ee:ff   (colon)
+#   aabbccddeeff        (no separator)
+#   any case
+# Produces:
+#   AA:BB:CC:DD:EE:FF   (uppercase, colon)
+#
+# If User-Name doesn't contain 12 hex chars, leaves it untouched — the site
+# config rejects with "invalid-mac-format" via a regex check.
+# =============================================================================
+
+sg_mac_normalize {
+    # Capture the 12 hex digits regardless of separator pattern, then
+    # rebuild as colon-separated uppercase.
+    if (&User-Name =~ /^[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*$/) {
+        update request {
+            User-Name := "%{toupper:%{1}:%{2}:%{3}:%{4}:%{5}:%{6}}"
+        }
+    }
+
+    if (&Calling-Station-Id && &Calling-Station-Id =~ /^[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*([0-9a-fA-F]{2})[^0-9a-fA-F]*$/) {
+        update request {
+            Calling-Station-Id := "%{toupper:%{1}:%{2}:%{3}:%{4}:%{5}:%{6}}"
+        }
+    }
+}

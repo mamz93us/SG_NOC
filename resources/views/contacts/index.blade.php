@@ -249,6 +249,13 @@
 <body>
     <!-- Header -->
     <div class="header-section">
+        @auth
+        <div class="container mb-2">
+            <a href="/portal" class="btn btn-light btn-sm">
+                &larr; Back to Portal
+            </a>
+        </div>
+        @endauth
         <div class="container text-center">
             @if($settings->first() && $settings->first()->company_logo)
                 <img 

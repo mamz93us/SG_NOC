@@ -52,4 +52,14 @@ return [
         'idle_minutes'       => (int) env('BROWSER_PORTAL_IDLE_MINUTES', 240),
     ],
 
+    'graylog' => [
+        // Public URL users land on when clicking "Logs" in the navbar.
+        // e.g. https://logs.samirgroup.net
+        'url'            => env('GRAYLOG_URL'),
+        // Shared secret Graylog sends in X-Graylog-Secret header so the
+        // /api/graylog/webhook endpoint can verify alert payloads are
+        // really from your Graylog instance.
+        'webhook_secret' => env('GRAYLOG_WEBHOOK_SECRET'),
+    ],
+
 ];

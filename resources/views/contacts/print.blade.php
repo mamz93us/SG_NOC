@@ -104,6 +104,9 @@
     </button>
     <a href="{{ route('public.contacts.print.compact') }}" class="btn btn-info">Compact Layout</a>
     <a href="/contacts" class="btn btn-secondary">← Back</a>
+    @auth
+        <a href="/portal" class="btn btn-dark">← Back to Portal</a>
+    @endauth
                 </div>
             </div>
         </div>

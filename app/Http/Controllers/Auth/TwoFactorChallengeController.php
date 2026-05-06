@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -20,7 +21,7 @@ class TwoFactorChallengeController extends Controller
         }
 
         if ($request->session()->get('2fa_verified')) {
-            return redirect()->route('admin.dashboard');
+            return redirect()->route($user->homeRoute());
         }
 
         return view('auth.two-factor.challenge');
@@ -45,6 +46,13 @@ class TwoFactorChallengeController extends Controller
         $valid = $google2fa->verifyKey($user->two_factor_secret, $request->input('code'));
 
         if (! $valid) {
+            ActivityLog::create([
+                'model_type' => \App\Models\User::class,
+                'model_id'   => $user->id,
+                'action'     => '2fa_verify_failed',
+                'changes'    => ['context' => 'challenge'],
+                'user_id'    => $user->id,
+            ]);
             return redirect()->back()->withErrors([
                 'code' => 'The authentication code is invalid. Please try again.',
             ]);
@@ -53,6 +61,14 @@ class TwoFactorChallengeController extends Controller
         $request->session()->put('2fa_verified', true);
         $request->session()->regenerate();
 
-        return redirect()->intended(route('admin.dashboard'));
+        ActivityLog::create([
+            'model_type' => \App\Models\User::class,
+            'model_id'   => $user->id,
+            'action'     => '2fa_verified',
+            'changes'    => null,
+            'user_id'    => $user->id,
+        ]);
+
+        return redirect()->intended(route($user->homeRoute()));
     }
 }

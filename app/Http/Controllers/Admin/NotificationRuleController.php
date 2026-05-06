@@ -13,11 +13,12 @@ class NotificationRuleController extends Controller
     {
         $this->authorize('manage-notification-rules');
 
-        $rules     = NotificationRule::with('recipientUser')->orderBy('event_type')->get();
-        $users     = User::orderBy('name')->get(['id', 'name', 'email']);
-        $eventTypes = NotificationRule::eventTypeLabels();
+        $rules       = NotificationRule::with('recipientUser')->orderBy('event_type')->get();
+        $users       = User::orderBy('name')->get(['id', 'name', 'email']);
+        $eventTypes  = NotificationRule::eventTypeLabels();
+        $eventGroups = NotificationRule::eventTypeGroups();
 
-        return view('admin.notifications.rules', compact('rules', 'users', 'eventTypes'));
+        return view('admin.notifications.rules', compact('rules', 'users', 'eventTypes', 'eventGroups'));
     }
 
     public function store(Request $request)
@@ -27,7 +28,7 @@ class NotificationRuleController extends Controller
         $validated = $request->validate([
             'event_type'        => 'required|string|max:50',
             'recipient_type'    => 'required|in:role,user',
-            'recipient_role'    => 'nullable|required_if:recipient_type,role|in:super_admin,admin,viewer',
+            'recipient_role'    => 'nullable|required_if:recipient_type,role|in:super_admin,admin,hr,viewer',
             'recipient_user_id' => 'nullable|required_if:recipient_type,user|exists:users,id',
             'send_email'        => 'boolean',
             'send_in_app'       => 'boolean',
@@ -54,7 +55,7 @@ class NotificationRuleController extends Controller
         $validated = $request->validate([
             'event_type'        => 'required|string|max:50',
             'recipient_type'    => 'required|in:role,user',
-            'recipient_role'    => 'nullable|required_if:recipient_type,role|in:super_admin,admin,viewer',
+            'recipient_role'    => 'nullable|required_if:recipient_type,role|in:super_admin,admin,hr,viewer',
             'recipient_user_id' => 'nullable|required_if:recipient_type,user|exists:users,id',
             'send_email'        => 'boolean',
             'send_in_app'       => 'boolean',

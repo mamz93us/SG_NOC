@@ -26,6 +26,8 @@ class Device extends Model
         'office_id',
         'department_id',
         'location_description',
+        'storage_location',
+        'scrap_workflow_id',
         'notes',
         'source',
         'source_id',
@@ -47,6 +49,7 @@ class Device extends Model
         'web_protocol',
         'web_port',
         'web_path',
+        'proxy_legacy_tls',
         'ssh_port',
         'ssh_username',
         // ── Switch QoS probe ───────────────────────────────────────────────
@@ -65,6 +68,7 @@ class Device extends Model
         'current_value'      => 'decimal:2',
         'depreciation_years' => 'integer',
         'proxy_enabled'      => 'boolean',
+        'proxy_legacy_tls'   => 'boolean',
         'web_port'           => 'integer',
         'ssh_port'           => 'integer',
         'telnet_reachable'   => 'boolean',
@@ -141,6 +145,30 @@ class Device extends Model
         return $this->hasMany(AssetHistory::class)->orderByDesc('created_at');
     }
 
+    public function scrapWorkflow(): BelongsTo
+    {
+        return $this->belongsTo(WorkflowRequest::class, 'scrap_workflow_id');
+    }
+
+    /** Scope: assets currently sitting in any store — i.e. unassigned, not scrapped/retired. */
+    public function scopeInStorage($query)
+    {
+        return $query->whereNotIn('status', ['scrapped', 'retired'])
+            ->whereDoesntHave('currentAssignment');
+    }
+
+    /** Scope: assets in the universal store (no branch assigned). */
+    public function scopeInUniversalStore($query)
+    {
+        return $query->inStorage()->whereNull('branch_id');
+    }
+
+    /** Scope: assets in a specific branch's store. */
+    public function scopeInBranchStore($query, int $branchId)
+    {
+        return $query->inStorage()->where('branch_id', $branchId);
+    }
+
     public function licenseAssignments(): HasMany
     {
         return $this->hasMany(LicenseAssignment::class, 'assignable_id')
@@ -150,6 +178,21 @@ class Device extends Model
     public function azureDevice(): HasOne
     {
         return $this->hasOne(AzureDevice::class);
+    }
+
+    public function networkSwitch(): HasOne
+    {
+        return $this->hasOne(NetworkSwitch::class);
+    }
+
+    public function monitoredHost(): HasOne
+    {
+        return $this->hasOne(MonitoredHost::class);
+    }
+
+    public function qosStats(): HasMany
+    {
+        return $this->hasMany(SwitchQosStat::class);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────
@@ -202,6 +245,7 @@ class Device extends Model
             'repair'      => 'bg-warning text-dark',
             'retired'     => 'bg-secondary',
             'maintenance' => 'bg-warning text-dark',
+            'scrapped'    => 'bg-danger',
             default       => 'bg-secondary',
         };
     }

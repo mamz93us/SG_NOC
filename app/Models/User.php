@@ -37,6 +37,7 @@ class User extends Authenticatable
             'two_factor_enabled'     => 'boolean',
             'two_factor_confirmed_at' => 'datetime',
             'dark_mode'               => 'boolean',
+            'last_login_at'           => 'datetime',
         ];
     }
 
@@ -88,13 +89,42 @@ class User extends Authenticatable
         return $this->role === 'viewer';
     }
 
+    public function isBrowserUser(): bool
+    {
+        return $this->role === 'browser_user';
+    }
+
+    public function isHr(): bool
+    {
+        return $this->role === 'hr';
+    }
+
+    /**
+     * Portal-only roles never see admin chrome.
+     */
+    public function usesPortal(): bool
+    {
+        return $this->isBrowserUser() || $this->isHr();
+    }
+
+    /**
+     * Post-auth landing page for this user. Portal-only roles (browser_user, hr)
+     * go straight into the portal; everyone else hits the admin dashboard.
+     */
+    public function homeRoute(): string
+    {
+        return $this->usesPortal() ? 'portal.index' : 'admin.dashboard';
+    }
+
     public static function roleLabel(string $role): string
     {
         return match($role) {
-            'super_admin' => 'Super Admin',
-            'admin'       => 'Admin',
-            'viewer'      => 'Viewer',
-            default       => ucfirst($role),
+            'super_admin'  => 'Super Admin',
+            'admin'        => 'Admin',
+            'hr'           => 'HR',
+            'viewer'       => 'Viewer',
+            'browser_user' => 'Browser User',
+            default        => ucfirst($role),
         };
     }
 }

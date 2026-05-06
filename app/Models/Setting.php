@@ -73,6 +73,10 @@ class Setting extends Model
         'vq_retention_days',
         'switch_drop_retention_days',
         'workflow_retention_days',
+        // Ticketing API (external ticket system)
+        'ticketing_api_url',
+        'ticketing_api_key',
+        'ticketing_api_enabled',
     ];
 
     protected $casts = [
@@ -95,6 +99,7 @@ class Setting extends Model
         'workflow_retention_days'      => 'integer',
         'cups_enabled'                 => 'boolean',
         'cups_refresh_interval'        => 'integer',
+        'ticketing_api_enabled'        => 'boolean',
     ];
 
     /**
@@ -186,6 +191,23 @@ class Setting extends Model
     }
 
     public function getGdmsClientSecretAttribute(?string $value): ?string
+    {
+        if (!$value) return null;
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── Ticketing API key — encrypted at rest ────────────────────
+
+    public function setTicketingApiKeyAttribute(?string $value): void
+    {
+        $this->attributes['ticketing_api_key'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getTicketingApiKeyAttribute(?string $value): ?string
     {
         if (!$value) return null;
         try {

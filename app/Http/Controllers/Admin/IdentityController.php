@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendMobileUpdateReminderJob;
 use App\Jobs\SyncIdentityData;
 use App\Models\ActivityLog;
+use App\Models\Employee;
 use App\Models\IdentityGroup;
 use App\Models\IdentityLicense;
 use App\Models\IdentitySyncLog;
 use App\Models\IdentityUser;
 use App\Models\Setting;
+use App\Services\Identity\AzureContactSyncService;
 use App\Services\Identity\GraphService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -495,6 +498,146 @@ class IdentityController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Bulk Azure Contact Sync
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Scan every employee with an Azure account and a branch, compute the
+     * proposed Azure AD contact-info values from branch + extension, and
+     * render the diff table for admin review.
+     */
+    public function contactSyncIndex(Request $request, AzureContactSyncService $service)
+    {
+        $settings = Setting::get();
+
+        $employees = Employee::with('branch', 'identityUser')
+            ->whereNotNull('azure_id')
+            ->whereNotNull('branch_id')
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get();
+
+        $withDiffs     = [];
+        $noChanges     = [];
+        $missingMobile = [];
+
+        foreach ($employees as $employee) {
+            $proposed = $service->computeProposedFields($employee, $settings);
+            $diff     = $service->diffAgainstIdentityUser($employee, $employee->identityUser, $proposed);
+
+            $hasDiff = collect($diff)->contains(fn ($r) => $r['changed']);
+
+            $row = [
+                'employee' => $employee,
+                'proposed' => $proposed,
+                'diff'     => $diff,
+            ];
+
+            if ($hasDiff) {
+                $withDiffs[] = $row;
+            } else {
+                $noChanges[] = $row;
+            }
+
+            if (empty($employee->identityUser?->mobile_phone)) {
+                $missingMobile[] = $employee;
+            }
+        }
+
+        $lastSync = IdentitySyncLog::where('status', 'completed')->latest()->first();
+
+        return view('admin.identity.contact-sync', compact(
+            'withDiffs',
+            'noChanges',
+            'missingMobile',
+            'lastSync'
+        ));
+    }
+
+    /**
+     * Apply the selected Azure AD contact-info updates. Recomputes the
+     * proposed values server-side rather than trusting posted values.
+     */
+    public function contactSyncApply(Request $request, AzureContactSyncService $service)
+    {
+        $validated = $request->validate([
+            'azure_ids'   => 'required|array|min:1',
+            'azure_ids.*' => 'string',
+        ]);
+
+        $settings = Setting::get();
+
+        $employees = Employee::with('branch', 'identityUser')
+            ->whereIn('azure_id', $validated['azure_ids'])
+            ->whereNotNull('branch_id')
+            ->get();
+
+        // TODO: when org grows beyond ~100 employees, dispatch a queued
+        // batch job here instead of looping inline (Graph PATCH /users
+        // is throttled at ~600/min and inline loops can hit timeouts).
+        $applied  = 0;
+        $failures = [];
+
+        foreach ($employees as $employee) {
+            try {
+                $proposed = $service->computeProposedFields($employee, $settings);
+                if ($proposed === []) {
+                    continue;
+                }
+                $service->applyToEmployee($employee, $proposed);
+                $applied++;
+            } catch (\Throwable $e) {
+                $failures[] = $employee->name . ': ' . $e->getMessage();
+            }
+        }
+
+        $msg = "Applied to {$applied} employee(s).";
+        if ($failures) {
+            $msg .= ' ' . count($failures) . ' failed.';
+            return redirect()->route('admin.identity.contact-sync')
+                ->with('error', $msg)
+                ->with('contact_sync_failures', $failures);
+        }
+
+        return redirect()->route('admin.identity.contact-sync')
+            ->with('success', $msg);
+    }
+
+    /**
+     * Dispatch reminder emails to employees whose Azure AD mobilePhone is
+     * empty so they can update it themselves.
+     */
+    public function contactSyncSendMobileReminders(Request $request)
+    {
+        $employeeIds = $request->input('employee_ids', []);
+
+        if (! is_array($employeeIds) || $employeeIds === []) {
+            // "Send to all missing" — resolve server-side.
+            $employeeIds = Employee::with('identityUser')
+                ->whereNotNull('azure_id')
+                ->where('status', 'active')
+                ->get()
+                ->filter(fn ($e) => empty($e->identityUser?->mobile_phone))
+                ->pluck('id')
+                ->all();
+        }
+
+        $sent = 0;
+        foreach ($employeeIds as $id) {
+            SendMobileUpdateReminderJob::dispatch((int) $id);
+            $sent++;
+        }
+
+        if ($sent === 0) {
+            return redirect()->route('admin.identity.contact-sync')
+                ->with('error', 'No employees with missing mobile to remind.');
+        }
+
+        return redirect()->route('admin.identity.contact-sync')
+            ->with('success', "Reminder email queued for {$sent} employee(s).");
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────
 
@@ -505,6 +648,22 @@ class IdentityController extends Controller
     private function graphFriendlyError(\Exception $e): string
     {
         $msg = $e->getMessage();
+
+        try {
+            ActivityLog::create([
+                'model_type' => 'GraphApi',
+                'model_id'   => 0,
+                'action'     => 'api_failed',
+                'changes'    => [
+                    'service' => 'MicrosoftGraph',
+                    'message' => mb_substr($msg, 0, 1000),
+                    'route'   => request()?->route()?->getName(),
+                ],
+                'user_id' => Auth::id(),
+            ]);
+        } catch (\Throwable) {
+            // Never let audit logging mask the original failure.
+        }
 
         if (str_contains($msg, 'Authorization_RequestDenied') || str_contains($msg, 'Insufficient privileges')) {
             return 'Azure AD permission denied. The app registration is missing write permissions. '

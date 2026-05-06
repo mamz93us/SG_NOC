@@ -200,12 +200,6 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.switch-drops.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.switch-drops.dashboard') }}">
-                                    <i class="bi bi-exclamation-triangle me-2 text-warning"></i>Switch Drop Monitor
-                                </a>
-                            </li>
-                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.switch-qos.*') ? 'active' : '' }}"
                                    href="{{ route('admin.switch-qos.dashboard') }}">
                                     <i class="bi bi-speedometer2 me-2 text-primary"></i>Switch QoS Monitor
@@ -258,6 +252,28 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.sophos.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.sophos.index') }}">
                                     <i class="bi bi-shield-fill me-2"></i>Sophos Firewalls
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-radius')
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-shield-lock me-1"></i>RADIUS / 802.1X</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.radius.macs.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.radius.macs.index') }}">
+                                    <i class="bi bi-fingerprint me-2"></i>MAC Registry
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.radius.nas.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.radius.nas.index') }}">
+                                    <i class="bi bi-router me-2"></i>NAS Clients
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.radius.vlan.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.radius.vlan.index') }}">
+                                    <i class="bi bi-diagram-3 me-2"></i>VLAN Policy
                                 </a>
                             </li>
                             @endcan
@@ -474,6 +490,47 @@
                                 </a>
                             </li>
                             @endcan
+
+                            {{-- ── Asset Operations: Transfer / Stores / Scrap / Reports ── --}}
+                            @canany(['manage-itam','view-itam','request-scrap'])
+                            <li><hr class="dropdown-divider"></li>
+                            @endcanany
+                            @can('manage-itam')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.transfer.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.transfer.index') }}">
+                                    <i class="bi bi-arrow-left-right me-2"></i>Asset Transfer
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-itam')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.stores.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.stores.index') }}">
+                                    <i class="bi bi-box-seam me-2"></i>Branch Stores
+                                </a>
+                            </li>
+                            @endcan
+                            @can('request-scrap')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.scrap.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.scrap.index') }}">
+                                    <i class="bi bi-trash3 me-2"></i>Scrap Requests
+                                    @php $__scrapPending = \App\Models\WorkflowRequest::where('type','asset_scrap')->where('status','pending')->count(); @endphp
+                                    @if($__scrapPending > 0)
+                                    <span class="badge bg-warning text-dark ms-1">{{ $__scrapPending }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-itam')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.reports.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.reports.index') }}">
+                                    <i class="bi bi-file-earmark-bar-graph me-2"></i>Asset Reports
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-assets')
                             <li><hr class="dropdown-divider"></li>
                             <li>
@@ -613,6 +670,22 @@
                                     <i class="bi bi-clock-history me-2"></i>Events Log
                                 </a>
                             </li>
+                            @can('view-syslog')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.syslog.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.syslog.index') }}">
+                                    <i class="bi bi-journal-code me-2"></i>Syslog
+                                </a>
+                            </li>
+                            @if(config('services.graylog.url'))
+                            <li>
+                                <a class="dropdown-item" href="{{ config('services.graylog.url') }}" target="_blank" rel="noopener">
+                                    <i class="bi bi-graph-up-arrow me-2 text-info"></i>Logs (Graylog)
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
+                                </a>
+                            </li>
+                            @endif
+                            @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.noc.wallboard') ? 'active' : '' }}"
@@ -641,18 +714,31 @@
                                     <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet / SSH Client
                                 </a>
                             </li>
+                            @can('view-browser-portal')
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.browser.index') }}" target="_blank">
-                                    <i class="bi bi-globe me-2 text-primary"></i>Web Browser
+                                <a class="dropdown-item" href="{{ route('portal.browser') }}" target="_blank">
+                                    <i class="bi bi-shield-lock me-2 text-warning"></i>Remote Browser (Portal)
                                     <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
                                 </a>
                             </li>
-                            @can('view-browser-portal')
+                            @endcan
+                            @can('manage-browser-portal')
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.*') ? 'active' : '' }}"
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.index') || request()->routeIs('admin.browser-portal.logs') ? 'active' : '' }}"
                                    href="{{ route('admin.browser-portal.index') }}">
-                                    <i class="bi bi-shield-lock me-2 text-warning"></i>Remote Browser (VPN)
+                                    <i class="bi bi-people-fill me-2 text-info"></i>Browser — Active Sessions
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.events') ? 'active' : '' }}"
+                                   href="{{ route('admin.browser-portal.events') }}">
+                                    <i class="bi bi-journal-text me-2 text-muted"></i>Browser — Activity Log
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.settings') ? 'active' : '' }}"
+                                   href="{{ route('admin.browser-portal.settings') }}">
+                                    <i class="bi bi-gear me-2 text-muted"></i>Browser — Settings
                                 </a>
                             </li>
                             @endcan
@@ -676,41 +762,6 @@
                         </ul>
                     </li>
                     @endcan
-
-                    {{-- ── IT Tasks ── --}}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/tasks*') ? 'active' : '' }}"
-                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-list-task me-1"></i>Tasks
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-dark shadow">
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.index') ? 'active' : '' }}"
-                                   href="{{ route('admin.tasks.index') }}">
-                                    <i class="bi bi-table me-2"></i>All Tasks
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.my-tasks') ? 'active' : '' }}"
-                                   href="{{ route('admin.tasks.my-tasks') }}">
-                                    <i class="bi bi-person-check me-2"></i>My Tasks
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.kanban') ? 'active' : '' }}"
-                                   href="{{ route('admin.tasks.kanban') }}">
-                                    <i class="bi bi-kanban me-2"></i>Kanban Board
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.tasks.create') ? 'active' : '' }}"
-                                   href="{{ route('admin.tasks.create') }}">
-                                    <i class="bi bi-plus-circle me-2"></i>New Task
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
 
                     {{-- ── Identity dropdown ── --}}
                     @can('view-identity')
@@ -748,6 +799,12 @@
                             </li>
                             @endcan
                             <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.identity.contact-sync') ? 'active' : '' }}"
+                                   href="{{ route('admin.identity.contact-sync') }}">
+                                    <i class="bi bi-arrow-repeat me-2"></i>Contact Sync
+                                </a>
+                            </li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.identity.sync-logs') ? 'active' : '' }}"
                                    href="{{ route('admin.identity.sync-logs') }}">

@@ -57,15 +57,17 @@ class WorkflowRequest extends Model
     public function statusBadgeClass(): string
     {
         return match ($this->status) {
-            'draft'                  => 'bg-secondary',
-            'pending'                => 'bg-warning text-dark',
-            'manager_input_pending'  => 'bg-warning text-dark',
-            'approved'               => 'bg-info text-dark',
-            'rejected'               => 'bg-danger',
-            'executing'              => 'bg-primary',
-            'completed'              => 'bg-success',
-            'failed'                 => 'bg-danger',
-            default                  => 'bg-secondary',
+            'draft'                   => 'bg-secondary',
+            'pending'                 => 'bg-warning text-dark',
+            'manager_input_pending'   => 'bg-warning text-dark',
+            'awaiting_manager_form'   => 'bg-warning text-dark',
+            'approved'                => 'bg-info text-dark',
+            'rejected'                => 'bg-danger',
+            'cancelled'               => 'bg-secondary',
+            'executing'               => 'bg-primary',
+            'completed'               => 'bg-success',
+            'failed'                  => 'bg-danger',
+            default                   => 'bg-secondary',
         };
     }
 
@@ -74,9 +76,10 @@ class WorkflowRequest extends Model
         return match ($this->type) {
             'create_user', 'extension_create', 'asset_assign' => 'bg-success',
             'delete_user', 'extension_delete', 'asset_return',
-            'employee_offboarding'                            => 'bg-danger',
+            'employee_offboarding', 'asset_scrap'             => 'bg-danger',
             'license_change', 'license_purchase'              => 'bg-info text-dark',
             'group_assignment'                                => 'bg-primary',
+            'profile_update_phone'                            => 'bg-warning text-dark',
             default                                           => 'bg-secondary',
         };
     }
@@ -90,10 +93,12 @@ class WorkflowRequest extends Model
             'license_purchase'     => 'License Purchase',
             'asset_assign'         => 'Asset Assignment',
             'asset_return'         => 'Asset Return',
+            'asset_scrap'          => 'Asset Scrap',
             'extension_create'     => 'Create Extension',
             'extension_delete'     => 'Delete Extension',
             'employee_offboarding' => 'Employee Offboarding',
             'group_assignment'     => 'Group Assignment',
+            'profile_update_phone' => 'Phone Update',
             default                => ucfirst(str_replace('_', ' ', $this->type)),
         };
     }

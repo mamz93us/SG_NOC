@@ -2,8 +2,11 @@
 
 namespace App\Services\BrowserPortal;
 
+use App\Models\BrowserPortalSettings;
 use App\Models\BrowserSession;
+use App\Models\BrowserSessionEvent;
 use App\Models\User;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -24,17 +27,47 @@ use Illuminate\Support\Str;
  */
 class SessionManager
 {
-    public const IMAGE = 'ghcr.io/m1k1o/neko/chromium:latest';
     public const NETWORK = 'browser-net';
-    public const UDP_RANGE_START = 52000;
-    public const UDP_RANGE_END = 52100;
-    public const PORTS_PER_SESSION = 10;
-    public const MAX_CONCURRENT = 10;
 
     public function __construct(
         protected DockerClient $docker,
         protected NginxSnippetWriter $nginx,
     ) {}
+
+    protected function settings(): BrowserPortalSettings
+    {
+        return BrowserPortalSettings::current();
+    }
+
+    /**
+     * Record a lifecycle event against a session (or user, if session-less).
+     * Never throws — logging failures must not break the main flow.
+     */
+    public function logEvent(
+        ?BrowserSession $session,
+        int $userId,
+        string $eventType,
+        ?string $message = null,
+        array $metadata = [],
+        ?string $ipAddress = null,
+    ): void {
+        try {
+            BrowserSessionEvent::create([
+                'user_id'            => $userId,
+                'browser_session_id' => $session?->id,
+                'session_id'         => $session?->session_id,
+                'event_type'         => $eventType,
+                'message'            => $message,
+                'metadata'           => $metadata ?: null,
+                'ip_address'         => $ipAddress,
+                'created_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('SessionManager: event log failed', [
+                'event' => $eventType, 'error' => $e->getMessage(),
+            ]);
+        }
+    }
 
     /**
      * Launch a session for the given user. If the user already has an active
@@ -42,11 +75,18 @@ class SessionManager
      */
     public function launchFor(User $user): BrowserSession
     {
+        $settings = $this->settings();
+
         if ($existing = BrowserSession::where('user_id', $user->id)->active()->first()) {
             return $existing;
         }
 
-        if (BrowserSession::active()->count() >= self::MAX_CONCURRENT) {
+        $this->logEvent(null, $user->id, 'launch_requested', null, [], request()?->ip());
+
+        if (BrowserSession::active()->count() >= $settings->max_concurrent_sessions) {
+            $this->logEvent(null, $user->id, 'launch_failed', 'Max concurrent sessions reached', [
+                'max' => $settings->max_concurrent_sessions,
+            ], request()?->ip());
             throw new \RuntimeException('Maximum concurrent browser sessions reached. Please try again later.');
         }
 
@@ -79,7 +119,9 @@ class SessionManager
             'webrtc_port_start'       => $portStart,
             'webrtc_port_end'         => $portEnd,
             'status'                  => 'starting',
-            'neko_user_password_hash' => bcrypt($nekoPassword),
+            // Encrypted (not hashed) so we can decrypt server-side and inject into the
+            // iframe URL as ?pwd=... — Neko's multiuser provider needs the plaintext.
+            'neko_user_password_hash' => Crypt::encryptString($nekoPassword),
             'last_active_at'          => now(),
         ]);
 
@@ -97,10 +139,45 @@ class SessionManager
             }
 
             $session->internal_ip = $ip;
-            $session->status      = 'running';
+
+            // Wait for Neko's HTTP server inside the container to actually
+            // respond before we mark running + wire up Nginx. Without this,
+            // the user lands on the session page and the iframe fires its
+            // SPA bootstrap against a not-yet-ready backend — the WebSocket
+            // handshake fails silently and the viewer stays blank until the
+            // user manually refreshes. ~15s ceiling covers cold-start + X11
+            // + supervisord bring-up on first launch.
+            $ready = false;
+            for ($i = 0; $i < 30 && !$ready; $i++) {
+                try {
+                    $ctx = stream_context_create(['http' => [
+                        'method'  => 'GET',
+                        'timeout' => 1,
+                        'ignore_errors' => true,
+                    ]]);
+                    $body = @file_get_contents("http://$ip:8080/", false, $ctx);
+                    if ($body !== false && !empty($http_response_header)) {
+                        $status = (int) (explode(' ', $http_response_header[0])[1] ?? 0);
+                        if ($status > 0 && $status < 500) { $ready = true; break; }
+                    }
+                } catch (\Throwable) { /* retry */ }
+                usleep(500_000);
+            }
+            if (!$ready) {
+                Log::warning('SessionManager: Neko HTTP readiness probe timed out; continuing anyway', [
+                    'session_id' => $sessionId, 'ip' => $ip,
+                ]);
+            }
+
+            $session->status = 'running';
             $session->save();
 
             $this->nginx->write($session);
+
+            $this->logEvent($session, $user->id, 'launch_succeeded', null, [
+                'ip'    => $ip,
+                'ports' => "$portStart-$portEnd",
+            ], request()?->ip());
         } catch (\Throwable $e) {
             Log::error('SessionManager: launch failed', [
                 'session_id' => $sessionId,
@@ -115,6 +192,8 @@ class SessionManager
             $session->error_message = $e->getMessage();
             $session->save();
 
+            $this->logEvent($session, $user->id, 'launch_failed', $e->getMessage(), [], request()?->ip());
+
             throw $e;
         }
 
@@ -124,7 +203,7 @@ class SessionManager
     /**
      * Stop a session. Removes the container and the Nginx snippet; preserves the volume.
      */
-    public function stop(BrowserSession $session): void
+    public function stop(BrowserSession $session, string $eventType = 'stopped', ?int $actorUserId = null): void
     {
         try {
             $this->docker->stop($session->container_name);
@@ -156,6 +235,10 @@ class SessionManager
         $session->status     = 'stopped';
         $session->stopped_at = now();
         $session->save();
+
+        $this->logEvent($session, $actorUserId ?? $session->user_id, $eventType, null, [
+            'by_user_id' => $actorUserId,
+        ], request()?->ip());
     }
 
     /**
@@ -165,23 +248,25 @@ class SessionManager
      */
     protected function allocatePortChunk(): array
     {
+        $s = $this->settings();
+        $rangeStart = (int) $s->udp_port_range_start;
+        $rangeEnd   = (int) $s->udp_port_range_end;
+        $chunk      = (int) $s->ports_per_session;
+
         $taken = BrowserSession::active()
             ->get(['webrtc_port_start', 'webrtc_port_end'])
             ->map(fn ($r) => [(int) $r->webrtc_port_start, (int) $r->webrtc_port_end])
             ->all();
 
-        for ($start = self::UDP_RANGE_START;
-             $start + self::PORTS_PER_SESSION - 1 <= self::UDP_RANGE_END;
-             $start += self::PORTS_PER_SESSION)
-        {
-            $end = $start + self::PORTS_PER_SESSION - 1;
+        for ($start = $rangeStart; $start + $chunk - 1 <= $rangeEnd; $start += $chunk) {
+            $end = $start + $chunk - 1;
             $overlaps = false;
-            foreach ($taken as [$s, $e]) {
-                if ($start <= $e && $s <= $end) { $overlaps = true; break; }
+            foreach ($taken as [$ps, $pe]) {
+                if ($start <= $pe && $ps <= $end) { $overlaps = true; break; }
             }
             if (!$overlaps) return [$start, $end];
         }
-        throw new \RuntimeException('No free UDP port chunk available in ' . self::UDP_RANGE_START . '-' . self::UDP_RANGE_END);
+        throw new \RuntimeException("No free UDP port chunk available in $rangeStart-$rangeEnd");
     }
 
     /**
@@ -189,6 +274,7 @@ class SessionManager
      */
     protected function dockerRun(BrowserSession $session, string $nekoPassword): void
     {
+        $settings = $this->settings();
         $vpsIp = (string) config('services.browser_portal.vps_public_ip', env('BROWSER_PORTAL_VPS_IP', ''));
         if ($vpsIp === '') {
             throw new \RuntimeException('BROWSER_PORTAL_VPS_IP is not configured; Neko needs it for WebRTC NAT1TO1.');
@@ -214,17 +300,22 @@ class SessionManager
             '-v', "{$session->volume_name}:/home/neko",
             '-v', "$supervisorConf:/etc/neko/supervisord/chromium.conf:ro",
             '-v', "$policiesJson:/etc/chromium/policies/managed/policies.json:ro",
-            '-e', 'NEKO_DESKTOP_SCREEN=1920x1080@30',
+            '-e', "NEKO_DESKTOP_SCREEN={$settings->desktop_resolution}",
             '-e', 'NEKO_SERVER_BIND=0.0.0.0:8080',
             '-e', "NEKO_SERVER_PROXY=true",
             '-e', "NEKO_SERVER_PATH_PREFIX=/s/{$session->session_id}",
             '-e', 'NEKO_MEMBER_PROVIDER=multiuser',
-            '-e', "NEKO_MEMBER_MULTIUSER_USER_PASSWORD=$nekoPassword",
-            '-e', "NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD=$adminPassword",
+            // The session OWNER logs in as admin so they get input control on
+            // first connect (user-tier in multiuser is view-only — that's what
+            // forced users to click the lock icon after every connect).
+            // Keep the shared env admin password as the "user" tier so it's
+            // still a valid credential but with no elevated rights.
+            '-e', "NEKO_MEMBER_MULTIUSER_USER_PASSWORD=$adminPassword",
+            '-e', "NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD=$nekoPassword",
             '-e', "NEKO_WEBRTC_EPR=$portRange",
             '-e', "NEKO_WEBRTC_NAT1TO1=$vpsIp",
             '-e', 'NEKO_WEBRTC_ICELITE=true',
-            self::IMAGE,
+            $settings->neko_image,
         ];
 
         $this->docker->run($args);
@@ -239,7 +330,7 @@ class SessionManager
         $stopped = 0;
         foreach (BrowserSession::idleSince($cutoff)->get() as $session) {
             try {
-                $this->stop($session);
+                $this->stop($session, 'idle_stopped');
                 $stopped++;
             } catch (\Throwable $e) {
                 Log::error('SessionManager: idle-cleanup failed', [

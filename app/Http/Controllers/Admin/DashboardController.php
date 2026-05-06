@@ -17,11 +17,19 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        // ── Simple DB counts (instant) ────────────────────────────────────
-        $branchCount       = Branch::count();
-        $contactCount      = Contact::count();
-        $phoneRequestCount = PhoneRequestLog::distinct('mac')->whereNotNull('mac')->count();
-        $totalXmlRequests  = PhoneRequestLog::count();
+        // ── Simple DB counts (cached 5 min — they barely change minute-to-minute) ──
+        // Branch/Contact tables aren't huge but caching short-circuits four queries
+        // on the admin's most-frequently-loaded page. PhoneRequestLog can be 100k+
+        // rows so the distinct() scan was the slowest one.
+        [$branchCount, $contactCount, $phoneRequestCount, $totalXmlRequests] =
+            Cache::remember('dashboard_top_counts', 300, function () {
+                return [
+                    Branch::count(),
+                    Contact::count(),
+                    PhoneRequestLog::distinct('mac')->whereNotNull('mac')->count(),
+                    PhoneRequestLog::count(),
+                ];
+            });
 
         // ── UCM live stats (cached 5 min per server) ──────────────────────
         $ucmServers = UcmServer::orderBy('name')->get();
@@ -55,19 +63,22 @@ class DashboardController extends Controller
 
         $settings = Setting::get();
 
-        // ── Quick Admin Links (top 5 most clicked) ──────────────────────
-        $quickAdminLinks = AdminLinkClick::selectRaw('link_id, COUNT(*) as click_count')
-            ->groupBy('link_id')
-            ->orderByDesc('click_count')
-            ->limit(5)
-            ->with('link')
-            ->get()
-            ->filter(fn ($c) => $c->link && $c->link->is_active)
-            ->map(fn ($c) => $c->link);
+        // ── Quick Admin Links (top 5 most clicked) — cached 5 min ─────────
+        $quickAdminLinks = Cache::remember('dashboard_quick_admin_links', 300, function () {
+            $clicks = AdminLinkClick::selectRaw('link_id, COUNT(*) as click_count')
+                ->groupBy('link_id')
+                ->orderByDesc('click_count')
+                ->limit(5)
+                ->with('link')
+                ->get()
+                ->filter(fn ($c) => $c->link && $c->link->is_active)
+                ->map(fn ($c) => $c->link);
 
-        if ($quickAdminLinks->isEmpty()) {
-            $quickAdminLinks = AdminLink::active()->orderBy('sort_order')->limit(5)->get();
-        }
+            if ($clicks->isEmpty()) {
+                $clicks = AdminLink::active()->orderBy('sort_order')->limit(5)->get();
+            }
+            return $clicks;
+        });
 
         return view('admin.dashboard', compact(
             'branchCount',

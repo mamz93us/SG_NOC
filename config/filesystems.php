@@ -38,6 +38,19 @@ return [
             'report' => false,
         ],
 
+        // Dedicated private disk for uploads that must never be served directly
+        // (printer driver blobs, future documentation attachments). Same
+        // filesystem as `local` but flagged as non-servable to make the intent
+        // explicit at the call site. Access must go through a controller that
+        // enforces auth + permission checks.
+        'private' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

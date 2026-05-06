@@ -115,6 +115,68 @@ Route::get('/auth/microsoft', [MicrosoftController::class, 'redirect'])
     ->name('auth.microsoft');
 Route::get('/auth/microsoft/callback', [MicrosoftController::class, 'callback']);
 
+// ─── Remote Browser Portal (isolated user-facing app) ──────────
+// Lives outside /admin so browser users never see admin chrome.
+Route::prefix('portal')->name('portal.')->group(function () {
+
+    // SSO-only login page
+    Route::get('/login', function () {
+        if (auth()->check()) {
+            return redirect()->route('portal.index');
+        }
+        return view('auth.portal-login');
+    })->name('login');
+
+    // Portal logout
+    Route::post('/logout', function (\Illuminate\Http\Request $request) {
+        \Illuminate\Support\Facades\Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return redirect()->route('portal.login');
+    })->name('logout');
+
+    // Shared portal routes — any authenticated user can see their own hub, profile, and assets.
+    // Individual tiles on the hub are permission-gated with @can(...).
+    Route::middleware(['auth', 'throttle:60,1'])
+        ->group(function () {
+            // Portal hub (new default — tiles for all user apps)
+            Route::get('/', [\App\Http\Controllers\Portal\PortalHubController::class, 'index'])->name('index');
+
+            // My Profile (employee data from Azure + edit-with-approval flow)
+            Route::get('/profile',               [\App\Http\Controllers\Portal\MyProfileController::class, 'index'])            ->name('profile');
+            Route::post('/profile/edit-request', [\App\Http\Controllers\Portal\MyProfileController::class, 'submitEditRequest'])->name('profile.edit-request');
+
+            // My Assets (read-only view of everything assigned to this employee)
+            Route::get('/assets', [\App\Http\Controllers\Portal\MyAssetsController::class, 'index'])->name('assets');
+        });
+
+    // Remote Browser — requires explicit permission.
+    Route::middleware(['auth', 'permission:view-browser-portal', 'throttle:60,1'])
+        ->group(function () {
+            Route::get('/browser',                [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'index'])    ->name('browser');
+            Route::post('/browser',               [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'store'])    ->name('store');
+            Route::post('/browser/heartbeat',     [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'heartbeat'])->name('heartbeat');
+            Route::get('/browser/history',        [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'history']) ->name('history');
+            Route::get('/browser/{sessionId}',    [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'show'])     ->name('show')
+                ->where('sessionId', '[a-z0-9]{12}');
+            Route::delete('/browser/{sessionId}', [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'destroy'])->name('destroy')
+                ->where('sessionId', '[a-z0-9]{12}');
+        });
+
+    // HR onboarding (portal) — gated by submit-hr-onboarding permission.
+    // Does NOT require view-browser-portal so a dedicated HR user can access this page only.
+    Route::middleware(['auth', 'permission:submit-hr-onboarding', 'throttle:60,1'])
+        ->prefix('hr/onboarding')->name('hr.onboarding.')
+        ->group(function () {
+            Route::get('/',       [\App\Http\Controllers\Portal\HrOnboardingController::class, 'index'])->name('index');
+            Route::get('/create', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'create'])->name('create');
+            Route::post('/',      [\App\Http\Controllers\Portal\HrOnboardingController::class, 'store'])->name('store');
+        });
+});
+
+// Legacy /browser redirect for any old bookmarks
+Route::redirect('/browser', '/portal/login');
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated Routes
@@ -144,6 +206,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // Home page — NOC Command Center (fallback to old dashboard if no permission)
     Route::get('/', function () {
+        // Portal-only roles (browser_user, hr) never see admin chrome — bounce to the isolated portal.
+        if (auth()->user()?->usesPortal()) {
+            return redirect()->route('portal.index');
+        }
         if (auth()->user() && auth()->user()->can('view-noc')) {
             return app(\App\Http\Controllers\Admin\NocController::class)->dashboard();
         }
@@ -303,6 +369,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         // ── SMTP / Outgoing Mail ──────────────────────────────────────
         Route::post('settings/cups',      [SettingsController::class, 'updateCups'])  ->name('settings.cups');
         Route::post('settings/itam',      [SettingsController::class, 'updateItam'])  ->name('settings.itam');
+        Route::post('settings/ticketing', [SettingsController::class, 'updateTicketing'])->name('settings.ticketing');
         Route::post('settings/smtp',      [SettingsController::class, 'updateSmtp']) ->name('settings.smtp');
         Route::post('settings/test-smtp', [SettingsController::class, 'testSmtp'])   ->name('settings.test-smtp');
 
@@ -335,6 +402,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('users.update');
         Route::delete('users/{user}', [UserController::class, 'destroy'])
             ->name('users.destroy');
+        Route::post('users/{user}/reset-2fa', [UserController::class, 'resetTwoFactor'])
+            ->name('users.reset-2fa');
     });
 
     // ─── GDMS UCM Status ──────────────────────────────────────
@@ -397,22 +466,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         // Web proxy — browse device management UI through the NOC server
         Route::get('devices/{device}/browse',
             [\App\Http\Controllers\Admin\DeviceProxyController::class, 'browse'])
-            ->name('admin.devices.browse');
+            ->name('devices.browse');
         Route::any('devices/{device}/proxy/{path?}',
             [\App\Http\Controllers\Admin\DeviceProxyController::class, 'proxy'])
-            ->name('admin.devices.proxy')
+            ->name('devices.proxy')
             ->where('path', '.*');
 
         // SSH terminal — tied to a device record
         Route::get('devices/{device}/ssh',
             [\App\Http\Controllers\Admin\DeviceSshController::class, 'connect'])
-            ->name('admin.devices.ssh.connect');
+            ->name('devices.ssh.connect');
         Route::post('devices/{device}/ssh',
             [\App\Http\Controllers\Admin\DeviceSshController::class, 'terminal'])
-            ->name('admin.devices.ssh.terminal');
+            ->name('devices.ssh.terminal');
         Route::post('devices/{device}/ssh/sessions/{session}/disconnect',
             [\App\Http\Controllers\Admin\DeviceSshController::class, 'disconnect'])
-            ->name('admin.devices.ssh.disconnect');
+            ->name('devices.ssh.disconnect');
     });
 
     // ─── Credentials (Password Vault) ─────────────────────────
@@ -421,8 +490,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('credentials/generate',            [CredentialController::class, 'generate']) ->name('credentials.generate');
         Route::get('credentials/create',              [CredentialController::class, 'create'])   ->name('credentials.create');
         Route::get('credentials/{credential}/edit',   [CredentialController::class, 'edit'])     ->name('credentials.edit');
-        // Reveal password: GET (read-only, permission-gated in controller)
-        Route::get('credentials/{credential}/reveal', [CredentialController::class, 'reveal'])   ->name('credentials.reveal');
+        // Reveal password: POST (no browser history, permission-gated in controller, rate-limited)
+        Route::post('credentials/{credential}/reveal', [CredentialController::class, 'reveal'])
+            ->middleware('throttle:20,1')
+            ->name('credentials.reveal');
     });
     Route::middleware('permission:manage-credentials')->group(function () {
         Route::post('credentials',                            [CredentialController::class, 'store'])    ->name('credentials.store');
@@ -496,6 +567,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/groups',                       [IdentityController::class, 'groups'])       ->name('groups');
         Route::get('/groups/{azureId}/members',     [IdentityController::class, 'groupMembers'])->name('group.members');
         Route::get('/sync-logs',                    [IdentityController::class, 'syncLogs'])     ->name('sync-logs');
+        Route::get('/contact-sync',                 [IdentityController::class, 'contactSyncIndex'])->name('contact-sync');
     });
     Route::middleware('permission:manage-identity')->prefix('identity')->name('identity.')->group(function () {
         Route::post('/sync',                                     [IdentityController::class, 'sync'])           ->name('sync');
@@ -507,6 +579,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/users/{azureId}/add-group',                [IdentityController::class, 'addGroup'])       ->name('user.add-group');
         Route::delete('/users/{azureId}/remove-group',           [IdentityController::class, 'removeGroup'])    ->name('user.remove-group');
         Route::delete('/users/{azureId}/delete',                 [IdentityController::class, 'destroyUser'])    ->name('user.destroy');
+        Route::post('/contact-sync/apply',                       [IdentityController::class, 'contactSyncApply'])               ->name('contact-sync.apply');
+        Route::post('/contact-sync/send-reminders',              [IdentityController::class, 'contactSyncSendMobileReminders']) ->name('contact-sync.send-reminders');
     });
     Route::middleware('permission:manage-identity-settings')->prefix('identity')->name('identity.')->group(function () {
         Route::post('/test-connection',  [IdentityController::class, 'testConnection']) ->name('test-connection');
@@ -549,6 +623,29 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/racks/{rack}',                    [NetworkController::class, 'destroyRack'])  ->name('racks.destroy');
 
         Route::post('/switches/{serial}/assign-location', [NetworkController::class, 'assignLocation'])->name('switches.assign-location');
+
+        // ── Quick-edit a switch from the unified switches table.
+        //    Canonical write goes to devices; Meraki + SNMP rows are
+        //    synced where they exist. ────────────────────────────────
+        Route::put('/switches/{device}/update',
+            [NetworkController::class, 'updateSwitch'])
+            ->name('switches.update');
+
+        // ── One-click "Add to SNMP" for a switch-class device ─────────
+        Route::post('/switches/{device}/add-to-snmp',
+            [NetworkController::class, 'addToSnmp'])
+            ->name('switches.add-to-snmp');
+
+        // ── Bulk: stub-create SNMP hosts for every switch-class device ─
+        Route::post('/switches/bulk-add-to-snmp',
+            [NetworkController::class, 'bulkAddToSnmp'])
+            ->name('switches.bulk-add-to-snmp');
+
+        // ── Bulk: extract SNMP creds from saved running-configs
+        //         and upsert them on the matching MonitoredHost. ─────
+        Route::post('/switches/sync-snmp-from-configs',
+            [NetworkController::class, 'syncSnmpFromConfigs'])
+            ->name('switches.sync-snmp-from-configs');
     });
 
     // ─── VPN Hub ──────────────────────────────────────────────
@@ -786,32 +883,30 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/terminal',   [\App\Http\Controllers\Admin\TelnetController::class, 'terminal']) ->name('terminal');
     });
 
-    // ─── Web Browser (custom URL proxy) ──────────────────────
-    Route::middleware(['permission:view-noc', 'throttle:300,1'])->prefix('browser')->name('browser.')->group(function () {
-        Route::get('/',                [\App\Http\Controllers\Admin\WebBrowserController::class, 'index']) ->name('index');
-        Route::match(['GET','POST'], '/fetch', [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch');
-    });
+    // ─── Web Browser (custom URL proxy) — RETIRED ──────────────
+    // Replaced by the Remote Browser Portal at /portal. Routes removed so any
+    // bookmarked /admin/browser URLs 404. Controller file preserved in case we
+    // want to restore. To re-enable, un-comment the block below.
+    // Route::middleware(['permission:view-noc', 'throttle:300,1'])->prefix('browser')->name('browser.')->group(function () {
+    //     Route::get('/',                [\App\Http\Controllers\Admin\WebBrowserController::class, 'index']) ->name('index');
+    //     Route::match(['GET','POST'], '/fetch', [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch');
+    // });
 
-    // ─── Remote Browser Portal (Neko-backed hosted Chromium) ───────
-    // User-facing: launch / view / stop own session.
-    Route::middleware(['permission:view-browser-portal', 'throttle:60,1'])
+    // ─── Remote Browser Portal — ADMIN MANAGEMENT ONLY ───────────────
+    // User-facing portal is mounted separately at /portal (isolated from admin).
+    Route::middleware('permission:manage-browser-portal')
         ->prefix('browser-portal')->name('browser-portal.')
         ->group(function () {
-            Route::get('/',                    [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'index'])  ->name('index');
-            Route::post('/',                   [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'store'])  ->name('store');
-            Route::post('/heartbeat',          [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'heartbeat'])->name('heartbeat');
-            Route::get('/{sessionId}',         [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'show'])   ->name('show')
-                ->whereAlphaNumeric('sessionId');
-            Route::delete('/{sessionId}',      [\App\Http\Controllers\Admin\BrowserPortal\BrowserSessionController::class, 'destroy'])->name('destroy')
-                ->whereAlphaNumeric('sessionId');
-        });
-    // Admin view: list all sessions, force-stop anyone.
-    Route::middleware('permission:manage-browser-portal')
-        ->prefix('browser-portal/admin')->name('browser-portal.admin.')
-        ->group(function () {
-            Route::get('/',               [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'index'])  ->name('index');
-            Route::delete('/{sessionId}', [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'destroy'])->name('destroy')
-                ->whereAlphaNumeric('sessionId');
+            Route::get('/',                        [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'index'])  ->name('index');
+            Route::get('/events',                  [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'events']) ->name('events');
+            Route::get('/settings',                [\App\Http\Controllers\Admin\BrowserPortal\BrowserPortalSettingsController::class, 'index'])->name('settings');
+            Route::post('/settings',               [\App\Http\Controllers\Admin\BrowserPortal\BrowserPortalSettingsController::class, 'update'])->name('settings.update');
+            Route::get('/{sessionId}/logs',        [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'logs'])     ->name('logs')
+                ->where('sessionId', '[a-z0-9]{12}');
+            Route::get('/{sessionId}/logs/stream', [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'logStream'])->name('logs.stream')
+                ->where('sessionId', '[a-z0-9]{12}');
+            Route::delete('/{sessionId}',          [\App\Http\Controllers\Admin\BrowserPortal\AdminBrowserPortalController::class, 'destroy'])->name('destroy')
+                ->where('sessionId', '[a-z0-9]{12}');
         });
 
     // ─── NOC Dashboard ────────────────────────────────────────
@@ -856,6 +951,25 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::post('alert-states/{alertState}/acknowledge',[AlertRuleController::class, 'acknowledge']) ->name('alert-states.acknowledge');
     Route::get('alerts/dashboard',                      [AlertRuleController::class, 'alerts'])      ->name('alerts.dashboard');
 
+    // ─── Syslog (rsyslog → MySQL → UI) ───────────────────────
+    Route::middleware('permission:view-syslog')->prefix('syslog')->name('syslog.')->group(function () {
+        Route::get('/',         [\App\Http\Controllers\Admin\SyslogController::class, 'index'])->name('index');
+        Route::get('/tail',     [\App\Http\Controllers\Admin\SyslogController::class, 'tail'])->name('tail');
+        Route::get('/sophos',   [\App\Http\Controllers\Admin\SyslogController::class, 'sophos'])->name('sophos');
+        Route::get('/ucm',      [\App\Http\Controllers\Admin\SyslogController::class, 'ucm'])->name('ucm');
+        Route::get('/{id}',     [\App\Http\Controllers\Admin\SyslogController::class, 'show'])->name('show')->whereNumber('id');
+    });
+    Route::middleware('permission:manage-syslog')->prefix('syslog')->name('syslog.')->group(function () {
+        Route::get('/rules',                 [\App\Http\Controllers\Admin\SyslogController::class, 'rulesIndex'])->name('rules.index');
+        Route::get('/rules/create',          [\App\Http\Controllers\Admin\SyslogController::class, 'rulesCreate'])->name('rules.create');
+        Route::post('/rules',                [\App\Http\Controllers\Admin\SyslogController::class, 'rulesStore'])->name('rules.store');
+        Route::get('/rules/{rule}/edit',     [\App\Http\Controllers\Admin\SyslogController::class, 'rulesEdit'])->name('rules.edit');
+        Route::put('/rules/{rule}',          [\App\Http\Controllers\Admin\SyslogController::class, 'rulesUpdate'])->name('rules.update');
+        Route::delete('/rules/{rule}',       [\App\Http\Controllers\Admin\SyslogController::class, 'rulesDestroy'])->name('rules.destroy');
+        Route::post('/run-processors',       [\App\Http\Controllers\Admin\SyslogController::class, 'runProcessors'])->name('run-processors');
+        Route::post('/clear',                [\App\Http\Controllers\Admin\SyslogController::class, 'clearAll'])->name('clear');
+    });
+
     // ─── Workflows ────────────────────────────────────────────
     Route::middleware('permission:view-workflows')->group(function () {
         Route::get('workflows',              [WorkflowController::class, 'index'])      ->name('workflows.index');
@@ -872,8 +986,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('workflows/{workflow}/approve', [WorkflowController::class, 'approve']) ->name('workflows.approve');
         Route::post('workflows/{workflow}/reject',  [WorkflowController::class, 'reject'])  ->name('workflows.reject');
         Route::post('workflows/{workflow}/retry',   [WorkflowController::class, 'retry'])   ->name('workflows.retry');
+        Route::delete('workflows/{workflow}',       [WorkflowController::class, 'destroy']) ->name('workflows.destroy');
         Route::patch('workflows/tasks/{task}/complete', [WorkflowController::class, 'completeTask'])->name('workflows.tasks.complete');
         Route::post('workflows/{workflow}/resend-manager-form', [WorkflowController::class, 'resendManagerForm'])->name('workflows.resend-manager-form');
+        Route::post('workflows/{workflow}/assign-device', [WorkflowController::class, 'assignDevice'])->name('workflows.assign-device');
+        Route::post('workflows/{workflow}/return-device/{assignment}', [WorkflowController::class, 'returnDevice'])->name('workflows.return-device');
     });
     Route::middleware('permission:view-workflows')->group(function () {
         Route::get('workflows/{workflow}',   [WorkflowController::class, 'show'])       ->name('workflows.show');
@@ -987,6 +1104,78 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:view-itam')->prefix('itam')->name('itam.')->group(function () {
         Route::get('/',            [ItamController::class, 'dashboard']) ->name('dashboard');
         Route::get('/mac-address', [\App\Http\Controllers\Admin\MacAddressController::class, 'index'])->name('mac-address');
+
+        // Branch Stores (view)
+        Route::get('stores',                   [\App\Http\Controllers\Admin\BranchStoreController::class, 'index'])->name('stores.index');
+        Route::get('stores/universal',         [\App\Http\Controllers\Admin\BranchStoreController::class, 'showUniversal'])->name('stores.universal');
+        Route::get('stores/{branch}',          [\App\Http\Controllers\Admin\BranchStoreController::class, 'show'])->name('stores.show');
+
+        // Reports
+        Route::prefix('reports')->name('reports.')->group(function () {
+            Route::get('/',                [\App\Http\Controllers\Admin\AssetReportController::class, 'index'])->name('index');
+            Route::get('all-assets',       [\App\Http\Controllers\Admin\AssetReportController::class, 'allAssets'])->name('all-assets');
+            Route::get('by-branch',        [\App\Http\Controllers\Admin\AssetReportController::class, 'byBranch'])->name('by-branch');
+            Route::get('by-employee',      [\App\Http\Controllers\Admin\AssetReportController::class, 'byEmployee'])->name('by-employee');
+            Route::get('transfer-history', [\App\Http\Controllers\Admin\AssetReportController::class, 'transferHistory'])->name('transfers');
+            Route::get('scrap-history',    [\App\Http\Controllers\Admin\AssetReportController::class, 'scrapHistory'])->name('scraps');
+        });
+    });
+
+    // ─── Asset Transfer ───────────────────────────────────────────
+    Route::middleware('permission:manage-itam')->prefix('itam/transfer')->name('itam.transfer.')->group(function () {
+        Route::get('/',                                  [\App\Http\Controllers\Admin\AssetTransferController::class, 'index'])->name('index');
+        Route::get('employee/{employee}/assets',         [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForEmployee'])->name('employee-assets');
+        Route::get('branch-store/{branch}/assets',       [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForBranchStore'])->name('branch-store-assets');
+        Route::get('universal-store/assets',             [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForUniversalStore'])->name('universal-store-assets');
+        Route::post('/',                                 [\App\Http\Controllers\Admin\AssetTransferController::class, 'store'])->name('store');
+        Route::get('{group}/print',                      [\App\Http\Controllers\Admin\AssetTransferController::class, 'print'])->name('print');
+    });
+
+    // ─── Asset Scrap (request) ────────────────────────────────────
+    Route::middleware('permission:request-scrap')->prefix('itam/scrap')->name('itam.scrap.')->group(function () {
+        Route::get('/',                  [\App\Http\Controllers\Admin\AssetScrapController::class, 'index'])->name('index');
+        Route::get('create',             [\App\Http\Controllers\Admin\AssetScrapController::class, 'create'])->name('create');
+        Route::post('/',                 [\App\Http\Controllers\Admin\AssetScrapController::class, 'store'])->name('store');
+        Route::get('{workflow}',         [\App\Http\Controllers\Admin\AssetScrapController::class, 'show'])->name('show');
+        Route::get('{workflow}/print',   [\App\Http\Controllers\Admin\AssetScrapController::class, 'print'])->name('print');
+    });
+    // ─── Asset Scrap (approve / reject) ───────────────────────────
+    Route::middleware('permission:approve-scrap')->prefix('itam/scrap')->name('itam.scrap.')->group(function () {
+        Route::post('{workflow}/approve', [\App\Http\Controllers\Admin\AssetScrapController::class, 'approve'])->name('approve');
+        Route::post('{workflow}/reject',  [\App\Http\Controllers\Admin\AssetScrapController::class, 'reject'])->name('reject');
+    });
+
+    // ─── RADIUS (MAC Authentication / MAB) ────────────────────────
+    Route::middleware('permission:manage-radius')->prefix('radius')->name('radius.')->group(function () {
+        Route::redirect('/', '/admin/radius/macs');
+
+        // MAC registry — RADIUS-focused view + manual add
+        Route::get('macs',                   [\App\Http\Controllers\Admin\RadiusMacRegistryController::class, 'index'])  ->name('macs.index');
+        Route::get('macs/create',            [\App\Http\Controllers\Admin\RadiusMacRegistryController::class, 'create']) ->name('macs.create');
+        Route::post('macs',                  [\App\Http\Controllers\Admin\RadiusMacRegistryController::class, 'store'])  ->name('macs.store');
+        Route::delete('macs/{mac}',          [\App\Http\Controllers\Admin\RadiusMacRegistryController::class, 'destroy'])->name('macs.destroy');
+        Route::post('macs/sync',             [\App\Http\Controllers\Admin\RadiusMacRegistryController::class, 'sync'])   ->name('macs.sync');
+
+        // NAS clients (switches / APs allowed to query us)
+        Route::get('nas',                    [\App\Http\Controllers\Admin\RadiusNasController::class, 'index'])  ->name('nas.index');
+        Route::get('nas/create',             [\App\Http\Controllers\Admin\RadiusNasController::class, 'create']) ->name('nas.create');
+        Route::post('nas',                   [\App\Http\Controllers\Admin\RadiusNasController::class, 'store'])  ->name('nas.store');
+        Route::get('nas/{nas}/edit',         [\App\Http\Controllers\Admin\RadiusNasController::class, 'edit'])   ->name('nas.edit');
+        Route::put('nas/{nas}',              [\App\Http\Controllers\Admin\RadiusNasController::class, 'update']) ->name('nas.update');
+        Route::delete('nas/{nas}',           [\App\Http\Controllers\Admin\RadiusNasController::class, 'destroy'])->name('nas.destroy');
+        Route::post('nas/reload',            [\App\Http\Controllers\Admin\RadiusNasController::class, 'reload']) ->name('nas.reload');
+
+        // VLAN policy (per-branch defaults)
+        Route::get('vlan-policy',            [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'index'])  ->name('vlan.index');
+        Route::get('vlan-policy/create',     [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'create']) ->name('vlan.create');
+        Route::post('vlan-policy',           [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'store'])  ->name('vlan.store');
+        Route::get('vlan-policy/preview',    [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'preview'])->name('vlan.preview');
+        Route::get('vlan-policy/{policy}/edit',  [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'edit'])   ->name('vlan.edit');
+        Route::put('vlan-policy/{policy}',       [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'update']) ->name('vlan.update');
+        Route::delete('vlan-policy/{policy}',    [\App\Http\Controllers\Admin\RadiusVlanPolicyController::class, 'destroy'])->name('vlan.destroy');
+
+        // Per-MAC override (called from /admin/itam/mac-address modal)
+        Route::post('mac-overrides/{deviceMac}', [\App\Http\Controllers\Admin\RadiusMacOverrideController::class, 'upsert'])->name('mac-overrides.upsert');
     });
 
     // ─── Suppliers ────────────────────────────────────────────────
@@ -1096,22 +1285,24 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
 
-    // ─── IT Tasks ─────────────────────────────────────────────────
-    Route::model('task', \App\Models\ItTask::class);
-    Route::prefix('tasks')->name('tasks.')->group(function () {
-        Route::get('/',                [ItTaskController::class, 'index'])        ->name('index');
-        Route::get('/my-tasks',        [ItTaskController::class, 'myTasks'])      ->name('my-tasks');
-        Route::get('/kanban',          [ItTaskController::class, 'kanban'])       ->name('kanban');
-        Route::get('/create',          [ItTaskController::class, 'create'])       ->name('create');
-        Route::post('/',               [ItTaskController::class, 'store'])        ->name('store');
-        Route::get('/{task}',          [ItTaskController::class, 'show'])         ->name('show');
-        Route::get('/{task}/edit',     [ItTaskController::class, 'edit'])         ->name('edit');
-        Route::put('/{task}',          [ItTaskController::class, 'update'])       ->name('update');
-        Route::delete('/{task}',       [ItTaskController::class, 'destroy'])      ->name('destroy');
-        Route::post('/{task}/comment',       [ItTaskController::class, 'addComment'])    ->name('comment');
-        Route::post('/{task}/log-time',      [ItTaskController::class, 'logTime'])       ->name('log-time');
-        Route::post('/{task}/update-status', [ItTaskController::class, 'updateStatus'])  ->name('update-status');
-    })->where('task', '[0-9]+');
+    // ─── IT Tasks — RETIRED ───────────────────────────────────────
+    // Module hidden from the UI and routes disabled. Controller, model and
+    // Blade views preserved on disk. To re-enable, un-comment the block below.
+    // Route::model('task', \App\Models\ItTask::class);
+    // Route::prefix('tasks')->name('tasks.')->group(function () {
+    //     Route::get('/',                [ItTaskController::class, 'index'])        ->name('index');
+    //     Route::get('/my-tasks',        [ItTaskController::class, 'myTasks'])      ->name('my-tasks');
+    //     Route::get('/kanban',          [ItTaskController::class, 'kanban'])       ->name('kanban');
+    //     Route::get('/create',          [ItTaskController::class, 'create'])       ->name('create');
+    //     Route::post('/',               [ItTaskController::class, 'store'])        ->name('store');
+    //     Route::get('/{task}',          [ItTaskController::class, 'show'])         ->name('show');
+    //     Route::get('/{task}/edit',     [ItTaskController::class, 'edit'])         ->name('edit');
+    //     Route::put('/{task}',          [ItTaskController::class, 'update'])       ->name('update');
+    //     Route::delete('/{task}',       [ItTaskController::class, 'destroy'])      ->name('destroy');
+    //     Route::post('/{task}/comment',       [ItTaskController::class, 'addComment'])    ->name('comment');
+    //     Route::post('/{task}/log-time',      [ItTaskController::class, 'logTime'])       ->name('log-time');
+    //     Route::post('/{task}/update-status', [ItTaskController::class, 'updateStatus'])  ->name('update-status');
+    // })->where('task', '[0-9]+');
 
     // ── Branch / Department → Azure Group Mappings ───────────────
     Route::prefix('identity/group-mappings')->name('admin.identity.group-mappings.')->middleware('permission:manage-identity')->group(function () {
@@ -1200,14 +1391,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/{report}',   [\App\Http\Controllers\Admin\VoiceQualityController::class, 'show'])       ->name('show')->where('report', '[0-9]+');
     });
 
-    // ─── Switch Drops ──────────────────────────────────────────────
-    Route::prefix('switch-drops')->name('switch-drops.')->middleware('permission:view-voice-quality')->group(function () {
-        Route::get('/dashboard',    [\App\Http\Controllers\Admin\SwitchDropController::class, 'dashboard'])  ->name('dashboard');
-        Route::get('/stats',        [\App\Http\Controllers\Admin\SwitchDropController::class, 'statistics']) ->name('statistics');
-        Route::get('/export',       [\App\Http\Controllers\Admin\SwitchDropController::class, 'exportCsv'])  ->name('export');
-        Route::get('/',             [\App\Http\Controllers\Admin\SwitchDropController::class, 'index'])      ->name('index');
-        Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchDropController::class, 'device'])     ->name('device')->where('ip', '[0-9a-fA-F.:]+');
-    });
+    // ─── Switch Drops — RETIRED ────────────────────────────────────
+    // Superseded by Switch QoS dashboard. Controller preserved; routes
+    // disabled so /admin/switch-drops/* 404s. To re-enable, un-comment.
+    // Route::prefix('switch-drops')->name('switch-drops.')->middleware('permission:view-voice-quality')->group(function () {
+    //     Route::get('/dashboard',    [\App\Http\Controllers\Admin\SwitchDropController::class, 'dashboard'])  ->name('dashboard');
+    //     Route::get('/stats',        [\App\Http\Controllers\Admin\SwitchDropController::class, 'statistics']) ->name('statistics');
+    //     Route::get('/export',       [\App\Http\Controllers\Admin\SwitchDropController::class, 'exportCsv'])  ->name('export');
+    //     Route::get('/',             [\App\Http\Controllers\Admin\SwitchDropController::class, 'index'])      ->name('index');
+    //     Route::get('/device/{ip}',  [\App\Http\Controllers\Admin\SwitchDropController::class, 'device'])     ->name('device')->where('ip', '[0-9a-fA-F.:]+');
+    // });
 
     // ─── Switch QoS (Cisco MLS QoS queue drops) ───────────────────
     Route::prefix('switch-qos')->name('switch-qos.')->middleware('permission:view-voice-quality')->group(function () {
@@ -1277,6 +1470,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 Route::post('/api/internal/vq-report', [\App\Http\Controllers\Admin\VoiceQualityController::class, 'receive'])
     ->middleware('internal.ip')
     ->name('api.vq-report');
+
+// Graylog webhook — receives alert notifications from Event Definitions
+// and turns them into NocEvent rows so the existing notification routing
+// fires. Auth is via X-Graylog-Secret header (see config/services.php).
+Route::post('/api/graylog/webhook', \App\Http\Controllers\Api\GraylogWebhookController::class)
+    ->middleware('throttle:60,1')
+    ->name('api.graylog.webhook');
 
 /*
 |--------------------------------------------------------------------------

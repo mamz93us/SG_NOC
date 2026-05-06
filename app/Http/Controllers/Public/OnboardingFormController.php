@@ -8,10 +8,13 @@ use App\Models\InternetAccessLevel;
 use App\Models\NetworkFloor;
 use App\Models\OnboardingManagerToken;
 use App\Models\WorkflowRequest;
+use App\Services\Workflow\WorkflowEngine;
 use Illuminate\Http\Request;
 
 class OnboardingFormController extends Controller
 {
+    public function __construct(private WorkflowEngine $engine) {}
+
     /**
      * GET /onboarding/form/{token}
      * Show the manager setup form (public — no auth required).
@@ -121,6 +124,17 @@ class OnboardingFormController extends Controller
         }
 
         $tokenRecord->markUsed();
+
+        // Resume workflow execution if it was paused waiting for this form.
+        if ($workflow && $workflow->status === 'awaiting_manager_form') {
+            try {
+                $this->engine->resumeAfterManagerForm($workflow);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error(
+                    "OnboardingFormController: failed to resume workflow #{$workflow->id}: {$e->getMessage()}"
+                );
+            }
+        }
 
         return view('public.onboarding_form_submitted', compact('tokenRecord', 'workflow'));
     }

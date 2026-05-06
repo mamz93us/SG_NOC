@@ -77,9 +77,6 @@
                                 <x-dropdown-link :href="route('admin.network.monitoring.index')">
                                     {{ __('SNMP Monitoring') }}
                                 </x-dropdown-link>
-                                <x-dropdown-link :href="route('admin.switch-drops.dashboard')">
-                                    {{ __('Switch Drop Monitor') }}
-                                </x-dropdown-link>
                                 <hr class="dropdown-divider my-1">
                                 <x-dropdown-link :href="route('admin.voice-quality.dashboard')">
                                     {{ __('Voice Quality') }}

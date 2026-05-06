@@ -578,9 +578,9 @@ function loadEdit(extension, ucmId) {
         }
 
         // Feature toggles — read actual UCM values
-        document.getElementById('edit_vm').checked  = (data.hasvoicemail  || 'yes') === 'yes';
-        document.getElementById('edit_cw').checked  = (data.call_waiting  || 'yes') === 'yes';
-        document.getElementById('edit_dnd').checked = (data.dnd           || 'no')  === 'yes';
+        document.getElementById('edit_vm').checked  = (data.hasvoicemail  || 'no') === 'yes';
+        document.getElementById('edit_cw').checked  = (data.call_waiting  || 'no') === 'yes';
+        document.getElementById('edit_dnd').checked = (data.dnd           || 'no') === 'yes';
 
         document.getElementById('editLoading').classList.add('d-none');
         document.getElementById('editForm').classList.remove('d-none');

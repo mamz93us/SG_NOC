@@ -37,6 +37,9 @@ class ExtensionProvisioningService
      * Create a UCM extension for a new user.
      * Voicemail and call_waiting are always disabled.
      * Secret and permission come from settings.
+     *
+     * $profile may include: department, phone_number, location, first_name, last_name.
+     * If first_name/last_name are not provided, they are derived from $displayName.
      */
     public function createForUser(
         UcmServer $server,
@@ -50,12 +53,21 @@ class ExtensionProvisioningService
         $api = new IppbxApiService($server);
         $api->login();
 
+        // Derive first/last name from displayName if not explicitly provided.
+        $firstName = trim((string)($profile['first_name'] ?? ''));
+        $lastName  = trim((string)($profile['last_name']  ?? ''));
+        if ($firstName === '' && $lastName === '' && $displayName !== '') {
+            $parts     = explode(' ', trim($displayName), 2);
+            $firstName = $parts[0] ?? '';
+            $lastName  = $parts[1] ?? '';
+        }
+
         // UCM strictly requires an alphanumeric password WITH special characters
         // AND it must contain at least one uppercase and one lowercase letter.
         // IMPORTANT: UCM only accepts these special chars: @!*#  (same as UI generator)
-        $complexSecret = substr(str_shuffle('abcdefghjkmnpqrstuvwxyz'), 0, 3) . 
-                         substr(str_shuffle('ABCDEFGHJKLMNPQRSTUVWXYZ'), 0, 3) . 
-                         substr(str_shuffle('23456789'), 0, 3) . 
+        $complexSecret = substr(str_shuffle('abcdefghjkmnpqrstuvwxyz'), 0, 3) .
+                         substr(str_shuffle('ABCDEFGHJKLMNPQRSTUVWXYZ'), 0, 3) .
+                         substr(str_shuffle('23456789'), 0, 3) .
                          substr(str_shuffle('@!*#'), 0, 3);
         $complexSecret = str_shuffle($complexSecret);
 
@@ -69,24 +81,35 @@ class ExtensionProvisioningService
         ];
         $finalPerm = $permMap[$rawPerm] ?? $rawPerm;
 
-        // 1. Create with minimal required fields (avoids error -25)
-        $result = $api->createExtension([
+        // 1. Create — include name + email so UCM saves them on the user record
+        // from the start (the post-create update was sometimes a no-op when the
+        // user record wasn't immediately fetchable via getUser).
+        $createPayload = [
             'extension'     => (string) $extension,
             'secret'        => (string) $complexSecret,
             'user_password' => (string) $complexSecret,
             'vmsecret'      => (string) random_int(100000, 999999),
             'permission'    => (string) $finalPerm,
-        ]);
+            'fullname'      => (string) $displayName,
+            'first_name'    => (string) $firstName,
+            'last_name'     => (string) $lastName,
+            'email'         => (string) $email,
+        ];
+        $result = $api->createExtension($createPayload);
 
-        // 2. Update with user profile data and SIP options
+        // 2. Update with remaining profile fields and SIP options
+        // (also re-send name/email defensively in case create silently dropped them).
         try {
             $updatePayload = [
                 'fullname'     => $displayName,
+                'first_name'   => $firstName,
+                'last_name'    => $lastName,
                 'email'        => $email,
                 'hasvoicemail' => 'no',
                 'call_waiting' => 'no',
+                'dnd'          => 'no',
             ];
-            
+
             if (!empty($profile['department'])) {
                 $updatePayload['department'] = $profile['department'];
             }

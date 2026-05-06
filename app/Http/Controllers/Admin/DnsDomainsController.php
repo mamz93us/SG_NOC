@@ -18,6 +18,13 @@ class DnsDomainsController extends Controller
         try {
             $domains = $service->getDomains(['limit' => 999]);
         } catch (\Throwable $e) {
+            ActivityLog::create([
+                'model_type' => 'DnsAccount',
+                'model_id'   => $account->id,
+                'action'     => 'api_failed',
+                'changes'    => ['service' => 'GoDaddy', 'operation' => 'getDomains', 'message' => mb_substr($e->getMessage(), 0, 1000)],
+                'user_id'    => Auth::id(),
+            ]);
             return redirect()->route('admin.network.dns.index')
                 ->with('error', "Failed to load domains: {$e->getMessage()}");
         }
@@ -32,6 +39,13 @@ class DnsDomainsController extends Controller
         try {
             $domainInfo = $service->getDomain($domain);
         } catch (\Throwable $e) {
+            ActivityLog::create([
+                'model_type' => 'DnsAccount',
+                'model_id'   => $account->id,
+                'action'     => 'api_failed',
+                'changes'    => ['service' => 'GoDaddy', 'operation' => 'getDomain', 'domain' => $domain, 'message' => mb_substr($e->getMessage(), 0, 1000)],
+                'user_id'    => Auth::id(),
+            ]);
             return redirect()->route('admin.network.dns.domains.index', $account)
                 ->with('error', "Failed to load domain details: {$e->getMessage()}");
         }
@@ -68,6 +82,18 @@ class DnsDomainsController extends Controller
 
             return response()->json(['success' => true, 'message' => 'Domain settings updated.']);
         } catch (\Throwable $e) {
+            ActivityLog::create([
+                'model_type' => 'DnsAccount',
+                'model_id'   => $account->id,
+                'action'     => 'api_failed',
+                'changes'    => [
+                    'service'   => 'GoDaddy',
+                    'operation' => 'updateDomain',
+                    'domain'    => $domain,
+                    'message'   => mb_substr($e->getMessage(), 0, 1000),
+                ],
+                'user_id' => Auth::id(),
+            ]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
     }

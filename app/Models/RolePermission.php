@@ -79,11 +79,16 @@ class RolePermission extends Model
                 'view-employees'   => 'View Employee Directory',
                 'manage-employees' => 'Create / Edit Employees & Assign Assets',
             ],
+            'HR' => [
+                'submit-hr-onboarding' => 'Submit HR Onboarding Requests (portal)',
+            ],
             'NOC' => [
                 'view-noc'        => 'View NOC Dashboard & Events',
                 'manage-noc'      => 'Acknowledge / Resolve NOC Events',
                 'view-incidents'  => 'View Incidents',
                 'manage-incidents'=> 'Create / Edit / Close Incidents',
+                'view-syslog'     => 'View Syslog Messages & Search',
+                'manage-syslog'   => 'Manage Syslog Alert Rules',
             ],
             'Platform' => [
                 'manage-workflow-templates' => 'Edit Workflow Types & Approval Chains',
@@ -94,12 +99,14 @@ class RolePermission extends Model
             ],
             'ITAM' => [
                 'view-itam'           => 'View ITAM Dashboard',
-                'manage-itam'         => 'Manage ITAM (Azure Sync)',
+                'manage-itam'         => 'Manage ITAM (Azure Sync, Transfer, Branch Stores)',
                 'manage-suppliers'    => 'Manage Suppliers',
                 'view-licenses'       => 'View Software Licenses',
                 'manage-licenses'     => 'Create / Edit / Delete Licenses & Assign',
                 'view-accessories'    => 'View Accessories',
                 'manage-accessories'  => 'Create / Edit / Delete Accessories & Assign',
+                'request-scrap'       => 'Submit Asset Scrap Requests',
+                'approve-scrap'       => 'Approve / Reject Asset Scrap Requests',
             ],
             'Admin Tools' => [
                 'view-admin-links'   => 'View Admin Tools / Quick Links',
@@ -114,8 +121,9 @@ class RolePermission extends Model
                 'manage-print-manager' => 'Manage CUPS Printers & Jobs',
             ],
             'Remote Browser' => [
-                'view-browser-portal'   => 'Launch & use a remote browser session',
-                'manage-browser-portal' => 'View / force-stop any remote browser session',
+                'view-browser-portal'    => 'Launch & use a remote browser session',
+                'share-browser-session'  => 'Generate a share link to invite another user into their own session',
+                'manage-browser-portal'  => 'View / force-stop any session, view events, edit portal settings',
             ],
         ];
     }
@@ -147,12 +155,22 @@ class RolePermission extends Model
             'view-network', 'view-assets', 'view-printers',
             'view-workflows', 'view-employees', 'view-noc',
             'view-dhcp-leases', 'view-sophos', 'view-dns', 'view-admin-links',
+            'view-syslog',
+        ];
+        $hrPerms = [
+            'submit-hr-onboarding',
+            'view-workflows',
+            'view-employees',
+            'view-contacts',
+            'view-browser-portal',
         ];
 
         return [
-            'super_admin' => $all,
-            'admin'       => $adminPerms,
-            'viewer'      => $viewerPerms,
+            'super_admin'  => $all,
+            'admin'        => $adminPerms,
+            'hr'           => $hrPerms,
+            'viewer'       => $viewerPerms,
+            'browser_user' => ['view-browser-portal'],
         ];
     }
 
