@@ -78,12 +78,14 @@
                             <div class="d-flex gap-1 justify-content-end">
                                 <form action="{{ route('admin.itam.azure.approve', $az) }}" method="POST">
                                     @csrf
+                                    @method('PATCH')
                                     <button type="submit" class="btn btn-sm btn-success" title="Approve Link">
                                         <i class="bi bi-check-lg"></i>
                                     </button>
                                 </form>
                                 <form action="{{ route('admin.itam.azure.reject', $az) }}" method="POST">
                                     @csrf
+                                    @method('PATCH')
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject">
                                         <i class="bi bi-x-lg"></i>
                                     </button>

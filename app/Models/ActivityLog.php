@@ -43,6 +43,7 @@ class ActivityLog extends Model
      * Flexible helper to log an activity.
      * Supports:
      * - log($action)
+     * - log($action, $changes)
      * - log($action, $model, $changes)
      * - log($action, $description, $status, $model_id)
      */
@@ -69,11 +70,22 @@ class ActivityLog extends Model
             $action    = $arg2; // Use description as action for legacy display
             $modelId   = is_numeric($arg4) ? $arg4 : 0;
             $changes   = ['status' => $arg3];
+        } elseif (is_array($arg2) && $arg3 === null) {
+            // Case: log($action, $changes) — shorthand for system events
+            $changes = $arg2;
         } elseif (is_array($arg3)) {
             // Case: log($action, $some_id_or_string, $changes)
             $modelType = is_string($arg2) ? $arg2 : 'System';
             $modelId   = is_numeric($arg2) ? (int)$arg2 : 0;
             $changes   = $arg3;
+        }
+
+        // action is VARCHAR(255); preserve the head, stash the rest in changes
+        // so a long error message never crashes the request.
+        if (mb_strlen($action) > 250) {
+            $changes = is_array($changes) ? $changes : [];
+            $changes['full_action'] = $action;
+            $action = mb_substr($action, 0, 247) . '...';
         }
 
         return self::create([

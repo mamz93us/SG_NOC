@@ -67,13 +67,18 @@ class AzureSyncController extends Controller
             $service = new AzureDeviceService();
             $result  = $service->syncDevices();
             $autoAssigned = $result['auto_assigned'] ?? 0;
-            ActivityLog::log("Azure device sync completed: {$result['synced']} synced, {$result['new']} new, {$result['auto_linked']} auto-linked, {$autoAssigned} auto-assigned.");
+            $skipped      = $result['skipped'] ?? 0;
+            $skippedSuffix = $skipped > 0 ? ", {$skipped} skipped" : '';
+            ActivityLog::log("Azure device sync completed: {$result['synced']} synced, {$result['new']} new, {$result['auto_linked']} auto-linked, {$autoAssigned} auto-assigned{$skippedSuffix}.");
 
-            return back()->with('success',
-                "Sync complete — {$result['synced']} devices synced, {$result['new']} new, {$result['auto_linked']} auto-linked, {$autoAssigned} auto-assigned to employees."
-            );
+            $msg = "Sync complete — {$result['synced']} devices synced, {$result['new']} new, {$result['auto_linked']} auto-linked, {$autoAssigned} auto-assigned to employees{$skippedSuffix}.";
+            return back()->with($skipped > 0 ? 'warning' : 'success', $msg);
         } catch (\Throwable $e) {
-            ActivityLog::log("Azure device sync failed: " . $e->getMessage());
+            ActivityLog::log('Azure device sync failed', [
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
+                'file'  => $e->getFile() . ':' . $e->getLine(),
+            ]);
             return back()->with('error', 'Sync failed: ' . $e->getMessage());
         }
     }

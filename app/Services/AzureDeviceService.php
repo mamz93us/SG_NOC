@@ -26,6 +26,7 @@ class AzureDeviceService
         $newCount     = 0;
         $autoLinked   = 0;
         $autoAssigned = 0;
+        $skipped      = 0;
 
         try {
             $azureDevices  = $this->fetchAzureAdDevices();
@@ -35,52 +36,60 @@ class AzureDeviceService
             $merged = $this->mergeDeviceLists($azureDevices, $intuneDevices);
 
             foreach ($merged as $data) {
-                $exists = AzureDevice::where('azure_device_id', $data['azure_device_id'])->exists();
+                try {
+                    $exists = AzureDevice::where('azure_device_id', $data['azure_device_id'])->exists();
 
-                // Sanitise UPN — strip any leading hex garbage that occasionally
-                // appears when Intune concatenates the Azure AD object ID prefix.
-                $rawUpn = $data['upn'] ?? null;
-                if ($rawUpn && preg_match('/[0-9a-f]{32}(.+@.+)/i', $rawUpn, $m)) {
-                    $rawUpn = $m[1];
-                }
+                    // Sanitise UPN — strip any leading hex garbage that occasionally
+                    // appears when Intune concatenates the Azure AD object ID prefix.
+                    $rawUpn = $data['upn'] ?? null;
+                    if ($rawUpn && preg_match('/[0-9a-f]{32}(.+@.+)/i', $rawUpn, $m)) {
+                        $rawUpn = $m[1];
+                    }
 
-                $azDev = AzureDevice::updateOrCreate(
-                    ['azure_device_id' => $data['azure_device_id']],
-                    [
-                        // intune_id = Intune MDM enrollment ID (managedDevices[].id)
-                        // Needed to match script run states back to this row.
-                        'intune_managed_device_id' => $data['intune_id'] ?? null,
-                        'display_name'     => $data['display_name'],
-                        'device_type'      => $data['device_type'] ?? null,
-                        'os'               => $data['os'] ?? null,
-                        'os_version'       => $data['os_version'] ?? null,
-                        'upn'              => $rawUpn,
-                        'serial_number'    => $data['serial_number'] ?? null,
-                        'manufacturer'     => $data['manufacturer'] ?? null,
-                        'model'            => $data['model'] ?? null,
-                        'enrolled_date'    => $data['enrolled_date'] ?? null,
-                        'last_activity_at' => $data['last_activity'] ?? null,
-                        'last_sync_at'     => now(),
-                        'raw_data'         => $data,
-                    ]
-                );
+                    // intune_managed_device_id is uniquely indexed. Microsoft's latest
+                    // sync wins — null out the same value on any other row before upsert
+                    // so a re-enrolled or swapped device doesn't trigger 1062.
+                    $intuneId = $data['intune_id'] ?? null;
+                    if ($intuneId) {
+                        AzureDevice::where('intune_managed_device_id', $intuneId)
+                            ->where('azure_device_id', '!=', $data['azure_device_id'])
+                            ->update(['intune_managed_device_id' => null]);
+                    }
 
-                if (!$exists) $newCount++;
-                $synced++;
+                    $azDev = AzureDevice::updateOrCreate(
+                        ['azure_device_id' => $data['azure_device_id']],
+                        [
+                            'intune_managed_device_id' => $intuneId,
+                            'display_name'     => $data['display_name'],
+                            'device_type'      => $data['device_type'] ?? null,
+                            'os'               => $data['os'] ?? null,
+                            'os_version'       => $data['os_version'] ?? null,
+                            'upn'              => $rawUpn,
+                            'serial_number'    => $data['serial_number'] ?? null,
+                            'manufacturer'     => $data['manufacturer'] ?? null,
+                            'model'            => $data['model'] ?? null,
+                            'enrolled_date'    => $data['enrolled_date'] ?? null,
+                            'last_activity_at' => $data['last_activity'] ?? null,
+                            'last_sync_at'     => now(),
+                            'raw_data'         => $data,
+                        ]
+                    );
 
-                // Try auto-link for unlinked devices (by serial number)
-                if ($azDev->link_status === 'unlinked' && $azDev->serial_number) {
-                    $linked = $this->attemptAutoLink($azDev);
-                    if ($linked) $autoLinked++;
-                }
+                    if (!$exists) $newCount++;
+                    $synced++;
 
-                // Auto-assign employee whenever:
-                //   • device is fully linked to an ITAM asset
-                //   • has a UPN
-                //   • the ITAM asset has no current employee assignment yet
-                if ($azDev->link_status === 'linked' && $azDev->device_id && $rawUpn) {
-                    $assigned = $this->attemptAutoAssign($azDev, $rawUpn);
-                    if ($assigned) $autoAssigned++;
+                    if ($azDev->link_status === 'unlinked' && $azDev->serial_number) {
+                        $linked = $this->attemptAutoLink($azDev);
+                        if ($linked) $autoLinked++;
+                    }
+
+                    if ($azDev->link_status === 'linked' && $azDev->device_id && $rawUpn) {
+                        $assigned = $this->attemptAutoAssign($azDev, $rawUpn);
+                        if ($assigned) $autoAssigned++;
+                    }
+                } catch (\Throwable $devEx) {
+                    $skipped++;
+                    Log::warning('AzureDeviceService: skipped ' . ($data['azure_device_id'] ?? '?') . ': ' . $devEx->getMessage());
                 }
             }
         } catch (\Throwable $e) {
@@ -88,7 +97,13 @@ class AzureDeviceService
             throw $e;
         }
 
-        return ['synced' => $synced, 'new' => $newCount, 'auto_linked' => $autoLinked, 'auto_assigned' => $autoAssigned];
+        return [
+            'synced'        => $synced,
+            'new'           => $newCount,
+            'auto_linked'   => $autoLinked,
+            'auto_assigned' => $autoAssigned,
+            'skipped'       => $skipped,
+        ];
     }
 
     /**
