@@ -30,7 +30,14 @@ services:
       # the public /api/v1/write endpoint). VM itself binds 127.0.0.1 only
       # so the only way in from the network is via nginx.
     ports:
+      # Loopback for Grafana / nginx / curl tests on the NOC itself.
       - "127.0.0.1:8428:8428"
+      # Tunnel-side IP for branch Telegraf to push remote_write directly.
+      # Set VM_TUNNEL_IP in .env (e.g. VM_TUNNEL_IP=172.22.0.4 — the NOC's
+      # IPsec-side address). Default 127.0.0.2 = harmless loopback alias
+      # (kernel routes 127.0.0.0/8 to lo) so the second binding doesn't
+      # collide with 127.0.0.1 above when no tunnel is configured.
+      - "${VM_TUNNEL_IP:-127.0.0.2}:8428:8428"
     volumes:
       - vm_data:/storage
     networks:
