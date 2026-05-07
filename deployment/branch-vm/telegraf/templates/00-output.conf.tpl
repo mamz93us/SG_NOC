@@ -35,13 +35,16 @@
   timeout           = "30s"
   insecure_skip_verify = false
 
+  # Telegraf's default [[inputs.system]] emits a string field
+  # `uptime_format` (e.g. "23:28") that prometheus_remote_write can't
+  # serialize. Drop it (and any other string-typed system fields) here
+  # so the rest of the batch gets through cleanly.
+  # IMPORTANT: keep this BEFORE the [outputs.http.headers] sub-table —
+  # TOML parses any keys after a sub-table opens as belonging to that
+  # sub-table, which causes a "cannot unmarshal TOML array" error.
+  fieldexclude = ["uptime_format"]
+
   [outputs.http.headers]
     Content-Type                      = "application/x-protobuf"
     Content-Encoding                  = "snappy"
     X-Prometheus-Remote-Write-Version = "0.1.0"
-
-  # Telegraf's default [[inputs.system]] emits a string field
-  # `uptime_format` (e.g. "23:28") that prometheus_remote_write can't
-  # serialize. Drop it (and any other string-typed system fields) at the
-  # output layer so the rest of the batch gets through cleanly.
-  fieldexclude = ["uptime_format"]
