@@ -31,7 +31,7 @@
 
   # Per-interface counters
   [[inputs.snmp.table]]
-    name         = "interface"
+    name         = "snmp_interface"
     inherit_tags = ["device_name", "device_type", "host", "branch"]
 
     [[inputs.snmp.table.field]]

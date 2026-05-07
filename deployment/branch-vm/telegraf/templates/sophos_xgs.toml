@@ -94,7 +94,7 @@
 
   # ─ Per-interface counters (IF-MIB) ─
   [[inputs.snmp.table]]
-    name         = "interface"
+    name         = "snmp_interface"
     inherit_tags = ["device_name", "device_type", "host", "branch"]
 
     [[inputs.snmp.table.field]]
@@ -132,7 +132,7 @@
 
   # ─ IPsec VPN tunnels (sfosIPSecVpnTunnelTable = .6.1.1.1) ─
   [[inputs.snmp.table]]
-    name         = "ipsec_tunnel"
+    name         = "snmp_ipsec_tunnel"
     inherit_tags = ["device_name", "device_type", "host", "branch"]
 
     [[inputs.snmp.table.field]]
