@@ -1,0 +1,16 @@
+# ─── IP phone (ICMP-only) ──────────────────────────────────────
+# Grandstream/Cisco IP phones expose almost nothing over SNMP.
+# All we get is "is the phone up" via ICMP RTT + packet loss.
+# That's enough for the NOC to alert on offline phones.
+[[inputs.ping]]
+  urls         = ["__HOST__"]
+  count        = 5
+  ping_interval = 1.0
+  timeout      = 2.0
+  interval     = "__POLL_INTERVAL__s"
+
+  [inputs.ping.tags]
+    branch       = "__BRANCH__"
+    device_name  = "__NAME__"
+    device_type  = "phone_icmp"
+    host         = "__HOST__"

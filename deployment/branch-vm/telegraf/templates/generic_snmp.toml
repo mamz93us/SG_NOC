@@ -1,0 +1,56 @@
+# ─── Generic SNMP device — system info + interfaces only ───────
+# Safe fallback for anything that responds to SNMP but isn't one of
+# the recognised vendor classes. Always pulls MIB-2 standards.
+[[inputs.snmp]]
+  agents       = ["udp://__HOST__:__PORT__"]
+  version      = 2
+  community    = "__COMMUNITY__"
+  interval     = "__POLL_INTERVAL__s"
+  timeout      = "5s"
+  retries      = 2
+  name         = "snmp"
+
+  [inputs.snmp.tags]
+    branch       = "__BRANCH__"
+    device_name  = "__NAME__"
+    device_type  = "generic_snmp"
+    host         = "__HOST__"
+
+  [[inputs.snmp.field]]
+    name = "uptime"
+    oid  = "1.3.6.1.2.1.1.3.0"
+  [[inputs.snmp.field]]
+    name   = "sys_name"
+    oid    = "1.3.6.1.2.1.1.5.0"
+    is_tag = true
+  [[inputs.snmp.field]]
+    name = "sys_descr"
+    oid  = "1.3.6.1.2.1.1.1.0"
+
+  [[inputs.snmp.table]]
+    name         = "interface"
+    inherit_tags = ["device_name", "device_type", "host", "branch"]
+    [[inputs.snmp.table.field]]
+      name   = "if_descr"
+      oid    = "1.3.6.1.2.1.2.2.1.2"
+      is_tag = true
+    [[inputs.snmp.table.field]]
+      name = "if_in_octets"
+      oid  = "1.3.6.1.2.1.2.2.1.10"
+    [[inputs.snmp.table.field]]
+      name = "if_out_octets"
+      oid  = "1.3.6.1.2.1.2.2.1.16"
+    [[inputs.snmp.table.field]]
+      name = "if_oper_status"
+      oid  = "1.3.6.1.2.1.2.2.1.8"
+
+[[inputs.ping]]
+  urls       = ["__HOST__"]
+  count      = 3
+  timeout    = 2.0
+  interval   = "__POLL_INTERVAL__s"
+  [inputs.ping.tags]
+    branch       = "__BRANCH__"
+    device_name  = "__NAME__"
+    device_type  = "generic_snmp"
+    host         = "__HOST__"

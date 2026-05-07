@@ -26,20 +26,18 @@ services:
       - "--retentionPeriod=2y"             # 2-year retention
       - "--maxConcurrentInserts=8"
       - "--memory.allowedPercent=60"
-      - "--httpAuth.username=${VM_AUTH_USER}"
-      - "--httpAuth.password=${VM_AUTH_PASSWORD}"
+      # Auth is enforced at the nginx layer (basic auth + IP allowlist for
+      # the public /api/v1/write endpoint). VM itself binds 127.0.0.1 only
+      # so the only way in from the network is via nginx.
     ports:
-      # Bind ONLY to localhost. nginx + IPsec firewall handle external access.
       - "127.0.0.1:8428:8428"
     volumes:
       - vm_data:/storage
     networks:
       - metrics
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8428/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
+    # No healthcheck: the VictoriaMetrics image is FROM scratch — no shell,
+    # no wget, no curl, so a CMD-style healthcheck can never run inside.
+    # Docker's process-alive check (PID 1) is sufficient.
 
   grafana:
     image: grafana/grafana:11.3.0
@@ -47,7 +45,7 @@ services:
     restart: unless-stopped
     depends_on:
       victoriametrics:
-        condition: service_healthy
+        condition: service_started
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}

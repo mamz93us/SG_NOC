@@ -1,0 +1,100 @@
+# ─── Sophos XGS firewall — placeholders rendered by snmp-sync.php ─────
+# Captures system info, MIB-2 interface counters, and a few SFOS-private
+# OIDs (CPU, memory, sessions). Add more from the SFOS-MIB if needed —
+# private root: 1.3.6.1.4.1.2604.5.1
+[[inputs.snmp]]
+  agents       = ["udp://__HOST__:__PORT__"]
+  version      = 2
+  community    = "__COMMUNITY__"
+  interval     = "__POLL_INTERVAL__s"
+  timeout      = "5s"
+  retries      = 2
+  name         = "snmp"
+
+  [inputs.snmp.tags]
+    branch       = "__BRANCH__"
+    device_name  = "__NAME__"
+    device_type  = "sophos_xgs"
+    host         = "__HOST__"
+
+  # ─ System info ─
+  [[inputs.snmp.field]]
+    name = "uptime"
+    oid  = "1.3.6.1.2.1.1.3.0"
+
+  [[inputs.snmp.field]]
+    name   = "sys_name"
+    oid    = "1.3.6.1.2.1.1.5.0"
+    is_tag = true
+
+  # ─ Sophos SFOS private OIDs (XGS-specific) ─
+  [[inputs.snmp.field]]
+    name = "sfos_cpu_user_pct"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.1.0"
+
+  [[inputs.snmp.field]]
+    name = "sfos_cpu_system_pct"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.2.0"
+
+  [[inputs.snmp.field]]
+    name = "sfos_mem_used_pct"
+    oid  = "1.3.6.1.4.1.2604.5.1.3.1.0"
+
+  [[inputs.snmp.field]]
+    name = "sfos_disk_used_pct"
+    oid  = "1.3.6.1.4.1.2604.5.1.4.1.0"
+
+  [[inputs.snmp.field]]
+    name = "sfos_live_users"
+    oid  = "1.3.6.1.4.1.2604.5.1.5.1.0"
+
+  # ─ Per-interface counters (IF-MIB) ─
+  [[inputs.snmp.table]]
+    name         = "interface"
+    inherit_tags = ["device_name", "device_type", "host", "branch"]
+
+    [[inputs.snmp.table.field]]
+      name   = "if_index"
+      oid    = "1.3.6.1.2.1.2.2.1.1"
+      is_tag = true
+    [[inputs.snmp.table.field]]
+      name   = "if_descr"
+      oid    = "1.3.6.1.2.1.2.2.1.2"
+      is_tag = true
+    [[inputs.snmp.table.field]]
+      name = "if_in_octets"
+      oid  = "1.3.6.1.2.1.2.2.1.10"
+    [[inputs.snmp.table.field]]
+      name = "if_out_octets"
+      oid  = "1.3.6.1.2.1.2.2.1.16"
+    [[inputs.snmp.table.field]]
+      name = "if_in_errors"
+      oid  = "1.3.6.1.2.1.2.2.1.14"
+    [[inputs.snmp.table.field]]
+      name = "if_out_errors"
+      oid  = "1.3.6.1.2.1.2.2.1.20"
+    [[inputs.snmp.table.field]]
+      name = "if_in_discards"
+      oid  = "1.3.6.1.2.1.2.2.1.13"
+    [[inputs.snmp.table.field]]
+      name = "if_out_discards"
+      oid  = "1.3.6.1.2.1.2.2.1.19"
+    [[inputs.snmp.table.field]]
+      name = "if_oper_status"
+      oid  = "1.3.6.1.2.1.2.2.1.8"
+    [[inputs.snmp.table.field]]
+      name = "if_speed"
+      oid  = "1.3.6.1.2.1.2.2.1.5"
+
+# ─── ICMP ping for liveness, independent of SNMP ──────────────
+[[inputs.ping]]
+  urls       = ["__HOST__"]
+  count      = 3
+  ping_interval = 1.0
+  timeout    = 2.0
+  interval   = "__POLL_INTERVAL__s"
+  [inputs.ping.tags]
+    branch       = "__BRANCH__"
+    device_name  = "__NAME__"
+    device_type  = "sophos_xgs"
+    host         = "__HOST__"
