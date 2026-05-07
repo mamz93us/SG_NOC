@@ -229,6 +229,103 @@
       ],
       "fieldConfig": {"defaults": {"unit": "pps", "custom": {"drawStyle": "bars", "fillOpacity": 80, "stacking": {"mode": "normal"}}}},
       "options": {"legend": {"displayMode": "table", "calcs": ["sum", "max"], "placement": "bottom"}}
+    },
+
+    {
+      "id": 15, "type": "stat", "title": "Port grid — link state",
+      "description": "Each tile = one physical Ethernet port. UP (green) link is active, DOWN (red) admin up but no link, DISABLED (gray) admin shut.",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 37, "w": 24, "h": 10},
+      "targets": [
+        {"expr": "(snmp_interface_if_admin_status{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",if_descr=~\"(GigabitEthernet|TenGigabitEthernet|FastEthernet).*\"} == 2) * 0 or snmp_interface_if_oper_status{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",if_descr=~\"(GigabitEthernet|TenGigabitEthernet|FastEthernet).*\"}", "refId": "A", "legendFormat": "{{if_descr}}", "instant": true}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DISABLED", "color": "text"}}},
+            {"type": "value", "options": {"1": {"text": "UP",       "color": "green"}}},
+            {"type": "value", "options": {"2": {"text": "DOWN",     "color": "red"}}},
+            {"type": "value", "options": {"3": {"text": "TEST",     "color": "yellow"}}},
+            {"type": "value", "options": {"4": {"text": "UNKNOWN",  "color": "text"}}},
+            {"type": "value", "options": {"5": {"text": "DORMANT",  "color": "text"}}},
+            {"type": "value", "options": {"6": {"text": "ABSENT",   "color": "text"}}},
+            {"type": "value", "options": {"7": {"text": "LL DOWN",  "color": "orange"}}}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "text", "value": null}, {"color": "green", "value": 1}, {"color": "red", "value": 2}]}
+        }
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "value_and_name"}
+    },
+
+    {
+      "id": 16, "type": "table", "title": "Port detail",
+      "description": "Per-port admin/oper state, link speed, current traffic, error rate. Filter via the Search box at the top.",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 47, "w": 24, "h": 12},
+      "targets": [
+        {"expr": "snmp_interface_if_admin_status{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",if_descr=~\"(GigabitEthernet|TenGigabitEthernet|FastEthernet).*\"}",  "refId": "A", "format": "table", "instant": true},
+        {"expr": "snmp_interface_if_oper_status{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",if_descr=~\"(GigabitEthernet|TenGigabitEthernet|FastEthernet).*\"}",   "refId": "B", "format": "table", "instant": true},
+        {"expr": "snmp_interface_if_speed{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",if_descr=~\"(GigabitEthernet|TenGigabitEthernet|FastEthernet).*\"}",          "refId": "C", "format": "table", "instant": true},
+        {"expr": "8 * rate(snmp_interface_if_in_octets{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",if_descr=~\"(GigabitEthernet|TenGigabitEthernet|FastEthernet).*\"}[2m])",  "refId": "D", "format": "table", "instant": true},
+        {"expr": "8 * rate(snmp_interface_if_out_octets{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",if_descr=~\"(GigabitEthernet|TenGigabitEthernet|FastEthernet).*\"}[2m])", "refId": "E", "format": "table", "instant": true},
+        {"expr": "rate(snmp_interface_if_in_errors{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",if_descr=~\"(GigabitEthernet|TenGigabitEthernet|FastEthernet).*\"}[5m])",      "refId": "F", "format": "table", "instant": true}
+      ],
+      "transformations": [
+        {"id": "joinByField", "options": {"byField": "if_descr", "mode": "outer"}},
+        {"id": "organize", "options": {
+          "excludeByName": {
+            "Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true, "Time 5": true, "Time 6": true,
+            "__name__ 1": true, "__name__ 2": true, "__name__ 3": true, "__name__ 4": true, "__name__ 5": true, "__name__ 6": true,
+            "agent_host 1": true, "agent_host 2": true, "agent_host 3": true, "agent_host 4": true, "agent_host 5": true, "agent_host 6": true,
+            "device_type 1": true, "device_type 2": true, "device_type 3": true, "device_type 4": true, "device_type 5": true, "device_type 6": true,
+            "host 1": true, "host 2": true, "host 3": true, "host 4": true, "host 5": true, "host 6": true,
+            "instance 1": true, "instance 2": true, "instance 3": true, "instance 4": true, "instance 5": true, "instance 6": true,
+            "job 1": true, "job 2": true, "job 3": true, "job 4": true, "job 5": true, "job 6": true,
+            "branch 2": true, "branch 3": true, "branch 4": true, "branch 5": true, "branch 6": true,
+            "device_name 2": true, "device_name 3": true, "device_name 4": true, "device_name 5": true, "device_name 6": true,
+            "if_index 2": true, "if_index 3": true, "if_index 4": true, "if_index 5": true, "if_index 6": true
+          },
+          "renameByName": {
+            "branch 1": "Branch", "device_name 1": "Switch", "if_descr": "Port", "if_index 1": "ifIndex",
+            "Value #A": "Admin", "Value #B": "Oper", "Value #C": "Speed",
+            "Value #D": "In bps", "Value #E": "Out bps", "Value #F": "In errors/s"
+          },
+          "indexByName": {
+            "branch 1": 0, "device_name 1": 1, "if_descr": 2, "if_index 1": 3,
+            "Value #A": 4, "Value #B": 5, "Value #C": 6, "Value #D": 7, "Value #E": 8, "Value #F": 9
+          }
+        }}
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "Admin"}, "properties": [
+            {"id": "mappings", "value": [
+              {"type": "value", "options": {"1": {"text": "up", "color": "green"}}},
+              {"type": "value", "options": {"2": {"text": "down", "color": "text"}}},
+              {"type": "value", "options": {"3": {"text": "test", "color": "yellow"}}}
+            ]},
+            {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+          ]},
+          {"matcher": {"id": "byName", "options": "Oper"}, "properties": [
+            {"id": "mappings", "value": [
+              {"type": "value", "options": {"1": {"text": "up",       "color": "green"}}},
+              {"type": "value", "options": {"2": {"text": "down",     "color": "red"}}},
+              {"type": "value", "options": {"3": {"text": "test",     "color": "yellow"}}},
+              {"type": "value", "options": {"4": {"text": "unknown",  "color": "text"}}},
+              {"type": "value", "options": {"5": {"text": "dormant",  "color": "text"}}},
+              {"type": "value", "options": {"6": {"text": "absent",   "color": "text"}}},
+              {"type": "value", "options": {"7": {"text": "LLdown",   "color": "orange"}}}
+            ]},
+            {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}}
+          ]},
+          {"matcher": {"id": "byName", "options": "Speed"}, "properties": [{"id": "unit", "value": "bps"}]},
+          {"matcher": {"id": "byName", "options": "In bps"}, "properties": [{"id": "unit", "value": "bps"}]},
+          {"matcher": {"id": "byName", "options": "Out bps"}, "properties": [{"id": "unit", "value": "bps"}]},
+          {"matcher": {"id": "byName", "options": "In errors/s"}, "properties": [{"id": "unit", "value": "pps"}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.001}]}}, {"id": "custom.cellOptions", "value": {"type": "color-text"}}]}
+        ]
+      }
     }
   ]
 }
