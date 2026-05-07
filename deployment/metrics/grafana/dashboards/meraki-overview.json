@@ -1,0 +1,220 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["sg-noc", "meraki", "switch", "ap"],
+  "templating": {
+    "list": [
+      {
+        "name": "network",
+        "label": "Meraki network",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+        "query": "label_values(snmp_meraki_device_dev_status, dev_network_name)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"text": ["All"], "value": ["$__all"]},
+        "sort": 1
+      },
+      {
+        "name": "product",
+        "label": "Product",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+        "query": "label_values(snmp_meraki_device_dev_status{dev_network_name=~\"$network\"}, dev_product_code)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"text": ["All"], "value": ["$__all"]},
+        "sort": 1
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Meraki — Overview",
+  "uid": "sg-noc-meraki-overview",
+  "version": 1,
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Devices online",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(snmp_meraki_device_dev_status{dev_network_name=~\"$network\",dev_product_code=~\"$product\"} == 1) or vector(0)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "green"}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Devices offline",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(snmp_meraki_device_dev_status{dev_network_name=~\"$network\",dev_product_code=~\"$product\"} == 0) or vector(0)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Total clients",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(snmp_meraki_device_dev_client_count{dev_network_name=~\"$network\",dev_product_code=~\"$product\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "area", "justifyMode": "center"}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Networks",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "count(count by (dev_network_name) (snmp_meraki_device_dev_status))", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "purple"}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+
+    {
+      "id": 5, "type": "stat", "title": "Device status grid",
+      "description": "One tile per Meraki device. Green = online, red = offline.",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 10},
+      "targets": [{"expr": "snmp_meraki_device_dev_status{dev_network_name=~\"$network\",dev_product_code=~\"$product\"}", "refId": "A", "legendFormat": "{{dev_name}} ({{dev_product_code}})", "instant": true}],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "OFFLINE", "color": "red"}}},
+            {"type": "value", "options": {"1": {"text": "ONLINE",  "color": "green"}}}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+        }
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "value_and_name"}
+    },
+
+    {
+      "id": 6, "type": "table", "title": "Device inventory",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 14, "w": 24, "h": 9},
+      "targets": [
+        {"expr": "snmp_meraki_device_dev_status{dev_network_name=~\"$network\",dev_product_code=~\"$product\"}",       "refId": "A", "format": "table", "instant": true},
+        {"expr": "snmp_meraki_device_dev_client_count{dev_network_name=~\"$network\",dev_product_code=~\"$product\"}", "refId": "B", "format": "table", "instant": true}
+      ],
+      "transformations": [
+        {"id": "joinByField", "options": {"byField": "dev_mac", "mode": "outer"}},
+        {"id": "organize", "options": {
+          "excludeByName": {
+            "Time 1": true, "Time 2": true,
+            "__name__ 1": true, "__name__ 2": true,
+            "agent_host 1": true, "agent_host 2": true,
+            "device_type 1": true, "device_type 2": true,
+            "host 1": true, "host 2": true,
+            "instance 1": true, "instance 2": true,
+            "job 1": true, "job 2": true,
+            "branch 1": true, "branch 2": true,
+            "device_name 1": true, "device_name 2": true,
+            "organization_name 1": true, "organization_name 2": true,
+            "dev_name 2": true, "dev_network_name 2": true, "dev_product_code 2": true,
+            "dev_product_description 2": true, "dev_serial 2": true
+          },
+          "renameByName": {
+            "dev_mac": "MAC", "dev_name 1": "Device", "dev_network_name 1": "Network",
+            "dev_product_code 1": "Model", "dev_product_description 1": "Description", "dev_serial 1": "Serial",
+            "Value #A": "Status", "Value #B": "Clients"
+          },
+          "indexByName": {
+            "dev_mac": 0, "dev_name 1": 1, "dev_network_name 1": 2, "dev_product_code 1": 3,
+            "dev_serial 1": 4, "Value #A": 5, "Value #B": 6, "dev_product_description 1": 7
+          }
+        }}
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "Status"}, "properties": [
+            {"id": "mappings", "value": [
+              {"type": "value", "options": {"0": {"text": "OFFLINE", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "ONLINE",  "color": "green"}}}
+            ]},
+            {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}}
+          ]},
+          {"matcher": {"id": "byName", "options": "Clients"}, "properties": [
+            {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}},
+            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "blue", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 100}]}}
+          ]}
+        ]
+      }
+    },
+
+    {
+      "id": 7, "type": "barchart", "title": "Clients per device",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 23, "w": 12, "h": 8},
+      "targets": [{"expr": "topk(20, snmp_meraki_device_dev_client_count{dev_network_name=~\"$network\",dev_product_code=~\"$product\"})", "refId": "A", "legendFormat": "{{dev_name}}", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "palette-classic"}}},
+      "options": {"orientation": "horizontal", "showValue": "always", "stacking": "none", "xTickLabelRotation": 0, "legend": {"showLegend": false}}
+    },
+
+    {
+      "id": 8, "type": "timeseries", "title": "Top 10 interfaces — bits in",
+      "description": "8 × rate(recv_bytes) — bits per second per interface.",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 23, "w": 12, "h": 8},
+      "targets": [{"expr": "topk(10, 8 * rate(snmp_meraki_interface_recv_bytes{dev_network_name=~\"$network\",dev_product_code=~\"$product\"}[5m]))", "refId": "A", "legendFormat": "{{dev_name}} · {{if_name}}"}],
+      "fieldConfig": {"defaults": {"unit": "bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"], "placement": "bottom"}}
+    },
+
+    {
+      "id": 9, "type": "table", "title": "Port detail",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 31, "w": 24, "h": 12},
+      "targets": [
+        {"expr": "8 * rate(snmp_meraki_interface_recv_bytes{dev_network_name=~\"$network\",dev_product_code=~\"$product\"}[5m])", "refId": "A", "format": "table", "instant": true},
+        {"expr": "8 * rate(snmp_meraki_interface_sent_bytes{dev_network_name=~\"$network\",dev_product_code=~\"$product\"}[5m])", "refId": "B", "format": "table", "instant": true},
+        {"expr": "rate(snmp_meraki_interface_recv_pkts{dev_network_name=~\"$network\",dev_product_code=~\"$product\"}[5m])",      "refId": "C", "format": "table", "instant": true},
+        {"expr": "rate(snmp_meraki_interface_sent_pkts{dev_network_name=~\"$network\",dev_product_code=~\"$product\"}[5m])",      "refId": "D", "format": "table", "instant": true}
+      ],
+      "transformations": [
+        {"id": "joinByField", "options": {"byField": "if_name", "mode": "outer"}},
+        {"id": "organize", "options": {
+          "excludeByName": {
+            "Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true,
+            "__name__ 1": true, "__name__ 2": true, "__name__ 3": true, "__name__ 4": true,
+            "agent_host 1": true, "agent_host 2": true, "agent_host 3": true, "agent_host 4": true,
+            "device_type 1": true, "device_type 2": true, "device_type 3": true, "device_type 4": true,
+            "host 1": true, "host 2": true, "host 3": true, "host 4": true,
+            "instance 1": true, "instance 2": true, "instance 3": true, "instance 4": true,
+            "job 1": true, "job 2": true, "job 3": true, "job 4": true,
+            "branch 1": true, "branch 2": true, "branch 3": true, "branch 4": true,
+            "device_name 1": true, "device_name 2": true, "device_name 3": true, "device_name 4": true,
+            "if_index 2": true, "if_index 3": true, "if_index 4": true,
+            "dev_mac 2": true, "dev_mac 3": true, "dev_mac 4": true,
+            "if_description 2": true, "if_description 3": true, "if_description 4": true
+          },
+          "renameByName": {
+            "dev_mac 1": "Device MAC", "if_name": "Port", "if_index 1": "ifIndex", "if_description 1": "Description",
+            "Value #A": "In bps", "Value #B": "Out bps", "Value #C": "In pps", "Value #D": "Out pps"
+          },
+          "indexByName": {
+            "dev_mac 1": 0, "if_name": 1, "if_index 1": 2,
+            "Value #A": 3, "Value #B": 4, "Value #C": 5, "Value #D": 6, "if_description 1": 7
+          }
+        }}
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "In bps"},  "properties": [{"id": "unit", "value": "bps"}]},
+          {"matcher": {"id": "byName", "options": "Out bps"}, "properties": [{"id": "unit", "value": "bps"}]},
+          {"matcher": {"id": "byName", "options": "In pps"},  "properties": [{"id": "unit", "value": "pps"}]},
+          {"matcher": {"id": "byName", "options": "Out pps"}, "properties": [{"id": "unit", "value": "pps"}]}
+        ]
+      }
+    }
+  ]
+}
