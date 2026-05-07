@@ -21,17 +21,19 @@ note() { printf '\033[36m▸ %s\033[0m\n' "$*"; }
 
 set -a; . "$ENV_FILE"; set +a
 
-# 1. Pull latest code
+# 1. Pull latest code (no-op if already current — DON'T exit early so a
+#    manual `git pull` followed by `update.sh` still re-renders the live
+#    configs in /etc/.)
 note "git pull in $REPO_DIR"
 git -C "$REPO_DIR" fetch --quiet origin
 LOCAL=$(git -C "$REPO_DIR"  rev-parse HEAD)
 REMOTE=$(git -C "$REPO_DIR" rev-parse @{u})
 if [[ "$LOCAL" == "$REMOTE" ]]; then
-    note "Already up-to-date — nothing to do."
-    exit 0
+    note "Repo already at origin/main — re-applying configs anyway."
+else
+    git -C "$REPO_DIR" pull --ff-only --quiet
+    green "Pulled $(git -C "$REPO_DIR" log --oneline "$LOCAL..HEAD" | wc -l) new commit(s)."
 fi
-git -C "$REPO_DIR" pull --ff-only --quiet
-green "Pulled $(git -C "$REPO_DIR" log --oneline "$LOCAL..HEAD" | wc -l) new commit(s)."
 
 # 2. Re-render rsyslog config (BRANCH_ID may have changed)
 note "Reapplying rsyslog config"
@@ -89,9 +91,12 @@ if [[ -d "$SRC_DIR/telegraf" ]]; then
     install -m 0644 "$SRC_DIR/systemd/sg-noc-nmap-discover.timer"   /etc/systemd/system/
     systemctl daemon-reload
 
-    # Re-render the global output config in case credentials changed in /etc/sg-noc-branch.env
-    if [[ -n "${NOC_METRICS_URL:-}" && -n "${NOC_METRICS_USER:-}" \
-           && -n "${NOC_METRICS_PASSWORD:-}" ]]; then
+    # Re-render the global output config in case credentials, URL, or the
+    # template itself changed. NOC_METRICS_USER/PASSWORD are optional —
+    # leave them blank when pushing direct over an IPsec tunnel.
+    if [[ -n "${NOC_METRICS_URL:-}" ]]; then
+        : "${NOC_METRICS_USER:=}"
+        : "${NOC_METRICS_PASSWORD:=}"
         sed -e "s|__BRANCH_ID__|$BRANCH_ID|g" \
             -e "s|__NOC_METRICS_URL__|${NOC_METRICS_URL//|/\\|}|g" \
             -e "s|__NOC_METRICS_USER__|$NOC_METRICS_USER|g" \
