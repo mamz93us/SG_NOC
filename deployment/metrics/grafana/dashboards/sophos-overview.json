@@ -1,0 +1,215 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["sg-noc", "sophos", "firewall"],
+  "templating": {
+    "list": [
+      {
+        "name": "branch",
+        "label": "Branch",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+        "query": "label_values(snmp_disk_used_pct{device_type=\"sophos_xgs\"}, branch)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"text": ["All"], "value": ["$__all"]},
+        "sort": 1
+      },
+      {
+        "name": "device",
+        "label": "Firewall",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+        "query": "label_values(snmp_disk_used_pct{device_type=\"sophos_xgs\",branch=~\"$branch\"}, sys_name)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"text": ["All"], "value": ["$__all"]},
+        "sort": 1
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Sophos Firewalls — Overview",
+  "uid": "sg-noc-sophos-overview",
+  "version": 1,
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Firewalls reporting",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "count(snmp_disk_used_pct{device_type=\"sophos_xgs\",branch=~\"$branch\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Total live users",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(snmp_live_users{device_type=\"sophos_xgs\",branch=~\"$branch\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "area", "justifyMode": "center"}
+    },
+    {
+      "id": 3, "type": "stat", "title": "IPsec tunnels UP",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(snmp_ipsec_tunnel_conn_status{device_type=\"sophos_xgs\",branch=~\"$branch\"} == 1) or vector(0)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "green"}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+    {
+      "id": 4, "type": "stat", "title": "IPsec tunnels DOWN",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(snmp_ipsec_tunnel_conn_status{device_type=\"sophos_xgs\",branch=~\"$branch\"} == 0) or vector(0)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+
+    {
+      "id": 5, "type": "table", "title": "Firewall inventory",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 6},
+      "targets": [
+        {"expr": "snmp_disk_used_pct{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"}",        "refId": "A", "format": "table", "instant": true},
+        {"expr": "snmp_memory_used_pct{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"}",      "refId": "B", "format": "table", "instant": true},
+        {"expr": "snmp_live_users{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"}",           "refId": "C", "format": "table", "instant": true},
+        {"expr": "snmp_uptime_ticks{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"} / 100",   "refId": "D", "format": "table", "instant": true}
+      ],
+      "transformations": [
+        {"id": "merge", "options": {}},
+        {"id": "organize", "options": {
+          "excludeByName": {"Time": true, "__name__": true, "agent_host": true, "device_name": true, "device_type": true, "host": true, "instance": true, "job": true},
+          "renameByName": {
+            "branch": "Branch", "sys_name": "Hostname", "device_model": "Model", "fw_version": "Firmware",
+            "Value #A": "Disk %", "Value #B": "Memory %", "Value #C": "Live Users", "Value #D": "Uptime (s)"
+          },
+          "indexByName": {"branch": 0, "sys_name": 1, "device_model": 2, "fw_version": 3, "Value #C": 4, "Value #A": 5, "Value #B": 6, "Value #D": 7}
+        }}
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "Disk %"}, "properties": [{"id": "unit", "value": "percent"}, {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 75}, {"color": "red", "value": 90}]}}]},
+          {"matcher": {"id": "byName", "options": "Memory %"}, "properties": [{"id": "unit", "value": "percent"}, {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 75}, {"color": "red", "value": 90}]}}]},
+          {"matcher": {"id": "byName", "options": "Uptime (s)"}, "properties": [{"id": "unit", "value": "s"}]}
+        ]
+      }
+    },
+
+    {
+      "id": 6, "type": "gauge", "title": "Memory used %",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 10, "w": 6, "h": 6},
+      "targets": [{"expr": "snmp_memory_used_pct{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"}", "refId": "A", "legendFormat": "{{sys_name}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+    {
+      "id": 7, "type": "gauge", "title": "Disk used %",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 6, "y": 10, "w": 6, "h": 6},
+      "targets": [{"expr": "snmp_disk_used_pct{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"}", "refId": "A", "legendFormat": "{{sys_name}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 75}, {"color": "red", "value": 90}]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+    {
+      "id": 8, "type": "gauge", "title": "CPU temperature",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 10, "w": 6, "h": 6},
+      "targets": [{"expr": "snmp_cpu_temperature_decicelsius{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"} / 10", "refId": "A", "legendFormat": "{{sys_name}}"}],
+      "fieldConfig": {"defaults": {"unit": "celsius", "min": 20, "max": 95, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 85}]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+    {
+      "id": 9, "type": "gauge", "title": "NPU temperature",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 18, "y": 10, "w": 6, "h": 6},
+      "targets": [{"expr": "snmp_npu_temperature_decicelsius{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"} / 10", "refId": "A", "legendFormat": "{{sys_name}}"}],
+      "fieldConfig": {"defaults": {"unit": "celsius", "min": 20, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 80}, {"color": "red", "value": 95}]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+
+    {
+      "id": 10, "type": "timeseries", "title": "Live users over time",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 7},
+      "targets": [{"expr": "snmp_live_users{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"}", "refId": "A", "legendFormat": "{{branch}} · {{sys_name}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 15, "lineInterpolation": "smooth"}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["lastNotNull", "max"], "placement": "bottom"}}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "HTTP / FTP hit rate",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 7},
+      "targets": [
+        {"expr": "rate(snmp_http_hits{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"}[5m])", "refId": "A", "legendFormat": "HTTP · {{sys_name}}"},
+        {"expr": "rate(snmp_ftp_hits{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\"}[5m])",  "refId": "B", "legendFormat": "FTP · {{sys_name}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"], "placement": "bottom"}}
+    },
+
+    {
+      "id": 12, "type": "stat", "title": "IPsec tunnel status",
+      "description": "Each cell is one tunnel. Green = up, red = down.",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 23, "w": 24, "h": 8},
+      "targets": [{"expr": "snmp_ipsec_tunnel_conn_status{device_type=\"sophos_xgs\",branch=~\"$branch\"}", "refId": "A", "legendFormat": "{{branch}} · {{conn_name}}", "instant": true}],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+            {"type": "value", "options": {"1": {"text": "UP",   "color": "green"}}},
+            {"type": "value", "options": {"2": {"text": "PARTIAL", "color": "yellow"}}}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+        }
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto"}
+    },
+
+    {
+      "id": 13, "type": "timeseries", "title": "Physical interface — bits in",
+      "description": "rate of inbound octets × 8 → bits/s on Sophos physical ports only",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 31, "w": 12, "h": 8},
+      "targets": [{"expr": "8 * rate(snmp_interface_if_in_octets{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\",if_descr=~\"Port[0-9].*\"}[2m])", "refId": "A", "legendFormat": "{{sys_name}} · {{if_descr}}"}],
+      "fieldConfig": {"defaults": {"unit": "bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"], "placement": "bottom"}}
+    },
+    {
+      "id": 14, "type": "timeseries", "title": "Physical interface — bits out",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 31, "w": 12, "h": 8},
+      "targets": [{"expr": "8 * rate(snmp_interface_if_out_octets{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\",if_descr=~\"Port[0-9].*\"}[2m])", "refId": "A", "legendFormat": "{{sys_name}} · {{if_descr}}"}],
+      "fieldConfig": {"defaults": {"unit": "bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"], "placement": "bottom"}}
+    },
+
+    {
+      "id": 15, "type": "timeseries", "title": "Interface errors / discards (stacked)",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 39, "w": 24, "h": 7},
+      "targets": [
+        {"expr": "rate(snmp_interface_if_in_errors{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\",if_descr=~\"Port[0-9].*\"}[5m])",   "refId": "A", "legendFormat": "in_errors · {{sys_name}} · {{if_descr}}"},
+        {"expr": "rate(snmp_interface_if_out_errors{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\",if_descr=~\"Port[0-9].*\"}[5m])",  "refId": "B", "legendFormat": "out_errors · {{sys_name}} · {{if_descr}}"},
+        {"expr": "rate(snmp_interface_if_in_discards{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\",if_descr=~\"Port[0-9].*\"}[5m])", "refId": "C", "legendFormat": "in_discards · {{sys_name}} · {{if_descr}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "pps", "custom": {"drawStyle": "bars", "fillOpacity": 80, "stacking": {"mode": "normal"}}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["sum", "max"], "placement": "bottom"}}
+    }
+  ]
+}
