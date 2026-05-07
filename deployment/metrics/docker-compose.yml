@@ -1,0 +1,79 @@
+# ─────────────────────────────────────────────────────────────────────────
+# SG_NOC — Metrics stack (VictoriaMetrics + Grafana).
+#
+# Receives Prometheus remote_write from each branch's Telegraf and renders
+# dashboards. Sized for the whole 9-branch estate (~2 GB/year of metrics).
+#
+# Listens on:
+#   :8428                     VictoriaMetrics HTTP — bind to 127.0.0.1
+#                             only; nginx terminates TLS publicly if needed,
+#                             AND you should also allow only the IPsec CIDR.
+#   :3000                     Grafana — proxied by nginx (e.g. metrics.samirgroup.net)
+#
+# Secrets live in deployment/metrics/.env (NOT in git). Copy
+# deployment/metrics/.env.example → .env, fill in, then `docker compose up -d`.
+# ─────────────────────────────────────────────────────────────────────────
+
+services:
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.106.1
+    container_name: victoriametrics
+    restart: unless-stopped
+    command:
+      - "--storageDataPath=/storage"
+      - "--httpListenAddr=:8428"
+      - "--retentionPeriod=2y"             # 2-year retention
+      - "--maxConcurrentInserts=8"
+      - "--memory.allowedPercent=60"
+      - "--httpAuth.username=${VM_AUTH_USER}"
+      - "--httpAuth.password=${VM_AUTH_PASSWORD}"
+    ports:
+      # Bind ONLY to localhost. nginx + IPsec firewall handle external access.
+      - "127.0.0.1:8428:8428"
+    volumes:
+      - vm_data:/storage
+    networks:
+      - metrics
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8428/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    restart: unless-stopped
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-https://metrics.samirgroup.net/}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_INSTALL_PLUGINS=
+      - GF_FEATURE_TOGGLES_ENABLE=
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - metrics
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  vm_data:
+  grafana_data:
+
+networks:
+  metrics:
+    driver: bridge

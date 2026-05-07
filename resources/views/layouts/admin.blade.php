@@ -696,6 +696,12 @@
                                     <i class="bi bi-hdd-network me-2 text-secondary"></i>Branch Log Collectors
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.snmp-devices.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.snmp-devices.index') }}">
+                                    <i class="bi bi-router me-2 text-primary"></i>SNMP Devices
+                                </a>
+                            </li>
                             @endcan
                             @endcan
                             <li><hr class="dropdown-divider"></li>

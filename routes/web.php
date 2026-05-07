@@ -984,6 +984,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/refresh-all',              [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'refreshAll'])    ->name('refresh-all');
     });
 
+    // ─── SNMP Devices (per-branch, polled by Telegraf) ──────────
+    Route::middleware('permission:manage-syslog')
+         ->prefix('snmp-devices')
+         ->name('snmp-devices.')
+         ->group(function () {
+        Route::get('/',                           [\App\Http\Controllers\Admin\SnmpDeviceController::class, 'index'])          ->name('index');
+        Route::get('/discovered',                 [\App\Http\Controllers\Admin\SnmpDeviceController::class, 'discovered'])     ->name('discovered');
+        Route::post('/discovered/{discovery}/approve', [\App\Http\Controllers\Admin\SnmpDeviceController::class, 'approveDiscovered'])->name('approve-discovered');
+        Route::post('/discovered/{discovery}/reject',  [\App\Http\Controllers\Admin\SnmpDeviceController::class, 'rejectDiscovered'])->name('reject-discovered');
+        Route::get('/create',                     [\App\Http\Controllers\Admin\SnmpDeviceController::class, 'create'])         ->name('create');
+        Route::post('/',                          [\App\Http\Controllers\Admin\SnmpDeviceController::class, 'store'])          ->name('store');
+        Route::get('/{snmpDevice}/edit',          [\App\Http\Controllers\Admin\SnmpDeviceController::class, 'edit'])           ->name('edit');
+        Route::put('/{snmpDevice}',               [\App\Http\Controllers\Admin\SnmpDeviceController::class, 'update'])         ->name('update');
+        Route::delete('/{snmpDevice}',            [\App\Http\Controllers\Admin\SnmpDeviceController::class, 'destroy'])        ->name('destroy');
+    });
+
     Route::middleware('permission:manage-syslog')->prefix('syslog')->name('syslog.')->group(function () {
         Route::get('/rules',                 [\App\Http\Controllers\Admin\SyslogController::class, 'rulesIndex'])->name('rules.index');
         Route::get('/rules/create',          [\App\Http\Controllers\Admin\SyslogController::class, 'rulesCreate'])->name('rules.create');
@@ -1503,6 +1519,17 @@ Route::post('/api/internal/vq-report', [\App\Http\Controllers\Admin\VoiceQuality
 Route::post('/api/graylog/webhook', \App\Http\Controllers\Api\GraylogWebhookController::class)
     ->middleware('throttle:60,1')
     ->name('api.graylog.webhook');
+
+// Branch-config endpoints — branch VMs PULL their device list, POST nmap
+// discoveries. Auth is via Bearer token (the per-branch api_token kept
+// on branch_log_collectors). No session middleware → CSRF-exempt.
+Route::prefix('api/branch-config')
+     ->name('api.branch-config.')
+     ->middleware('throttle:120,1')
+     ->group(function () {
+    Route::get( 'snmp-devices',        [\App\Http\Controllers\Api\BranchConfigController::class, 'snmpDevices'])    ->name('snmp-devices');
+    Route::post('discovered-devices',  [\App\Http\Controllers\Api\BranchConfigController::class, 'postDiscovered'])->name('discovered-devices');
+});
 
 /*
 |--------------------------------------------------------------------------

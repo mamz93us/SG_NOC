@@ -1,0 +1,20 @@
+apiVersion: 1
+
+# VictoriaMetrics speaks the Prometheus query language, so Grafana sees
+# it as a "Prometheus" datasource. The URL points to the docker-network
+# hostname of the VictoriaMetrics container.
+
+datasources:
+  - name: VictoriaMetrics
+    type: prometheus
+    access: proxy
+    url: http://victoriametrics:8428
+    isDefault: true
+    basicAuth: true
+    basicAuthUser: ${VM_AUTH_USER}
+    secureJsonData:
+      basicAuthPassword: ${VM_AUTH_PASSWORD}
+    jsonData:
+      timeInterval: 60s
+      httpMethod: POST
+    editable: false

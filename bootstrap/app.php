@@ -45,6 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'two-factor-challenge',
             'api/graylog/webhook',
+            'api/branch-config/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

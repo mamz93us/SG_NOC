@@ -1,0 +1,16 @@
+apiVersion: 1
+
+# Auto-load any JSON dashboards we ship in deployment/metrics/grafana/dashboards/
+# Dashboards live read-only on disk; edits in Grafana UI are saved as overrides
+# but the on-disk file is the source of truth.
+
+providers:
+  - name: 'sg-noc-default'
+    orgId: 1
+    folder: 'SG_NOC'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true

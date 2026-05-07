@@ -1,0 +1,2 @@
+# Grafana auto-loads any *.json dashboard placed in this directory.
+# Phase 3 will add: sophos-overview.json, switch-overview.json, ap-overview.json, ucm-overview.json
