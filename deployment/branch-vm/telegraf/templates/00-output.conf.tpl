@@ -39,3 +39,9 @@
     Content-Type                      = "application/x-protobuf"
     Content-Encoding                  = "snappy"
     X-Prometheus-Remote-Write-Version = "0.1.0"
+
+  # Telegraf's default [[inputs.system]] emits a string field
+  # `uptime_format` (e.g. "23:28") that prometheus_remote_write can't
+  # serialize. Drop it (and any other string-typed system fields) at the
+  # output layer so the rest of the batch gets through cleanly.
+  fieldexclude = ["uptime_format"]

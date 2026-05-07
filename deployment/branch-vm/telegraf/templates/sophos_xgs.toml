@@ -1,7 +1,15 @@
-# ─── Sophos XGS firewall — placeholders rendered by snmp-sync.php ─────
-# Captures system info, MIB-2 interface counters, and a few SFOS-private
-# OIDs (CPU, memory, sessions). Add more from the SFOS-MIB if needed —
-# private root: 1.3.6.1.4.1.2604.5.1
+# ─── Sophos XGS firewall — uses the SFOS-FIREWALL-MIB ────────────
+# Private root: 1.3.6.1.4.1.2604.5.1 = sfosXGMIBObjects
+#   .1 sfosXGDeviceInfo
+#   .2 sfosXGDeviceStats
+#       .4 sfosDiskStatus
+#       .5 sfosMemoryStatus
+#   .4 sfosXGHAStats
+#   .6 sfosXGTunnelInfo
+#   .9 sfosXGSystemHealth        (XGS-only, recent firmware)
+# Per-interface counters come from MIB-2 (1.3.6.1.2.1.2).
+#
+# Placeholders __XXX__ rendered by snmp-sync.php from the NOC's device list.
 [[inputs.snmp]]
   agents       = ["udp://__HOST__:__PORT__"]
   version      = 2
@@ -17,41 +25,77 @@
     device_type  = "sophos_xgs"
     host         = "__HOST__"
 
-  # ─ System info ─
-  [[inputs.snmp.field]]
-    name = "uptime"
-    oid  = "1.3.6.1.2.1.1.3.0"
-
+  # ─ Device info (sfosXGDeviceInfo = .1) ─
   [[inputs.snmp.field]]
     name   = "sys_name"
-    oid    = "1.3.6.1.2.1.1.5.0"
+    oid    = "1.3.6.1.4.1.2604.5.1.1.1.0"
+    is_tag = true
+  [[inputs.snmp.field]]
+    name   = "device_model"
+    oid    = "1.3.6.1.4.1.2604.5.1.1.2.0"
+    is_tag = true
+  [[inputs.snmp.field]]
+    name   = "fw_version"
+    oid    = "1.3.6.1.4.1.2604.5.1.1.3.0"
     is_tag = true
 
-  # ─ Sophos SFOS private OIDs (XGS-specific) ─
+  # ─ Device stats (sfosXGDeviceStats = .2) ─
   [[inputs.snmp.field]]
-    name = "sfos_cpu_user_pct"
-    oid  = "1.3.6.1.4.1.2604.5.1.2.1.0"
-
-  [[inputs.snmp.field]]
-    name = "sfos_cpu_system_pct"
+    name = "uptime_ticks"
     oid  = "1.3.6.1.4.1.2604.5.1.2.2.0"
-
   [[inputs.snmp.field]]
-    name = "sfos_mem_used_pct"
-    oid  = "1.3.6.1.4.1.2604.5.1.3.1.0"
-
+    name = "live_users"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.6.0"
   [[inputs.snmp.field]]
-    name = "sfos_disk_used_pct"
+    name = "http_hits"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.7.0"
+  [[inputs.snmp.field]]
+    name = "ftp_hits"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.8.0"
+
+  # ─ Disk (sfosDiskStatus = .2.4) ─
+  [[inputs.snmp.field]]
+    name = "disk_capacity_mb"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.4.1.0"
+  [[inputs.snmp.field]]
+    name = "disk_used_pct"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.4.2.0"
+
+  # ─ Memory + swap (sfosMemoryStatus = .2.5) ─
+  [[inputs.snmp.field]]
+    name = "memory_capacity_mb"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.5.1.0"
+  [[inputs.snmp.field]]
+    name = "memory_used_pct"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.5.2.0"
+  [[inputs.snmp.field]]
+    name = "swap_capacity_mb"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.5.3.0"
+  [[inputs.snmp.field]]
+    name = "swap_used_pct"
+    oid  = "1.3.6.1.4.1.2604.5.1.2.5.4.0"
+
+  # ─ HA status (sfosXGHAStats = .4) ─
+  [[inputs.snmp.field]]
+    name = "ha_status"
     oid  = "1.3.6.1.4.1.2604.5.1.4.1.0"
-
   [[inputs.snmp.field]]
-    name = "sfos_live_users"
-    oid  = "1.3.6.1.4.1.2604.5.1.5.1.0"
+    name = "ha_state_current"
+    oid  = "1.3.6.1.4.1.2604.5.1.4.4.0"
+
+  # ─ System health (sfosXGSystemHealth = .9) — newer XGS firmware only.
+  #   If your model/firmware doesn't implement these, Telegraf skips them. ─
+  [[inputs.snmp.field]]
+    name = "npu_temperature_decicelsius"
+    oid  = "1.3.6.1.4.1.2604.5.1.9.1.0"
+  [[inputs.snmp.field]]
+    name = "cpu_temperature_decicelsius"
+    oid  = "1.3.6.1.4.1.2604.5.1.9.2.0"
 
   # ─ Per-interface counters (IF-MIB) ─
   [[inputs.snmp.table]]
     name         = "interface"
-    inherit_tags = ["device_name", "device_type", "host", "branch"]
+    inherit_tags = ["device_name", "device_type", "host", "branch", "sys_name"]
 
     [[inputs.snmp.table.field]]
       name   = "if_index"
@@ -86,13 +130,36 @@
       name = "if_speed"
       oid  = "1.3.6.1.2.1.2.2.1.5"
 
-# ─── ICMP ping for liveness, independent of SNMP ──────────────
+  # ─ IPsec VPN tunnels (sfosIPSecVpnTunnelTable = .6.1.1.1) ─
+  [[inputs.snmp.table]]
+    name         = "ipsec_tunnel"
+    inherit_tags = ["device_name", "device_type", "host", "branch", "sys_name"]
+
+    [[inputs.snmp.table.field]]
+      name   = "tunnel_id"
+      oid    = "1.3.6.1.4.1.2604.5.1.6.1.1.1.1.1"
+      is_tag = true
+    [[inputs.snmp.table.field]]
+      name   = "conn_name"
+      oid    = "1.3.6.1.4.1.2604.5.1.6.1.1.1.1.2"
+      is_tag = true
+    [[inputs.snmp.table.field]]
+      name = "active_tunnels"
+      oid  = "1.3.6.1.4.1.2604.5.1.6.1.1.1.1.8"
+    [[inputs.snmp.table.field]]
+      name = "conn_status"
+      oid  = "1.3.6.1.4.1.2604.5.1.6.1.1.1.1.9"
+    [[inputs.snmp.table.field]]
+      name = "activated"
+      oid  = "1.3.6.1.4.1.2604.5.1.6.1.1.1.1.10"
+
+# ─── ICMP ping for liveness, independent of SNMP ───────────────
 [[inputs.ping]]
-  urls       = ["__HOST__"]
-  count      = 3
+  urls          = ["__HOST__"]
+  count         = 3
   ping_interval = 1.0
-  timeout    = 2.0
-  interval   = "__POLL_INTERVAL__s"
+  timeout       = 2.0
+  interval      = "__POLL_INTERVAL__s"
   [inputs.ping.tags]
     branch       = "__BRANCH__"
     device_name  = "__NAME__"
