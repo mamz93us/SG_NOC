@@ -49,6 +49,7 @@ class SnmpDiscoveredDevice extends Model
             str_contains($s, 'tp-link omada') || str_contains($s, 'omada')
                 || str_contains($s, 'eap')                       => 'tplink_omada_ap',
             str_contains($s, 'grandstream')                      => 'grandstream_ucm',
+            str_contains($s, 'meraki')                           => 'meraki_switch',
             str_contains($s, 'cisco') || str_contains($s, 'catalyst')
                 || str_contains($s, 'ios software')              => 'cisco_switch',
             str_contains($s, 'tplink') || str_contains($s, 'tp-link')

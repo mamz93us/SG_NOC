@@ -13,6 +13,7 @@ class SnmpDevice extends Model
     public const TYPES = [
         'sophos_xgs'        => 'Sophos XGS firewall',
         'cisco_switch'      => 'Cisco switch / router',
+        'meraki_switch'     => 'Meraki switch (local SNMP)',
         'meraki_cloud'      => 'Meraki cloud (org)',
         'switch_generic'    => 'Switch (generic IF-MIB)',
         'tplink_omada_ap'   => 'TP-Link Omada AP',

@@ -1,0 +1,231 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["sg-noc", "meraki", "switch"],
+  "templating": {
+    "list": [
+      {
+        "name": "branch",
+        "label": "Branch",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+        "query": "label_values(snmp_uptime{device_type=\"meraki_switch\"}, branch)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"text": ["All"], "value": ["$__all"]},
+        "sort": 1
+      },
+      {
+        "name": "device",
+        "label": "Switch",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+        "query": "label_values(snmp_uptime{device_type=\"meraki_switch\",branch=~\"$branch\"}, device_name)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"text": ["All"], "value": ["$__all"]},
+        "sort": 1
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Meraki Switches — Overview (local SNMP)",
+  "uid": "sg-noc-meraki-switch-overview",
+  "version": 1,
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Switches reporting",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "count(snmp_uptime{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Interfaces UP",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(snmp_interface_if_oper_status{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"} == 1) or vector(0)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "green"}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Interfaces DOWN (admin up)",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(snmp_interface_if_oper_status{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"} == 2 and on(branch,device_name,if_index) snmp_interface_if_admin_status{device_type=\"meraki_switch\"} == 1) or vector(0)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Total interfaces",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "count(snmp_interface_if_oper_status{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+
+    {
+      "id": 5, "type": "table", "title": "Switch inventory",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 5},
+      "targets": [
+        {"expr": "snmp_uptime{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"} / 100", "refId": "A", "format": "table", "instant": true}
+      ],
+      "transformations": [
+        {"id": "organize", "options": {
+          "excludeByName": {"Time": true, "__name__": true, "agent_host": true, "device_type": true, "host": true, "instance": true, "job": true},
+          "renameByName": {"branch": "Branch", "device_name": "Switch", "sys_name": "Hostname", "Value": "Uptime (s)"},
+          "indexByName": {"branch": 0, "device_name": 1, "sys_name": 2, "Value": 3}
+        }}
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "Uptime (s)"}, "properties": [{"id": "unit", "value": "s"}]}
+        ]
+      }
+    },
+
+    {
+      "id": 6, "type": "stat", "title": "Port grid — link state",
+      "description": "Each tile = one port. UP green = link active, DOWN red = admin up but no link, DISABLED gray = admin shut.",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 9, "w": 24, "h": 10},
+      "targets": [
+        {"expr": "(snmp_interface_if_admin_status{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"} == 2) * 0 or snmp_interface_if_oper_status{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}", "refId": "A", "legendFormat": "{{if_descr}}", "instant": true}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DISABLED", "color": "text"}}},
+            {"type": "value", "options": {"1": {"text": "UP",       "color": "green"}}},
+            {"type": "value", "options": {"2": {"text": "DOWN",     "color": "red"}}},
+            {"type": "value", "options": {"3": {"text": "TEST",     "color": "yellow"}}},
+            {"type": "value", "options": {"4": {"text": "UNKNOWN",  "color": "text"}}},
+            {"type": "value", "options": {"5": {"text": "DORMANT",  "color": "text"}}},
+            {"type": "value", "options": {"6": {"text": "ABSENT",   "color": "text"}}},
+            {"type": "value", "options": {"7": {"text": "LL DOWN",  "color": "orange"}}}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "text", "value": null}, {"color": "green", "value": 1}, {"color": "red", "value": 2}]}
+        }
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "value_and_name"}
+    },
+
+    {
+      "id": 7, "type": "table", "title": "Port detail",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 19, "w": 24, "h": 12},
+      "targets": [
+        {"expr": "snmp_interface_if_admin_status{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}", "refId": "A", "format": "table", "instant": true},
+        {"expr": "snmp_interface_if_oper_status{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}",  "refId": "B", "format": "table", "instant": true},
+        {"expr": "snmp_interface_if_speed{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}",        "refId": "C", "format": "table", "instant": true},
+        {"expr": "8 * rate(snmp_interface_if_in_octets{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}[2m])",  "refId": "D", "format": "table", "instant": true},
+        {"expr": "8 * rate(snmp_interface_if_out_octets{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}[2m])", "refId": "E", "format": "table", "instant": true},
+        {"expr": "rate(snmp_interface_if_in_errors{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}[5m])",      "refId": "F", "format": "table", "instant": true}
+      ],
+      "transformations": [
+        {"id": "joinByField", "options": {"byField": "if_descr", "mode": "outer"}},
+        {"id": "organize", "options": {
+          "excludeByName": {
+            "Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true, "Time 5": true, "Time 6": true,
+            "__name__ 1": true, "__name__ 2": true, "__name__ 3": true, "__name__ 4": true, "__name__ 5": true, "__name__ 6": true,
+            "agent_host 1": true, "agent_host 2": true, "agent_host 3": true, "agent_host 4": true, "agent_host 5": true, "agent_host 6": true,
+            "device_type 1": true, "device_type 2": true, "device_type 3": true, "device_type 4": true, "device_type 5": true, "device_type 6": true,
+            "host 1": true, "host 2": true, "host 3": true, "host 4": true, "host 5": true, "host 6": true,
+            "instance 1": true, "instance 2": true, "instance 3": true, "instance 4": true, "instance 5": true, "instance 6": true,
+            "job 1": true, "job 2": true, "job 3": true, "job 4": true, "job 5": true, "job 6": true,
+            "branch 2": true, "branch 3": true, "branch 4": true, "branch 5": true, "branch 6": true,
+            "device_name 2": true, "device_name 3": true, "device_name 4": true, "device_name 5": true, "device_name 6": true,
+            "if_index 2": true, "if_index 3": true, "if_index 4": true, "if_index 5": true, "if_index 6": true,
+            "if_name 2": true, "if_name 3": true, "if_name 4": true, "if_name 5": true, "if_name 6": true
+          },
+          "renameByName": {
+            "branch 1": "Branch", "device_name 1": "Switch", "if_descr": "Port",
+            "if_name 1": "ifName", "if_index 1": "ifIndex",
+            "Value #A": "Admin", "Value #B": "Oper", "Value #C": "Speed",
+            "Value #D": "In bps", "Value #E": "Out bps", "Value #F": "In errors/s"
+          },
+          "indexByName": {
+            "branch 1": 0, "device_name 1": 1, "if_descr": 2, "if_name 1": 3, "if_index 1": 4,
+            "Value #A": 5, "Value #B": 6, "Value #C": 7, "Value #D": 8, "Value #E": 9, "Value #F": 10
+          }
+        }}
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "Admin"}, "properties": [
+            {"id": "mappings", "value": [
+              {"type": "value", "options": {"1": {"text": "up",   "color": "green"}}},
+              {"type": "value", "options": {"2": {"text": "down", "color": "text"}}},
+              {"type": "value", "options": {"3": {"text": "test", "color": "yellow"}}}
+            ]},
+            {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+          ]},
+          {"matcher": {"id": "byName", "options": "Oper"}, "properties": [
+            {"id": "mappings", "value": [
+              {"type": "value", "options": {"1": {"text": "up",       "color": "green"}}},
+              {"type": "value", "options": {"2": {"text": "down",     "color": "red"}}},
+              {"type": "value", "options": {"3": {"text": "test",     "color": "yellow"}}},
+              {"type": "value", "options": {"4": {"text": "unknown",  "color": "text"}}},
+              {"type": "value", "options": {"5": {"text": "dormant",  "color": "text"}}},
+              {"type": "value", "options": {"6": {"text": "absent",   "color": "text"}}},
+              {"type": "value", "options": {"7": {"text": "LLdown",   "color": "orange"}}}
+            ]},
+            {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}}
+          ]},
+          {"matcher": {"id": "byName", "options": "Speed"},      "properties": [{"id": "unit", "value": "bps"}]},
+          {"matcher": {"id": "byName", "options": "In bps"},     "properties": [{"id": "unit", "value": "bps"}]},
+          {"matcher": {"id": "byName", "options": "Out bps"},    "properties": [{"id": "unit", "value": "bps"}]},
+          {"matcher": {"id": "byName", "options": "In errors/s"},"properties": [{"id": "unit", "value": "pps"}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.001}]}}, {"id": "custom.cellOptions", "value": {"type": "color-text"}}]}
+        ]
+      }
+    },
+
+    {
+      "id": 8, "type": "timeseries", "title": "Top 10 ports — bits in",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 31, "w": 12, "h": 8},
+      "targets": [{"expr": "topk(10, 8 * rate(snmp_interface_if_in_octets{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}[2m]))", "refId": "A", "legendFormat": "{{device_name}} · {{if_descr}}"}],
+      "fieldConfig": {"defaults": {"unit": "bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"], "placement": "bottom"}}
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Top 10 ports — bits out",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 31, "w": 12, "h": 8},
+      "targets": [{"expr": "topk(10, 8 * rate(snmp_interface_if_out_octets{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}[2m]))", "refId": "A", "legendFormat": "{{device_name}} · {{if_descr}}"}],
+      "fieldConfig": {"defaults": {"unit": "bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"], "placement": "bottom"}}
+    },
+
+    {
+      "id": 10, "type": "timeseries", "title": "Interface errors / discards (top 10, stacked)",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 39, "w": 24, "h": 7},
+      "targets": [
+        {"expr": "topk(10, rate(snmp_interface_if_in_errors{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}[5m]) > 0)",   "refId": "A", "legendFormat": "in_errors · {{device_name}} · {{if_descr}}"},
+        {"expr": "topk(10, rate(snmp_interface_if_out_errors{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}[5m]) > 0)",  "refId": "B", "legendFormat": "out_errors · {{device_name}} · {{if_descr}}"},
+        {"expr": "topk(10, rate(snmp_interface_if_in_discards{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}[5m]) > 0)", "refId": "C", "legendFormat": "in_discards · {{device_name}} · {{if_descr}}"},
+        {"expr": "topk(10, rate(snmp_interface_if_out_discards{device_type=\"meraki_switch\",branch=~\"$branch\",device_name=~\"$device\"}[5m]) > 0)", "refId": "D", "legendFormat": "out_discards · {{device_name}} · {{if_descr}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "pps", "custom": {"drawStyle": "bars", "fillOpacity": 80, "stacking": {"mode": "normal"}}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["sum", "max"], "placement": "bottom"}}
+    }
+  ]
+}
