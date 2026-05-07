@@ -1,7 +1,20 @@
-# ─── Grandstream UCM (UCM6300 / UCM63xx series) ────────────────
-# UCM SNMP exposure is limited — system + interfaces. Active
-# call counts / SIP registrations come from the existing syslog
-# stream + UCM API integration on the NOC; not duplicated here.
+# ─── Grandstream UCM63xx — uses the GS-UCM63XX-SNMP-MIB ──────────
+# Private root: 1.3.6.1.4.1.12581.2 = IppbxMib
+#   .1 sCdr             — call counters since boot
+#   .2 sSysinfo         — product / firmware / resource usage
+#   .3 sNetstatus       — LAN/WAN config (skipped: all strings, low value)
+#   .4 sExtensions      — extension table (skipped: all string columns,
+#                         Telegraf drops rows with no numeric field)
+#   .5 sTrunks          — trunk table (same reason)
+#   .6 sFail2ban        — banned-IP table (same reason)
+#
+# sUptime / sCpuUsage / sMemoryUsage / sDiskUsage come back as strings
+# (e.g. "45%" or "23:28"). They're polled into *_str fields, then the
+# processors below strip non-digits and convert to int.
+#
+# Per-interface counters from MIB-2 (1.3.6.1.2.1.2) for traffic on the
+# UCM's WAN/LAN ports — same as the generic SNMP template.
+
 [[inputs.snmp]]
   agents       = ["udp://__HOST__:__PORT__"]
   version      = 2
@@ -17,20 +30,79 @@
     device_type  = "grandstream_ucm"
     host         = "__HOST__"
 
+  # ─ CDR (sCdr = .2.1) — INTEGER counters ─
   [[inputs.snmp.field]]
-    name = "uptime"
-    oid  = "1.3.6.1.2.1.1.3.0"
+    name = "total_calls"
+    oid  = "1.3.6.1.4.1.12581.2.1.1.0"
   [[inputs.snmp.field]]
-    name   = "sys_name"
-    oid    = "1.3.6.1.2.1.1.5.0"
+    name = "internal_calls"
+    oid  = "1.3.6.1.4.1.12581.2.1.2.0"
+  [[inputs.snmp.field]]
+    name = "outbound_calls"
+    oid  = "1.3.6.1.4.1.12581.2.1.3.0"
+  [[inputs.snmp.field]]
+    name = "inbound_calls"
+    oid  = "1.3.6.1.4.1.12581.2.1.4.0"
+  [[inputs.snmp.field]]
+    name = "answered_calls"
+    oid  = "1.3.6.1.4.1.12581.2.1.5.0"
+  [[inputs.snmp.field]]
+    name = "failed_calls"
+    oid  = "1.3.6.1.4.1.12581.2.1.6.0"
+  [[inputs.snmp.field]]
+    name = "busy_calls"
+    oid  = "1.3.6.1.4.1.12581.2.1.7.0"
+  [[inputs.snmp.field]]
+    name = "no_answer_calls"
+    oid  = "1.3.6.1.4.1.12581.2.1.8.0"
+
+  # ─ Sysinfo identity (sSysinfo = .2.2) — string-typed → tags ─
+  [[inputs.snmp.field]]
+    name   = "product_type"
+    oid    = "1.3.6.1.4.1.12581.2.2.1.0"
     is_tag = true
   [[inputs.snmp.field]]
-    name = "sys_descr"
-    oid  = "1.3.6.1.2.1.1.1.0"
+    name   = "hw_version"
+    oid    = "1.3.6.1.4.1.12581.2.2.2.0"
+    is_tag = true
+  [[inputs.snmp.field]]
+    name   = "fw_version"
+    oid    = "1.3.6.1.4.1.12581.2.2.3.0"
+    is_tag = true
+  [[inputs.snmp.field]]
+    name   = "serial"
+    oid    = "1.3.6.1.4.1.12581.2.2.4.0"
+    is_tag = true
+  [[inputs.snmp.field]]
+    name   = "sys_name"
+    oid    = "1.3.6.1.4.1.12581.2.2.10.0"
+    is_tag = true
 
+  # ─ Resource usage (.2.2.6 / .7 / .8) — strings, parsed by processors ─
+  [[inputs.snmp.field]]
+    name = "cpu_usage_str"
+    oid  = "1.3.6.1.4.1.12581.2.2.8.0"
+  [[inputs.snmp.field]]
+    name = "memory_usage_str"
+    oid  = "1.3.6.1.4.1.12581.2.2.7.0"
+  [[inputs.snmp.field]]
+    name = "disk_usage_str"
+    oid  = "1.3.6.1.4.1.12581.2.2.6.0"
+
+  # ─ Concurrent calls (.2.2.9) — INTEGER ─
+  [[inputs.snmp.field]]
+    name = "concurrent_calls"
+    oid  = "1.3.6.1.4.1.12581.2.2.9.0"
+
+  # ─ Per-interface counters (IF-MIB) ─
   [[inputs.snmp.table]]
     name         = "snmp_interface"
     inherit_tags = ["device_name", "device_type", "host", "branch"]
+
+    [[inputs.snmp.table.field]]
+      name   = "if_index"
+      oid    = "1.3.6.1.2.1.2.2.1.1"
+      is_tag = true
     [[inputs.snmp.table.field]]
       name   = "if_descr"
       oid    = "1.3.6.1.2.1.2.2.1.2"
@@ -45,11 +117,54 @@
       name = "if_oper_status"
       oid  = "1.3.6.1.2.1.2.2.1.8"
 
+# ─── Strip "%"/whitespace from string usage fields ─────────────
+# Scoped via tagpass so Sophos / generic devices aren't affected.
+[[processors.regex]]
+  namepass = ["snmp"]
+  [processors.regex.tagpass]
+    device_type = ["grandstream_ucm"]
+  [[processors.regex.fields]]
+    key         = "cpu_usage_str"
+    pattern     = '[^0-9]'
+    replacement = ''
+  [[processors.regex.fields]]
+    key         = "memory_usage_str"
+    pattern     = '[^0-9]'
+    replacement = ''
+  [[processors.regex.fields]]
+    key         = "disk_usage_str"
+    pattern     = '[^0-9]'
+    replacement = ''
+
+# ─── Convert digit strings → integers, then drop the *_str names ────
+[[processors.converter]]
+  namepass = ["snmp"]
+  [processors.converter.tagpass]
+    device_type = ["grandstream_ucm"]
+  [processors.converter.fields]
+    integer = ["cpu_usage_str", "memory_usage_str", "disk_usage_str"]
+
+[[processors.rename]]
+  namepass = ["snmp"]
+  [processors.rename.tagpass]
+    device_type = ["grandstream_ucm"]
+  [[processors.rename.replace]]
+    field = "cpu_usage_str"
+    dest  = "cpu_usage_pct"
+  [[processors.rename.replace]]
+    field = "memory_usage_str"
+    dest  = "memory_usage_pct"
+  [[processors.rename.replace]]
+    field = "disk_usage_str"
+    dest  = "disk_usage_pct"
+
+# ─── ICMP ping for liveness ─────────────────────────────────────
 [[inputs.ping]]
-  urls       = ["__HOST__"]
-  count      = 3
-  timeout    = 2.0
-  interval   = "__POLL_INTERVAL__s"
+  urls          = ["__HOST__"]
+  count         = 3
+  ping_interval = 1.0
+  timeout       = 2.0
+  interval      = "__POLL_INTERVAL__s"
   [inputs.ping.tags]
     branch       = "__BRANCH__"
     device_name  = "__NAME__"
