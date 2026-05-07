@@ -1,0 +1,234 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["sg-noc", "cisco", "switch"],
+  "templating": {
+    "list": [
+      {
+        "name": "branch",
+        "label": "Branch",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+        "query": "label_values(snmp_uptime{device_type=\"cisco_switch\"}, branch)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"text": ["All"], "value": ["$__all"]},
+        "sort": 1
+      },
+      {
+        "name": "device",
+        "label": "Switch",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+        "query": "label_values(snmp_uptime{device_type=\"cisco_switch\",branch=~\"$branch\"}, device_name)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"text": ["All"], "value": ["$__all"]},
+        "sort": 1
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Cisco Switches — Overview",
+  "uid": "sg-noc-cisco-overview",
+  "version": 1,
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Switches reporting",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "count(snmp_uptime{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Interfaces UP",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(snmp_interface_if_oper_status{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"} == 1) or vector(0)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "green"}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Interfaces DOWN (admin up)",
+      "description": "Counts interfaces that are administratively up but operationally down — i.e. cable / link issues, not deliberate shutdowns.",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(snmp_interface_if_oper_status{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"} == 2 and on(branch,device_name,if_index) snmp_interface_if_admin_status{device_type=\"cisco_switch\"} == 1) or vector(0)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Max CPU (5 min)",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "max(snmp_cpu_cpu_5min_pct{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}]}}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center"}
+    },
+
+    {
+      "id": 5, "type": "table", "title": "Switch inventory",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 6},
+      "targets": [
+        {"expr": "snmp_uptime{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"} / 100",                              "refId": "A", "format": "table", "instant": true},
+        {"expr": "max by (branch,device_name) (snmp_cpu_cpu_5min_pct{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"})", "refId": "B", "format": "table", "instant": true},
+        {"expr": "max by (branch,device_name) (snmp_env_temperature_temperature_c{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"})", "refId": "C", "format": "table", "instant": true}
+      ],
+      "transformations": [
+        {"id": "joinByField", "options": {"byField": "device_name", "mode": "outer"}},
+        {"id": "organize", "options": {
+          "excludeByName": {
+            "Time 1": true, "Time 2": true, "Time 3": true,
+            "__name__ 1": true, "__name__ 2": true, "__name__ 3": true,
+            "agent_host 1": true, "agent_host 2": true, "agent_host 3": true,
+            "device_type 1": true, "device_type 2": true, "device_type 3": true,
+            "host 1": true, "host 2": true, "host 3": true,
+            "instance 1": true, "instance 2": true, "instance 3": true,
+            "job 1": true, "job 2": true, "job 3": true,
+            "branch 2": true, "branch 3": true,
+            "sys_name 2": true, "sys_name 3": true
+          },
+          "renameByName": {
+            "branch 1": "Branch", "device_name": "Switch", "sys_name 1": "Hostname",
+            "Value #A": "Uptime (s)", "Value #B": "CPU 5 min", "Value #C": "Temp (°C)"
+          },
+          "indexByName": {
+            "branch 1": 0, "device_name": 1, "sys_name 1": 2,
+            "Value #B": 3, "Value #C": 4, "Value #A": 5
+          }
+        }}
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "CPU 5 min"}, "properties": [{"id": "unit", "value": "percent"}, {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}]}}]},
+          {"matcher": {"id": "byName", "options": "Temp (°C)"}, "properties": [{"id": "unit", "value": "celsius"}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 70}]}}, {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}}]},
+          {"matcher": {"id": "byName", "options": "Uptime (s)"}, "properties": [{"id": "unit", "value": "s"}]}
+        ]
+      }
+    },
+
+    {
+      "id": 6, "type": "gauge", "title": "CPU 1 min",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 10, "w": 6, "h": 6},
+      "targets": [{"expr": "max by (branch,device_name) (snmp_cpu_cpu_1min_pct{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"})", "refId": "A", "legendFormat": "{{branch}} · {{device_name}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+    {
+      "id": 7, "type": "gauge", "title": "CPU 5 min",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 6, "y": 10, "w": 6, "h": 6},
+      "targets": [{"expr": "max by (branch,device_name) (snmp_cpu_cpu_5min_pct{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"})", "refId": "A", "legendFormat": "{{branch}} · {{device_name}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+    {
+      "id": 8, "type": "gauge", "title": "Processor memory used %",
+      "description": "Used / (used + free) on the 'Processor' pool only — the main control-plane heap.",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 10, "w": 6, "h": 6},
+      "targets": [{"expr": "100 * snmp_memory_pool_memory_used_bytes{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",pool_name=\"Processor\"} / (snmp_memory_pool_memory_used_bytes{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",pool_name=\"Processor\"} + snmp_memory_pool_memory_free_bytes{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",pool_name=\"Processor\"})", "refId": "A", "legendFormat": "{{device_name}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 75}, {"color": "red", "value": 90}]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+    {
+      "id": 9, "type": "gauge", "title": "Max temperature",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 18, "y": 10, "w": 6, "h": 6},
+      "targets": [{"expr": "max by (branch,device_name) (snmp_env_temperature_temperature_c{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"})", "refId": "A", "legendFormat": "{{branch}} · {{device_name}}"}],
+      "fieldConfig": {"defaults": {"unit": "celsius", "min": 20, "max": 90, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 70}]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+
+    {
+      "id": 10, "type": "stat", "title": "Fan status",
+      "description": "Cisco ENVMON state: 1 normal, 2 warning, 3 critical, 4 shutdown, 5 not present, 6 not functioning.",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 6},
+      "targets": [{"expr": "snmp_env_fan_fan_state{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"}", "refId": "A", "legendFormat": "{{device_name}} · {{fan_descr}}", "instant": true}],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"type": "value", "options": {"1": {"text": "OK",       "color": "green"}}},
+            {"type": "value", "options": {"2": {"text": "WARN",     "color": "yellow"}}},
+            {"type": "value", "options": {"3": {"text": "CRITICAL", "color": "red"}}},
+            {"type": "value", "options": {"4": {"text": "SHUTDOWN", "color": "red"}}},
+            {"type": "value", "options": {"5": {"text": "ABSENT",   "color": "text"}}},
+            {"type": "value", "options": {"6": {"text": "FAULT",    "color": "red"}}}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 2}, {"color": "red", "value": 3}]}
+        }
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto"}
+    },
+    {
+      "id": 11, "type": "stat", "title": "PSU status",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 6},
+      "targets": [{"expr": "snmp_env_psu_psu_state{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"}", "refId": "A", "legendFormat": "{{device_name}} · {{psu_descr}}", "instant": true}],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"type": "value", "options": {"1": {"text": "OK",       "color": "green"}}},
+            {"type": "value", "options": {"2": {"text": "WARN",     "color": "yellow"}}},
+            {"type": "value", "options": {"3": {"text": "CRITICAL", "color": "red"}}},
+            {"type": "value", "options": {"4": {"text": "SHUTDOWN", "color": "red"}}},
+            {"type": "value", "options": {"5": {"text": "ABSENT",   "color": "text"}}},
+            {"type": "value", "options": {"6": {"text": "FAULT",    "color": "red"}}}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 2}, {"color": "red", "value": 3}]}
+        }
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto"}
+    },
+
+    {
+      "id": 12, "type": "timeseries", "title": "Top 10 interfaces — bits in",
+      "description": "Physical Ethernet only (filters by ifDescr). 8 × octet rate → bps.",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 22, "w": 12, "h": 8},
+      "targets": [{"expr": "topk(10, 8 * rate(snmp_interface_if_in_octets{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",if_descr=~\"(GigabitEthernet|TenGigabitEthernet|FastEthernet).*\"}[2m]))", "refId": "A", "legendFormat": "{{device_name}} · {{if_descr}}"}],
+      "fieldConfig": {"defaults": {"unit": "bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"], "placement": "bottom"}}
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "Top 10 interfaces — bits out",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 12, "y": 22, "w": 12, "h": 8},
+      "targets": [{"expr": "topk(10, 8 * rate(snmp_interface_if_out_octets{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\",if_descr=~\"(GigabitEthernet|TenGigabitEthernet|FastEthernet).*\"}[2m]))", "refId": "A", "legendFormat": "{{device_name}} · {{if_descr}}"}],
+      "fieldConfig": {"defaults": {"unit": "bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"], "placement": "bottom"}}
+    },
+
+    {
+      "id": 14, "type": "timeseries", "title": "Interface errors / discards (top 10, stacked)",
+      "datasource": {"type": "prometheus", "uid": "victoriametrics"},
+      "gridPos": {"x": 0, "y": 30, "w": 24, "h": 7},
+      "targets": [
+        {"expr": "topk(10, rate(snmp_interface_if_in_errors{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"}[5m]) > 0)",   "refId": "A", "legendFormat": "in_errors · {{device_name}} · {{if_descr}}"},
+        {"expr": "topk(10, rate(snmp_interface_if_out_errors{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"}[5m]) > 0)",  "refId": "B", "legendFormat": "out_errors · {{device_name}} · {{if_descr}}"},
+        {"expr": "topk(10, rate(snmp_interface_if_in_discards{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"}[5m]) > 0)", "refId": "C", "legendFormat": "in_discards · {{device_name}} · {{if_descr}}"},
+        {"expr": "topk(10, rate(snmp_interface_if_out_discards{device_type=\"cisco_switch\",branch=~\"$branch\",device_name=~\"$device\"}[5m]) > 0)", "refId": "D", "legendFormat": "out_discards · {{device_name}} · {{if_descr}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "pps", "custom": {"drawStyle": "bars", "fillOpacity": 80, "stacking": {"mode": "normal"}}}},
+      "options": {"legend": {"displayMode": "table", "calcs": ["sum", "max"], "placement": "bottom"}}
+    }
+  ]
+}

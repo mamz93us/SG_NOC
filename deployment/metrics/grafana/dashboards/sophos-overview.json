@@ -201,7 +201,7 @@
       "description": "rate of inbound octets × 8 → bits/s on Sophos physical ports only",
       "datasource": {"type": "prometheus", "uid": "victoriametrics"},
       "gridPos": {"x": 0, "y": 31, "w": 12, "h": 8},
-      "targets": [{"expr": "8 * rate(snmp_interface_if_in_octets{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\",if_descr=~\"Port[0-9].*\"}[2m])", "refId": "A", "legendFormat": "{{sys_name}} · {{if_descr}}"}],
+      "targets": [{"expr": "8 * rate(snmp_interface_if_in_octets{device_type=\"sophos_xgs\",branch=~\"$branch\",if_descr=~\"Port.*\"}[2m])", "refId": "A", "legendFormat": "{{device_name}} · {{if_descr}}"}],
       "fieldConfig": {"defaults": {"unit": "bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
       "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"], "placement": "bottom"}}
     },
@@ -209,7 +209,7 @@
       "id": 14, "type": "timeseries", "title": "Physical interface — bits out",
       "datasource": {"type": "prometheus", "uid": "victoriametrics"},
       "gridPos": {"x": 12, "y": 31, "w": 12, "h": 8},
-      "targets": [{"expr": "8 * rate(snmp_interface_if_out_octets{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\",if_descr=~\"Port[0-9].*\"}[2m])", "refId": "A", "legendFormat": "{{sys_name}} · {{if_descr}}"}],
+      "targets": [{"expr": "8 * rate(snmp_interface_if_out_octets{device_type=\"sophos_xgs\",branch=~\"$branch\",if_descr=~\"Port.*\"}[2m])", "refId": "A", "legendFormat": "{{device_name}} · {{if_descr}}"}],
       "fieldConfig": {"defaults": {"unit": "bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
       "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"], "placement": "bottom"}}
     },
@@ -219,9 +219,9 @@
       "datasource": {"type": "prometheus", "uid": "victoriametrics"},
       "gridPos": {"x": 0, "y": 39, "w": 24, "h": 7},
       "targets": [
-        {"expr": "rate(snmp_interface_if_in_errors{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\",if_descr=~\"Port[0-9].*\"}[5m])",   "refId": "A", "legendFormat": "in_errors · {{sys_name}} · {{if_descr}}"},
-        {"expr": "rate(snmp_interface_if_out_errors{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\",if_descr=~\"Port[0-9].*\"}[5m])",  "refId": "B", "legendFormat": "out_errors · {{sys_name}} · {{if_descr}}"},
-        {"expr": "rate(snmp_interface_if_in_discards{device_type=\"sophos_xgs\",branch=~\"$branch\",sys_name=~\"$device\",if_descr=~\"Port[0-9].*\"}[5m])", "refId": "C", "legendFormat": "in_discards · {{sys_name}} · {{if_descr}}"}
+        {"expr": "rate(snmp_interface_if_in_errors{device_type=\"sophos_xgs\",branch=~\"$branch\",if_descr=~\"Port.*\"}[5m])",   "refId": "A", "legendFormat": "in_errors · {{device_name}} · {{if_descr}}"},
+        {"expr": "rate(snmp_interface_if_out_errors{device_type=\"sophos_xgs\",branch=~\"$branch\",if_descr=~\"Port.*\"}[5m])",  "refId": "B", "legendFormat": "out_errors · {{device_name}} · {{if_descr}}"},
+        {"expr": "rate(snmp_interface_if_in_discards{device_type=\"sophos_xgs\",branch=~\"$branch\",if_descr=~\"Port.*\"}[5m])", "refId": "C", "legendFormat": "in_discards · {{device_name}} · {{if_descr}}"}
       ],
       "fieldConfig": {"defaults": {"unit": "pps", "custom": {"drawStyle": "bars", "fillOpacity": 80, "stacking": {"mode": "normal"}}}},
       "options": {"legend": {"displayMode": "table", "calcs": ["sum", "max"], "placement": "bottom"}}
