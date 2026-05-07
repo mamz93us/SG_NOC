@@ -75,6 +75,16 @@ set_timezone() {
 apt_install_deps() {
     note "Installing OS packages"
     export DEBIAN_FRONTEND=noninteractive
+
+    # InfluxData repo for Telegraf
+    if [[ ! -f /etc/apt/sources.list.d/influxdata.list ]]; then
+        note "Adding InfluxData apt repo for Telegraf"
+        curl -fsSL https://repos.influxdata.com/influxdata-archive.key |
+            gpg --dearmor -o /etc/apt/trusted.gpg.d/influxdata.gpg
+        echo 'deb https://repos.influxdata.com/debian stable main' \
+            > /etc/apt/sources.list.d/influxdata.list
+    fi
+
     apt-get update -y
     apt-get install -y --no-install-recommends \
         rsyslog \
@@ -83,7 +93,8 @@ apt_install_deps() {
         nginx php-fpm \
         ufw \
         ca-certificates curl gnupg jq openssl \
-        cron logrotate
+        cron logrotate \
+        telegraf nmap snmp
 }
 
 setup_directories() {
@@ -91,7 +102,10 @@ setup_directories() {
     install -d -o syslog -g adm -m 0755 /var/spool/sg-noc-ingest
     install -d -o syslog -g adm -m 0755 /var/log/branch
     install -d -o root   -g root -m 0755 /var/lib/sg-noc-ingest
-    install -d -o root   -g root -m 0755 /opt/sg-noc-branch  # for any local-only files
+    install -d -o root   -g root -m 0755 /var/lib/sg-noc-branch
+    install -d -o root   -g root -m 0755 /opt/sg-noc-branch
+    install -d -o root   -g root -m 0755 /opt/sg-noc-branch/telegraf
+    install -d -o root   -g root -m 0755 /opt/sg-noc-branch/telegraf/templates
 }
 
 configure_mariadb() {
@@ -194,6 +208,60 @@ install_partition_rotation() {
     systemctl enable --now sg-noc-partition-rotate.timer
 }
 
+install_telegraf() {
+    note "Configuring Telegraf — global output to NOC VictoriaMetrics"
+
+    # Bail early if the operator hasn't filled in the metrics endpoint.
+    # Snmp-sync still works, but nothing will arrive on the NOC side.
+    if [[ -z "${NOC_METRICS_URL:-}" || -z "${NOC_METRICS_USER:-}" \
+          || -z "${NOC_METRICS_PASSWORD:-}" || -z "${NOC_URL:-}" ]]; then
+        red "Skipping Telegraf wiring — set NOC_URL, NOC_METRICS_URL, NOC_METRICS_USER,"
+        red "NOC_METRICS_PASSWORD in $ENV_FILE then re-run install.sh."
+        return 0
+    fi
+
+    # 1) Per-type templates (read-only, used by snmp-sync.php)
+    cp -a "$SRC_DIR/telegraf/templates/." /opt/sg-noc-branch/telegraf/templates/
+    chmod 0644 /opt/sg-noc-branch/telegraf/templates/*
+
+    # 2) Global output config — substitute creds + branch-id
+    sed -e "s|__BRANCH_ID__|$BRANCH_ID|g" \
+        -e "s|__NOC_METRICS_URL__|${NOC_METRICS_URL//|/\\|}|g" \
+        -e "s|__NOC_METRICS_USER__|$NOC_METRICS_USER|g" \
+        -e "s|__NOC_METRICS_PASSWORD__|$NOC_METRICS_PASSWORD|g" \
+        "$SRC_DIR/telegraf/templates/00-output.conf.tpl" \
+        > /etc/telegraf/telegraf.d/00-output.conf
+    chmod 0640 /etc/telegraf/telegraf.d/00-output.conf
+    chgrp telegraf /etc/telegraf/telegraf.d/00-output.conf 2>/dev/null || true
+
+    # 3) The default /etc/telegraf/telegraf.conf has a noisy [[outputs.influxdb]]
+    #    block on most distros — disable it so only our NOC output is active.
+    if [[ -f /etc/telegraf/telegraf.conf ]]; then
+        sed -i 's|^\[\[outputs\.influxdb\]\]|# &|' /etc/telegraf/telegraf.conf
+    fi
+
+    # 4) snmp-sync + nmap-discover scripts
+    install -m 0755 "$SRC_DIR/telegraf/snmp-sync.php"     /opt/sg-noc-branch/snmp-sync.php
+    install -m 0755 "$SRC_DIR/telegraf/nmap-discover.php" /opt/sg-noc-branch/nmap-discover.php
+
+    # 5) systemd units + timers
+    install -m 0644 "$SRC_DIR/systemd/sg-noc-snmp-sync.service"     /etc/systemd/system/
+    install -m 0644 "$SRC_DIR/systemd/sg-noc-snmp-sync.timer"       /etc/systemd/system/
+    install -m 0644 "$SRC_DIR/systemd/sg-noc-nmap-discover.service" /etc/systemd/system/
+    install -m 0644 "$SRC_DIR/systemd/sg-noc-nmap-discover.timer"   /etc/systemd/system/
+    systemctl daemon-reload
+
+    # 6) Run snmp-sync once to bootstrap (if any devices exist for this branch).
+    #    If the API call fails, no big deal — the timer will retry every 5 min.
+    note "Running first SNMP sync (devices may be 0 if none configured yet)"
+    /usr/bin/php /opt/sg-noc-branch/snmp-sync.php || true
+
+    # 7) Start telegraf + timers
+    systemctl enable --now telegraf
+    systemctl enable --now sg-noc-snmp-sync.timer
+    systemctl enable --now sg-noc-nmap-discover.timer
+}
+
 configure_firewall() {
     note "Configuring ufw"
     # Allow SSH so we don't lock ourselves out
@@ -247,6 +315,7 @@ main() {
     install_ingester_service
     install_query_api
     install_partition_rotation
+    install_telegraf
     configure_firewall
     print_summary
 }

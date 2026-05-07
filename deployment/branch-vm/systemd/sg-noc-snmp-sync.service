@@ -1,0 +1,14 @@
+[Unit]
+Description=SG_NOC pull SNMP device list from NOC + reload Telegraf if changed
+After=network-online.target telegraf.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/php /opt/sg-noc-branch/snmp-sync.php
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/etc/telegraf/telegraf.d /var/lib/sg-noc-branch
+PrivateTmp=true

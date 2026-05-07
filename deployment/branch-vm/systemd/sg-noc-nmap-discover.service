@@ -1,0 +1,14 @@
+[Unit]
+Description=SG_NOC nmap-based SNMP device discovery
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/php /opt/sg-noc-branch/nmap-discover.php
+StandardOutput=journal
+StandardError=journal
+# nmap with -PE / -PS / -PA needs raw sockets → root.
+User=root
+Nice=10
+TimeoutStartSec=15min

@@ -73,6 +73,42 @@ systemctl reload nginx
 note "Restarting ingester"
 systemctl restart sg-noc-ingester
 
+# 8. Telegraf — refresh templates + sync scripts + run sync
+if [[ -d "$SRC_DIR/telegraf" ]]; then
+    note "Refreshing Telegraf templates + sync scripts"
+    install -d -o root -g root -m 0755 /opt/sg-noc-branch/telegraf/templates
+    cp -a "$SRC_DIR/telegraf/templates/." /opt/sg-noc-branch/telegraf/templates/
+    chmod 0644 /opt/sg-noc-branch/telegraf/templates/*
+
+    install -m 0755 "$SRC_DIR/telegraf/snmp-sync.php"     /opt/sg-noc-branch/snmp-sync.php
+    install -m 0755 "$SRC_DIR/telegraf/nmap-discover.php" /opt/sg-noc-branch/nmap-discover.php
+
+    install -m 0644 "$SRC_DIR/systemd/sg-noc-snmp-sync.service"     /etc/systemd/system/
+    install -m 0644 "$SRC_DIR/systemd/sg-noc-snmp-sync.timer"       /etc/systemd/system/
+    install -m 0644 "$SRC_DIR/systemd/sg-noc-nmap-discover.service" /etc/systemd/system/
+    install -m 0644 "$SRC_DIR/systemd/sg-noc-nmap-discover.timer"   /etc/systemd/system/
+    systemctl daemon-reload
+
+    # Re-render the global output config in case credentials changed in /etc/sg-noc-branch.env
+    if [[ -n "${NOC_METRICS_URL:-}" && -n "${NOC_METRICS_USER:-}" \
+           && -n "${NOC_METRICS_PASSWORD:-}" ]]; then
+        sed -e "s|__BRANCH_ID__|$BRANCH_ID|g" \
+            -e "s|__NOC_METRICS_URL__|${NOC_METRICS_URL//|/\\|}|g" \
+            -e "s|__NOC_METRICS_USER__|$NOC_METRICS_USER|g" \
+            -e "s|__NOC_METRICS_PASSWORD__|$NOC_METRICS_PASSWORD|g" \
+            "$SRC_DIR/telegraf/templates/00-output.conf.tpl" \
+            > /etc/telegraf/telegraf.d/00-output.conf
+        chmod 0640 /etc/telegraf/telegraf.d/00-output.conf
+    fi
+
+    # Pull latest device list + reload telegraf if config changed
+    /usr/bin/php /opt/sg-noc-branch/snmp-sync.php || true
+
+    systemctl enable --now telegraf 2>/dev/null || true
+    systemctl enable --now sg-noc-snmp-sync.timer     2>/dev/null || true
+    systemctl enable --now sg-noc-nmap-discover.timer 2>/dev/null || true
+fi
+
 # 8. Health check
 sleep 2
 if curl -fsS http://127.0.0.1:8514/api/health > /dev/null; then
