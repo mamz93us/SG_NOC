@@ -211,14 +211,17 @@ install_partition_rotation() {
 install_telegraf() {
     note "Configuring Telegraf — global output to NOC VictoriaMetrics"
 
-    # Bail early if the operator hasn't filled in the metrics endpoint.
-    # Snmp-sync still works, but nothing will arrive on the NOC side.
-    if [[ -z "${NOC_METRICS_URL:-}" || -z "${NOC_METRICS_USER:-}" \
-          || -z "${NOC_METRICS_PASSWORD:-}" || -z "${NOC_URL:-}" ]]; then
-        red "Skipping Telegraf wiring — set NOC_URL, NOC_METRICS_URL, NOC_METRICS_USER,"
-        red "NOC_METRICS_PASSWORD in $ENV_FILE then re-run install.sh."
+    # Bail early if the metrics endpoint isn't set — snmp-sync still works,
+    # but Telegraf has nowhere to push to. NOC_METRICS_USER/PASSWORD are
+    # optional: leave them blank when pushing direct over an IPsec tunnel
+    # (no auth needed, the tunnel itself provides isolation).
+    if [[ -z "${NOC_URL:-}" || -z "${NOC_METRICS_URL:-}" ]]; then
+        red "Skipping Telegraf wiring — set NOC_URL and NOC_METRICS_URL in $ENV_FILE,"
+        red "then re-run install.sh."
         return 0
     fi
+    : "${NOC_METRICS_USER:=}"
+    : "${NOC_METRICS_PASSWORD:=}"
 
     # 1) Per-type templates (read-only, used by snmp-sync.php)
     cp -a "$SRC_DIR/telegraf/templates/." /opt/sg-noc-branch/telegraf/templates/
