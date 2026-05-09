@@ -56,7 +56,14 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      # Public URL users hit. For path-based serving behind nginx
+      # (e.g. https://noc.samirgroup.net/grafana/) set
+      #   GRAFANA_ROOT_URL=https://noc.samirgroup.net/grafana/
+      #   GRAFANA_SERVE_FROM_SUB_PATH=true
+      # in deployment/metrics/.env. For a dedicated subdomain leave
+      # SERVE_FROM_SUB_PATH=false (Grafana's default).
       - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-https://metrics.samirgroup.net/}
+      - GF_SERVER_SERVE_FROM_SUB_PATH=${GRAFANA_SERVE_FROM_SUB_PATH:-false}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_INSTALL_PLUGINS=

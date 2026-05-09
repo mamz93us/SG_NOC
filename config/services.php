@@ -62,4 +62,12 @@ return [
         'webhook_secret' => env('GRAYLOG_WEBHOOK_SECRET'),
     ],
 
+    'grafana' => [
+        // Public URL users land on when clicking "Metrics" in the navbar.
+        // Either a sub-path (https://noc.samirgroup.net/grafana) or a
+        // dedicated subdomain (https://metrics.samirgroup.net). Set in .env;
+        // when blank the navbar link is hidden.
+        'url' => env('GRAFANA_URL'),
+    ],
+
 ];

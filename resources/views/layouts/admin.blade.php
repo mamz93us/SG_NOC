@@ -725,6 +725,16 @@
                                     <i class="bi bi-router me-2 text-primary"></i>SNMP Devices
                                 </a>
                             </li>
+                            @if(config('services.grafana.url'))
+                            <li>
+                                <a class="dropdown-item"
+                                   href="{{ config('services.grafana.url') }}"
+                                   target="_blank" rel="noopener noreferrer">
+                                    <i class="bi bi-graph-up me-2 text-success"></i>Metrics (Grafana)
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
+                                </a>
+                            </li>
+                            @endif
                             @endcan
                             @endcan
                             <li><hr class="dropdown-divider"></li>
