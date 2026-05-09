@@ -19,6 +19,25 @@
          welcome screen's Tailwind classes to render correctly. --}}
     @vite(['resources/css/app.css'])
 
+    {{-- Defensive override: force Bootstrap's .navbar-collapse to display even if
+         a stale Tailwind build still ships .collapse/.visible utilities that would
+         apply visibility:collapse to the navbar and hide every dropdown.
+         Loaded AFTER @vite so it always wins. --}}
+    <style>
+        nav.navbar.navbar-expand-lg .navbar-collapse {
+            visibility: visible !important;
+        }
+        @media (min-width: 992px) {
+            nav.navbar.navbar-expand-lg .navbar-collapse {
+                display: flex !important;
+                flex-basis: auto !important;
+            }
+        }
+        nav.navbar .navbar-toggler {
+            visibility: visible !important;
+        }
+    </style>
+
     <style>
         body { background: #f8f9fa; }
         [data-bs-theme="dark"] body { background: #1a1d21; }
