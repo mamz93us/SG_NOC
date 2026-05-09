@@ -9,6 +9,7 @@ use App\Models\AdminLinkClick;
 use App\Models\Branch;
 use App\Models\Contact;
 use App\Models\FormSubmission;
+use Illuminate\Support\Facades\Route as RouteFacade;
 use App\Models\IdentitySyncLog;
 use App\Models\Incident;
 use App\Models\IspConnection;
@@ -95,9 +96,33 @@ class DashboardController extends Controller
             ? UserQuickLink::where('user_id', $user->id)->orderBy('sort_order')->get()
             : collect();
 
+        // Picker options for the "Add quick link" form — sourced from
+        // (1) the admin_links table and (2) the curated admin_tools config.
+        $pinnedUrls = $quickLinks->pluck('url')->all();
+
+        $availableAdminLinks = Schema::hasTable('admin_links')
+            ? AdminLink::active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'url', 'icon'])
+                ->reject(fn ($l) => in_array($l->url, $pinnedUrls, true))
+                ->values()
+            : collect();
+
+        $availableTools = collect(config('admin_tools', []))
+            ->filter(function ($t) use ($user) {
+                if (! RouteFacade::has($t['route'])) return false;
+                $perm = $t['permission'] ?? null;
+                return $perm === null || $user->can($perm);
+            })
+            ->map(function ($t) {
+                $t['url'] = route($t['route']);
+                return $t;
+            })
+            ->reject(fn ($t) => in_array($t['url'], $pinnedUrls, true))
+            ->values();
+
         return view('admin.welcome', compact(
             'kpis', 'activity', 'branchHealth', 'quickActions',
-            'systemStats', 'pendingApprovals', 'quickLinks'
+            'systemStats', 'pendingApprovals', 'quickLinks',
+            'availableAdminLinks', 'availableTools'
         ));
     }
 
