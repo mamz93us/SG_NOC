@@ -20,7 +20,6 @@ class User extends Authenticatable
         'two_factor_enabled',
         'two_factor_confirmed_at',
         'dark_mode',
-        'admin_layout_version',
     ];
 
     protected $hidden = [
@@ -98,11 +97,6 @@ class User extends Authenticatable
     public function isHr(): bool
     {
         return $this->role === 'hr';
-    }
-
-    public function useV2Layout(): bool
-    {
-        return $this->admin_layout_version === 'v2';
     }
 
     /**

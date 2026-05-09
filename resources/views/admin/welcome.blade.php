@@ -1,10 +1,10 @@
+@extends('layouts.admin')
+
 @php
-    $__layout = (auth()->user()?->useV2Layout() ?? false) ? 'layouts.admin-v2' : 'layouts.admin';
-    $__hour   = now()->hour;
-    $__greet  = $__hour < 12 ? 'Good morning' : ($__hour < 18 ? 'Good afternoon' : 'Good evening');
-    $__first  = explode(' ', trim(auth()->user()->name ?? 'there'))[0];
+    $__hour  = now()->hour;
+    $__greet = $__hour < 12 ? 'Good morning' : ($__hour < 18 ? 'Good afternoon' : 'Good evening');
+    $__first = explode(' ', trim(auth()->user()->name ?? 'there'))[0];
 @endphp
-@extends($__layout)
 
 @section('content')
 <div class="space-y-6">
@@ -35,7 +35,6 @@
                 </div>
             </div>
         </div>
-        {{-- decorative blobs --}}
         <div class="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl"></div>
         <div class="absolute -bottom-12 left-1/3 w-56 h-56 rounded-full bg-pink-300/20 blur-3xl"></div>
     </div>

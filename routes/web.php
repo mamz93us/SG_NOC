@@ -62,8 +62,6 @@ use App\Http\Controllers\PhonebookController;
 use App\Http\Controllers\PublicContactController;
 use App\Http\Controllers\PhoneRequestLogController;
 use App\Http\Controllers\Admin\DarkModeController;
-use App\Http\Controllers\Admin\AdminLayoutController;
-use App\Http\Controllers\Admin\PaletteSearchController;
 use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\ItTaskController;
 use App\Http\Controllers\Admin\AlertRuleController;
@@ -206,21 +204,13 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
 
-    // Home page —
-    //   - portal-only roles (browser_user, hr) → isolated portal
-    //   - v2 users → new Tailwind welcome screen (KPIs, activity, etc.)
-    //   - classic users → existing UCM/phonebook dashboard, untouched
-    // The classic admin layout deliberately does NOT load Tailwind, so the
-    // Tailwind-based welcome view is only shown to users on the v2 layout.
+    // Home page — welcome screen (KPIs, recent activity, branch health, quick actions),
+    // rendered inside the classic admin top-nav layout. Portal-only roles bounce out.
     Route::get('/', function () {
-        $u = auth()->user();
-        if ($u?->usesPortal()) {
+        if (auth()->user()?->usesPortal()) {
             return redirect()->route('portal.index');
         }
-        if ($u?->useV2Layout()) {
-            return app(DashboardController::class)->index();
-        }
-        return app(DashboardController::class)->phonebookOverview();
+        return app(DashboardController::class)->index();
     })->name('dashboard');
 
     // Phonebook & UCM Overview — the previous /admin landing, now its own page.
@@ -230,14 +220,6 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // Dark mode toggle
     Route::post('toggle-dark-mode', [DarkModeController::class, 'toggle'])
         ->name('toggle-dark-mode');
-
-    // v2 layout toggle (sidebar+palette ↔ classic top-nav)
-    Route::post('toggle-layout', [AdminLayoutController::class, 'toggle'])
-        ->name('toggle-layout');
-
-    // Ctrl+K command palette — entity search (contacts, branches)
-    Route::get('api/palette-search', [PaletteSearchController::class, 'search'])
-        ->name('palette.search');
 
     // Two-Factor Authentication setup (authenticated users)
     Route::get('two-factor', [TwoFactorController::class, 'setup'])

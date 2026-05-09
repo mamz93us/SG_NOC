@@ -14,6 +14,10 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    {{-- Tailwind utilities (preflight, container, visibility core plugins disabled in
+         tailwind.config.js so this can coexist with Bootstrap). Required for the
+         welcome screen's Tailwind classes to render correctly. --}}
+    @vite(['resources/css/app.css'])
 
     <style>
         body { background: #f8f9fa; }
