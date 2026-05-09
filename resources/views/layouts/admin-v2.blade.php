@@ -36,18 +36,22 @@
 
     {{-- ─── Sidebar ─── --}}
     <aside :class="sidebarCollapsed ? 'w-16' : 'w-64'"
-           class="fixed inset-y-0 left-0 z-40 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-[width] duration-200">
+           class="fixed inset-y-0 left-0 z-40 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-[width] duration-200 shadow-sm">
 
-        <div class="h-14 flex items-center gap-2 px-4 border-b border-slate-200 dark:border-slate-700">
-            <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-2 min-w-0">
+        <div class="h-16 flex items-center gap-2.5 px-4 border-b border-slate-200 dark:border-slate-700"
+             style="background: linear-gradient(135deg, rgba(30,64,175,0.04) 0%, rgba(109,40,217,0.04) 100%);">
+            <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-2.5 min-w-0">
                 @if($__settings->company_logo ?? false)
                     <img src="{{ \Illuminate\Support\Facades\Storage::url($__settings->company_logo) }}"
-                         alt="Logo" class="h-7 w-auto object-contain shrink-0">
+                         alt="Logo" class="h-8 w-auto object-contain shrink-0">
                 @else
-                    <span class="w-8 h-8 rounded-md flex items-center justify-center text-white font-bold text-xs shrink-0"
-                          style="background:linear-gradient(135deg,#1a56db,#6c47ff);">SG</span>
+                    <span class="w-9 h-9 rounded-lg flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-md"
+                          style="background:linear-gradient(135deg,#1e40af 0%,#6d28d9 50%,#be185d 100%);">SG</span>
                 @endif
-                <span class="font-semibold text-slate-800 dark:text-slate-100 truncate" x-show="!sidebarCollapsed">SG NOC</span>
+                <div x-show="!sidebarCollapsed" class="min-w-0">
+                    <div class="font-bold text-slate-800 dark:text-slate-100 leading-tight">SG NOC</div>
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Admin Console</div>
+                </div>
             </a>
         </div>
 
@@ -64,7 +68,7 @@
 
     {{-- ─── Topbar ─── --}}
     <header :class="sidebarCollapsed ? 'left-16' : 'left-64'"
-            class="fixed top-0 right-0 h-14 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 z-30 flex items-center px-4 gap-3 transition-[left] duration-200">
+            class="fixed top-0 right-0 h-16 bg-white/95 dark:bg-slate-800/95 backdrop-blur border-b border-slate-200 dark:border-slate-700 z-30 flex items-center px-5 gap-3 transition-[left] duration-200">
 
         <div class="flex-1 min-w-0">
             <button type="button" @click="paletteOpen = true"
@@ -162,7 +166,7 @@
 
     {{-- ─── Page content ─── --}}
     <main :class="sidebarCollapsed ? 'pl-16' : 'pl-64'"
-          class="pt-14 transition-[padding] duration-200">
+          class="pt-16 transition-[padding] duration-200">
         <div class="px-6 py-6 max-w-[1600px] mx-auto">
             @include('layouts.partials.flash-messages')
             @yield('content')

@@ -27,5 +27,11 @@ export default {
         },
     },
 
-    plugins: [forms],
+    plugins: [
+        // 'class' strategy = forms styles only apply to elements with .form-input,
+        // .form-select, etc. — does NOT globally restyle every <input>/<button> on
+        // the page. Required so Bootstrap form controls and navbar items are not
+        // affected when Tailwind is loaded inside the classic admin layout.
+        forms({ strategy: 'class' }),
+    ],
 };
