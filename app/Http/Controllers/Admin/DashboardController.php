@@ -13,10 +13,15 @@ use App\Models\IdentitySyncLog;
 use App\Models\Incident;
 use App\Models\IspConnection;
 use App\Models\LinkCheck;
+use App\Models\Device;
 use App\Models\NocEvent;
 use App\Models\PhoneRequestLog;
 use App\Models\Setting;
 use App\Models\UcmServer;
+use App\Models\User;
+use App\Models\UserQuickLink;
+use App\Models\VpnTunnel;
+use App\Models\WorkflowRequest;
 use App\Services\IppbxApiService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -64,7 +69,36 @@ class DashboardController extends Controller
 
         $quickActions = $this->quickActionsFor($user);
 
-        return view('admin.welcome', compact('kpis', 'activity', 'branchHealth', 'quickActions'));
+        // ── New widgets requested by user ──────────────────────────────
+        $systemStats = Cache::remember('welcome.system_stats', 60, function () {
+            return [
+                'vpn' => Schema::hasTable('vpn_tunnels')
+                    ? ['up' => VpnTunnel::where('status', 'up')->count(), 'total' => VpnTunnel::count()]
+                    : ['up' => 0, 'total' => 0],
+                'users'    => Schema::hasTable('users')             ? User::count() : 0,
+                'assets'   => Schema::hasTable('devices')           ? Device::count() : 0,
+                'pending_approvals' => Schema::hasTable('workflow_requests')
+                    ? WorkflowRequest::whereIn('status', ['pending', 'manager_input_pending', 'awaiting_manager_form'])->count()
+                    : 0,
+            ];
+        });
+
+        $pendingApprovals = ($user?->can('manage-workflows') && Schema::hasTable('workflow_requests'))
+            ? WorkflowRequest::with('requester:id,name', 'branch:id,name')
+                ->whereIn('status', ['pending', 'manager_input_pending', 'awaiting_manager_form'])
+                ->latest('id')
+                ->limit(6)
+                ->get()
+            : collect();
+
+        $quickLinks = Schema::hasTable('user_quick_links')
+            ? UserQuickLink::where('user_id', $user->id)->orderBy('sort_order')->get()
+            : collect();
+
+        return view('admin.welcome', compact(
+            'kpis', 'activity', 'branchHealth', 'quickActions',
+            'systemStats', 'pendingApprovals', 'quickLinks'
+        ));
     }
 
     /**

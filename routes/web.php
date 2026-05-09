@@ -221,6 +221,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::post('toggle-dark-mode', [DarkModeController::class, 'toggle'])
         ->name('toggle-dark-mode');
 
+    // Welcome-screen customizable quick links (per-user)
+    Route::post('quick-links',                    [\App\Http\Controllers\Admin\UserQuickLinkController::class, 'store'])
+        ->name('quick-links.store');
+    Route::delete('quick-links/{quickLink}',      [\App\Http\Controllers\Admin\UserQuickLinkController::class, 'destroy'])
+        ->name('quick-links.destroy');
+
     // Two-Factor Authentication setup (authenticated users)
     Route::get('two-factor', [TwoFactorController::class, 'setup'])
         ->name('two-factor.setup');

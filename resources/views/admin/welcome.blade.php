@@ -39,6 +39,12 @@
         <div class="absolute -bottom-12 left-1/3 w-56 h-56 rounded-full bg-pink-300/20 blur-3xl"></div>
     </div>
 
+    {{-- ─── Customizable Quick Links ─── --}}
+    @include('admin.welcome.quick-links', ['quickLinks' => $quickLinks])
+
+    {{-- ─── System Stats: VPN / Users / Assets / Pending Approvals ─── --}}
+    @include('admin.welcome.system-stats', ['systemStats' => $systemStats])
+
     {{-- ─── KPI Tiles (4-up) ─── --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         @include('admin.welcome.kpi-tile', [
@@ -86,25 +92,29 @@
     {{-- ─── Two-column body ─── --}}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        @if($activity->isNotEmpty())
-            <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 class="text-base font-semibold text-slate-800 dark:text-slate-100">Recent Activity</h2>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Latest changes across the system</p>
+        <div class="lg:col-span-2 space-y-4">
+            {{-- Pending Approvals list --}}
+            @include('admin.welcome.pending-approvals', ['pendingApprovals' => $pendingApprovals])
+
+            {{-- Recent Activity --}}
+            @if($activity->isNotEmpty())
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 class="text-base font-semibold text-slate-800 dark:text-slate-100">Recent Activity</h2>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Latest changes across the system</p>
+                        </div>
+                        @if(Route::has('admin.activity-logs'))
+                            <a href="{{ route('admin.activity-logs') }}"
+                               class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">
+                                View all →
+                            </a>
+                        @endif
                     </div>
-                    @if(Route::has('admin.activity-logs'))
-                        <a href="{{ route('admin.activity-logs') }}"
-                           class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">
-                            View all →
-                        </a>
-                    @endif
+                    @include('admin.welcome.activity-feed', ['activity' => $activity])
                 </div>
-                @include('admin.welcome.activity-feed', ['activity' => $activity])
-            </div>
-        @else
-            <div class="lg:col-span-2"></div>
-        @endif
+            @endif
+        </div>
 
         <div class="space-y-4">
             @include('admin.welcome.branch-health',  ['health' => $branchHealth])
