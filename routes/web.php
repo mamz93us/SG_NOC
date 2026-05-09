@@ -532,6 +532,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('printers/usage/snapshot',
             [\App\Http\Controllers\Admin\PrinterUsageReportController::class, 'snapshotNow'])
             ->name('printers.usage.snapshot');
+        Route::post('printers/usage/backfill',
+            [\App\Http\Controllers\Admin\PrinterUsageReportController::class, 'backfillHistory'])
+            ->name('printers.usage.backfill');
     });
     // ─── Printer Alert Settings — MUST be registered before printers/{printer} wildcard ──
     Route::middleware('permission:manage-printer-alerts')->group(function () {

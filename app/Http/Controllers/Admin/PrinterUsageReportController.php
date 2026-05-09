@@ -7,6 +7,7 @@ use App\Jobs\SnapshotPrinterCountersJob;
 use App\Models\Branch;
 use App\Models\Printer;
 use App\Models\PrinterCounterSnapshot;
+use App\Services\PrinterSnapshotBackfillService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -30,6 +31,18 @@ class PrinterUsageReportController extends Controller
                 (new SnapshotPrinterCountersJob())->handle();
             } catch (\Throwable) {
                 // non-fatal — page still renders
+            }
+        }
+
+        // First-time visit: if there's only one snapshot date overall, mine
+        // sensor_metrics_daily for historical page-counter rollups so the
+        // report shows real history instead of zeros.
+        $distinctSnapshotDates = PrinterCounterSnapshot::distinct('snapshot_date')->count('snapshot_date');
+        if ($distinctSnapshotDates <= 1) {
+            try {
+                app(PrinterSnapshotBackfillService::class)->backfill();
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("PrinterUsageReport: SNMP backfill failed: {$e->getMessage()}");
             }
         }
 
@@ -176,6 +189,25 @@ class PrinterUsageReportController extends Controller
             return back()->with('success', 'Counter snapshot taken.');
         } catch (\Throwable $e) {
             return back()->with('error', 'Snapshot failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Mine historical SNMP page-counter rollups (sensor_metrics_daily) into
+     * printer_counter_snapshots — recovers usage history from before the
+     * snapshot job started running.
+     */
+    public function backfillHistory(PrinterSnapshotBackfillService $svc)
+    {
+        try {
+            $stats = $svc->backfill();
+            return back()->with('success', sprintf(
+                'Backfilled %d snapshot rows across %d printer(s) from SNMP history.',
+                $stats['filled'],
+                $stats['printers_with_data']
+            ));
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Backfill failed: ' . $e->getMessage());
         }
     }
 

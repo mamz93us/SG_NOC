@@ -7,11 +7,17 @@
             <h4 class="mb-0 fw-bold"><i class="bi bi-bar-chart-fill me-2 text-success"></i>Printer Usage Report</h4>
             <small class="text-muted">Pages printed per period, computed from daily counter snapshots.</small>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
             <form method="POST" action="{{ route('admin.printers.usage.snapshot') }}">
                 @csrf
                 <button type="submit" class="btn btn-outline-success btn-sm" title="Take a counter snapshot for all printers right now">
                     <i class="bi bi-camera-fill me-1"></i>Snapshot Now
+                </button>
+            </form>
+            <form method="POST" action="{{ route('admin.printers.usage.backfill') }}" onsubmit="return confirm('Mine historical SNMP page-counter data (sensor_metrics_daily) into snapshots? This is safe and idempotent.');">
+                @csrf
+                <button type="submit" class="btn btn-outline-primary btn-sm" title="Recover historical usage from existing SNMP time-series data">
+                    <i class="bi bi-clock-history me-1"></i>Backfill from SNMP History
                 </button>
             </form>
             <a href="{{ route('admin.printers.unified.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-collection me-1"></i>Unified View</a>
