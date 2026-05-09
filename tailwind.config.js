@@ -15,8 +15,17 @@ export default {
     // on top of Bootstrap without resetting Bootstrap's normalization.
     // The classic admin layout is Bootstrap-based; the v2 admin layout uses
     // Tailwind utilities. Both must coexist on the same site.
+    //
+    // The disabled utilities below are class names Tailwind shares with
+    // Bootstrap (.collapse for collapsible UI, .container for fluid wrappers,
+    // .visible/.invisible). Loading Tailwind's versions hijacks the Bootstrap
+    // ones — most visibly, .collapse here applies `visibility: collapse` to
+    // the navbar and hides every menu item. None of our Tailwind views use
+    // these utility names, so dropping them is safe.
     corePlugins: {
         preflight: false,
+        container: false,
+        visibility: false,
     },
 
     theme: {

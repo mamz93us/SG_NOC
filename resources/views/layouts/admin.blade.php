@@ -80,6 +80,14 @@
                 <span class="d-none d-sm-inline">SG NOC</span>
             </a>
 
+            {{-- Always-visible "Switch to v2" escape-hatch (no need to open the profile dropdown). --}}
+            <button type="button" class="btn btn-sm btn-primary d-flex align-items-center gap-1 ms-2"
+                    title="Switch to the new sidebar layout"
+                    onclick="(function(){fetch('{{ route('admin.toggle-layout') }}',{method:'POST',headers:{'X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]').content,'Accept':'application/json','Content-Type':'application/json'},body:JSON.stringify({version:'v2'})}).then(()=>window.location.reload());})()">
+                <i class="bi bi-stars"></i>
+                <span class="d-none d-md-inline">Try new layout</span>
+            </button>
+
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
