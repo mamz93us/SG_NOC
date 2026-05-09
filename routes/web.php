@@ -525,48 +525,26 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     Route::middleware('permission:view-printers')->group(function () {
-        // IMPORTANT: static segments (dashboard, create) MUST come before {printer} wildcard
+        // IMPORTANT: static segments (dashboard, create, unified, etc.) MUST come before {printer} wildcard
         Route::get('printers/dashboard',       [PrinterController::class, 'dashboard']) ->name('printers.dashboard');
-        Route::get('printers',                 [PrinterController::class, 'index'])     ->name('printers.index');
-        Route::get('printers/create',          [PrinterController::class, 'create'])    ->name('printers.create');
-        Route::get('printers/{printer}/edit',  [PrinterController::class, 'edit'])      ->name('printers.edit');
-        Route::get('printers/{printer}',       [PrinterController::class, 'show'])      ->name('printers.show');
-    });
-    Route::middleware('permission:manage-printers')->group(function () {
-        Route::post('printers',                [PrinterController::class, 'store'])   ->name('printers.store');
-        Route::put('printers/{printer}',       [PrinterController::class, 'update'])  ->name('printers.update');
-        Route::delete('printers/{printer}',    [PrinterController::class, 'destroy']) ->name('printers.destroy');
-        // Manual employee assignment
-        Route::post('printers/{printer}/assign',              [PrinterController::class, 'assignEmployee'])   ->name('printers.assign');
-        Route::delete('printers/{printer}/assign/{employee}', [PrinterController::class, 'unassignEmployee']) ->name('printers.unassign');
-    });
-
-    // ─── Printer SNMP Dashboard ──────────────────────────────
-    Route::middleware('permission:view-printers')->group(function () {
-        Route::get('printers/snmp-status',               [PrinterController::class, 'snmpStatus']) ->name('printers.snmp.status');
-        Route::post('printers/{printer}/snmp-poll',      [PrinterController::class, 'snmpPoll'])   ->name('printers.snmp.poll');
-        Route::post('printers/snmp-poll-all',            [PrinterController::class, 'snmpPollAll'])->name('printers.snmp.poll-all');
-        Route::post('printers/{printer}/snmp-toggle',    [PrinterController::class, 'toggleSnmp']) ->name('printers.snmp.toggle');
-    });
-
-    // ─── Unified Printer view (asset + SNMP + CUPS in one place) ──
-    Route::middleware('permission:view-printers')->group(function () {
         Route::get('printers/unified',
             [\App\Http\Controllers\Admin\UnifiedPrinterController::class, 'index'])
             ->name('printers.unified.index');
         Route::get('printers/unified/{printer}',
             [\App\Http\Controllers\Admin\UnifiedPrinterController::class, 'show'])
             ->name('printers.unified.show');
+        Route::get('printers',                 [PrinterController::class, 'index'])     ->name('printers.index');
+        Route::get('printers/create',          [PrinterController::class, 'create'])    ->name('printers.create');
+        Route::get('printers/{printer}/edit',  [PrinterController::class, 'edit'])      ->name('printers.edit');
+        Route::get('printers/{printer}',       [PrinterController::class, 'show'])      ->name('printers.show');
     });
-
-    // ─── Printer Usage Report (counter snapshots) ────────────
+    // ─── Printer Usage Report — must precede {printer} wildcard ──
     Route::middleware('permission:view-printer-usage')->group(function () {
         Route::get('printers/usage',
             [\App\Http\Controllers\Admin\PrinterUsageReportController::class, 'index'])
             ->name('printers.usage');
     });
-
-    // ─── Printer Alert Settings (per-branch) ─────────────────
+    // ─── Printer Alert Settings — must precede {printer} wildcard ──
     Route::middleware('permission:manage-printer-alerts')->group(function () {
         Route::get('printers/branch-settings',
             [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'index'])
@@ -589,6 +567,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('printers/branch-settings/{branch}/test',
             [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'test'])
             ->name('printers.branch.test');
+    });
+    Route::middleware('permission:manage-printers')->group(function () {
+        Route::post('printers',                [PrinterController::class, 'store'])   ->name('printers.store');
+        Route::put('printers/{printer}',       [PrinterController::class, 'update'])  ->name('printers.update');
+        Route::delete('printers/{printer}',    [PrinterController::class, 'destroy']) ->name('printers.destroy');
+        // Manual employee assignment
+        Route::post('printers/{printer}/assign',              [PrinterController::class, 'assignEmployee'])   ->name('printers.assign');
+        Route::delete('printers/{printer}/assign/{employee}', [PrinterController::class, 'unassignEmployee']) ->name('printers.unassign');
+    });
+
+    // ─── Printer SNMP Dashboard ──────────────────────────────
+    Route::middleware('permission:view-printers')->group(function () {
+        Route::get('printers/snmp-status',               [PrinterController::class, 'snmpStatus']) ->name('printers.snmp.status');
+        Route::post('printers/{printer}/snmp-poll',      [PrinterController::class, 'snmpPoll'])   ->name('printers.snmp.poll');
+        Route::post('printers/snmp-poll-all',            [PrinterController::class, 'snmpPollAll'])->name('printers.snmp.poll-all');
+        Route::post('printers/{printer}/snmp-toggle',    [PrinterController::class, 'toggleSnmp']) ->name('printers.snmp.toggle');
     });
 
     // ─── CUPS Print Manager ────────────────────────────────────
