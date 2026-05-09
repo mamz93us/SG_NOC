@@ -353,7 +353,7 @@
                     @endcan
 
                     {{-- ── Assets + ITAM dropdown ── --}}
-                    @canany(['view-assets','view-printers','view-credentials','view-employees','view-itam','view-licenses','view-accessories','view-print-manager'])
+                    @canany(['view-assets','view-printers','view-credentials','view-employees','view-itam','view-licenses','view-accessories','view-print-manager','view-printer-usage','manage-printer-alerts'])
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/devices*','admin/printers*','admin/credentials*','admin/employees*','admin/itam*','admin/print-manager*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -420,6 +420,28 @@
                                     <i class="bi bi-activity me-2 text-success"></i>Printer SNMP Status
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers/unified*') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.unified.index') }}">
+                                    <i class="bi bi-collection me-2 text-primary"></i>Unified Printers
+                                </a>
+                            </li>
+                            @can('view-printer-usage')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers/usage*') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.usage') }}">
+                                    <i class="bi bi-bar-chart-fill me-2 text-info"></i>Printer Usage Report
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-printer-alerts')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers/branch-settings*') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.branch.index') }}">
+                                    <i class="bi bi-bell-fill me-2 text-warning"></i>Printer Alert Settings
+                                </a>
+                            </li>
+                            @endcan
                             @can('manage-printers')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/intune-groups*') ? 'active' : '' }}"
