@@ -300,6 +300,17 @@ Schedule::call(function () {
     }
 })->name('check-low-toner')->withoutOverlapping(10)->everyThirtyMinutes();
 
+// ─── Printer Counter Snapshot — daily at 23:55 ────────────────
+// Drives the Usage Report by capturing each printer's page counters at
+// end-of-day so period diffs (e.g. "pages this month") can be computed.
+Schedule::call(function () {
+    try {
+        (new \App\Jobs\SnapshotPrinterCountersJob())->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error("Printer counter snapshot failed: " . $e->getMessage());
+    }
+})->name('snapshot-printer-counters')->withoutOverlapping(60)->dailyAt('23:55');
+
 // ─── Metrics Rollup (hourly → daily) + Tiered Pruning ───────
 // Rolls raw sensor_metrics into hourly/daily rollup tables.
 // Also prunes: raw data >7 days, hourly data >90 days.

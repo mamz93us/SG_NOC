@@ -9,13 +9,26 @@
             <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 me-2 text-warning"></i>Printer Dashboard</h4>
             <small class="text-muted">Fleet health, toner levels, maintenance overview</small>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
             <a href="{{ route('admin.printers.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-printer-fill me-1"></i>Printers List
+            </a>
+            <a href="{{ route('admin.printers.unified.index') }}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-collection me-1"></i>Unified View
             </a>
             <a href="{{ route('admin.printers.snmp.status') }}" class="btn btn-outline-success btn-sm">
                 <i class="bi bi-activity me-1"></i>SNMP Status
             </a>
+            @can('view-printer-usage')
+                <a href="{{ route('admin.printers.usage') }}" class="btn btn-outline-info btn-sm">
+                    <i class="bi bi-bar-chart me-1"></i>Usage Report
+                </a>
+            @endcan
+            @can('manage-printer-alerts')
+                <a href="{{ route('admin.printers.branch.index') }}" class="btn btn-outline-warning btn-sm">
+                    <i class="bi bi-bell me-1"></i>Alert Settings
+                </a>
+            @endcan
         </div>
     </div>
 
@@ -66,6 +79,42 @@
                 <div class="card-body text-center py-3">
                     <div class="fs-2 fw-bold text-secondary">{{ $maintenanceDue }}</div>
                     <div class="small text-muted">Maintenance Due</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Cross-system status row (waste / alerts / asset / cups) --}}
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-start border-danger border-3 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <div class="fs-2 fw-bold text-danger">{{ $wasteFullCount ?? 0 }}</div>
+                    <div class="small text-muted">Waste Toner Full</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-start border-warning border-3 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <div class="fs-2 fw-bold text-warning">{{ $openPrinterAlerts ?? 0 }}</div>
+                    <div class="small text-muted">Open Alerts</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-start border-info border-3 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <div class="fs-2 fw-bold text-info">{{ $cupsOnlineCount ?? 0 }} / {{ $cupsLinkedCount ?? 0 }}</div>
+                    <div class="small text-muted">CUPS Online / Linked</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-start border-success border-3 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <div class="fs-2 fw-bold text-success">{{ $assetLinkedCount ?? 0 }}</div>
+                    <div class="small text-muted">Asset-Linked</div>
                 </div>
             </div>
         </div>

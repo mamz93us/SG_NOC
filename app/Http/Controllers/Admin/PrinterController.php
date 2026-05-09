@@ -11,6 +11,8 @@ use App\Models\Department;
 use App\Models\Device;
 use App\Models\MonitoredHost;
 use App\Models\Printer;
+use App\Models\CupsPrinter;
+use App\Models\NocEvent;
 use App\Models\PrinterMaintenanceLog;
 use App\Models\PrinterSupply;
 use App\Models\SnmpSensor;
@@ -102,11 +104,25 @@ class PrinterController extends Controller
             ->limit(10)
             ->get();
 
+        // Cross-system bridges (CUPS + asset link counts)
+        $cupsLinkedCount    = CupsPrinter::whereNotNull('printer_id')->count();
+        $cupsOnlineCount    = CupsPrinter::whereIn('status', ['online', 'idle', 'printing'])->count();
+        $assetLinkedCount   = Printer::whereNotNull('device_id')->count();
+        $wasteFullCount     = Printer::whereNotNull('toner_waste')
+                                ->where('toner_waste', '>=', 0)
+                                ->where('toner_waste', '<=', 5)
+                                ->count();
+        $openPrinterAlerts  = NocEvent::where('source_type', 'printer')
+                                ->whereIn('status', ['open', 'acknowledged'])
+                                ->count();
+
         return view('admin.printers.dashboard', compact(
             'total', 'snmpEnabled', 'recentlyPolled',
             'lowTonerCount', 'criticalTonerCount', 'maintenanceDue',
             'lowTonerSupplies', 'branchDist', 'recentMaintenance',
-            'topByUsage', 'errorPrinters', 'isLowAlertPrinters'
+            'topByUsage', 'errorPrinters', 'isLowAlertPrinters',
+            'cupsLinkedCount', 'cupsOnlineCount', 'assetLinkedCount',
+            'wasteFullCount', 'openPrinterAlerts'
         ));
     }
 

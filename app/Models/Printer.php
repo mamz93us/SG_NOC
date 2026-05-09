@@ -360,4 +360,37 @@ class Printer extends Model
     {
         return $this->hasMany(PrinterDriver::class);
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Cross-system links + counter snapshots
+    // ─────────────────────────────────────────────────────────────
+
+    public function cupsPrinter(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CupsPrinter::class);
+    }
+
+    public function counterSnapshots(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PrinterCounterSnapshot::class);
+    }
+
+    /**
+     * The branch-level printer setting that drives alert routing & overrides.
+     */
+    public function branchSetting(): ?PrinterBranchSetting
+    {
+        if (! $this->branch_id) return null;
+        return PrinterBranchSetting::firstWhere('branch_id', $this->branch_id);
+    }
+
+    /**
+     * Waste container fill % (the inverse of the SNMP "remaining capacity" reading).
+     * Returns null when toner_waste is unknown.
+     */
+    public function wasteFillPercent(): ?int
+    {
+        if ($this->toner_waste === null || $this->toner_waste < 0) return null;
+        return max(0, min(100, 100 - (int) $this->toner_waste));
+    }
 }

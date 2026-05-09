@@ -90,6 +90,16 @@ class Branch extends Model
         return $this->hasMany(SophosFirewall::class);
     }
 
+    public function printerSetting(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(PrinterBranchSetting::class);
+    }
+
+    public function printerAlertRecipients(): HasMany
+    {
+        return $this->hasMany(PrinterAlertRecipient::class);
+    }
+
     // ─── Provisioning Helpers ─────────────────────────────────────
     // Each method returns the branch-specific value, falling back to
     // the global Setting when the branch field is null.

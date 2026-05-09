@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\NocEvent;
 use App\Models\Printer;
+use App\Models\PrinterBranchSetting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -146,6 +147,9 @@ class PollPrinterSnmpJob implements ShouldQueue
 
         // ─── Threshold Alerts ────────────────────────────────────
         $this->checkAlerts($printer);
+
+        // ─── Auto-resolve recovered events ───────────────────────
+        $this->resolveRecoveredEvents($printer);
 
         Log::info("PollPrinterSnmpJob: Completed {$ip}", [
             'toner_black' => $printer->toner_black,
@@ -381,6 +385,8 @@ class PollPrinterSnmpJob implements ShouldQueue
 
     protected function checkAlerts(Printer $printer): void
     {
+        $thresholds = $this->effectiveThresholds($printer);
+
         $toners = [
             'Black'   => $printer->toner_black,
             'Cyan'    => $printer->toner_cyan,
@@ -393,19 +399,33 @@ class PollPrinterSnmpJob implements ShouldQueue
 
             $eventKey = "printer_{$printer->id}_toner_" . strtolower($color);
 
-            if ($level <= $printer->toner_critical_threshold) {
+            if ($level <= $thresholds['critical']) {
                 $this->raiseEvent($printer, "critical",
                     "{$printer->printer_name}: {$color} toner critically low ({$level}%)",
                     "Replace {$color} toner cartridge immediately. Level: {$level}%",
                     $eventKey
                 );
-            } elseif ($level <= $printer->toner_warning_threshold) {
+            } elseif ($level <= $thresholds['warning']) {
                 $this->raiseEvent($printer, "warning",
                     "{$printer->printer_name}: {$color} toner low ({$level}%)",
                     "Order replacement {$color} toner cartridge. Level: {$level}%",
                     $eventKey
                 );
             }
+        }
+
+        // ─── Waste Toner Container ────────────────────────────────
+        // toner_waste stores SNMP "remaining capacity %". A low value means the
+        // container is nearly full and must be replaced.
+        if ($printer->toner_waste !== null && $printer->toner_waste >= 0
+            && $printer->toner_waste <= $thresholds['waste_critical']) {
+            $fillPct  = max(0, min(100, 100 - (int) $printer->toner_waste));
+            $eventKey = "printer_{$printer->id}_waste";
+            $this->raiseEvent($printer, 'critical',
+                "{$printer->printer_name}: Waste toner container nearly full ({$fillPct}% full)",
+                "Replace waste toner container on {$printer->printer_name}. Capacity remaining: {$printer->toner_waste}%.",
+                $eventKey
+            );
         }
 
         // Paper tray alerts
@@ -457,7 +477,7 @@ class PollPrinterSnmpJob implements ShouldQueue
             return;
         }
 
-        NocEvent::create([
+        $event = NocEvent::create([
             'module'      => 'assets',
             'entity_type' => 'printer',
             'entity_id'   => $eventKey,
@@ -469,8 +489,87 @@ class PollPrinterSnmpJob implements ShouldQueue
             'first_seen'  => now(),
             'last_seen'   => now(),
             'status'      => 'open',
-            'cooldown_minutes' => 30,
+            'cooldown_minutes' => 1440,
         ]);
+
+        // Dispatch alert email exactly once per fresh event. Re-occurrences
+        // (existing-open path above) bump last_seen but don't email again.
+        try {
+            \App\Jobs\SendPrinterAlertEmailJob::dispatch($event->id);
+        } catch (\Throwable $e) {
+            Log::error("PollPrinterSnmpJob: failed to dispatch printer alert email for event {$event->id}: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Resolve open toner / waste events when the underlying level has recovered
+     * above (threshold + hysteresis). Lets the next drop fire a fresh email.
+     */
+    protected function resolveRecoveredEvents(Printer $printer): void
+    {
+        $thresholds = $this->effectiveThresholds($printer);
+        $hysteresis = (int) (config('printer_alerts.thresholds.recovery_hysteresis') ?? 5);
+
+        $openEvents = NocEvent::where('source_type', 'printer')
+            ->where('source_id', $printer->id)
+            ->whereIn('status', ['open', 'acknowledged'])
+            ->where(function ($q) use ($printer) {
+                $q->where('entity_id', 'like', "printer_{$printer->id}_toner_%")
+                  ->orWhere('entity_id', "printer_{$printer->id}_waste");
+            })
+            ->get();
+
+        foreach ($openEvents as $ev) {
+            $recovered = false;
+
+            if ($ev->entity_id === "printer_{$printer->id}_waste") {
+                $waste = $printer->toner_waste;
+                if ($waste !== null && $waste >= ($thresholds['waste_critical'] + $hysteresis)) {
+                    $recovered = true;
+                }
+            } else {
+                $color = str_replace("printer_{$printer->id}_toner_", '', $ev->entity_id);
+                $level = match ($color) {
+                    'black'   => $printer->toner_black,
+                    'cyan'    => $printer->toner_cyan,
+                    'magenta' => $printer->toner_magenta,
+                    'yellow'  => $printer->toner_yellow,
+                    default   => null,
+                };
+                if ($level !== null && $level >= ($thresholds['warning'] + $hysteresis)) {
+                    $recovered = true;
+                }
+            }
+
+            if ($recovered) {
+                $ev->update([
+                    'status'      => 'resolved',
+                    'resolved_at' => now(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Resolve effective thresholds, blending: branch override → printer column → config default.
+     */
+    protected function effectiveThresholds(Printer $printer): array
+    {
+        $cfg = config('printer_alerts.thresholds', []);
+        $setting = $printer->branch_id
+            ? PrinterBranchSetting::firstWhere('branch_id', $printer->branch_id)
+            : null;
+
+        return [
+            'warning' => $setting?->toner_warning_threshold
+                        ?? $printer->toner_warning_threshold
+                        ?? ($cfg['toner_warning'] ?? 20),
+            'critical' => $setting?->toner_critical_threshold
+                        ?? $printer->toner_critical_threshold
+                        ?? ($cfg['toner_critical'] ?? 5),
+            'waste_critical' => $setting?->waste_critical_threshold
+                        ?? ($cfg['waste_critical'] ?? 5),
+        ];
     }
 
     // ─── SNMP Helpers ────────────────────────────────────────────

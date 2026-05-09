@@ -15,6 +15,7 @@ class NocEvent extends Model
         'source_type',
         'source_id',
         'cooldown_minutes',
+        'email_sent_at',
         'severity',
         'title',
         'message',
@@ -27,9 +28,10 @@ class NocEvent extends Model
     ];
 
     protected $casts = [
-        'first_seen'  => 'datetime',
-        'last_seen'   => 'datetime',
-        'resolved_at' => 'datetime',
+        'first_seen'    => 'datetime',
+        'last_seen'     => 'datetime',
+        'resolved_at'   => 'datetime',
+        'email_sent_at' => 'datetime',
     ];
 
     // ─────────────────────────────────────────────────────────────
@@ -68,6 +70,11 @@ class NocEvent extends Model
     public function scopeCritical(Builder $query): Builder
     {
         return $query->where('severity', 'critical');
+    }
+
+    public function scopeUnmailed(Builder $query): Builder
+    {
+        return $query->whereNull('email_sent_at');
     }
 
     // ─────────────────────────────────────────────────────────────

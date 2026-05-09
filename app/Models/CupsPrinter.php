@@ -16,6 +16,7 @@ class CupsPrinter extends Model
         'protocol',
         'ipp_path',
         'branch_id',
+        'printer_id',
         'driver',
         'location',
         'is_shared',
@@ -36,6 +37,11 @@ class CupsPrinter extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function printer(): BelongsTo
+    {
+        return $this->belongsTo(Printer::class);
     }
 
     public function printJobs(): HasMany

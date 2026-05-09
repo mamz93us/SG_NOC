@@ -549,6 +549,48 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('printers/{printer}/snmp-toggle',    [PrinterController::class, 'toggleSnmp']) ->name('printers.snmp.toggle');
     });
 
+    // ─── Unified Printer view (asset + SNMP + CUPS in one place) ──
+    Route::middleware('permission:view-printers')->group(function () {
+        Route::get('printers/unified',
+            [\App\Http\Controllers\Admin\UnifiedPrinterController::class, 'index'])
+            ->name('printers.unified.index');
+        Route::get('printers/unified/{printer}',
+            [\App\Http\Controllers\Admin\UnifiedPrinterController::class, 'show'])
+            ->name('printers.unified.show');
+    });
+
+    // ─── Printer Usage Report (counter snapshots) ────────────
+    Route::middleware('permission:view-printer-usage')->group(function () {
+        Route::get('printers/usage',
+            [\App\Http\Controllers\Admin\PrinterUsageReportController::class, 'index'])
+            ->name('printers.usage');
+    });
+
+    // ─── Printer Alert Settings (per-branch) ─────────────────
+    Route::middleware('permission:manage-printer-alerts')->group(function () {
+        Route::get('printers/branch-settings',
+            [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'index'])
+            ->name('printers.branch.index');
+        Route::get('printers/branch-settings/{branch}/edit',
+            [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'edit'])
+            ->name('printers.branch.edit');
+        Route::put('printers/branch-settings/{branch}',
+            [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'update'])
+            ->name('printers.branch.update');
+        Route::post('printers/branch-settings/{branch}/recipients',
+            [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'addRecipient'])
+            ->name('printers.branch.recipients.add');
+        Route::delete('printers/branch-settings/recipients/{recipient}',
+            [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'deleteRecipient'])
+            ->name('printers.branch.recipients.delete');
+        Route::post('printers/branch-settings/recipients/{recipient}/toggle',
+            [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'toggleRecipient'])
+            ->name('printers.branch.recipients.toggle');
+        Route::post('printers/branch-settings/{branch}/test',
+            [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'test'])
+            ->name('printers.branch.test');
+    });
+
     // ─── CUPS Print Manager ────────────────────────────────────
     Route::middleware('permission:view-print-manager')->group(function () {
         Route::get('print-manager',                          [CupsPrinterController::class, 'index'])  ->name('print-manager.index');
