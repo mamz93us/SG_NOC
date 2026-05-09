@@ -524,27 +524,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('printers/drivers/{printerDriver}',   [\App\Http\Controllers\Admin\PrinterDriverController::class, 'destroy']) ->name('printers.drivers.destroy');
     });
 
-    Route::middleware('permission:view-printers')->group(function () {
-        // IMPORTANT: static segments (dashboard, create, unified, etc.) MUST come before {printer} wildcard
-        Route::get('printers/dashboard',       [PrinterController::class, 'dashboard']) ->name('printers.dashboard');
-        Route::get('printers/unified',
-            [\App\Http\Controllers\Admin\UnifiedPrinterController::class, 'index'])
-            ->name('printers.unified.index');
-        Route::get('printers/unified/{printer}',
-            [\App\Http\Controllers\Admin\UnifiedPrinterController::class, 'show'])
-            ->name('printers.unified.show');
-        Route::get('printers',                 [PrinterController::class, 'index'])     ->name('printers.index');
-        Route::get('printers/create',          [PrinterController::class, 'create'])    ->name('printers.create');
-        Route::get('printers/{printer}/edit',  [PrinterController::class, 'edit'])      ->name('printers.edit');
-        Route::get('printers/{printer}',       [PrinterController::class, 'show'])      ->name('printers.show');
-    });
-    // ─── Printer Usage Report — must precede {printer} wildcard ──
+    // ─── Printer Usage Report — MUST be registered before printers/{printer} wildcard ──
     Route::middleware('permission:view-printer-usage')->group(function () {
         Route::get('printers/usage',
             [\App\Http\Controllers\Admin\PrinterUsageReportController::class, 'index'])
             ->name('printers.usage');
     });
-    // ─── Printer Alert Settings — must precede {printer} wildcard ──
+    // ─── Printer Alert Settings — MUST be registered before printers/{printer} wildcard ──
     Route::middleware('permission:manage-printer-alerts')->group(function () {
         Route::get('printers/branch-settings',
             [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'index'])
@@ -567,6 +553,21 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('printers/branch-settings/{branch}/test',
             [\App\Http\Controllers\Admin\PrinterBranchSettingController::class, 'test'])
             ->name('printers.branch.test');
+    });
+
+    Route::middleware('permission:view-printers')->group(function () {
+        // IMPORTANT: static segments (dashboard, create, unified, etc.) MUST come before {printer} wildcard
+        Route::get('printers/dashboard',       [PrinterController::class, 'dashboard']) ->name('printers.dashboard');
+        Route::get('printers/unified',
+            [\App\Http\Controllers\Admin\UnifiedPrinterController::class, 'index'])
+            ->name('printers.unified.index');
+        Route::get('printers/unified/{printer}',
+            [\App\Http\Controllers\Admin\UnifiedPrinterController::class, 'show'])
+            ->name('printers.unified.show');
+        Route::get('printers',                 [PrinterController::class, 'index'])     ->name('printers.index');
+        Route::get('printers/create',          [PrinterController::class, 'create'])    ->name('printers.create');
+        Route::get('printers/{printer}/edit',  [PrinterController::class, 'edit'])      ->name('printers.edit');
+        Route::get('printers/{printer}',       [PrinterController::class, 'show'])      ->name('printers.show');
     });
     Route::middleware('permission:manage-printers')->group(function () {
         Route::post('printers',                [PrinterController::class, 'store'])   ->name('printers.store');
