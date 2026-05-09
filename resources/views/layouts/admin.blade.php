@@ -14,9 +14,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    {{-- Tailwind utilities (preflight disabled in tailwind.config.js so it doesn't reset Bootstrap).
-         Required so the new welcome screen renders correctly inside this classic layout too. --}}
-    @vite(['resources/css/app.css'])
 
     <style>
         body { background: #f8f9fa; }
@@ -79,14 +76,6 @@
                 @endif
                 <span class="d-none d-sm-inline">SG NOC</span>
             </a>
-
-            {{-- Always-visible "Switch to v2" escape-hatch (no need to open the profile dropdown). --}}
-            <button type="button" class="btn btn-sm btn-primary d-flex align-items-center gap-1 ms-2"
-                    title="Switch to the new sidebar layout"
-                    onclick="(function(){fetch('{{ route('admin.toggle-layout') }}',{method:'POST',headers:{'X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]').content,'Accept':'application/json','Content-Type':'application/json'},body:JSON.stringify({version:'v2'})}).then(()=>window.location.reload());})()">
-                <i class="bi bi-stars"></i>
-                <span class="d-none d-md-inline">Try new layout</span>
-            </button>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -1118,13 +1107,6 @@
                                         <span class="badge bg-success ms-1" style="font-size:0.65rem;">ON</span>
                                     @endif
                                 </a>
-                            </li>
-                            <li>
-                                <button type="button" class="dropdown-item"
-                                        onclick="(function(){fetch('{{ route('admin.toggle-layout') }}',{method:'POST',headers:{'X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]').content,'Accept':'application/json','Content-Type':'application/json'},body:JSON.stringify({version:'v2'})}).then(()=>window.location.reload());})()">
-                                    <i class="bi bi-stars me-2"></i>Try the new layout
-                                    <span class="badge bg-primary ms-1" style="font-size:0.6rem;">NEW</span>
-                                </button>
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>

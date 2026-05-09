@@ -206,14 +206,21 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
 
-    // Home page — personalised welcome screen (KPIs, activity, branch health, quick actions).
-    // Portal-only roles (browser_user, hr) never see admin chrome — bounce to the isolated portal.
-    // The NOC Command Center stays one click away at admin.noc.dashboard.
+    // Home page —
+    //   - portal-only roles (browser_user, hr) → isolated portal
+    //   - v2 users → new Tailwind welcome screen (KPIs, activity, etc.)
+    //   - classic users → existing UCM/phonebook dashboard, untouched
+    // The classic admin layout deliberately does NOT load Tailwind, so the
+    // Tailwind-based welcome view is only shown to users on the v2 layout.
     Route::get('/', function () {
-        if (auth()->user()?->usesPortal()) {
+        $u = auth()->user();
+        if ($u?->usesPortal()) {
             return redirect()->route('portal.index');
         }
-        return app(DashboardController::class)->index();
+        if ($u?->useV2Layout()) {
+            return app(DashboardController::class)->index();
+        }
+        return app(DashboardController::class)->phonebookOverview();
     })->name('dashboard');
 
     // Phonebook & UCM Overview — the previous /admin landing, now its own page.
