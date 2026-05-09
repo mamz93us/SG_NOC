@@ -27,83 +27,89 @@
         button:focus{outline:none}
         input,select,textarea{font:inherit}
         kbd{font-family:inherit}
+        /* Sidebar custom scrollbar */
+        .v2-scroll::-webkit-scrollbar{width:6px}
+        .v2-scroll::-webkit-scrollbar-track{background:transparent}
+        .v2-scroll::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+        .v2-scroll::-webkit-scrollbar-thumb:hover{background:#475569}
     </style>
 </head>
 
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 antialiased min-h-screen"
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 antialiased min-h-screen"
       x-data="adminV2Layout()"
       x-init="init()">
 
-    {{-- ─── Sidebar ─── --}}
+    {{-- ─── Sidebar (DARK) ─── --}}
     <aside :class="sidebarCollapsed ? 'w-16' : 'w-64'"
-           class="fixed inset-y-0 left-0 z-40 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-[width] duration-200 shadow-sm">
+           class="fixed inset-y-0 left-0 z-40 bg-slate-900 text-slate-200 border-r border-slate-800 flex flex-col transition-[width] duration-200 shadow-xl">
 
-        <div class="h-16 flex items-center gap-2.5 px-4 border-b border-slate-200 dark:border-slate-700"
-             style="background: linear-gradient(135deg, rgba(30,64,175,0.04) 0%, rgba(109,40,217,0.04) 100%);">
+        {{-- Brand --}}
+        <div class="h-16 flex items-center gap-2.5 px-4 border-b border-slate-800"
+             style="background: linear-gradient(135deg, rgba(30,64,175,0.25) 0%, rgba(109,40,217,0.18) 100%);">
             <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-2.5 min-w-0">
                 @if($__settings->company_logo ?? false)
                     <img src="{{ \Illuminate\Support\Facades\Storage::url($__settings->company_logo) }}"
                          alt="Logo" class="h-8 w-auto object-contain shrink-0">
                 @else
-                    <span class="w-9 h-9 rounded-lg flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-md"
+                    <span class="w-9 h-9 rounded-lg flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-lg"
                           style="background:linear-gradient(135deg,#1e40af 0%,#6d28d9 50%,#be185d 100%);">SG</span>
                 @endif
                 <div x-show="!sidebarCollapsed" class="min-w-0">
-                    <div class="font-bold text-slate-800 dark:text-slate-100 leading-tight">SG NOC</div>
-                    <div class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Admin Console</div>
+                    <div class="font-bold text-white leading-tight">SG NOC</div>
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400">Admin Console</div>
                 </div>
             </a>
         </div>
 
-        <nav class="flex-1 overflow-y-auto py-2 scrollbar-thin">
+        <nav class="flex-1 overflow-y-auto py-2 v2-scroll">
             @include('layouts.partials.sidebar-nav')
         </nav>
 
         <button type="button" @click="toggleSidebar()"
-                class="h-10 border-t border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                class="h-10 border-t border-slate-800 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition"
                 title="Toggle sidebar">
             <i class="bi" :class="sidebarCollapsed ? 'bi-chevron-double-right' : 'bi-chevron-double-left'"></i>
         </button>
     </aside>
 
-    {{-- ─── Topbar ─── --}}
+    {{-- ─── Topbar (DARK) ─── --}}
     <header :class="sidebarCollapsed ? 'left-16' : 'left-64'"
-            class="fixed top-0 right-0 h-16 bg-white/95 dark:bg-slate-800/95 backdrop-blur border-b border-slate-200 dark:border-slate-700 z-30 flex items-center px-5 gap-3 transition-[left] duration-200">
+            class="fixed top-0 right-0 h-16 bg-slate-900/95 text-slate-200 backdrop-blur border-b border-slate-800 z-30 flex items-center px-5 gap-3 transition-[left] duration-200">
 
         <div class="flex-1 min-w-0">
             <button type="button" @click="paletteOpen = true"
-                    class="w-full max-w-md flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-sm text-slate-400 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition">
+                    class="w-full max-w-md flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-700 bg-slate-800/60 text-sm text-slate-400 hover:border-slate-500 hover:text-slate-200 transition">
                 <i class="bi bi-search"></i>
                 <span>Search pages, contacts, branches…</span>
-                <kbd class="ml-auto text-[10px] font-sans border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5">Ctrl+K</kbd>
+                <kbd class="ml-auto text-[10px] font-sans border border-slate-600 rounded px-1 py-0.5">Ctrl+K</kbd>
             </button>
         </div>
 
         {{-- Notification bell --}}
         <div class="relative" x-data="{ open: false }" @click.outside="open = false">
             <button type="button" @click="open = !open"
-                    class="relative w-9 h-9 rounded-md flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    class="relative w-9 h-9 rounded-md flex items-center justify-center text-slate-300 hover:bg-slate-800 hover:text-white"
                     id="notifBell">
                 <i class="bi bi-bell text-lg"></i>
                 <span id="notifBadge"
                       class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold leading-4 text-center hidden"></span>
             </button>
             <div x-show="open" x-cloak x-transition.opacity
-                 class="absolute right-0 mt-2 w-80 max-w-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
-                <div class="px-4 py-2 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
+                 class="absolute right-0 mt-2 w-80 max-w-sm bg-slate-800 text-slate-200 border border-slate-700 rounded-lg shadow-xl overflow-hidden">
+                <div class="px-4 py-2 flex items-center justify-between border-b border-slate-700">
                     <strong class="text-sm">Notifications</strong>
                     <form method="POST" action="{{ route('admin.notifications.read-all') }}">
                         @csrf
-                        <button type="submit" class="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">Mark all read</button>
+                        <button type="submit" class="text-xs text-slate-400 hover:text-white">Mark all read</button>
                     </form>
                 </div>
                 <div id="notifItems" class="max-h-80 overflow-y-auto">
-                    <div id="notifEmpty" class="px-4 py-6 text-center text-sm text-slate-400">
+                    <div id="notifEmpty" class="px-4 py-6 text-center text-sm text-slate-500">
                         <i class="bi bi-bell-slash mr-1"></i>No new notifications
                     </div>
                 </div>
                 <a href="{{ route('admin.notifications.index') }}"
-                   class="block px-4 py-2 text-center text-xs text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-700 border-t border-slate-100 dark:border-slate-700">
+                   class="block px-4 py-2 text-center text-xs text-blue-400 hover:bg-slate-700 border-t border-slate-700">
                     View all notifications →
                 </a>
             </div>
@@ -111,7 +117,7 @@
 
         {{-- Dark mode toggle --}}
         <button type="button" @click="toggleDark()"
-                class="w-9 h-9 rounded-md flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                class="w-9 h-9 rounded-md flex items-center justify-center text-slate-300 hover:bg-slate-800 hover:text-white"
                 title="Toggle dark mode">
             <i class="bi" :class="dark ? 'bi-sun' : 'bi-moon-stars'"></i>
         </button>
@@ -119,40 +125,40 @@
         {{-- Profile --}}
         <div class="relative" x-data="{ open: false }" @click.outside="open = false">
             <button type="button" @click="open = !open"
-                    class="flex items-center gap-2 pl-1 pr-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700">
-                <span class="w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center"
+                    class="flex items-center gap-2 pl-1 pr-2 py-1 rounded-md hover:bg-slate-800">
+                <span class="w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center shadow"
                       style="background:linear-gradient(135deg,#667eea,#764ba2);">
                     {{ strtoupper(substr($__user->name ?? 'U', 0, 1)) }}
                 </span>
-                <span class="hidden sm:inline text-sm text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{{ $__user->name }}</span>
+                <span class="hidden sm:inline text-sm text-slate-200 truncate max-w-[120px]">{{ $__user->name }}</span>
                 <i class="bi bi-chevron-down text-xs text-slate-400"></i>
             </button>
             <div x-show="open" x-cloak x-transition.opacity
-                 class="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
-                <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-700">
-                    <div class="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">{{ $__user->name }}</div>
-                    <div class="text-xs text-slate-500 dark:text-slate-400 truncate">{{ $__user->email }}</div>
-                    <span class="inline-block mt-1.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200">
+                 class="absolute right-0 mt-2 w-64 bg-slate-800 text-slate-200 border border-slate-700 rounded-lg shadow-xl overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-700">
+                    <div class="font-semibold text-sm text-white truncate">{{ $__user->name }}</div>
+                    <div class="text-xs text-slate-400 truncate">{{ $__user->email }}</div>
+                    <span class="inline-block mt-1.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-700 text-slate-300">
                         {{ \App\Models\User::roleLabel($__user->role ?? 'admin') }}
                     </span>
                 </div>
                 <a href="{{ route('admin.two-factor.setup') }}"
-                   class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
+                   class="flex items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-slate-700">
                     <i class="bi bi-shield-lock text-slate-400"></i>
                     Two-Factor Auth
                     @if($__user->hasTwoFactorEnabled())
-                        <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 font-semibold">ON</span>
+                        <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-green-900/50 text-green-300 font-semibold">ON</span>
                     @endif
                 </a>
                 <button type="button" @click="switchToClassic()"
-                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-left">
+                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 text-left">
                     <i class="bi bi-arrow-counterclockwise text-slate-400"></i>
                     Switch to classic layout
                 </button>
-                <form method="POST" action="/logout" class="border-t border-slate-100 dark:border-slate-700">
+                <form method="POST" action="/logout" class="border-t border-slate-700">
                     @csrf
                     <button type="submit"
-                            class="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-left">
+                            class="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-red-900/30 text-left">
                         <i class="bi bi-box-arrow-right"></i>
                         Logout
                     </button>
@@ -252,14 +258,14 @@
                 if (data.items && data.items.length > 0) {
                     let html = '';
                     data.items.forEach(n => {
-                        html += `<a href="${n.link || '#'}" class="block px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 border-l-2" style="border-left-color:${severityBorder(n.severity)}">
-                            <div class="font-semibold text-slate-700 dark:text-slate-200">${n.title}</div>
+                        html += `<a href="${n.link || '#'}" class="block px-4 py-2 text-sm hover:bg-slate-700 border-l-2" style="border-left-color:${severityBorder(n.severity)}">
+                            <div class="font-semibold text-white">${n.title}</div>
                             <div class="text-xs text-slate-400 mt-0.5">${n.created_at}</div>
                         </a>`;
                     });
                     items.innerHTML = html;
                 } else {
-                    items.innerHTML = '<div class="px-4 py-6 text-center text-sm text-slate-400"><i class="bi bi-bell-slash mr-1"></i>No new notifications</div>';
+                    items.innerHTML = '<div class="px-4 py-6 text-center text-sm text-slate-500"><i class="bi bi-bell-slash mr-1"></i>No new notifications</div>';
                 }
             })
             .catch(() => {});
