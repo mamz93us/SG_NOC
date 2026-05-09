@@ -62,6 +62,8 @@ use App\Http\Controllers\PhonebookController;
 use App\Http\Controllers\PublicContactController;
 use App\Http\Controllers\PhoneRequestLogController;
 use App\Http\Controllers\Admin\DarkModeController;
+use App\Http\Controllers\Admin\AdminLayoutController;
+use App\Http\Controllers\Admin\PaletteSearchController;
 use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\ItTaskController;
 use App\Http\Controllers\Admin\AlertRuleController;
@@ -204,21 +206,31 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
 
-    // Home page — NOC Command Center (fallback to old dashboard if no permission)
+    // Home page — personalised welcome screen (KPIs, activity, branch health, quick actions).
+    // Portal-only roles (browser_user, hr) never see admin chrome — bounce to the isolated portal.
+    // The NOC Command Center stays one click away at admin.noc.dashboard.
     Route::get('/', function () {
-        // Portal-only roles (browser_user, hr) never see admin chrome — bounce to the isolated portal.
         if (auth()->user()?->usesPortal()) {
             return redirect()->route('portal.index');
         }
-        if (auth()->user() && auth()->user()->can('view-noc')) {
-            return app(\App\Http\Controllers\Admin\NocController::class)->dashboard();
-        }
-        return app(\App\Http\Controllers\Admin\DashboardController::class)->index();
+        return app(DashboardController::class)->index();
     })->name('dashboard');
+
+    // Phonebook & UCM Overview — the previous /admin landing, now its own page.
+    Route::get('phonebook-overview', [DashboardController::class, 'phonebookOverview'])
+        ->name('phonebook.overview');
 
     // Dark mode toggle
     Route::post('toggle-dark-mode', [DarkModeController::class, 'toggle'])
         ->name('toggle-dark-mode');
+
+    // v2 layout toggle (sidebar+palette ↔ classic top-nav)
+    Route::post('toggle-layout', [AdminLayoutController::class, 'toggle'])
+        ->name('toggle-layout');
+
+    // Ctrl+K command palette — entity search (contacts, branches)
+    Route::get('api/palette-search', [PaletteSearchController::class, 'search'])
+        ->name('palette.search');
 
     // Two-Factor Authentication setup (authenticated users)
     Route::get('two-factor', [TwoFactorController::class, 'setup'])
@@ -946,10 +958,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     // ─── Alert Rule Engine ───────────────────────────────────
-    Route::resource('alert-rules', AlertRuleController::class);
-    Route::get('alert-rules/{alertRule}/states',        [AlertRuleController::class, 'states'])     ->name('alert-rules.states');
-    Route::post('alert-states/{alertState}/acknowledge',[AlertRuleController::class, 'acknowledge']) ->name('alert-states.acknowledge');
-    Route::get('alerts/dashboard',                      [AlertRuleController::class, 'alerts'])      ->name('alerts.dashboard');
+    Route::middleware('permission:manage-noc')->group(function () {
+        Route::resource('alert-rules', AlertRuleController::class);
+        Route::get('alert-rules/{alertRule}/states',        [AlertRuleController::class, 'states'])     ->name('alert-rules.states');
+        Route::post('alert-states/{alertState}/acknowledge',[AlertRuleController::class, 'acknowledge']) ->name('alert-states.acknowledge');
+        Route::get('alerts/dashboard',                      [AlertRuleController::class, 'alerts'])      ->name('alerts.dashboard');
+    });
 
     // ─── Syslog (rsyslog → MySQL → UI) ───────────────────────
     Route::middleware('permission:view-syslog')->prefix('syslog')->name('syslog.')->group(function () {
@@ -1116,18 +1130,20 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::patch('/settings/domains/{allowedDomain}/primary', [AllowedDomainController::class, 'setPrimary'])->name('settings.domains.primary');
     Route::delete('/settings/domains/{allowedDomain}', [AllowedDomainController::class, 'destroy'])->name('settings.domains.destroy');
 
-    // ── Provisioning Settings ─────────────────────────────────────
-    Route::post('/settings/provisioning', [SettingsController::class, 'updateProvisioning'])->name('settings.provisioning');
-    Route::get('/settings/provisioning-licenses',  [SettingsController::class, 'provisioningLicenses'])->name('settings.provisioning-licenses');
-    Route::post('/settings/provisioning-licenses', [SettingsController::class, 'setDefaultLicense'])   ->name('settings.provisioning-licenses.save');
+    Route::middleware('permission:manage-settings')->group(function () {
+        // ── Provisioning Settings ─────────────────────────────────────
+        Route::post('/settings/provisioning', [SettingsController::class, 'updateProvisioning'])->name('settings.provisioning');
+        Route::get('/settings/provisioning-licenses',  [SettingsController::class, 'provisioningLicenses'])->name('settings.provisioning-licenses');
+        Route::post('/settings/provisioning-licenses', [SettingsController::class, 'setDefaultLicense'])   ->name('settings.provisioning-licenses.save');
 
-    // ── Internet Access Levels ────────────────────────────────────
-    Route::prefix('settings/internet-access-levels')->name('settings.internet-access-levels.')->group(function () {
-        Route::get('/',                        [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'index'])              ->name('index');
-        Route::post('/',                       [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'store'])              ->name('store');
-        Route::put('/{internetAccessLevel}',   [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'update'])             ->name('update');
-        Route::delete('/{internetAccessLevel}',[\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'destroy'])            ->name('destroy');
-        Route::get('/azure-groups/search',     [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'searchAzureGroups'])  ->name('azure-groups.search');
+        // ── Internet Access Levels ────────────────────────────────────
+        Route::prefix('settings/internet-access-levels')->name('settings.internet-access-levels.')->group(function () {
+            Route::get('/',                        [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'index'])              ->name('index');
+            Route::post('/',                       [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'store'])              ->name('store');
+            Route::put('/{internetAccessLevel}',   [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'update'])             ->name('update');
+            Route::delete('/{internetAccessLevel}',[\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'destroy'])            ->name('destroy');
+            Route::get('/azure-groups/search',     [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'searchAzureGroups'])  ->name('azure-groups.search');
+        });
     });
 
     // ─── Network Discovery ────────────────────────────────────────
@@ -1477,7 +1493,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     // ─── Form Builder (admin) ──────────────────────────────────────
-    Route::prefix('forms')->name('forms.')->group(function () {
+    Route::middleware('permission:manage-forms')->prefix('forms')->name('forms.')->group(function () {
         Route::get('/',                                  [\App\Http\Controllers\Admin\FormBuilderController::class, 'index'])           ->name('index');
         Route::get('/create',                            [\App\Http\Controllers\Admin\FormBuilderController::class, 'create'])          ->name('create');
         Route::post('/',                                 [\App\Http\Controllers\Admin\FormBuilderController::class, 'store'])           ->name('store');

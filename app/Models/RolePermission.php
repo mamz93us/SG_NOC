@@ -125,6 +125,9 @@ class RolePermission extends Model
                 'share-browser-session'  => 'Generate a share link to invite another user into their own session',
                 'manage-browser-portal'  => 'View / force-stop any session, view events, edit portal settings',
             ],
+            'Forms' => [
+                'manage-forms' => 'Manage Form Builder Templates & Submissions',
+            ],
         ];
     }
 
