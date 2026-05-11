@@ -34,6 +34,7 @@
                     <th>Recipient</th>
                     <th class="text-center">Email</th>
                     <th class="text-center">In-App</th>
+                    <th class="text-center" title="Minutes between repeat sends. 0 = send once.">Repeat</th>
                     <th class="text-center">Active</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -66,6 +67,15 @@
                     @endif
                 </td>
                 <td class="text-center">
+                    @if($rule->cooldown_minutes > 0)
+                    <span class="badge bg-light text-dark" title="Re-send no more than once every {{ $rule->cooldown_minutes }} min">
+                        {{ $rule->cooldown_minutes }} min
+                    </span>
+                    @else
+                    <span class="badge bg-light text-muted" title="Send once — no auto-repeat">once</span>
+                    @endif
+                </td>
+                <td class="text-center">
                     @if($rule->is_active)
                     <span class="badge bg-success">Active</span>
                     @else
@@ -86,7 +96,7 @@
                 </td>
             </tr>
             @empty
-            <tr><td colspan="6" class="text-center text-muted py-4">No notification rules configured yet.</td></tr>
+            <tr><td colspan="7" class="text-center text-muted py-4">No notification rules configured yet.</td></tr>
             @endforelse
             </tbody>
         </table>
@@ -180,6 +190,13 @@
                             </div>
                         </div>
                     </div>
+                    <div class="mt-3">
+                        <label class="form-label fw-semibold">Repeat interval (minutes)</label>
+                        <input type="number" name="cooldown_minutes" class="form-control"
+                               min="0" max="43200" step="1"
+                               value="{{ $rule->cooldown_minutes ?? 0 }}">
+                        <div class="form-text">0 = send once, no auto-repeat. Manual Resend always works.</div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -259,6 +276,12 @@
                                 <label class="form-check-label">In-App</label>
                             </div>
                         </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label fw-semibold">Repeat interval (minutes)</label>
+                        <input type="number" name="cooldown_minutes" class="form-control"
+                               min="0" max="43200" step="1" value="0">
+                        <div class="form-text">0 = send once, no auto-repeat. Manual Resend always works.</div>
                     </div>
                 </div>
                 <div class="modal-footer">

@@ -84,11 +84,12 @@ class NotificationRule extends Model
                 'it_onboarding_summary'   => 'IT Onboarding Summary (new-hire credentials)',
             ],
             'NOC & Monitoring' => [
-                'noc_alert'           => 'NOC Alert (switch / VPN / UCM)',
-                'system_alert'        => 'System Alert (licence / SLA)',
-                'host_down'           => 'Host Down (SNMP / ping)',
-                'supply_alert'        => 'Supply / Toner Alert',
-                'printer_maintenance' => 'Printer Maintenance',
+                'noc_alert'             => 'NOC Alert (switch / VPN / UCM)',
+                'system_alert'          => 'System Alert (licence / SLA)',
+                'host_down'             => 'Host Down (SNMP / ping)',
+                'supply_alert'          => 'Supply / Toner Alert',
+                'printer_maintenance'   => 'Printer Maintenance',
+                'cups_printer_offline'  => 'CUPS Printer Offline',
             ],
             'Assets, Licences & Expiries' => [
                 'license_expiring'    => 'Licence Expiring Soon',

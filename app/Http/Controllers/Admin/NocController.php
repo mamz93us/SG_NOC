@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendPrinterAlertEmailJob;
+use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\Device;
 use App\Models\IdentityUser;
@@ -15,6 +17,7 @@ use App\Models\UcmExtensionCache;
 use App\Models\UcmTrunkCache;
 use App\Models\UcmServer;
 use App\Services\HealthScoringService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -270,6 +273,41 @@ class NocController extends Controller
         ]);
 
         return back()->with('success', 'Event resolved.');
+    }
+
+    /**
+     * Manually re-send the notification(s) associated with an event.
+     * Cooldown is intentionally bypassed — the admin clicked Resend on purpose.
+     */
+    public function resend(NocEvent $event, NotificationService $notifications)
+    {
+        if ($event->source_type === 'printer') {
+            // Clear the idempotency stamp so SendPrinterAlertEmailJob will re-send.
+            $event->update(['email_sent_at' => null]);
+            SendPrinterAlertEmailJob::dispatch($event->id);
+        } else {
+            $type = match ($event->module) {
+                'printers' => 'cups_printer_offline',
+                'network'  => 'noc_alert',
+                'voip'     => 'noc_alert',
+                default    => $event->module . '_alert',
+            };
+
+            $notifications->notifyViaRules(
+                type:         $type,
+                title:        $event->title,
+                message:      $event->message,
+                link:         null,
+                severity:     $event->severity,
+                skipCooldown: true,
+            );
+
+            $event->update(['email_sent_at' => now()]);
+        }
+
+        ActivityLog::log('noc_event.resend', $event, ['resent_by' => Auth::id()]);
+
+        return back()->with('success', 'Alert resent.');
     }
 
     // ── Extensions Page ─────────────────────────────────────────────

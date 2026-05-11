@@ -32,6 +32,7 @@ class NotificationRuleController extends Controller
             'recipient_user_id' => 'nullable|required_if:recipient_type,user|exists:users,id',
             'send_email'        => 'boolean',
             'send_in_app'       => 'boolean',
+            'cooldown_minutes'  => 'nullable|integer|min:0|max:43200',
             'is_active'         => 'boolean',
         ]);
 
@@ -42,6 +43,7 @@ class NotificationRuleController extends Controller
             'recipient_user_id' => $validated['recipient_type'] === 'user' ? $validated['recipient_user_id'] : null,
             'send_email'        => $request->boolean('send_email', true),
             'send_in_app'       => $request->boolean('send_in_app', true),
+            'cooldown_minutes'  => (int) ($validated['cooldown_minutes'] ?? 0),
             'is_active'         => $request->boolean('is_active', true),
         ]);
 
@@ -59,6 +61,7 @@ class NotificationRuleController extends Controller
             'recipient_user_id' => 'nullable|required_if:recipient_type,user|exists:users,id',
             'send_email'        => 'boolean',
             'send_in_app'       => 'boolean',
+            'cooldown_minutes'  => 'nullable|integer|min:0|max:43200',
             'is_active'         => 'boolean',
         ]);
 
@@ -69,6 +72,7 @@ class NotificationRuleController extends Controller
             'recipient_user_id' => $validated['recipient_type'] === 'user' ? $validated['recipient_user_id'] : null,
             'send_email'        => $request->boolean('send_email', true),
             'send_in_app'       => $request->boolean('send_in_app', true),
+            'cooldown_minutes'  => (int) ($validated['cooldown_minutes'] ?? 0),
             'is_active'         => $request->boolean('is_active', true),
         ]);
 

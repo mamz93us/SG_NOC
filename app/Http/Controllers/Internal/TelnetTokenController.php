@@ -22,9 +22,12 @@ class TelnetTokenController extends Controller
 {
     public function show(Request $request, string $token): JsonResponse
     {
-        // Validate shared secret
-        $secret = config('telnet.internal_secret', 'changeme');
-        if ($request->header('X-Telnet-Secret') !== $secret) {
+        // Validate shared secret. Fail closed if the env var is unset — otherwise
+        // a missing TELNET_INTERNAL_SECRET would silently accept the literal
+        // default string. Constant-time compare to avoid timing oracles.
+        $secret   = config('telnet.internal_secret');
+        $provided = (string) $request->header('X-Telnet-Secret', '');
+        if (! is_string($secret) || $secret === '' || ! hash_equals($secret, $provided)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 

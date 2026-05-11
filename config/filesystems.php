@@ -73,6 +73,20 @@ return [
             'report' => false,
         ],
 
+        // Azure Blob storage for offboarding backups (mailbox PST, OneDrive zip, laptop archive).
+        // Credentials default to env, but AppServiceProvider re-reads them from Setting
+        // on every Storage::disk('azure_offboarding') call so admins can configure them
+        // via the Settings UI without redeploying.
+        'azure_offboarding' => [
+            'driver'    => 'azure',
+            'account'   => env('AZURE_BLOB_ACCOUNT'),
+            'key'       => env('AZURE_BLOB_KEY'),
+            'container' => env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups'),
+            'endpoint'  => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'prefix'    => 'offboarding/',
+            'throw'     => false,
+        ],
+
     ],
 
     /*

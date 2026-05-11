@@ -328,9 +328,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('settings.graph');
         Route::post('settings/gdms', [SettingsController::class, 'updateGdms'])
             ->name('settings.gdms');
+        Route::post('settings/avepoint',        [SettingsController::class, 'updateAvePoint'])  ->name('settings.avepoint');
+        Route::post('settings/azure-blob',      [SettingsController::class, 'updateAzureBlob']) ->name('settings.azure-blob');
+        Route::post('settings/offboarding',     [SettingsController::class, 'updateOffboarding'])->name('settings.offboarding');
         // Test-connection buttons live on the Settings page — accessible to any settings manager
-        Route::post('settings/test-meraki',  [NetworkController::class,  'testConnection'])->name('settings.test-meraki');
-        Route::post('settings/test-graph',   [IdentityController::class, 'testConnection'])->name('settings.test-graph');
+        Route::post('settings/test-meraki',     [NetworkController::class,  'testConnection']) ->name('settings.test-meraki');
+        Route::post('settings/test-graph',      [IdentityController::class, 'testConnection']) ->name('settings.test-graph');
+        Route::post('settings/avepoint/test',   [SettingsController::class, 'testAvePoint'])   ->name('settings.avepoint.test');
+        Route::post('settings/azure-blob/test', [SettingsController::class, 'testAzureBlob'])  ->name('settings.azure-blob.test');
 
         // ── Sync Status Dashboard ────────────────────────────────────
         Route::get('sync-status',                    [\App\Http\Controllers\Admin\SyncStatusController::class, 'index'])          ->name('sync-status');
@@ -979,6 +984,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:manage-noc')->prefix('noc')->name('noc.')->group(function () {
         Route::post('/events/{id}/acknowledge', [NocController::class, 'acknowledge']) ->name('events.acknowledge');
         Route::post('/events/{id}/resolve',     [NocController::class, 'resolve'])     ->name('events.resolve');
+        Route::post('/events/{id}/resend',      [NocController::class, 'resend'])      ->name('events.resend');
     });
 
     // ─── Incidents ──────────────────────────────────────────────
@@ -1087,6 +1093,18 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
     Route::middleware('permission:view-workflows')->group(function () {
         Route::get('workflows/{workflow}',   [WorkflowController::class, 'show'])       ->name('workflows.show');
+    });
+
+    // ─── Offboarding ──────────────────────────────────────────
+    Route::middleware('permission:view-offboarding')->group(function () {
+        Route::get('offboarding',                              [\App\Http\Controllers\Admin\OffboardingController::class, 'index']) ->name('offboarding.index');
+        Route::get('offboarding/{offboardingWorkflow}',        [\App\Http\Controllers\Admin\OffboardingController::class, 'show'])  ->name('offboarding.show');
+    });
+    Route::middleware('permission:manage-offboarding')->group(function () {
+        Route::post('offboarding/{offboardingWorkflow}/resend',       [\App\Http\Controllers\Admin\OffboardingController::class, 'resendManagerEmail']) ->name('offboarding.resend');
+        Route::post('offboarding/{offboardingWorkflow}/cancel',       [\App\Http\Controllers\Admin\OffboardingController::class, 'cancel'])             ->name('offboarding.cancel');
+        Route::post('offboarding/{offboardingWorkflow}/force-delete', [\App\Http\Controllers\Admin\OffboardingController::class, 'forceDelete'])        ->name('offboarding.force-delete');
+        Route::post('offboarding/backup/{backup}/upload',             [\App\Http\Controllers\Admin\OffboardingBackupUploadController::class, 'upload']) ->name('offboarding.backup.upload');
     });
 
     // ─── Employees ────────────────────────────────────────────
@@ -1599,6 +1617,12 @@ use App\Http\Controllers\Public\PrinterSetupController;
 Route::get('/offboarding/respond',  [OffboardingFormController::class, 'show'])  ->name('offboarding.form');
 Route::post('/offboarding/respond', [OffboardingFormController::class, 'submit'])->name('offboarding.submit')->middleware('throttle:5,1');
 
+// Offboarding backup download (NOC-proxied stream from Azure Blob)
+Route::get('/offboarding/download/{token}', [\App\Http\Controllers\Public\OffboardingDownloadController::class, 'download'])
+    ->name('offboarding.download')
+    ->middleware('throttle:5,1')
+    ->where('token', '[A-Za-z0-9]{64}');
+
 // Onboarding manager setup form (token-based, public)
 Route::get('/onboarding/form/{token}',  [OnboardingFormController::class, 'show'])  ->name('onboarding.form');
 Route::post('/onboarding/form/{token}', [OnboardingFormController::class, 'submit'])->name('onboarding.submit')->middleware('throttle:10,1');
@@ -1651,7 +1675,7 @@ Route::prefix('api/hr')
 */
 Route::get('/internal/telnet-token/{token}',
     [\App\Http\Controllers\Internal\TelnetTokenController::class, 'show']
-)->name('internal.telnet-token');
+)->middleware('internal.ip')->name('internal.telnet-token');
 
 /*
 |--------------------------------------------------------------------------

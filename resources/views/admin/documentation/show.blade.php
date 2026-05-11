@@ -86,7 +86,7 @@
 
     <iframe id="docIframe"
             srcdoc="{{ $html }}"
-            sandbox="allow-same-origin allow-scripts allow-forms"
+            sandbox="allow-scripts allow-forms"
             title="{{ $title ?: $filename }}"
             loading="lazy"
     ></iframe>

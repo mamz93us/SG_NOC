@@ -15,9 +15,11 @@ return [
     /*
     |--------------------------------------------------------------------------
     | Internal secret shared with the Node.js proxy for token validation.
-    | Set TELNET_INTERNAL_SECRET in .env (any random string).
+    | Set TELNET_INTERNAL_SECRET in .env (any random string). If unset, the
+    | telnet-token endpoint fails closed (403) — there is intentionally no
+    | development default, so the proxy must always provide a configured secret.
     */
-    'internal_secret' => env('TELNET_INTERNAL_SECRET', 'changeme'),
+    'internal_secret' => env('TELNET_INTERNAL_SECRET'),
 
     /*
     |--------------------------------------------------------------------------

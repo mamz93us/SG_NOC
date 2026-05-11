@@ -22,6 +22,7 @@ class CupsPrinter extends Model
         'is_shared',
         'is_active',
         'status',
+        'last_status',
         'last_checked_at',
     ];
 

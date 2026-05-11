@@ -1080,10 +1080,321 @@
     </div>
 </div>
 
+{{-- ─────────────────────────────────────────────────────── --}}
+{{-- AvePoint Graph API (Cloud Backup for M365)              --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="avepoint">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-cloud-arrow-down-fill text-info fs-5"></i>
+        <h5 class="mb-0">AvePoint Graph API</h5>
+        @if($settings->avepoint_enabled && $settings->avepoint_client_id)
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @elseif($settings->avepoint_client_id)
+            <span class="badge bg-warning text-dark ms-auto">Configured (Disabled)</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Not Configured</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Used by the offboarding flow to verify backups exist for the leaving employee and (when the
+            export endpoints below are filled in) to fetch mailbox / OneDrive archives. If left blank,
+            offboarding falls back to a manual upload form for IT.
+        </p>
+
+        <form method="POST" action="{{ route('admin.settings.avepoint') }}">
+            @csrf
+            <div class="row g-3 mb-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="avepoint_enabled"
+                               id="avepoint_enabled" value="1" {{ $settings->avepoint_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="avepoint_enabled">
+                            Enable AvePoint integration
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Base URL</label>
+                    <input type="url" name="avepoint_base_url" class="form-control font-monospace"
+                           value="{{ old('avepoint_base_url', $settings->avepoint_base_url) }}"
+                           placeholder="https://graph-us.avepointonlineservices.com">
+                    <div class="form-text">Set the data center URL — e.g. <code>graph-us</code>, <code>graph-eu</code>, <code>graph-sg</code>.</div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Region</label>
+                    <input type="text" name="avepoint_region" class="form-control font-monospace"
+                           value="{{ old('avepoint_region', $settings->avepoint_region ?? 'us') }}"
+                           placeholder="us">
+                    <div class="form-text">DC shortcode (used when base URL is blank).</div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Tenant ID</label>
+                    <input type="text" name="avepoint_tenant_id" class="form-control font-monospace"
+                           value="{{ old('avepoint_tenant_id', $settings->avepoint_tenant_id) }}">
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Client ID (Application ID)</label>
+                    <input type="text" name="avepoint_client_id" class="form-control font-monospace"
+                           value="{{ old('avepoint_client_id', $settings->avepoint_client_id) }}">
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Client Secret</label>
+                    <input type="password" name="avepoint_client_secret" class="form-control"
+                           placeholder="{{ $settings->avepoint_client_secret ? '•••••• (leave blank to keep current)' : 'Paste client secret here' }}">
+                </div>
+
+                <div class="col-12"><hr class="my-2"></div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Export endpoint <small class="text-muted fw-normal">(optional)</small></label>
+                    <input type="text" name="avepoint_export_endpoint" class="form-control font-monospace"
+                           value="{{ old('avepoint_export_endpoint', $settings->avepoint_export_endpoint) }}"
+                           placeholder="/backup/m365/exports">
+                    <div class="form-text">POST endpoint to trigger an export. Leave blank to use manual-upload fallback.</div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Download endpoint <small class="text-muted fw-normal">(optional)</small></label>
+                    <input type="text" name="avepoint_download_endpoint" class="form-control font-monospace"
+                           value="{{ old('avepoint_download_endpoint', $settings->avepoint_download_endpoint) }}"
+                           placeholder="/backup/m365/exports/{jobId}/file">
+                    <div class="form-text">GET endpoint to stream an export. Use <code>{jobId}</code> placeholder.</div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="avepoint-test-btn">
+                    <i class="bi bi-plug me-1"></i>Test Connection
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1"></i>Save AvePoint Settings
+                </button>
+            </div>
+            <div id="avepoint-test-result" class="small mt-2"></div>
+        </form>
+    </div>
+</div>
+
+{{-- ─────────────────────────────────────────────────────── --}}
+{{-- Azure Blob (Offboarding Backup Archive)                 --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="azure-blob">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-hdd-stack-fill text-primary fs-5"></i>
+        <h5 class="mb-0">Azure Blob — Offboarding Backup Archive</h5>
+        @if($settings->azure_blob_enabled && $settings->azure_blob_account)
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @elseif($settings->azure_blob_account)
+            <span class="badge bg-warning text-dark ms-auto">Configured (Disabled)</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Not Configured</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Mailbox / OneDrive / laptop backups for every offboarded user are streamed directly into Azure Blob
+            and never staged on the NOC disk. Managers download via NOC-proxied URLs that we can audit and revoke.
+        </p>
+
+        <form method="POST" action="{{ route('admin.settings.azure-blob') }}">
+            @csrf
+            <div class="row g-3 mb-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="azure_blob_enabled"
+                               id="azure_blob_enabled" value="1" {{ $settings->azure_blob_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="azure_blob_enabled">
+                            Enable Azure Blob archive
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Storage Account Name</label>
+                    <input type="text" name="azure_blob_account" class="form-control font-monospace"
+                           value="{{ old('azure_blob_account', $settings->azure_blob_account) }}"
+                           placeholder="samirgroupnocbackups">
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Container</label>
+                    <input type="text" name="azure_blob_container" class="form-control font-monospace"
+                           value="{{ old('azure_blob_container', $settings->azure_blob_container ?? 'noc-offboarding-backups') }}">
+                </div>
+
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Account Access Key</label>
+                    <input type="password" name="azure_blob_key" class="form-control"
+                           placeholder="{{ $settings->azure_blob_key ? '•••••• (leave blank to keep current)' : 'Paste account key here' }}">
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Endpoint Suffix</label>
+                    <input type="text" name="azure_blob_endpoint_suffix" class="form-control font-monospace"
+                           value="{{ old('azure_blob_endpoint_suffix', $settings->azure_blob_endpoint_suffix ?? 'core.windows.net') }}">
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="azure-blob-test-btn">
+                    <i class="bi bi-plug me-1"></i>Test Connection
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1"></i>Save Azure Blob Settings
+                </button>
+            </div>
+            <div id="azure-blob-test-result" class="small mt-2"></div>
+        </form>
+    </div>
+</div>
+
+{{-- ─────────────────────────────────────────────────────── --}}
+{{-- Offboarding Behavior                                    --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="offboarding">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-person-x-fill text-danger fs-5"></i>
+        <h5 class="mb-0">Offboarding Behavior</h5>
+        @if($settings->offboarding_enabled)
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Disabled</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Controls the multi-decision offboarding flow: which Azure group is used for sign-in lockdown,
+            which Exchange SKU is kept alive when the manager picks "forward", and the retention / grace windows.
+        </p>
+
+        <form method="POST" action="{{ route('admin.settings.offboarding') }}">
+            @csrf
+            <div class="row g-3 mb-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="offboarding_enabled"
+                               id="offboarding_enabled" value="1" {{ $settings->offboarding_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="offboarding_enabled">
+                            Enable the offboarding workflow
+                        </label>
+                    </div>
+                    <div class="form-text">When off, the HR API and the manager form are disabled.</div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Offboarding Azure Group ID</label>
+                    <input type="text" name="offboarding_group_id" class="form-control font-monospace"
+                           value="{{ old('offboarding_group_id', $settings->offboarding_group_id) }}"
+                           placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                    <div class="form-text">Azure group used as the sign-in lockdown gate (conditional access). The user is added here on form submit.</div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Exchange-Only SKU (for "forward" decision)</label>
+                    <input type="text" name="offboarding_exchange_only_sku" class="form-control font-monospace"
+                           value="{{ old('offboarding_exchange_only_sku', $settings->offboarding_exchange_only_sku) }}"
+                           placeholder="4b9405b0-7788-4568-add1-99614e613b69">
+                    <div class="form-text">SKU GUID for Exchange Online Plan 1 (kept assigned to keep the inbox rule working).</div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Retention (days)</label>
+                    <div class="input-group">
+                        <input type="number" name="offboarding_retention_days" class="form-control"
+                               value="{{ old('offboarding_retention_days', $settings->offboarding_retention_days ?? 30) }}"
+                               min="1" max="365">
+                        <span class="input-group-text">days</span>
+                    </div>
+                    <div class="form-text">After last day, when no forward is selected.</div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Download Link Expiry</label>
+                    <div class="input-group">
+                        <input type="number" name="offboarding_download_expiry_days" class="form-control"
+                               value="{{ old('offboarding_download_expiry_days', $settings->offboarding_download_expiry_days ?? 5) }}"
+                               min="1" max="30">
+                        <span class="input-group-text">days</span>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Manager Grace (days)</label>
+                    <div class="input-group">
+                        <input type="number" name="offboarding_manager_grace_days" class="form-control"
+                               value="{{ old('offboarding_manager_grace_days', $settings->offboarding_manager_grace_days ?? 3) }}"
+                               min="0" max="30">
+                        <span class="input-group-text">days</span>
+                    </div>
+                    <div class="form-text">Reminders to manager after last day before escalating to IT.</div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">IT Escalation Email</label>
+                    <input type="email" name="offboarding_it_escalation_email" class="form-control"
+                           value="{{ old('offboarding_it_escalation_email', $settings->offboarding_it_escalation_email) }}"
+                           placeholder="it-team@samirgroup.com">
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1"></i>Save Offboarding Settings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
 <script>
+// Generic test-connection wiring for AvePoint + Azure Blob.
+['avepoint', 'azure-blob'].forEach(prefix => {
+    const btn    = document.getElementById(prefix + '-test-btn');
+    const result = document.getElementById(prefix + '-test-result');
+    if (! btn) return;
+
+    btn.addEventListener('click', () => {
+        btn.disabled = true;
+        const original = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Testing…';
+        result.innerHTML = '<span class="text-muted">Connecting…</span>';
+
+        fetch('{{ url('/admin') }}/settings/' + prefix + '/test', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            },
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                result.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>'
+                    + (data.detail || 'Connected.') + '</span>';
+            } else {
+                result.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>'
+                    + (data.detail || 'Test failed.') + '</span>';
+            }
+        })
+        .catch(err => {
+            result.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>' + err.message + '</span>';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        });
+    });
+});
+
 function updateCodePreview() {
     const prefix  = (document.getElementById('itam_prefix')?.value || 'SG').toUpperCase();
     const padding = parseInt(document.getElementById('itam_padding')?.value || 6);

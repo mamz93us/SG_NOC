@@ -25,7 +25,13 @@ class NocAlertEngine
 
     public function detectNetworkIssues(): void
     {
-        $staleThreshold = now()->subMinutes(30);
+        // Tolerate up to 3 missed sync cycles, with a 30-min floor and 24-h ceiling,
+        // so the alert can never fire faster than the configured sync cadence.
+        $settings        = \App\Models\Setting::first();
+        $intervalMinutes = max(1, (int) ($settings?->meraki_polling_interval ?: 5));
+        $staleMinutes    = min(1440, max(30, $intervalMinutes * 3));
+        $staleThreshold  = now()->subMinutes($staleMinutes);
+
         $switches = NetworkSwitch::all();
 
         foreach ($switches as $sw) {
@@ -52,13 +58,13 @@ class NocAlertEngine
                 $event = $this->createOrUpdateEvent(
                     'network', 'switch', $sw->serial, 'warning',
                     "Switch Not Syncing: {$sw->name}",
-                    "Switch {$sw->name} ({$sw->serial}) has not been synced in over 30 minutes."
+                    "Switch {$sw->name} ({$sw->serial}) has not been synced in over {$staleMinutes} minutes."
                 );
                 if ($event->wasRecentlyCreated) {
                     $this->notifications->notifyAdmins(
                         'noc_alert',
                         "Switch Not Syncing: {$sw->name}",
-                        "Switch {$sw->name} ({$sw->serial}) has not synced for 30+ minutes.",
+                        "Switch {$sw->name} ({$sw->serial}) has not synced for {$staleMinutes}+ minutes.",
                         null,
                         'warning'
                     );

@@ -5,7 +5,12 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Pagination\Paginator;
+use League\Flysystem\Filesystem;
+use League\Flysystem\AzureBlobStorage\AzureBlobStorageAdapter;
+use Illuminate\Filesystem\FilesystemAdapter;
+use MicrosoftAzure\Storage\Blob\BlobRestProxy;
 
 // Models
 use App\Models\AlertRule;
@@ -203,6 +208,45 @@ class AppServiceProvider extends ServiceProvider
             (new \App\Services\SmtpConfigService())->loadFromSettings();
         } catch (\Exception) {
             // Skip if DB not ready yet
+        }
+
+        // ── Azure Blob disk for offboarding backups ──────────────────
+        // Reads credentials from Setting singleton on every disk resolve
+        // (settings UI overrides env). Silently no-ops if the
+        // league/flysystem-azure-blob-storage package isn't installed yet,
+        // so a fresh checkout can still boot before `composer require`.
+        if (class_exists(AzureBlobStorageAdapter::class) && class_exists(BlobRestProxy::class)) {
+            Storage::extend('azure', function ($app, $config) {
+                $account   = $config['account']   ?? null;
+                $key       = $config['key']       ?? null;
+                $container = $config['container'] ?? 'noc-offboarding-backups';
+                $suffix    = $config['endpoint']  ?? 'core.windows.net';
+
+                try {
+                    $settings = \App\Models\Setting::get();
+                    $account   = $settings->azure_blob_account         ?: $account;
+                    $key       = $settings->azure_blob_key             ?: $key;
+                    $container = $settings->azure_blob_container       ?: $container;
+                    $suffix    = $settings->azure_blob_endpoint_suffix ?: $suffix;
+                } catch (\Throwable) {
+                    // settings table may not exist yet during migrations
+                }
+
+                if (! $account || ! $key) {
+                    // Return a noop adapter rather than crashing; callers should check
+                    // testConnection() before relying on writes.
+                    throw new \RuntimeException(
+                        'Azure Blob disk is not configured (account/key missing). '
+                        . 'Set via Admin → Settings → Azure Blob or env AZURE_BLOB_ACCOUNT / AZURE_BLOB_KEY.'
+                    );
+                }
+
+                $connection = "DefaultEndpointsProtocol=https;AccountName={$account};AccountKey={$key};EndpointSuffix={$suffix}";
+                $client     = BlobRestProxy::createBlobService($connection);
+                $adapter    = new AzureBlobStorageAdapter($client, $container, $config['prefix'] ?? null);
+
+                return new FilesystemAdapter(new Filesystem($adapter, $config), $adapter, $config);
+            });
         }
     }
 }

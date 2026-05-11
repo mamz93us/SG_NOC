@@ -79,9 +79,16 @@
                             @if(in_array($event->status, ['open','acknowledged']))
                             <form method="POST" action="{{ route('admin.noc.events.resolve', $event->id) }}" class="d-inline">
                                 @csrf
-                                <button type="submit" class="btn btn-xs btn-outline-success">Resolve</button>
+                                <button type="submit" class="btn btn-xs btn-outline-success me-1">Resolve</button>
                             </form>
                             @endif
+                            <form method="POST" action="{{ route('admin.noc.events.resend', $event->id) }}" class="d-inline">
+                                @csrf
+                                <button type="submit" class="btn btn-xs btn-outline-primary"
+                                        title="Re-send this alert (bypasses cooldown)">
+                                    <i class="bi bi-arrow-clockwise"></i> Resend
+                                </button>
+                            </form>
                             @endcan
                         </td>
                     </tr>

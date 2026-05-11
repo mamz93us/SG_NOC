@@ -635,6 +635,15 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('view-offboarding')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.offboarding.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.offboarding.index') }}">
+                                    <i class="bi bi-person-x-fill me-2 text-danger"></i>Offboarding
+                                </a>
+                            </li>
+                            @endcan
                             @can('manage-workflow-templates')
                             <li><hr class="dropdown-divider"></li>
                             <li>

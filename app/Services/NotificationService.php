@@ -95,13 +95,18 @@ class NotificationService
      *
      * Falls back to notifyAdmins() when no rules are configured for the event type,
      * so alerts are never silently dropped.
+     *
+     * @param  bool  $skipCooldown  Bypass per-rule cooldown_minutes; set true for
+     *                              manual Resend actions where the admin explicitly
+     *                              wants the alert delivered again.
      */
     public function notifyViaRules(
         string  $type,
         string  $title,
         string  $message,
         ?string $link = null,
-        string  $severity = 'info'
+        string  $severity = 'info',
+        bool    $skipCooldown = false
     ): void {
         $rules = NotificationRule::active()->forEvent($type)->get();
 
@@ -125,6 +130,22 @@ class NotificationService
                 if ($notifiedIds->contains($recipient->id)) {
                     continue; // already handled by an earlier rule
                 }
+
+                // Per-rule cooldown — skip if this user already got the same
+                // event type within the configured window. cooldown_minutes=0
+                // means "no auto-repeat", which combined with upstream idempotency
+                // (NocAlertEngine, PrinterSupplyMonitorService) gives one-shot
+                // delivery by default. Manual Resend passes $skipCooldown=true.
+                if (! $skipCooldown && $rule->cooldown_minutes > 0) {
+                    $recentExists = Notification::where('user_id', $recipient->id)
+                        ->where('type', $type)
+                        ->where('created_at', '>=', now()->subMinutes($rule->cooldown_minutes))
+                        ->exists();
+                    if ($recentExists) {
+                        continue;
+                    }
+                }
+
                 $notifiedIds->push($recipient->id);
 
                 // Create the notification record.
@@ -210,6 +231,18 @@ class NotificationService
                     // (they already received the standard email above)
                     if ($recipient->id === $notification->user_id) {
                         continue;
+                    }
+
+                    // Per-rule cooldown — same logic as notifyViaRules().
+                    if ($rule->cooldown_minutes > 0) {
+                        $recentExists = Notification::where('user_id', $recipient->id)
+                            ->where('type', $notification->type)
+                            ->where('id', '!=', $notification->id)
+                            ->where('created_at', '>=', now()->subMinutes($rule->cooldown_minutes))
+                            ->exists();
+                        if ($recentExists) {
+                            continue;
+                        }
                     }
 
                     // Skip email if recipient already gets emails via their own

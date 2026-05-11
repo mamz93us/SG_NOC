@@ -79,6 +79,10 @@ class RolePermission extends Model
                 'view-employees'   => 'View Employee Directory',
                 'manage-employees' => 'Create / Edit Employees & Assign Assets',
             ],
+            'Offboarding' => [
+                'view-offboarding'   => 'View Offboarding Workflows',
+                'manage-offboarding' => 'Manage Offboarding (force delete, cancel, upload backups)',
+            ],
             'HR' => [
                 'submit-hr-onboarding' => 'Submit HR Onboarding Requests (portal)',
             ],
@@ -166,6 +170,8 @@ class RolePermission extends Model
             'view-employees',
             'view-contacts',
             'view-browser-portal',
+            'view-offboarding',
+            'manage-offboarding',
         ];
 
         return [

@@ -77,6 +77,29 @@ class Setting extends Model
         'ticketing_api_url',
         'ticketing_api_key',
         'ticketing_api_enabled',
+        // AvePoint Graph API
+        'avepoint_enabled',
+        'avepoint_base_url',
+        'avepoint_tenant_id',
+        'avepoint_client_id',
+        'avepoint_client_secret',
+        'avepoint_region',
+        'avepoint_export_endpoint',
+        'avepoint_download_endpoint',
+        // Azure Blob (offboarding backup archive)
+        'azure_blob_enabled',
+        'azure_blob_account',
+        'azure_blob_container',
+        'azure_blob_key',
+        'azure_blob_endpoint_suffix',
+        // Offboarding behavior
+        'offboarding_enabled',
+        'offboarding_group_id',
+        'offboarding_exchange_only_sku',
+        'offboarding_retention_days',
+        'offboarding_download_expiry_days',
+        'offboarding_manager_grace_days',
+        'offboarding_it_escalation_email',
     ];
 
     protected $casts = [
@@ -100,6 +123,12 @@ class Setting extends Model
         'cups_enabled'                 => 'boolean',
         'cups_refresh_interval'        => 'integer',
         'ticketing_api_enabled'        => 'boolean',
+        'avepoint_enabled'                  => 'boolean',
+        'azure_blob_enabled'                => 'boolean',
+        'offboarding_enabled'               => 'boolean',
+        'offboarding_retention_days'        => 'integer',
+        'offboarding_download_expiry_days'  => 'integer',
+        'offboarding_manager_grace_days'    => 'integer',
     ];
 
     /**
@@ -208,6 +237,40 @@ class Setting extends Model
     }
 
     public function getTicketingApiKeyAttribute(?string $value): ?string
+    {
+        if (!$value) return null;
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── AvePoint client secret — encrypted at rest ───────────────
+
+    public function setAvepointClientSecretAttribute(?string $value): void
+    {
+        $this->attributes['avepoint_client_secret'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getAvepointClientSecretAttribute(?string $value): ?string
+    {
+        if (!$value) return null;
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── Azure Blob storage key — encrypted at rest ───────────────
+
+    public function setAzureBlobKeyAttribute(?string $value): void
+    {
+        $this->attributes['azure_blob_key'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getAzureBlobKeyAttribute(?string $value): ?string
     {
         if (!$value) return null;
         try {

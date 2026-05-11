@@ -1,0 +1,349 @@
+<?php
+
+namespace App\Services\AvePoint;
+
+use App\Models\Setting;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * AvePoint Graph API client (Cloud Backup for Microsoft 365).
+ *
+ * Auth confirmed from public docs:
+ *   POST https://identity.avepointonlineservices.com/connect/token
+ *   grant_type=client_credentials, client_id, client_secret, scope
+ *
+ * Base URL: https://graph-{dc}.avepointonlineservices.com  (dc driven by avepoint_region)
+ *
+ * The public Cloud Backup for M365 API is READ-ONLY (jobs / license consumption /
+ * unusual activity / settings). It does NOT publicly document a trigger-export
+ * or download-export endpoint. We code monitoring against the documented
+ * endpoints and stub the trigger/download paths behind configurable settings —
+ * when avepoint_export_endpoint and avepoint_download_endpoint are blank, the
+ * offboarding flow falls back to a manual-upload form so IT can export from
+ * the AvePoint UI and upload via NOC.
+ */
+class AvePointApiService
+{
+    private string $identityUrl;
+    private string $baseUrl;
+    private string $tenantId;
+    private string $clientId;
+    private string $clientSecret;
+    private ?string $exportEndpoint;
+    private ?string $downloadEndpoint;
+
+    public function __construct(
+        ?string $tenantId = null,
+        ?string $clientId = null,
+        ?string $clientSecret = null,
+        ?string $region = null,
+    ) {
+        $settings = Setting::get();
+        $this->tenantId         = $tenantId      ?? $settings->avepoint_tenant_id    ?? '';
+        $this->clientId         = $clientId      ?? $settings->avepoint_client_id    ?? '';
+        $this->clientSecret     = $clientSecret  ?? $settings->avepoint_client_secret ?? '';
+        $this->exportEndpoint   = $settings->avepoint_export_endpoint   ?: null;
+        $this->downloadEndpoint = $settings->avepoint_download_endpoint ?: null;
+
+        $resolvedRegion = $region ?? $settings->avepoint_region ?? 'us';
+        $this->baseUrl  = $settings->avepoint_base_url
+            ?: "https://graph-{$resolvedRegion}.avepointonlineservices.com";
+
+        // Identity service URL — same for all commercial AvePoint environments.
+        // Override by setting avepoint_base_url to a *-aos2 or *-gov URL pattern
+        // and providing the matching identity URL via env if you need to.
+        $this->identityUrl = config('services.avepoint.identity_url')
+            ?: 'https://identity.avepointonlineservices.com/connect/token';
+    }
+
+    public function isConfigured(): bool
+    {
+        return $this->clientId !== '' && $this->clientSecret !== '';
+    }
+
+    public function hasExportEndpoints(): bool
+    {
+        return $this->exportEndpoint !== null && $this->downloadEndpoint !== null;
+    }
+
+    /**
+     * OAuth2 client_credentials token (cached ~58 min — token TTL is ~3600s).
+     * Scope determines which API surface the token can access.
+     */
+    private function getAccessToken(string $scope = 'microsoft365backup.jobInfo.read.all'): string
+    {
+        $cacheKey = "avepoint_token_{$this->clientId}_" . md5($scope);
+
+        return Cache::remember($cacheKey, 3500, function () use ($scope) {
+            $response = Http::asForm()->post($this->identityUrl, [
+                'grant_type'    => 'client_credentials',
+                'client_id'     => $this->clientId,
+                'client_secret' => $this->clientSecret,
+                'scope'         => $scope,
+            ]);
+
+            if (! $response->successful()) {
+                throw new \RuntimeException(
+                    'AvePoint OAuth failed: HTTP ' . $response->status() . ' — ' . $response->body()
+                );
+            }
+
+            $token = $response->json('access_token');
+            if (! $token) {
+                throw new \RuntimeException('AvePoint OAuth returned no access_token.');
+            }
+
+            return $token;
+        });
+    }
+
+    /**
+     * Test connection — calls /backup/m365/cloudbackuplicenseconsumption (low-cost GET).
+     */
+    public function testConnection(): array
+    {
+        if (! $this->isConfigured()) {
+            return ['ok' => false, 'detail' => 'AvePoint client_id/client_secret not set in settings.'];
+        }
+
+        try {
+            $token = $this->getAccessToken('microsoft365backup.subscriptionInfo.read.all');
+
+            $response = Http::withToken($token)
+                ->timeout(15)
+                ->get("{$this->baseUrl}/backup/m365/cloudbackuplicenseconsumption");
+
+            if (! $response->successful()) {
+                return [
+                    'ok'     => false,
+                    'detail' => "HTTP {$response->status()}: " . substr($response->body(), 0, 400),
+                ];
+            }
+
+            $data = $response->json('data');
+            return [
+                'ok'     => true,
+                'detail' => 'Connected. Subscription seats: '
+                    . ($data['assignedUserSeats'] ?? '?') . ' / '
+                    . ($data['purchasedUserSeats'] ?? '?'),
+            ];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'detail' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Find the most recent successful backup job for a user.
+     *
+     * @param string $upn         User UPN to filter by (best-effort — AvePoint job
+     *                            data may not include UPN; we search recent jobs
+     *                            and trust the caller's verification logic).
+     * @param int    $objectType  1=Exchange, 3=OneDrive (per AvePoint docs).
+     * @param int    $withinHours How far back to look.
+     */
+    public function findRecentBackupJob(string $upn, int $objectType, int $withinHours = 48): ?array
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+
+        try {
+            $token = $this->getAccessToken('microsoft365backup.jobInfo.read.all');
+
+            $startTime = now()->subHours($withinHours)->utc()->format('Y-m-d');
+            $finishTime = now()->utc()->format('Y-m-d');
+
+            $response = Http::withToken($token)
+                ->timeout(20)
+                ->get("{$this->baseUrl}/backup/m365/cloudbackupjobs", [
+                    'startTime'  => $startTime,
+                    'finishTime' => $finishTime,
+                    'jobType'    => 1,           // 1 = Backup
+                    'objectType' => $objectType,
+                    'jobState'   => 2,           // 2 = Finished
+                    'pageSize'   => 50,
+                    'pageIndex'  => 0,
+                ]);
+
+            if (! $response->successful()) {
+                Log::warning('AvePointApiService::findRecentBackupJob non-2xx', [
+                    'status' => $response->status(),
+                    'body'   => substr($response->body(), 0, 400),
+                ]);
+                return null;
+            }
+
+            $jobs = $response->json('data', []);
+            // Return newest first (jobs are typically chronological; sort to be safe)
+            usort($jobs, fn($a, $b) => strcmp($b['finishTime'] ?? '', $a['finishTime'] ?? ''));
+
+            return $jobs[0] ?? null;
+        } catch (\Throwable $e) {
+            Log::warning('AvePointApiService::findRecentBackupJob threw', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Request a mailbox export job. STUBBED until the real endpoint is documented.
+     *
+     * Returns ['job_id' => …, 'mode' => 'live'|'stub'].
+     *
+     * TODO(avepoint-export-endpoints): when the trigger endpoint is documented,
+     * POST to it here with the user's UPN and capture the returned job id. The
+     * shape is expected to mirror /insights/job/{jobId}/exportfile (job-id-keyed
+     * GET that streams the file).
+     */
+    public function requestMailboxExport(string $upn): array
+    {
+        if (! $this->hasExportEndpoints()) {
+            return [
+                'job_id' => 'MANUAL-MAILBOX-' . uniqid(),
+                'mode'   => 'stub',
+                'reason' => 'avepoint_export_endpoint not configured — falling back to manual upload.',
+            ];
+        }
+
+        $token = $this->getAccessToken('microsoft365backup.jobInfo.read.all');
+        $url   = rtrim($this->baseUrl, '/') . '/' . ltrim($this->exportEndpoint, '/');
+
+        $response = Http::withToken($token)
+            ->timeout(30)
+            ->post($url, ['upn' => $upn, 'objectType' => 1]); // 1 = Exchange
+
+        if (! $response->successful()) {
+            throw new \RuntimeException(
+                'AvePoint mailbox export request failed: HTTP ' . $response->status() . ' — ' . $response->body()
+            );
+        }
+
+        return [
+            'job_id' => $response->json('data.id') ?? $response->json('job_id') ?? throw new \RuntimeException('AvePoint returned no job id.'),
+            'mode'   => 'live',
+        ];
+    }
+
+    /**
+     * Request a OneDrive export job. STUBBED until the real endpoint is documented.
+     */
+    public function requestOneDriveExport(string $upn): array
+    {
+        if (! $this->hasExportEndpoints()) {
+            return [
+                'job_id' => 'MANUAL-ONEDRIVE-' . uniqid(),
+                'mode'   => 'stub',
+                'reason' => 'avepoint_export_endpoint not configured — falling back to manual upload.',
+            ];
+        }
+
+        $token = $this->getAccessToken('microsoft365backup.jobInfo.read.all');
+        $url   = rtrim($this->baseUrl, '/') . '/' . ltrim($this->exportEndpoint, '/');
+
+        $response = Http::withToken($token)
+            ->timeout(30)
+            ->post($url, ['upn' => $upn, 'objectType' => 3]); // 3 = OneDrive
+
+        if (! $response->successful()) {
+            throw new \RuntimeException(
+                'AvePoint OneDrive export request failed: HTTP ' . $response->status() . ' — ' . $response->body()
+            );
+        }
+
+        return [
+            'job_id' => $response->json('data.id') ?? $response->json('job_id') ?? throw new \RuntimeException('AvePoint returned no job id.'),
+            'mode'   => 'live',
+        ];
+    }
+
+    /**
+     * Poll an export job's status. STUBBED when trigger endpoints are absent.
+     *
+     * Returns ['status' => 'pending|running|completed|failed|manual_upload_required', ...].
+     */
+    public function getExportStatus(string $jobId): array
+    {
+        if (! $this->hasExportEndpoints()) {
+            return ['status' => 'manual_upload_required'];
+        }
+
+        // Pattern observed in public docs: /backup/m365/cloudbackupjobs has jobState as int.
+        // 1 = In Progress, 2 = Finished, 3 = Failed, 4 = Finished with Exception, 5 = Partial.
+        $token = $this->getAccessToken('microsoft365backup.jobInfo.read.all');
+
+        $response = Http::withToken($token)
+            ->timeout(20)
+            ->get("{$this->baseUrl}/backup/m365/cloudbackupjobs", [
+                'pageSize'  => 1,
+                'pageIndex' => 0,
+            ]);
+
+        if (! $response->successful()) {
+            return ['status' => 'failed', 'detail' => "HTTP {$response->status()}"];
+        }
+
+        // Caller will pluck the specific job from the data array; this default
+        // path covers the case where the real status endpoint is just GET /jobs/{id}.
+        $jobs = collect($response->json('data', []));
+        $job  = $jobs->firstWhere('id', $jobId);
+
+        if (! $job) {
+            return ['status' => 'unknown'];
+        }
+
+        $state = strtolower((string) ($job['state'] ?? 'unknown'));
+        return [
+            'status' => match (true) {
+                str_contains($state, 'progress'), str_contains($state, 'running') => 'running',
+                str_contains($state, 'finish'), $state === 'completed'             => 'completed',
+                str_contains($state, 'fail')                                       => 'failed',
+                str_contains($state, 'partial')                                    => 'completed', // treat partial as complete
+                default                                                            => $state,
+            },
+            'raw' => $job,
+        ];
+    }
+
+    /**
+     * Stream a job's export file via a writer callback. Returns total bytes piped.
+     * STUBBED when download endpoint is absent — caller falls back to manual upload.
+     *
+     * @param callable $writeChunk (string $chunk): void — called for each chunk read.
+     */
+    public function downloadExport(string $jobId, callable $writeChunk): int
+    {
+        if (! $this->hasExportEndpoints()) {
+            throw new \RuntimeException(
+                'AvePoint download endpoint not configured — flow should use manual-upload fallback.'
+            );
+        }
+
+        $token = $this->getAccessToken('microsoft365backup.jobInfo.read.all');
+        $url   = rtrim($this->baseUrl, '/') . '/' . str_replace('{jobId}', $jobId, ltrim($this->downloadEndpoint, '/'));
+
+        $response = Http::withToken($token)
+            ->withOptions(['stream' => true])
+            ->timeout(0)        // no overall timeout — large transfers
+            ->get($url);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException(
+                "AvePoint download for job {$jobId} returned HTTP " . $response->status()
+            );
+        }
+
+        $body  = $response->toPsrResponse()->getBody();
+        $bytes = 0;
+        while (! $body->eof()) {
+            $chunk = $body->read(1024 * 1024); // 1 MB chunks
+            if ($chunk === '') {
+                break;
+            }
+            $writeChunk($chunk);
+            $bytes += strlen($chunk);
+        }
+
+        return $bytes;
+    }
+}

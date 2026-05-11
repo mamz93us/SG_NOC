@@ -14,6 +14,10 @@ class PrinterSupplyMonitorService
      * Scan every printer's supplies and fire low-toner notifications.
      * Deduplicates via is_low_alert_active so only one alert fires per
      * low-toner event (resets once toner rises above threshold again).
+     *
+     * Auto-repeat is delegated to the matching NotificationRule.cooldown_minutes;
+     * if no cooldown is set the alert fires exactly once and admins re-trigger
+     * it via the Resend button on the NOC Events page.
      */
     public function checkAll(): void
     {
@@ -60,12 +64,6 @@ class PrinterSupplyMonitorService
                 'is_low_alert_active' => true,
                 'low_alert_sent_at'   => now(),
             ]);
-
-        } elseif ($isLow && $supply->is_low_alert_active
-                  && $supply->low_alert_sent_at?->lt(now()->subWeek())) {
-            // Still low after 7 days — send a weekly reminder, update timestamp
-            $this->sendLowTonerAlert($printer, $supply);
-            $supply->update(['low_alert_sent_at' => now()]);
 
         } elseif (! $isLow && $supply->is_low_alert_active) {
             // Toner recovered above threshold — reset so future drop can notify again

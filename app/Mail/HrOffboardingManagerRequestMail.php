@@ -16,7 +16,8 @@ class HrOffboardingManagerRequestMail extends Mailable
 
     public function __construct(
         public WorkflowRequest  $workflow,
-        public OffboardingToken $token
+        public OffboardingToken $token,
+        public bool             $reminder = false,
     ) {}
 
     public function envelope(): Envelope
@@ -24,8 +25,9 @@ class HrOffboardingManagerRequestMail extends Mailable
         $payload     = $this->workflow->payload ?? [];
         $displayName = $payload['display_name'] ?? 'Employee';
 
+        $prefix = $this->reminder ? 'REMINDER · ' : 'Action Required: ';
         return new Envelope(
-            subject: "Action Required: Offboarding Confirmation for {$displayName}",
+            subject: "{$prefix}Offboarding Confirmation for {$displayName}",
         );
     }
 
@@ -33,6 +35,7 @@ class HrOffboardingManagerRequestMail extends Mailable
     {
         return new Content(
             view: 'emails.hr.offboarding_manager_request',
+            with: ['reminder' => $this->reminder],
         );
     }
 

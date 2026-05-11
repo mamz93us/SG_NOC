@@ -11,6 +11,7 @@ use App\Models\NetworkOffice;
 use App\Models\NetworkRack;
 use App\Models\Setting;
 use App\Models\UcmServer;
+use App\Services\AvePoint\AvePointApiService;
 use App\Services\Identity\GraphService;
 use App\Services\Network\MerakiService;
 use App\Services\SmtpConfigService;
@@ -721,5 +722,219 @@ class SettingsController extends Controller
         ]);
 
         return back()->with('success', 'ITAM settings saved.');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // AvePoint Graph API
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateAvePoint(Request $request)
+    {
+        $request->validate([
+            'avepoint_base_url'           => 'nullable|url|max:255',
+            'avepoint_tenant_id'          => 'nullable|string|max:100',
+            'avepoint_client_id'          => 'nullable|string|max:100',
+            'avepoint_client_secret'      => 'nullable|string|max:500',
+            'avepoint_region'             => 'nullable|string|max:20',
+            'avepoint_export_endpoint'    => 'nullable|string|max:255',
+            'avepoint_download_endpoint'  => 'nullable|string|max:255',
+        ]);
+
+        $settings = Setting::get();
+        $before = [
+            'avepoint_enabled'           => (bool) $settings->avepoint_enabled,
+            'avepoint_base_url'          => $settings->avepoint_base_url,
+            'avepoint_tenant_id'         => $settings->avepoint_tenant_id,
+            'avepoint_client_id'         => $settings->avepoint_client_id,
+            'avepoint_region'            => $settings->avepoint_region,
+            'avepoint_export_endpoint'   => $settings->avepoint_export_endpoint,
+            'avepoint_download_endpoint' => $settings->avepoint_download_endpoint,
+        ];
+
+        $settings->avepoint_enabled           = $request->boolean('avepoint_enabled');
+        $settings->avepoint_base_url          = $request->avepoint_base_url;
+        $settings->avepoint_tenant_id         = $request->avepoint_tenant_id;
+        $settings->avepoint_client_id         = $request->avepoint_client_id;
+        $settings->avepoint_region            = $request->avepoint_region;
+        $settings->avepoint_export_endpoint   = $request->avepoint_export_endpoint;
+        $settings->avepoint_download_endpoint = $request->avepoint_download_endpoint;
+
+        if ($request->filled('avepoint_client_secret')) {
+            $settings->avepoint_client_secret = $request->avepoint_client_secret;
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id'   => 1,
+            'action'     => 'avepoint_updated',
+            'changes'    => [
+                'before'         => $before,
+                'after'          => array_merge($before, [
+                    'avepoint_enabled'           => (bool) $settings->avepoint_enabled,
+                    'avepoint_base_url'          => $settings->avepoint_base_url,
+                    'avepoint_tenant_id'         => $settings->avepoint_tenant_id,
+                    'avepoint_client_id'         => $settings->avepoint_client_id,
+                    'avepoint_region'            => $settings->avepoint_region,
+                    'avepoint_export_endpoint'   => $settings->avepoint_export_endpoint,
+                    'avepoint_download_endpoint' => $settings->avepoint_download_endpoint,
+                ]),
+                'secret_changed' => $request->filled('avepoint_client_secret'),
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'AvePoint settings updated.')
+            ->withFragment('avepoint');
+    }
+
+    public function testAvePoint()
+    {
+        try {
+            $result = (new AvePointApiService())->testConnection();
+            return response()->json($result);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'detail' => $e->getMessage()]);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Azure Blob (Backup Archive)
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateAzureBlob(Request $request)
+    {
+        $request->validate([
+            'azure_blob_account'         => 'nullable|string|max:100',
+            'azure_blob_container'       => 'nullable|string|max:100',
+            'azure_blob_key'             => 'nullable|string|max:500',
+            'azure_blob_endpoint_suffix' => 'nullable|string|max:100',
+        ]);
+
+        $settings = Setting::get();
+        $before = [
+            'azure_blob_enabled'         => (bool) $settings->azure_blob_enabled,
+            'azure_blob_account'         => $settings->azure_blob_account,
+            'azure_blob_container'       => $settings->azure_blob_container,
+            'azure_blob_endpoint_suffix' => $settings->azure_blob_endpoint_suffix,
+        ];
+
+        $settings->azure_blob_enabled         = $request->boolean('azure_blob_enabled');
+        $settings->azure_blob_account         = $request->azure_blob_account;
+        $settings->azure_blob_container       = $request->azure_blob_container;
+        $settings->azure_blob_endpoint_suffix = $request->azure_blob_endpoint_suffix ?: 'core.windows.net';
+
+        if ($request->filled('azure_blob_key')) {
+            $settings->azure_blob_key = $request->azure_blob_key;
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id'   => 1,
+            'action'     => 'azure_blob_updated',
+            'changes'    => [
+                'before'      => $before,
+                'after'       => array_merge($before, [
+                    'azure_blob_enabled'         => (bool) $settings->azure_blob_enabled,
+                    'azure_blob_account'         => $settings->azure_blob_account,
+                    'azure_blob_container'       => $settings->azure_blob_container,
+                    'azure_blob_endpoint_suffix' => $settings->azure_blob_endpoint_suffix,
+                ]),
+                'key_changed' => $request->filled('azure_blob_key'),
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'Azure Blob settings updated.')
+            ->withFragment('azure-blob');
+    }
+
+    public function testAzureBlob()
+    {
+        $settings = Setting::get();
+        if (! $settings->azure_blob_account || ! $settings->azure_blob_key || ! $settings->azure_blob_container) {
+            return response()->json([
+                'ok'     => false,
+                'detail' => 'Storage account, container, and access key are required.',
+            ]);
+        }
+
+        try {
+            // Forget any cached driver so it picks up the latest settings.
+            Storage::forgetDisk('azure_offboarding');
+
+            Storage::disk('azure_offboarding')->put('healthcheck.txt', 'ok ' . now()->toIso8601String());
+            $contents = Storage::disk('azure_offboarding')->get('healthcheck.txt');
+            Storage::disk('azure_offboarding')->delete('healthcheck.txt');
+
+            return response()->json([
+                'ok'     => str_starts_with((string) $contents, 'ok '),
+                'detail' => 'Wrote and read healthcheck.txt successfully.',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok'     => false,
+                'detail' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Offboarding behavior
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateOffboarding(Request $request)
+    {
+        $request->validate([
+            'offboarding_group_id'              => 'nullable|string|max:100',
+            'offboarding_exchange_only_sku'     => 'nullable|string|max:100',
+            'offboarding_retention_days'        => 'required|integer|min:1|max:365',
+            'offboarding_download_expiry_days'  => 'required|integer|min:1|max:30',
+            'offboarding_manager_grace_days'    => 'required|integer|min:0|max:30',
+            'offboarding_it_escalation_email'   => 'nullable|email|max:200',
+        ]);
+
+        $settings = Setting::get();
+        $before = $settings->only([
+            'offboarding_enabled',
+            'offboarding_group_id',
+            'offboarding_exchange_only_sku',
+            'offboarding_retention_days',
+            'offboarding_download_expiry_days',
+            'offboarding_manager_grace_days',
+            'offboarding_it_escalation_email',
+        ]);
+
+        $settings->offboarding_enabled              = $request->boolean('offboarding_enabled');
+        $settings->offboarding_group_id             = $request->offboarding_group_id;
+        $settings->offboarding_exchange_only_sku    = $request->offboarding_exchange_only_sku;
+        $settings->offboarding_retention_days       = (int) $request->offboarding_retention_days;
+        $settings->offboarding_download_expiry_days = (int) $request->offboarding_download_expiry_days;
+        $settings->offboarding_manager_grace_days   = (int) $request->offboarding_manager_grace_days;
+        $settings->offboarding_it_escalation_email  = $request->offboarding_it_escalation_email;
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id'   => 1,
+            'action'     => 'offboarding_updated',
+            'changes'    => [
+                'before' => $before,
+                'after'  => $settings->only(array_keys($before)),
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'Offboarding settings updated.')
+            ->withFragment('offboarding');
     }
 }

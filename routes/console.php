@@ -16,8 +16,22 @@ $gdmsInterval     = max(1, (int) ($settings?->gdms_sync_interval     ?: 5));
 $merakiInterval   = max(1, (int) ($settings?->meraki_polling_interval ?: 5));
 $identityInterval = max(1, (int) ($settings?->identity_sync_interval  ?: 720));
 
-// Helper: build cron expression for "every N minutes"
-$everyN = fn(int $n): string => $n === 1 ? '* * * * *' : "*/{$n} * * * *";
+// Helper: build a valid cron expression for "every N minutes".
+// Cron's minute field is 0–59, so naive */N breaks for N >= 60. This collapses
+// hourly / multi-hour / daily intervals to the correct multi-field form.
+$everyN = function (int $n): string {
+    if ($n <= 1)                              return '* * * * *';            // every minute
+    if ($n < 60)                              return "*/{$n} * * * *";       // every N minutes
+    if ($n === 60)                            return '0 * * * *';            // hourly
+    if ($n % 60 === 0 && ($n / 60) <= 23) {
+        $h = intdiv($n, 60);
+        return "0 */{$h} * * *";                                              // every H hours on the hour
+    }
+    if ($n >= 1440)                           return '0 0 * * *';            // daily floor
+    // Non-whole-hour intervals > 60min: round down to nearest hour.
+    $h = max(1, intdiv($n, 60));
+    return "0 */{$h} * * *";
+};
 
 // GDMS Contact Sync
 Schedule::command('gdms:sync-contacts')
@@ -42,6 +56,20 @@ $cupsInterval = max(1, (int) ($settings?->cups_refresh_interval ?: 5));
 Schedule::command('cups:refresh-status')
     ->cron($everyN($cupsInterval))
     ->withoutOverlapping(5)
+    ->runInBackground();
+
+// Offboarding lifecycle — auto-disable on last day, reminders, escalation,
+// final delete. Runs daily at 23:00; safe to run twice (idempotent).
+Schedule::command('offboarding:run-scheduler')
+    ->dailyAt('23:00')
+    ->withoutOverlapping(10)
+    ->runInBackground();
+
+// Prune offboarding backup blobs whose download window expired weeks ago
+// (only when the parent workflow is fully completed).
+Schedule::command('offboarding:prune-expired-backups')
+    ->dailyAt('02:30')
+    ->withoutOverlapping(10)
     ->runInBackground();
 
 // Other internal jobs

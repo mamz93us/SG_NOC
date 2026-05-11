@@ -1100,4 +1100,195 @@ class GraphService
             ], $filtered),
         ]);
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Offboarding helpers (mailbox usage, forwarding rules, Intune
+    // device removal, group listing)
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Mailbox storage usage for a single user. Falls back to a zero record
+     * when the user is not yet in the report (newly created mailboxes).
+     *
+     * Returns ['size_bytes' => int, 'item_count' => int, 'last_activity' => string|null].
+     */
+    public function getMailboxUsage(string $upnOrId): array
+    {
+        try {
+            // Reports endpoint returns CSV. Ask for JSON via $format hint.
+            $token = $this->getAccessToken();
+            $url   = $this->baseUrl . "/reports/getMailboxUsageDetail(period='D7')?\$format=application/json";
+
+            $response = Http::timeout(self::TIMEOUT_BULK)
+                ->withToken($token)
+                ->get($url);
+
+            if (! $response->successful()) {
+                return ['size_bytes' => 0, 'item_count' => 0, 'last_activity' => null];
+            }
+
+            $rows = $response->json('value', []);
+            $upn  = strtolower($upnOrId);
+            foreach ($rows as $row) {
+                if (strtolower($row['userPrincipalName'] ?? '') === $upn) {
+                    return [
+                        'size_bytes'    => (int) ($row['storageUsedInBytes'] ?? 0),
+                        'item_count'    => (int) ($row['itemCount']          ?? 0),
+                        'last_activity' => $row['lastActivityDate']          ?? null,
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('GraphService::getMailboxUsage failed', ['error' => $e->getMessage()]);
+        }
+
+        return ['size_bytes' => 0, 'item_count' => 0, 'last_activity' => null];
+    }
+
+    /**
+     * OneDrive storage usage for a single user.
+     *
+     * Returns ['size_bytes' => int, 'file_count' => int, 'last_activity' => string|null].
+     */
+    public function getOneDriveUsage(string $upnOrId): array
+    {
+        try {
+            $token = $this->getAccessToken();
+            $url   = $this->baseUrl . "/reports/getOneDriveUsageAccountDetail(period='D7')?\$format=application/json";
+
+            $response = Http::timeout(self::TIMEOUT_BULK)
+                ->withToken($token)
+                ->get($url);
+
+            if (! $response->successful()) {
+                return ['size_bytes' => 0, 'file_count' => 0, 'last_activity' => null];
+            }
+
+            $rows = $response->json('value', []);
+            $upn  = strtolower($upnOrId);
+            foreach ($rows as $row) {
+                if (strtolower($row['ownerPrincipalName'] ?? '') === $upn) {
+                    return [
+                        'size_bytes'    => (int) ($row['storageUsedInBytes'] ?? 0),
+                        'file_count'    => (int) ($row['fileCount']          ?? 0),
+                        'last_activity' => $row['lastActivityDate']          ?? null,
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('GraphService::getOneDriveUsage failed', ['error' => $e->getMessage()]);
+        }
+
+        return ['size_bytes' => 0, 'file_count' => 0, 'last_activity' => null];
+    }
+
+    /**
+     * All groups the user is a member of. When $excludeSecurity is true,
+     * pure-security groups are filtered out — leaving M365 + mail-enabled
+     * + distribution groups (the ones a non-technical manager will care about).
+     *
+     * Each entry: ['id', 'displayName', 'groupTypes', 'mailEnabled', 'securityEnabled'].
+     */
+    public function listUserGroups(string $userId, bool $excludeSecurity = true): array
+    {
+        $result = $this->get(
+            "/users/{$userId}/memberOf",
+            ['$select' => 'id,displayName,groupTypes,mailEnabled,securityEnabled', '$top' => 100]
+        );
+
+        $groups = $result['value'] ?? [];
+
+        // Paginate
+        while (! empty($result['@odata.nextLink'])) {
+            $result   = $this->get($result['@odata.nextLink']);
+            $groups   = array_merge($groups, $result['value'] ?? []);
+        }
+
+        if (! $excludeSecurity) {
+            return $groups;
+        }
+
+        return array_values(array_filter($groups, function ($g) {
+            // Keep mail-enabled, M365 (Unified), or distribution groups.
+            // Drop pure-security (mailEnabled=false, securityEnabled=true, not Unified).
+            $isUnified = in_array('Unified', $g['groupTypes'] ?? [], true);
+            $mailEnabled = (bool) ($g['mailEnabled'] ?? false);
+            return $isUnified || $mailEnabled;
+        }));
+    }
+
+    /**
+     * Create an inbox rule that forwards (redirects) incoming mail to one or
+     * more targets. Returns the new rule id so we can delete it later.
+     *
+     * Multi-target forwarding uses Inbox Rules' `forwardTo` array
+     * (mailboxSettings.forwardingSmtpAddress is single-recipient only).
+     */
+    public function setMailboxForwarding(string $upnOrId, array $forwardTo, bool $keepCopy = true): string
+    {
+        $recipients = array_values(array_filter(array_map(function ($addr) {
+            $addr = trim($addr);
+            return $addr ? [
+                'emailAddress' => ['address' => $addr],
+            ] : null;
+        }, $forwardTo)));
+
+        if (empty($recipients)) {
+            throw new \InvalidArgumentException('setMailboxForwarding requires at least one forwarding address.');
+        }
+
+        $payload = [
+            'displayName' => 'NOC Offboarding Forwarding',
+            'sequence'    => 1,
+            'isEnabled'   => true,
+            'conditions'  => new \stdClass(),                       // match all
+            'actions'     => [
+                'forwardTo'       => $recipients,
+                'stopProcessingRules' => false,
+                // 'forwardAsAttachmentTo' could be used for a true copy;
+                // forwardTo with keepCopy=true is the standard "redirect + keep".
+            ],
+        ];
+
+        $response = $this->post("/users/{$upnOrId}/mailFolders/inbox/messageRules", $payload);
+
+        $ruleId = $response['id'] ?? null;
+        if (! $ruleId) {
+            throw new \RuntimeException('Mailbox forwarding rule created but Graph returned no id.');
+        }
+        return $ruleId;
+    }
+
+    /**
+     * Delete an inbox rule previously created by setMailboxForwarding.
+     */
+    public function removeInboxRule(string $upnOrId, string $ruleId): void
+    {
+        $this->delete("/users/{$upnOrId}/mailFolders/inbox/messageRules/{$ruleId}");
+    }
+
+    /**
+     * Intune managed devices currently assigned to the given UPN.
+     *
+     * Required app perms: DeviceManagementManagedDevices.Read.All (read) +
+     * DeviceManagementManagedDevices.PrivilegedOperations.All (delete).
+     */
+    public function listIntuneDevicesForUpn(string $upn): array
+    {
+        $result = $this->get(
+            $this->betaUrl . "/deviceManagement/managedDevices",
+            ['$filter' => "userPrincipalName eq '" . str_replace("'", "''", $upn) . "'", '$top' => 100]
+        );
+        return $result['value'] ?? [];
+    }
+
+    /**
+     * Delete (offboard) a managed device from Intune. This is the "Defender
+     * removal" path the user picked — Intune unenroll cascades to Defender
+     * for Endpoint via the EM connector.
+     */
+    public function deleteIntuneDevice(string $managedDeviceId): void
+    {
+        $this->delete($this->betaUrl . "/deviceManagement/managedDevices/{$managedDeviceId}");
+    }
 }

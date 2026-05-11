@@ -145,6 +145,7 @@ class DocumentationController extends Controller
 
         return response(Storage::disk('local')->get($path), 200)
             ->header('Content-Type', 'text/html; charset=UTF-8')
+            ->header('Content-Security-Policy', 'sandbox allow-scripts allow-forms')
             ->header('X-Frame-Options', 'SAMEORIGIN');
     }
 
