@@ -15,6 +15,14 @@
     <div class="alert alert-warning py-2">AvePoint is not configured — live jobs are unavailable.</div>
 @endif
 
+<div class="alert alert-light border py-2 small mb-3">
+    <i class="bi bi-info-circle me-1"></i>
+    <strong>Tip:</strong> when you trigger an export from AvePoint's web UI (Restore → Export to PST/ZIP),
+    it appears here as <code>JobType = Export</code>. Filter to "Export" below to see only those. The
+    job will show <em>Finished</em> when the file is ready in AvePoint, but the public API does NOT
+    expose a download endpoint — you must download from AvePoint's UI and upload via NOC.
+</div>
+
 <form method="GET" class="row g-2 mb-3">
     <div class="col-md-3">
         <label class="form-label small text-muted">Service</label>
@@ -24,6 +32,17 @@
             <option value="3" {{ $objectType==='3'?'selected':'' }}>OneDrive</option>
             <option value="2" {{ $objectType==='2'?'selected':'' }}>SharePoint Online</option>
             <option value="7" {{ $objectType==='7'?'selected':'' }}>Teams</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small text-muted">Job Type</label>
+        <select name="job_type" class="form-select form-select-sm">
+            <option value="">All</option>
+            <option value="1" {{ ($jobType??'')==='1'?'selected':'' }}>Backup</option>
+            <option value="2" {{ ($jobType??'')==='2'?'selected':'' }}>Restore</option>
+            <option value="3" {{ ($jobType??'')==='3'?'selected':'' }}>Export</option>
+            <option value="4" {{ ($jobType??'')==='4'?'selected':'' }}>Deletion</option>
+            <option value="5" {{ ($jobType??'')==='5'?'selected':'' }}>Retention</option>
         </select>
     </div>
     <div class="col-md-3">

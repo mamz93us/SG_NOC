@@ -77,11 +77,14 @@ class AvePointController extends Controller
 
     /**
      * Identity-user browser + per-user "last NOC backup" column.
+     *
+     * Tenant-wide AvePoint backup status is shown at the top of the page —
+     * AvePoint's API doesn't expose per-user backup status, only aggregated
+     * tenant-wide job-level info.
      */
     public function users(Request $request): View
     {
-        $q   = trim((string) $request->query('q'));
-        $sub = $this->avepoint->isConfigured();
+        $q = trim((string) $request->query('q'));
 
         $users = IdentityUser::query()
             ->when($q, fn($builder) => $builder->where(function ($w) use ($q) {
@@ -95,21 +98,41 @@ class AvePointController extends Controller
             ->withQueryString();
 
         // Pre-fetch the most recent NOC backup per type per UPN visible on this page
-        $upns = $users->pluck('user_principal_name')->filter()->all();
+        $upns = $users->pluck('user_principal_name')->filter()->map(fn($u) => strtolower($u))->all();
         $lastBackups = AvepointBackup::query()
-            ->whereIn('subject_upn', $upns)
+            ->whereIn(\DB::raw('LOWER(subject_upn)'), $upns)
             ->orderByDesc('created_at')
             ->get()
-            ->groupBy('subject_upn')
+            ->groupBy(fn($b) => strtolower($b->subject_upn))
             ->map(function ($rows) {
                 return $rows->groupBy('type')->map(fn($r) => $r->first());
             });
 
+        // Tenant-wide AvePoint backup status (read-only, from /cloudbackupjobs).
+        // Filter to backup jobs (jobType=1) in 'Finished' state (jobState=2), per service.
+        $tenantBackups = ['mailbox' => null, 'onedrive' => null, 'error' => null];
+        if ($this->avepoint->isConfigured()) {
+            try {
+                $mailbox = $this->avepoint->listRecentJobsVerbose([
+                    'jobType' => 1, 'objectType' => 1, 'jobState' => 2, 'pageSize' => 1,
+                ]);
+                $onedrive = $this->avepoint->listRecentJobsVerbose([
+                    'jobType' => 1, 'objectType' => 3, 'jobState' => 2, 'pageSize' => 1,
+                ]);
+                $tenantBackups['mailbox']  = collect($mailbox['data']  ?? [])->sortByDesc('finishTime')->first();
+                $tenantBackups['onedrive'] = collect($onedrive['data'] ?? [])->sortByDesc('finishTime')->first();
+                $tenantBackups['error']    = $mailbox['error'] ?? $onedrive['error'] ?? null;
+            } catch (\Throwable $e) {
+                $tenantBackups['error'] = $e->getMessage();
+            }
+        }
+
         return view('admin.avepoint.users', [
-            'users'       => $users,
-            'q'           => $q,
-            'lastBackups' => $lastBackups,
-            'hasEndpoints'=> $this->avepoint->hasExportEndpoints(),
+            'users'         => $users,
+            'q'             => $q,
+            'lastBackups'   => $lastBackups,
+            'tenantBackups' => $tenantBackups,
+            'hasEndpoints'  => $this->avepoint->hasExportEndpoints(),
         ]);
     }
 
@@ -124,6 +147,9 @@ class AvePointController extends Controller
         ];
         if ($t = $request->query('object_type')) {
             $filter['objectType'] = (int) $t;
+        }
+        if ($jt = $request->query('job_type')) {
+            $filter['jobType'] = (int) $jt;
         }
         if ($s = $request->query('state')) {
             $filter['jobState'] = (int) $s;
@@ -143,6 +169,7 @@ class AvePointController extends Controller
             'configured'  => $this->avepoint->isConfigured(),
             'filter'      => $filter,
             'objectType'  => $request->query('object_type'),
+            'jobType'     => $request->query('job_type'),
             'state'       => $request->query('state'),
         ]);
     }
