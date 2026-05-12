@@ -1104,8 +1104,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('avepoint/backups/{backup}', [\App\Http\Controllers\Admin\AvePointController::class, 'showBackup'])->name('avepoint.backup.show');
     });
     Route::middleware('permission:manage-avepoint')->group(function () {
-        Route::post('avepoint/request',                [\App\Http\Controllers\Admin\AvePointController::class, 'requestBackup'])->name('avepoint.request');
-        Route::post('avepoint/backups/{backup}/retry', [\App\Http\Controllers\Admin\AvePointController::class, 'retry'])        ->name('avepoint.backup.retry');
+        Route::post('avepoint/request',                 [\App\Http\Controllers\Admin\AvePointController::class, 'requestBackup'])->name('avepoint.request');
+        Route::post('avepoint/backups/{backup}/retry',  [\App\Http\Controllers\Admin\AvePointController::class, 'retry'])        ->name('avepoint.backup.retry');
+        Route::post('avepoint/backups/{backup}/upload', [\App\Http\Controllers\Admin\AvepointBackupUploadController::class, 'upload'])->name('avepoint.backup.upload');
     });
 
     // ─── Offboarding ──────────────────────────────────────────

@@ -87,8 +87,18 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="9" class="text-center text-muted py-4">
-                        {{ $configured ? 'No jobs match the current filter.' : 'AvePoint not configured.' }}
+                    <tr><td colspan="9" class="text-muted py-3 px-3">
+                        @if(!empty($jobsError))
+                            <div class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>{{ $jobsError }}</div>
+                            @if(!empty($requestUrl))
+                                <div class="small font-monospace mt-1" style="word-break:break-all;color:#888;">{{ $requestUrl }}</div>
+                            @endif
+                        @else
+                            <div class="text-center">No jobs match the current filter (last 30 days by default).</div>
+                            @if(!empty($requestUrl))
+                                <div class="small font-monospace mt-1 text-center" style="word-break:break-all;color:#888;">URL hit: {{ $requestUrl }}</div>
+                            @endif
+                        @endif
                     </td></tr>
                 @endforelse
             </tbody>

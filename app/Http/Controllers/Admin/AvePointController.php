@@ -36,9 +36,12 @@ class AvePointController extends Controller
         $retention    = $configured ? $this->avepoint->getRetentionPolicy()   : null;
         $unusual      = $configured ? $this->avepoint->getUnusualActivity()   : null;
 
-        $recentJobs = $configured
-            ? collect($this->avepoint->listRecentJobs(['pageSize' => 10]))
-            : collect();
+        $jobsResult = $configured
+            ? $this->avepoint->listRecentJobsVerbose(['pageSize' => 10])
+            : ['data' => [], 'error' => 'AvePoint is not configured.', 'request_url' => null];
+        $recentJobs      = collect($jobsResult['data'] ?? []);
+        $recentJobsError = $jobsResult['error'] ?? null;
+        $recentJobsUrl   = $jobsResult['request_url'] ?? null;
 
         $localCounts = [
             'total'      => AvepointBackup::count(),
@@ -64,9 +67,11 @@ class AvePointController extends Controller
             'frequency'     => $frequency,
             'retention'     => $retention,
             'unusual'       => $unusual,
-            'recentJobs'    => $recentJobs,
-            'localCounts'   => $localCounts,
-            'recentBackups' => $recentBackups,
+            'recentJobs'      => $recentJobs,
+            'recentJobsError' => $recentJobsError,
+            'recentJobsUrl'   => $recentJobsUrl,
+            'localCounts'     => $localCounts,
+            'recentBackups'   => $recentBackups,
         ]);
     }
 
@@ -127,12 +132,14 @@ class AvePointController extends Controller
             $filter['startTime'] = $d;
         }
 
-        $jobs = $this->avepoint->isConfigured()
-            ? $this->avepoint->listRecentJobs($filter)
-            : [];
+        $result = $this->avepoint->isConfigured()
+            ? $this->avepoint->listRecentJobsVerbose($filter)
+            : ['data' => [], 'error' => 'AvePoint is not configured.', 'request_url' => null];
 
         return view('admin.avepoint.jobs', [
-            'jobs'        => $jobs,
+            'jobs'        => $result['data'] ?? [],
+            'jobsError'   => $result['error'] ?? null,
+            'requestUrl'  => $result['request_url'] ?? null,
             'configured'  => $this->avepoint->isConfigured(),
             'filter'      => $filter,
             'objectType'  => $request->query('object_type'),

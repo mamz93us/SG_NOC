@@ -115,8 +115,15 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="text-center text-muted py-3">
-                            {{ $configured ? 'No recent jobs returned by AvePoint.' : 'AvePoint not configured.' }}
+                        <tr><td colspan="4" class="text-muted py-3 px-3">
+                            @if($recentJobsError)
+                                <div class="text-danger small mb-1"><i class="bi bi-exclamation-triangle me-1"></i>{{ $recentJobsError }}</div>
+                                @if($recentJobsUrl)
+                                    <div class="small font-monospace" style="word-break:break-all;color:#888;">{{ $recentJobsUrl }}</div>
+                                @endif
+                            @else
+                                <div class="text-center">No backup jobs in the last 30 days{{ $settings->avepoint_location ? ' (filtered to '.$settings->avepoint_location.')' : '' }}.</div>
+                            @endif
                         </td></tr>
                     @endforelse
                     </tbody>

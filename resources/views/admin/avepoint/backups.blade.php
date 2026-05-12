@@ -69,6 +69,8 @@
                                 <a href="{{ url('/avepoint/download/' . $b->download_token) }}" class="btn btn-sm btn-outline-success">
                                     <i class="bi bi-download me-1"></i>Download
                                 </a>
+                            @elseif($b->status === 'manual_upload_required')
+                                @include('admin.avepoint._upload_form', ['backup' => $b])
                             @elseif($b->status === 'completed')
                                 <span class="text-muted small">link expired</span>
                             @else

@@ -206,16 +206,23 @@ class AvePointApiService
         try {
             $token = $this->getAccessToken('microsoft365backup.jobInfo.read.all');
 
+            // AvePoint's request sample uses Pascal-case query params; the parameter
+            // table uses camelCase. The Pascal form is what's shown in their
+            // worked example, so we use that for safety.
+            // Time window defaults to 30 days — wide enough that a freshly-set-up
+            // tenant with weekly backups still shows entries.
             $params = array_filter([
-                'startTime'  => $filter['startTime']  ?? now()->subDays(7)->utc()->format('Y-m-d'),
-                'finishTime' => $filter['finishTime'] ?? now()->utc()->format('Y-m-d'),
-                'jobType'    => $filter['jobType']    ?? null,
-                'objectType' => $filter['objectType'] ?? null,
-                'jobState'   => $filter['jobState']   ?? null,
-                'pageSize'   => $filter['pageSize']   ?? 50,
-                'pageIndex'  => $filter['pageIndex']  ?? 0,
-                'location'   => $this->location,
-            ], fn($v) => $v !== null);
+                'StartTime'  => $filter['startTime']  ?? now()->subDays(30)->utc()->format('Y-m-d'),
+                'FinishTime' => $filter['finishTime'] ?? now()->addDay()->utc()->format('Y-m-d'),
+                'JobType'    => $filter['jobType']    ?? null,
+                'ObjectType' => $filter['objectType'] ?? null,
+                'JobState'   => $filter['jobState']   ?? null,
+                'PageSize'   => $filter['pageSize']   ?? 50,
+                'PageIndex'  => $filter['pageIndex']  ?? 0,
+                // Location only when explicitly set — passing it on a non-multi-geo
+                // tenant returns an empty list.
+                'Location'   => $this->location,
+            ], fn($v) => $v !== null && $v !== '');
 
             $response = Http::withToken($token)
                 ->timeout(20)
@@ -225,15 +232,71 @@ class AvePointApiService
                 Log::warning('AvePointApiService::listRecentJobs non-2xx', [
                     'status' => $response->status(),
                     'body'   => substr($response->body(), 0, 400),
+                    'params' => $params,
                 ]);
                 return [];
             }
 
-            return $response->json('data', []);
+            return $response->json('data', []) ?? [];
         } catch (\Throwable $e) {
             Log::warning('AvePointApiService::listRecentJobs threw', ['error' => $e->getMessage()]);
             return [];
         }
+    }
+
+    /**
+     * Same as listRecentJobs() but returns a structured ['data' => [...],
+     * 'error' => ?string, 'request_url' => string] so the dashboard can
+     * tell the user *why* the list is empty (auth failure / no jobs / bad
+     * location filter / etc.).
+     */
+    public function listRecentJobsVerbose(array $filter = []): array
+    {
+        if (! $this->isConfigured()) {
+            return ['data' => [], 'error' => 'AvePoint is not configured.', 'request_url' => null];
+        }
+
+        try {
+            $token = $this->getAccessToken('microsoft365backup.jobInfo.read.all');
+        } catch (\Throwable $e) {
+            return ['data' => [], 'error' => 'OAuth: ' . $e->getMessage(), 'request_url' => null];
+        }
+
+        $params = array_filter([
+            'StartTime'  => $filter['startTime']  ?? now()->subDays(30)->utc()->format('Y-m-d'),
+            'FinishTime' => $filter['finishTime'] ?? now()->addDay()->utc()->format('Y-m-d'),
+            'JobType'    => $filter['jobType']    ?? null,
+            'ObjectType' => $filter['objectType'] ?? null,
+            'JobState'   => $filter['jobState']   ?? null,
+            'PageSize'   => $filter['pageSize']   ?? 50,
+            'PageIndex'  => $filter['pageIndex']  ?? 0,
+            'Location'   => $this->location,
+        ], fn($v) => $v !== null && $v !== '');
+
+        $url = "{$this->baseUrl}/backup/m365/cloudbackupjobs?" . http_build_query($params);
+
+        try {
+            $response = Http::withToken($token)->timeout(20)->get(
+                "{$this->baseUrl}/backup/m365/cloudbackupjobs", $params
+            );
+        } catch (\Throwable $e) {
+            return ['data' => [], 'error' => 'HTTP error: ' . $e->getMessage(), 'request_url' => $url];
+        }
+
+        if (! $response->successful()) {
+            return [
+                'data'        => [],
+                'error'       => "HTTP {$response->status()} — " . substr($response->body(), 0, 300),
+                'request_url' => $url,
+            ];
+        }
+
+        return [
+            'data'        => $response->json('data', []) ?? [],
+            'error'       => null,
+            'request_url' => $url,
+            'meta'        => $response->json('metadata') ?? null,
+        ];
     }
 
     /**

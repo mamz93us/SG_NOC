@@ -26,6 +26,24 @@
     </div>
 </div>
 
+@if($backup->status === 'manual_upload_required')
+    <div class="alert alert-warning mb-3">
+        <h6 class="alert-heading"><i class="bi bi-cloud-upload me-1"></i>Manual upload required</h6>
+        <p class="mb-2 small">
+            AvePoint's public API doesn't expose a programmatic backup-export endpoint, so IT must run the
+            export from the AvePoint web UI and upload the file here.
+        </p>
+        <ol class="small mb-2">
+            <li>Log into <a href="https://www.avepointonlineservices.com/" target="_blank" rel="noopener">AvePoint Online Services</a> →
+                Cloud Backup for Microsoft 365.</li>
+            <li>Find the latest backup for <code>{{ $backup->subject_upn }}</code> ({{ $backup->typeLabel() }}).</li>
+            <li>Run <strong>Export</strong> (mailbox → PST, OneDrive → ZIP) and download the file once ready.</li>
+            <li>Upload it below — it streams straight into Azure Blob; SHA-256 is computed inline.</li>
+        </ol>
+        @include('admin.avepoint._upload_form', ['backup' => $backup])
+    </div>
+@endif
+
 @if(session('success'))<div class="alert alert-success py-2">{{ session('success') }}</div>@endif
 @if(session('error'))<div class="alert alert-danger py-2">{{ session('error') }}</div>@endif
 
