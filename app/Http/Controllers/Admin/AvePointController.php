@@ -31,7 +31,10 @@ class AvePointController extends Controller
     {
         $settings     = Setting::get();
         $configured   = $this->avepoint->isConfigured();
-        $subscription = $configured ? $this->avepoint->getSubscription() : null;
+        $subscription = $configured ? $this->avepoint->getSubscription()      : null;
+        $frequency    = $configured ? $this->avepoint->getBackupFrequency()   : null;
+        $retention    = $configured ? $this->avepoint->getRetentionPolicy()   : null;
+        $unusual      = $configured ? $this->avepoint->getUnusualActivity()   : null;
 
         $recentJobs = $configured
             ? collect($this->avepoint->listRecentJobs(['pageSize' => 10]))
@@ -58,6 +61,9 @@ class AvePointController extends Controller
             'configured'    => $configured,
             'hasEndpoints'  => $this->avepoint->hasExportEndpoints(),
             'subscription'  => $subscription,
+            'frequency'     => $frequency,
+            'retention'     => $retention,
+            'unusual'       => $unusual,
             'recentJobs'    => $recentJobs,
             'localCounts'   => $localCounts,
             'recentBackups' => $recentBackups,

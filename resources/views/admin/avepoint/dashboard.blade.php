@@ -17,11 +17,12 @@
         AvePoint is not configured. Set tenant URL, client id, and secret on the
         <a href="{{ route('admin.settings.index') }}#avepoint">Settings page</a> first.
     </div>
-@elseif(! $hasEndpoints)
-    <div class="alert alert-info py-2 mb-3">
+@else
+    <div class="alert alert-info py-2 mb-3 small">
         <i class="bi bi-info-circle me-1"></i>
-        AvePoint export endpoints are not configured — backup requests will fall back to the manual-upload IT task.
-        Live monitoring (jobs / subscription) still works.
+        Per the AvePoint Graph API docs, Cloud Backup for M365 is read-only — this page monitors jobs,
+        subscription, frequency, retention, and unusual activity. Triggering a NOC backup creates a
+        manual-upload IT task; IT runs the export from AvePoint's web UI and uploads via NOC.
     </div>
 @endif
 
@@ -151,6 +152,76 @@
         </div>
     </div>
 </div>
+
+@if($configured)
+<div class="row g-3 mt-1">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-clock-history me-1"></i>Backup Frequency
+            </div>
+            <div class="card-body">
+                @if($frequency)
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                        @foreach($frequency as $svc)
+                            <tr>
+                                <td>{{ $svc['serviceType'] ?? $svc['service'] ?? 'Service' }}</td>
+                                <td class="text-end small text-muted">
+                                    {{ $svc['backupFrequency'] ?? $svc['frequency'] ?? '—' }}
+                                    @if(! empty($svc['backupStartTime']) && is_array($svc['backupStartTime']))
+                                        <br><span class="font-monospace">{{ implode(', ', array_slice($svc['backupStartTime'], 0, 4)) }}</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <p class="text-muted small mb-0">No data — requires <code>microsoft365backup.settings.read.all</code> scope.</p>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-shield-check me-1"></i>Retention Policy
+            </div>
+            <div class="card-body">
+                @if($retention)
+                    <pre class="small mb-0" style="max-height:240px;overflow:auto;">{{ json_encode($retention, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES) }}</pre>
+                @else
+                    <p class="text-muted small mb-0">No data — requires <code>microsoft365backup.settings.read.all</code> scope.</p>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-exclamation-triangle me-1"></i>Unusual Activity
+            </div>
+            <div class="card-body">
+                @if($unusual && is_array($unusual) && count($unusual))
+                    <ul class="small mb-0 ps-3">
+                        @foreach(array_slice($unusual, 0, 8) as $u)
+                            <li>{{ $u['description'] ?? json_encode($u) }}</li>
+                        @endforeach
+                    </ul>
+                @else
+                    <p class="text-muted small mb-0">
+                        No unusual activity reported{{ $configured ? '' : ' (AvePoint not configured)' }}.
+                        Requires <code>microsoft365backup.unusualActivity.read.all</code> scope.
+                    </p>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 @include('admin.avepoint._request_modal')
 

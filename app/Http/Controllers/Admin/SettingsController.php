@@ -736,6 +736,7 @@ class SettingsController extends Controller
             'avepoint_client_id'          => 'nullable|string|max:100',
             'avepoint_client_secret'      => 'nullable|string|max:500',
             'avepoint_region'             => 'nullable|string|max:20',
+            'avepoint_location'           => 'nullable|string|max:20',
             'avepoint_export_endpoint'    => 'nullable|string|max:255',
             'avepoint_download_endpoint'  => 'nullable|string|max:255',
         ]);
@@ -751,13 +752,25 @@ class SettingsController extends Controller
             'avepoint_download_endpoint' => $settings->avepoint_download_endpoint,
         ];
 
+        // Strip the well-known placeholder examples — these are illustrative paths
+        // I shipped in the form, NOT real AvePoint endpoints, and saving them
+        // would cause the backup-request flow to POST to a 404 URL.
+        $placeholderExports   = ['/backup/m365/exports', 'backup/m365/exports'];
+        $placeholderDownloads = ['/backup/m365/exports/{jobId}/file', 'backup/m365/exports/{jobId}/file'];
+
+        $exportEp   = trim((string) $request->avepoint_export_endpoint);
+        $downloadEp = trim((string) $request->avepoint_download_endpoint);
+        if (in_array($exportEp,   $placeholderExports,   true)) $exportEp   = '';
+        if (in_array($downloadEp, $placeholderDownloads, true)) $downloadEp = '';
+
         $settings->avepoint_enabled           = $request->boolean('avepoint_enabled');
         $settings->avepoint_base_url          = $request->avepoint_base_url;
         $settings->avepoint_tenant_id         = $request->avepoint_tenant_id;
         $settings->avepoint_client_id         = $request->avepoint_client_id;
         $settings->avepoint_region            = $request->avepoint_region;
-        $settings->avepoint_export_endpoint   = $request->avepoint_export_endpoint;
-        $settings->avepoint_download_endpoint = $request->avepoint_download_endpoint;
+        $settings->avepoint_location          = $request->avepoint_location ?: null;
+        $settings->avepoint_export_endpoint   = $exportEp   ?: null;
+        $settings->avepoint_download_endpoint = $downloadEp ?: null;
 
         if ($request->filled('avepoint_client_secret')) {
             $settings->avepoint_client_secret = $request->avepoint_client_secret;

@@ -1115,20 +1115,41 @@
                     </div>
                 </div>
 
-                <div class="col-md-8">
+                <div class="col-md-6">
                     <label class="form-label fw-semibold">Base URL</label>
                     <input type="url" name="avepoint_base_url" class="form-control font-monospace"
                            value="{{ old('avepoint_base_url', $settings->avepoint_base_url) }}"
-                           placeholder="https://graph-us.avepointonlineservices.com">
-                    <div class="form-text">Set the data center URL — e.g. <code>graph-us</code>, <code>graph-eu</code>, <code>graph-sg</code>.</div>
+                           placeholder="https://graph-fr.avepointonlineservices.com">
+                    <div class="form-text">Data center URL — e.g. <code>graph-us</code>, <code>graph-fr</code>, <code>graph-eu</code>, <code>graph-sg</code>.</div>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label fw-semibold">Region</label>
                     <input type="text" name="avepoint_region" class="form-control font-monospace"
                            value="{{ old('avepoint_region', $settings->avepoint_region ?? 'us') }}"
-                           placeholder="us">
+                           placeholder="fr">
                     <div class="form-text">DC shortcode (used when base URL is blank).</div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Location <small class="text-muted fw-normal">(multi-geo)</small></label>
+                    <select name="avepoint_location" class="form-select">
+                        <option value="">— All locations —</option>
+                        @foreach([
+                            'NAM'=>'North America','EUR'=>'Europe/Middle East/Africa','GBR'=>'United Kingdom',
+                            'FRA'=>'France','DEU'=>'Germany','CHE'=>'Switzerland','NOR'=>'Norway','SWE'=>'Sweden',
+                            'ITA'=>'Italy','POL'=>'Poland','ESP'=>'Spain','ARE'=>'UAE','QAT'=>'Qatar',
+                            'ZAF'=>'South Africa','ISR'=>'Israel','IND'=>'India','KOR'=>'Korea',
+                            'JPN'=>'Japan','APC'=>'Asia-Pacific','AUS'=>'Australia','NZL'=>'New Zealand',
+                            'CAN'=>'Canada','BRA'=>'Brazil','MEX'=>'Mexico','TWN'=>'Taiwan',
+                            'PrimaryGeoLocation'=>'Primary (central AOS)'
+                        ] as $code => $label)
+                            <option value="{{ $code }}" {{ ($settings->avepoint_location ?? '') === $code ? 'selected' : '' }}>
+                                {{ $code }} — {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">Optional — only used for multi-geo tenants.</div>
                 </div>
 
                 <div class="col-md-6">
@@ -1151,20 +1172,46 @@
 
                 <div class="col-12"><hr class="my-2"></div>
 
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold">Export endpoint <small class="text-muted fw-normal">(optional)</small></label>
-                    <input type="text" name="avepoint_export_endpoint" class="form-control font-monospace"
-                           value="{{ old('avepoint_export_endpoint', $settings->avepoint_export_endpoint) }}"
-                           placeholder="/backup/m365/exports">
-                    <div class="form-text">POST endpoint to trigger an export. Leave blank to use manual-upload fallback.</div>
+                <div class="col-12">
+                    <div class="alert alert-info py-2 small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Reference:</strong> per the
+                        <a href="https://learn.avepoint.com/graphapi/docs/" target="_blank" rel="noopener">AvePoint Graph API Documentation</a>,
+                        the public Cloud Backup for M365 API is <strong>read-only monitoring</strong>
+                        (<code>/cloudbackupjobs</code>, <code>/cloudbackuplicenseconsumption</code>,
+                        <code>/cloudbackupunusualactivitydata</code>, settings endpoints). There is
+                        <strong>no documented public endpoint</strong> to trigger an export or download
+                        a mailbox PST / OneDrive zip. The fields below exist only for private/custom
+                        AvePoint contracts. <strong>Leave blank for the public API</strong> — the
+                        offboarding and AvePoint module flows will fall through to a manual-upload IT
+                        task (export from the AvePoint web UI, upload via NOC).
+                    </div>
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label fw-semibold">Download endpoint <small class="text-muted fw-normal">(optional)</small></label>
-                    <input type="text" name="avepoint_download_endpoint" class="form-control font-monospace"
+                    <label class="form-label fw-semibold">Export endpoint <small class="text-muted fw-normal">(advanced)</small></label>
+                    <input type="text" name="avepoint_export_endpoint" id="avepoint_export_endpoint" class="form-control font-monospace"
+                           value="{{ old('avepoint_export_endpoint', $settings->avepoint_export_endpoint) }}"
+                           placeholder="e.g. /private/exports — leave blank">
+                    <div class="form-text">
+                        POST endpoint to trigger an export.
+                        @if($settings->avepoint_export_endpoint)
+                            <button type="button" class="btn btn-link btn-sm p-0" onclick="document.getElementById('avepoint_export_endpoint').value=''">Clear</button>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Download endpoint <small class="text-muted fw-normal">(advanced)</small></label>
+                    <input type="text" name="avepoint_download_endpoint" id="avepoint_download_endpoint" class="form-control font-monospace"
                            value="{{ old('avepoint_download_endpoint', $settings->avepoint_download_endpoint) }}"
-                           placeholder="/backup/m365/exports/{jobId}/file">
-                    <div class="form-text">GET endpoint to stream an export. Use <code>{jobId}</code> placeholder.</div>
+                           placeholder="e.g. /private/exports/{jobId}/file — leave blank">
+                    <div class="form-text">
+                        GET endpoint that streams the export file. Use <code>{jobId}</code> as a placeholder.
+                        @if($settings->avepoint_download_endpoint)
+                            <button type="button" class="btn btn-link btn-sm p-0" onclick="document.getElementById('avepoint_download_endpoint').value=''">Clear</button>
+                        @endif
+                    </div>
                 </div>
             </div>
 

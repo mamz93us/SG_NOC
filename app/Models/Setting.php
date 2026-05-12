@@ -84,6 +84,7 @@ class Setting extends Model
         'avepoint_client_id',
         'avepoint_client_secret',
         'avepoint_region',
+        'avepoint_location',
         'avepoint_export_endpoint',
         'avepoint_download_endpoint',
         // Azure Blob (offboarding backup archive)

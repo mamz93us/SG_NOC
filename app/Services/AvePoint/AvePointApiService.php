@@ -31,8 +31,17 @@ class AvePointApiService
     private string $tenantId;
     private string $clientId;
     private string $clientSecret;
+    private ?string $location;
     private ?string $exportEndpoint;
     private ?string $downloadEndpoint;
+
+    /** Illustrative path examples shown in the Settings form — never treat as real endpoints. */
+    private const PLACEHOLDER_ENDPOINTS = [
+        '/backup/m365/exports',
+        'backup/m365/exports',
+        '/backup/m365/exports/{jobId}/file',
+        'backup/m365/exports/{jobId}/file',
+    ];
 
     public function __construct(
         ?string $tenantId = null,
@@ -44,8 +53,12 @@ class AvePointApiService
         $this->tenantId         = $tenantId      ?? $settings->avepoint_tenant_id    ?? '';
         $this->clientId         = $clientId      ?? $settings->avepoint_client_id    ?? '';
         $this->clientSecret     = $clientSecret  ?? $settings->avepoint_client_secret ?? '';
-        $this->exportEndpoint   = $settings->avepoint_export_endpoint   ?: null;
-        $this->downloadEndpoint = $settings->avepoint_download_endpoint ?: null;
+        $this->location         = $settings->avepoint_location ?: null;
+
+        $exportEp = trim((string) ($settings->avepoint_export_endpoint ?? ''));
+        $downloadEp = trim((string) ($settings->avepoint_download_endpoint ?? ''));
+        $this->exportEndpoint   = ($exportEp   === '' || in_array($exportEp,   self::PLACEHOLDER_ENDPOINTS, true)) ? null : $exportEp;
+        $this->downloadEndpoint = ($downloadEp === '' || in_array($downloadEp, self::PLACEHOLDER_ENDPOINTS, true)) ? null : $downloadEp;
 
         $resolvedRegion = $region ?? $settings->avepoint_region ?? 'us';
         $this->baseUrl  = rtrim(
@@ -201,6 +214,7 @@ class AvePointApiService
                 'jobState'   => $filter['jobState']   ?? null,
                 'pageSize'   => $filter['pageSize']   ?? 50,
                 'pageIndex'  => $filter['pageIndex']  ?? 0,
+                'location'   => $this->location,
             ], fn($v) => $v !== null);
 
             $response = Http::withToken($token)
@@ -235,9 +249,85 @@ class AvePointApiService
         try {
             $token = $this->getAccessToken('microsoft365backup.subscriptionInfo.read.all');
 
+            $params = array_filter(['location' => $this->location], fn($v) => $v !== null);
             $response = Http::withToken($token)
                 ->timeout(15)
-                ->get("{$this->baseUrl}/backup/m365/cloudbackuplicenseconsumption");
+                ->get("{$this->baseUrl}/backup/m365/cloudbackuplicenseconsumption", $params);
+
+            return $response->successful() ? $response->json('data') : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Backup frequency per service from AvePoint Cloud Backup for M365.
+     * Documented endpoint: GET /backup/m365/settings/backup/frequency
+     * Required scope: microsoft365backup.settings.read.all
+     */
+    public function getBackupFrequency(): ?array
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+
+        try {
+            $token = $this->getAccessToken('microsoft365backup.settings.read.all');
+            $params = array_filter(['location' => $this->location], fn($v) => $v !== null);
+
+            $response = Http::withToken($token)
+                ->timeout(15)
+                ->get("{$this->baseUrl}/backup/m365/settings/backup/frequency", $params);
+
+            return $response->successful() ? $response->json('data') : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Retention policy snapshot from AvePoint Cloud Backup for M365.
+     * Documented endpoint: GET /backup/m365/settings/retention-policy
+     * Required scope: microsoft365backup.settings.read.all
+     */
+    public function getRetentionPolicy(): ?array
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+
+        try {
+            $token = $this->getAccessToken('microsoft365backup.settings.read.all');
+            $params = array_filter(['location' => $this->location], fn($v) => $v !== null);
+
+            $response = Http::withToken($token)
+                ->timeout(15)
+                ->get("{$this->baseUrl}/backup/m365/settings/retention-policy", $params);
+
+            return $response->successful() ? $response->json('data') : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Unusual activity detected by AvePoint Cloud Backup for M365.
+     * Documented endpoint: GET /backup/m365/cloudbackupunusualactivitydata
+     * Required scope: microsoft365backup.unusualActivity.read.all
+     */
+    public function getUnusualActivity(): ?array
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+
+        try {
+            $token = $this->getAccessToken('microsoft365backup.unusualActivity.read.all');
+            $params = array_filter(['location' => $this->location], fn($v) => $v !== null);
+
+            $response = Http::withToken($token)
+                ->timeout(15)
+                ->get("{$this->baseUrl}/backup/m365/cloudbackupunusualactivitydata", $params);
 
             return $response->successful() ? $response->json('data') : null;
         } catch (\Throwable) {
@@ -268,7 +358,7 @@ class AvePointApiService
 
             $response = Http::withToken($token)
                 ->timeout(20)
-                ->get("{$this->baseUrl}/backup/m365/cloudbackupjobs", [
+                ->get("{$this->baseUrl}/backup/m365/cloudbackupjobs", array_filter([
                     'startTime'  => $startTime,
                     'finishTime' => $finishTime,
                     'jobType'    => 1,           // 1 = Backup
@@ -276,7 +366,8 @@ class AvePointApiService
                     'jobState'   => 2,           // 2 = Finished
                     'pageSize'   => 50,
                     'pageIndex'  => 0,
-                ]);
+                    'location'   => $this->location,
+                ], fn($v) => $v !== null));
 
             if (! $response->successful()) {
                 Log::warning('AvePointApiService::findRecentBackupJob non-2xx', [
