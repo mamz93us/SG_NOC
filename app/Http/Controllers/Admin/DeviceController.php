@@ -272,7 +272,10 @@ class DeviceController extends Controller
             }
         }
 
-        $device = Device::create(array_merge($data, ['source' => 'manual']));
+        $device = Device::create(array_merge($data, [
+            'source'    => 'manual',
+            'source_id' => ($data['serial_number'] ?? null) ?: ('manual-' . \Illuminate\Support\Str::random(12)),
+        ]));
 
         // Calculate initial depreciation value
         if ($device->purchase_cost && $device->depreciation_method === 'straight_line') {
@@ -362,6 +365,7 @@ class DeviceController extends Controller
                 'supplier_id'     => $request->supplier_id,
                 'condition'       => $request->condition,
                 'source'          => 'manual',
+                'source_id'       => $sn,
             ];
 
             // Sync manufacturer/model strings from DeviceModel

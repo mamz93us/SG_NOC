@@ -272,6 +272,7 @@ class DeviceImportController extends Controller
                         'asset_code'    => $assetCode,
                         'status'        => 'active',
                         'source'        => 'manual',
+                        'source_id'     => $row['serial'] ?: ('manual-' . \Illuminate\Support\Str::random(12)),
                     ]);
 
                     AssetHistory::record($device, 'created',
@@ -409,6 +410,7 @@ class DeviceImportController extends Controller
             'asset_code'    => $assetCodeSvc->generate('phone'),
             'status'        => 'active',
             'source'        => 'manual',
+            'source_id'     => $request->serial_number ?: ('manual-' . \Illuminate\Support\Str::random(12)),
         ]);
         AssetHistory::record($device, 'created', "Created manually");
         ActivityLog::log("Device created manually: " . ($mac ? "MAC {$mac}" : "IP {$ip}"));
@@ -575,6 +577,7 @@ class DeviceImportController extends Controller
                         'asset_code'    => $assetCodeSvc->generate('phone'),
                         'status'        => 'active',
                         'source'        => 'manual',
+                        'source_id'     => $row['serial'] ?: ('manual-' . \Illuminate\Support\Str::random(12)),
                     ]);
                     AssetHistory::record($device, 'created', "Created via batch add");
                     $results[] = [
