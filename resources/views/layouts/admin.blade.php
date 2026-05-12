@@ -644,6 +644,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('view-avepoint')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.avepoint.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.avepoint.dashboard') }}">
+                                    <i class="bi bi-cloud-arrow-down-fill me-2 text-info"></i>AvePoint Backups
+                                </a>
+                            </li>
+                            @endcan
                             @can('manage-workflow-templates')
                             <li><hr class="dropdown-divider"></li>
                             <li>

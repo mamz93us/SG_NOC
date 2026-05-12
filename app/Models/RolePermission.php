@@ -83,6 +83,10 @@ class RolePermission extends Model
                 'view-offboarding'   => 'View Offboarding Workflows',
                 'manage-offboarding' => 'Manage Offboarding (force delete, cancel, upload backups)',
             ],
+            'AvePoint' => [
+                'view-avepoint'   => 'View AvePoint Module (dashboard, users, jobs, backups)',
+                'manage-avepoint' => 'Manage AvePoint Backups (request, retry, download)',
+            ],
             'HR' => [
                 'submit-hr-onboarding' => 'Submit HR Onboarding Requests (portal)',
             ],

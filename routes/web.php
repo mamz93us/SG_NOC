@@ -1095,6 +1095,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('workflows/{workflow}',   [WorkflowController::class, 'show'])       ->name('workflows.show');
     });
 
+    // ─── AvePoint Module ──────────────────────────────────────
+    Route::middleware('permission:view-avepoint')->group(function () {
+        Route::get('avepoint',                  [\App\Http\Controllers\Admin\AvePointController::class, 'dashboard']) ->name('avepoint.dashboard');
+        Route::get('avepoint/users',            [\App\Http\Controllers\Admin\AvePointController::class, 'users'])     ->name('avepoint.users');
+        Route::get('avepoint/jobs',             [\App\Http\Controllers\Admin\AvePointController::class, 'jobs'])      ->name('avepoint.jobs');
+        Route::get('avepoint/backups',          [\App\Http\Controllers\Admin\AvePointController::class, 'backups'])   ->name('avepoint.backups');
+        Route::get('avepoint/backups/{backup}', [\App\Http\Controllers\Admin\AvePointController::class, 'showBackup'])->name('avepoint.backup.show');
+    });
+    Route::middleware('permission:manage-avepoint')->group(function () {
+        Route::post('avepoint/request',                [\App\Http\Controllers\Admin\AvePointController::class, 'requestBackup'])->name('avepoint.request');
+        Route::post('avepoint/backups/{backup}/retry', [\App\Http\Controllers\Admin\AvePointController::class, 'retry'])        ->name('avepoint.backup.retry');
+    });
+
     // ─── Offboarding ──────────────────────────────────────────
     Route::middleware('permission:view-offboarding')->group(function () {
         Route::get('offboarding',                              [\App\Http\Controllers\Admin\OffboardingController::class, 'index']) ->name('offboarding.index');
@@ -1620,6 +1633,12 @@ Route::post('/offboarding/respond', [OffboardingFormController::class, 'submit']
 // Offboarding backup download (NOC-proxied stream from Azure Blob)
 Route::get('/offboarding/download/{token}', [\App\Http\Controllers\Public\OffboardingDownloadController::class, 'download'])
     ->name('offboarding.download')
+    ->middleware('throttle:5,1')
+    ->where('token', '[A-Za-z0-9]{64}');
+
+// AvePoint ad-hoc backup download (NOC-proxied stream from Azure Blob, azure_avepoint disk)
+Route::get('/avepoint/download/{token}', [\App\Http\Controllers\Public\AvepointDownloadController::class, 'download'])
+    ->name('avepoint.download')
     ->middleware('throttle:5,1')
     ->where('token', '[A-Za-z0-9]{64}');
 

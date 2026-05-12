@@ -87,6 +87,19 @@ return [
             'throw'     => false,
         ],
 
+        // Azure Blob storage for ad-hoc AvePoint backups (mailbox / OneDrive) requested
+        // from the AvePoint admin module. Same container as offboarding, but uses an
+        // 'avepoint/' prefix so the two contexts are clearly separated.
+        'azure_avepoint' => [
+            'driver'    => 'azure',
+            'account'   => env('AZURE_BLOB_ACCOUNT'),
+            'key'       => env('AZURE_BLOB_KEY'),
+            'container' => env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups'),
+            'endpoint'  => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'prefix'    => 'avepoint/',
+            'throw'     => false,
+        ],
+
     ],
 
     /*

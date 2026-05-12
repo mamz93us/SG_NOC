@@ -135,6 +135,83 @@ class AvePointApiService
     }
 
     /**
+     * Read the configured AvePoint base URL — used by views that want to
+     * link out to the AvePoint UI for a given job.
+     */
+    public function baseUrl(): string
+    {
+        return $this->baseUrl;
+    }
+
+    /**
+     * Recent AvePoint jobs (mailbox + OneDrive backups + exports) — used by
+     * the admin jobs-monitor page. Returns an empty array when AvePoint
+     * is not configured rather than throwing, so the page degrades gracefully.
+     *
+     * @param array $filter optional: ['objectType' => 1|3, 'jobType' => 1|3, 'state' => 1|2|3, 'pageSize' => int]
+     */
+    public function listRecentJobs(array $filter = []): array
+    {
+        if (! $this->isConfigured()) {
+            return [];
+        }
+
+        try {
+            $token = $this->getAccessToken('microsoft365backup.jobInfo.read.all');
+
+            $params = array_filter([
+                'startTime'  => $filter['startTime']  ?? now()->subDays(7)->utc()->format('Y-m-d'),
+                'finishTime' => $filter['finishTime'] ?? now()->utc()->format('Y-m-d'),
+                'jobType'    => $filter['jobType']    ?? null,
+                'objectType' => $filter['objectType'] ?? null,
+                'jobState'   => $filter['jobState']   ?? null,
+                'pageSize'   => $filter['pageSize']   ?? 50,
+                'pageIndex'  => $filter['pageIndex']  ?? 0,
+            ], fn($v) => $v !== null);
+
+            $response = Http::withToken($token)
+                ->timeout(20)
+                ->get("{$this->baseUrl}/backup/m365/cloudbackupjobs", $params);
+
+            if (! $response->successful()) {
+                Log::warning('AvePointApiService::listRecentJobs non-2xx', [
+                    'status' => $response->status(),
+                    'body'   => substr($response->body(), 0, 400),
+                ]);
+                return [];
+            }
+
+            return $response->json('data', []);
+        } catch (\Throwable $e) {
+            Log::warning('AvePointApiService::listRecentJobs threw', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    /**
+     * Subscription / consumption snapshot — used for the dashboard "storage used"
+     * card. Returns null when unconfigured or on error.
+     */
+    public function getSubscription(): ?array
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+
+        try {
+            $token = $this->getAccessToken('microsoft365backup.subscriptionInfo.read.all');
+
+            $response = Http::withToken($token)
+                ->timeout(15)
+                ->get("{$this->baseUrl}/backup/m365/cloudbackuplicenseconsumption");
+
+            return $response->successful() ? $response->json('data') : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
      * Find the most recent successful backup job for a user.
      *
      * @param string $upn         User UPN to filter by (best-effort — AvePoint job
