@@ -33,6 +33,7 @@
             ['all-assets', 'bi-grid-3x3-gap', 'All Assets', 'Filterable inventory of every asset in the system.', 'primary'],
             ['by-branch', 'bi-building', 'By Branch', 'Group all assets by their assigned branch.', 'info'],
             ['by-employee', 'bi-person-badge', 'By Employee', 'View any employee\'s current and past asset assignments.', 'success'],
+            ['costs', 'bi-cash-stack', 'Cost Report', 'Total costs (devices + accessories + licenses) by branch, employee, or drill-down.', 'primary'],
             ['transfers', 'bi-arrow-left-right', 'Transfer History', 'Every transfer between employees or to a branch store.', 'warning'],
             ['scraps', 'bi-trash3', 'Scrap History', 'All assets that have been formally scrapped.', 'danger'],
         ] as [$route, $icon, $title, $desc, $color])

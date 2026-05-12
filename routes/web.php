@@ -1245,6 +1245,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('by-employee',      [\App\Http\Controllers\Admin\AssetReportController::class, 'byEmployee'])->name('by-employee');
             Route::get('transfer-history', [\App\Http\Controllers\Admin\AssetReportController::class, 'transferHistory'])->name('transfers');
             Route::get('scrap-history',    [\App\Http\Controllers\Admin\AssetReportController::class, 'scrapHistory'])->name('scraps');
+            Route::get('costs',            [\App\Http\Controllers\Admin\AssetReportController::class, 'costs'])->name('costs');
         });
     });
 

@@ -3,12 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AccessoryAssignment;
 use App\Models\AssetHistory;
 use App\Models\Branch;
 use App\Models\Device;
 use App\Models\Employee;
 use App\Models\EmployeeAsset;
+use App\Models\License;
+use App\Models\LicenseAssignment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AssetReportController extends Controller
@@ -224,6 +228,317 @@ class AssetReportController extends Controller
         $branches = Branch::orderBy('name')->get();
 
         return view('admin.itam.reports.scraps', compact('events', 'branches'));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Cost Report — by branch / by employee / by branch+employee
+    // ─────────────────────────────────────────────────────────────
+
+    public function costs(Request $request)
+    {
+        $mode = $request->get('mode', 'branch');
+        if (!in_array($mode, ['branch', 'employee', 'branch_employee'])) {
+            $mode = 'branch';
+        }
+
+        // Precompute per-seat license cost (allocated proportionally so totals add up)
+        $licensePerSeat = License::select('id', 'cost', 'currency', 'seats')->get()
+            ->mapWithKeys(function ($l) {
+                $seats = max(1, (int) $l->seats);
+                return [$l->id => [
+                    'per_seat'   => (float) ($l->cost ?? 0) / $seats,
+                    'currency'   => $l->currency ?? 'USD',
+                ]];
+            });
+
+        $branches  = Branch::orderBy('name')->get();
+        $selectedBranchId = $request->integer('branch') ?: null;
+
+        $rows = match ($mode) {
+            'branch'          => $this->costsByBranch($licensePerSeat),
+            'employee'        => $this->costsByEmployee($licensePerSeat, $selectedBranchId),
+            'branch_employee' => $this->costsByBranchEmployee($licensePerSeat, $selectedBranchId),
+        };
+
+        // Grand totals across all rows
+        $grand = $this->emptyTotals();
+        foreach ($rows as $r) {
+            foreach (['devices', 'accessories', 'licenses', 'total'] as $bucket) {
+                foreach ($r[$bucket] as $cur => $v) {
+                    $grand[$bucket][$cur] = ($grand[$bucket][$cur] ?? 0) + $v;
+                }
+            }
+        }
+
+        if ($request->boolean('csv')) {
+            return $this->streamCostsCsv($mode, $rows);
+        }
+
+        return view('admin.itam.reports.costs', compact(
+            'rows', 'grand', 'mode', 'branches', 'selectedBranchId'
+        ));
+    }
+
+    private function costsByBranch(Collection $licensePerSeat): array
+    {
+        $branches = Branch::orderBy('name')->get();
+        $rows = [];
+
+        // Devices grouped by branch
+        $deviceCosts = Device::whereNotNull('purchase_cost')
+            ->selectRaw('branch_id, currency, sum(purchase_cost) as total, count(*) as cnt')
+            ->groupBy('branch_id', 'currency')
+            ->get()
+            ->groupBy('branch_id');
+
+        // Active accessory assignments grouped by employee's branch
+        $accessoryRows = AccessoryAssignment::with(['accessory', 'employee'])
+            ->whereNull('returned_date')
+            ->whereNotNull('employee_id')
+            ->get();
+
+        $accByBranch = [];
+        foreach ($accessoryRows as $a) {
+            $branchId = $a->employee?->branch_id;
+            if (!$branchId) continue;
+            $cur = $a->accessory?->currency ?? 'USD';
+            $cost = (float) ($a->accessory?->purchase_cost ?? 0);
+            $accByBranch[$branchId][$cur]['total'] = ($accByBranch[$branchId][$cur]['total'] ?? 0) + $cost;
+            $accByBranch[$branchId][$cur]['cnt']   = ($accByBranch[$branchId][$cur]['cnt'] ?? 0) + 1;
+        }
+
+        // License assignments via employee or device — map to branch
+        $licenseRows = LicenseAssignment::with('license')->get();
+        $licByBranch = [];
+        foreach ($licenseRows as $la) {
+            $branchId = $this->branchOfAssignable($la);
+            if (!$branchId) continue;
+            $info = $licensePerSeat[$la->license_id] ?? null;
+            if (!$info) continue;
+            $licByBranch[$branchId][$info['currency']]['total']
+                = ($licByBranch[$branchId][$info['currency']]['total'] ?? 0) + $info['per_seat'];
+            $licByBranch[$branchId][$info['currency']]['cnt']
+                = ($licByBranch[$branchId][$info['currency']]['cnt'] ?? 0) + 1;
+        }
+
+        foreach ($branches as $b) {
+            $devices = $this->emptyBucket();
+            $deviceCount = 0;
+            if (isset($deviceCosts[$b->id])) {
+                foreach ($deviceCosts[$b->id] as $row) {
+                    $cur = $row->currency ?? 'USD';
+                    $devices[$cur] = ($devices[$cur] ?? 0) + (float) $row->total;
+                    $deviceCount += (int) $row->cnt;
+                }
+            }
+            $accessories = $this->emptyBucket();
+            $accCount = 0;
+            foreach (($accByBranch[$b->id] ?? []) as $cur => $entry) {
+                $accessories[$cur] = $entry['total'];
+                $accCount += $entry['cnt'];
+            }
+            $licenses = $this->emptyBucket();
+            $licCount = 0;
+            foreach (($licByBranch[$b->id] ?? []) as $cur => $entry) {
+                $licenses[$cur] = $entry['total'];
+                $licCount += $entry['cnt'];
+            }
+
+            $rows[] = [
+                'label'       => $b->name,
+                'sublabel'    => null,
+                'devices'     => $devices,
+                'accessories' => $accessories,
+                'licenses'    => $licenses,
+                'total'       => $this->sumBuckets($devices, $accessories, $licenses),
+                'counts'      => [
+                    'devices'     => $deviceCount,
+                    'accessories' => $accCount,
+                    'licenses'    => $licCount,
+                ],
+            ];
+        }
+
+        // "Unassigned" row for devices not linked to a branch
+        $unassignedDevices = Device::whereNull('branch_id')->whereNotNull('purchase_cost')
+            ->selectRaw('currency, sum(purchase_cost) as total, count(*) as cnt')
+            ->groupBy('currency')
+            ->get();
+
+        if ($unassignedDevices->isNotEmpty()) {
+            $devices = $this->emptyBucket();
+            $deviceCount = 0;
+            foreach ($unassignedDevices as $u) {
+                $devices[$u->currency ?? 'USD'] = ($devices[$u->currency ?? 'USD'] ?? 0) + (float) $u->total;
+                $deviceCount += (int) $u->cnt;
+            }
+            $rows[] = [
+                'label'       => 'Unassigned (no branch)',
+                'sublabel'    => 'Universal Store',
+                'devices'     => $devices,
+                'accessories' => $this->emptyBucket(),
+                'licenses'    => $this->emptyBucket(),
+                'total'       => $devices,
+                'counts'      => ['devices' => $deviceCount, 'accessories' => 0, 'licenses' => 0],
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function costsByEmployee(Collection $licensePerSeat, ?int $branchFilter = null): array
+    {
+        $employees = Employee::with('branch')
+            ->active()
+            ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter))
+            ->orderBy('name')
+            ->get();
+
+        // Pre-fetch costs grouped by employee for efficiency
+        $deviceByEmp = EmployeeAsset::join('devices', 'employee_assets.asset_id', '=', 'devices.id')
+            ->whereNull('employee_assets.returned_date')
+            ->whereNotNull('devices.purchase_cost')
+            ->selectRaw('employee_assets.employee_id, devices.currency, sum(devices.purchase_cost) as total, count(*) as cnt')
+            ->groupBy('employee_assets.employee_id', 'devices.currency')
+            ->get()
+            ->groupBy('employee_id');
+
+        $accessoryRows = AccessoryAssignment::with('accessory')
+            ->whereNull('returned_date')
+            ->whereNotNull('employee_id')
+            ->get()
+            ->groupBy('employee_id');
+
+        $licenseRows = LicenseAssignment::with('license')
+            ->where('assignable_type', Employee::class)
+            ->get()
+            ->groupBy('assignable_id');
+
+        $rows = [];
+        foreach ($employees as $emp) {
+            $devices = $this->emptyBucket();
+            $deviceCount = 0;
+            foreach (($deviceByEmp[$emp->id] ?? collect()) as $row) {
+                $cur = $row->currency ?? 'USD';
+                $devices[$cur] = ($devices[$cur] ?? 0) + (float) $row->total;
+                $deviceCount += (int) $row->cnt;
+            }
+
+            $accessories = $this->emptyBucket();
+            $accCount = 0;
+            foreach (($accessoryRows[$emp->id] ?? collect()) as $a) {
+                $cur = $a->accessory?->currency ?? 'USD';
+                $accessories[$cur] = ($accessories[$cur] ?? 0) + (float) ($a->accessory?->purchase_cost ?? 0);
+                $accCount++;
+            }
+
+            $licenses = $this->emptyBucket();
+            $licCount = 0;
+            foreach (($licenseRows[$emp->id] ?? collect()) as $la) {
+                $info = $licensePerSeat[$la->license_id] ?? null;
+                if (!$info) continue;
+                $licenses[$info['currency']] = ($licenses[$info['currency']] ?? 0) + $info['per_seat'];
+                $licCount++;
+            }
+
+            // Only include employees who actually have something
+            if ($deviceCount + $accCount + $licCount === 0) continue;
+
+            $rows[] = [
+                'label'       => $emp->name,
+                'sublabel'    => $emp->branch?->name,
+                'devices'     => $devices,
+                'accessories' => $accessories,
+                'licenses'    => $licenses,
+                'total'       => $this->sumBuckets($devices, $accessories, $licenses),
+                'counts'      => [
+                    'devices'     => $deviceCount,
+                    'accessories' => $accCount,
+                    'licenses'    => $licCount,
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function costsByBranchEmployee(Collection $licensePerSeat, ?int $branchFilter = null): array
+    {
+        // If a branch is selected, return that branch's employees; otherwise return all branches' employees grouped.
+        return $this->costsByEmployee($licensePerSeat, $branchFilter);
+    }
+
+    private function branchOfAssignable(LicenseAssignment $la): ?int
+    {
+        if ($la->assignable_type === Employee::class) {
+            return Employee::find($la->assignable_id)?->branch_id;
+        }
+        if ($la->assignable_type === Device::class) {
+            return Device::find($la->assignable_id)?->branch_id;
+        }
+        return null;
+    }
+
+    private function emptyBucket(): array { return []; }
+
+    private function emptyTotals(): array
+    {
+        return [
+            'devices'     => [],
+            'accessories' => [],
+            'licenses'    => [],
+            'total'       => [],
+        ];
+    }
+
+    private function sumBuckets(array ...$buckets): array
+    {
+        $out = [];
+        foreach ($buckets as $b) {
+            foreach ($b as $cur => $v) {
+                $out[$cur] = ($out[$cur] ?? 0) + $v;
+            }
+        }
+        return $out;
+    }
+
+    private function streamCostsCsv(string $mode, array $rows): StreamedResponse
+    {
+        $filename = "costs-{$mode}-" . now()->format('Ymd-His');
+        return response()->streamDownload(function () use ($rows) {
+            $h = fopen('php://output', 'w');
+            fputcsv($h, [
+                'Label', 'Sublabel',
+                'Devices Count', 'Devices Cost',
+                'Accessories Count', 'Accessories Cost',
+                'Licenses Count', 'Licenses Cost',
+                'Total Cost',
+            ]);
+            foreach ($rows as $r) {
+                fputcsv($h, [
+                    $r['label'],
+                    $r['sublabel'] ?? '',
+                    $r['counts']['devices'],
+                    $this->bucketToString($r['devices']),
+                    $r['counts']['accessories'],
+                    $this->bucketToString($r['accessories']),
+                    $r['counts']['licenses'],
+                    $this->bucketToString($r['licenses']),
+                    $this->bucketToString($r['total']),
+                ]);
+            }
+            fclose($h);
+        }, $filename . '.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    private function bucketToString(array $bucket): string
+    {
+        if (empty($bucket)) return '0';
+        $parts = [];
+        foreach ($bucket as $cur => $v) {
+            $parts[] = $cur . ' ' . number_format($v, 2);
+        }
+        return implode(' + ', $parts);
     }
 
     // ─────────────────────────────────────────────────────────────
