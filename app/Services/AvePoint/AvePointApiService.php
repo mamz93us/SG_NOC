@@ -48,8 +48,11 @@ class AvePointApiService
         $this->downloadEndpoint = $settings->avepoint_download_endpoint ?: null;
 
         $resolvedRegion = $region ?? $settings->avepoint_region ?? 'us';
-        $this->baseUrl  = $settings->avepoint_base_url
-            ?: "https://graph-{$resolvedRegion}.avepointonlineservices.com";
+        $this->baseUrl  = rtrim(
+            $settings->avepoint_base_url
+                ?: "https://graph-{$resolvedRegion}.avepointonlineservices.com",
+            '/'
+        );
 
         // Identity service URL — same for all commercial AvePoint environments.
         // Override by setting avepoint_base_url to a *-aos2 or *-gov URL pattern
@@ -100,7 +103,9 @@ class AvePointApiService
     }
 
     /**
-     * Test connection — calls /backup/m365/cloudbackuplicenseconsumption (low-cost GET).
+     * Test connection — probes the OAuth token endpoint, then two read-only API
+     * endpoints. Returns a verbose detail string so 404s point at the right cause
+     * (unlicensed product vs missing scope vs wrong DC).
      */
     public function testConnection(): array
     {
@@ -110,27 +115,56 @@ class AvePointApiService
 
         try {
             $token = $this->getAccessToken('microsoft365backup.subscriptionInfo.read.all');
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'detail' => 'OAuth: ' . $e->getMessage()];
+        }
 
-            $response = Http::withToken($token)
-                ->timeout(15)
-                ->get("{$this->baseUrl}/backup/m365/cloudbackuplicenseconsumption");
+        $subUrl = "{$this->baseUrl}/backup/m365/cloudbackuplicenseconsumption";
+        $sub    = Http::withToken($token)->timeout(15)->get($subUrl);
 
-            if (! $response->successful()) {
-                return [
-                    'ok'     => false,
-                    'detail' => "HTTP {$response->status()}: " . substr($response->body(), 0, 400),
-                ];
-            }
-
-            $data = $response->json('data');
+        if ($sub->successful()) {
+            $data = $sub->json('data');
             return [
                 'ok'     => true,
                 'detail' => 'Connected. Subscription seats: '
-                    . ($data['assignedUserSeats'] ?? '?') . ' / '
-                    . ($data['purchasedUserSeats'] ?? '?'),
+                    . ($data['assignedUserSeats']  ?? '?') . ' / '
+                    . ($data['purchasedUserSeats'] ?? '?')
+                    . ' · Protected: '
+                    . ($data['protectedSize']     ?? '?') . ' GB',
+            ];
+        }
+
+        // Fallback probe — Jobs API uses a different scope. Try it with a fresh
+        // token so a 200 here vs 404 on subscriptions narrows the diagnosis down
+        // to a permission/scope issue rather than a DC / base-URL issue.
+        try {
+            $jobsToken = $this->getAccessToken('microsoft365backup.jobInfo.read.all');
+            $jobsUrl   = "{$this->baseUrl}/backup/m365/cloudbackupjobs?pageSize=1";
+            $jobs      = Http::withToken($jobsToken)->timeout(15)->get($jobsUrl);
+
+            if ($jobs->successful()) {
+                return [
+                    'ok'     => false,
+                    'detail' => "Jobs API works but Subscription API returned HTTP {$sub->status()} ({$subUrl}). "
+                              . "Most likely the 'microsoft365backup.subscriptionInfo.read.all' scope is "
+                              . "not granted to your app registration in AvePoint Online Services.",
+                ];
+            }
+
+            return [
+                'ok'     => false,
+                'detail' => "Both probes failed. Subscription: HTTP {$sub->status()} ({$subUrl}). "
+                          . "Jobs: HTTP {$jobs->status()} ({$jobsUrl}). "
+                          . "Check: (1) the Cloud Backup for M365 product is enabled on this AvePoint tenant; "
+                          . "(2) the app registration has both 'microsoft365backup.subscriptionInfo.read.all' "
+                          . "and 'microsoft365backup.jobInfo.read.all' permissions; "
+                          . "(3) the data-center URL matches the tenant (you're set to {$this->baseUrl}).",
             ];
         } catch (\Throwable $e) {
-            return ['ok' => false, 'detail' => $e->getMessage()];
+            return [
+                'ok'     => false,
+                'detail' => "Subscription API: HTTP {$sub->status()} ({$subUrl}). Jobs API token error: " . $e->getMessage(),
+            ];
         }
     }
 
