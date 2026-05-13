@@ -931,22 +931,15 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Search Contact</label>
-                        <input type="text" id="contactSearch" class="form-control form-control-sm" placeholder="Type name, email, or phone to filter..." autocomplete="off">
+                        <input type="text" id="contactSearch" class="form-control form-control-sm" placeholder="Type name, email, or phone to search..." autocomplete="off">
+                        <small class="text-muted">Results are fetched on demand (max 50 shown).</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Select Contact <span class="text-danger">*</span></label>
                         <select name="contact_id" id="contactSelect" class="form-select form-select-sm" required size="8">
-                            @php
-                                $allContacts = \App\Models\Contact::orderBy('first_name')->get();
-                            @endphp
-                            @foreach($allContacts as $c)
-                            <option value="{{ $c->id }}" data-search="{{ strtolower($c->first_name . ' ' . $c->last_name . ' ' . $c->email . ' ' . $c->phone) }}"
-                                {{ $employee->email && strtolower($c->email) === strtolower($employee->email) ? 'selected' : '' }}>
-                                {{ $c->first_name }} {{ $c->last_name }} — {{ $c->phone }} {{ $c->email ? "({$c->email})" : '' }}
-                            </option>
-                            @endforeach
+                            <option value="" disabled selected>Type to search for a contact above…</option>
                         </select>
-                        <small class="text-muted">Contacts matching the employee's email are pre-selected.</small>
+                        <small id="contactSearchStatus" class="text-muted"></small>
                     </div>
                 </div>
                 <div class="modal-footer py-2">
@@ -960,14 +953,62 @@
 
 @push('scripts')
 <script>
-document.getElementById('contactSearch')?.addEventListener('input', function() {
-    const term = this.value.toLowerCase().trim();
-    const options = document.querySelectorAll('#contactSelect option');
-    options.forEach(opt => {
-        const match = !term || opt.getAttribute('data-search').includes(term);
-        opt.style.display = match ? '' : 'none';
+(function () {
+    const input  = document.getElementById('contactSearch');
+    const select = document.getElementById('contactSelect');
+    const status = document.getElementById('contactSearchStatus');
+    if (!input || !select) return;
+
+    const searchUrl = @json(route('admin.contacts.search-light'));
+    let debounce = null;
+    let lastReq  = 0;
+
+    function render(contacts) {
+        if (!contacts.length) {
+            select.innerHTML = '<option value="" disabled>No contacts match your search</option>';
+            return;
+        }
+        const opts = contacts.map(c => {
+            const label = `${c.name} — ${c.phone ?? ''} ${c.email ? '(' + c.email + ')' : ''}`.trim();
+            return `<option value="${c.id}">${label.replace(/[<>]/g, '')}</option>`;
+        }).join('');
+        select.innerHTML = opts;
+    }
+
+    async function search(term) {
+        const reqId = ++lastReq;
+        status.textContent = 'Searching…';
+        try {
+            const url = `${searchUrl}?q=${encodeURIComponent(term)}`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            if (reqId !== lastReq) return; // ignore stale results
+            render(data.contacts || []);
+            status.textContent = `${data.contacts.length} result${data.contacts.length === 1 ? '' : 's'}`;
+        } catch (e) {
+            status.textContent = 'Search failed: ' + e.message;
+        }
+    }
+
+    input.addEventListener('input', function () {
+        clearTimeout(debounce);
+        const term = this.value.trim();
+        if (term.length < 2) {
+            select.innerHTML = '<option value="" disabled selected>Type at least 2 characters to search…</option>';
+            status.textContent = '';
+            return;
+        }
+        debounce = setTimeout(() => search(term), 250);
     });
-});
+
+    // Pre-fill the search with the employee's email so the most relevant contact appears first.
+    const employeeEmail = @json($employee->email ?? null);
+    if (employeeEmail) {
+        input.value = employeeEmail.split('@')[0];
+        input.dispatchEvent(new Event('input'));
+    }
+})();
 </script>
 @endpush
 @endif

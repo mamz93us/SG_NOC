@@ -191,4 +191,34 @@ class ContactController extends Controller
             ->route('admin.contacts.index')
             ->with('success', 'Contact deleted successfully.');
     }
+
+    /**
+     * Lightweight JSON search for picker widgets (employee link-contact modal, etc.).
+     * Returns at most 50 contacts matching the query.
+     */
+    public function searchLight(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+
+        $query = Contact::select('id', 'first_name', 'last_name', 'email', 'phone')
+            ->orderBy('first_name');
+
+        if ($q !== '') {
+            $query->where(function ($w) use ($q) {
+                $w->where('first_name', 'like', "%{$q}%")
+                  ->orWhere('last_name', 'like', "%{$q}%")
+                  ->orWhere('email', 'like', "%{$q}%")
+                  ->orWhere('phone', 'like', "%{$q}%");
+            });
+        }
+
+        $contacts = $query->limit(50)->get()->map(fn ($c) => [
+            'id'    => $c->id,
+            'name'  => trim($c->first_name . ' ' . $c->last_name),
+            'email' => $c->email,
+            'phone' => $c->phone,
+        ]);
+
+        return response()->json(['contacts' => $contacts]);
+    }
 }

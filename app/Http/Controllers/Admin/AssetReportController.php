@@ -287,10 +287,10 @@ class AssetReportController extends Controller
         $branches = Branch::orderBy('name')->get();
         $rows = [];
 
-        // Devices grouped by branch — exclude scrapped/retired (no longer assets)
-        $deviceCosts = Device::whereNotNull('purchase_cost')
-            ->whereNotIn('status', ['scrapped', 'retired'])
-            ->selectRaw('branch_id, currency, sum(purchase_cost) as total, count(*) as cnt')
+        // Devices grouped by branch — exclude scrapped/retired (no longer assets).
+        // Counts include all devices, even without purchase_cost; sum only includes those with cost.
+        $deviceCosts = Device::whereNotIn('status', ['scrapped', 'retired'])
+            ->selectRaw('branch_id, currency, COALESCE(sum(purchase_cost), 0) as total, count(*) as cnt')
             ->groupBy('branch_id', 'currency')
             ->get()
             ->groupBy('branch_id');
@@ -366,9 +366,8 @@ class AssetReportController extends Controller
 
         // "Unassigned" row for devices not linked to a branch — exclude scrapped/retired
         $unassignedDevices = Device::whereNull('branch_id')
-            ->whereNotNull('purchase_cost')
             ->whereNotIn('status', ['scrapped', 'retired'])
-            ->selectRaw('currency, sum(purchase_cost) as total, count(*) as cnt')
+            ->selectRaw('currency, COALESCE(sum(purchase_cost), 0) as total, count(*) as cnt')
             ->groupBy('currency')
             ->get();
 
@@ -406,11 +405,12 @@ class AssetReportController extends Controller
 
         // Pre-fetch full assignment records grouped by employee (eager-loaded so we
         // can both aggregate and itemize without N+1 queries).
+        // Include ALL active assignments so counts match the employee profile —
+        // devices without a purchase_cost contribute 0 to the cost total but are still listed.
         $deviceAssignmentsByEmp = EmployeeAsset::with('device')
             ->whereNull('returned_date')
             ->whereHas('device', function ($q) {
-                $q->whereNotNull('purchase_cost')
-                  ->whereNotIn('status', ['scrapped', 'retired']);
+                $q->whereNotIn('status', ['scrapped', 'retired']);
             })
             ->get()
             ->groupBy('employee_id');
@@ -436,8 +436,10 @@ class AssetReportController extends Controller
                 if (!$ea->device) continue;
                 $cur  = $ea->device->currency ?? 'USD';
                 $cost = (float) ($ea->device->purchase_cost ?? 0);
-                $devices[$cur] = ($devices[$cur] ?? 0) + $cost;
-                $deviceCount++;
+                if ($cost > 0) {
+                    $devices[$cur] = ($devices[$cur] ?? 0) + $cost;
+                }
+                $deviceCount++;  // Count every assigned device, even without cost data.
                 $deviceList[] = [
                     'name'       => $ea->device->name,
                     'asset_code' => $ea->device->asset_code,
@@ -457,7 +459,9 @@ class AssetReportController extends Controller
             foreach (($accessoryAssignmentsByEmp[$emp->id] ?? collect()) as $aa) {
                 $cur  = $aa->accessory?->currency ?? 'USD';
                 $cost = (float) ($aa->accessory?->purchase_cost ?? 0);
-                $accessories[$cur] = ($accessories[$cur] ?? 0) + $cost;
+                if ($cost > 0) {
+                    $accessories[$cur] = ($accessories[$cur] ?? 0) + $cost;
+                }
                 $accCount++;
                 $accessoryList[] = [
                     'name'     => $aa->accessory?->name ?? '—',
@@ -475,7 +479,9 @@ class AssetReportController extends Controller
             foreach (($licenseAssignmentsByEmp[$emp->id] ?? collect()) as $la) {
                 $info = $licenseCosts[$la->license_id] ?? null;
                 if (!$info) continue;
-                $licenses[$info['currency']] = ($licenses[$info['currency']] ?? 0) + $info['cost'];
+                if ($info['cost'] > 0) {
+                    $licenses[$info['currency']] = ($licenses[$info['currency']] ?? 0) + $info['cost'];
+                }
                 $licCount++;
                 $licenseList[] = [
                     'name'     => $la->license?->license_name ?? '—',

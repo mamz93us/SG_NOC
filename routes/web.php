@@ -259,6 +259,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('contacts/{contact}/edit', [ContactController::class, 'edit'])->name('contacts.edit');
         Route::post('contacts/check-duplicate', [ContactController::class, 'checkDuplicate'])
             ->name('contacts.check-duplicate');
+        Route::get('contacts/search-light', [ContactController::class, 'searchLight'])
+            ->name('contacts.search-light');
     });
     Route::middleware('permission:manage-contacts')->group(function () {
         Route::post('contacts', [ContactController::class, 'store'])->name('contacts.store');
