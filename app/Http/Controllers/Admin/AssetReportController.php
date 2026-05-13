@@ -260,9 +260,12 @@ class AssetReportController extends Controller
             'branch_employee' => $this->costsByBranchEmployee($licenseCosts, $selectedBranchId),
         };
 
-        // Grand totals across all rows
+        // Grand totals across all rows — but in drill-down mode, $rows contains BOTH
+        // branch section headers (with their subtotals) AND the individual employee rows.
+        // Skip the section headers so we don't double-count.
         $grand = $this->emptyTotals();
         foreach ($rows as $r) {
+            if (!empty($r['is_section'])) continue;
             foreach (['devices', 'accessories', 'licenses', 'total'] as $bucket) {
                 foreach ($r[$bucket] as $cur => $v) {
                     $grand[$bucket][$cur] = ($grand[$bucket][$cur] ?? 0) + $v;
@@ -575,7 +578,7 @@ class AssetReportController extends Controller
         return response()->streamDownload(function () use ($rows) {
             $h = fopen('php://output', 'w');
             fputcsv($h, [
-                'Label', 'Sublabel',
+                'Row Type', 'Label', 'Sublabel',
                 'Devices Count', 'Devices Cost',
                 'Accessories Count', 'Accessories Cost',
                 'Licenses Count', 'Licenses Cost',
@@ -583,6 +586,7 @@ class AssetReportController extends Controller
             ]);
             foreach ($rows as $r) {
                 fputcsv($h, [
+                    !empty($r['is_section']) ? 'Branch Subtotal' : 'Row',
                     $r['label'],
                     $r['sublabel'] ?? '',
                     $r['counts']['devices'],
