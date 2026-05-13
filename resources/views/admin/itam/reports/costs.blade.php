@@ -93,12 +93,23 @@
                     @if($selectedBranchId)
                         Employees in {{ $branches->firstWhere('id', $selectedBranchId)?->name }}
                     @else
-                        All Employees with Assigned Assets
+                        Employees grouped by Branch
                     @endif
                 @endif
-                <span class="badge bg-secondary ms-2">{{ count($rows) }}</span>
+                @php
+                    $displayCount = $mode === 'branch_employee'
+                        ? collect($rows)->where('is_section', false)->count()
+                        : count($rows);
+                @endphp
+                <span class="badge bg-secondary ms-2">{{ $displayCount }}</span>
             </strong>
-            <small class="text-muted ms-2">License costs are allocated per-seat so cross-row totals stay consistent.</small>
+            <small class="text-muted ms-2">
+                @if($mode === 'branch_employee')
+                    Sub-totals shown per branch. Within each branch, employees are sorted by total cost descending.
+                @else
+                    License costs are allocated per-seat. Rows sorted by total cost descending.
+                @endif
+            </small>
         </div>
         <div class="card-body p-0">
             <table class="table table-sm table-hover mb-0">
@@ -123,24 +134,48 @@
                 </thead>
                 <tbody>
                     @forelse($rows as $r)
-                        <tr>
-                            <td>
-                                <strong>{{ $r['label'] }}</strong>
-                                @if($r['sublabel'] && $mode === 'branch')
-                                    <small class="d-block text-muted">{{ $r['sublabel'] }}</small>
+                        @if(!empty($r['is_section']))
+                            {{-- Branch section header row (drill-down mode) --}}
+                            <tr class="table-primary">
+                                <td>
+                                    <i class="bi bi-building me-1"></i>
+                                    <strong>{{ $r['label'] }}</strong>
+                                    <small class="text-muted ms-2">({{ $r['sublabel'] }})</small>
+                                </td>
+                                @if($mode !== 'branch')
+                                    <td></td>
                                 @endif
-                            </td>
-                            @if($mode !== 'branch')
-                                <td>{{ $r['sublabel'] ?? '—' }}</td>
-                            @endif
-                            <td class="text-center"><span class="badge bg-info">{{ $r['counts']['devices'] }}</span></td>
-                            <td class="text-end">{!! $fmtBucket($r['devices']) !!}</td>
-                            <td class="text-center"><span class="badge bg-secondary">{{ $r['counts']['accessories'] }}</span></td>
-                            <td class="text-end">{!! $fmtBucket($r['accessories']) !!}</td>
-                            <td class="text-center"><span class="badge bg-warning text-dark">{{ $r['counts']['licenses'] }}</span></td>
-                            <td class="text-end">{!! $fmtBucket($r['licenses']) !!}</td>
-                            <td class="text-end"><strong>{!! $fmtBucket($r['total']) !!}</strong></td>
-                        </tr>
+                                <td class="text-center"><strong>{{ $r['counts']['devices'] }}</strong></td>
+                                <td class="text-end"><strong>{!! $fmtBucket($r['devices']) !!}</strong></td>
+                                <td class="text-center"><strong>{{ $r['counts']['accessories'] }}</strong></td>
+                                <td class="text-end"><strong>{!! $fmtBucket($r['accessories']) !!}</strong></td>
+                                <td class="text-center"><strong>{{ $r['counts']['licenses'] }}</strong></td>
+                                <td class="text-end"><strong>{!! $fmtBucket($r['licenses']) !!}</strong></td>
+                                <td class="text-end text-primary"><strong>{!! $fmtBucket($r['total']) !!}</strong></td>
+                            </tr>
+                        @else
+                            <tr>
+                                <td @class(['ps-4' => !empty($r['indent'])])>
+                                    @if(!empty($r['indent']))
+                                        <i class="bi bi-person text-muted me-1"></i>
+                                    @endif
+                                    <strong>{{ $r['label'] }}</strong>
+                                    @if($r['sublabel'] && $mode === 'branch')
+                                        <small class="d-block text-muted">{{ $r['sublabel'] }}</small>
+                                    @endif
+                                </td>
+                                @if($mode !== 'branch')
+                                    <td>{{ empty($r['indent']) ? ($r['sublabel'] ?? '—') : '' }}</td>
+                                @endif
+                                <td class="text-center"><span class="badge bg-info">{{ $r['counts']['devices'] }}</span></td>
+                                <td class="text-end">{!! $fmtBucket($r['devices']) !!}</td>
+                                <td class="text-center"><span class="badge bg-secondary">{{ $r['counts']['accessories'] }}</span></td>
+                                <td class="text-end">{!! $fmtBucket($r['accessories']) !!}</td>
+                                <td class="text-center"><span class="badge bg-warning text-dark">{{ $r['counts']['licenses'] }}</span></td>
+                                <td class="text-end">{!! $fmtBucket($r['licenses']) !!}</td>
+                                <td class="text-end"><strong>{!! $fmtBucket($r['total']) !!}</strong></td>
+                            </tr>
+                        @endif
                     @empty
                         <tr><td colspan="{{ $mode === 'branch' ? 8 : 9 }}" class="text-center py-5 text-muted">No data to display.</td></tr>
                     @endforelse

@@ -365,6 +365,9 @@ class AssetReportController extends Controller
             ->groupBy('currency')
             ->get();
 
+        // Sort branches by total cost descending (highest spenders first).
+        usort($rows, fn ($a, $b) => array_sum($b['total']) <=> array_sum($a['total']));
+
         if ($unassignedDevices->isNotEmpty()) {
             $devices = $this->emptyBucket();
             $deviceCount = 0;
@@ -459,13 +462,76 @@ class AssetReportController extends Controller
             ];
         }
 
+        // Sort by total cost descending so the heaviest users are at the top.
+        usort($rows, fn ($a, $b) => array_sum($b['total']) <=> array_sum($a['total']));
+
         return $rows;
     }
 
     private function costsByBranchEmployee(Collection $licensePerSeat, ?int $branchFilter = null): array
     {
-        // If a branch is selected, return that branch's employees; otherwise return all branches' employees grouped.
-        return $this->costsByEmployee($licensePerSeat, $branchFilter);
+        $employees = $this->costsByEmployee($licensePerSeat, $branchFilter);
+
+        // With a branch filter, drill-down is redundant — return the flat employee list.
+        if ($branchFilter) {
+            return $employees;
+        }
+
+        // Group rows by branch name; "(No branch)" goes last.
+        $grouped = [];
+        foreach ($employees as $row) {
+            $key = $row['sublabel'] ?: '(No branch)';
+            $grouped[$key][] = $row;
+        }
+
+        // Sort each group by total cost (any currency) descending; then sort branches alphabetically, "(No branch)" last.
+        $sumTotal = fn ($r) => array_sum($r['total']);
+        foreach ($grouped as &$rows) {
+            usort($rows, fn ($a, $b) => $sumTotal($b) <=> $sumTotal($a));
+        }
+        unset($rows);
+
+        uksort($grouped, function ($a, $b) {
+            if ($a === '(No branch)') return 1;
+            if ($b === '(No branch)') return -1;
+            return strcasecmp($a, $b);
+        });
+
+        // Build sectioned rows: section header (with subtotal) + indented employee rows.
+        $out = [];
+        foreach ($grouped as $branchName => $empRows) {
+            $sub = $this->emptyTotals();
+            $counts = ['devices' => 0, 'accessories' => 0, 'licenses' => 0];
+            foreach ($empRows as $r) {
+                foreach (['devices', 'accessories', 'licenses', 'total'] as $k) {
+                    foreach ($r[$k] as $cur => $v) {
+                        $sub[$k][$cur] = ($sub[$k][$cur] ?? 0) + $v;
+                    }
+                }
+                $counts['devices']     += $r['counts']['devices'];
+                $counts['accessories'] += $r['counts']['accessories'];
+                $counts['licenses']    += $r['counts']['licenses'];
+            }
+
+            $out[] = [
+                'is_section'  => true,
+                'label'       => $branchName,
+                'sublabel'    => count($empRows) . ' ' . (count($empRows) === 1 ? 'employee' : 'employees'),
+                'devices'     => $sub['devices'],
+                'accessories' => $sub['accessories'],
+                'licenses'    => $sub['licenses'],
+                'total'       => $sub['total'],
+                'counts'      => $counts,
+            ];
+
+            foreach ($empRows as $r) {
+                $r['is_section'] = false;
+                $r['indent']     = true;
+                $out[] = $r;
+            }
+        }
+
+        return $out;
     }
 
     private function branchOfAssignable(LicenseAssignment $la): ?int
