@@ -132,8 +132,9 @@
                         <th class="text-end">Total</th>
                     </tr>
                 </thead>
-                <tbody>
-                    @forelse($rows as $r)
+                @php($colspan = $mode === 'branch' ? 8 : 9)
+                <tbody x-data="{ open: {} }">
+                    @forelse($rows as $i => $r)
                         @if(!empty($r['is_section']))
                             {{-- Branch section header row (drill-down mode) --}}
                             <tr class="table-primary">
@@ -154,8 +155,13 @@
                                 <td class="text-end text-primary"><strong>{!! $fmtBucket($r['total']) !!}</strong></td>
                             </tr>
                         @else
-                            <tr>
+                            @php($expandable = !empty($r['details']))
+                            <tr @if($expandable) @click="open[{{ $i }}] = !open[{{ $i }}]" style="cursor:pointer" @endif>
                                 <td @class(['ps-4' => !empty($r['indent'])])>
+                                    @if($expandable)
+                                        <i class="bi me-1 text-muted"
+                                           :class="open[{{ $i }}] ? 'bi-chevron-down' : 'bi-chevron-right'"></i>
+                                    @endif
                                     @if(!empty($r['indent']))
                                         <i class="bi bi-person text-muted me-1"></i>
                                     @endif
@@ -175,9 +181,102 @@
                                 <td class="text-end">{!! $fmtBucket($r['licenses']) !!}</td>
                                 <td class="text-end"><strong>{!! $fmtBucket($r['total']) !!}</strong></td>
                             </tr>
+
+                            {{-- Expanded detail row --}}
+                            @if($expandable)
+                                <tr x-show="open[{{ $i }}]" x-cloak style="display:none">
+                                    <td colspan="{{ $colspan }}" class="p-0">
+                                        <div class="p-3" style="background:#f8fafc;border-top:2px solid #0d6efd">
+                                            <div class="row g-3">
+                                                {{-- DEVICES --}}
+                                                <div class="col-md-4">
+                                                    <h6 class="mb-2 text-primary">
+                                                        <i class="bi bi-laptop me-1"></i>Devices ({{ count($r['details']['devices']) }})
+                                                    </h6>
+                                                    @forelse($r['details']['devices'] as $d)
+                                                        <div class="border rounded p-2 mb-2 bg-white small">
+                                                            <div class="d-flex justify-content-between">
+                                                                <strong><code>{{ $d['asset_code'] ?? '—' }}</code></strong>
+                                                                <span class="text-end"><strong>{{ $d['currency'] }} {{ number_format($d['cost'], 2) }}</strong></span>
+                                                            </div>
+                                                            <div>{{ $d['name'] }}</div>
+                                                            <div class="text-muted">
+                                                                <span class="badge bg-secondary">{{ $d['type'] }}</span>
+                                                                @if($d['serial']) · S/N: {{ $d['serial'] }}@endif
+                                                            </div>
+                                                            @if($d['assigned'])
+                                                                <div class="text-muted small">Assigned: {{ $d['assigned'] }}</div>
+                                                            @endif
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-muted small fst-italic">No devices assigned</p>
+                                                    @endforelse
+                                                </div>
+
+                                                {{-- ACCESSORIES --}}
+                                                <div class="col-md-4">
+                                                    <h6 class="mb-2 text-secondary">
+                                                        <i class="bi bi-box-seam me-1"></i>Accessories ({{ count($r['details']['accessories']) }})
+                                                    </h6>
+                                                    @forelse($r['details']['accessories'] as $a)
+                                                        <div class="border rounded p-2 mb-2 bg-white small">
+                                                            <div class="d-flex justify-content-between">
+                                                                <strong>{{ $a['name'] }}</strong>
+                                                                <span class="text-end">
+                                                                    @if($a['cost'] > 0)
+                                                                        <strong>{{ $a['currency'] }} {{ number_format($a['cost'], 2) }}</strong>
+                                                                    @else
+                                                                        <span class="text-muted">—</span>
+                                                                    @endif
+                                                                </span>
+                                                            </div>
+                                                            @if($a['category'])
+                                                                <div class="text-muted">
+                                                                    <span class="badge bg-light text-dark">{{ $a['category'] }}</span>
+                                                                </div>
+                                                            @endif
+                                                            @if($a['assigned'])
+                                                                <div class="text-muted small">Assigned: {{ $a['assigned'] }}</div>
+                                                            @endif
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-muted small fst-italic">No accessories assigned</p>
+                                                    @endforelse
+                                                </div>
+
+                                                {{-- LICENSES --}}
+                                                <div class="col-md-4">
+                                                    <h6 class="mb-2 text-warning">
+                                                        <i class="bi bi-key me-1"></i>Licenses ({{ count($r['details']['licenses']) }})
+                                                    </h6>
+                                                    @forelse($r['details']['licenses'] as $l)
+                                                        <div class="border rounded p-2 mb-2 bg-white small">
+                                                            <div class="d-flex justify-content-between">
+                                                                <strong>{{ $l['name'] }}</strong>
+                                                                <span class="text-end"><strong>{{ $l['currency'] }} {{ number_format($l['cost'], 2) }}</strong></span>
+                                                            </div>
+                                                            @if($l['vendor'])
+                                                                <div class="text-muted">{{ $l['vendor'] }}</div>
+                                                            @endif
+                                                            @if($l['type'])
+                                                                <div><span class="badge bg-light text-dark">{{ $l['type'] }}</span></div>
+                                                            @endif
+                                                            @if($l['assigned'])
+                                                                <div class="text-muted small">Assigned: {{ $l['assigned'] }}</div>
+                                                            @endif
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-muted small fst-italic">No licenses assigned</p>
+                                                    @endforelse
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endif
                         @endif
                     @empty
-                        <tr><td colspan="{{ $mode === 'branch' ? 8 : 9 }}" class="text-center py-5 text-muted">No data to display.</td></tr>
+                        <tr><td colspan="{{ $colspan }}" class="text-center py-5 text-muted">No data to display.</td></tr>
                     @endforelse
                 </tbody>
                 @if(count($rows) > 0)
@@ -199,10 +298,13 @@
 
     <p class="text-muted small mt-3">
         <i class="bi bi-info-circle me-1"></i>
-        <strong>Devices:</strong> in branch mode, all devices with that branch_id (assigned or in store). In employee mode, currently-assigned devices only.<br>
-        <strong>Accessories:</strong> only counts currently-assigned units (active assignments).<br>
-        <strong>Licenses:</strong> each assignment is attributed the <strong>full license cost</strong>. A 100-seat license at SAR 1,000 contributes SAR 1,000 to every employee who holds a seat.
-        <span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Note:</span> with shared licenses, the grand total will exceed the actual amount paid (a single license can be counted on multiple employee rows).
+        <strong>Devices:</strong> only counts devices that have a <code>purchase_cost</code> set, excluding scrapped/retired. In branch mode: all devices with that <code>branch_id</code> (assigned or in store). In employee mode: currently-assigned devices only.<br>
+        <strong>Accessories:</strong> only active assignments (no <code>returned_date</code>). In branch mode, branch is resolved via the holder's employee branch, or the attached device's branch.<br>
+        <strong>Licenses:</strong> each assignment is attributed the <strong>full license cost</strong>. A 100-seat license at SAR 1,000 contributes SAR 1,000 to every employee who holds a seat.<br>
+        <span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i></span>
+        <strong>Caveats:</strong>
+        Shared licenses → grand total exceeds actual amount paid (one license counted on every holder's row).
+        Branch mode and employee mode use slightly different scopes, so totals may not match: branch mode includes in-store devices (no employee) and device-attached license assignments; employee mode only includes items currently held by employees.
     </p>
 </div>
 @endsection

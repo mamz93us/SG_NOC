@@ -287,22 +287,23 @@ class AssetReportController extends Controller
         $branches = Branch::orderBy('name')->get();
         $rows = [];
 
-        // Devices grouped by branch
+        // Devices grouped by branch — exclude scrapped/retired (no longer assets)
         $deviceCosts = Device::whereNotNull('purchase_cost')
+            ->whereNotIn('status', ['scrapped', 'retired'])
             ->selectRaw('branch_id, currency, sum(purchase_cost) as total, count(*) as cnt')
             ->groupBy('branch_id', 'currency')
             ->get()
             ->groupBy('branch_id');
 
-        // Active accessory assignments grouped by employee's branch
-        $accessoryRows = AccessoryAssignment::with(['accessory', 'employee'])
+        // Active accessory assignments grouped by branch.
+        // Branch is resolved via employee.branch_id (preferred) or device.branch_id (when attached to a device).
+        $accessoryRows = AccessoryAssignment::with(['accessory', 'employee', 'device'])
             ->whereNull('returned_date')
-            ->whereNotNull('employee_id')
             ->get();
 
         $accByBranch = [];
         foreach ($accessoryRows as $a) {
-            $branchId = $a->employee?->branch_id;
+            $branchId = $a->employee?->branch_id ?? $a->device?->branch_id;
             if (!$branchId) continue;
             $cur = $a->accessory?->currency ?? 'USD';
             $cost = (float) ($a->accessory?->purchase_cost ?? 0);
@@ -363,8 +364,10 @@ class AssetReportController extends Controller
             ];
         }
 
-        // "Unassigned" row for devices not linked to a branch
-        $unassignedDevices = Device::whereNull('branch_id')->whereNotNull('purchase_cost')
+        // "Unassigned" row for devices not linked to a branch — exclude scrapped/retired
+        $unassignedDevices = Device::whereNull('branch_id')
+            ->whereNotNull('purchase_cost')
+            ->whereNotIn('status', ['scrapped', 'retired'])
             ->selectRaw('currency, sum(purchase_cost) as total, count(*) as cnt')
             ->groupBy('currency')
             ->get();
@@ -401,51 +404,87 @@ class AssetReportController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Pre-fetch costs grouped by employee for efficiency
-        $deviceByEmp = EmployeeAsset::join('devices', 'employee_assets.asset_id', '=', 'devices.id')
-            ->whereNull('employee_assets.returned_date')
-            ->whereNotNull('devices.purchase_cost')
-            ->selectRaw('employee_assets.employee_id, devices.currency, sum(devices.purchase_cost) as total, count(*) as cnt')
-            ->groupBy('employee_assets.employee_id', 'devices.currency')
+        // Pre-fetch full assignment records grouped by employee (eager-loaded so we
+        // can both aggregate and itemize without N+1 queries).
+        $deviceAssignmentsByEmp = EmployeeAsset::with('device')
+            ->whereNull('returned_date')
+            ->whereHas('device', function ($q) {
+                $q->whereNotNull('purchase_cost')
+                  ->whereNotIn('status', ['scrapped', 'retired']);
+            })
             ->get()
             ->groupBy('employee_id');
 
-        $accessoryRows = AccessoryAssignment::with('accessory')
+        $accessoryAssignmentsByEmp = AccessoryAssignment::with('accessory')
             ->whereNull('returned_date')
             ->whereNotNull('employee_id')
             ->get()
             ->groupBy('employee_id');
 
-        $licenseRows = LicenseAssignment::with('license')
+        $licenseAssignmentsByEmp = LicenseAssignment::with('license')
             ->where('assignable_type', Employee::class)
             ->get()
             ->groupBy('assignable_id');
 
         $rows = [];
         foreach ($employees as $emp) {
+            // ── Devices ─────────────────────────────────────────────
             $devices = $this->emptyBucket();
             $deviceCount = 0;
-            foreach (($deviceByEmp[$emp->id] ?? collect()) as $row) {
-                $cur = $row->currency ?? 'USD';
-                $devices[$cur] = ($devices[$cur] ?? 0) + (float) $row->total;
-                $deviceCount += (int) $row->cnt;
+            $deviceList = [];
+            foreach (($deviceAssignmentsByEmp[$emp->id] ?? collect()) as $ea) {
+                if (!$ea->device) continue;
+                $cur  = $ea->device->currency ?? 'USD';
+                $cost = (float) ($ea->device->purchase_cost ?? 0);
+                $devices[$cur] = ($devices[$cur] ?? 0) + $cost;
+                $deviceCount++;
+                $deviceList[] = [
+                    'name'       => $ea->device->name,
+                    'asset_code' => $ea->device->asset_code,
+                    'type'       => $ea->device->type,
+                    'serial'     => $ea->device->serial_number,
+                    'cost'       => $cost,
+                    'currency'   => $cur,
+                    'assigned'   => $ea->assigned_date?->format('d M Y'),
+                    'device_id'  => $ea->device->id,
+                ];
             }
 
+            // ── Accessories ─────────────────────────────────────────
             $accessories = $this->emptyBucket();
             $accCount = 0;
-            foreach (($accessoryRows[$emp->id] ?? collect()) as $a) {
-                $cur = $a->accessory?->currency ?? 'USD';
-                $accessories[$cur] = ($accessories[$cur] ?? 0) + (float) ($a->accessory?->purchase_cost ?? 0);
+            $accessoryList = [];
+            foreach (($accessoryAssignmentsByEmp[$emp->id] ?? collect()) as $aa) {
+                $cur  = $aa->accessory?->currency ?? 'USD';
+                $cost = (float) ($aa->accessory?->purchase_cost ?? 0);
+                $accessories[$cur] = ($accessories[$cur] ?? 0) + $cost;
                 $accCount++;
+                $accessoryList[] = [
+                    'name'     => $aa->accessory?->name ?? '—',
+                    'category' => $aa->accessory?->category ?? null,
+                    'cost'     => $cost,
+                    'currency' => $cur,
+                    'assigned' => $aa->assigned_date?->format('d M Y'),
+                ];
             }
 
+            // ── Licenses ────────────────────────────────────────────
             $licenses = $this->emptyBucket();
             $licCount = 0;
-            foreach (($licenseRows[$emp->id] ?? collect()) as $la) {
+            $licenseList = [];
+            foreach (($licenseAssignmentsByEmp[$emp->id] ?? collect()) as $la) {
                 $info = $licenseCosts[$la->license_id] ?? null;
                 if (!$info) continue;
                 $licenses[$info['currency']] = ($licenses[$info['currency']] ?? 0) + $info['cost'];
                 $licCount++;
+                $licenseList[] = [
+                    'name'     => $la->license?->license_name ?? '—',
+                    'vendor'   => $la->license?->vendor ?? null,
+                    'type'     => $la->license?->license_type ?? null,
+                    'cost'     => $info['cost'],
+                    'currency' => $info['currency'],
+                    'assigned' => $la->assigned_date?->format('d M Y'),
+                ];
             }
 
             // Only include employees who actually have something
@@ -462,6 +501,11 @@ class AssetReportController extends Controller
                     'devices'     => $deviceCount,
                     'accessories' => $accCount,
                     'licenses'    => $licCount,
+                ],
+                'details'     => [
+                    'devices'     => $deviceList,
+                    'accessories' => $accessoryList,
+                    'licenses'    => $licenseList,
                 ],
             ];
         }
