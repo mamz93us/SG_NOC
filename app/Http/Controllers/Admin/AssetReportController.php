@@ -241,13 +241,13 @@ class AssetReportController extends Controller
             $mode = 'branch';
         }
 
-        // Precompute per-seat license cost (allocated proportionally so totals add up)
-        $licensePerSeat = License::select('id', 'cost', 'currency', 'seats')->get()
+        // Per-license full cost: each assignment gets the full license cost.
+        // Cross-row totals will exceed the actual amount paid when licenses are shared.
+        $licenseCosts = License::select('id', 'cost', 'currency')->get()
             ->mapWithKeys(function ($l) {
-                $seats = max(1, (int) $l->seats);
                 return [$l->id => [
-                    'per_seat'   => (float) ($l->cost ?? 0) / $seats,
-                    'currency'   => $l->currency ?? 'USD',
+                    'cost'     => (float) ($l->cost ?? 0),
+                    'currency' => $l->currency ?? 'USD',
                 ]];
             });
 
@@ -255,9 +255,9 @@ class AssetReportController extends Controller
         $selectedBranchId = $request->integer('branch') ?: null;
 
         $rows = match ($mode) {
-            'branch'          => $this->costsByBranch($licensePerSeat),
-            'employee'        => $this->costsByEmployee($licensePerSeat, $selectedBranchId),
-            'branch_employee' => $this->costsByBranchEmployee($licensePerSeat, $selectedBranchId),
+            'branch'          => $this->costsByBranch($licenseCosts),
+            'employee'        => $this->costsByEmployee($licenseCosts, $selectedBranchId),
+            'branch_employee' => $this->costsByBranchEmployee($licenseCosts, $selectedBranchId),
         };
 
         // Grand totals across all rows
@@ -279,7 +279,7 @@ class AssetReportController extends Controller
         ));
     }
 
-    private function costsByBranch(Collection $licensePerSeat): array
+    private function costsByBranch(Collection $licenseCosts): array
     {
         $branches = Branch::orderBy('name')->get();
         $rows = [];
@@ -307,16 +307,17 @@ class AssetReportController extends Controller
             $accByBranch[$branchId][$cur]['cnt']   = ($accByBranch[$branchId][$cur]['cnt'] ?? 0) + 1;
         }
 
-        // License assignments via employee or device — map to branch
+        // License assignments via employee or device — map to branch.
+        // Each assignment gets the FULL license cost.
         $licenseRows = LicenseAssignment::with('license')->get();
         $licByBranch = [];
         foreach ($licenseRows as $la) {
             $branchId = $this->branchOfAssignable($la);
             if (!$branchId) continue;
-            $info = $licensePerSeat[$la->license_id] ?? null;
+            $info = $licenseCosts[$la->license_id] ?? null;
             if (!$info) continue;
             $licByBranch[$branchId][$info['currency']]['total']
-                = ($licByBranch[$branchId][$info['currency']]['total'] ?? 0) + $info['per_seat'];
+                = ($licByBranch[$branchId][$info['currency']]['total'] ?? 0) + $info['cost'];
             $licByBranch[$branchId][$info['currency']]['cnt']
                 = ($licByBranch[$branchId][$info['currency']]['cnt'] ?? 0) + 1;
         }
@@ -389,7 +390,7 @@ class AssetReportController extends Controller
         return $rows;
     }
 
-    private function costsByEmployee(Collection $licensePerSeat, ?int $branchFilter = null): array
+    private function costsByEmployee(Collection $licenseCosts, ?int $branchFilter = null): array
     {
         $employees = Employee::with('branch')
             ->active()
@@ -438,9 +439,9 @@ class AssetReportController extends Controller
             $licenses = $this->emptyBucket();
             $licCount = 0;
             foreach (($licenseRows[$emp->id] ?? collect()) as $la) {
-                $info = $licensePerSeat[$la->license_id] ?? null;
+                $info = $licenseCosts[$la->license_id] ?? null;
                 if (!$info) continue;
-                $licenses[$info['currency']] = ($licenses[$info['currency']] ?? 0) + $info['per_seat'];
+                $licenses[$info['currency']] = ($licenses[$info['currency']] ?? 0) + $info['cost'];
                 $licCount++;
             }
 
@@ -468,9 +469,9 @@ class AssetReportController extends Controller
         return $rows;
     }
 
-    private function costsByBranchEmployee(Collection $licensePerSeat, ?int $branchFilter = null): array
+    private function costsByBranchEmployee(Collection $licenseCosts, ?int $branchFilter = null): array
     {
-        $employees = $this->costsByEmployee($licensePerSeat, $branchFilter);
+        $employees = $this->costsByEmployee($licenseCosts, $branchFilter);
 
         // With a branch filter, drill-down is redundant — return the flat employee list.
         if ($branchFilter) {

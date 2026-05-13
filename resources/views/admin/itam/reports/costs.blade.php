@@ -107,7 +107,7 @@
                 @if($mode === 'branch_employee')
                     Sub-totals shown per branch. Within each branch, employees are sorted by total cost descending.
                 @else
-                    License costs are allocated per-seat. Rows sorted by total cost descending.
+                    Each assignment is attributed the full license cost. Rows sorted by total cost descending.
                 @endif
             </small>
         </div>
@@ -201,7 +201,8 @@
         <i class="bi bi-info-circle me-1"></i>
         <strong>Devices:</strong> in branch mode, all devices with that branch_id (assigned or in store). In employee mode, currently-assigned devices only.<br>
         <strong>Accessories:</strong> only counts currently-assigned units (active assignments).<br>
-        <strong>Licenses:</strong> per-seat cost = license total ÷ seats. So a 100-seat license at SAR 1,000 contributes SAR 10 per assignment. This keeps totals consistent when licenses are shared across branches/employees.
+        <strong>Licenses:</strong> each assignment is attributed the <strong>full license cost</strong>. A 100-seat license at SAR 1,000 contributes SAR 1,000 to every employee who holds a seat.
+        <span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Note:</span> with shared licenses, the grand total will exceed the actual amount paid (a single license can be counted on multiple employee rows).
     </p>
 </div>
 @endsection
