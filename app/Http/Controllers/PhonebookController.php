@@ -125,9 +125,11 @@ class PhonebookController extends Controller
         $xmlString .= "    </pbgroup>\n";
 
         foreach (Branch::orderBy('id')->get() as $branch) {
+            $bid   = (int) $branch->id;
+            $bname = $this->xmlText($branch->name);
             $xmlString .= "    <pbgroup>\n";
-            $xmlString .= "        <id>{$branch->id}</id>\n";
-            $xmlString .= "        <name>{$branch->name}</name>\n";
+            $xmlString .= "        <id>{$bid}</id>\n";
+            $xmlString .= "        <name>{$bname}</name>\n";
             $xmlString .= "        <photos></photos>\n";
             $xmlString .= "        <ringtones></ringtones>\n";
             $xmlString .= "        <RingtoneIndex>0</RingtoneIndex>\n";
@@ -135,23 +137,30 @@ class PhonebookController extends Controller
         }
 
         foreach (Contact::orderBy('first_name')->get() as $c) {
-            $fname = htmlspecialchars($c->first_name, ENT_XML1);
-            $lname = htmlspecialchars($c->last_name ?? '', ENT_XML1);
-            $email = htmlspecialchars($c->email ?? '', ENT_XML1);
-            $groupId = $c->branch_id ?? 0;
+            // Grandstream rejects the whole upload on empty FirstName / phonenumber.
+            if (trim((string) $c->phone) === '' || trim((string) $c->first_name) === '') {
+                continue;
+            }
+
+            $cid     = (int) $c->id;
+            $fname   = $this->xmlText($c->first_name);
+            $lname   = $this->xmlText($c->last_name);
+            $phone   = $this->xmlText($c->phone);
+            $email   = $this->xmlText($c->email);
+            $groupId = (int) ($c->branch_id ?? 0);
 
             $xmlString .= "    <Contact>\n";
-            $xmlString .= "        <id>{$c->id}</id>\n";
+            $xmlString .= "        <id>{$cid}</id>\n";
             $xmlString .= "        <FirstName>{$fname}</FirstName>\n";
             $xmlString .= "        <LastName>{$lname}</LastName>\n";
             $xmlString .= "        <Department></Department>\n";
             $xmlString .= "        <Primary>0</Primary>\n";
             $xmlString .= "        <Frequent>0</Frequent>\n";
             $xmlString .= "        <Phone type=\"Work\">\n";
-            $xmlString .= "            <phonenumber>{$c->phone}</phonenumber>\n";
+            $xmlString .= "            <phonenumber>{$phone}</phonenumber>\n";
             $xmlString .= "            <accountindex>1</accountindex>\n";
             $xmlString .= "        </Phone>\n";
-            if ($email) {
+            if ($email !== '') {
                 $xmlString .= "        <Mail type=\"Work\">{$email}</Mail>\n";
             }
             $xmlString .= "        <Group>{$groupId}</Group>\n";
@@ -162,8 +171,43 @@ class PhonebookController extends Controller
         }
 
         $xmlString .= "</AddressBook>";
+
+        // Refuse to serve malformed XML — phones display the unhelpful
+        // "failed to parse" error and silently drop the whole upload otherwise.
+        $prevUseErrors = libxml_use_internal_errors(true);
+        libxml_clear_errors();
+        $dom    = new \DOMDocument();
+        $loaded = $dom->loadXML($xmlString, LIBXML_NONET);
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($prevUseErrors);
+
+        if (! $loaded) {
+            $detail = collect($errors)
+                ->map(fn ($e) => trim($e->message) . " (line {$e->line})")
+                ->take(5)
+                ->implode('; ');
+            \Illuminate\Support\Facades\Log::error('phonebook.xml is malformed', ['libxml' => $detail]);
+            return response("Phonebook XML generation failed: {$detail}", 500)
+                ->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+
         return response($xmlString, 200)
             ->header('Content-Type', 'text/xml; charset=utf-8');
+    }
+
+    /**
+     * Sanitise a string for safe inclusion in XML text:
+     *   - drops XML 1.0 illegal control chars (keeps \t \n \r)
+     *   - escapes &, <, >, ", '
+     */
+    private function xmlText(?string $v): string
+    {
+        if ($v === null) {
+            return '';
+        }
+        $clean = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $v) ?? '';
+        return htmlspecialchars($clean, ENT_XML1 | ENT_QUOTES, 'UTF-8');
     }
 
     /**
