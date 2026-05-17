@@ -46,6 +46,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'two-factor-challenge',
             'api/graylog/webhook',
             'api/branch-config/*',
+            'api/sns/email-events',
+            'email/unsubscribe/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

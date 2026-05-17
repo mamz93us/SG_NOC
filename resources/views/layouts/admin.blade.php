@@ -923,6 +923,49 @@
                     </li>
                     @endcan
 
+                    {{-- ── Email Marketing dropdown ── --}}
+                    @canany(['manage-email-marketing','manage-email-marketing-settings'])
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/email-marketing*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-envelope-paper me-1"></i>Marketing
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @can('manage-email-marketing-settings')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.settings') ? 'active' : '' }}"
+                                   href="{{ route('admin.email-marketing.settings') }}">
+                                    <i class="bi bi-gear me-2"></i>SES Settings
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-email-marketing')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.suppressions') ? 'active' : '' }}"
+                                   href="{{ route('admin.email-marketing.suppressions') }}">
+                                    <i class="bi bi-shield-x me-2"></i>Suppression List
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.quota') ? 'active' : '' }}"
+                                   href="{{ route('admin.email-marketing.quota') }}">
+                                    <i class="bi bi-speedometer2 me-2"></i>Quota &amp; Status
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-email-marketing')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('portal.marketing.dashboard') }}" target="_blank">
+                                    <i class="bi bi-grid me-2 text-info"></i>Marketing Portal
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
+                                </a>
+                            </li>
+                            @endcan
+                        </ul>
+                    </li>
+                    @endcanany
+
                     {{-- ── Admin Tools ── --}}
                     @can('view-admin-links')
                     <li class="nav-item">

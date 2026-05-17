@@ -99,12 +99,17 @@ class User extends Authenticatable
         return $this->role === 'hr';
     }
 
+    public function isMarketing(): bool
+    {
+        return $this->role === 'marketing';
+    }
+
     /**
      * Portal-only roles never see admin chrome.
      */
     public function usesPortal(): bool
     {
-        return $this->isBrowserUser() || $this->isHr();
+        return $this->isBrowserUser() || $this->isHr() || $this->isMarketing();
     }
 
     /**
@@ -124,6 +129,7 @@ class User extends Authenticatable
             'hr'           => 'HR',
             'viewer'       => 'Viewer',
             'browser_user' => 'Browser User',
+            'marketing'    => 'Marketing',
             default        => ucfirst($role),
         };
     }

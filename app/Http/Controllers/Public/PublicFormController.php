@@ -9,7 +9,6 @@ use App\Models\FormToken;
 use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View;
 
 class PublicFormController extends Controller
 {
@@ -19,13 +18,13 @@ class PublicFormController extends Controller
      */
     public function show(string $slug, Request $request)
     {
-        $form  = FormTemplate::where('slug', $slug)->firstOrFail();
+        $form = FormTemplate::where('slug', $slug)->firstOrFail();
         $token = null;
 
         if (! $form->isOpen()) {
             return view('public.form_submitted', [
-                'form'    => $form,
-                'error'   => true,
+                'form' => $form,
+                'error' => true,
                 'message' => 'This form is no longer accepting responses.',
             ]);
         }
@@ -40,8 +39,8 @@ class PublicFormController extends Controller
             $token = $this->resolveToken($form, $request->query('token'));
             if (! $token) {
                 return view('public.form_submitted', [
-                    'form'    => $form,
-                    'error'   => true,
+                    'form' => $form,
+                    'error' => true,
                     'message' => 'This link is invalid, expired, or has already been used.',
                 ]);
             }
@@ -56,7 +55,7 @@ class PublicFormController extends Controller
      */
     public function submit(string $slug, Request $request)
     {
-        $form  = FormTemplate::where('slug', $slug)->firstOrFail();
+        $form = FormTemplate::where('slug', $slug)->firstOrFail();
         $token = null;
 
         if (! $form->isOpen()) {
@@ -71,8 +70,8 @@ class PublicFormController extends Controller
             $token = $this->resolveToken($form, $request->input('_form_token'));
             if (! $token) {
                 return view('public.form_submitted', [
-                    'form'    => $form,
-                    'error'   => true,
+                    'form' => $form,
+                    'error' => true,
                     'message' => 'This link is invalid or has already been used.',
                 ]);
             }
@@ -83,7 +82,7 @@ class PublicFormController extends Controller
             ? $form->schema
             : (json_decode($form->schema, true) ?? []);
         $rules = $this->buildValidationRules($schema);
-        $data  = $request->validate($rules);
+        $data = $request->validate($rules);
 
         // Strip hidden helper fields
         unset($data['_form_token']);
@@ -92,21 +91,21 @@ class PublicFormController extends Controller
         $maxSubs = $form->settings['max_submissions'] ?? null;
         if ($maxSubs && $form->submissions()->count() >= $maxSubs) {
             return view('public.form_submitted', [
-                'form'    => $form,
-                'error'   => true,
+                'form' => $form,
+                'error' => true,
                 'message' => 'This form has reached its maximum number of responses.',
             ]);
         }
 
         // Store submission
         $submission = FormSubmission::create([
-            'form_id'         => $form->id,
-            'token_id'        => $token?->id,
-            'submitted_by'    => Auth::id(),
+            'form_id' => $form->id,
+            'token_id' => $token?->id,
+            'submitted_by' => Auth::id(),
             'submitter_email' => $data['_email'] ?? ($form->settings['collect_email'] ? $request->input('_email') : null),
-            'ip_address'      => $request->ip(),
-            'data'            => $data,
-            'status'          => 'new',
+            'ip_address' => $request->ip(),
+            'data' => $data,
+            'status' => 'new',
         ]);
 
         // Increment token uses
@@ -118,15 +117,15 @@ class PublicFormController extends Controller
         $this->notifyReviewers($form, $submission);
 
         $confirmMessage = $form->settings['confirmation_message'] ?? 'Thank you! Your response has been recorded.';
-        $redirectUrl    = $form->settings['redirect_url'] ?? null;
+        $redirectUrl = $form->settings['redirect_url'] ?? null;
 
         if ($redirectUrl) {
             return redirect($redirectUrl)->with('success', $confirmMessage);
         }
 
         return view('public.form_submitted', [
-            'form'    => $form,
-            'error'   => false,
+            'form' => $form,
+            'error' => false,
             'message' => $confirmMessage,
         ]);
     }
@@ -156,7 +155,7 @@ class PublicFormController extends Controller
                 continue; // section dividers are not inputs
             }
 
-            $name     = $field['name'] ?? null;
+            $name = $field['name'] ?? null;
             $required = ($field['required'] ?? false) ? 'required' : 'nullable';
 
             if (! $name) {
@@ -166,22 +165,23 @@ class PublicFormController extends Controller
             if (($field['type'] ?? 'text') === 'number') {
                 $numRule = [$required, 'numeric'];
                 if (isset($field['min']) && $field['min'] !== null && $field['min'] !== '') {
-                    $numRule[] = 'min:' . $field['min'];
+                    $numRule[] = 'min:'.$field['min'];
                 }
                 if (isset($field['max']) && $field['max'] !== null && $field['max'] !== '') {
-                    $numRule[] = 'max:' . $field['max'];
+                    $numRule[] = 'max:'.$field['max'];
                 }
                 $rules[$name] = $numRule;
+
                 continue;
             }
 
             $typeRules = match ($field['type'] ?? 'text') {
-                'email'    => [$required, 'email', 'max:150'],
-                'date'     => [$required, 'date'],
-                'rating'   => [$required, 'integer', 'min:'.($field['min'] ?? 1), 'max:'.($field['max'] ?? 10)],
+                'email' => [$required, 'email', 'max:150'],
+                'date' => [$required, 'date'],
+                'rating' => [$required, 'integer', 'min:'.($field['min'] ?? 1), 'max:'.($field['max'] ?? 10)],
                 'checkbox' => [$required, 'array'],
-                'file'     => [$required, 'file', 'max:10240'],
-                default    => [$required, 'string', 'max:2000'],
+                'file' => [$required, 'file', 'max:10240'],
+                default => [$required, 'string', 'max:2000'],
             };
 
             $rules[$name] = $typeRules;
@@ -196,13 +196,13 @@ class PublicFormController extends Controller
 
         foreach ($userIds as $userId) {
             Notification::create([
-                'user_id'  => $userId,
-                'type'     => 'system_alert',
+                'user_id' => $userId,
+                'type' => 'system_alert',
                 'severity' => 'info',
-                'title'    => 'New Form Submission: ' . $form->name,
-                'message'  => 'A new response was submitted to "' . $form->name . '".',
-                'link'     => route('admin.forms.submission.show', [$form, $submission]),
-                'is_read'  => false,
+                'title' => 'New Form Submission: '.$form->name,
+                'message' => 'A new response was submitted to "'.$form->name.'".',
+                'link' => route('admin.forms.submission.show', [$form, $submission]),
+                'is_read' => false,
             ]);
         }
     }

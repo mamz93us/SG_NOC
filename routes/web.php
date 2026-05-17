@@ -79,6 +79,20 @@ use App\Http\Controllers\Admin\DnsNameserversController;
 use App\Http\Controllers\Admin\DnsLookupController;
 use App\Http\Controllers\Admin\SubdomainController;
 use App\Http\Controllers\Admin\SslCertificateController;
+use App\Http\Controllers\Admin\EmailMarketing\EmailMarketingSettingsController;
+use App\Http\Controllers\Admin\EmailMarketing\SuppressionsController as EmAdminSuppressionsController;
+use App\Http\Controllers\Admin\EmailMarketing\QuotaController as EmAdminQuotaController;
+use App\Http\Controllers\Portal\EmailMarketing\DashboardController as EmDashboardController;
+use App\Http\Controllers\Portal\EmailMarketing\ListsController as EmListsController;
+use App\Http\Controllers\Portal\EmailMarketing\SubscribersController as EmSubscribersController;
+use App\Http\Controllers\Portal\EmailMarketing\TagsController as EmTagsController;
+use App\Http\Controllers\Portal\EmailMarketing\SegmentsController as EmSegmentsController;
+use App\Http\Controllers\Portal\EmailMarketing\TemplatesController as EmTemplatesController;
+use App\Http\Controllers\Portal\EmailMarketing\CampaignsController as EmCampaignsController;
+use App\Http\Controllers\Portal\EmailMarketing\CampaignAnalyticsController as EmCampaignAnalyticsController;
+use App\Http\Controllers\Api\SnsEmailEventsController;
+use App\Http\Controllers\Public\UnsubscribeController;
+use App\Http\Controllers\Public\OptInConfirmController;
 
 /*
 |--------------------------------------------------------------------------
@@ -172,7 +186,46 @@ Route::prefix('portal')->name('portal.')->group(function () {
             Route::get('/create', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'create'])->name('create');
             Route::post('/',      [\App\Http\Controllers\Portal\HrOnboardingController::class, 'store'])->name('store');
         });
+
+    // Email Marketing portal — gated by view-email-marketing.
+    Route::middleware(['auth', 'permission:view-email-marketing', 'throttle:120,1'])
+        ->prefix('marketing')
+        ->name('marketing.')
+        ->group(function () {
+            Route::get('/', [EmDashboardController::class, 'index'])->name('dashboard');
+
+            Route::resource('lists', EmListsController::class);
+
+            // Subscribers + import — import routes must precede the resource binding for /import
+            Route::get('subscribers/import',      [EmSubscribersController::class, 'importForm'])->name('subscribers.import.form');
+            Route::post('subscribers/import/map', [EmSubscribersController::class, 'importMap'])->name('subscribers.import.map');
+            Route::post('subscribers/import',     [EmSubscribersController::class, 'importStore'])->name('subscribers.import.store');
+            Route::resource('subscribers', EmSubscribersController::class);
+
+            Route::resource('tags', EmTagsController::class)->except(['show']);
+            Route::resource('segments', EmSegmentsController::class);
+            Route::resource('templates', EmTemplatesController::class);
+
+            Route::post('campaigns/{campaign}/send-now',   [EmCampaignsController::class, 'sendNow'])->name('campaigns.send-now');
+            Route::post('campaigns/{campaign}/schedule',   [EmCampaignsController::class, 'schedule'])->name('campaigns.schedule');
+            Route::post('campaigns/{campaign}/pause',      [EmCampaignsController::class, 'pause'])->name('campaigns.pause');
+            Route::post('campaigns/{campaign}/duplicate',  [EmCampaignsController::class, 'duplicate'])->name('campaigns.duplicate');
+            Route::get('campaigns/{campaign}/analytics',   [EmCampaignAnalyticsController::class, 'show'])->name('campaigns.analytics');
+            Route::resource('campaigns', EmCampaignsController::class);
+        });
 });
+
+// ──────────────────────────────────────────────────────────────────
+// Public email marketing endpoints (no auth — signed URLs / SNS)
+// ──────────────────────────────────────────────────────────────────
+Route::get('email/unsubscribe/{token}',  [UnsubscribeController::class, 'show'])->name('email.unsubscribe.show');
+Route::post('email/unsubscribe/{token}', [UnsubscribeController::class, 'confirm'])->name('email.unsubscribe.confirm');
+Route::get('email/opt-in/{token}',       [OptInConfirmController::class, 'confirm'])->name('email.opt-in.confirm');
+
+// SNS event webhook — auth'd by AWS message signature, CSRF-excepted in bootstrap/app.php
+Route::post('api/sns/email-events', [SnsEmailEventsController::class, 'handle'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
+    ->name('api.sns.email-events');
 
 // Legacy /browser redirect for any old bookmarks
 Route::redirect('/browser', '/portal/login');
@@ -948,6 +1001,26 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     //     Route::get('/',                [\App\Http\Controllers\Admin\WebBrowserController::class, 'index']) ->name('index');
     //     Route::match(['GET','POST'], '/fetch', [\App\Http\Controllers\Admin\WebBrowserController::class, 'fetch']) ->name('fetch');
     // });
+
+    // ─── Email Marketing — ADMIN MANAGEMENT (settings + suppressions + quota) ────
+    // Marketing employees use the portal at /portal/marketing. This admin block
+    // is for sysadmins managing SES credentials and the global suppression list.
+    Route::middleware('permission:manage-email-marketing')
+        ->prefix('email-marketing')->name('email-marketing.')
+        ->group(function () {
+            Route::get('settings',                       [EmailMarketingSettingsController::class, 'index'])->name('settings');
+            Route::post('settings',                      [EmailMarketingSettingsController::class, 'update'])
+                ->middleware('permission:manage-email-marketing-settings');
+            Route::post('settings/test-send',            [EmailMarketingSettingsController::class, 'testSend'])
+                ->middleware('permission:manage-email-marketing-settings')->name('settings.test-send');
+
+            Route::get('suppressions',                   [EmAdminSuppressionsController::class, 'index'])->name('suppressions');
+            Route::post('suppressions',                  [EmAdminSuppressionsController::class, 'store'])->name('suppressions.store');
+            Route::delete('suppressions/{suppression}',  [EmAdminSuppressionsController::class, 'destroy'])->name('suppressions.destroy');
+            Route::post('suppressions/import',           [EmAdminSuppressionsController::class, 'import'])->name('suppressions.import');
+
+            Route::get('quota',                          [EmAdminQuotaController::class, 'index'])->name('quota');
+        });
 
     // ─── Remote Browser Portal — ADMIN MANAGEMENT ONLY ───────────────
     // User-facing portal is mounted separately at /portal (isolated from admin).

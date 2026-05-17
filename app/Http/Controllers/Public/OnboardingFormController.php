@@ -7,7 +7,6 @@ use App\Models\IdentityGroup;
 use App\Models\InternetAccessLevel;
 use App\Models\NetworkFloor;
 use App\Models\OnboardingManagerToken;
-use App\Models\WorkflowRequest;
 use App\Services\Workflow\WorkflowEngine;
 use Illuminate\Http\Request;
 
@@ -28,7 +27,7 @@ class OnboardingFormController extends Controller
         }
 
         $workflow = $tokenRecord->workflow;
-        $payload  = $workflow?->payload ?? [];
+        $payload = $workflow?->payload ?? [];
 
         // Load floors scoped to the workflow's branch
         $branch = $workflow?->branch;
@@ -69,13 +68,13 @@ class OnboardingFormController extends Controller
         $validLevelIds = InternetAccessLevel::ordered()->pluck('id')->toArray();
 
         $data = $request->validate([
-            'laptop_status'     => 'required|in:new,used,none',
-            'needs_extension'   => 'required|in:yes,no',
-            'internet_level_id' => 'required|integer|in:' . implode(',', $validLevelIds),
-            'floor_id'          => 'nullable|exists:network_floors,id',
-            'selected_groups'   => 'nullable|array',
+            'laptop_status' => 'required|in:new,used,none',
+            'needs_extension' => 'required|in:yes,no',
+            'internet_level_id' => 'required|integer|in:'.implode(',', $validLevelIds),
+            'floor_id' => 'nullable|exists:network_floors,id',
+            'selected_groups' => 'nullable|array',
             'selected_groups.*' => 'integer|exists:identity_groups,id',
-            'manager_comments'  => 'nullable|string|max:2000',
+            'manager_comments' => 'nullable|string|max:2000',
         ]);
 
         // Resolve the chosen internet level record
@@ -93,31 +92,31 @@ class OnboardingFormController extends Controller
         }
 
         $tokenRecord->update([
-            'laptop_status'      => $data['laptop_status'],
-            'needs_extension'    => $data['needs_extension'] === 'yes',
+            'laptop_status' => $data['laptop_status'],
+            'needs_extension' => $data['needs_extension'] === 'yes',
             // Keep legacy internet_level string field for backward compat, store label
-            'internet_level'     => $internetLevel->label,
-            'floor_id'           => $data['floor_id'] ?? null,
+            'internet_level' => $internetLevel->label,
+            'floor_id' => $data['floor_id'] ?? null,
             'selected_group_ids' => $data['selected_groups'] ?? [],
-            'manager_comments'   => $data['manager_comments'] ?? null,
-            'responded_at'       => now(),
+            'manager_comments' => $data['manager_comments'] ?? null,
+            'responded_at' => now(),
         ]);
 
         // Store manager choices in the workflow payload for UserProvisioningService
         $workflow = $tokenRecord->workflow;
         if ($workflow) {
             $payload = array_merge($workflow->payload ?? [], [
-                'manager_form_token_id'       => $tokenRecord->id,
-                'laptop_status'               => $data['laptop_status'],
-                'needs_extension'             => $data['needs_extension'] === 'yes',
+                'manager_form_token_id' => $tokenRecord->id,
+                'laptop_status' => $data['laptop_status'],
+                'needs_extension' => $data['needs_extension'] === 'yes',
                 // Store both label + azure_group_id for provisioning service step 3c
-                'internet_level'              => $internetLevel->label,
-                'internet_level_id'           => $internetLevel->id,
-                'internet_access_group_id'    => $internetLevel->azure_group_id,   // used by Step 3c
-                'internet_access_group_name'  => $internetLevel->azure_group_name,
-                'floor_id'                    => $data['floor_id'] ?? null,
-                'manager_groups'              => $data['selected_groups'] ?? [],
-                'manager_comments'            => $data['manager_comments'] ?? null,
+                'internet_level' => $internetLevel->label,
+                'internet_level_id' => $internetLevel->id,
+                'internet_access_group_id' => $internetLevel->azure_group_id,   // used by Step 3c
+                'internet_access_group_name' => $internetLevel->azure_group_name,
+                'floor_id' => $data['floor_id'] ?? null,
+                'manager_groups' => $data['selected_groups'] ?? [],
+                'manager_comments' => $data['manager_comments'] ?? null,
             ]);
             $workflow->payload = $payload;
             $workflow->save();

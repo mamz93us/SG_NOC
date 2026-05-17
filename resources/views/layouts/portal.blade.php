@@ -79,6 +79,14 @@
                             <i class="bi bi-clock-history me-2"></i>Browser History
                         </a>
                     </li>
+                    @can('view-email-marketing')
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item" href="{{ route('portal.marketing.dashboard') }}">
+                            <i class="bi bi-envelope-paper me-2"></i>Email Marketing
+                        </a>
+                    </li>
+                    @endcan
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <form method="POST" action="{{ route('portal.logout') }}">

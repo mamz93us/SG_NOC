@@ -8,7 +8,6 @@ use App\Models\PrinterDeployToken;
 use App\Models\PrinterDriver;
 use App\Services\PrinterScriptService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -21,7 +20,7 @@ class PrinterSetupController extends Controller
     public function show(Request $request): View
     {
         $tokenString = $request->query('token');
-        $token       = PrinterDeployToken::where('token', $tokenString)
+        $token = PrinterDeployToken::where('token', $tokenString)
             ->with(['employee', 'branch'])
             ->first();
 
@@ -40,7 +39,7 @@ class PrinterSetupController extends Controller
         // Build per-printer driver availability data
         $printerData = $printers->map(function ($p) {
             return [
-                'printer'    => $p,
+                'printer' => $p,
                 'win_driver' => PrinterDriver::findForPrinter($p, 'windows_x64'),
                 'mac_driver' => PrinterDriver::findForPrinter($p, 'mac'),
             ];
@@ -56,9 +55,9 @@ class PrinterSetupController extends Controller
     public function downloadScript(Request $request)
     {
         $request->validate([
-            'token'      => 'required|string',
+            'token' => 'required|string',
             'printer_id' => 'required|integer',
-            'os'         => 'nullable|string|in:windows,mac',
+            'os' => 'nullable|string|in:windows,mac',
         ]);
 
         $token = PrinterDeployToken::where('token', $request->token)
@@ -68,26 +67,28 @@ class PrinterSetupController extends Controller
         $printer = Printer::with('branch')->findOrFail($request->printer_id);
         abort_if($printer->branch_id !== $token->branch_id, 403, 'Printer does not belong to your branch.');
 
-        $service = new PrinterScriptService();
-        $os      = $request->input('os', 'windows');
+        $service = new PrinterScriptService;
+        $os = $request->input('os', 'windows');
 
         if ($os === 'windows') {
-            $driver   = PrinterDriver::findForPrinter($printer, 'windows_x64');
-            $bat      = $service->generateWindowsBat($printer, $driver, $request->token ?? null);
-            $filename = 'install-' . Str::slug($printer->printer_name) . '.bat';
+            $driver = PrinterDriver::findForPrinter($printer, 'windows_x64');
+            $bat = $service->generateWindowsBat($printer, $driver, $request->token ?? null);
+            $filename = 'install-'.Str::slug($printer->printer_name).'.bat';
+
             return response($bat, 200, [
-                'Content-Type'        => 'application/octet-stream',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'Content-Type' => 'application/octet-stream',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
             ]);
         }
 
         // macOS
-        $driver   = PrinterDriver::findForPrinter($printer, 'mac');
-        $sh       = $service->generateMacSh($printer, $driver);
-        $filename = 'install-' . Str::slug($printer->printer_name) . '.sh';
+        $driver = PrinterDriver::findForPrinter($printer, 'mac');
+        $sh = $service->generateMacSh($printer, $driver);
+        $filename = 'install-'.Str::slug($printer->printer_name).'.sh';
+
         return response($sh, 200, [
-            'Content-Type'        => 'application/octet-stream',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Type' => 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ]);
     }
 
@@ -98,7 +99,7 @@ class PrinterSetupController extends Controller
     public function downloadDriver(Request $request)
     {
         $request->validate([
-            'token'     => 'required|string',
+            'token' => 'required|string',
             'driver_id' => 'required|integer',
         ]);
 
@@ -119,6 +120,7 @@ class PrinterSetupController extends Controller
         abort_if(! $driver->driver_file_path, 404, 'No driver file available.');
 
         $filename = $driver->original_filename ?? basename($driver->driver_file_path);
+
         return \Storage::disk('private')->download($driver->driver_file_path, $filename);
     }
 }

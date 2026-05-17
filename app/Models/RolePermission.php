@@ -136,6 +136,11 @@ class RolePermission extends Model
             'Forms' => [
                 'manage-forms' => 'Manage Form Builder Templates & Submissions',
             ],
+            'Email Marketing' => [
+                'view-email-marketing'            => 'View & use marketing portal (lists, subscribers, campaigns)',
+                'manage-email-marketing'          => 'Admin oversight (suppressions, quota, all campaigns)',
+                'manage-email-marketing-settings' => 'Edit AWS SES credentials & sender domain',
+            ],
         ];
     }
 
@@ -158,6 +163,7 @@ class RolePermission extends Model
         $adminPerms  = array_values(array_diff($all, [
             'manage-users', 'manage-permissions',
             'manage-credentials', 'manage-identity-settings',
+            'manage-email-marketing-settings',
         ]));
         $viewerPerms = [
             'view-branches', 'view-contacts',
@@ -177,6 +183,7 @@ class RolePermission extends Model
             'view-offboarding',
             'manage-offboarding',
         ];
+        $marketingPerms = ['view-email-marketing'];
 
         return [
             'super_admin'  => $all,
@@ -184,6 +191,7 @@ class RolePermission extends Model
             'hr'           => $hrPerms,
             'viewer'       => $viewerPerms,
             'browser_user' => ['view-browser-portal'],
+            'marketing'    => $marketingPerms,
         ];
     }
 

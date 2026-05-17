@@ -101,6 +101,21 @@ class Setting extends Model
         'offboarding_download_expiry_days',
         'offboarding_manager_grace_days',
         'offboarding_it_escalation_email',
+        // AWS SES + Email Marketing
+        'email_marketing_enabled',
+        'ses_region',
+        'ses_access_key_id',
+        'ses_secret_access_key',
+        'ses_configuration_set',
+        'ses_default_from_email',
+        'ses_default_from_name',
+        'ses_default_reply_to',
+        'ses_throttle_per_second',
+        'ses_unsubscribe_base_url',
+        'sns_topic_arn',
+        'email_marketing_event_retention_days',
+        'email_marketing_open_pixel_enabled',
+        'email_marketing_click_tracking_enabled',
     ];
 
     protected $casts = [
@@ -130,6 +145,12 @@ class Setting extends Model
         'offboarding_retention_days'        => 'integer',
         'offboarding_download_expiry_days'  => 'integer',
         'offboarding_manager_grace_days'    => 'integer',
+        // Email Marketing
+        'email_marketing_enabled'                  => 'boolean',
+        'ses_throttle_per_second'                  => 'integer',
+        'email_marketing_event_retention_days'     => 'integer',
+        'email_marketing_open_pixel_enabled'       => 'boolean',
+        'email_marketing_click_tracking_enabled'   => 'boolean',
     ];
 
     /**
@@ -272,6 +293,23 @@ class Setting extends Model
     }
 
     public function getAzureBlobKeyAttribute(?string $value): ?string
+    {
+        if (!$value) return null;
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── AWS SES secret access key — encrypted at rest ────────────
+
+    public function setSesSecretAccessKeyAttribute(?string $value): void
+    {
+        $this->attributes['ses_secret_access_key'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getSesSecretAccessKeyAttribute(?string $value): ?string
     {
         if (!$value) return null;
         try {

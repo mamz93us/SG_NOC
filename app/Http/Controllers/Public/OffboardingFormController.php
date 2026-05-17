@@ -21,32 +21,32 @@ class OffboardingFormController extends Controller
     public function show(Request $request): View|\Illuminate\Http\RedirectResponse
     {
         $tokenString = $request->query('token');
-        $token       = OffboardingToken::where('token', $tokenString)->first();
+        $token = OffboardingToken::where('token', $tokenString)->first();
 
         if (! $token || ! $token->isValid()) {
             return view('public.offboarding_form_submitted', [
-                'error'   => true,
+                'error' => true,
                 'message' => 'This link is invalid or has already been used.',
             ]);
         }
 
         // Pull the employee's active assets so the retrieval-task list is real.
         $employee = $token->employee_id ? Employee::find($token->employee_id) : null;
-        $assets   = $employee
+        $assets = $employee
             ? $employee->activeAssets()->with('device')->get()
             : collect();
 
         // Active employees for the "transfer to" picker (exclude the leaving user).
         $activeEmployees = Employee::query()
             ->where('status', 'active')
-            ->when($employee, fn($q) => $q->where('id', '!=', $employee->id))
+            ->when($employee, fn ($q) => $q->where('id', '!=', $employee->id))
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
         return view('public.offboarding_form', [
-            'token'           => $token,
-            'payload'         => $token->payload ?? [],
-            'assets'          => $assets,
+            'token' => $token,
+            'payload' => $token->payload ?? [],
+            'assets' => $assets,
             'activeEmployees' => $activeEmployees,
         ]);
     }
@@ -56,29 +56,29 @@ class OffboardingFormController extends Controller
      * Manager submits their decisions.
      */
     public function submit(
-        Request                $request,
-        WorkflowEngine         $engine,
-        OffboardingProcessor   $processor,
+        Request $request,
+        WorkflowEngine $engine,
+        OffboardingProcessor $processor,
     ): View {
         $data = $request->validate([
-            'token'                     => 'required|string',
-            'decision'                  => 'required|in:approved,rejected',
-            'notes'                     => 'nullable|string|max:2000',
+            'token' => 'required|string',
+            'decision' => 'required|in:approved,rejected',
+            'notes' => 'nullable|string|max:2000',
 
             // Approve-only fields (validated conditionally below).
-            'email_action'              => 'nullable|in:delete,forward',
-            'forward_emails'            => 'nullable|string|max:1000',
-            'forward_duration_days'     => 'nullable|integer|min:1|max:90',
-            'laptop_action'             => 'nullable|in:backup,delete',
-            'asset_action'              => 'nullable|in:transfer,return_to_it',
-            'asset_target_employee_id'  => 'nullable|integer|exists:employees,id',
-            'retrieve'                  => 'nullable|array',
+            'email_action' => 'nullable|in:delete,forward',
+            'forward_emails' => 'nullable|string|max:1000',
+            'forward_duration_days' => 'nullable|integer|min:1|max:90',
+            'laptop_action' => 'nullable|in:backup,delete',
+            'asset_action' => 'nullable|in:transfer,return_to_it',
+            'asset_target_employee_id' => 'nullable|integer|exists:employees,id',
+            'retrieve' => 'nullable|array',
         ]);
 
         $token = OffboardingToken::where('token', $data['token'])->first();
         if (! $token) {
             return view('public.offboarding_form_submitted', [
-                'error'   => true,
+                'error' => true,
                 'message' => 'This link is invalid or has already been used.',
             ]);
         }
@@ -86,13 +86,13 @@ class OffboardingFormController extends Controller
         // Cross-field validation for approve path.
         if ($data['decision'] === 'approved') {
             $request->validate([
-                'email_action'  => 'required|in:delete,forward',
+                'email_action' => 'required|in:delete,forward',
                 'laptop_action' => 'required|in:backup,delete',
-                'asset_action'  => 'required|in:transfer,return_to_it',
+                'asset_action' => 'required|in:transfer,return_to_it',
             ]);
             if ($data['email_action'] === 'forward') {
                 $request->validate([
-                    'forward_emails'        => 'required|string|max:1000',
+                    'forward_emails' => 'required|string|max:1000',
                     'forward_duration_days' => 'required|integer|min:1|max:90',
                 ]);
             }
@@ -109,19 +109,20 @@ class OffboardingFormController extends Controller
             $locked = OffboardingToken::lockForUpdate()->find($token->id);
             if (! $locked || ! $locked->isValid()) {
                 $validationFailed = true;
+
                 return;
             }
             $locked->update([
                 'manager_decision' => $data['decision'],
-                'manager_notes'    => $data['notes'] ?? null,
-                'responded_at'     => now(),
+                'manager_notes' => $data['notes'] ?? null,
+                'responded_at' => now(),
             ]);
             $locked->markUsed();
         });
 
         if ($validationFailed) {
             return view('public.offboarding_form_submitted', [
-                'error'   => true,
+                'error' => true,
                 'message' => 'This link is invalid or has already been used.',
             ]);
         }
@@ -129,7 +130,7 @@ class OffboardingFormController extends Controller
         $workflow = $token->workflow;
         if (! $workflow) {
             return view('public.offboarding_form_submitted', [
-                'error'   => true,
+                'error' => true,
                 'message' => 'The associated workflow could not be found.',
             ]);
         }
@@ -137,8 +138,8 @@ class OffboardingFormController extends Controller
         $offboardingWorkflow = OffboardingWorkflow::firstOrCreate(
             ['workflow_id' => $workflow->id],
             [
-                'employee_id'       => $token->employee_id,
-                'status'            => 'manager_input_pending',
+                'employee_id' => $token->employee_id,
+                'status' => 'manager_input_pending',
                 'expected_last_day' => $token->payload['last_day'] ?? now()->toDateString(),
             ],
         );
@@ -146,12 +147,12 @@ class OffboardingFormController extends Controller
         if ($data['decision'] === 'rejected') {
             $payload = $workflow->payload ?? [];
             $payload['manager_decision'] = 'rejected';
-            $payload['manager_notes']    = $data['notes'] ?? null;
+            $payload['manager_notes'] = $data['notes'] ?? null;
             $workflow->payload = $payload;
             $workflow->update(['status' => 'rejected']);
 
             $offboardingWorkflow->update([
-                'status'       => 'cancelled',
+                'status' => 'cancelled',
                 'completed_at' => now(),
             ]);
 
@@ -164,9 +165,9 @@ class OffboardingFormController extends Controller
             }
 
             return view('public.offboarding_form_submitted', [
-                'error'    => false,
+                'error' => false,
                 'decision' => 'rejected',
-                'payload'  => [],
+                'payload' => [],
             ]);
         }
 
@@ -174,8 +175,8 @@ class OffboardingFormController extends Controller
         $forwardEmails = [];
         if ($data['email_action'] === 'forward' && ! empty($data['forward_emails'])) {
             $forwardEmails = collect(preg_split('/[,;\s]+/', $data['forward_emails']))
-                ->map(fn($e) => trim($e))
-                ->filter(fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL))
+                ->map(fn ($e) => trim($e))
+                ->filter(fn ($e) => filter_var($e, FILTER_VALIDATE_EMAIL))
                 ->values()
                 ->all();
         }
@@ -191,32 +192,32 @@ class OffboardingFormController extends Controller
         }
 
         $offboardingWorkflow->update([
-            'status'                   => 'processing',
-            'email_action'             => $data['email_action'],
-            'forward_emails'           => $forwardEmails ?: null,
-            'forward_until'            => $forwardUntil,
-            'laptop_action'            => $data['laptop_action'],
-            'asset_action'             => $data['asset_action'],
+            'status' => 'processing',
+            'email_action' => $data['email_action'],
+            'forward_emails' => $forwardEmails ?: null,
+            'forward_until' => $forwardUntil,
+            'laptop_action' => $data['laptop_action'],
+            'asset_action' => $data['asset_action'],
             'asset_target_employee_id' => $data['asset_action'] === 'transfer'
                                             ? (int) $data['asset_target_employee_id']
                                             : null,
-            'retrieval_choices'        => $retrievalChoices,
+            'retrieval_choices' => $retrievalChoices,
         ]);
 
         // Mirror the decisions into the workflow payload so admin views can read them.
         $payload = $workflow->payload ?? [];
         $payload['manager_decision'] = 'approved';
-        $payload['manager_notes']    = $data['notes'] ?? null;
-        $payload['decisions']        = [
-            'email_action'             => $data['email_action'],
-            'forward_emails'           => $forwardEmails,
-            'forward_until'            => $forwardUntil,
-            'laptop_action'            => $data['laptop_action'],
-            'asset_action'             => $data['asset_action'],
+        $payload['manager_notes'] = $data['notes'] ?? null;
+        $payload['decisions'] = [
+            'email_action' => $data['email_action'],
+            'forward_emails' => $forwardEmails,
+            'forward_until' => $forwardUntil,
+            'laptop_action' => $data['laptop_action'],
+            'asset_action' => $data['asset_action'],
             'asset_target_employee_id' => $data['asset_action'] === 'transfer'
                                             ? (int) $data['asset_target_employee_id']
                                             : null,
-            'retrieval_choices'        => $retrievalChoices,
+            'retrieval_choices' => $retrievalChoices,
         ];
         $workflow->payload = $payload;
         $workflow->update(['status' => 'executing']);
@@ -230,7 +231,7 @@ class OffboardingFormController extends Controller
         } catch (\Throwable $e) {
             $offboardingWorkflow->update(['status' => 'failed']);
             $workflow->update(['status' => 'failed']);
-            $engine->logEvent($workflow, 'error', 'Offboarding processor failed: ' . $e->getMessage());
+            $engine->logEvent($workflow, 'error', 'Offboarding processor failed: '.$e->getMessage());
         }
 
         try {
@@ -240,9 +241,9 @@ class OffboardingFormController extends Controller
         }
 
         return view('public.offboarding_form_submitted', [
-            'error'    => false,
+            'error' => false,
             'decision' => 'approved',
-            'payload'  => collect($payload['decisions'] ?? [])->toArray(),
+            'payload' => collect($payload['decisions'] ?? [])->toArray(),
         ]);
     }
 }

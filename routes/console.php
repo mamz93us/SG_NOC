@@ -10,8 +10,14 @@ Artisan::command('inspire', function () {
 
 // ──────────────────────────────────────────────────────────────────────
 // Load intervals from DB (with safe defaults if not yet configured).
+// Wrapped to tolerate the case where the table doesn't exist yet
+// (fresh install before migrations; in-memory test DBs at bootstrap).
 // ──────────────────────────────────────────────────────────────────────
-$settings = \App\Models\Setting::first();
+try {
+    $settings = \App\Models\Setting::first();
+} catch (\Throwable) {
+    $settings = null;
+}
 $gdmsInterval     = max(1, (int) ($settings?->gdms_sync_interval     ?: 5));
 $merakiInterval   = max(1, (int) ($settings?->meraki_polling_interval ?: 5));
 $identityInterval = max(1, (int) ($settings?->identity_sync_interval  ?: 720));
@@ -472,3 +478,17 @@ Schedule::call(function () {
         \Illuminate\Support\Facades\Log::error('PruneOldSyslogJob failed: ' . $e->getMessage());
     }
 })->name('prune-old-syslog')->withoutOverlapping(60)->dailyAt('03:30');
+
+// ──────────────────────────────────────────────────────────────────────
+// Email Marketing — pick up scheduled campaigns and spend the SES budget
+// every minute. Prune email_events daily.
+// ──────────────────────────────────────────────────────────────────────
+Schedule::command('email-marketing:dispatch-scheduled')
+    ->everyMinute()
+    ->withoutOverlapping(5)
+    ->runInBackground();
+
+Schedule::command('email-marketing:prune-events')
+    ->dailyAt('03:45')
+    ->withoutOverlapping(60)
+    ->runInBackground();
