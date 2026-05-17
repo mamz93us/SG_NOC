@@ -19,18 +19,17 @@
             margin-right: calc(-1 * (var(--bs-gutter-x, 1.5rem) * 0.5 + 1.5rem));
         }
     }
+    /* Unlayer sizes its own iframe — we pass `minHeight` to init() below.
+       This wrapper just guarantees full width and a sensible CSS fallback height. */
     .em-editor-canvas {
-        /* Fill the viewport between top chrome (header + form card + tab nav) and footer buttons. */
         height: calc(100vh - 280px);
         min-height: 600px;
+        width: 100%;
     }
-    /* Unlayer iframe sits inside #unlayer-editor; ensure it stretches. */
-    #unlayer-editor,
-    #unlayer-editor iframe {
+    .em-editor-canvas iframe {
         width: 100% !important;
         height: 100% !important;
-        min-height: 100% !important;
-        border: 0;
+        border: 0 !important;
     }
 </style>
 
@@ -86,23 +85,41 @@
 <script src="//editor.unlayer.com/embed.js"></script>
 <script>
 (function () {
+    function computeEditorHeight() {
+        // Top chrome (portal navbar + page header + tab nav + form card) is ~260px;
+        // footer (action buttons + page margin) is ~80px. Leaves the rest for the editor,
+        // with a 600px floor so it stays usable on short viewports.
+        return Math.max(600, window.innerHeight - 300) + 'px';
+    }
+
     function initUnlayer() {
         if (typeof unlayer === 'undefined') {
             return setTimeout(initUnlayer, 200);
         }
-        @verbatim
         unlayer.init({
             id: 'unlayer-editor',
             projectId: null,
             displayMode: 'email',
+            minHeight: computeEditorHeight(),
+            @verbatim
             mergeTags: {
                 first_name:      { name: 'First name',      value: '{{first_name}}' },
                 last_name:       { name: 'Last name',       value: '{{last_name}}' },
                 email:           { name: 'Email',           value: '{{email}}' },
                 unsubscribe_url: { name: 'Unsubscribe URL', value: '{{unsubscribe_url}}' }
             }
+            @endverbatim
         });
-        @endverbatim
+
+        // Resize the iframe when the viewport changes so the editor follows.
+        let resizeTimer = null;
+        window.addEventListener('resize', function () {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function () {
+                const iframe = document.querySelector('#unlayer-editor iframe');
+                if (iframe) iframe.style.height = computeEditorHeight();
+            }, 150);
+        });
 
         @if ($template->design_json)
             try {
