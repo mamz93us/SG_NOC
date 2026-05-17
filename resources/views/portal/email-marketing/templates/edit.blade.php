@@ -3,51 +3,84 @@
 @section('title', $template->exists ? 'Edit template' : 'New template')
 
 @section('content')
-<div class="container-fluid py-4">
-    <h3 class="mb-3"><i class="bi bi-envelope-paper me-2"></i>Email Marketing</h3>
-    @include('portal.email-marketing._nav')
+{{-- Break out of the portal's container padding so Unlayer gets the full viewport width.
+     The portal layout wraps content in `container-fluid px-3 px-lg-4 mt-3 mb-5` — we offset
+     it on this page only with negative margins. --}}
+<style>
+    .em-editor-fullbleed {
+        margin-left: calc(-1 * (var(--bs-gutter-x, 1.5rem) * 0.5 + 1rem));
+        margin-right: calc(-1 * (var(--bs-gutter-x, 1.5rem) * 0.5 + 1rem));
+        margin-top: -1rem;
+        margin-bottom: -2rem;
+    }
+    @media (min-width: 992px) {
+        .em-editor-fullbleed {
+            margin-left:  calc(-1 * (var(--bs-gutter-x, 1.5rem) * 0.5 + 1.5rem));
+            margin-right: calc(-1 * (var(--bs-gutter-x, 1.5rem) * 0.5 + 1.5rem));
+        }
+    }
+    .em-editor-canvas {
+        /* Fill the viewport between top chrome (header + form card + tab nav) and footer buttons. */
+        height: calc(100vh - 280px);
+        min-height: 600px;
+    }
+    /* Unlayer iframe sits inside #unlayer-editor; ensure it stretches. */
+    #unlayer-editor,
+    #unlayer-editor iframe {
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 100% !important;
+        border: 0;
+    }
+</style>
 
-    @if (session('status'))<div class="alert alert-success">{{ session('status') }}</div>@endif
+<div class="em-editor-fullbleed">
+    <div class="px-3 px-lg-4 pt-4">
+        <h3 class="mb-3"><i class="bi bi-envelope-paper me-2"></i>Email Marketing</h3>
+        @include('portal.email-marketing._nav')
 
-    <form id="template-form"
-          method="POST"
-          action="{{ $template->exists ? route('portal.marketing.templates.update', $template) : route('portal.marketing.templates.store') }}">
-        @csrf
-        @if ($template->exists) @method('PUT') @endif
+        @if (session('status'))<div class="alert alert-success">{{ session('status') }}</div>@endif
 
-        <div class="card shadow-sm mb-3">
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Template name</label>
-                        <input type="text" name="name" class="form-control" required value="{{ old('name', $template->name) }}">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Preview text (inbox snippet)</label>
-                        <input type="text" name="preview_text" class="form-control" value="{{ old('preview_text', $template->preview_text) }}">
+        <form id="template-form"
+              method="POST"
+              action="{{ $template->exists ? route('portal.marketing.templates.update', $template) : route('portal.marketing.templates.store') }}">
+            @csrf
+            @if ($template->exists) @method('PUT') @endif
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Template name</label>
+                            <input type="text" name="name" class="form-control" required value="{{ old('name', $template->name) }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Preview text (inbox snippet)</label>
+                            <input type="text" name="preview_text" class="form-control" value="{{ old('preview_text', $template->preview_text) }}">
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        {{-- Unlayer editor embedded — design + HTML are exported on save. --}}
-        <div class="card shadow-sm">
-            <div class="card-body p-0">
-                <div id="unlayer-editor" style="min-height: 75vh;"></div>
+            {{-- Unlayer editor embedded — design + HTML are exported on save. --}}
+            <div class="card shadow-sm">
+                <div class="card-body p-0">
+                    <div id="unlayer-editor" class="em-editor-canvas"></div>
+                </div>
+                <div class="card-footer d-flex justify-content-end">
+                    <button type="button" id="preview-btn" class="btn btn-outline-secondary me-2">
+                        <i class="bi bi-eye me-1"></i>Preview HTML
+                    </button>
+                    <button type="button" id="save-btn" class="btn btn-primary">
+                        <i class="bi bi-check2-circle me-1"></i>Save template
+                    </button>
+                </div>
             </div>
-            <div class="card-footer d-flex justify-content-end">
-                <button type="button" id="preview-btn" class="btn btn-outline-secondary me-2">
-                    <i class="bi bi-eye me-1"></i>Preview HTML
-                </button>
-                <button type="button" id="save-btn" class="btn btn-primary">
-                    <i class="bi bi-check2-circle me-1"></i>Save template
-                </button>
-            </div>
-        </div>
 
-        <input type="hidden" name="design_json" id="design_json" value="{{ old('design_json', $template->design_json) }}">
-        <input type="hidden" name="rendered_html" id="rendered_html" value="{{ old('rendered_html', $template->rendered_html) }}">
-    </form>
+            <input type="hidden" name="design_json" id="design_json" value="{{ old('design_json', $template->design_json) }}">
+            <input type="hidden" name="rendered_html" id="rendered_html" value="{{ old('rendered_html', $template->rendered_html) }}">
+        </form>
+    </div>
 </div>
 
 <script src="//editor.unlayer.com/embed.js"></script>
