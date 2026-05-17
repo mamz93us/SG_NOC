@@ -57,17 +57,19 @@
         if (typeof unlayer === 'undefined') {
             return setTimeout(initUnlayer, 200);
         }
+        @verbatim
         unlayer.init({
             id: 'unlayer-editor',
             projectId: null,
             displayMode: 'email',
             mergeTags: {
-                first_name:      { name: 'First name',      value: '{{"{{first_name}}"}}' },
-                last_name:       { name: 'Last name',       value: '{{"{{last_name}}"}}' },
-                email:           { name: 'Email',           value: '{{"{{email}}"}}' },
-                unsubscribe_url: { name: 'Unsubscribe URL', value: '{{"{{unsubscribe_url}}"}}' }
+                first_name:      { name: 'First name',      value: '{{first_name}}' },
+                last_name:       { name: 'Last name',       value: '{{last_name}}' },
+                email:           { name: 'Email',           value: '{{email}}' },
+                unsubscribe_url: { name: 'Unsubscribe URL', value: '{{unsubscribe_url}}' }
             }
         });
+        @endverbatim
 
         @if ($template->design_json)
             try {
