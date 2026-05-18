@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-use App\Models\AssetType;
+use App\Services\DepreciationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Services\DepreciationService;
 
 class Device extends Model
 {
@@ -41,6 +40,7 @@ class Device extends Model
         'purchase_cost',
         'currency',
         'supplier_id',
+        'purchase_order_id',
         'condition',
         'depreciation_method',
         'depreciation_years',
@@ -61,20 +61,20 @@ class Device extends Model
     ];
 
     protected $casts = [
-        'status'             => 'string',
-        'purchase_date'      => 'date',
-        'warranty_expiry'    => 'date',
+        'status' => 'string',
+        'purchase_date' => 'date',
+        'warranty_expiry' => 'date',
         // ITAM
-        'purchase_cost'      => 'decimal:2',
-        'current_value'      => 'decimal:2',
+        'purchase_cost' => 'decimal:2',
+        'current_value' => 'decimal:2',
         'depreciation_years' => 'integer',
-        'proxy_enabled'      => 'boolean',
-        'proxy_legacy_tls'   => 'boolean',
-        'web_port'           => 'integer',
-        'ssh_port'           => 'integer',
-        'telnet_reachable'   => 'boolean',
-        'mls_qos_supported'  => 'boolean',
-        'qos_probed_at'      => 'datetime',
+        'proxy_enabled' => 'boolean',
+        'proxy_legacy_tls' => 'boolean',
+        'web_port' => 'integer',
+        'ssh_port' => 'integer',
+        'telnet_reachable' => 'boolean',
+        'mls_qos_supported' => 'boolean',
+        'qos_probed_at' => 'datetime',
     ];
 
     // ─── Relationships ────────────────────────────────────────────
@@ -141,6 +141,11 @@ class Device extends Model
         return $this->belongsTo(Supplier::class);
     }
 
+    public function purchaseOrder(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class);
+    }
+
     public function assetHistory(): HasMany
     {
         return $this->hasMany(AssetHistory::class)->orderByDesc('created_at');
@@ -173,7 +178,7 @@ class Device extends Model
     public function licenseAssignments(): HasMany
     {
         return $this->hasMany(LicenseAssignment::class, 'assignable_id')
-                    ->where('assignable_type', self::class);
+            ->where('assignable_type', self::class);
     }
 
     public function azureDevice(): HasOne
@@ -240,26 +245,32 @@ class Device extends Model
     public function statusBadgeClass(): string
     {
         return match ($this->status) {
-            'active'      => 'bg-success',
-            'assigned'    => 'bg-primary',
-            'available'   => 'bg-success',
-            'repair'      => 'bg-warning text-dark',
-            'retired'     => 'bg-secondary',
+            'active' => 'bg-success',
+            'assigned' => 'bg-primary',
+            'available' => 'bg-success',
+            'repair' => 'bg-warning text-dark',
+            'retired' => 'bg-secondary',
             'maintenance' => 'bg-warning text-dark',
-            'scrapped'    => 'bg-danger',
-            default       => 'bg-secondary',
+            'scrapped' => 'bg-danger',
+            default => 'bg-secondary',
         };
     }
 
     public function isWarrantyExpired(): bool
     {
-        if (!$this->warranty_expiry) return false;
+        if (! $this->warranty_expiry) {
+            return false;
+        }
+
         return $this->warranty_expiry->isPast();
     }
 
     public function warrantyDaysLeft(): ?int
     {
-        if (!$this->warranty_expiry) return null;
+        if (! $this->warranty_expiry) {
+            return null;
+        }
+
         return (int) now()->diffInDays($this->warranty_expiry, false);
     }
 
@@ -270,18 +281,26 @@ class Device extends Model
      */
     public static function calculatePhoneWifiMac(?string $lanMac): ?string
     {
-        if (empty($lanMac)) return null;
+        if (empty($lanMac)) {
+            return null;
+        }
         $clean = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lanMac));
-        if (strlen($clean) !== 12) return null;
+        if (strlen($clean) !== 12) {
+            return null;
+        }
         $lastByte = hexdec(substr($clean, 10, 2));
         $nextByte = ($lastByte + 1) & 0xFF;
-        $full = substr($clean, 0, 10) . str_pad(dechex($nextByte), 2, '0', STR_PAD_LEFT);
+        $full = substr($clean, 0, 10).str_pad(dechex($nextByte), 2, '0', STR_PAD_LEFT);
+
         return implode(':', str_split(strtoupper($full), 2));
     }
 
     public function isFirmwareOutdated(): bool
     {
-        if (!$this->firmware_version || !$this->latest_firmware) return false;
+        if (! $this->firmware_version || ! $this->latest_firmware) {
+            return false;
+        }
+
         return $this->firmware_version !== $this->latest_firmware;
     }
 
@@ -290,11 +309,11 @@ class Device extends Model
     public function conditionBadgeClass(): string
     {
         return match ($this->condition ?? 'new') {
-            'new'         => 'bg-success',
-            'used'        => 'bg-info text-dark',
+            'new' => 'bg-success',
+            'used' => 'bg-info text-dark',
             'refurbished' => 'bg-warning text-dark',
-            'damaged'     => 'bg-danger',
-            default       => 'bg-secondary',
+            'damaged' => 'bg-danger',
+            default => 'bg-secondary',
         };
     }
 
@@ -305,7 +324,7 @@ class Device extends Model
 
     public function calculateCurrentValue(): float
     {
-        return (new DepreciationService())->currentValue($this);
+        return (new DepreciationService)->currentValue($this);
     }
 
     /**
@@ -316,14 +335,14 @@ class Device extends Model
         return self::updateOrCreate(
             ['source' => 'meraki', 'source_id' => $switch->serial],
             [
-                'type'          => 'switch',
-                'name'          => $switch->name ?: $switch->serial,
-                'model'         => $switch->model,
+                'type' => 'switch',
+                'name' => $switch->name ?: $switch->serial,
+                'model' => $switch->model,
                 'serial_number' => $switch->serial,
-                'mac_address'   => $switch->mac,
-                'ip_address'    => $switch->lan_ip,
-                'branch_id'     => $switch->branch_id,
-                'status'        => $switch->status === 'online' ? 'active' : 'active',
+                'mac_address' => $switch->mac,
+                'ip_address' => $switch->lan_ip,
+                'branch_id' => $switch->branch_id,
+                'status' => $switch->status === 'online' ? 'active' : 'active',
             ]
         );
     }

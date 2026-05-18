@@ -3,10 +3,13 @@
 namespace App\Services\Identity;
 
 use App\Models\ActivityLog;
+use App\Models\Employee;
 use App\Models\IdentityGroup;
 use App\Models\IdentityLicense;
 use App\Models\IdentitySyncLog;
 use App\Models\IdentityUser;
+use App\Models\License;
+use App\Models\LicenseAssignment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -16,7 +19,7 @@ class IdentitySyncService
 
     public function __construct(?GraphService $graph = null)
     {
-        $this->graph = $graph ?? new GraphService();
+        $this->graph = $graph ?? new GraphService;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -28,16 +31,16 @@ class IdentitySyncService
         Log::info('IdentitySyncService: Starting full sync.');
 
         $detailedLog = IdentitySyncLog::create([
-            'type'       => 'full',
-            'status'     => 'started',
+            'type' => 'full',
+            'status' => 'started',
             'started_at' => now(),
         ]);
 
         $stats = [
-            'users'    => 0,
-            'groups'   => 0,
+            'users' => 0,
+            'groups' => 0,
             'licenses' => 0,
-            'errors'   => [],
+            'errors' => [],
         ];
 
         try {
@@ -56,12 +59,16 @@ class IdentitySyncService
             // 4. Sync Group Memberships (batch API)
             $this->syncRelationships($stats['errors']);
 
+            // 5. Sync per-employee license assignments into ITAM LicenseAssignment
+            //    (depends on syncLicenses + syncUsers having run, so do it last).
+            $this->syncEmployeeLicenseAssignments($stats['errors']);
+
             $status = 'completed';
 
             $detailedLog->update([
-                'status'        => $status,
+                'status' => $status,
                 'error_message' => empty($stats['errors']) ? null : implode("\n", array_slice($stats['errors'], 0, 10)),
-                'completed_at'  => now(),
+                'completed_at' => now(),
             ]);
 
             ActivityLog::log(
@@ -72,13 +79,13 @@ class IdentitySyncService
 
             return $stats;
         } catch (\Throwable $e) {
-            Log::error('IdentitySyncService: Fatal sync error: ' . $e->getMessage());
-            $stats['errors'][] = 'Fatal: ' . $e->getMessage();
+            Log::error('IdentitySyncService: Fatal sync error: '.$e->getMessage());
+            $stats['errors'][] = 'Fatal: '.$e->getMessage();
 
             $detailedLog->update([
-                'status'        => 'failed',
+                'status' => 'failed',
                 'error_message' => $e->getMessage(),
-                'completed_at'  => now(),
+                'completed_at' => now(),
             ]);
 
             throw $e;
@@ -92,23 +99,39 @@ class IdentitySyncService
     public function syncLicenses(array &$errors): int
     {
         try {
-            $skus      = $this->graph->listSubscribedSkus();
+            $skus = $this->graph->listSubscribedSkus();
             $syncedIds = [];
 
             DB::transaction(function () use ($skus, &$syncedIds) {
                 foreach ($skus as $sku) {
-                    IdentityLicense::updateOrCreate(
+                    $identityLicense = IdentityLicense::updateOrCreate(
                         ['sku_id' => $sku['skuId']],
                         [
-                            'sku_part_number'   => $sku['skuPartNumber'],
-                            'display_name'      => $sku['skuPartNumber'],
-                            'total'             => $sku['prepaidUnits']['enabled'] ?? 0,
-                            'consumed'          => $sku['consumedUnits'] ?? 0,
-                            'available'         => max(0, ($sku['prepaidUnits']['enabled'] ?? 0) - ($sku['consumedUnits'] ?? 0)),
-                            'applies_to'        => $sku['appliesTo'] ?? null,
+                            'sku_part_number' => $sku['skuPartNumber'],
+                            'display_name' => $sku['skuPartNumber'],
+                            'total' => $sku['prepaidUnits']['enabled'] ?? 0,
+                            'consumed' => $sku['consumedUnits'] ?? 0,
+                            'available' => max(0, ($sku['prepaidUnits']['enabled'] ?? 0) - ($sku['consumedUnits'] ?? 0)),
+                            'applies_to' => $sku['appliesTo'] ?? null,
                             'capability_status' => $sku['capabilityStatus'] ?? 'Enabled',
                         ]
                     );
+
+                    // Auto-create a paired ITAM License row per SKU so the admin
+                    // can fill in price + expiry on the licenses page. The link is
+                    // bidirectional via identity_licenses.license_id.
+                    if (! $identityLicense->license_id) {
+                        $itamLicense = License::create([
+                            'license_name' => $sku['skuPartNumber'],
+                            'vendor' => 'Microsoft',
+                            'license_type' => 'subscription',
+                            'seats' => $sku['prepaidUnits']['enabled'] ?? 1,
+                            'notes' => 'Auto-created from Azure SKU '.$sku['skuPartNumber'].'. Fill in price and expiry to enable renewal alerts.',
+                        ]);
+
+                        $identityLicense->update(['license_id' => $itamLicense->id]);
+                    }
+
                     $syncedIds[] = $sku['skuId'];
                 }
             });
@@ -117,11 +140,91 @@ class IdentitySyncService
                 IdentityLicense::whereNotIn('sku_id', $syncedIds)->delete();
             }
 
-            Log::info('IdentitySyncService: Synced ' . count($syncedIds) . ' licenses.');
+            Log::info('IdentitySyncService: Synced '.count($syncedIds).' licenses.');
+
             return count($syncedIds);
         } catch (\Throwable $e) {
-            $errors[] = 'Licenses: ' . $e->getMessage();
-            Log::error('IdentitySyncService: License sync failed: ' . $e->getMessage());
+            $errors[] = 'Licenses: '.$e->getMessage();
+            Log::error('IdentitySyncService: License sync failed: '.$e->getMessage());
+
+            return 0;
+        }
+    }
+
+    /**
+     * Sync each Employee's Azure-assigned licenses into the ITAM
+     * polymorphic LicenseAssignment table. Idempotent: re-runs add new
+     * assignments and remove auto-synced ones the user no longer has.
+     *
+     * Called from syncAll() after syncUsers() so the assigned_licenses
+     * fix-up at the end of syncUsers() has already run.
+     */
+    public function syncEmployeeLicenseAssignments(array &$errors): int
+    {
+        try {
+            $skuToLicenseId = IdentityLicense::whereNotNull('license_id')
+                ->pluck('license_id', 'sku_id')
+                ->all();
+
+            if (empty($skuToLicenseId)) {
+                return 0;
+            }
+
+            $assignmentCount = 0;
+
+            IdentityUser::query()
+                ->whereNotNull('azure_id')
+                ->chunk(200, function ($users) use ($skuToLicenseId, &$assignmentCount) {
+                    foreach ($users as $iu) {
+                        $employee = Employee::where('azure_id', $iu->azure_id)
+                            ->orWhere('email', $iu->user_principal_name)
+                            ->orWhere('email', $iu->mail)
+                            ->first();
+
+                        if (! $employee) {
+                            continue;
+                        }
+
+                        $userSkus = is_array($iu->assigned_licenses) ? $iu->assigned_licenses : [];
+                        $activeLicenseIds = [];
+
+                        foreach ($userSkus as $skuId) {
+                            if (! isset($skuToLicenseId[$skuId])) {
+                                continue;
+                            }
+                            $licenseId = $skuToLicenseId[$skuId];
+                            $activeLicenseIds[] = $licenseId;
+
+                            LicenseAssignment::firstOrCreate(
+                                [
+                                    'license_id' => $licenseId,
+                                    'assignable_type' => Employee::class,
+                                    'assignable_id' => $employee->id,
+                                ],
+                                [
+                                    'assigned_date' => now(),
+                                    'notes' => 'Auto-synced from Azure',
+                                ]
+                            );
+                            $assignmentCount++;
+                        }
+
+                        // Remove Azure-sourced assignments the user no longer has
+                        LicenseAssignment::where('assignable_type', Employee::class)
+                            ->where('assignable_id', $employee->id)
+                            ->where('notes', 'Auto-synced from Azure')
+                            ->whereNotIn('license_id', $activeLicenseIds ?: [0])
+                            ->delete();
+                    }
+                });
+
+            Log::info("IdentitySyncService: Synced {$assignmentCount} employee license assignments.");
+
+            return $assignmentCount;
+        } catch (\Throwable $e) {
+            $errors[] = 'Employee licenses: '.$e->getMessage();
+            Log::error('IdentitySyncService: Employee license sync failed: '.$e->getMessage());
+
             return 0;
         }
     }
@@ -133,7 +236,7 @@ class IdentitySyncService
     public function syncGroups(array &$errors): int
     {
         try {
-            $count     = 0;
+            $count = 0;
             $activeIds = [];
 
             $this->graph->listGroups(function ($chunk) use (&$count, &$activeIds) {
@@ -142,10 +245,10 @@ class IdentitySyncService
                         IdentityGroup::updateOrCreate(
                             ['azure_id' => $g['id']],
                             [
-                                'display_name'    => $g['displayName'] ?? 'Unknown Group',
-                                'description'     => $g['description'] ?? null,
-                                'group_type'      => in_array('Unified', $g['groupTypes'] ?? []) ? 'Unified' : null,
-                                'mail_enabled'    => $g['mailEnabled'] ?? false,
+                                'display_name' => $g['displayName'] ?? 'Unknown Group',
+                                'description' => $g['description'] ?? null,
+                                'group_type' => in_array('Unified', $g['groupTypes'] ?? []) ? 'Unified' : null,
+                                'mail_enabled' => $g['mailEnabled'] ?? false,
                                 'security_enabled' => $g['securityEnabled'] ?? true,
                             ]
                         );
@@ -161,10 +264,12 @@ class IdentitySyncService
             }
 
             Log::info("IdentitySyncService: Synced {$count} groups.");
+
             return $count;
         } catch (\Throwable $e) {
-            $errors[] = 'Groups: ' . $e->getMessage();
-            Log::error('IdentitySyncService: Group sync failed: ' . $e->getMessage());
+            $errors[] = 'Groups: '.$e->getMessage();
+            Log::error('IdentitySyncService: Group sync failed: '.$e->getMessage());
+
             return 0;
         }
     }
@@ -176,8 +281,8 @@ class IdentitySyncService
     public function syncUsers(array &$errors): int
     {
         try {
-            $count         = 0;
-            $activeIds     = [];
+            $count = 0;
+            $activeIds = [];
             $newlyDisabled = [];
 
             // Pre-load existing account_enabled status snapshot for transition detection.
@@ -186,7 +291,9 @@ class IdentitySyncService
             $existingEnabledMap = IdentityUser::pluck('account_enabled', 'azure_id');
 
             $this->graph->listUsers(function ($chunk) use (&$count, &$activeIds, &$newlyDisabled, $existingEnabledMap) {
-                if (empty($chunk)) return;
+                if (empty($chunk)) {
+                    return;
+                }
 
                 DB::transaction(function () use ($chunk, &$activeIds, &$newlyDisabled, $existingEnabledMap) {
                     foreach ($chunk as $u) {
@@ -205,7 +312,7 @@ class IdentitySyncService
                         $rawLicenses = $u['assignedLicenses'] ?? [];
                         $licenseSkus = [];
                         foreach ($rawLicenses as $lic) {
-                            if (is_array($lic) && !empty($lic['skuId'])) {
+                            if (is_array($lic) && ! empty($lic['skuId'])) {
                                 $licenseSkus[] = $lic['skuId'];
                             }
                         }
@@ -213,24 +320,24 @@ class IdentitySyncService
                         IdentityUser::updateOrCreate(
                             ['azure_id' => $u['id']],
                             [
-                                'display_name'         => $u['displayName'],
-                                'user_principal_name'  => $u['userPrincipalName'],
-                                'mail'                 => $u['mail'] ?? null,
-                                'job_title'            => $u['jobTitle'] ?? null,
-                                'department'           => $u['department'] ?? null,
-                                'company_name'         => $u['companyName'] ?? null,
-                                'account_enabled'      => $u['accountEnabled'] ?? true,
-                                'usage_location'       => $u['usageLocation'] ?? null,
-                                'phone_number'         => $u['businessPhones'][0] ?? null,
-                                'mobile_phone'         => $u['mobilePhone'] ?? null,
-                                'office_location'      => $u['officeLocation'] ?? null,
-                                'street_address'       => $u['streetAddress'] ?? null,
-                                'city'                 => $u['city'] ?? null,
-                                'postal_code'          => $u['postalCode'] ?? null,
-                                'country'              => $u['country'] ?? null,
-                                'licenses_count'       => count($licenseSkus),
-                                'assigned_licenses'    => $licenseSkus,
-                                'raw_data'             => $u,
+                                'display_name' => $u['displayName'],
+                                'user_principal_name' => $u['userPrincipalName'],
+                                'mail' => $u['mail'] ?? null,
+                                'job_title' => $u['jobTitle'] ?? null,
+                                'department' => $u['department'] ?? null,
+                                'company_name' => $u['companyName'] ?? null,
+                                'account_enabled' => $u['accountEnabled'] ?? true,
+                                'usage_location' => $u['usageLocation'] ?? null,
+                                'phone_number' => $u['businessPhones'][0] ?? null,
+                                'mobile_phone' => $u['mobilePhone'] ?? null,
+                                'office_location' => $u['officeLocation'] ?? null,
+                                'street_address' => $u['streetAddress'] ?? null,
+                                'city' => $u['city'] ?? null,
+                                'postal_code' => $u['postalCode'] ?? null,
+                                'country' => $u['country'] ?? null,
+                                'licenses_count' => count($licenseSkus),
+                                'assigned_licenses' => $licenseSkus,
+                                'raw_data' => $u,
                             ]
                         );
                         $activeIds[] = $u['id'];
@@ -263,7 +370,7 @@ class IdentitySyncService
                 ->where('licenses_count', '>', 0)
                 ->chunk(200, function ($users) {
                     foreach ($users as $user) {
-                        $raw  = $user->raw_data;
+                        $raw = $user->raw_data;
                         $skus = [];
                         foreach ($raw['assignedLicenses'] ?? [] as $lic) {
                             if (isset($lic['skuId'])) {
@@ -278,10 +385,12 @@ class IdentitySyncService
                 });
 
             Log::info("IdentitySyncService: Synced {$count} users.");
+
             return $count;
         } catch (\Throwable $e) {
-            $errors[] = 'Users: ' . $e->getMessage();
-            Log::error('IdentitySyncService: User sync failed: ' . $e->getMessage());
+            $errors[] = 'Users: '.$e->getMessage();
+            Log::error('IdentitySyncService: User sync failed: '.$e->getMessage());
+
             return 0;
         }
     }
@@ -294,7 +403,9 @@ class IdentitySyncService
     {
         try {
             $allGroupIds = IdentityGroup::pluck('azure_id')->all();
-            if (empty($allGroupIds)) return;
+            if (empty($allGroupIds)) {
+                return;
+            }
 
             // Reset all memberships
             IdentityUser::query()->update(['member_of' => '[]', 'groups_count' => 0]);
@@ -303,7 +414,7 @@ class IdentitySyncService
             $groupMembers = $this->graph->batchGroupMembers($allGroupIds);
 
             // Build inverse map: userId → [groupId, ...]
-            $userMemberOf     = [];
+            $userMemberOf = [];
             $groupMemberCounts = [];
 
             foreach ($groupMembers as $groupId => $userIds) {
@@ -319,7 +430,7 @@ class IdentitySyncService
                     foreach ($chunk as $uid) {
                         $gids = $userMemberOf[$uid] ?? [];
                         IdentityUser::where('azure_id', $uid)->update([
-                            'member_of'    => $gids,
+                            'member_of' => $gids,
                             'groups_count' => count($gids),
                         ]);
                     }
@@ -339,8 +450,8 @@ class IdentitySyncService
 
             Log::info('IdentitySyncService: Group memberships synced.');
         } catch (\Throwable $e) {
-            $errors[] = 'Memberships: ' . $e->getMessage();
-            Log::error('IdentitySyncService: Membership sync error: ' . $e->getMessage());
+            $errors[] = 'Memberships: '.$e->getMessage();
+            Log::error('IdentitySyncService: Membership sync error: '.$e->getMessage());
         }
     }
 
@@ -355,7 +466,9 @@ class IdentitySyncService
      */
     private function handleDisabledAccounts(array $azureIds): void
     {
-        if (empty($azureIds)) return;
+        if (empty($azureIds)) {
+            return;
+        }
 
         /** @var \App\Services\NotificationService $notifier */
         $notifier = app(\App\Services\NotificationService::class);
@@ -363,7 +476,9 @@ class IdentitySyncService
         foreach ($azureIds as $azureId) {
             try {
                 $employee = \App\Models\Employee::where('azure_id', $azureId)->first();
-                if (! $employee) continue;
+                if (! $employee) {
+                    continue;
+                }
 
                 // Only stamp once (idempotent)
                 if (! $employee->azure_disabled_at) {
@@ -372,7 +487,7 @@ class IdentitySyncService
 
                 // Collect active device assignments to mention in the alert
                 $activeAssets = $employee->activeAssets()->with('device')->get();
-                $assetNames   = $activeAssets->map(fn ($a) => $a->device?->name ?? "Asset #{$a->asset_id}")->implode(', ');
+                $assetNames = $activeAssets->map(fn ($a) => $a->device?->name ?? "Asset #{$a->asset_id}")->implode(', ');
 
                 $message = "Azure AD account for {$employee->name} ({$employee->email}) was disabled.";
                 if ($activeAssets->isNotEmpty()) {
@@ -391,7 +506,7 @@ class IdentitySyncService
 
                 Log::info("IdentitySyncService: Azure account disabled — employee={$employee->name}, azure_id={$azureId}");
             } catch (\Throwable $e) {
-                Log::error("IdentitySyncService: handleDisabledAccounts failed for azure_id={$azureId}: " . $e->getMessage());
+                Log::error("IdentitySyncService: handleDisabledAccounts failed for azure_id={$azureId}: ".$e->getMessage());
             }
         }
     }
@@ -403,7 +518,9 @@ class IdentitySyncService
      */
     private function handleRemovedAccounts(array $azureIds): void
     {
-        if (empty($azureIds)) return;
+        if (empty($azureIds)) {
+            return;
+        }
 
         /** @var \App\Services\NotificationService $notifier */
         $notifier = app(\App\Services\NotificationService::class);
@@ -411,18 +528,20 @@ class IdentitySyncService
         foreach ($azureIds as $azureId) {
             try {
                 $employee = \App\Models\Employee::where('azure_id', $azureId)->first();
-                if (! $employee) continue;
+                if (! $employee) {
+                    continue;
+                }
 
                 // Mark employee as terminated + record removal timestamp
                 $employee->update([
                     'azure_removed_at' => now(),
-                    'terminated_date'  => $employee->terminated_date ?? now()->toDateString(),
-                    'status'           => 'terminated',
+                    'terminated_date' => $employee->terminated_date ?? now()->toDateString(),
+                    'status' => 'terminated',
                 ]);
 
                 // Collect active device assignments
                 $activeAssets = $employee->activeAssets()->with('device')->get();
-                $assetNames   = $activeAssets->map(fn ($a) => $a->device?->name ?? "Asset #{$a->asset_id}")->implode(', ');
+                $assetNames = $activeAssets->map(fn ($a) => $a->device?->name ?? "Asset #{$a->asset_id}")->implode(', ');
 
                 $message = "Azure AD account for {$employee->name} ({$employee->email}) was permanently removed from the directory. Employee status set to Terminated.";
                 if ($activeAssets->isNotEmpty()) {
@@ -441,9 +560,8 @@ class IdentitySyncService
 
                 Log::info("IdentitySyncService: Azure account removed — employee={$employee->name}, azure_id={$azureId}");
             } catch (\Throwable $e) {
-                Log::error("IdentitySyncService: handleRemovedAccounts failed for azure_id={$azureId}: " . $e->getMessage());
+                Log::error("IdentitySyncService: handleRemovedAccounts failed for azure_id={$azureId}: ".$e->getMessage());
             }
         }
     }
-
 }

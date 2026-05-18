@@ -8,7 +8,6 @@ use App\Models\Branch;
 use App\Models\Device;
 use App\Models\IspConnection;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class IspConnectionController extends Controller
 {
@@ -24,18 +23,28 @@ class IspConnectionController extends Controller
         if ($request->filled('provider')) {
             $query->where('provider', 'like', "%{$request->provider}%");
         }
+        if ($request->filled('account_number')) {
+            $query->where('account_number', 'like', "%{$request->account_number}%");
+        }
+        if ($request->filled('customer_type')) {
+            $query->where('customer_type', $request->customer_type);
+        }
+        if ($request->filled('connection_type')) {
+            $query->where('connection_type', $request->connection_type);
+        }
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
-                $q->where('provider',   'like', "%{$s}%")
-                  ->orWhere('circuit_id','like', "%{$s}%")
-                  ->orWhere('static_ip', 'like', "%{$s}%")
-                  ->orWhere('gateway',   'like', "%{$s}%");
+                $q->where('provider', 'like', "%{$s}%")
+                    ->orWhere('account_number', 'like', "%{$s}%")
+                    ->orWhere('circuit_id', 'like', "%{$s}%")
+                    ->orWhere('static_ip', 'like', "%{$s}%")
+                    ->orWhere('gateway', 'like', "%{$s}%");
             });
         }
 
         $connections = $query->paginate(50)->withQueryString();
-        $branches    = Branch::orderBy('name')->get(['id', 'name']);
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
 
         return view('admin.network.isp.index', compact('connections', 'branches'));
     }
@@ -43,33 +52,40 @@ class IspConnectionController extends Controller
     public function create()
     {
         $branches = Branch::orderBy('name')->get(['id', 'name']);
-        $routers  = Device::whereIn('type', ['router', 'firewall'])->orderBy('name')->get(['id', 'name', 'type']);
+        $routers = Device::whereIn('type', ['router', 'firewall'])->orderBy('name')->get(['id', 'name', 'type']);
+
         return view('admin.network.isp.form', compact('branches', 'routers'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'branch_id'        => 'required|exists:branches,id',
-            'provider'         => 'required|string|max:255',
-            'circuit_id'       => 'nullable|string|max:255',
-            'speed_down'       => 'nullable|integer|min:0',
-            'speed_up'         => 'nullable|integer|min:0',
-            'static_ip'        => 'nullable|string|max:45',
-            'gateway'          => 'nullable|string|max:45',
-            'subnet'           => 'nullable|string|max:45',
+            'branch_id' => 'required|exists:branches,id',
+            'provider' => 'required|string|max:255',
+            'account_number' => 'nullable|string|max:64',
+            'connection_type' => 'nullable|in:'.implode(',', \App\Models\IspConnection::CONNECTION_TYPES),
+            'customer_type' => 'nullable|in:'.implode(',', \App\Models\IspConnection::CUSTOMER_TYPES),
+            'payment_type' => 'nullable|in:'.implode(',', \App\Models\IspConnection::PAYMENT_TYPES),
+            'billing_day' => 'nullable|integer|min:1|max:31',
+            'package' => 'nullable|string|max:120',
+            'circuit_id' => 'nullable|string|max:255',
+            'speed_down' => 'nullable|integer|min:0',
+            'speed_up' => 'nullable|integer|min:0',
+            'static_ip' => 'nullable|string|max:45',
+            'gateway' => 'nullable|string|max:45',
+            'subnet' => 'nullable|string|max:45',
             'router_device_id' => 'nullable|exists:devices,id',
-            'contract_start'   => 'nullable|date',
-            'contract_end'        => 'nullable|date|after_or_equal:contract_start',
-            'renewal_date'        => 'nullable|date',
+            'contract_start' => 'nullable|date',
+            'contract_end' => 'nullable|date|after_or_equal:contract_start',
+            'renewal_date' => 'nullable|date',
             'renewal_remind_days' => 'nullable|integer|min:1|max:90',
-            'monthly_cost'        => 'nullable|numeric|min:0',
-            'notes'               => 'nullable|string',
+            'monthly_cost' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string',
         ]);
 
         $isp = IspConnection::create($data);
 
-        ActivityLog::log('Created ISP connection: ' . $isp->provider . ' for branch #' . $isp->branch_id);
+        ActivityLog::log('Created ISP connection: '.$isp->provider.' for branch #'.$isp->branch_id);
 
         return redirect()->route('admin.network.isp.index')
             ->with('success', 'ISP connection created.');
@@ -78,33 +94,40 @@ class IspConnectionController extends Controller
     public function edit(IspConnection $isp)
     {
         $branches = Branch::orderBy('name')->get(['id', 'name']);
-        $routers  = Device::whereIn('type', ['router', 'firewall'])->orderBy('name')->get(['id', 'name', 'type']);
+        $routers = Device::whereIn('type', ['router', 'firewall'])->orderBy('name')->get(['id', 'name', 'type']);
+
         return view('admin.network.isp.form', compact('isp', 'branches', 'routers'));
     }
 
     public function update(Request $request, IspConnection $isp)
     {
         $data = $request->validate([
-            'branch_id'        => 'required|exists:branches,id',
-            'provider'         => 'required|string|max:255',
-            'circuit_id'       => 'nullable|string|max:255',
-            'speed_down'       => 'nullable|integer|min:0',
-            'speed_up'         => 'nullable|integer|min:0',
-            'static_ip'        => 'nullable|string|max:45',
-            'gateway'          => 'nullable|string|max:45',
-            'subnet'           => 'nullable|string|max:45',
+            'branch_id' => 'required|exists:branches,id',
+            'provider' => 'required|string|max:255',
+            'account_number' => 'nullable|string|max:64',
+            'connection_type' => 'nullable|in:'.implode(',', \App\Models\IspConnection::CONNECTION_TYPES),
+            'customer_type' => 'nullable|in:'.implode(',', \App\Models\IspConnection::CUSTOMER_TYPES),
+            'payment_type' => 'nullable|in:'.implode(',', \App\Models\IspConnection::PAYMENT_TYPES),
+            'billing_day' => 'nullable|integer|min:1|max:31',
+            'package' => 'nullable|string|max:120',
+            'circuit_id' => 'nullable|string|max:255',
+            'speed_down' => 'nullable|integer|min:0',
+            'speed_up' => 'nullable|integer|min:0',
+            'static_ip' => 'nullable|string|max:45',
+            'gateway' => 'nullable|string|max:45',
+            'subnet' => 'nullable|string|max:45',
             'router_device_id' => 'nullable|exists:devices,id',
-            'contract_start'   => 'nullable|date',
-            'contract_end'        => 'nullable|date|after_or_equal:contract_start',
-            'renewal_date'        => 'nullable|date',
+            'contract_start' => 'nullable|date',
+            'contract_end' => 'nullable|date|after_or_equal:contract_start',
+            'renewal_date' => 'nullable|date',
             'renewal_remind_days' => 'nullable|integer|min:1|max:90',
-            'monthly_cost'        => 'nullable|numeric|min:0',
-            'notes'               => 'nullable|string',
+            'monthly_cost' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string',
         ]);
 
         $isp->update($data);
 
-        ActivityLog::log('Updated ISP connection: ' . $isp->provider . ' (#' . $isp->id . ')');
+        ActivityLog::log('Updated ISP connection: '.$isp->provider.' (#'.$isp->id.')');
 
         return redirect()->route('admin.network.isp.index')
             ->with('success', 'ISP connection updated.');
@@ -115,7 +138,7 @@ class IspConnectionController extends Controller
         $name = $isp->provider;
         $isp->delete();
 
-        ActivityLog::log('Deleted ISP connection: ' . $name);
+        ActivityLog::log('Deleted ISP connection: '.$name);
 
         return redirect()->route('admin.network.isp.index')
             ->with('success', 'ISP connection deleted.');

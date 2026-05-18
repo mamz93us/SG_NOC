@@ -10,15 +10,15 @@ use Illuminate\Support\Facades\Crypt;
 class License extends Model
 {
     protected $fillable = [
-        'license_name', 'vendor', 'supplier_id', 'license_key', 'license_type',
+        'license_name', 'vendor', 'supplier_id', 'purchase_order_id', 'license_key', 'license_type',
         'purchase_date', 'expiry_date', 'cost', 'currency', 'seats', 'notes',
     ];
 
     protected $casts = [
         'purchase_date' => 'date',
-        'expiry_date'   => 'date',
-        'cost'          => 'decimal:2',
-        'seats'         => 'integer',
+        'expiry_date' => 'date',
+        'cost' => 'decimal:2',
+        'seats' => 'integer',
     ];
 
     // Never serialize the decrypted key into JSON / HTML attributes
@@ -35,7 +35,9 @@ class License extends Model
 
     public function getLicenseKeyAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {
@@ -46,6 +48,16 @@ class License extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function purchaseOrder(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    public function identityLicense(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(IdentityLicense::class);
     }
 
     public function assignments(): HasMany
@@ -77,21 +89,31 @@ class License extends Model
     public function isExpiringSoon(int $days = 30): bool
     {
         return $this->expiry_date
-            && !$this->isExpired()
+            && ! $this->isExpired()
             && $this->expiry_date->diffInDays(now()) <= $days;
     }
 
     public function expiryBadgeClass(): string
     {
-        if (!$this->expiry_date) return 'secondary';
-        if ($this->isExpired()) return 'danger';
-        if ($this->isExpiringSoon()) return 'warning';
+        if (! $this->expiry_date) {
+            return 'secondary';
+        }
+        if ($this->isExpired()) {
+            return 'danger';
+        }
+        if ($this->isExpiringSoon()) {
+            return 'warning';
+        }
+
         return 'success';
     }
 
     public function seatUsagePercent(): int
     {
-        if ($this->seats <= 0) return 0;
+        if ($this->seats <= 0) {
+            return 0;
+        }
+
         return (int) round(($this->usedSeats() / $this->seats) * 100);
     }
 }

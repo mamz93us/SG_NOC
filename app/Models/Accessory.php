@@ -10,13 +10,14 @@ class Accessory extends Model
 {
     protected $fillable = [
         'name', 'category', 'quantity_total', 'quantity_available',
-        'supplier_id', 'purchase_cost', 'currency', 'notes',
+        'supplier_id', 'purchase_order_id', 'branch_id',
+        'purchase_cost', 'currency', 'notes',
     ];
 
     protected $casts = [
-        'quantity_total'     => 'integer',
+        'quantity_total' => 'integer',
         'quantity_available' => 'integer',
-        'purchase_cost'      => 'decimal:2',
+        'purchase_cost' => 'decimal:2',
     ];
 
     const CATEGORIES = ['cable', 'adapter', 'bag', 'charger', 'dock', 'mouse', 'keyboard', 'headset', 'other'];
@@ -24,6 +25,16 @@ class Accessory extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function purchaseOrder(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function assignments(): HasMany
@@ -43,8 +54,13 @@ class Accessory extends Model
 
     public function availabilityBadgeClass(): string
     {
-        if ($this->quantity_available <= 0) return 'danger';
-        if ($this->quantity_available <= 2) return 'warning';
+        if ($this->quantity_available <= 0) {
+            return 'danger';
+        }
+        if ($this->quantity_available <= 2) {
+            return 'warning';
+        }
+
         return 'success';
     }
 }

@@ -39,6 +39,8 @@ use App\Http\Controllers\Admin\DeviceMetricsController;
 use App\Http\Controllers\Admin\WorkersDashboardController;
 use App\Http\Controllers\Admin\IpScannerController;
 use App\Http\Controllers\Admin\IspConnectionController;
+use App\Http\Controllers\Admin\IspReportController;
+use App\Http\Controllers\Admin\PurchaseOrderController;
 use App\Http\Controllers\Admin\IpReservationController;
 use App\Http\Controllers\Admin\LandlineController;
 use App\Http\Controllers\Admin\SlaController;
@@ -855,6 +857,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/{isp}',   [IspConnectionController::class, 'destroy'])->name('destroy');
     });
 
+    // ─── ISP Report (renewal/cost dashboard) ────────────────────
+    Route::middleware('permission:view-network')->prefix('network/isp-report')->name('network.isp-report.')->group(function () {
+        Route::get('/',        [IspReportController::class, 'index']) ->name('index');
+        Route::get('/export',  [IspReportController::class, 'export'])->name('export');
+    });
+
     // ─── IP Reservations (IPAM) ─────────────────────────────────
     Route::middleware('permission:view-network')->prefix('network/ip-reservations')->name('network.ip-reservations.')->group(function () {
         Route::get('/',                    [IpReservationController::class, 'index'])->name('index');
@@ -1390,6 +1398,20 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/',              [SupplierController::class, 'store'])   ->name('store');
         Route::put('/{supplier}',     [SupplierController::class, 'update'])  ->name('update');
         Route::delete('/{supplier}',  [SupplierController::class, 'destroy']) ->name('destroy');
+    });
+
+    // ─── Purchase Orders ──────────────────────────────────────────
+    Route::middleware('permission:view-itam')->prefix('itam/purchase-orders')->name('itam.purchase-orders.')->group(function () {
+        Route::get('/',                                       [PurchaseOrderController::class, 'index'])->name('index');
+        Route::get('/{purchaseOrder}',                        [PurchaseOrderController::class, 'show'])->whereNumber('purchaseOrder')->name('show');
+        Route::get('/{purchaseOrder}/print',                  [PurchaseOrderController::class, 'print'])->whereNumber('purchaseOrder')->name('print');
+    });
+    Route::middleware('permission:manage-itam')->prefix('itam/purchase-orders')->name('itam.purchase-orders.')->group(function () {
+        Route::get('/create',                                 [PurchaseOrderController::class, 'create'])->name('create');
+        Route::post('/',                                      [PurchaseOrderController::class, 'store'])->name('store');
+        Route::get('/{purchaseOrder}/edit',                   [PurchaseOrderController::class, 'edit'])->whereNumber('purchaseOrder')->name('edit');
+        Route::put('/{purchaseOrder}',                        [PurchaseOrderController::class, 'update'])->whereNumber('purchaseOrder')->name('update');
+        Route::delete('/{purchaseOrder}',                     [PurchaseOrderController::class, 'destroy'])->whereNumber('purchaseOrder')->name('destroy');
     });
 
     // ─── Software Licenses ────────────────────────────────────────

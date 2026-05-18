@@ -1,13 +1,15 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\License;
-use App\Models\LicenseAssignment;
+use App\Models\ActivityLog;
+use App\Models\AssetHistory;
 use App\Models\Device;
 use App\Models\Employee;
-use App\Models\AssetHistory;
-use App\Models\ActivityLog;
+use App\Models\IdentityLicense;
+use App\Models\License;
+use App\Models\LicenseAssignment;
 use App\Models\Supplier;
 use App\Support\Currency;
 use Illuminate\Http\Request;
@@ -22,8 +24,8 @@ class LicenseController extends Controller
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('license_name', 'like', "%{$s}%")
-                  ->orWhere('vendor', 'like', "%{$s}%")
-                  ->orWhereHas('supplier', fn($sq) => $sq->where('name', 'like', "%{$s}%"));
+                    ->orWhere('vendor', 'like', "%{$s}%")
+                    ->orWhereHas('supplier', fn ($sq) => $sq->where('name', 'like', "%{$s}%"));
             });
         }
 
@@ -36,8 +38,8 @@ class LicenseController extends Controller
                 $query->whereNotNull('expiry_date')->where('expiry_date', '<', now());
             } elseif ($request->status === 'expiring') {
                 $query->whereNotNull('expiry_date')
-                      ->where('expiry_date', '>=', now())
-                      ->where('expiry_date', '<=', now()->addDays(30));
+                    ->where('expiry_date', '>=', now())
+                    ->where('expiry_date', '<=', now()->addDays(30));
             } elseif ($request->status === 'active') {
                 $query->where(function ($q) {
                     $q->whereNull('expiry_date')->orWhere('expiry_date', '>', now());
@@ -45,29 +47,39 @@ class LicenseController extends Controller
             }
         }
 
-        $licenses     = $query->orderBy('license_name')->paginate(25)->withQueryString();
+        $licenses = $query->orderBy('license_name')->paginate(25)->withQueryString();
         $licenseTypes = License::TYPES;
-        $suppliers    = Supplier::orderBy('name')->get();
+        $suppliers = Supplier::orderBy('name')->get();
+        $identityLicenses = IdentityLicense::orderBy('sku_part_number')->get(['id', 'sku_part_number', 'display_name', 'license_id']);
 
-        return view('admin.itam.licenses.index', compact('licenses', 'licenseTypes', 'suppliers'));
+        return view('admin.itam.licenses.index', compact('licenses', 'licenseTypes', 'suppliers', 'identityLicenses'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'license_name'  => 'required|string|max:255',
-            'supplier_id'   => 'nullable|exists:suppliers,id',
-            'license_key'   => 'nullable|string',
-            'license_type'  => 'required|in:' . implode(',', License::TYPES),
+            'license_name' => 'required|string|max:255',
+            'supplier_id' => 'nullable|exists:suppliers,id',
+            'license_key' => 'nullable|string',
+            'license_type' => 'required|in:'.implode(',', License::TYPES),
             'purchase_date' => 'nullable|date',
-            'expiry_date'   => 'nullable|date|after_or_equal:purchase_date',
-            'cost'          => 'nullable|numeric|min:0',
-            'currency'      => 'required|in:' . implode(',', Currency::CODES),
-            'seats'         => 'required|integer|min:1',
-            'notes'         => 'nullable|string',
+            'expiry_date' => 'nullable|date|after_or_equal:purchase_date',
+            'cost' => 'nullable|numeric|min:0',
+            'currency' => 'required|in:'.implode(',', Currency::CODES),
+            'seats' => 'required|integer|min:1',
+            'notes' => 'nullable|string',
+            'identity_license_id' => 'nullable|exists:identity_licenses,id',
         ]);
 
+        $identityLicenseId = $data['identity_license_id'] ?? null;
+        unset($data['identity_license_id']);
+
         $license = License::create($data);
+
+        if ($identityLicenseId) {
+            IdentityLicense::where('id', $identityLicenseId)->update(['license_id' => $license->id]);
+        }
+
         ActivityLog::log('Created license', $license, ['license_name' => $license->license_name]);
 
         return back()->with('success', "License '{$license->license_name}' created.");
@@ -76,16 +88,17 @@ class LicenseController extends Controller
     public function update(Request $request, License $license)
     {
         $data = $request->validate([
-            'license_name'  => 'required|string|max:255',
-            'supplier_id'   => 'nullable|exists:suppliers,id',
-            'license_key'   => 'nullable|string',
-            'license_type'  => 'required|in:' . implode(',', License::TYPES),
+            'license_name' => 'required|string|max:255',
+            'supplier_id' => 'nullable|exists:suppliers,id',
+            'license_key' => 'nullable|string',
+            'license_type' => 'required|in:'.implode(',', License::TYPES),
             'purchase_date' => 'nullable|date',
-            'expiry_date'   => 'nullable|date',
-            'cost'          => 'nullable|numeric|min:0',
-            'currency'      => 'required|in:' . implode(',', Currency::CODES),
-            'seats'         => 'required|integer|min:1',
-            'notes'         => 'nullable|string',
+            'expiry_date' => 'nullable|date',
+            'cost' => 'nullable|numeric|min:0',
+            'currency' => 'required|in:'.implode(',', Currency::CODES),
+            'seats' => 'required|integer|min:1',
+            'notes' => 'nullable|string',
+            'identity_license_id' => 'nullable|exists:identity_licenses,id',
         ]);
 
         // The edit modal does not pre-fill license_key (it's never sent to the
@@ -95,7 +108,17 @@ class LicenseController extends Controller
             unset($data['license_key']);
         }
 
+        $identityLicenseId = $data['identity_license_id'] ?? null;
+        unset($data['identity_license_id']);
+
         $license->update($data);
+
+        // Detach any prior SKU link, then attach the requested one (if any).
+        IdentityLicense::where('license_id', $license->id)->update(['license_id' => null]);
+        if ($identityLicenseId) {
+            IdentityLicense::where('id', $identityLicenseId)->update(['license_id' => $license->id]);
+        }
+
         ActivityLog::log('Updated license', $license, $data);
 
         return back()->with('success', "License '{$license->license_name}' updated.");
@@ -115,9 +138,9 @@ class LicenseController extends Controller
     {
         $data = $request->validate([
             'assignable_type' => 'required|in:device,employee',
-            'assignable_id'   => 'required|integer',
-            'assigned_date'   => 'required|date',
-            'notes'           => 'nullable|string',
+            'assignable_id' => 'required|integer',
+            'assigned_date' => 'required|date',
+            'notes' => 'nullable|string',
         ]);
 
         $assignableClass = $data['assignable_type'] === 'device' ? Device::class : Employee::class;
@@ -139,13 +162,13 @@ class LicenseController extends Controller
 
         $assignable = $assignableClass::findOrFail($data['assignable_id']);
 
-        \Illuminate\Support\Facades\DB::transaction(function() use ($license, $assignable, $assignableClass, $data) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($license, $assignable, $assignableClass, $data) {
             $assignment = LicenseAssignment::create([
-                'license_id'      => $license->id,
+                'license_id' => $license->id,
                 'assignable_type' => $assignableClass,
-                'assignable_id'   => $data['assignable_id'],
-                'assigned_date'   => $data['assigned_date'],
-                'notes'           => $data['notes'] ?? null,
+                'assignable_id' => $data['assignable_id'],
+                'assigned_date' => $data['assigned_date'],
+                'notes' => $data['notes'] ?? null,
             ]);
 
             // Log asset history if assigned to a device

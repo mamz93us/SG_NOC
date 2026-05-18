@@ -64,6 +64,58 @@
                     <input type="text" name="subnet" class="form-control font-monospace" value="{{ old('subnet', $isp->subnet ?? '') }}" placeholder="e.g. /29 or 255.255.255.248">
                 </div>
 
+                {{-- ── Account & Billing ── --}}
+                <div class="col-12 mt-2">
+                    <hr class="my-2">
+                    <h6 class="fw-semibold text-primary"><i class="bi bi-credit-card me-1"></i>Account & Billing</h6>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Account Number</label>
+                    <input type="text" name="account_number" class="form-control font-monospace" value="{{ old('account_number', $isp->account_number ?? '') }}" placeholder="Customer / account #">
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Connection Type</label>
+                    <select name="connection_type" class="form-select">
+                        <option value="">—</option>
+                        @foreach(\App\Models\IspConnection::CONNECTION_TYPES as $t)
+                        <option value="{{ $t }}" {{ old('connection_type', $isp->connection_type ?? '') === $t ? 'selected' : '' }}>{{ strtoupper($t) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Customer Type</label>
+                    <select name="customer_type" class="form-select">
+                        <option value="">—</option>
+                        @foreach(\App\Models\IspConnection::CUSTOMER_TYPES as $t)
+                        <option value="{{ $t }}" {{ old('customer_type', $isp->customer_type ?? '') === $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Package</label>
+                    <input type="text" name="package" class="form-control" value="{{ old('package', $isp->package ?? '') }}" placeholder="e.g. 100M Fiber Business">
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Payment Type</label>
+                    <select name="payment_type" class="form-select">
+                        <option value="">—</option>
+                        @foreach(\App\Models\IspConnection::PAYMENT_TYPES as $t)
+                        <option value="{{ $t }}" {{ old('payment_type', $isp->payment_type ?? '') === $t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Billing Day</label>
+                    <input type="number" name="billing_day" min="1" max="31" class="form-control" value="{{ old('billing_day', $isp->billing_day ?? '') }}" placeholder="1–31">
+                    <small class="text-muted">Day of month for billing cycle</small>
+                </div>
+
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Router Device</label>
                     <select name="router_device_id" class="form-select">

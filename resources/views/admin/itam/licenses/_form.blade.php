@@ -20,6 +20,15 @@
             @endforeach
         </select>
     </div>
+    <div class="col-md-6">
+        <label class="form-label">Linked Azure SKU <small class="text-muted">— flows price/expiry into Azure user assignments</small></label>
+        <select name="identity_license_id" class="form-select">
+            <option value="">— None —</option>
+            @foreach($identityLicenses ?? [] as $sku)
+            <option value="{{ $sku->id }}" {{ old('identity_license_id', $linkedSkuId ?? '') == $sku->id ? 'selected' : '' }}>{{ $sku->sku_part_number }}</option>
+            @endforeach
+        </select>
+    </div>
     <div class="col-md-3">
         <label class="form-label">Seats <span class="text-danger">*</span></label>
         <input type="number" name="seats" class="form-control" value="1" min="1" required>

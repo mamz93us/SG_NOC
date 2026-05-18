@@ -11,6 +11,12 @@ class IspConnection extends Model
     protected $fillable = [
         'branch_id',
         'provider',
+        'account_number',
+        'connection_type',
+        'customer_type',
+        'payment_type',
+        'billing_day',
+        'package',
         'circuit_id',
         'speed_down',
         'speed_up',
@@ -27,15 +33,22 @@ class IspConnection extends Model
     ];
 
     protected $casts = [
-        'speed_down'          => 'integer',
-        'speed_up'            => 'integer',
-        'monthly_cost'        => 'decimal:2',
-        'contract_start'      => 'date',
-        'contract_end'        => 'date',
-        'renewal_date'        => 'date',
+        'speed_down' => 'integer',
+        'speed_up' => 'integer',
+        'billing_day' => 'integer',
+        'monthly_cost' => 'decimal:2',
+        'contract_start' => 'date',
+        'contract_end' => 'date',
+        'renewal_date' => 'date',
         'renewal_remind_days' => 'integer',
         'renewal_reminded_at' => 'datetime',
     ];
+
+    const CONNECTION_TYPES = ['copper', 'fiber', '5g', 'dedicated'];
+
+    const CUSTOMER_TYPES = ['business', 'home'];
+
+    const PAYMENT_TYPES = ['prepaid', 'postpaid'];
 
     // ─── Relationships ──────────────────────────────────────────
 
@@ -64,30 +77,47 @@ class IspConnection extends Model
     public function isContractExpiring(int $days = 30): bool
     {
         return $this->contract_end
-            && !$this->contract_end->isPast()
+            && ! $this->contract_end->isPast()
             && $this->contract_end->diffInDays(now()) <= $days;
     }
 
     public function contractStatusBadge(): string
     {
-        if (!$this->contract_end) return 'bg-secondary';
-        if ($this->isContractExpired()) return 'bg-danger';
-        if ($this->isContractExpiring()) return 'bg-warning text-dark';
+        if (! $this->contract_end) {
+            return 'bg-secondary';
+        }
+        if ($this->isContractExpired()) {
+            return 'bg-danger';
+        }
+        if ($this->isContractExpiring()) {
+            return 'bg-warning text-dark';
+        }
+
         return 'bg-success';
     }
 
     public function contractStatusLabel(): string
     {
-        if (!$this->contract_end) return 'No Contract';
-        if ($this->isContractExpired()) return 'Expired';
-        if ($this->isContractExpiring()) return 'Expiring Soon';
+        if (! $this->contract_end) {
+            return 'No Contract';
+        }
+        if ($this->isContractExpired()) {
+            return 'Expired';
+        }
+        if ($this->isContractExpiring()) {
+            return 'Expiring Soon';
+        }
+
         return 'Active';
     }
 
     public function speedLabel(): string
     {
-        if (!$this->speed_down && !$this->speed_up) return '-';
-        return ($this->speed_down ?? '?') . '/' . ($this->speed_up ?? '?') . ' Mbps';
+        if (! $this->speed_down && ! $this->speed_up) {
+            return '-';
+        }
+
+        return ($this->speed_down ?? '?').'/'.($this->speed_up ?? '?').' Mbps';
     }
 
     // ─── Renewal helpers ─────────────────────────────────────────
@@ -97,28 +127,42 @@ class IspConnection extends Model
         return $this->renewal_date && $this->renewal_date->isPast();
     }
 
-    public function isRenewalSoon(int $days = null): bool
+    public function isRenewalSoon(?int $days = null): bool
     {
         $days = $days ?? ($this->renewal_remind_days ?: 2);
 
         return $this->renewal_date
-            && !$this->renewal_date->isPast()
+            && ! $this->renewal_date->isPast()
             && $this->renewal_date->diffInDays(now()) <= $days;
     }
 
     public function renewalStatusBadge(): string
     {
-        if (!$this->renewal_date) return 'bg-secondary';
-        if ($this->isRenewalDue()) return 'bg-danger';
-        if ($this->isRenewalSoon()) return 'bg-warning text-dark';
+        if (! $this->renewal_date) {
+            return 'bg-secondary';
+        }
+        if ($this->isRenewalDue()) {
+            return 'bg-danger';
+        }
+        if ($this->isRenewalSoon()) {
+            return 'bg-warning text-dark';
+        }
+
         return 'bg-success';
     }
 
     public function renewalStatusLabel(): string
     {
-        if (!$this->renewal_date) return 'No Date';
-        if ($this->isRenewalDue()) return 'Overdue';
-        if ($this->isRenewalSoon()) return 'Due Soon';
+        if (! $this->renewal_date) {
+            return 'No Date';
+        }
+        if ($this->isRenewalDue()) {
+            return 'Overdue';
+        }
+        if ($this->isRenewalSoon()) {
+            return 'Due Soon';
+        }
+
         return 'OK';
     }
 
@@ -127,13 +171,17 @@ class IspConnection extends Model
      */
     public function needsRenewalReminder(): bool
     {
-        if (!$this->renewal_date) return false;
+        if (! $this->renewal_date) {
+            return false;
+        }
 
         $days = $this->renewal_remind_days ?: 2;
         $reminderDate = $this->renewal_date->copy()->subDays($days);
 
         // Not yet time for the reminder
-        if (now()->lt($reminderDate)) return false;
+        if (now()->lt($reminderDate)) {
+            return false;
+        }
 
         // Already sent a reminder for this renewal cycle
         if ($this->renewal_reminded_at && $this->renewal_reminded_at->gte($reminderDate)) {
