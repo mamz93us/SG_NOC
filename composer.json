@@ -10,13 +10,16 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "afosto/yaac": "^1.5",
         "aws/aws-sdk-php": "*",
         "aws/aws-php-sns-message-validator": "^1.8",
         "chillerlan/php-qrcode": "*",
         "laravel/framework": "^12.0",
         "laravel/socialite": "^5.24",
         "laravel/tinker": "^2.10.1",
+        "league/flysystem-azure-blob-storage": "^3.31",
         "maatwebsite/excel": "^3.1",
+        "microsoft/azure-storage-blob": "^1.5",
         "pragmarx/google2fa": "*",
         "socialiteproviders/microsoft": "^4.8",
         "workerman/workerman": "*"
