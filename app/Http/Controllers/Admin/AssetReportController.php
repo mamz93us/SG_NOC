@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Accessory;
 use App\Models\AccessoryAssignment;
 use App\Models\AssetHistory;
 use App\Models\Branch;
@@ -11,7 +12,9 @@ use App\Models\Employee;
 use App\Models\EmployeeAsset;
 use App\Models\License;
 use App\Models\LicenseAssignment;
+use App\Models\WorkflowRequest;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -192,39 +195,117 @@ class AssetReportController extends Controller
 
     public function scrapHistory(Request $request)
     {
-        $query = AssetHistory::with(['device.branch', 'user'])
-            ->where('event_type', 'scrapped')
-            ->orderByDesc('created_at');
+        $from = $request->filled('from') ? $request->from : null;
+        $to = $request->filled('to') ? $request->to . ' 23:59:59' : null;
+        $branchId = $request->filled('branch') ? (int) $request->branch : null;
 
-        if ($request->filled('from')) {
-            $query->where('created_at', '>=', $request->from);
+        // ─── Device scrap events come from asset_histories ───────────────
+        $deviceQuery = AssetHistory::with(['device.branch', 'user'])
+            ->where('event_type', 'scrapped');
+
+        if ($from) {
+            $deviceQuery->where('created_at', '>=', $from);
         }
-        if ($request->filled('to')) {
-            $query->where('created_at', '<=', $request->to . ' 23:59:59');
+        if ($to) {
+            $deviceQuery->where('created_at', '<=', $to);
         }
-        if ($request->filled('branch')) {
-            $branchId = (int) $request->branch;
-            $query->whereHas('device', fn ($d) => $d->where('branch_id', $branchId));
+        if ($branchId) {
+            $deviceQuery->whereHas('device', fn ($d) => $d->where('branch_id', $branchId));
         }
+
+        $deviceRows = $deviceQuery->get()->map(fn ($e) => [
+            'date' => $e->created_at,
+            'kind' => 'device',
+            'asset_code' => $e->device?->asset_code,
+            'name' => $e->device?->name,
+            'qty' => 1,
+            'branch' => $e->device?->branch?->name,
+            'disposal_method' => $e->meta['disposal_method'] ?? null,
+            'workflow_id' => $e->meta['workflow_id'] ?? null,
+            'by' => $e->user?->name,
+        ]);
+
+        // ─── Accessory scrap events come from approved scrap workflows ──
+        $wfQuery = WorkflowRequest::with(['requester', 'branch'])
+            ->where('type', 'asset_scrap')
+            ->where('status', 'approved');
+
+        if ($from) {
+            $wfQuery->where('updated_at', '>=', $from);
+        }
+        if ($to) {
+            $wfQuery->where('updated_at', '<=', $to);
+        }
+        if ($branchId) {
+            $wfQuery->where('branch_id', $branchId);
+        }
+
+        $accessoryRows = collect();
+        $workflows = $wfQuery->get();
+        $allAccIds = $workflows->flatMap(fn ($wf) => $wf->payload['accessory_ids'] ?? [])->unique()->all();
+        $accessoryLookup = Accessory::with('branch')->whereIn('id', $allAccIds)->get()->keyBy('id');
+
+        foreach ($workflows as $wf) {
+            $accIds = $wf->payload['accessory_ids'] ?? [];
+            if (empty($accIds)) {
+                continue;
+            }
+            $qtyMap = $wf->payload['accessory_qty'] ?? [];
+
+            foreach ($accIds as $accId) {
+                $a = $accessoryLookup->get($accId);
+                if (! $a) {
+                    continue;
+                }
+                if ($branchId && $a->branch_id !== $branchId) {
+                    continue;
+                }
+                $accessoryRows->push([
+                    'date' => $wf->updated_at,
+                    'kind' => 'accessory',
+                    'asset_code' => $a->asset_code,
+                    'name' => $a->name,
+                    'qty' => $qtyMap[$accId] ?? 1,
+                    'branch' => $a->branch?->name,
+                    'disposal_method' => $wf->payload['disposal_method'] ?? null,
+                    'workflow_id' => $wf->id,
+                    'by' => $wf->requester?->name,
+                ]);
+            }
+        }
+
+        $merged = $deviceRows->concat($accessoryRows)
+            ->sortByDesc('date')
+            ->values();
 
         if ($request->boolean('csv')) {
-            $rows = $query->get();
-            return $this->streamCsv('scrap-history-' . now()->format('Ymd-His'), $rows, [
-                'Date', 'Asset Code', 'Asset Name', 'Branch', 'Disposal Method', 'Workflow #', 'By',
-            ], function ($e) {
+            return $this->streamCsv('scrap-history-'.now()->format('Ymd-His'), $merged, [
+                'Date', 'Kind', 'Asset Code', 'Asset Name', 'Qty', 'Branch', 'Disposal Method', 'Workflow #', 'By',
+            ], function ($r) {
                 return [
-                    $e->created_at?->format('Y-m-d H:i'),
-                    $e->device?->asset_code,
-                    $e->device?->name,
-                    $e->device?->branch?->name,
-                    $e->meta['disposal_method'] ?? null,
-                    $e->meta['workflow_id'] ?? null,
-                    $e->user?->name,
+                    $r['date']?->format('Y-m-d H:i'),
+                    $r['kind'],
+                    $r['asset_code'],
+                    $r['name'],
+                    $r['qty'],
+                    $r['branch'],
+                    $r['disposal_method'],
+                    $r['workflow_id'],
+                    $r['by'],
                 ];
             });
         }
 
-        $events   = $query->paginate(50)->withQueryString();
+        $perPage = 50;
+        $page = max(1, (int) $request->input('page', 1));
+        $events = new LengthAwarePaginator(
+            $merged->forPage($page, $perPage)->values(),
+            $merged->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
         $branches = Branch::orderBy('name')->get();
 
         return view('admin.itam.reports.scraps', compact('events', 'branches'));

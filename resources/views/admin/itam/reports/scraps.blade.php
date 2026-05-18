@@ -46,8 +46,10 @@
                 <thead class="table-light">
                     <tr>
                         <th>Scrapped Date</th>
+                        <th>Kind</th>
                         <th>Asset Code</th>
                         <th>Name</th>
+                        <th class="text-center">Qty</th>
                         <th>Branch</th>
                         <th>Disposal Method</th>
                         <th>Workflow</th>
@@ -57,22 +59,30 @@
                 <tbody>
                     @forelse($events as $e)
                         <tr>
-                            <td>{{ $e->created_at?->format('d M Y H:i') }}</td>
-                            <td><code>{{ $e->device?->asset_code ?? '—' }}</code></td>
-                            <td>{{ $e->device?->name ?? '—' }}</td>
-                            <td>{{ $e->device?->branch?->name ?? '—' }}</td>
-                            <td><span class="badge bg-info">{{ ucwords(str_replace('_',' ',$e->meta['disposal_method'] ?? '—')) }}</span></td>
+                            <td>{{ $e['date']?->format('d M Y H:i') }}</td>
                             <td>
-                                @if(!empty($e->meta['workflow_id']))
-                                    <a href="{{ route('admin.itam.scrap.show', $e->meta['workflow_id']) }}">#{{ $e->meta['workflow_id'] }}</a>
+                                @if($e['kind'] === 'device')
+                                    <span class="badge bg-primary"><i class="bi bi-laptop me-1"></i>Device</span>
+                                @else
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-box-seam me-1"></i>Accessory</span>
+                                @endif
+                            </td>
+                            <td><code>{{ $e['asset_code'] ?? '—' }}</code></td>
+                            <td>{{ $e['name'] ?? '—' }}</td>
+                            <td class="text-center">{{ $e['qty'] }}</td>
+                            <td>{{ $e['branch'] ?? '—' }}</td>
+                            <td><span class="badge bg-info">{{ ucwords(str_replace('_',' ',$e['disposal_method'] ?? '—')) }}</span></td>
+                            <td>
+                                @if(!empty($e['workflow_id']))
+                                    <a href="{{ route('admin.itam.scrap.show', $e['workflow_id']) }}">#{{ $e['workflow_id'] }}</a>
                                 @else
                                     —
                                 @endif
                             </td>
-                            <td>{{ $e->user?->name ?? '—' }}</td>
+                            <td>{{ $e['by'] ?? '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center py-5 text-muted">No scrap history matching your filters.</td></tr>
+                        <tr><td colspan="9" class="text-center py-5 text-muted">No scrap history matching your filters.</td></tr>
                     @endforelse
                 </tbody>
             </table>
