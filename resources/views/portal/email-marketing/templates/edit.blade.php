@@ -39,6 +39,15 @@
         @include('portal.email-marketing._nav')
 
         @if (session('status'))<div class="alert alert-success">{{ session('status') }}</div>@endif
+        @if ($errors->any())
+            <div class="alert alert-danger">
+                <strong>Couldn't save:</strong>
+                <ul class="mb-0">
+                    @foreach ($errors->all() as $err)<li>{{ $err }}</li>@endforeach
+                </ul>
+            </div>
+        @endif
+        <div id="save-error" class="alert alert-danger d-none"></div>
 
         <form id="template-form"
               method="POST"
@@ -127,20 +136,74 @@
             } catch (e) { console.error('Failed to load design', e); }
         @endif
 
-        document.getElementById('save-btn').addEventListener('click', function () {
-            unlayer.exportHtml(function (data) {
-                document.getElementById('design_json').value   = JSON.stringify(data.design);
-                document.getElementById('rendered_html').value = data.html;
-                document.getElementById('template-form').submit();
-            });
+        const saveBtn = document.getElementById('save-btn');
+        const previewBtn = document.getElementById('preview-btn');
+        const form = document.getElementById('template-form');
+        const errorBox = document.getElementById('save-error');
+
+        function showError(msg) {
+            errorBox.textContent = msg;
+            errorBox.classList.remove('d-none');
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Save template';
+        }
+        function clearError() { errorBox.classList.add('d-none'); }
+
+        saveBtn.addEventListener('click', function () {
+            clearError();
+            const nameInput = form.querySelector('input[name=name]');
+            if (!nameInput.value.trim()) {
+                showError('Template name is required.');
+                nameInput.focus();
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+            // Safety timeout: if Unlayer's exportHtml callback never fires
+            // (script blocked, iframe broken, etc.) we surface the failure
+            // instead of leaving the user staring at a spinner forever.
+            const timeout = setTimeout(function () {
+                showError('Editor did not respond. Refresh the page and try again — check the browser console for errors.');
+            }, 15000);
+
+            try {
+                unlayer.exportHtml(function (data) {
+                    clearTimeout(timeout);
+                    try {
+                        document.getElementById('design_json').value   = JSON.stringify(data.design || {});
+                        document.getElementById('rendered_html').value = data.html || '';
+                        console.log('Template export OK. HTML size:',
+                            (data.html || '').length, 'bytes. Submitting…');
+                        form.submit();
+                    } catch (e) {
+                        console.error('Export callback error', e);
+                        showError('Failed to serialize template: ' + e.message);
+                    }
+                });
+            } catch (e) {
+                clearTimeout(timeout);
+                console.error('exportHtml threw', e);
+                showError('Editor error: ' + e.message);
+            }
         });
 
-        document.getElementById('preview-btn').addEventListener('click', function () {
-            unlayer.exportHtml(function (data) {
-                const w = window.open('', '_blank');
-                w.document.write(data.html);
-                w.document.close();
-            });
+        previewBtn.addEventListener('click', function () {
+            try {
+                unlayer.exportHtml(function (data) {
+                    const w = window.open('', '_blank');
+                    if (!w) {
+                        showError('Popup blocked — allow popups for this site to preview.');
+                        return;
+                    }
+                    w.document.write(data.html || '<p>No content yet.</p>');
+                    w.document.close();
+                });
+            } catch (e) {
+                console.error('Preview failed', e);
+                showError('Preview failed: ' + e.message);
+            }
         });
     }
     initUnlayer();
