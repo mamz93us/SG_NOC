@@ -10,7 +10,6 @@ use App\Models\UserPermission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class UserPermissionController extends Controller
 {
@@ -18,55 +17,46 @@ class UserPermissionController extends Controller
     {
         if ($user->role === 'super_admin') {
             return redirect()->route('admin.users.index')
-                ->with('info', 'Super Admin already has every permission; overrides do not apply.');
+                ->with('info', 'Super Admin already has every permission; custom permissions do not apply.');
         }
 
         $permissions = RolePermission::allPermissions();          // grouped: category => [slug => label]
-        $roleGrants = RolePermission::forRole($user->role ?? ''); // slugs the role currently grants
+        $roleGrants = RolePermission::forRole($user->role ?? ''); // slugs the role grants (reference only)
+        $customSlugs = $user->permissions()->pluck('permission')->all();
+        $customMode = ! empty($customSlugs);
 
-        // Build override map: slug => 'grant'|'deny'|'default'
-        $existing = $user->permissions()->pluck('effect', 'permission')->all();
-        $overrides = [];
-        foreach (RolePermission::allSlugs() as $slug) {
-            $overrides[$slug] = $existing[$slug] ?? 'default';
-        }
-
-        return view('admin.users.permissions', compact('user', 'permissions', 'roleGrants', 'overrides'));
+        return view('admin.users.permissions', compact(
+            'user',
+            'permissions',
+            'roleGrants',
+            'customSlugs',
+            'customMode',
+        ));
     }
 
     public function update(Request $request, User $user)
     {
         if ($user->role === 'super_admin') {
             return redirect()->route('admin.users.index')
-                ->with('info', 'Super Admin already has every permission; overrides do not apply.');
+                ->with('info', 'Super Admin already has every permission; custom permissions do not apply.');
         }
 
         $allSlugs = RolePermission::allSlugs();
 
-        $data = $request->validate([
-            'overrides' => ['required', 'array'],
-            'overrides.*' => ['required', Rule::in(['default', 'grant', 'deny'])],
-        ]);
+        $submitted = (array) $request->input('permissions', []);
+        // Keep only known permission slugs.
+        $selected = array_values(array_intersect($submitted, $allSlugs));
 
-        // Reject any slug that isn't a known permission.
-        $submitted = array_intersect_key($data['overrides'], array_flip($allSlugs));
-
-        $old = $user->permissions()->orderBy('permission')->get(['permission', 'effect'])
-            ->mapWithKeys(fn ($r) => [$r->permission => $r->effect])->all();
+        $old = $user->permissions()->orderBy('permission')->pluck('permission')->all();
 
         $now = now();
-        $rows = [];
-        foreach ($submitted as $slug => $state) {
-            if ($state === 'grant' || $state === 'deny') {
-                $rows[] = [
-                    'user_id' => $user->id,
-                    'permission' => $slug,
-                    'effect' => $state,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-        }
+        $rows = array_map(fn ($slug) => [
+            'user_id' => $user->id,
+            'permission' => $slug,
+            'effect' => 'grant',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $selected);
 
         DB::transaction(function () use ($user, $rows) {
             UserPermission::where('user_id', $user->id)->delete();
@@ -77,19 +67,41 @@ class UserPermissionController extends Controller
 
         User::clearOverrideCache($user->id);
 
-        $new = collect($rows)
-            ->mapWithKeys(fn ($r) => [$r['permission'] => $r['effect']])
-            ->all();
-
         ActivityLog::create([
             'model_type' => User::class,
             'model_id' => $user->id,
             'action' => 'user_permissions_updated',
-            'changes' => ['old' => $old, 'new' => $new],
+            'changes' => ['old' => $old, 'new' => $selected],
+            'user_id' => Auth::id(),
+        ]);
+
+        $msg = empty($selected)
+            ? "Custom permissions cleared for {$user->name}; they now use the role default."
+            : "Custom permissions saved for {$user->name} ({$user->name} now has ".count($selected).' permission'.(count($selected) === 1 ? '' : 's').').';
+
+        return redirect()->route('admin.users.permissions.edit', $user)->with('success', $msg);
+    }
+
+    public function reset(User $user)
+    {
+        if ($user->role === 'super_admin') {
+            return redirect()->route('admin.users.index');
+        }
+
+        $old = $user->permissions()->orderBy('permission')->pluck('permission')->all();
+
+        UserPermission::where('user_id', $user->id)->delete();
+        User::clearOverrideCache($user->id);
+
+        ActivityLog::create([
+            'model_type' => User::class,
+            'model_id' => $user->id,
+            'action' => 'user_permissions_reset',
+            'changes' => ['old' => $old, 'new' => []],
             'user_id' => Auth::id(),
         ]);
 
         return redirect()->route('admin.users.permissions.edit', $user)
-            ->with('success', "Custom permissions for {$user->name} saved.");
+            ->with('success', "Custom permissions cleared for {$user->name}. They now use the role default.");
     }
 }

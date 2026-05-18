@@ -497,6 +497,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('users.permissions.edit');
         Route::put('users/{user}/permissions', [UserPermissionController::class, 'update'])
             ->name('users.permissions.update');
+        Route::delete('users/{user}/permissions', [UserPermissionController::class, 'reset'])
+            ->name('users.permissions.reset');
     });
 
     // ─── Device Models ────────────────────────────────────────

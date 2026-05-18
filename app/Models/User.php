@@ -12,7 +12,11 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
-    /** In-request cache: user_id -> [slug => 'grant'|'deny'] */
+    /**
+     * In-request cache: user_id -> ?array of granted slugs.
+     * null = user has no custom rows (fall back to role).
+     * array = user is in custom-list mode; ONLY listed slugs are granted.
+     */
     private static array $overrideCache = [];
 
     protected $fillable = [
@@ -146,11 +150,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Resolve permission for this user. Precedence:
+     * Resolve permission for this user.
      *   1. super_admin → always true
-     *   2. explicit deny override → false
-     *   3. explicit grant override → true
-     *   4. fall back to role default
+     *   2. User has any rows in user_permissions → allow-list mode:
+     *      ONLY listed slugs are granted; role is ignored.
+     *   3. No rows → fall back to role default.
      */
     public function hasPermission(string $slug): bool
     {
@@ -158,29 +162,30 @@ class User extends Authenticatable
             return true;
         }
 
-        $overrides = $this->loadOverrideMap();
-        if (isset($overrides[$slug])) {
-            return $overrides[$slug] === 'grant';
+        $custom = $this->loadCustomGrants();
+        if ($custom !== null) {
+            return in_array($slug, $custom, true);
         }
 
         return RolePermission::roleHas($this->role ?? '', $slug);
     }
 
     /**
-     * @return array<string,string> slug => 'grant'|'deny'
+     * The custom allow-list for this user, or null when there are no rows
+     * (role fallback applies).
+     *
+     * @return array<int,string>|null
      */
-    private function loadOverrideMap(): array
+    private function loadCustomGrants(): ?array
     {
-        if (! isset(static::$overrideCache[$this->id])) {
+        if (! array_key_exists($this->id, static::$overrideCache)) {
             try {
-                static::$overrideCache[$this->id] = $this->permissions()
-                    ->pluck('effect', 'permission')
-                    ->all();
+                $slugs = $this->permissions()->pluck('permission')->all();
+                static::$overrideCache[$this->id] = empty($slugs) ? null : $slugs;
             } catch (\Throwable) {
-                // Table may not exist yet (fresh deploy before migrate, or
-                // SQLite dev DB without this migration applied). Treat as
-                // "no overrides" so role-only behaviour is preserved.
-                static::$overrideCache[$this->id] = [];
+                // Table may not exist yet (fresh deploy before migrate). Treat
+                // as "no custom rows" so role-only behaviour is preserved.
+                static::$overrideCache[$this->id] = null;
             }
         }
 
