@@ -8,11 +8,13 @@ use App\Models\ActivityLog;
 use App\Models\AssetHistory;
 use App\Models\Branch;
 use App\Models\Device;
+use App\Models\DeviceModel;
 use App\Models\License;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use App\Services\DeviceLinkingService;
+use App\Support\Currency;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -47,8 +49,13 @@ class PurchaseOrderController extends Controller
     {
         $suppliers = Supplier::orderBy('name')->get(['id', 'name']);
         $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $deviceModels = DeviceModel::orderBy('manufacturer')->orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
+        $currencies = Currency::CODES;
+        $defaultCurrency = Currency::DEFAULT;
 
-        return view('admin.itam.purchase-orders.create', compact('suppliers', 'branches'));
+        return view('admin.itam.purchase-orders.create', compact(
+            'suppliers', 'branches', 'deviceModels', 'currencies', 'defaultCurrency'
+        ));
     }
 
     public function store(Request $request, DeviceLinkingService $linker)
@@ -78,12 +85,9 @@ class PurchaseOrderController extends Controller
             'items.*.notes' => 'nullable|string',
         ]);
 
-        // Per-type required fields
+        // Per-type required fields (serial is optional for devices — some
+        // assets are received without a serial label and get one added later).
         foreach ($data['items'] as $idx => $item) {
-            if ($item['line_type'] === 'device' && empty($item['serial_number'])) {
-                return back()->withInput()
-                    ->withErrors(["items.{$idx}.serial_number" => 'Serial number is required for device lines.']);
-            }
             if ($item['line_type'] === 'license') {
                 if (empty($item['seats'])) {
                     return back()->withInput()
@@ -144,11 +148,17 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->load('items.branch');
         $suppliers = Supplier::orderBy('name')->get(['id', 'name']);
         $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $deviceModels = DeviceModel::orderBy('manufacturer')->orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
+        $currencies = Currency::CODES;
+        $defaultCurrency = Currency::DEFAULT;
 
         return view('admin.itam.purchase-orders.edit', [
             'po' => $purchaseOrder,
             'suppliers' => $suppliers,
             'branches' => $branches,
+            'deviceModels' => $deviceModels,
+            'currencies' => $currencies,
+            'defaultCurrency' => $defaultCurrency,
         ]);
     }
 

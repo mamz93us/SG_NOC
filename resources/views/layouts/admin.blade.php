@@ -187,9 +187,15 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.network.isp.*') ? 'active' : '' }}"
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.isp.*') && ! request()->routeIs('admin.network.isp-report.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.isp.index') }}">
                                     <i class="bi bi-globe2 me-2"></i>ISP Connections
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.isp-report.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.isp-report.index') }}">
+                                    <i class="bi bi-clipboard-data me-2"></i>ISP Report
                                 </a>
                             </li>
                             <li>
@@ -494,6 +500,12 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.dashboard') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.dashboard') }}">
                                     <i class="bi bi-speedometer2 me-2"></i>ITAM Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.purchase-orders.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.purchase-orders.index') }}">
+                                    <i class="bi bi-receipt me-2"></i>Purchase Orders
                                 </a>
                             </li>
                             <li>
