@@ -148,6 +148,17 @@ class AzureSyncController extends Controller
      */
     public function show(AzureDevice $azureDevice)
     {
+        // Self-heal: if this row still points at a Device that has since been
+        // deleted, clear the stale link so the page doesn't render the
+        // contradictory "Linked / Not Linked" combo and Quick Import is allowed.
+        if ($azureDevice->device_id && ! Device::whereKey($azureDevice->device_id)->exists()) {
+            $azureDevice->update([
+                'device_id'   => null,
+                'link_status' => 'unlinked',
+            ]);
+            ActivityLog::log("Auto-healed stale Azure link for {$azureDevice->display_name} (linked device was deleted).");
+        }
+
         $azureDevice->load(['device.branch', 'macs']);
 
         $monitoredHost = \App\Models\MonitoredHost::where('name', $azureDevice->display_name)->first()
@@ -387,8 +398,19 @@ class AzureSyncController extends Controller
      */
     public function importToItam(Request $request, AzureDevice $azureDevice)
     {
-        if ($azureDevice->link_status === 'linked') {
+        // Allow re-import if the previously-linked Device has been deleted —
+        // a "linked" flag without a real Device is a stale marker, not a real
+        // link.
+        $hasLiveDevice = $azureDevice->device_id
+            && Device::whereKey($azureDevice->device_id)->exists();
+
+        if ($azureDevice->link_status === 'linked' && $hasLiveDevice) {
             return back()->with('error', 'Device is already imported/linked.');
+        }
+
+        if ($azureDevice->link_status === 'linked' && ! $hasLiveDevice) {
+            // Clear stale state so the import below starts from a clean slate.
+            $azureDevice->update(['device_id' => null, 'link_status' => 'unlinked']);
         }
 
         $request->validate([
@@ -495,7 +517,15 @@ class AzureSyncController extends Controller
         foreach ($ids as $id) {
             try {
                 $azureDevice = AzureDevice::find($id);
-                if (!$azureDevice || $azureDevice->link_status === 'linked') continue;
+                if (!$azureDevice) continue;
+
+                // Treat a "linked" marker pointing at a deleted device as stale.
+                if ($azureDevice->link_status === 'linked') {
+                    $hasLive = $azureDevice->device_id
+                        && Device::whereKey($azureDevice->device_id)->exists();
+                    if ($hasLive) continue;
+                    $azureDevice->update(['device_id' => null, 'link_status' => 'unlinked']);
+                }
 
                 \Illuminate\Support\Facades\DB::transaction(function () use ($azureDevice, $codeService, &$successCount) {
                     $type = $this->guessDeviceType($azureDevice);
@@ -622,6 +652,12 @@ class AzureSyncController extends Controller
 
         try {
             $graph    = new \App\Services\Identity\GraphService();
+
+            // Refresh basic Intune info (deviceName may have changed on the
+            // endpoint since the last full Azure sync). Best-effort: failures
+            // here shouldn't block the hardware sync below.
+            $this->refreshIntuneDeviceName($azureDevice, $managedId);
+
             $state    = $graph->getScriptRunState($scriptId, $managedId);
 
             if (! $state) {
@@ -712,6 +748,61 @@ class AzureSyncController extends Controller
 
         } catch (\Throwable $e) {
             return back()->with('error', 'Sync failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Best-effort refresh of the AzureDevice's basic Intune metadata
+     * (display_name, manufacturer, model, serial). Called from the per-device
+     * "Sync HW" button so admins don't have to wait for the global sync
+     * just to pick up a Windows PC rename.
+     *
+     * On display_name change, propagates the new name into the linked ITAM
+     * Device via AzureDeviceService::syncLinkedDeviceName.
+     */
+    private function refreshIntuneDeviceName(AzureDevice $azureDevice, string $managedId): void
+    {
+        try {
+            $graph = new \App\Services\Identity\GraphService();
+            $ref = new \ReflectionClass($graph);
+            $method = $ref->getMethod('getAccessToken');
+            $method->setAccessible(true);
+            $token = $method->invoke($graph);
+
+            $resp = \Illuminate\Support\Facades\Http::timeout(20)
+                ->withToken($token)
+                ->get("https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/{$managedId}", [
+                    '$select' => 'deviceName,userPrincipalName,model,manufacturer,serialNumber,operatingSystem,operatingSystemVersion',
+                ]);
+
+            if (! $resp->successful()) {
+                return;
+            }
+
+            $data = $resp->json();
+            $newName = trim((string) ($data['deviceName'] ?? ''));
+            if ($newName === '') {
+                return;
+            }
+
+            $updates = ['display_name' => $newName];
+            foreach ([
+                'userPrincipalName' => 'upn',
+                'manufacturer' => 'manufacturer',
+                'model' => 'model',
+                'serialNumber' => 'serial_number',
+                'operatingSystem' => 'os',
+                'operatingSystemVersion' => 'os_version',
+            ] as $graphKey => $col) {
+                if (! empty($data[$graphKey])) {
+                    $updates[$col] = $data[$graphKey];
+                }
+            }
+            $azureDevice->update($updates);
+
+            (new AzureDeviceService())->syncLinkedDeviceName($azureDevice->fresh());
+        } catch (\Throwable $e) {
+            \Log::warning('refreshIntuneDeviceName failed for '.$azureDevice->display_name.': '.$e->getMessage());
         }
     }
 

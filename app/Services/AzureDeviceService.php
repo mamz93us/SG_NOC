@@ -221,8 +221,10 @@ class AzureDeviceService
      * Push the latest AzureDevice display_name into the linked ITAM Device.name.
      * No-op if the AzureDevice isn't linked, has no display_name, or names already
      * match. Logs the previous name to AssetHistory so admins can audit the rename.
+     * Public so single-device sync paths (e.g. the per-device "Sync HW" button)
+     * can reuse the same rename + audit semantics.
      */
-    private function syncLinkedDeviceName(AzureDevice $azDev): void
+    public function syncLinkedDeviceName(AzureDevice $azDev): void
     {
         if (! $azDev->device_id || $azDev->link_status !== 'linked') {
             return;

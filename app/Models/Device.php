@@ -77,6 +77,20 @@ class Device extends Model
         'qos_probed_at' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        // When an ITAM device is deleted, reset any AzureDevice that pointed
+        // at it back to "unlinked" so the next Azure sync can re-import it
+        // and the Azure detail page doesn't get stuck in a contradictory
+        // "Linked / Not Linked" state.
+        static::deleted(function (Device $device) {
+            AzureDevice::where('device_id', $device->id)->update([
+                'device_id' => null,
+                'link_status' => 'unlinked',
+            ]);
+        });
+    }
+
     // ─── Relationships ────────────────────────────────────────────
 
     public function sshSessions(): HasMany
