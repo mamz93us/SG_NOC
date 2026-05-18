@@ -39,6 +39,7 @@ use App\Http\Controllers\Admin\DeviceMetricsController;
 use App\Http\Controllers\Admin\WorkersDashboardController;
 use App\Http\Controllers\Admin\IpScannerController;
 use App\Http\Controllers\Admin\IspConnectionController;
+use App\Http\Controllers\Admin\IspProviderController;
 use App\Http\Controllers\Admin\IspReportController;
 use App\Http\Controllers\Admin\PurchaseOrderController;
 use App\Http\Controllers\Admin\IpReservationController;
@@ -861,6 +862,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:view-network')->prefix('network/isp-report')->name('network.isp-report.')->group(function () {
         Route::get('/',        [IspReportController::class, 'index']) ->name('index');
         Route::get('/export',  [IspReportController::class, 'export'])->name('export');
+    });
+
+    // ─── ISP Providers (catalog + packages) ─────────────────────
+    Route::middleware('permission:view-network')->prefix('network/isp-providers')->name('network.isp-providers.')->group(function () {
+        Route::get('/', [IspProviderController::class, 'index'])->name('index');
+    });
+    Route::middleware('permission:manage-network-settings')->prefix('network/isp-providers')->name('network.isp-providers.')->group(function () {
+        Route::post('/',                                              [IspProviderController::class, 'store'])         ->name('store');
+        Route::put('/{ispProvider}',                                  [IspProviderController::class, 'update'])        ->name('update');
+        Route::delete('/{ispProvider}',                               [IspProviderController::class, 'destroy'])       ->name('destroy');
+        Route::post('/{ispProvider}/packages',                        [IspProviderController::class, 'storePackage'])  ->name('packages.store');
+        Route::put('/{ispProvider}/packages/{package}',               [IspProviderController::class, 'updatePackage']) ->name('packages.update');
+        Route::delete('/{ispProvider}/packages/{package}',            [IspProviderController::class, 'destroyPackage'])->name('packages.destroy');
     });
 
     // ─── IP Reservations (IPAM) ─────────────────────────────────

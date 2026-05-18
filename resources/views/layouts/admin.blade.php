@@ -193,6 +193,12 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.isp-providers.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.isp-providers.index') }}">
+                                    <i class="bi bi-building me-2"></i>ISP Providers
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.isp-report.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.isp-report.index') }}">
                                     <i class="bi bi-clipboard-data me-2"></i>ISP Report

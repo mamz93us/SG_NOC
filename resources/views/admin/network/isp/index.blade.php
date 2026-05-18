@@ -73,9 +73,13 @@
                             @endif
                         </td>
                         <td>
-                            @if($c->renewal_date)
+                            @php($nextRenew = $c->nextRenewalDate())
+                            @if($nextRenew)
                             <span class="badge {{ $c->renewalStatusBadge() }}">{{ $c->renewalStatusLabel() }}</span>
-                            <div class="text-muted" style="font-size:10px">{{ $c->renewal_date->format('M d, Y') }}</div>
+                            <div class="text-muted" style="font-size:10px">
+                                {{ $nextRenew->format('M d, Y') }}
+                                @if($c->billing_day) <span title="Repeats monthly">⟳</span>@endif
+                            </div>
                             @else
                             <span class="text-muted">—</span>
                             @endif

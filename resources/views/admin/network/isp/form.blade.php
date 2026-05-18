@@ -7,12 +7,20 @@
     </h4>
     <small class="text-muted">
         <a href="{{ route('admin.network.isp.index') }}" class="text-decoration-none">ISP Connections</a> / {{ isset($isp) ? 'Edit' : 'New' }}
+        — <a href="{{ route('admin.network.isp-providers.index') }}" class="text-decoration-none">Manage Providers</a>
     </small>
 </div>
 
 <div class="card shadow-sm">
     <div class="card-body">
-        <form method="POST" action="{{ isset($isp) ? route('admin.network.isp.update', $isp) : route('admin.network.isp.store') }}">
+        <form method="POST"
+              action="{{ isset($isp) ? route('admin.network.isp.update', $isp) : route('admin.network.isp.store') }}"
+              x-data="ispForm({
+                  providers: @js($providers->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'packages' => $p->packages->map(fn($pk) => ['id' => $pk->id, 'name' => $pk->name, 'speed_down' => $pk->speed_down, 'speed_up' => $pk->speed_up, 'monthly_cost' => $pk->monthly_cost])])->values()),
+                  selectedProviderId: @js(old('isp_provider_id', $isp->isp_provider_id ?? '')),
+                  selectedPackageId:  @js(old('isp_provider_package_id', $isp->isp_provider_package_id ?? '')),
+                  initialBillingDay:  @js((int) old('billing_day', $isp->billing_day ?? 0))
+              })">
             @csrf
             @if(isset($isp)) @method('PUT') @endif
 
@@ -30,8 +38,19 @@
 
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Provider <span class="text-danger">*</span></label>
-                    <input type="text" name="provider" class="form-control" value="{{ old('provider', $isp->provider ?? '') }}" required placeholder="e.g. STC, Mobily, Zain">
-                    @error('provider') <small class="text-danger">{{ $message }}</small> @enderror
+                    <div class="d-flex gap-1">
+                        <select name="isp_provider_id" class="form-select" required x-model="selectedProviderId" @change="onProviderChange()">
+                            <option value="">— Select Provider —</option>
+                            <template x-for="p in providers" :key="p.id">
+                                <option :value="p.id" x-text="p.name"></option>
+                            </template>
+                        </select>
+                        <a href="{{ route('admin.network.isp-providers.index') }}" class="btn btn-outline-primary" title="Manage providers" target="_blank">
+                            <i class="bi bi-pencil-square"></i>
+                        </a>
+                    </div>
+                    @error('isp_provider_id') <small class="text-danger">{{ $message }}</small> @enderror
+                    <small class="text-muted">Need a provider that's not listed? Click the pencil to add it.</small>
                 </div>
 
                 <div class="col-md-4">
@@ -64,6 +83,16 @@
                     <input type="text" name="subnet" class="form-control font-monospace" value="{{ old('subnet', $isp->subnet ?? '') }}" placeholder="e.g. /29 or 255.255.255.248">
                 </div>
 
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Router Device</label>
+                    <select name="router_device_id" class="form-select">
+                        <option value="">None</option>
+                        @foreach($routers as $r)
+                        <option value="{{ $r->id }}" {{ old('router_device_id', $isp->router_device_id ?? '') == $r->id ? 'selected' : '' }}>{{ $r->name }} ({{ ucfirst($r->type) }})</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 {{-- ── Account & Billing ── --}}
                 <div class="col-12 mt-2">
                     <hr class="my-2">
@@ -73,6 +102,17 @@
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Account Number</label>
                     <input type="text" name="account_number" class="form-control font-monospace" value="{{ old('account_number', $isp->account_number ?? '') }}" placeholder="Customer / account #">
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Package</label>
+                    <select name="isp_provider_package_id" class="form-select" x-model="selectedPackageId">
+                        <option value="">— Select Package —</option>
+                        <template x-for="pk in availablePackages()" :key="pk.id">
+                            <option :value="pk.id" x-text="pk.name + (pk.speed_down ? ' (' + pk.speed_down + '/' + pk.speed_up + ' Mbps)' : '')"></option>
+                        </template>
+                    </select>
+                    <small class="text-muted">Filtered by selected provider</small>
                 </div>
 
                 <div class="col-md-4">
@@ -96,11 +136,6 @@
                 </div>
 
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">Package</label>
-                    <input type="text" name="package" class="form-control" value="{{ old('package', $isp->package ?? '') }}" placeholder="e.g. 100M Fiber Business">
-                </div>
-
-                <div class="col-md-4">
                     <label class="form-label fw-semibold">Payment Type</label>
                     <select name="payment_type" class="form-select">
                         <option value="">—</option>
@@ -111,52 +146,47 @@
                 </div>
 
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">Billing Day</label>
-                    <input type="number" name="billing_day" min="1" max="31" class="form-control" value="{{ old('billing_day', $isp->billing_day ?? '') }}" placeholder="1–31">
-                    <small class="text-muted">Day of month for billing cycle</small>
-                </div>
-
-                <div class="col-md-4">
-                    <label class="form-label fw-semibold">Router Device</label>
-                    <select name="router_device_id" class="form-select">
-                        <option value="">None</option>
-                        @foreach($routers as $r)
-                        <option value="{{ $r->id }}" {{ old('router_device_id', $isp->router_device_id ?? '') == $r->id ? 'selected' : '' }}>{{ $r->name }} ({{ ucfirst($r->type) }})</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="col-md-4">
-                    <label class="form-label fw-semibold">Contract Start</label>
-                    <input type="date" name="contract_start" class="form-control" value="{{ old('contract_start', isset($isp) && $isp->contract_start ? $isp->contract_start->format('Y-m-d') : '') }}">
-                </div>
-
-                <div class="col-md-4">
-                    <label class="form-label fw-semibold">Contract End</label>
-                    <input type="date" name="contract_end" class="form-control" value="{{ old('contract_end', isset($isp) && $isp->contract_end ? $isp->contract_end->format('Y-m-d') : '') }}">
-                </div>
-
-                <div class="col-md-4">
                     <label class="form-label fw-semibold">Monthly Cost</label>
                     <input type="number" name="monthly_cost" class="form-control" value="{{ old('monthly_cost', $isp->monthly_cost ?? '') }}" min="0" step="0.01">
+                    <small class="text-muted">Auto-filled from package if blank</small>
                 </div>
 
-                {{-- ── Renewal Reminder ── --}}
+                {{-- ── Renewal Cycle (replaces single renewal_date) ── --}}
                 <div class="col-12 mt-2">
                     <hr class="my-2">
-                    <h6 class="fw-semibold text-primary"><i class="bi bi-bell me-1"></i>Renewal Reminder</h6>
+                    <h6 class="fw-semibold text-primary"><i class="bi bi-arrow-repeat me-1"></i>Renewal Cycle</h6>
+                    <small class="text-muted d-block mb-2">The contract is open-ended (always working). Renewal repeats monthly on the billing day.</small>
                 </div>
 
-                <div class="col-md-4">
-                    <label class="form-label fw-semibold">Renewal Date</label>
-                    <input type="date" name="renewal_date" class="form-control" value="{{ old('renewal_date', isset($isp) && $isp->renewal_date ? $isp->renewal_date->format('Y-m-d') : '') }}">
-                    <small class="text-muted">When this ISP contract is due for renewal</small>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Billing Day <span class="text-danger">*</span></label>
+                    <input type="number" name="billing_day" min="1" max="31" class="form-control"
+                           value="{{ old('billing_day', $isp->billing_day ?? '') }}"
+                           x-model.number="billingDay"
+                           placeholder="1–31" required>
+                    <small class="text-muted">Day of the month for billing</small>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label fw-semibold">Remind Before (Days)</label>
                     <input type="number" name="renewal_remind_days" class="form-control" value="{{ old('renewal_remind_days', $isp->renewal_remind_days ?? 2) }}" min="1" max="90">
-                    <small class="text-muted">Send email reminder this many days before renewal</small>
+                    <small class="text-muted">Days before each cycle to send the reminder</small>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Upcoming Renewals</label>
+                    <div class="border rounded p-2 bg-light small" style="min-height:38px;">
+                        <template x-if="billingDay && billingDay >= 1 && billingDay <= 31">
+                            <div class="d-flex flex-wrap gap-2">
+                                <template x-for="d in upcomingCycles()" :key="d">
+                                    <span class="badge bg-info text-dark font-monospace" x-text="d"></span>
+                                </template>
+                            </div>
+                        </template>
+                        <template x-if="!billingDay">
+                            <em class="text-muted">Pick a billing day to see the next 6 renewal dates.</em>
+                        </template>
+                    </div>
                 </div>
 
                 <div class="col-12">
@@ -175,4 +205,54 @@
     </div>
 </div>
 
+<script>
+function ispForm(initial) {
+    return {
+        providers:          initial.providers || [],
+        selectedProviderId: initial.selectedProviderId || '',
+        selectedPackageId:  initial.selectedPackageId || '',
+        billingDay:         initial.initialBillingDay || null,
+
+        availablePackages() {
+            const pid = String(this.selectedProviderId || '');
+            const p = this.providers.find(x => String(x.id) === pid);
+            return p ? p.packages : [];
+        },
+        onProviderChange() {
+            // If the previously-selected package doesn't belong to the new
+            // provider, clear it so we don't submit a cross-provider mismatch.
+            const valid = this.availablePackages().some(pk => String(pk.id) === String(this.selectedPackageId));
+            if (! valid) this.selectedPackageId = '';
+        },
+        upcomingCycles(count = 6) {
+            const out = [];
+            const day = parseInt(this.billingDay, 10);
+            if (!day || day < 1 || day > 31) return out;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            let y = today.getFullYear();
+            let m = today.getMonth(); // 0-indexed
+            // last day of this month
+            const lastDay = new Date(y, m + 1, 0).getDate();
+            let candidate = new Date(y, m, Math.min(day, lastDay));
+            if (candidate < today) {
+                m += 1;
+                const ld2 = new Date(y, m + 1, 0).getDate();
+                candidate = new Date(y, m, Math.min(day, ld2));
+            }
+            for (let i = 0; i < count; i++) {
+                const yy = candidate.getFullYear();
+                const mm = String(candidate.getMonth() + 1).padStart(2, '0');
+                const dd = String(candidate.getDate()).padStart(2, '0');
+                out.push(`${dd}/${mm}/${yy}`);
+                m = candidate.getMonth() + 1;
+                const ld = new Date(candidate.getFullYear(), m + 1, 0).getDate();
+                candidate = new Date(candidate.getFullYear(), m, Math.min(day, ld));
+            }
+            return out;
+        },
+    };
+}
+</script>
 @endsection

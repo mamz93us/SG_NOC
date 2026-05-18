@@ -254,9 +254,16 @@ Schedule::call(function () {
 
 // ──────────────────────────────────────────────────────────────────────
 // ISP Renewal Reminders — daily at 8 AM
+// Pulls connections with either a billing_day (new cycle-based model) or a
+// legacy single-shot renewal_date. needsRenewalReminder() handles both.
 // ──────────────────────────────────────────────────────────────────────
 Schedule::call(function () {
-    $isps = \App\Models\IspConnection::whereNotNull('renewal_date')->get();
+    $isps = \App\Models\IspConnection::query()
+        ->where(function ($q) {
+            $q->whereNotNull('billing_day')
+                ->orWhereNotNull('renewal_date');
+        })
+        ->get();
 
     foreach ($isps as $isp) {
         if (!$isp->needsRenewalReminder()) {
@@ -304,12 +311,14 @@ Schedule::call(function () {
 
         // Also create in-app notification
         try {
+            $nextDate = $isp->nextRenewalDate();
+            $providerName = $isp->ispProvider?->name ?? $isp->provider;
             \App\Models\Notification::create([
                 'user_id'  => $recipients->first()?->id,
                 'type'     => 'system_alert',
-                'severity' => $isp->isRenewalDue() ? 'critical' : 'warning',
-                'title'    => "ISP Renewal: {$isp->provider}",
-                'message'  => "ISP contract for {$isp->provider} (" . ($isp->branch?->name ?: 'N/A') . ") is due for renewal on {$isp->renewal_date->format('M d, Y')}.",
+                'severity' => ($nextDate && $nextDate->isPast()) ? 'critical' : 'warning',
+                'title'    => "ISP Renewal: {$providerName}",
+                'message'  => "ISP contract for {$providerName} (".($isp->branch?->name ?: 'N/A').") is due for renewal on ".($nextDate ? $nextDate->format('M d, Y') : 'N/A').'.',
                 'link'     => '/admin/network/isp',
             ]);
         } catch (\Throwable) {}

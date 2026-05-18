@@ -92,9 +92,13 @@
                     <td>{{ $c->billing_day ?: '—' }}</td>
                     <td>{{ $c->monthly_cost ? number_format($c->monthly_cost, 2) : '—' }}</td>
                     <td>
-                        @if($c->renewal_date)
+                        @php($nextRenew = $c->nextRenewalDate())
+                        @if($nextRenew)
                         <span class="badge {{ $c->renewalStatusBadge() }}">{{ $c->renewalStatusLabel() }}</span>
-                        <div class="text-muted" style="font-size:10px">{{ $c->renewal_date->format('Y-m-d') }}</div>
+                        <div class="text-muted" style="font-size:10px">
+                            {{ $nextRenew->format('Y-m-d') }}
+                            @if($c->billing_day) <span title="Repeats every {{ $c->billing_day }}th">⟳</span>@endif
+                        </div>
                         @else <span class="text-muted">—</span>@endif
                     </td>
                 </tr>

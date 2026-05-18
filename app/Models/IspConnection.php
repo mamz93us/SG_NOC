@@ -10,6 +10,8 @@ class IspConnection extends Model
 {
     protected $fillable = [
         'branch_id',
+        'isp_provider_id',
+        'isp_provider_package_id',
         'provider',
         'account_number',
         'connection_type',
@@ -28,6 +30,7 @@ class IspConnection extends Model
         'contract_end',
         'renewal_date',
         'renewal_remind_days',
+        'renewal_reminded_at',
         'monthly_cost',
         'notes',
     ];
@@ -60,6 +63,16 @@ class IspConnection extends Model
     public function routerDevice(): BelongsTo
     {
         return $this->belongsTo(Device::class, 'router_device_id');
+    }
+
+    public function ispProvider(): BelongsTo
+    {
+        return $this->belongsTo(IspProvider::class, 'isp_provider_id');
+    }
+
+    public function ispProviderPackage(): BelongsTo
+    {
+        return $this->belongsTo(IspProviderPackage::class, 'isp_provider_package_id');
     }
 
     public function linkChecks(): HasMany
@@ -168,26 +181,87 @@ class IspConnection extends Model
 
     /**
      * Whether this ISP needs a renewal reminder right now.
+     *
+     * Cycle-aware: if billing_day is set, the renewal repeats every month on
+     * that day. Falls back to legacy single-shot renewal_date if billing_day
+     * is null.
      */
     public function needsRenewalReminder(): bool
     {
-        if (! $this->renewal_date) {
+        $next = $this->nextRenewalDate();
+        if (! $next) {
             return false;
         }
 
         $days = $this->renewal_remind_days ?: 2;
-        $reminderDate = $this->renewal_date->copy()->subDays($days);
+        $reminderDate = $next->copy()->subDays($days);
 
         // Not yet time for the reminder
         if (now()->lt($reminderDate)) {
             return false;
         }
 
-        // Already sent a reminder for this renewal cycle
+        // Already sent a reminder for THIS cycle (i.e. between this cycle's
+        // reminder window and the next cycle starting).
         if ($this->renewal_reminded_at && $this->renewal_reminded_at->gte($reminderDate)) {
             return false;
         }
 
         return true;
+    }
+
+    // ─── Billing-cycle helpers ──────────────────────────────────
+
+    /**
+     * Compute the next renewal date based on billing_day. Falls back to
+     * renewal_date (legacy single-shot) if billing_day is null.
+     */
+    public function nextRenewalDate(): ?\Illuminate\Support\Carbon
+    {
+        if ($this->billing_day) {
+            return self::cycleNextFromDay((int) $this->billing_day);
+        }
+
+        return $this->renewal_date ? $this->renewal_date->copy() : null;
+    }
+
+    /**
+     * Return the next N upcoming renewal dates, computed from billing_day.
+     *
+     * @return \Illuminate\Support\Collection<int, \Illuminate\Support\Carbon>
+     */
+    public function upcomingRenewals(int $count = 6): \Illuminate\Support\Collection
+    {
+        $out = collect();
+        if (! $this->billing_day) {
+            return $out;
+        }
+
+        $next = self::cycleNextFromDay((int) $this->billing_day);
+        for ($i = 0; $i < $count; $i++) {
+            $out->push($next->copy()->addMonthsNoOverflow($i));
+        }
+
+        return $out;
+    }
+
+    /**
+     * Given a billing-day (1-31), return the next future date at that
+     * day-of-month. If today's day-of-month is already past the billing day,
+     * the next cycle is next month. Clamped to the last day of the month for
+     * short months (e.g. 31 → 28/29/30).
+     */
+    public static function cycleNextFromDay(int $day): \Illuminate\Support\Carbon
+    {
+        $day = max(1, min(31, $day));
+        $now = now()->startOfDay();
+
+        $candidate = $now->copy()->day(min($day, $now->daysInMonth));
+        if ($candidate->lt($now)) {
+            $candidate = $now->copy()->addMonthNoOverflow();
+            $candidate = $candidate->day(min($day, $candidate->daysInMonth));
+        }
+
+        return $candidate;
     }
 }
