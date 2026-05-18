@@ -67,13 +67,17 @@ class EmailMarketingSettingsController extends Controller
             'us-east-2' => 'US East (Ohio)',
             'us-west-2' => 'US West (Oregon)',
             'eu-west-1' => 'EU (Ireland)',
-            'eu-central-1' => 'EU (Frankfurt)',
             'eu-west-2' => 'EU (London)',
+            'eu-central-1' => 'EU (Frankfurt)',
+            'eu-north-1' => 'EU (Stockholm)',
+            'eu-south-1' => 'EU (Milan)',
             'me-south-1' => 'Middle East (Bahrain)',
             'me-central-1' => 'Middle East (UAE)',
             'ap-south-1' => 'Asia Pacific (Mumbai)',
             'ap-southeast-1' => 'Asia Pacific (Singapore)',
             'ap-southeast-2' => 'Asia Pacific (Sydney)',
+            'ap-northeast-1' => 'Asia Pacific (Tokyo)',
+            'ca-central-1' => 'Canada (Central)',
         ];
     }
 }
