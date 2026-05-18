@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Accessory;
 use App\Models\AssetHistory;
 use App\Models\Device;
 use App\Models\EmployeeAsset;
@@ -11,7 +12,6 @@ use App\Models\WorkflowStep;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class AssetScrapController extends Controller
 {
@@ -41,30 +41,52 @@ class AssetScrapController extends Controller
             ->whereNotIn('status', ['scrapped', 'retired'])
             ->orderBy('asset_code');
 
+        $accessoryQuery = Accessory::query()
+            ->whereNotIn('status', ['scrapped', 'retired'])
+            ->where('quantity_available', '>', 0)
+            ->orderBy('asset_code');
+
         if ($request->filled('q')) {
             $q = $request->q;
             $deviceQuery->where(function ($w) use ($q) {
                 $w->where('asset_code', 'like', "%{$q}%")
-                  ->orWhere('name', 'like', "%{$q}%")
-                  ->orWhere('serial_number', 'like', "%{$q}%");
+                    ->orWhere('name', 'like', "%{$q}%")
+                    ->orWhere('serial_number', 'like', "%{$q}%");
+            });
+            $accessoryQuery->where(function ($w) use ($q) {
+                $w->where('asset_code', 'like', "%{$q}%")
+                    ->orWhere('name', 'like', "%{$q}%")
+                    ->orWhere('category', 'like', "%{$q}%");
             });
         }
 
         $devices = $deviceQuery->limit(50)->get();
+        $accessories = $accessoryQuery->limit(50)->get();
 
-        return view('admin.itam.scrap.create', compact('devices'));
+        return view('admin.itam.scrap.create', compact('devices', 'accessories'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'device_ids'        => 'required|array|min:1',
-            'device_ids.*'      => 'integer|exists:devices,id',
-            'reason'            => 'required|string|max:2000',
-            'disposal_method'   => 'required|in:recycle,donate,destroy,sell,return_to_supplier',
-            'photos'            => 'nullable|array|max:5',
-            'photos.*'          => 'image|max:4096',
+            'device_ids' => 'nullable|array',
+            'device_ids.*' => 'integer|exists:devices,id',
+            'accessory_ids' => 'nullable|array',
+            'accessory_ids.*' => 'integer|exists:accessories,id',
+            'reason' => 'required|string|max:2000',
+            'disposal_method' => 'required|in:recycle,donate,destroy,sell,return_to_supplier',
+            'photos' => 'nullable|array|max:5',
+            'photos.*' => 'image|max:4096',
         ]);
+
+        $deviceIds = $validated['device_ids'] ?? [];
+        $accessoryIds = $validated['accessory_ids'] ?? [];
+
+        if (empty($deviceIds) && empty($accessoryIds)) {
+            return back()
+                ->withInput()
+                ->with('error', 'Select at least one device or accessory to scrap.');
+        }
 
         $photoPaths = [];
         if ($request->hasFile('photos')) {
@@ -73,62 +95,81 @@ class AssetScrapController extends Controller
             }
         }
 
-        $devices = Device::whereIn('id', $validated['device_ids'])->get();
+        $devices = Device::whereIn('id', $deviceIds)->get();
+        $accessories = Accessory::whereIn('id', $accessoryIds)->get();
 
-        abort_if($devices->isEmpty(), 422, 'No valid devices selected.');
-
-        $alreadyScrapped = $devices->whereIn('status', ['scrapped', 'retired']);
-        if ($alreadyScrapped->isNotEmpty()) {
+        $alreadyScrappedDevices = $devices->whereIn('status', ['scrapped', 'retired']);
+        if ($alreadyScrappedDevices->isNotEmpty()) {
             return back()->with('error', 'One or more devices are already scrapped or retired.');
         }
 
-        $branchId = $devices->first()->branch_id;
-        $title    = count($devices) === 1
-            ? "Scrap: {$devices->first()->asset_code} {$devices->first()->name}"
-            : "Scrap: " . count($devices) . " assets";
+        $alreadyScrappedAccessories = $accessories->whereIn('status', ['scrapped', 'retired']);
+        if ($alreadyScrappedAccessories->isNotEmpty()) {
+            return back()->with('error', 'One or more accessories are already scrapped or retired.');
+        }
 
-        $workflow = DB::transaction(function () use ($validated, $devices, $photoPaths, $branchId, $title) {
+        $itemCount = $devices->count() + $accessories->count();
+        $branchId = $devices->first()->branch_id ?? $accessories->first()->branch_id ?? null;
+
+        if ($itemCount === 1) {
+            $first = $devices->first() ?? $accessories->first();
+            $title = "Scrap: {$first->asset_code} {$first->name}";
+        } else {
+            $title = "Scrap: {$itemCount} assets";
+        }
+
+        $assetCodes = $devices->pluck('asset_code')
+            ->merge($accessories->pluck('asset_code'))
+            ->filter()
+            ->values()
+            ->all();
+
+        $workflow = DB::transaction(function () use (
+            $validated, $devices, $deviceIds, $accessoryIds,
+            $assetCodes, $photoPaths, $branchId, $title
+        ) {
             $wf = WorkflowRequest::create([
-                'type'         => 'asset_scrap',
-                'title'        => $title,
-                'description'  => $validated['reason'],
-                'payload'      => [
-                    'device_ids'      => $validated['device_ids'],
-                    'asset_codes'     => $devices->pluck('asset_code')->all(),
-                    'reason'          => $validated['reason'],
+                'type' => 'asset_scrap',
+                'title' => $title,
+                'description' => $validated['reason'],
+                'payload' => [
+                    'device_ids' => array_values($deviceIds),
+                    'accessory_ids' => array_values($accessoryIds),
+                    'asset_codes' => $assetCodes,
+                    'reason' => $validated['reason'],
                     'disposal_method' => $validated['disposal_method'],
-                    'photos'          => $photoPaths,
+                    'photos' => $photoPaths,
                 ],
-                'branch_id'    => $branchId,
+                'branch_id' => $branchId,
                 'requested_by' => Auth::id(),
-                'status'       => 'pending',
+                'status' => 'pending',
                 'current_step' => 1,
-                'total_steps'  => 2,
+                'total_steps' => 2,
             ]);
 
             WorkflowStep::create([
-                'workflow_id'   => $wf->id,
-                'step_number'   => 1,
+                'workflow_id' => $wf->id,
+                'step_number' => 1,
                 'approver_role' => 'it_manager',
-                'status'        => 'pending',
-                'step_type'     => 'approval',
+                'status' => 'pending',
+                'step_type' => 'approval',
             ]);
             WorkflowStep::create([
-                'workflow_id'   => $wf->id,
-                'step_number'   => 2,
+                'workflow_id' => $wf->id,
+                'step_number' => 2,
                 'approver_role' => 'super_admin',
-                'status'        => 'pending',
-                'step_type'     => 'approval',
+                'status' => 'pending',
+                'step_type' => 'approval',
             ]);
 
             foreach ($devices as $device) {
                 AssetHistory::record(
                     $device,
                     'scrap_requested',
-                    "Scrap requested by " . (Auth::user()?->name ?? 'system'),
+                    'Scrap requested by '.(Auth::user()?->name ?? 'system'),
                     [
-                        'workflow_id'     => $wf->id,
-                        'reason'          => $validated['reason'],
+                        'workflow_id' => $wf->id,
+                        'reason' => $validated['reason'],
                         'disposal_method' => $validated['disposal_method'],
                     ]
                 );
@@ -149,12 +190,14 @@ class AssetScrapController extends Controller
         $workflow->load(['steps.actor', 'steps.approver', 'logs', 'requester', 'branch']);
 
         $deviceIds = $workflow->payload['device_ids'] ?? [];
-        $devices   = Device::whereIn('id', $deviceIds)->get();
+        $accessoryIds = $workflow->payload['accessory_ids'] ?? [];
+        $devices = Device::whereIn('id', $deviceIds)->get();
+        $accessories = Accessory::whereIn('id', $accessoryIds)->get();
 
         $canApprove = $workflow->isAwaitingMyApproval(Auth::id())
             && (Auth::user()?->can('approve-scrap') ?? false);
 
-        return view('admin.itam.scrap.show', compact('workflow', 'devices', 'canApprove'));
+        return view('admin.itam.scrap.show', compact('workflow', 'devices', 'accessories', 'canApprove'));
     }
 
     public function approve(Request $request, WorkflowRequest $workflow)
@@ -162,7 +205,7 @@ class AssetScrapController extends Controller
         abort_unless($workflow->type === 'asset_scrap', 404);
 
         $user = Auth::user();
-        if (!$workflow->isAwaitingMyApproval($user->id)) {
+        if (! $workflow->isAwaitingMyApproval($user->id)) {
             return back()->with('error', 'You are not authorized to approve this step.');
         }
 
@@ -171,14 +214,15 @@ class AssetScrapController extends Controller
         DB::transaction(function () use ($workflow, $user, $request) {
             $step = $workflow->currentStepRecord();
             $step->update([
-                'status'   => 'approved',
+                'status' => 'approved',
                 'acted_by' => $user->id,
                 'acted_at' => now(),
                 'comments' => $request->input('comments'),
             ]);
 
             $deviceIds = $workflow->payload['device_ids'] ?? [];
-            $devices   = Device::whereIn('id', $deviceIds)->get();
+            $accessoryIds = $workflow->payload['accessory_ids'] ?? [];
+            $devices = Device::whereIn('id', $deviceIds)->get();
 
             foreach ($devices as $device) {
                 AssetHistory::record(
@@ -203,13 +247,13 @@ class AssetScrapController extends Controller
                         ->whereNull('returned_date')
                         ->update([
                             'returned_date' => now(),
-                            'notes'         => 'Closed on scrap approval (workflow #' . $workflow->id . ')',
+                            'notes' => 'Closed on scrap approval (workflow #'.$workflow->id.')',
                         ]);
 
                     $device->update([
-                        'status'            => 'scrapped',
+                        'status' => 'scrapped',
                         'scrap_workflow_id' => $workflow->id,
-                        'storage_location'  => null,
+                        'storage_location' => null,
                     ]);
 
                     AssetHistory::record(
@@ -217,10 +261,18 @@ class AssetScrapController extends Controller
                         'scrapped',
                         'Asset scrapped after full approval',
                         [
-                            'workflow_id'     => $workflow->id,
+                            'workflow_id' => $workflow->id,
                             'disposal_method' => $workflow->payload['disposal_method'] ?? null,
                         ]
                     );
+                }
+
+                if (! empty($accessoryIds)) {
+                    Accessory::whereIn('id', $accessoryIds)->update([
+                        'status' => 'scrapped',
+                        'quantity_available' => 0,
+                        'scrap_workflow_id' => $workflow->id,
+                    ]);
                 }
             } else {
                 $workflow->update(['current_step' => $nextStep]);
@@ -237,7 +289,7 @@ class AssetScrapController extends Controller
         abort_unless($workflow->type === 'asset_scrap', 404);
 
         $user = Auth::user();
-        if (!$workflow->isAwaitingMyApproval($user->id)) {
+        if (! $workflow->isAwaitingMyApproval($user->id)) {
             return back()->with('error', 'You are not authorized to reject this step.');
         }
 
@@ -246,7 +298,7 @@ class AssetScrapController extends Controller
         DB::transaction(function () use ($workflow, $user, $request) {
             $step = $workflow->currentStepRecord();
             $step->update([
-                'status'   => 'rejected',
+                'status' => 'rejected',
                 'acted_by' => $user->id,
                 'acted_at' => now(),
                 'comments' => $request->input('comments'),
@@ -255,12 +307,12 @@ class AssetScrapController extends Controller
             $workflow->update(['status' => 'rejected']);
 
             $deviceIds = $workflow->payload['device_ids'] ?? [];
-            $devices   = Device::whereIn('id', $deviceIds)->get();
+            $devices = Device::whereIn('id', $deviceIds)->get();
             foreach ($devices as $device) {
                 AssetHistory::record(
                     $device,
                     'scrap_rejected',
-                    "Scrap rejected by {$user->name}: " . $request->input('comments'),
+                    "Scrap rejected by {$user->name}: ".$request->input('comments'),
                     ['workflow_id' => $workflow->id]
                 );
             }
@@ -279,8 +331,10 @@ class AssetScrapController extends Controller
         $workflow->load(['steps.actor', 'requester', 'branch']);
 
         $deviceIds = $workflow->payload['device_ids'] ?? [];
-        $devices   = Device::with('branch')->whereIn('id', $deviceIds)->get();
+        $accessoryIds = $workflow->payload['accessory_ids'] ?? [];
+        $devices = Device::with('branch')->whereIn('id', $deviceIds)->get();
+        $accessories = Accessory::with('branch')->whereIn('id', $accessoryIds)->get();
 
-        return view('admin.itam.scrap.print', compact('workflow', 'devices'));
+        return view('admin.itam.scrap.print', compact('workflow', 'devices', 'accessories'));
     }
 }

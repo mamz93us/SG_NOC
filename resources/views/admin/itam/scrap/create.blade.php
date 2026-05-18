@@ -21,14 +21,15 @@
 
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white">
-                <strong>1. Search & Select Assets to Scrap</strong>
+                <strong>1. Search & Select Items to Scrap</strong>
             </div>
             <div class="card-body">
                 <form method="GET" class="mb-3" @submit.prevent>
-                    <input type="text" name="q" value="{{ request('q') }}" class="form-control" placeholder="Search by asset code, name, or serial number..." onchange="this.form.submit()">
+                    <input type="text" name="q" value="{{ request('q') }}" class="form-control" placeholder="Search by asset code, name, serial number, or category..." onchange="this.form.submit()">
                 </form>
 
-                <div class="table-responsive" style="max-height:400px;overflow:auto">
+                <h6 class="text-uppercase text-muted small fw-semibold mb-2"><i class="bi bi-laptop me-1"></i>Devices</h6>
+                <div class="table-responsive mb-3" style="max-height:300px;overflow:auto">
                     <table class="table table-sm table-hover">
                         <thead class="table-light">
                             <tr>
@@ -53,12 +54,46 @@
                                     <td>{{ $d->branch?->name ?? '—' }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="7" class="text-center py-4 text-muted">No devices found. Try a different search.</td></tr>
+                                <tr><td colspan="7" class="text-center py-3 text-muted">No devices found.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
-                <div class="mt-2 text-end small text-muted" x-text="selected.length + ' selected'"></div>
+
+                <h6 class="text-uppercase text-muted small fw-semibold mb-2"><i class="bi bi-box-seam me-1"></i>Accessories</h6>
+                <div class="table-responsive" style="max-height:300px;overflow:auto">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:40px"></th>
+                                <th>Asset Code</th>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th class="text-center">Available</th>
+                                <th>Branch</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($accessories as $a)
+                                <tr>
+                                    <td><input type="checkbox" name="accessory_ids[]" value="{{ $a->id }}" class="form-check-input" x-model="accessoriesSelected"></td>
+                                    <td><code>{{ $a->asset_code ?? '—' }}</code></td>
+                                    <td>{{ $a->name }}</td>
+                                    <td><span class="badge bg-secondary">{{ $a->category ?: '—' }}</span></td>
+                                    <td class="text-center">{{ $a->quantity_available }} / {{ $a->quantity_total }}</td>
+                                    <td>{{ $a->branch?->name ?? '—' }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="text-center py-3 text-muted">No accessories found.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-2 text-end small text-muted">
+                    <span x-text="selected.length"></span> device(s),
+                    <span x-text="accessoriesSelected.length"></span> accessor(y/ies) selected
+                </div>
             </div>
         </div>
 
@@ -105,11 +140,13 @@
 function scrapForm() {
     return {
         selected: [],
+        accessoriesSelected: [],
         onSubmit(e) {
-            if (this.selected.length === 0) {
+            const total = this.selected.length + this.accessoriesSelected.length;
+            if (total === 0) {
                 e.preventDefault();
-                alert('Please select at least one asset to scrap.');
-            } else if (!confirm(`Submit scrap request for ${this.selected.length} asset(s)?`)) {
+                alert('Please select at least one device or accessory to scrap.');
+            } else if (!confirm(`Submit scrap request for ${total} item(s)?`)) {
                 e.preventDefault();
             }
         }

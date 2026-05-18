@@ -9,9 +9,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Accessory extends Model
 {
     protected $fillable = [
-        'name', 'category', 'quantity_total', 'quantity_available',
+        'asset_code', 'name', 'category', 'quantity_total', 'quantity_available',
         'supplier_id', 'purchase_order_id', 'branch_id',
         'purchase_cost', 'currency', 'notes',
+        'status', 'scrap_workflow_id',
     ];
 
     protected $casts = [

@@ -1,13 +1,13 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Accessory;
 use App\Models\AccessoryAssignment;
-use App\Models\Employee;
-use App\Models\Device;
-use App\Models\Supplier;
 use App\Models\ActivityLog;
+use App\Models\Supplier;
+use App\Services\AssetCodeService;
 use App\Support\Currency;
 use Illuminate\Http\Request;
 
@@ -22,7 +22,7 @@ class AccessoryController extends Controller
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('name', 'like', "%{$s}%")
-                  ->orWhere('category', 'like', "%{$s}%");
+                    ->orWhere('category', 'like', "%{$s}%");
             });
         }
 
@@ -31,8 +31,8 @@ class AccessoryController extends Controller
         }
 
         $accessories = $query->orderBy('name')->paginate(25)->withQueryString();
-        $suppliers   = Supplier::orderBy('name')->get();
-        $categories  = Accessory::CATEGORIES;
+        $suppliers = Supplier::orderBy('name')->get();
+        $categories = Accessory::CATEGORIES;
 
         return view('admin.itam.accessories.index', compact('accessories', 'suppliers', 'categories'));
     }
@@ -40,34 +40,45 @@ class AccessoryController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'               => 'required|string|max:255',
-            'category'           => 'nullable|string|max:50',
-            'quantity_total'     => 'required|integer|min:0',
+            'asset_code' => 'nullable|string|max:64|unique:accessories,asset_code',
+            'name' => 'required|string|max:255',
+            'category' => 'nullable|string|max:50',
+            'quantity_total' => 'required|integer|min:0',
             'quantity_available' => 'required|integer|min:0',
-            'supplier_id'        => 'nullable|exists:suppliers,id',
-            'purchase_cost'      => 'nullable|numeric|min:0',
-            'currency'           => 'required|in:' . implode(',', Currency::CODES),
-            'notes'              => 'nullable|string',
+            'supplier_id' => 'nullable|exists:suppliers,id',
+            'purchase_cost' => 'nullable|numeric|min:0',
+            'currency' => 'required|in:'.implode(',', Currency::CODES),
+            'notes' => 'nullable|string',
         ]);
+
+        if (empty($data['asset_code'])) {
+            $data['asset_code'] = (new AssetCodeService)->generateForAccessory();
+        }
 
         $accessory = Accessory::create($data);
         ActivityLog::log('Created accessory', $accessory, $data);
 
-        return back()->with('success', "Accessory '{$accessory->name}' created.");
+        return back()->with('success', "Accessory '{$accessory->name}' created ({$accessory->asset_code}).");
     }
 
     public function update(Request $request, Accessory $accessory)
     {
         $data = $request->validate([
-            'name'               => 'required|string|max:255',
-            'category'           => 'nullable|string|max:50',
-            'quantity_total'     => 'required|integer|min:0',
+            'asset_code' => 'nullable|string|max:64|unique:accessories,asset_code,'.$accessory->id,
+            'name' => 'required|string|max:255',
+            'category' => 'nullable|string|max:50',
+            'quantity_total' => 'required|integer|min:0',
             'quantity_available' => 'required|integer|min:0',
-            'supplier_id'        => 'nullable|exists:suppliers,id',
-            'purchase_cost'      => 'nullable|numeric|min:0',
-            'currency'           => 'required|in:' . implode(',', Currency::CODES),
-            'notes'              => 'nullable|string',
+            'supplier_id' => 'nullable|exists:suppliers,id',
+            'purchase_cost' => 'nullable|numeric|min:0',
+            'currency' => 'required|in:'.implode(',', Currency::CODES),
+            'notes' => 'nullable|string',
         ]);
+
+        if (empty($data['asset_code'])) {
+            $data['asset_code'] = $accessory->asset_code
+                ?: (new AssetCodeService)->generateForAccessory();
+        }
 
         $accessory->update($data);
         ActivityLog::log('Updated accessory', $accessory, $data);
@@ -92,20 +103,20 @@ class AccessoryController extends Controller
 
     public function assign(Request $request, Accessory $accessory)
     {
-        if (!$accessory->isAvailable()) {
+        if (! $accessory->isAvailable()) {
             return back()->with('error', 'No units available for this accessory.');
         }
 
         $data = $request->validate([
-            'assign_to'     => 'required|in:employee,device',
+            'assign_to' => 'required|in:employee,device',
             'assignable_id' => 'required|integer',
             'assigned_date' => 'required|date',
-            'notes'         => 'nullable|string',
+            'notes' => 'nullable|string',
         ]);
 
         // 1. Prevent duplicate submissions within 15 seconds (debounce)
         $exists = AccessoryAssignment::where('accessory_id', $accessory->id)
-            ->where(function($q) use ($data) {
+            ->where(function ($q) use ($data) {
                 if ($data['assign_to'] === 'employee') {
                     $q->where('employee_id', $data['assignable_id']);
                 } else {
@@ -121,24 +132,24 @@ class AccessoryController extends Controller
         }
 
         // 2. Wrap in transaction for atomicity
-        \Illuminate\Support\Facades\DB::transaction(function() use ($accessory, $data) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($accessory, $data) {
             // Validate the assignable actually exists (inside transaction for safety)
             if ($data['assign_to'] === 'employee') {
-                if (!\App\Models\Employee::where('id', $data['assignable_id'])->exists()) {
+                if (! \App\Models\Employee::where('id', $data['assignable_id'])->exists()) {
                     throw new \RuntimeException('Employee not found.');
                 }
             } else {
-                if (!\App\Models\Device::where('id', $data['assignable_id'])->exists()) {
+                if (! \App\Models\Device::where('id', $data['assignable_id'])->exists()) {
                     throw new \RuntimeException('Device not found.');
                 }
             }
 
             AccessoryAssignment::create([
-                'accessory_id'  => $accessory->id,
-                'employee_id'   => $data['assign_to'] === 'employee' ? $data['assignable_id'] : null,
-                'device_id'     => $data['assign_to'] === 'device'   ? $data['assignable_id'] : null,
+                'accessory_id' => $accessory->id,
+                'employee_id' => $data['assign_to'] === 'employee' ? $data['assignable_id'] : null,
+                'device_id' => $data['assign_to'] === 'device' ? $data['assignable_id'] : null,
                 'assigned_date' => $data['assigned_date'],
-                'notes'         => $data['notes'] ?? null,
+                'notes' => $data['notes'] ?? null,
             ]);
 
             // Decrement available quantity

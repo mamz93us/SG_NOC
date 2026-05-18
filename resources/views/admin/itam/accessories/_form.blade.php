@@ -1,4 +1,8 @@
 <div class="mb-3">
+    <label class="form-label">Asset Code</label>
+    <input type="text" name="asset_code" class="form-control font-monospace" placeholder="Auto-generated if blank — e.g. SG-ACC-000042">
+</div>
+<div class="mb-3">
     <label class="form-label">Name <span class="text-danger">*</span></label>
     <input type="text" name="name" class="form-control" required>
 </div>

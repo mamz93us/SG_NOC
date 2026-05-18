@@ -36,8 +36,10 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
+                        <th>Asset Code</th>
                         <th>Name</th>
                         <th>Category</th>
+                        <th>Status</th>
                         <th>Supplier</th>
                         <th class="text-center">Total</th>
                         <th class="text-center">Available</th>
@@ -48,9 +50,20 @@
                 </thead>
                 <tbody>
                     @forelse($accessories as $acc)
-                    <tr>
+                    @php($isScrapped = in_array($acc->status, ['scrapped','retired']))
+                    <tr @class(['text-muted' => $isScrapped])>
+                        <td class="font-monospace small">{{ $acc->asset_code ?: '—' }}</td>
                         <td class="fw-semibold">{{ $acc->name }}</td>
                         <td><span class="badge bg-secondary">{{ $acc->category ?: '—' }}</span></td>
+                        <td>
+                            @php($statusClass = match($acc->status) {
+                                'scrapped' => 'bg-danger',
+                                'retired' => 'bg-dark',
+                                'assigned' => 'bg-primary',
+                                default => 'bg-success',
+                            })
+                            <span class="badge {{ $statusClass }}">{{ ucfirst($acc->status ?: 'active') }}</span>
+                        </td>
                         <td>{{ $acc->supplier?->name ?: '—' }}</td>
                         <td class="text-center">{{ $acc->quantity_total }}</td>
                         <td class="text-center">
@@ -89,7 +102,7 @@
                     </tr>
                     {{-- Expandable assignment detail row --}}
                     <tr id="accAssignRow{{ $acc->id }}" class="d-none">
-                        <td colspan="8" class="bg-light p-0">
+                        <td colspan="10" class="bg-light p-0">
                             <div class="p-3">
                                 <h6 class="fw-semibold small mb-2"><i class="bi bi-people me-1"></i>Active Assignments for {{ $acc->name }}</h6>
                                 @if($acc->activeAssignments && $acc->activeAssignments->count() > 0)
@@ -140,7 +153,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="8" class="text-center text-muted py-4">No accessories found.</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-4">No accessories found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -283,6 +296,7 @@ function toggleAccAssignments(id) {
 function editAccessory(a) {
     const form = document.getElementById('editAccessoryForm');
     form.action = `/admin/itam/accessories/${a.id}`;
+    if (form.querySelector('[name=asset_code]')) form.querySelector('[name=asset_code]').value = a.asset_code || '';
     form.querySelector('[name=name]').value = a.name || '';
     form.querySelector('[name=category]').value = a.category || '';
     form.querySelector('[name=quantity_total]').value = a.quantity_total || 0;

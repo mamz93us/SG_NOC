@@ -72,8 +72,9 @@
         <p>{{ $workflow->payload['reason'] ?? $workflow->description }}</p>
     </div>
 
+    @if($devices->count() > 0)
     <div class="section">
-        <div class="section-title">Disposed Assets ({{ $devices->count() }})</div>
+        <div class="section-title">Disposed Devices ({{ $devices->count() }})</div>
         <table>
             <thead>
                 <tr>
@@ -99,6 +100,37 @@
             </tbody>
         </table>
     </div>
+    @endif
+
+    @if($accessories->count() > 0)
+    <div class="section">
+        <div class="section-title">Disposed Accessories ({{ $accessories->count() }})</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Asset Code</th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Quantity</th>
+                    <th>Branch</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($accessories as $i => $a)
+                    <tr>
+                        <td>{{ $i + 1 }}</td>
+                        <td><strong>{{ $a->asset_code ?? '—' }}</strong></td>
+                        <td>{{ $a->name }}</td>
+                        <td>{{ $a->category ?: '—' }}</td>
+                        <td>{{ $a->quantity_total }}</td>
+                        <td>{{ $a->branch?->name ?? '—' }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endif
 
     <div class="section">
         <div class="section-title">Approval Chain</div>

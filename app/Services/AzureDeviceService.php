@@ -166,6 +166,8 @@ class AzureDeviceService
             'raw_data' => $data,
         ])->save();
 
+        $this->syncLinkedDeviceName($azDev);
+
         $autoLinked = false;
         $autoAssigned = false;
 
@@ -207,10 +209,54 @@ class AzureDeviceService
                 'link_status' => $status,
             ]);
 
+            $this->syncLinkedDeviceName($azDev);
+
             return true;
         }
 
         return false;
+    }
+
+    /**
+     * Push the latest AzureDevice display_name into the linked ITAM Device.name.
+     * No-op if the AzureDevice isn't linked, has no display_name, or names already
+     * match. Logs the previous name to AssetHistory so admins can audit the rename.
+     */
+    private function syncLinkedDeviceName(AzureDevice $azDev): void
+    {
+        if (! $azDev->device_id || $azDev->link_status !== 'linked') {
+            return;
+        }
+
+        $newName = trim((string) $azDev->display_name);
+        if ($newName === '') {
+            return;
+        }
+
+        $device = Device::find($azDev->device_id);
+        if (! $device) {
+            return;
+        }
+
+        $oldName = (string) $device->name;
+        if ($oldName === $newName) {
+            return;
+        }
+
+        AssetHistory::record(
+            $device,
+            'updated',
+            "Name changed from '{$oldName}' to '{$newName}' via Azure sync.",
+            [
+                'azure_device_id' => $azDev->azure_device_id,
+                'old_name' => $oldName,
+                'new_name' => $newName,
+            ]
+        );
+
+        $device->update(['name' => $newName]);
+
+        Log::info("AzureDeviceService: renamed Device #{$device->id} '{$oldName}' → '{$newName}' from Azure display_name.");
     }
 
     /**

@@ -38,8 +38,9 @@
                 </div>
             </div>
 
+            @if($devices->isNotEmpty())
             <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white"><strong>Assets ({{ $devices->count() }})</strong></div>
+                <div class="card-header bg-white"><strong><i class="bi bi-laptop me-1"></i>Devices ({{ $devices->count() }})</strong></div>
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0">
                         <thead class="table-light">
@@ -59,6 +60,31 @@
                     </table>
                 </div>
             </div>
+            @endif
+
+            @if($accessories->isNotEmpty())
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white"><strong><i class="bi bi-box-seam me-1"></i>Accessories ({{ $accessories->count() }})</strong></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr><th>Asset Code</th><th>Name</th><th>Category</th><th>Status</th><th class="text-center">Qty</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach($accessories as $a)
+                                <tr>
+                                    <td><code>{{ $a->asset_code ?? '—' }}</code></td>
+                                    <td>{{ $a->name }}</td>
+                                    <td><span class="badge bg-secondary">{{ $a->category ?: '—' }}</span></td>
+                                    <td><span class="badge {{ $a->status === 'scrapped' ? 'bg-danger' : 'bg-success' }}">{{ ucfirst($a->status ?: 'active') }}</span></td>
+                                    <td class="text-center">{{ $a->quantity_total }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            @endif
 
             @if(!empty($workflow->payload['photos']))
                 <div class="card border-0 shadow-sm mb-4">
