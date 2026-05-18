@@ -24,9 +24,19 @@
                 <strong>1. Search & Select Items to Scrap</strong>
             </div>
             <div class="card-body">
-                <form method="GET" class="mb-3" @submit.prevent>
-                    <input type="text" name="q" value="{{ request('q') }}" class="form-control" placeholder="Search by asset code, name, serial number, or category..." onchange="this.form.submit()">
-                </form>
+                <div class="input-group mb-3">
+                    <input type="text" id="scrapSearchInput" value="{{ request('q') }}" class="form-control"
+                           placeholder="Search by asset code, name, serial number, or category..."
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();scrapSearchGo();}">
+                    <button type="button" class="btn btn-outline-secondary" onclick="scrapSearchGo()">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                    @if(request('q'))
+                        <a href="{{ route('admin.itam.scrap.create') }}" class="btn btn-outline-secondary" title="Clear search">
+                            <i class="bi bi-x-lg"></i>
+                        </a>
+                    @endif
+                </div>
 
                 <h6 class="text-uppercase text-muted small fw-semibold mb-2"><i class="bi bi-laptop me-1"></i>Devices</h6>
                 <div class="table-responsive mb-3" style="max-height:300px;overflow:auto">
@@ -151,6 +161,17 @@ function scrapForm() {
             }
         }
     };
+}
+
+function scrapSearchGo() {
+    const q = document.getElementById('scrapSearchInput').value.trim();
+    const url = new URL(window.location.href);
+    if (q) {
+        url.searchParams.set('q', q);
+    } else {
+        url.searchParams.delete('q');
+    }
+    window.location.href = url.toString();
 }
 </script>
 @endsection
