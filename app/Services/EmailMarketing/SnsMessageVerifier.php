@@ -41,6 +41,14 @@ class SnsMessageVerifier
             return false;
         }
 
+        // Capture the SubscribeURL up front so it's recoverable from logs
+        // even if the outbound fetch below fails (firewall, DNS, TLS, etc.) —
+        // the operator can then paste it into the SNS console manually.
+        Log::info('SNS SubscribeURL received', [
+            'topic' => $message['TopicArn'] ?? null,
+            'subscribe_url' => (string) $url,
+        ]);
+
         try {
             $ctx = stream_context_create(['http' => ['timeout' => 15]]);
             $body = @file_get_contents((string) $url, false, $ctx);
