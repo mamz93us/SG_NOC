@@ -63,12 +63,13 @@
             @endif
 
             @if($accessories->isNotEmpty())
+            @php($accessoryQty = $workflow->payload['accessory_qty'] ?? [])
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white"><strong><i class="bi bi-box-seam me-1"></i>Accessories ({{ $accessories->count() }})</strong></div>
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0">
                         <thead class="table-light">
-                            <tr><th>Asset Code</th><th>Name</th><th>Category</th><th>Status</th><th class="text-center">Qty</th></tr>
+                            <tr><th>Asset Code</th><th>Name</th><th>Category</th><th>Status</th><th class="text-center">Qty to Scrap</th><th class="text-center">In Stock</th></tr>
                         </thead>
                         <tbody>
                             @foreach($accessories as $a)
@@ -77,7 +78,8 @@
                                     <td>{{ $a->name }}</td>
                                     <td><span class="badge bg-secondary">{{ $a->category ?: '—' }}</span></td>
                                     <td><span class="badge {{ $a->status === 'scrapped' ? 'bg-danger' : 'bg-success' }}">{{ ucfirst($a->status ?: 'active') }}</span></td>
-                                    <td class="text-center">{{ $a->quantity_total }}</td>
+                                    <td class="text-center"><strong>{{ $accessoryQty[$a->id] ?? $a->quantity_total }}</strong></td>
+                                    <td class="text-center">{{ $a->quantity_available }} / {{ $a->quantity_total }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

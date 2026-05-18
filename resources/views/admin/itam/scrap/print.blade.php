@@ -103,6 +103,7 @@
     @endif
 
     @if($accessories->count() > 0)
+    @php($accessoryQty = $workflow->payload['accessory_qty'] ?? [])
     <div class="section">
         <div class="section-title">Disposed Accessories ({{ $accessories->count() }})</div>
         <table>
@@ -112,7 +113,7 @@
                     <th>Asset Code</th>
                     <th>Name</th>
                     <th>Category</th>
-                    <th>Quantity</th>
+                    <th>Qty Disposed</th>
                     <th>Branch</th>
                 </tr>
             </thead>
@@ -123,7 +124,7 @@
                         <td><strong>{{ $a->asset_code ?? '—' }}</strong></td>
                         <td>{{ $a->name }}</td>
                         <td>{{ $a->category ?: '—' }}</td>
-                        <td>{{ $a->quantity_total }}</td>
+                        <td>{{ $accessoryQty[$a->id] ?? $a->quantity_total }}</td>
                         <td>{{ $a->branch?->name ?? '—' }}</td>
                     </tr>
                 @endforeach

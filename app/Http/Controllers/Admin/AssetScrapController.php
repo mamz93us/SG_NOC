@@ -73,6 +73,8 @@ class AssetScrapController extends Controller
             'device_ids.*' => 'integer|exists:devices,id',
             'accessory_ids' => 'nullable|array',
             'accessory_ids.*' => 'integer|exists:accessories,id',
+            'accessory_qty' => 'nullable|array',
+            'accessory_qty.*' => 'integer|min:1',
             'reason' => 'required|string|max:2000',
             'disposal_method' => 'required|in:recycle,donate,destroy,sell,return_to_supplier',
             'photos' => 'nullable|array|max:5',
@@ -81,6 +83,7 @@ class AssetScrapController extends Controller
 
         $deviceIds = $validated['device_ids'] ?? [];
         $accessoryIds = $validated['accessory_ids'] ?? [];
+        $accessoryQtyInput = $validated['accessory_qty'] ?? [];
 
         if (empty($deviceIds) && empty($accessoryIds)) {
             return back()
@@ -108,6 +111,22 @@ class AssetScrapController extends Controller
             return back()->with('error', 'One or more accessories are already scrapped or retired.');
         }
 
+        // Build {accessory_id => qty_to_scrap}, defaulting to 1, capped at
+        // quantity_available so a user can't request to scrap more than exists.
+        $accessoryQty = [];
+        foreach ($accessories as $accessory) {
+            $requested = (int) ($accessoryQtyInput[$accessory->id] ?? 1);
+            if ($requested < 1) {
+                $requested = 1;
+            }
+            if ($requested > $accessory->quantity_available) {
+                return back()
+                    ->withInput()
+                    ->with('error', "Cannot scrap {$requested} of '{$accessory->name}' — only {$accessory->quantity_available} available.");
+            }
+            $accessoryQty[$accessory->id] = $requested;
+        }
+
         $itemCount = $devices->count() + $accessories->count();
         $branchId = $devices->first()->branch_id ?? $accessories->first()->branch_id ?? null;
 
@@ -125,7 +144,7 @@ class AssetScrapController extends Controller
             ->all();
 
         $workflow = DB::transaction(function () use (
-            $validated, $devices, $deviceIds, $accessoryIds,
+            $validated, $devices, $deviceIds, $accessoryIds, $accessoryQty,
             $assetCodes, $photoPaths, $branchId, $title
         ) {
             $wf = WorkflowRequest::create([
@@ -135,6 +154,7 @@ class AssetScrapController extends Controller
                 'payload' => [
                     'device_ids' => array_values($deviceIds),
                     'accessory_ids' => array_values($accessoryIds),
+                    'accessory_qty' => $accessoryQty,
                     'asset_codes' => $assetCodes,
                     'reason' => $validated['reason'],
                     'disposal_method' => $validated['disposal_method'],
@@ -267,12 +287,32 @@ class AssetScrapController extends Controller
                     );
                 }
 
+                $accessoryQtyMap = $workflow->payload['accessory_qty'] ?? [];
                 if (! empty($accessoryIds)) {
-                    Accessory::whereIn('id', $accessoryIds)->update([
-                        'status' => 'scrapped',
-                        'quantity_available' => 0,
-                        'scrap_workflow_id' => $workflow->id,
-                    ]);
+                    $scrapAccessories = Accessory::whereIn('id', $accessoryIds)
+                        ->lockForUpdate()
+                        ->get();
+
+                    foreach ($scrapAccessories as $accessory) {
+                        $qty = (int) ($accessoryQtyMap[$accessory->id] ?? $accessory->quantity_available);
+                        $qty = max(1, min($qty, $accessory->quantity_available));
+
+                        $newAvailable = max(0, $accessory->quantity_available - $qty);
+                        $newTotal = max(0, $accessory->quantity_total - $qty);
+
+                        $updates = [
+                            'quantity_total' => $newTotal,
+                            'quantity_available' => $newAvailable,
+                            'scrap_workflow_id' => $workflow->id,
+                        ];
+
+                        // Only mark the whole row as scrapped if no units remain.
+                        if ($newTotal === 0) {
+                            $updates['status'] = 'scrapped';
+                        }
+
+                        $accessory->update($updates);
+                    }
                 }
             } else {
                 $workflow->update(['current_step' => $nextStep]);

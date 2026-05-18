@@ -72,7 +72,7 @@
 
                 <h6 class="text-uppercase text-muted small fw-semibold mb-2"><i class="bi bi-box-seam me-1"></i>Accessories</h6>
                 <div class="table-responsive" style="max-height:300px;overflow:auto">
-                    <table class="table table-sm table-hover">
+                    <table class="table table-sm table-hover align-middle">
                         <thead class="table-light">
                             <tr>
                                 <th style="width:40px"></th>
@@ -80,21 +80,33 @@
                                 <th>Name</th>
                                 <th>Category</th>
                                 <th class="text-center">Available</th>
+                                <th class="text-center" style="width:120px">Qty to Scrap</th>
                                 <th>Branch</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($accessories as $a)
                                 <tr>
-                                    <td><input type="checkbox" name="accessory_ids[]" value="{{ $a->id }}" class="form-check-input" x-model="accessoriesSelected"></td>
+                                    <td><input type="checkbox" name="accessory_ids[]" value="{{ $a->id }}" class="form-check-input"
+                                               x-model="accessoriesSelected"
+                                               @change="if($event.target.checked && !accessoryQty['{{ $a->id }}']) accessoryQty['{{ $a->id }}'] = 1"></td>
                                     <td><code>{{ $a->asset_code ?? '—' }}</code></td>
                                     <td>{{ $a->name }}</td>
                                     <td><span class="badge bg-secondary">{{ $a->category ?: '—' }}</span></td>
                                     <td class="text-center">{{ $a->quantity_available }} / {{ $a->quantity_total }}</td>
+                                    <td class="text-center">
+                                        <input type="number"
+                                               name="accessory_qty[{{ $a->id }}]"
+                                               min="1" max="{{ $a->quantity_available }}"
+                                               value="1"
+                                               class="form-control form-control-sm text-center"
+                                               x-model.number="accessoryQty['{{ $a->id }}']"
+                                               :disabled="!accessoriesSelected.includes('{{ $a->id }}')">
+                                    </td>
                                     <td>{{ $a->branch?->name ?? '—' }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="text-center py-3 text-muted">No accessories found.</td></tr>
+                                <tr><td colspan="7" class="text-center py-3 text-muted">No accessories found.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -151,12 +163,19 @@ function scrapForm() {
     return {
         selected: [],
         accessoriesSelected: [],
+        accessoryQty: {},
         onSubmit(e) {
             const total = this.selected.length + this.accessoriesSelected.length;
             if (total === 0) {
                 e.preventDefault();
                 alert('Please select at least one device or accessory to scrap.');
-            } else if (!confirm(`Submit scrap request for ${total} item(s)?`)) {
+                return;
+            }
+            const accQtyTotal = this.accessoriesSelected.reduce((sum, id) => sum + (parseInt(this.accessoryQty[id]) || 1), 0);
+            const msg = this.accessoriesSelected.length
+                ? `Submit scrap for ${this.selected.length} device(s) and ${accQtyTotal} accessory unit(s) across ${this.accessoriesSelected.length} row(s)?`
+                : `Submit scrap request for ${total} item(s)?`;
+            if (!confirm(msg)) {
                 e.preventDefault();
             }
         }
