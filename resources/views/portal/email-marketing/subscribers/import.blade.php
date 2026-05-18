@@ -13,6 +13,18 @@
     @endif
 
     @if (empty($storedPath ?? null))
+        <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <i class="bi bi-info-circle me-1"></i>
+                <strong>Not sure of the format?</strong>
+                Download our template, fill it in with your subscribers, then upload it below.
+            </div>
+            <a href="{{ route('portal.marketing.subscribers.import.template') }}"
+               class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-download me-1"></i>Download CSV template
+            </a>
+        </div>
+
         <form class="card shadow-sm" method="POST" action="{{ route('portal.marketing.subscribers.import.map') }}" enctype="multipart/form-data">
             @csrf
             <div class="card-body">
@@ -30,7 +42,11 @@
                     <div class="col-md-6">
                         <label class="form-label">File</label>
                         <input type="file" name="file" class="form-control" accept=".csv,.txt,.xlsx,.xls" required>
-                        <small class="text-muted">Up to 20 MB.</small>
+                        <small class="text-muted">
+                            Accepted: CSV, XLSX, XLS. Up to 20 MB.
+                            Expected columns: <code>email</code>, <code>first_name</code>, <code>last_name</code>
+                            (only <code>email</code> is required).
+                        </small>
                     </div>
                 </div>
             </div>

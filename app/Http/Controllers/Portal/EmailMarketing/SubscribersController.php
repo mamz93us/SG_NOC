@@ -107,6 +107,29 @@ class SubscribersController extends Controller
         ]);
     }
 
+    /**
+     * Generates a starter CSV with the expected columns + a few example
+     * rows so marketing users know exactly what shape to bring back.
+     * No filesystem write — streamed inline.
+     */
+    public function importTemplate(): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        return response()->streamDownload(function () {
+            $out = fopen('php://output', 'w');
+            // BOM so Excel opens UTF-8 cleanly
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, ['email', 'first_name', 'last_name']);
+            fputcsv($out, ['ahmed.example@samirgroup.com', 'Ahmed', 'Saleh']);
+            fputcsv($out, ['sara.example@samirgroup.com',  'Sara',  'Hassan']);
+            fputcsv($out, ['leila.example@samirgroup.com', 'Leila', 'Mansour']);
+            fclose($out);
+        }, 'subscribers-import-template.csv', [
+            'Content-Type'              => 'text/csv; charset=UTF-8',
+            'Cache-Control'             => 'no-store, no-cache, must-revalidate',
+            'Content-Disposition'       => 'attachment; filename="subscribers-import-template.csv"',
+        ]);
+    }
+
     public function importMap(ImportSubscribersRequest $request, CsvSubscriberImporter $importer)
     {
         // Store the file temporarily and return mapping screen.

@@ -200,9 +200,10 @@ Route::prefix('portal')->name('portal.')->group(function () {
             Route::resource('lists', EmListsController::class);
 
             // Subscribers + import — import routes must precede the resource binding for /import
-            Route::get('subscribers/import',      [EmSubscribersController::class, 'importForm'])->name('subscribers.import.form');
-            Route::post('subscribers/import/map', [EmSubscribersController::class, 'importMap'])->name('subscribers.import.map');
-            Route::post('subscribers/import',     [EmSubscribersController::class, 'importStore'])->name('subscribers.import.store');
+            Route::get('subscribers/import',           [EmSubscribersController::class, 'importForm'])->name('subscribers.import.form');
+            Route::get('subscribers/import/template',  [EmSubscribersController::class, 'importTemplate'])->name('subscribers.import.template');
+            Route::post('subscribers/import/map',      [EmSubscribersController::class, 'importMap'])->name('subscribers.import.map');
+            Route::post('subscribers/import',          [EmSubscribersController::class, 'importStore'])->name('subscribers.import.store');
             Route::resource('subscribers', EmSubscribersController::class);
 
             Route::resource('tags', EmTagsController::class)->except(['show']);
