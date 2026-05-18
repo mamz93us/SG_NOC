@@ -86,15 +86,31 @@
                     <td class="text-end">
                         <button class="btn btn-sm btn-outline-primary me-1"
                             data-bs-toggle="modal"
-                            data-bs-target="#editUserModal{{ $user->id }}">
+                            data-bs-target="#editUserModal{{ $user->id }}"
+                            title="Edit user">
                             <i class="bi bi-pencil"></i>
                         </button>
+                        @can('manage-permissions')
+                            @if($user->role === 'super_admin')
+                                <button class="btn btn-sm btn-outline-secondary me-1" disabled
+                                    title="Super Admin bypasses all overrides">
+                                    <i class="bi bi-shield-lock"></i>
+                                </button>
+                            @else
+                                <a href="{{ route('admin.users.permissions.edit', $user) }}"
+                                    class="btn btn-sm btn-outline-info me-1"
+                                    title="Manage custom permissions">
+                                    <i class="bi bi-shield-lock"></i>
+                                </a>
+                            @endif
+                        @endcan
                         @if($user->id !== auth()->id())
                         <form method="POST" action="{{ route('admin.users.destroy', $user) }}"
                             class="d-inline"
                             onsubmit="return confirm('Delete {{ $user->name }}?')">
                             @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                title="Delete user">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </form>

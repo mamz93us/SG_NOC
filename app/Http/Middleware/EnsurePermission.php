@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\RolePermission;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,20 +17,21 @@ class EnsurePermission
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return redirect()->route('login');
         }
 
         // super_admin has implicit access to every permission. This matches
         // the role's intent (name = "can do everything") and protects against
         // accidental lockouts when a permissions-matrix save wipes a row that
-        // wasn't ticked in the UI.
+        // wasn't ticked in the UI. User::hasPermission() also short-circuits
+        // here, but checking the role inline avoids the override-cache lookup.
         if ($user->role === 'super_admin') {
             return $next($request);
         }
 
         foreach ($permissions as $permission) {
-            if (RolePermission::roleHas($user->role, $permission)) {
+            if ($user->hasPermission($permission)) {
                 return $next($request);
             }
         }
@@ -40,15 +40,16 @@ class EnsurePermission
         try {
             \App\Models\ActivityLog::create([
                 'model_type' => \App\Models\User::class,
-                'model_id'   => $user->id,
-                'action'     => 'permission_denied',
-                'changes'    => [
+                'model_id' => $user->id,
+                'action' => 'permission_denied',
+                'changes' => [
                     'required' => $permissions,
-                    'role'     => $user->role,
-                    'path'     => $request->path(),
-                    'method'   => $request->method(),
+                    'role' => $user->role,
+                    'overrides_present' => $user->permissions()->exists(),
+                    'path' => $request->path(),
+                    'method' => $request->method(),
                 ],
-                'user_id'    => $user->id,
+                'user_id' => $user->id,
             ]);
         } catch (\Throwable) {
             // Never let logging failures bubble up to a 500.

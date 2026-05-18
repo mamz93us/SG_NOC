@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -10,6 +11,9 @@ class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
+
+    /** In-request cache: user_id -> [slug => 'grant'|'deny'] */
+    private static array $overrideCache = [];
 
     protected $fillable = [
         'name',
@@ -31,13 +35,13 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at'      => 'datetime',
-            'password'               => 'hashed',
-            'two_factor_secret'      => 'encrypted',
-            'two_factor_enabled'     => 'boolean',
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_enabled' => 'boolean',
             'two_factor_confirmed_at' => 'datetime',
-            'dark_mode'               => 'boolean',
-            'last_login_at'           => 'datetime',
+            'dark_mode' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
 
@@ -60,12 +64,12 @@ class User extends Authenticatable
      */
     public function generateTwoFactorSecret(): string
     {
-        $google2fa = new \PragmaRX\Google2FA\Google2FA();
+        $google2fa = new \PragmaRX\Google2FA\Google2FA;
         $secret = $google2fa->generateSecretKey();
 
         $this->update([
-            'two_factor_secret'       => $secret,
-            'two_factor_enabled'      => false,
+            'two_factor_secret' => $secret,
+            'two_factor_enabled' => false,
             'two_factor_confirmed_at' => null,
         ]);
 
@@ -123,14 +127,68 @@ class User extends Authenticatable
 
     public static function roleLabel(string $role): string
     {
-        return match($role) {
-            'super_admin'  => 'Super Admin',
-            'admin'        => 'Admin',
-            'hr'           => 'HR',
-            'viewer'       => 'Viewer',
+        return match ($role) {
+            'super_admin' => 'Super Admin',
+            'admin' => 'Admin',
+            'hr' => 'HR',
+            'viewer' => 'Viewer',
             'browser_user' => 'Browser User',
-            'marketing'    => 'Marketing',
-            default        => ucfirst($role),
+            'marketing' => 'Marketing',
+            default => ucfirst($role),
         };
+    }
+
+    // ── Per-user permission overrides ───────────────────────────
+
+    public function permissions(): HasMany
+    {
+        return $this->hasMany(UserPermission::class);
+    }
+
+    /**
+     * Resolve permission for this user. Precedence:
+     *   1. super_admin → always true
+     *   2. explicit deny override → false
+     *   3. explicit grant override → true
+     *   4. fall back to role default
+     */
+    public function hasPermission(string $slug): bool
+    {
+        if ($this->role === 'super_admin') {
+            return true;
+        }
+
+        $overrides = $this->loadOverrideMap();
+        if (isset($overrides[$slug])) {
+            return $overrides[$slug] === 'grant';
+        }
+
+        return RolePermission::roleHas($this->role ?? '', $slug);
+    }
+
+    /**
+     * @return array<string,string> slug => 'grant'|'deny'
+     */
+    private function loadOverrideMap(): array
+    {
+        if (! isset(static::$overrideCache[$this->id])) {
+            static::$overrideCache[$this->id] = $this->permissions()
+                ->pluck('effect', 'permission')
+                ->all();
+        }
+
+        return static::$overrideCache[$this->id];
+    }
+
+    /**
+     * Clear the in-request override cache for this user (or all users).
+     */
+    public static function clearOverrideCache(?int $userId = null): void
+    {
+        if ($userId === null) {
+            static::$overrideCache = [];
+        } else {
+            unset(static::$overrideCache[$userId]);
+        }
     }
 }
