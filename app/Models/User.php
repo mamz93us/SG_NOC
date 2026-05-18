@@ -172,9 +172,16 @@ class User extends Authenticatable
     private function loadOverrideMap(): array
     {
         if (! isset(static::$overrideCache[$this->id])) {
-            static::$overrideCache[$this->id] = $this->permissions()
-                ->pluck('effect', 'permission')
-                ->all();
+            try {
+                static::$overrideCache[$this->id] = $this->permissions()
+                    ->pluck('effect', 'permission')
+                    ->all();
+            } catch (\Throwable) {
+                // Table may not exist yet (fresh deploy before migrate, or
+                // SQLite dev DB without this migration applied). Treat as
+                // "no overrides" so role-only behaviour is preserved.
+                static::$overrideCache[$this->id] = [];
+            }
         }
 
         return static::$overrideCache[$this->id];

@@ -9,6 +9,18 @@
     </button>
 </div>
 
+@if($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show">
+        <strong><i class="bi bi-exclamation-triangle-fill me-1"></i> Could not save:</strong>
+        <ul class="mb-0 mt-1">
+            @foreach($errors->all() as $err)
+                <li>{{ $err }}</li>
+            @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
@@ -259,7 +271,12 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
-                        <input type="password" name="password" class="form-control" required placeholder="Min 8 characters">
+                        <input type="password" name="password" class="form-control" required
+                            placeholder="Min 12 chars, mixed case, number, symbol">
+                        <div class="form-text">
+                            At least 12 characters, must include upper &amp; lower case,
+                            a number, a symbol, and must not appear in known breach lists.
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
