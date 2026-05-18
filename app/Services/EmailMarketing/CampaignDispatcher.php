@@ -220,10 +220,18 @@ class CampaignDispatcher
         // Mark queued rows whose subscriber email is on suppression list
         // (or who has flipped status since the campaign was prepped).
         DB::transaction(function () use ($campaign) {
-            $queued = EmailCampaignSend::where('email_campaign_id', $campaign->id)
-                ->where('status', 'queued')
+            // Qualify every column with its table — both email_campaign_sends and
+            // email_subscribers have a `status` column, so an unqualified `where('status', …)`
+            // throws "Column 'status' is ambiguous" once the join is applied.
+            $queued = EmailCampaignSend::query()
                 ->join('email_subscribers', 'email_subscribers.id', '=', 'email_campaign_sends.email_subscriber_id')
-                ->select('email_campaign_sends.id as send_id', 'email_subscribers.email', 'email_subscribers.status')
+                ->where('email_campaign_sends.email_campaign_id', $campaign->id)
+                ->where('email_campaign_sends.status', 'queued')
+                ->select(
+                    'email_campaign_sends.id as send_id',
+                    'email_subscribers.email',
+                    'email_subscribers.status as subscriber_status'
+                )
                 ->get();
 
             $emails = $queued->pluck('email')->all();
@@ -235,12 +243,12 @@ class CampaignDispatcher
             $suppressedSet = array_flip($suppressed);
 
             foreach ($queued as $row) {
-                if (isset($suppressedSet[$row->email]) || $row->status !== 'subscribed') {
+                if (isset($suppressedSet[$row->email]) || $row->subscriber_status !== 'subscribed') {
                     EmailCampaignSend::where('id', $row->send_id)->update([
                         'status' => 'suppressed',
                         'error_message' => isset($suppressedSet[$row->email])
                             ? 'On global suppression list'
-                            : "Subscriber status: {$row->status}",
+                            : "Subscriber status: {$row->subscriber_status}",
                     ]);
                 }
             }
