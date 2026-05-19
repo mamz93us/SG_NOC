@@ -12,7 +12,7 @@ class EmailCampaign extends Model
     protected $fillable = [
         'name', 'subject', 'preview_text',
         'from_email', 'from_name', 'reply_to',
-        'email_template_id', 'email_list_id', 'email_segment_id',
+        'email_template_id', 'email_list_id', 'email_segment_id', 'course_id',
         'status', 'scheduled_at', 'started_at', 'sent_at',
         'total_recipients', 'total_sent', 'total_delivered',
         'total_opens', 'total_unique_opens',
@@ -40,6 +40,11 @@ class EmailCampaign extends Model
     public function segment(): BelongsTo
     {
         return $this->belongsTo(EmailSegment::class, 'email_segment_id');
+    }
+
+    public function course(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Training\Course::class, 'course_id');
     }
 
     public function sends(): HasMany

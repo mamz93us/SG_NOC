@@ -2,10 +2,12 @@
 
 namespace App\Services\EmailMarketing;
 
+use App\Models\EmailMarketing\EmailCampaign;
 use App\Models\EmailMarketing\EmailCampaignSend;
 use App\Models\EmailMarketing\EmailList;
 use App\Models\EmailMarketing\EmailSubscriber;
 use App\Models\Setting;
+use App\Models\Training\CourseCertificate;
 use Illuminate\Support\Facades\URL;
 
 /**
@@ -16,9 +18,9 @@ use Illuminate\Support\Facades\URL;
  */
 class MergeTagRenderer
 {
-    public function render(string $html, EmailSubscriber $subscriber, ?EmailCampaignSend $send = null, ?EmailList $list = null): string
+    public function render(string $html, EmailSubscriber $subscriber, ?EmailCampaignSend $send = null, ?EmailList $list = null, ?EmailCampaign $campaign = null): string
     {
-        $tags = $this->buildTagMap($subscriber, $send, $list);
+        $tags = $this->buildTagMap($subscriber, $send, $list, $campaign);
 
         return preg_replace_callback(
             '/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/',
@@ -36,7 +38,7 @@ class MergeTagRenderer
      * subscriber's `attributes` JSON column, exposed as
      * `{{attributes.country}}` (or just `{{country}}` if no collision).
      */
-    private function buildTagMap(EmailSubscriber $subscriber, ?EmailCampaignSend $send, ?EmailList $list): array
+    private function buildTagMap(EmailSubscriber $subscriber, ?EmailCampaignSend $send, ?EmailList $list, ?EmailCampaign $campaign = null): array
     {
         $base = [
             'first_name' => (string) ($subscriber->first_name ?? ''),
@@ -44,6 +46,7 @@ class MergeTagRenderer
             'email' => (string) $subscriber->email,
             'full_name' => $subscriber->fullName(),
             'unsubscribe_url' => $this->unsubscribeUrl($subscriber, $list),
+            'certificate_url' => $this->certificateUrl($subscriber, $campaign),
         ];
 
         $attrs = is_array($subscriber->attributes) ? $subscriber->attributes : [];
@@ -56,6 +59,25 @@ class MergeTagRenderer
         }
 
         return $base;
+    }
+
+    /**
+     * Resolve {{certificate_url}} per recipient. Requires the campaign to
+     * have a course_id set; otherwise returns an empty string so authors
+     * can include the tag in templates without it crashing for non-course
+     * campaigns.
+     */
+    public function certificateUrl(EmailSubscriber $subscriber, ?EmailCampaign $campaign): string
+    {
+        if (! $campaign || ! $campaign->course_id) {
+            return '';
+        }
+
+        $cert = CourseCertificate::where('course_id', $campaign->course_id)
+            ->whereRaw('LOWER(email) = ?', [strtolower((string) $subscriber->email)])
+            ->first();
+
+        return $cert ? $cert->publicUrl() : '';
     }
 
     /**

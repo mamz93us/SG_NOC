@@ -10,6 +10,7 @@ use App\Models\EmailMarketing\EmailSegment;
 use App\Models\EmailMarketing\EmailSubscriber;
 use App\Models\EmailMarketing\EmailSuppression;
 use App\Models\Setting;
+use App\Models\Training\CourseCertificate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -143,6 +144,13 @@ class CampaignDispatcher
 
     private function resolveRecipientIds(EmailCampaign $campaign): array
     {
+        // Course campaigns: recipients are the holders of certificates for the
+        // course, regardless of any list/segment selection. Orphaned certificates
+        // (employee_id IS NULL) are skipped — they have no validated recipient.
+        if ($campaign->course_id) {
+            return $this->resolveCourseRecipients($campaign);
+        }
+
         if ($campaign->email_list_id) {
             $list = EmailList::find($campaign->email_list_id);
             if (! $list) {
@@ -163,6 +171,41 @@ class CampaignDispatcher
         }
 
         return [];
+    }
+
+    /**
+     * For a course campaign: ensure an EmailSubscriber exists for each
+     * certificate holder and return their subscriber ids. Mirrors the dynamic
+     * list pattern — auto-creates as 'subscribed' with source='certificate'.
+     */
+    private function resolveCourseRecipients(EmailCampaign $campaign): array
+    {
+        $certs = CourseCertificate::where('course_id', $campaign->course_id)
+            ->whereNotNull('employee_id')
+            ->get(['id', 'email']);
+
+        if ($certs->isEmpty()) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($certs as $cert) {
+            $email = strtolower(trim((string) $cert->email));
+            if ($email === '') {
+                continue;
+            }
+            $sub = EmailSubscriber::firstOrCreate(
+                ['email' => $email],
+                [
+                    'status'       => 'subscribed',
+                    'source'       => 'certificate',
+                    'confirmed_at' => now(),
+                ]
+            );
+            $ids[$sub->id] = true;
+        }
+
+        return array_keys($ids);
     }
 
     /**

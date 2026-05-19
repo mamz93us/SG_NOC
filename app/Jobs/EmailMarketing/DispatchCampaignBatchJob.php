@@ -4,6 +4,7 @@ namespace App\Jobs\EmailMarketing;
 
 use App\Models\EmailMarketing\EmailCampaign;
 use App\Models\EmailMarketing\EmailCampaignSend;
+use App\Models\Training\CourseCertificate;
 use App\Services\EmailMarketing\MergeTagRenderer;
 use App\Services\EmailMarketing\SesService;
 use App\Services\EmailMarketing\SuppressionManager;
@@ -71,7 +72,7 @@ class DispatchCampaignBatchJob implements ShouldQueue
             }
 
             try {
-                $html = $renderer->render($renderedHtml, $subscriber, $send, $campaign->list);
+                $html = $renderer->render($renderedHtml, $subscriber, $send, $campaign->list, $campaign);
                 $subject = $campaign->subject;
 
                 $messageId = $ses->sendCampaignEmail($send, $html, $subject);
@@ -82,6 +83,14 @@ class DispatchCampaignBatchJob implements ShouldQueue
                     'sent_at' => now(),
                 ]);
                 $sentCount++;
+
+                // For course campaigns, stamp sent_at on the certificate so
+                // "include already-sent" filters and progress reports stay accurate.
+                if ($campaign->course_id) {
+                    CourseCertificate::where('course_id', $campaign->course_id)
+                        ->whereRaw('LOWER(email) = ?', [strtolower((string) $subscriber->email)])
+                        ->update(['sent_at' => now()]);
+                }
             } catch (\Throwable $e) {
                 $send->update([
                     'status' => 'failed',

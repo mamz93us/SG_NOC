@@ -45,4 +45,12 @@
             <i class="bi bi-megaphone me-1"></i>Campaigns
         </a>
     </li>
+    @can('view-courses')
+    <li class="nav-item">
+        <a class="nav-link {{ $isOn('portal.marketing.courses') ? 'active' : '' }}"
+           href="{{ route('portal.marketing.courses.index') }}">
+            <i class="bi bi-award me-1"></i>Courses
+        </a>
+    </li>
+    @endcan
 </ul>

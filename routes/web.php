@@ -91,7 +91,10 @@ use App\Http\Controllers\Portal\EmailMarketing\SegmentsController as EmSegmentsC
 use App\Http\Controllers\Portal\EmailMarketing\SubscribersController as EmSubscribersController;
 use App\Http\Controllers\Portal\EmailMarketing\TagsController as EmTagsController;
 use App\Http\Controllers\Portal\EmailMarketing\TemplatesController as EmTemplatesController;
+use App\Http\Controllers\Portal\Training\CourseCertificatesController as EmCourseCertificatesController;
+use App\Http\Controllers\Portal\Training\CoursesController as EmCoursesController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Training\PublicCertificateController;
 use App\Http\Controllers\Public\OptInConfirmController;
 use App\Http\Controllers\Public\UnsubscribeController;
 use App\Http\Controllers\PublicContactController;
@@ -218,6 +221,36 @@ Route::prefix('portal')->name('portal.')->group(function () {
             Route::post('campaigns/{campaign}/duplicate', [EmCampaignsController::class, 'duplicate'])->name('campaigns.duplicate');
             Route::get('campaigns/{campaign}/analytics', [EmCampaignAnalyticsController::class, 'show'])->name('campaigns.analytics');
             Route::resource('campaigns', EmCampaignsController::class);
+
+            // Courses + per-employee completion certificates.
+            // Concrete paths come before wildcards so `/create` and
+            // `/employees/search` aren't swallowed by `{course}`.
+            $view = ['permission:view-courses'];
+            $manage = ['permission:manage-courses'];
+
+            Route::get('courses',                 [EmCoursesController::class, 'index'])->middleware($view)->name('courses.index');
+            Route::get('courses/create',          [EmCoursesController::class, 'create'])->middleware($manage)->name('courses.create');
+            Route::post('courses',                [EmCoursesController::class, 'store'])->middleware($manage)->name('courses.store');
+            Route::get('courses/employees/search', [EmCourseCertificatesController::class, 'employeeSearch'])
+                ->middleware($view)->name('courses.employees.search');
+
+            Route::get('courses/{course}/edit',    [EmCoursesController::class, 'edit'])->middleware($manage)->name('courses.edit');
+            Route::put('courses/{course}',         [EmCoursesController::class, 'update'])->middleware($manage)->name('courses.update');
+            Route::delete('courses/{course}',      [EmCoursesController::class, 'destroy'])->middleware($manage)->name('courses.destroy');
+
+            Route::get('courses/{course}/upload',  [EmCourseCertificatesController::class, 'uploadForm'])->middleware($manage)->name('courses.upload.form');
+            Route::post('courses/{course}/upload', [EmCourseCertificatesController::class, 'uploadStore'])->middleware($manage)->name('courses.upload.store');
+
+            Route::post('courses/{course}/certificates/{certificate}/relink',
+                [EmCourseCertificatesController::class, 'relink'])->middleware($manage)->name('courses.certificates.relink');
+            Route::delete('courses/{course}/certificates/{certificate}',
+                [EmCourseCertificatesController::class, 'destroy'])->middleware($manage)->name('courses.certificates.destroy');
+
+            Route::get('courses/{course}/send',    [EmCourseCertificatesController::class, 'sendForm'])->middleware($manage)->name('courses.send.form');
+            Route::post('courses/{course}/send',   [EmCourseCertificatesController::class, 'sendStore'])->middleware($manage)->name('courses.send.store');
+
+            // Wildcard show MUST be last — it would otherwise swallow `create` etc.
+            Route::get('courses/{course}',         [EmCoursesController::class, 'show'])->middleware($view)->name('courses.show');
         });
 });
 
@@ -227,6 +260,15 @@ Route::prefix('portal')->name('portal.')->group(function () {
 Route::get('email/unsubscribe/{token}', [UnsubscribeController::class, 'show'])->name('email.unsubscribe.show');
 Route::post('email/unsubscribe/{token}', [UnsubscribeController::class, 'confirm'])->name('email.unsubscribe.confirm');
 Route::get('email/opt-in/{token}', [OptInConfirmController::class, 'confirm'])->name('email.opt-in.confirm');
+
+// Public tokenised access to course completion certificates. The token is the
+// only credential; links never expire by design.
+Route::get('certificates/{token}', [PublicCertificateController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->name('certificates.show');
+Route::get('certificates/{token}/file', [PublicCertificateController::class, 'stream'])
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->name('certificates.download');
 
 // SNS event webhook — auth'd by AWS message signature, CSRF-excepted in bootstrap/app.php
 Route::post('api/sns/email-events', [SnsEmailEventsController::class, 'handle'])

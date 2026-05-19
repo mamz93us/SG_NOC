@@ -43,7 +43,7 @@ class SendCampaignEmailJob implements ShouldQueue
         }
 
         try {
-            $html = $renderer->render($renderedHtml, $send->subscriber, $send, $campaign->list);
+            $html = $renderer->render($renderedHtml, $send->subscriber, $send, $campaign->list, $campaign);
             $messageId = $ses->sendCampaignEmail($send, $html, $campaign->subject);
             $send->update([
                 'ses_message_id' => $messageId,

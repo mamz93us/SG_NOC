@@ -100,6 +100,20 @@ return [
             'throw'     => false,
         ],
 
+        // Azure Blob storage for course completion certificates. Files are uploaded
+        // by marketing portal admins and served via tokenised public links to the
+        // employee. Same container as offboarding, separated by 'certificates/'
+        // prefix.
+        'azure_certificates' => [
+            'driver'    => 'azure',
+            'account'   => env('AZURE_BLOB_ACCOUNT'),
+            'key'       => env('AZURE_BLOB_KEY'),
+            'container' => env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups'),
+            'endpoint'  => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'prefix'    => 'certificates/',
+            'throw'     => false,
+        ],
+
     ],
 
     /*
