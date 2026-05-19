@@ -17,13 +17,13 @@
     <div class="row g-3 mb-4">
         @foreach ([
             ['label' => 'Recipients', 'value' => $campaign->total_recipients],
-            ['label' => 'Sent', 'value' => $campaign->total_sent],
-            ['label' => 'Delivered', 'value' => $campaign->total_delivered, 'pct' => $campaign->deliveryRate()],
-            ['label' => 'Opens (unique)', 'value' => $campaign->total_unique_opens, 'pct' => $campaign->openRate()],
-            ['label' => 'Clicks (unique)', 'value' => $campaign->total_unique_clicks, 'pct' => $campaign->clickRate()],
-            ['label' => 'Bounces', 'value' => $campaign->total_bounces, 'pct' => $campaign->bounceRate()],
-            ['label' => 'Complaints', 'value' => $campaign->total_complaints, 'pct' => $campaign->complaintRate()],
-            ['label' => 'Unsubscribes', 'value' => $campaign->total_unsubscribes],
+            ['label' => 'Sent',       'value' => $campaign->total_sent],
+            ['label' => 'Delivered',  'value' => $campaign->total_delivered, 'pct' => $campaign->deliveryRate()],
+            ['label' => 'Opens',      'value' => $campaign->total_opens,     'sub' => $campaign->total_unique_opens.' unique ('.$campaign->openRate().'%)'],
+            ['label' => 'Clicks',     'value' => $campaign->total_clicks,    'sub' => $campaign->total_unique_clicks.' unique ('.$campaign->clickRate().'%)'],
+            ['label' => 'Bounces',    'value' => $campaign->total_bounces,   'pct' => $campaign->bounceRate()],
+            ['label' => 'Complaints', 'value' => $campaign->total_complaints,'pct' => $campaign->complaintRate()],
+            ['label' => 'Unsubscribes','value'=> $campaign->total_unsubscribes],
         ] as $kpi)
         <div class="col-md-3">
             <div class="card shadow-sm">
@@ -34,6 +34,9 @@
                             <small class="text-muted">({{ $kpi['pct'] }}%)</small>
                         @endif
                     </h4>
+                    @if (isset($kpi['sub']))
+                        <small class="text-muted">{{ $kpi['sub'] }}</small>
+                    @endif
                 </div>
             </div>
         </div>

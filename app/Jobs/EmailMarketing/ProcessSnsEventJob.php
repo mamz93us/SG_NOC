@@ -109,8 +109,9 @@ class ProcessSnsEventJob implements ShouldQueue
             $eventRow['country_name'] = $geo['country_name'] ?? null;
         }
 
-        // Write event (insert via Eloquent so casts apply)
-        EmailEvent::create($eventRow);
+        // Write event (insert via Eloquent so casts apply) — keep the model
+        // so the counter logic can read the inserted row's real id.
+        $persistedEvent = EmailEvent::create($eventRow);
 
         if (! $send) {
             Log::info('SNS event for unknown SES message id', ['msg_id' => $messageId, 'type' => $eventType]);
@@ -119,10 +120,10 @@ class ProcessSnsEventJob implements ShouldQueue
         }
 
         // Update send status + campaign counters
-        $this->applyToSendAndCampaign($send, $eventRow, $recipientEmail, $suppressions);
+        $this->applyToSendAndCampaign($send, $persistedEvent, $eventRow, $recipientEmail, $suppressions);
     }
 
-    private function applyToSendAndCampaign(EmailCampaignSend $send, array $event, ?string $recipientEmail, SuppressionManager $suppressions): void
+    private function applyToSendAndCampaign(EmailCampaignSend $send, EmailEvent $persisted, array $event, ?string $recipientEmail, SuppressionManager $suppressions): void
     {
         $campaignId = $send->email_campaign_id;
         $type = $event['event_type'];
@@ -159,23 +160,22 @@ class ProcessSnsEventJob implements ShouldQueue
 
             case 'Open':
                 $this->bump($campaignId, 'total_opens', 1);
-                // Count unique opens by checking for prior Open on this send
-                $hasPrior = EmailEvent::where('email_campaign_send_id', $send->id)
+                // Was this the FIRST open for this send? Count after insert:
+                // 1 means we are the first, anything more means it's a repeat.
+                $count = EmailEvent::where('email_campaign_send_id', $send->id)
                     ->where('event_type', 'Open')
-                    ->where('id', '!=', $event['id'] ?? 0)
-                    ->exists();
-                if (! $hasPrior) {
+                    ->count();
+                if ($count === 1) {
                     $this->bump($campaignId, 'total_unique_opens', 1);
                 }
                 break;
 
             case 'Click':
                 $this->bump($campaignId, 'total_clicks', 1);
-                $hasPrior = EmailEvent::where('email_campaign_send_id', $send->id)
+                $count = EmailEvent::where('email_campaign_send_id', $send->id)
                     ->where('event_type', 'Click')
-                    ->where('id', '!=', $event['id'] ?? 0)
-                    ->exists();
-                if (! $hasPrior) {
+                    ->count();
+                if ($count === 1) {
                     $this->bump($campaignId, 'total_unique_clicks', 1);
                 }
                 break;
