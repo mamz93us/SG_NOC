@@ -15,6 +15,7 @@ class StoreTemplateRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:191'],
+            'editor_type' => ['nullable', \Illuminate\Validation\Rule::in(['unlayer', 'grapesjs'])],
             'preview_text' => ['nullable', 'string', 'max:255'],
             'design_json' => ['nullable', 'string'],
             'rendered_html' => ['nullable', 'string'],

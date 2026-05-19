@@ -109,6 +109,59 @@
                 </div>
             </div>
 
+            {{-- ── SAMIR icon library (click to copy an HTML snippet) ───
+                 Paste the copied snippet into an Unlayer HTML block to drop
+                 a colored, scalable icon into the email. --}}
+            @php
+                // Inline SVG path data — keep small (24×24 viewBox).
+                $samirIcons = [
+                    'star'      => 'M12 2 L15 9 L22 9 L17 14 L19 21 L12 17 L5 21 L7 14 L2 9 L9 9 Z',
+                    'envelope'  => 'M2 4 H22 V20 H2 Z M2 4 L12 13 L22 4',
+                    'check'     => 'M4 12 L10 18 L20 6',
+                    'phone'     => 'M3 5 C3 4 4 3 5 3 H7 L9 8 L7 10 C8 13 11 16 14 17 L16 15 L21 17 V19 C21 20 20 21 19 21 C10 21 3 14 3 5 Z',
+                    'globe'     => 'M12 2 A10 10 0 1 0 12 22 A10 10 0 1 0 12 2 Z M2 12 H22 M12 2 C8 8 8 16 12 22 M12 2 C16 8 16 16 12 22',
+                    'shield'    => 'M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z',
+                    'lightning' => 'M13 2 L4 14 H11 L9 22 L20 10 H13 Z',
+                    'heart'     => 'M12 21 C12 21 3 14 3 8 A5 5 0 0 1 12 5 A5 5 0 0 1 21 8 C21 14 12 21 12 21 Z',
+                    'gear'      => 'M12 8 A4 4 0 1 0 12 16 A4 4 0 1 0 12 8 Z M19 12 L21 11 L20 8 L17 9 L15 7 L16 4 L12 3 L11 6 L9 7 L6 5 L4 8 L6 10 L5 12 L3 14 L5 16 L7 15 L9 17 L8 20 L12 21 L13 18 L15 17 L18 19 L20 16 L18 14 L19 12 Z',
+                    'bell'      => 'M12 3 A6 6 0 0 0 6 9 V14 L4 17 H20 L18 14 V9 A6 6 0 0 0 12 3 Z M10 19 A2 2 0 0 0 14 19',
+                    'trophy'    => 'M8 21 H16 M12 17 V21 M5 4 H19 V8 A5 5 0 0 1 14 13 H10 A5 5 0 0 1 5 8 Z M5 6 H2 V8 A3 3 0 0 0 5 11 M19 6 H22 V8 A3 3 0 0 0 19 11',
+                    'crown'     => 'M3 9 L7 12 L12 6 L17 12 L21 9 L19 19 H5 Z',
+                    'calendar'  => 'M3 6 H21 V20 H3 Z M3 10 H21 M8 3 V8 M16 3 V8',
+                ];
+            @endphp
+            <div class="card shadow-sm mb-3 border-warning">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <strong class="text-warning"><i class="bi bi-stars me-1"></i>SAMIR icon library</strong>
+                        <small class="text-muted me-2">Click an icon to copy a snippet — paste into an HTML block.</small>
+                        @foreach ($samirIcons as $name => $path)
+                            @php
+                                $snippet = '<div style="text-align:center; padding:8px;">'
+                                    . '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" '
+                                    . 'stroke="#dc3545" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+                                    . '<path d="'.$path.'"/></svg></div>';
+                            @endphp
+                            <button type="button" class="btn btn-sm btn-outline-secondary copy-icon"
+                                    data-snippet="{{ $snippet }}" title="Click to copy {{ $name }} icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                     stroke="#dc3545" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="{{ $path }}"/>
+                                </svg>
+                                <small class="ms-1">{{ ucfirst($name) }}</small>
+                            </button>
+                        @endforeach
+                        <span id="icon-copy-feedback" class="text-success d-none ms-2">
+                            <i class="bi bi-check-circle me-1"></i>Snippet copied
+                        </span>
+                    </div>
+                    <small class="text-muted d-block mt-1">
+                        After pasting, change <code>stroke="#dc3545"</code> in the SVG to any hex color.
+                        <code>width="48"</code> / <code>height="48"</code> control the size.
+                    </small>
+                </div>
+            </div>
+
             {{-- Unlayer editor embedded — design + HTML are exported on save. --}}
             <div class="card shadow-sm">
                 <div class="card-body p-0">
@@ -246,6 +299,22 @@
         });
     }
     initUnlayer();
+
+    // Click-to-copy for SAMIR icon library
+    document.querySelectorAll('.copy-icon').forEach(function (el) {
+        el.addEventListener('click', function () {
+            const snippet = el.getAttribute('data-snippet');
+            const fb = document.getElementById('icon-copy-feedback');
+            const reveal = function () {
+                fb.classList.remove('d-none');
+                clearTimeout(window.__iconCopyTimer);
+                window.__iconCopyTimer = setTimeout(function () { fb.classList.add('d-none'); }, 1500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(snippet).then(reveal).catch(function () {});
+            }
+        });
+    });
 
     // Click-to-copy for the merge-tag reference badges
     document.querySelectorAll('.copy-tag').forEach(function (el) {
