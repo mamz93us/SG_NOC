@@ -66,24 +66,36 @@ class CsvSubscriberImporter
                         }
                     }
 
-                    $subscriber = EmailSubscriber::updateOrCreate(
+                    $firstName = trim((string) ($row[$mapping['first_name'] ?? -1] ?? '')) ?: null;
+                    $lastName  = trim((string) ($row[$mapping['last_name']  ?? -1] ?? '')) ?: null;
+
+                    // firstOrCreate only writes the second array on insert — so an
+                    // existing subscriber's status is never overwritten. New rows
+                    // start at 'pending' for double-opt-in lists, 'subscribed' otherwise.
+                    $subscriber = EmailSubscriber::firstOrCreate(
                         ['email' => $email],
                         [
-                            'first_name' => trim((string) ($row[$mapping['first_name'] ?? -1] ?? '')) ?: null,
-                            'last_name' => trim((string) ($row[$mapping['last_name'] ?? -1] ?? '')) ?: null,
-                            'source' => 'import',
-                            'attributes' => $attrs ?: null,
-                            // If row already in subscribed state (single opt-in lists),
-                            // leave alone — otherwise set to pending so double opt-in kicks in.
-                            'status' => fn ($s) => $s->status ?? ($list->double_opt_in ? 'pending' : 'subscribed'),
+                            'first_name'   => $firstName,
+                            'last_name'    => $lastName,
+                            'source'       => 'import',
+                            'attributes'   => $attrs ?: null,
+                            'status'       => $list->double_opt_in ? 'pending' : 'subscribed',
+                            'confirmed_at' => $list->double_opt_in ? null : now(),
                         ]
                     );
 
-                    // For new subscribers respect list's opt-in policy.
-                    if ($subscriber->wasRecentlyCreated && ! $list->double_opt_in) {
-                        $subscriber->status = 'subscribed';
-                        $subscriber->confirmed_at = now();
-                        $subscriber->save();
+                    // For existing subscribers: update profile fields (name, attributes)
+                    // from the CSV, but DON'T touch their status — they might have
+                    // unsubscribed/bounced previously.
+                    if (! $subscriber->wasRecentlyCreated) {
+                        $dirty = array_filter([
+                            'first_name' => $firstName,
+                            'last_name'  => $lastName,
+                            'attributes' => $attrs ?: null,
+                        ], fn ($v) => $v !== null);
+                        if (! empty($dirty)) {
+                            $subscriber->fill($dirty)->save();
+                        }
                     }
 
                     $list->subscribers()->syncWithoutDetaching([
