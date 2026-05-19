@@ -72,10 +72,73 @@ class SubscribersController extends Controller
 
     public function edit(EmailSubscriber $subscriber): View
     {
+        $subscriber->load('lists', 'tags');
+
+        // Per-campaign history for this subscriber: every send + aggregated
+        // open/click counts + last activity per send. Single query so the
+        // page renders cheaply even for very active subscribers.
+        $history = \DB::table('email_campaign_sends as s')
+            ->join('email_campaigns as c', 'c.id', '=', 's.email_campaign_id')
+            ->leftJoin(\DB::raw("(
+                SELECT email_campaign_send_id,
+                       SUM(event_type = 'Open')  AS opens,
+                       SUM(event_type = 'Click') AS clicks,
+                       MAX(created_at) AS last_activity
+                FROM email_events GROUP BY email_campaign_send_id
+            ) AS agg"), 'agg.email_campaign_send_id', '=', 's.id')
+            ->where('s.email_subscriber_id', $subscriber->id)
+            ->select(
+                's.id as send_id',
+                's.status as send_status',
+                's.sent_at',
+                's.delivered_at',
+                's.error_message',
+                's.ses_message_id',
+                'c.id as campaign_id',
+                'c.name as campaign_name',
+                'c.subject as campaign_subject',
+                'c.from_email',
+                'c.sent_at as campaign_sent_at',
+                'c.archived_at as campaign_archived_at',
+                \DB::raw('COALESCE(agg.opens, 0)  as opens'),
+                \DB::raw('COALESCE(agg.clicks, 0) as clicks'),
+                'agg.last_activity',
+            )
+            ->orderByDesc(\DB::raw('COALESCE(s.sent_at, s.created_at)'))
+            ->get();
+
+        // Recent event timeline across ALL campaigns for this subscriber.
+        $recentEvents = \App\Models\EmailMarketing\EmailEvent::query()
+            ->join('email_campaign_sends as s', 's.id', '=', 'email_events.email_campaign_send_id')
+            ->join('email_campaigns as c', 'c.id', '=', 's.email_campaign_id')
+            ->where('email_events.email_subscriber_id', $subscriber->id)
+            ->select(
+                'email_events.id',
+                'email_events.event_type',
+                'email_events.url',
+                'email_events.ip_address',
+                'email_events.country_code',
+                'email_events.country_name',
+                'email_events.user_agent',
+                'email_events.bounce_type',
+                'email_events.bounce_subtype',
+                'email_events.complaint_type',
+                'email_events.raw_payload',
+                'email_events.created_at',
+                'c.id as campaign_id',
+                'c.name as campaign_name',
+                's.id as send_id',
+            )
+            ->orderByDesc('email_events.created_at')
+            ->limit(100)
+            ->get();
+
         return view('portal.email-marketing.subscribers.create', [
-            'subscriber' => $subscriber->load('lists', 'tags'),
+            'subscriber' => $subscriber,
             'lists' => EmailList::orderBy('name')->get(),
             'tags' => EmailTag::orderBy('name')->get(),
+            'history' => $history,
+            'recentEvents' => $recentEvents,
         ]);
     }
 

@@ -77,5 +77,183 @@
             </div>
         </div>
     </form>
+
+    @if ($subscriber->exists)
+        @php
+            $history      = $history      ?? collect();
+            $recentEvents = $recentEvents ?? collect();
+            $aggDelivered = $history->where('send_status', 'delivered')->count();
+            $aggBounced   = $history->where('send_status', 'bounced')->count();
+            $aggOpens     = (int) $history->sum('opens');
+            $aggClicks    = (int) $history->sum('clicks');
+        @endphp
+
+        {{-- ── KPI row: lifetime totals across all campaigns ─────── --}}
+        <div class="row g-3 mt-4">
+            <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
+                <small class="text-muted">Campaigns received</small>
+                <h4 class="mb-0">{{ $history->count() }}</h4>
+            </div></div></div>
+            <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
+                <small class="text-muted">Delivered / Bounced</small>
+                <h4 class="mb-0"><span class="text-success">{{ $aggDelivered }}</span> / <span class="text-danger">{{ $aggBounced }}</span></h4>
+            </div></div></div>
+            <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
+                <small class="text-muted">Total opens</small>
+                <h4 class="mb-0">{{ $aggOpens }}</h4>
+            </div></div></div>
+            <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
+                <small class="text-muted">Total clicks</small>
+                <h4 class="mb-0">{{ $aggClicks }}</h4>
+            </div></div></div>
+        </div>
+
+        {{-- ── Per-campaign history ───────────────────────────────── --}}
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-light">
+                <strong><i class="bi bi-megaphone me-1"></i>Campaign history</strong>
+                <small class="text-muted ms-2">Every campaign this subscriber has received — click any campaign to drill into the full event log.</small>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Campaign</th>
+                            <th>Subject</th>
+                            <th>From</th>
+                            <th>Status</th>
+                            <th class="text-end">Opens</th>
+                            <th class="text-end">Clicks</th>
+                            <th>Last activity</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($history as $h)
+                        <tr>
+                            <td>
+                                <a href="{{ route('portal.marketing.campaigns.show', $h->campaign_id) }}"><strong>{{ $h->campaign_name }}</strong></a>
+                                @if ($h->campaign_archived_at)
+                                    <span class="badge bg-light text-muted ms-1"><i class="bi bi-archive"></i> archived</span>
+                                @endif
+                                <br><small class="text-muted">Sent {{ optional($h->sent_at ? \Carbon\Carbon::parse($h->sent_at) : null)?->diffForHumans() ?: '—' }}</small>
+                            </td>
+                            <td><small>{{ \Illuminate\Support\Str::limit($h->campaign_subject, 60) }}</small></td>
+                            <td><small class="text-muted">{{ $h->from_email }}</small></td>
+                            <td>
+                                <span class="badge bg-{{ match($h->send_status) {
+                                    'delivered' => 'success',
+                                    'sent' => 'primary',
+                                    'bounced' => 'danger',
+                                    'complained' => 'warning',
+                                    'suppressed' => 'secondary',
+                                    'failed' => 'dark',
+                                    default => 'light text-dark',
+                                } }}">{{ $h->send_status }}</span>
+                                @if ($h->error_message)
+                                    <br><small class="text-danger" title="{{ $h->error_message }}">{{ \Illuminate\Support\Str::limit($h->error_message, 40) }}</small>
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                @if ($h->opens > 0)<span class="badge bg-info">{{ $h->opens }}</span>@else<small class="text-muted">—</small>@endif
+                            </td>
+                            <td class="text-end">
+                                @if ($h->clicks > 0)<span class="badge bg-success">{{ $h->clicks }}</span>@else<small class="text-muted">—</small>@endif
+                            </td>
+                            <td><small>{{ $h->last_activity ? \Carbon\Carbon::parse($h->last_activity)->diffForHumans() : '—' }}</small></td>
+                            <td class="text-end">
+                                <a href="{{ route('portal.marketing.campaigns.analytics.recipient', ['campaign' => $h->campaign_id, 'send' => $h->send_id]) }}"
+                                   class="btn btn-sm btn-outline-secondary" title="Full event log for this campaign + recipient">
+                                    <i class="bi bi-list-ul"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="8" class="text-center text-muted py-4">No campaign sends recorded for this subscriber yet.</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {{-- ── Cross-campaign event timeline (last 100) ──────────── --}}
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-light">
+                <strong><i class="bi bi-list-ul me-1"></i>Event timeline</strong>
+                <small class="text-muted ms-2">Every open, click, delivery, bounce, complaint across all campaigns — most recent first, capped at 100.</small>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 170px;">When</th>
+                            <th>Campaign</th>
+                            <th>Event</th>
+                            <th>URL / Detail</th>
+                            <th>IP</th>
+                            <th>Location</th>
+                            <th>User agent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($recentEvents as $ev)
+                        <tr>
+                            <td><small>{{ \Carbon\Carbon::parse($ev->created_at)->format('Y-m-d H:i:s') }}</small></td>
+                            <td>
+                                <a href="{{ route('portal.marketing.campaigns.analytics.recipient', ['campaign' => $ev->campaign_id, 'send' => $ev->send_id]) }}">
+                                    <small>{{ \Illuminate\Support\Str::limit($ev->campaign_name, 35) }}</small>
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ match($ev->event_type) {
+                                    'Delivery' => 'success',
+                                    'Open' => 'info',
+                                    'Click' => 'primary',
+                                    'Bounce' => 'danger',
+                                    'Complaint' => 'warning',
+                                    'Reject', 'RenderingFailure' => 'dark',
+                                    default => 'secondary',
+                                } }}">{{ $ev->event_type }}</span>
+                            </td>
+                            <td class="text-truncate" style="max-width: 280px;">
+                                @if ($ev->event_type === 'Click' && $ev->url)
+                                    <a href="{{ $ev->url }}" target="_blank" rel="noopener" title="{{ $ev->url }}"><small>{{ $ev->url }}</small></a>
+                                @elseif ($ev->event_type === 'Bounce')
+                                    @php
+                                        $rp = is_array($ev->raw_payload) ? $ev->raw_payload : (json_decode($ev->raw_payload ?? '', true) ?: []);
+                                        $br = ($rp['bounce']['bouncedRecipients'] ?? [[]])[0] ?? [];
+                                        $diag = $br['diagnosticCode'] ?? null;
+                                    @endphp
+                                    <small class="text-danger d-block">{{ $ev->bounce_type }}{{ $ev->bounce_subtype ? ' / '.$ev->bounce_subtype : '' }}</small>
+                                    @if ($diag)<small class="text-muted">{{ \Illuminate\Support\Str::limit($diag, 60) }}</small>@endif
+                                @elseif ($ev->event_type === 'Complaint' && $ev->complaint_type)
+                                    <small class="text-warning">{{ $ev->complaint_type }}</small>
+                                @else
+                                    <small class="text-muted">—</small>
+                                @endif
+                            </td>
+                            <td><small><code>{{ $ev->ip_address ?: '—' }}</code></small></td>
+                            <td>
+                                @if ($ev->country_code)
+                                    <small title="{{ $ev->country_name }}">
+                                        {{ \App\Services\EmailMarketing\GeoIpLookup::flagEmoji($ev->country_code) }}
+                                        {{ $ev->country_code }}
+                                    </small>
+                                @else
+                                    <small class="text-muted">—</small>
+                                @endif
+                            </td>
+                            <td class="text-truncate" style="max-width: 260px;">
+                                <small class="text-muted" title="{{ $ev->user_agent }}">{{ \Illuminate\Support\Str::limit($ev->user_agent ?? '—', 60) }}</small>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="7" class="text-center text-muted py-4">No events recorded yet.</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
 </div>
 @endsection
