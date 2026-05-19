@@ -31,11 +31,14 @@
             <table class="table table-hover mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Name</th><th>Subject</th><th>List / Segment</th><th>Status</th><th>Schedule</th><th>Sent</th><th class="text-end">Actions</th>
+                        <th>Name</th><th>Subject</th><th>From</th><th>Domain</th><th>List / Segment</th><th>Status</th><th>Schedule</th><th>Sent</th><th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                 @forelse ($campaigns as $c)
+                    @php
+                        $fromDomain = $c->from_email ? \Illuminate\Support\Str::after($c->from_email, '@') : null;
+                    @endphp
                     <tr>
                         <td>
                             <a href="{{ route('portal.marketing.campaigns.show', $c) }}"><strong>{{ $c->name }}</strong></a>
@@ -44,6 +47,24 @@
                             @endif
                         </td>
                         <td><small>{{ $c->subject }}</small></td>
+                        <td>
+                            <small>
+                                <strong>{{ $c->from_name ?: '—' }}</strong>
+                                @if ($c->from_email)
+                                    <br><span class="text-muted">&lt;{{ $c->from_email }}&gt;</span>
+                                @endif
+                                @if ($c->reply_to)
+                                    <br><span class="text-muted" title="Reply-to"><i class="bi bi-reply"></i> {{ $c->reply_to }}</span>
+                                @endif
+                            </small>
+                        </td>
+                        <td>
+                            @if ($fromDomain)
+                                <span class="badge bg-light text-dark border"><i class="bi bi-globe me-1"></i>{{ $fromDomain }}</span>
+                            @else
+                                <small class="text-muted">—</small>
+                            @endif
+                        </td>
                         <td>{{ $c->list?->name ?: ($c->segment_id ? 'Segment #' . $c->segment_id : '—') }}</td>
                         <td>
                             <span class="badge bg-{{ match($c->status) {
@@ -72,7 +93,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="text-center text-muted py-4">No campaigns to show.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">No campaigns to show.</td></tr>
                 @endforelse
                 </tbody>
             </table>
