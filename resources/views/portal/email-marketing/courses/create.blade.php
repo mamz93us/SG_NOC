@@ -47,7 +47,7 @@
                 <div class="col-md-6">
                     <label class="form-label">Default subject</label>
                     <input type="text" name="default_subject" class="form-control"
-                           placeholder="e.g. Your {{ '{{course_name}}' }} certificate"
+                           placeholder="e.g. Your Cybersecurity Awareness certificate"
                            value="{{ old('default_subject', $course->default_subject) }}">
                 </div>
                 <div class="col-md-6">
