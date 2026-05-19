@@ -112,6 +112,7 @@ class CampaignAnalyticsController extends Controller
                 'email_events.bounce_type',
                 'email_events.bounce_subtype',
                 'email_events.complaint_type',
+                'email_events.raw_payload',
                 'email_events.created_at',
                 'sub.email as subscriber_email',
                 'sub.first_name as subscriber_first_name',

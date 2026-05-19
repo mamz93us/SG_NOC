@@ -215,7 +215,17 @@
                             @if ($ev->event_type === 'Click' && $ev->url)
                                 <a href="{{ $ev->url }}" target="_blank" rel="noopener" title="{{ $ev->url }}"><small>{{ $ev->url }}</small></a>
                             @elseif ($ev->event_type === 'Bounce')
-                                <small class="text-danger">{{ $ev->bounce_type }}{{ $ev->bounce_subtype ? ' / '.$ev->bounce_subtype : '' }}</small>
+                                @php
+                                    $rp = is_array($ev->raw_payload)
+                                        ? $ev->raw_payload
+                                        : (json_decode($ev->raw_payload ?? '', true) ?: []);
+                                    $br = ($rp['bounce']['bouncedRecipients'] ?? [[]])[0] ?? [];
+                                    $diag = $br['diagnosticCode'] ?? null;
+                                @endphp
+                                <small class="text-danger d-block">{{ $ev->bounce_type }}{{ $ev->bounce_subtype ? ' / '.$ev->bounce_subtype : '' }}</small>
+                                @if ($diag)
+                                    <small class="text-muted" title="{{ $diag }}">{{ \Illuminate\Support\Str::limit($diag, 80) }}</small>
+                                @endif
                             @elseif ($ev->event_type === 'Complaint' && $ev->complaint_type)
                                 <small class="text-warning">{{ $ev->complaint_type }}</small>
                             @else
