@@ -45,10 +45,13 @@ class GeoIpLookup
             return $cached;
         }
 
-        // Try each provider in order until one returns a country
+        // Try each provider in order until one returns a country.
+        // ipinfo.io is first because ipapi.co's free tier rate-limits the
+        // VPS quickly (HTTP 429 for hours); ipinfo.io has a 50k/mo allowance
+        // without auth which comfortably covers normal campaign volume.
         foreach ([
-            fn ($ip) => $this->ipapiCo($ip),
             fn ($ip) => $this->ipinfoIo($ip),
+            fn ($ip) => $this->ipapiCo($ip),
             fn ($ip) => $this->ipApiCom($ip),
         ] as $provider) {
             $result = $provider($ip);
