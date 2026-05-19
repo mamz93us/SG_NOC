@@ -13,13 +13,30 @@
     @endif
 
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <div>
-            <a href="{{ route('portal.marketing.campaigns.index') }}"
+        <div class="d-flex align-items-center flex-wrap gap-2">
+            <a href="{{ route('portal.marketing.campaigns.index', ['domain' => $domain ?? null]) }}"
                class="btn btn-sm {{ ($showArchived ?? false) ? 'btn-outline-secondary' : 'btn-secondary' }}">Active</a>
-            <a href="{{ route('portal.marketing.campaigns.index', ['archived' => 1]) }}"
+            <a href="{{ route('portal.marketing.campaigns.index', ['archived' => 1, 'domain' => $domain ?? null]) }}"
                class="btn btn-sm {{ ($showArchived ?? false) ? 'btn-secondary' : 'btn-outline-secondary' }}">
                 <i class="bi bi-archive me-1"></i>Archived
             </a>
+
+            <form method="GET" class="d-flex gap-1 ms-2">
+                @if ($showArchived ?? false)<input type="hidden" name="archived" value="1">@endif
+                <select name="domain" class="form-select form-select-sm" style="max-width: 220px"
+                        onchange="this.form.submit()">
+                    <option value="">All domains</option>
+                    @foreach (($domains ?? []) as $d)
+                        <option value="{{ $d }}" @selected(($domain ?? '') === $d)>@&#64;{{ $d }}</option>
+                    @endforeach
+                </select>
+                @if (! empty($domain ?? ''))
+                    <a href="{{ route('portal.marketing.campaigns.index', $showArchived ? ['archived' => 1] : []) }}"
+                       class="btn btn-sm btn-link" title="Clear domain filter">
+                        <i class="bi bi-x-circle"></i>
+                    </a>
+                @endif
+            </form>
         </div>
         <a href="{{ route('portal.marketing.campaigns.create') }}" class="btn btn-primary btn-sm">
             <i class="bi bi-plus me-1"></i>New campaign

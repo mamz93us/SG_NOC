@@ -17,16 +17,30 @@ class CampaignsController extends Controller
     public function index(Request $request): View
     {
         $showArchived = $request->boolean('archived');
+        $domain       = trim((string) $request->query('domain', ''));
 
         $campaigns = EmailCampaign::query()
             ->with(['list', 'template'])
             ->when(! $showArchived, fn ($q) => $q->whereNull('archived_at'))
             ->when($showArchived, fn ($q) => $q->whereNotNull('archived_at'))
+            ->when($domain !== '', fn ($q) => $q->where('from_email', 'like', '%@'.$domain))
             ->latest('updated_at')
             ->paginate(25)
             ->withQueryString();
 
-        return view('portal.email-marketing.campaigns.index', compact('campaigns', 'showArchived'));
+        // Populate the domain dropdown from distinct from_email values currently in use.
+        $domains = EmailCampaign::query()
+            ->whereNotNull('from_email')
+            ->where('from_email', '!=', '')
+            ->pluck('from_email')
+            ->map(fn ($e) => \Illuminate\Support\Str::after($e, '@'))
+            ->unique()
+            ->filter()
+            ->sort()
+            ->values()
+            ->all();
+
+        return view('portal.email-marketing.campaigns.index', compact('campaigns', 'showArchived', 'domains', 'domain'));
     }
 
     public function create(): View
