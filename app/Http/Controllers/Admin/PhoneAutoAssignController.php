@@ -271,6 +271,11 @@ class PhoneAutoAssignController extends Controller
                     'firmware_version' => $d['firmwareVersion'] ?? null,
                     'status'           => 'available',
                     'source'           => 'gdms',
+                    // (source, source_id) has a composite unique index — give
+                    // every GDMS-imported phone its own source_id so the
+                    // second insert doesn't collide on 'gdms-' with the first.
+                    // MAC is the natural GDMS identity.
+                    'source_id'        => $mac,
                 ]);
 
                 $created++;
