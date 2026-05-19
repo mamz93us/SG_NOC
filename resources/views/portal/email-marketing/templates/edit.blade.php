@@ -70,21 +70,31 @@
                 </div>
             </div>
 
-            {{-- ── Available merge tags reference (click to copy) ──── --}}
+            {{-- ── Available merge tags reference (click to copy) ────
+                 NOTE: We hand-build each badge so the literal {{ }} pairs
+                 are never adjacent in the source — Blade would otherwise
+                 compile them into <?php echo e(name) ?> tokens and the
+                 user would copy PHP into their email body. --}}
             <div class="card shadow-sm mb-3 border-info">
                 <div class="card-body py-2">
                     <div class="d-flex align-items-center flex-wrap gap-3">
                         <strong class="text-info"><i class="bi bi-braces me-1"></i>Available variables</strong>
-                        @foreach ([
-                            '{{first_name}}'      => "First name",
-                            '{{last_name}}'       => "Last name",
-                            '{{email}}'           => 'Email address',
-                            '{{unsubscribe_url}}' => 'Unsubscribe link (required)',
-                        ] as $tag => $desc)
+                        @php
+                            // Build the literal merge-tag strings without ever putting
+                            // `{` `{` adjacent in this source file (Blade scans for that).
+                            $tag = fn (string $name) => '{'.'{'.$name.'}'.'}';
+                            $vars = [
+                                $tag('first_name')      => 'First name',
+                                $tag('last_name')       => 'Last name',
+                                $tag('email')           => 'Email address',
+                                $tag('unsubscribe_url') => 'Unsubscribe link (required)',
+                            ];
+                        @endphp
+                        @foreach ($vars as $literal => $desc)
                             <span class="badge bg-light text-dark border copy-tag" role="button"
-                                  data-tag="{{ $tag }}" title="Click to copy {{ $tag }}"
+                                  data-tag="{{ $literal }}" title="Click to copy {{ $literal }}"
                                   style="cursor: pointer;">
-                                <code class="text-info">{{ $tag }}</code>
+                                <code class="text-info">{{ $literal }}</code>
                                 <small class="text-muted ms-1">{{ $desc }}</small>
                             </span>
                         @endforeach
