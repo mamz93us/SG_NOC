@@ -53,4 +53,16 @@
         </a>
     </li>
     @endcan
+    <li class="nav-item">
+        <a class="nav-link {{ $isOn('portal.marketing.icons') ? 'active' : '' }}"
+           href="{{ route('portal.marketing.icons.index') }}">
+            <i class="bi bi-stars me-1"></i>Icons
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {{ $isOn('portal.marketing.fonts') ? 'active' : '' }}"
+           href="{{ route('portal.marketing.fonts.index') }}">
+            <i class="bi bi-fonts me-1"></i>Fonts
+        </a>
+    </li>
 </ul>

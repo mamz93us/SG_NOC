@@ -86,6 +86,8 @@ use App\Http\Controllers\PhoneRequestLogController;
 use App\Http\Controllers\Portal\EmailMarketing\CampaignAnalyticsController as EmCampaignAnalyticsController;
 use App\Http\Controllers\Portal\EmailMarketing\CampaignsController as EmCampaignsController;
 use App\Http\Controllers\Portal\EmailMarketing\DashboardController as EmDashboardController;
+use App\Http\Controllers\Portal\EmailMarketing\FontsController as EmFontsController;
+use App\Http\Controllers\Portal\EmailMarketing\IconsController as EmIconsController;
 use App\Http\Controllers\Portal\EmailMarketing\ListsController as EmListsController;
 use App\Http\Controllers\Portal\EmailMarketing\SegmentsController as EmSegmentsController;
 use App\Http\Controllers\Portal\EmailMarketing\SubscribersController as EmSubscribersController;
@@ -228,6 +230,10 @@ Route::prefix('portal')->name('portal.')->group(function () {
             // Templates duplicate + archive
             Route::post('templates/{template}/duplicate', [EmTemplatesController::class, 'duplicate'])->name('templates.duplicate');
             Route::post('templates/{template}/archive',   [EmTemplatesController::class, 'archive'])->name('templates.archive');
+
+            // SAMIR icon library + custom fonts (used by the Unlayer template editor)
+            Route::resource('icons', EmIconsController::class)->except(['show']);
+            Route::resource('fonts', EmFontsController::class)->except(['show']);
 
             // List export
             Route::get('lists/{list}/export', [EmListsController::class, 'export'])->name('lists.export');

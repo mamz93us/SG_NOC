@@ -26,9 +26,7 @@ class TemplatesController extends Controller
 
     public function create(Request $request): View
     {
-        // ?editor=grapesjs picks the MJML editor; default is Unlayer.
-        $editor = $request->query('editor', 'unlayer');
-        $template = new EmailTemplate(['editor_type' => in_array($editor, ['unlayer', 'grapesjs']) ? $editor : 'unlayer']);
+        $template = new EmailTemplate(['editor_type' => 'unlayer']);
 
         return $this->editView($template);
     }
@@ -37,7 +35,7 @@ class TemplatesController extends Controller
     {
         $data = $request->validated();
         $data['created_by'] = $request->user()->id;
-        $data['editor_type'] = $data['editor_type'] ?? 'unlayer';
+        $data['editor_type'] = 'unlayer';
         $template = EmailTemplate::create($data);
 
         return redirect()->route('portal.marketing.templates.edit', $template)
@@ -52,8 +50,7 @@ class TemplatesController extends Controller
     public function update(StoreTemplateRequest $request, EmailTemplate $template)
     {
         $data = $request->validated();
-        // Don't allow flipping editor_type after creation — design_json shape differs.
-        unset($data['editor_type']);
+        unset($data['editor_type']); // editor_type is immutable; always Unlayer now
         $template->update($data);
 
         if ($request->wantsJson()) {
@@ -116,14 +113,19 @@ class TemplatesController extends Controller
     }
 
     /**
-     * Route to the editor-specific view based on the template's editor_type.
+     * Route to the Unlayer editor with the SAMIR icon library + custom fonts
+     * loaded from the DB so marketing users can manage them via Icon Library /
+     * Fonts pages and see them reflected here without code changes.
      */
     private function editView(EmailTemplate $template): View
     {
-        $viewName = $template->editor_type === 'grapesjs'
-            ? 'portal.email-marketing.templates.edit-grapesjs'
-            : 'portal.email-marketing.templates.edit';
+        $icons = \App\Models\EmailMarketing\EmailMarketingIcon::query()
+            ->orderBy('sort_order')->orderBy('label')->get();
+        $fonts = \App\Models\EmailMarketing\EmailMarketingFont::query()
+            ->orderBy('sort_order')->orderBy('label')->get();
 
-        return view($viewName, compact('template'));
+        $viewName = 'portal.email-marketing.templates.edit';
+
+        return view($viewName, compact('template', 'icons', 'fonts'));
     }
 }
