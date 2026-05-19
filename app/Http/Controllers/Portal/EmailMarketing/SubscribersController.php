@@ -133,12 +133,15 @@ class SubscribersController extends Controller
     public function importMap(ImportSubscribersRequest $request, CsvSubscriberImporter $importer)
     {
         // Store the file temporarily and return mapping screen.
+        // Use the Storage facade to resolve the absolute path — Laravel 12's
+        // default `local` disk roots at storage/app/private/, not storage/app/,
+        // so hand-building the path from storage_path() breaks the read.
         $path = $request->file('file')->storeAs(
             'email-imports',
             uniqid('imp_', true).'.'.$request->file('file')->getClientOriginalExtension(),
             'local'
         );
-        $absolute = storage_path('app/'.$path);
+        $absolute = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
         $headers = $importer->previewHeaders($absolute);
 
         return view('portal.email-marketing.subscribers.import', [
@@ -162,7 +165,7 @@ class SubscribersController extends Controller
         ]);
 
         $list = EmailList::findOrFail($data['email_list_id']);
-        $abs = storage_path('app/'.$data['stored_path']);
+        $abs = \Illuminate\Support\Facades\Storage::disk('local')->path($data['stored_path']);
 
         $mapping = ['email' => (int) $data['email_col']];
         if (isset($data['first_name_col']) && $data['first_name_col'] !== null && $data['first_name_col'] !== '') {
