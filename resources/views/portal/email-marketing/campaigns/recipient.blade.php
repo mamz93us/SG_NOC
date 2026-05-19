@@ -74,7 +74,7 @@
                         @if ($send->subscriber)
                             <dt class="col-md-4"></dt>
                             <dd class="col-md-8 mt-2">
-                                <a href="{{ route('portal.marketing.subscribers.edit', $send->subscriber_id) }}" class="btn btn-sm btn-outline-secondary">
+                                <a href="{{ route('portal.marketing.subscribers.edit', $send->email_subscriber_id) }}" class="btn btn-sm btn-outline-secondary">
                                     <i class="bi bi-pencil me-1"></i>Edit subscriber profile
                                 </a>
                             </dd>
