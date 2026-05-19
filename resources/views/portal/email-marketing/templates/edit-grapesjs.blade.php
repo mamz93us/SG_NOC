@@ -6,14 +6,22 @@
 <link rel="stylesheet" href="https://unpkg.com/grapesjs/dist/css/grapes.min.css">
 <link rel="stylesheet" href="https://unpkg.com/grapesjs-preset-newsletter/dist/grapesjs-preset-newsletter.css">
 <style>
-    /* The GrapesJS preset needs its container to be a fixed-height, non-flex
-       block. We size the editor explicitly and let the preset arrange its own
-       left-blocks / centre-canvas / right-styles panels inside. */
+    /* GrapesJS panels are absolutely positioned inside the editor container.
+       The container needs:
+         - position: relative   (so absolute children anchor to it)
+         - explicit pixel height
+         - NO overflow:hidden parents that would clip the panels
+       So we render the editor as a direct child of the page body (not inside
+       a Bootstrap card) and give it a fixed height. */
     #gjs-editor {
-        height: calc(100vh - 240px);
+        position: relative;
+        height: calc(100vh - 280px);
         min-height: 600px;
         border: 1px solid #dee2e6;
+        overflow: visible;
     }
+    /* Bring panel surfaces above any other portal chrome that might overlap. */
+    #gjs-editor .gjs-pn-panel { z-index: 5; }
 </style>
 
 <div class="container-fluid py-4">
@@ -90,12 +98,16 @@
             </div>
         </div>
 
-        <div class="card shadow-sm">
-            <div class="card-body p-0">
-                <div id="gjs-editor"></div>
-            </div>
-            <div class="card-footer d-flex justify-content-end">
-                <button type="button" id="preview-btn" class="btn btn-outline-secondary me-2">
+        {{-- Editor lives directly in the page flow (no card wrapper) so GrapesJS'
+             absolute-positioned panels aren't clipped by Bootstrap's overflow. --}}
+        <div id="gjs-editor"></div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3 mb-3 gap-2 flex-wrap">
+            <button type="button" id="fullscreen-btn" class="btn btn-outline-info">
+                <i class="bi bi-arrows-fullscreen me-1"></i>Open editor fullscreen
+            </button>
+            <div class="d-flex gap-2">
+                <button type="button" id="preview-btn" class="btn btn-outline-secondary">
                     <i class="bi bi-eye me-1"></i>Preview HTML
                 </button>
                 <button type="button" id="save-btn" class="btn btn-primary">
@@ -215,6 +227,13 @@
             console.error('Preview failed', e);
             showError('Preview failed: ' + e.message);
         }
+    });
+
+    // Fullscreen — uses GrapesJS' built-in fullscreen command. Gives the
+    // editor the entire browser window so panels have unambiguous room.
+    document.getElementById('fullscreen-btn').addEventListener('click', function () {
+        try { editor.runCommand('fullscreen'); }
+        catch (e) { console.error('Fullscreen failed', e); }
     });
 
     // Merge-tag click-to-copy (same UX as Unlayer view)
