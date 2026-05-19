@@ -39,11 +39,12 @@
     @endif
     <div id="save-error" class="alert alert-danger d-none"></div>
 
-    <div class="alert alert-info py-2 d-flex justify-content-between align-items-center">
+    <div class="alert alert-info py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
             <i class="bi bi-info-circle me-1"></i>
-            Building with <strong>GrapesJS</strong> (newsletter preset). Switch to Unlayer:
-            <a href="{{ route('portal.marketing.templates.create', ['editor' => 'unlayer']) }}" class="alert-link">new Unlayer template</a>.
+            Building with <strong>GrapesJS</strong> (newsletter preset).
+            The editor opens in <strong>fullscreen</strong> automatically — press <kbd>Esc</kbd> to exit and access Save / Preview buttons.
+            Prefer Unlayer? <a href="{{ route('portal.marketing.templates.create', ['editor' => 'unlayer']) }}" class="alert-link">New Unlayer template</a>.
         </div>
         <small class="text-muted">Editor type: <code>grapesjs</code></small>
     </div>
@@ -208,6 +209,35 @@
     if (existing) {
         try { editor.setComponents(existing); } catch (e) { console.error('Failed to load design', e); }
     }
+
+    // Auto-fullscreen on first load — the newsletter preset's panels are
+    // hidden behind tabs and only lay out properly with full viewport room.
+    // We also open the Blocks panel by default so the user sees draggable
+    // components immediately instead of an empty toolbar.
+    editor.on('load', function () {
+        try {
+            editor.runCommand('core:fullscreen');
+        } catch (e) {
+            console.warn('Could not enter fullscreen automatically', e);
+        }
+        try {
+            // The blocks panel button id varies by version; try the common ones.
+            const pn = editor.Panels;
+            ['open-blocks', 'block-manager', 'show-blocks'].forEach(function (id) {
+                const btn = pn?.getButton?.('views', id) || pn?.getButton?.('options', id);
+                if (btn) btn.set('active', true);
+            });
+        } catch (e) {
+            console.warn('Could not auto-open blocks panel', e);
+        }
+    });
+
+    // Esc exits fullscreen — let the user know how to come back to the form.
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            try { editor.stopCommand('core:fullscreen'); } catch (_) {}
+        }
+    });
 
     saveBtn.addEventListener('click', function () {
         clearError();
