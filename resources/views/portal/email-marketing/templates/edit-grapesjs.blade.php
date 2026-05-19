@@ -25,8 +25,13 @@
     .gjs-pn-views-container, .gjs-pn-views { background-color: #f8f9fa !important; }
 </style>
 
-<link rel="stylesheet" href="https://unpkg.com/grapesjs@0.21.13/dist/css/grapes.min.css">
-<link rel="stylesheet" href="https://unpkg.com/grapesjs-mjml@1.0.4/dist/grapesjs-mjml.min.css">
+<link rel="stylesheet" href="https://unpkg.com/grapesjs/dist/css/grapes.min.css">
+<style>
+    /* Make sure GrapesJS panels (blocks + style + canvas) actually have room. */
+    #gjs-editor .gjs-pn-views-container { width: 280px !important; }
+    #gjs-editor .gjs-blocks-c { padding: 5px !important; }
+    #gjs-editor .gjs-block { width: calc(50% - 10px) !important; }
+</style>
 
 <div class="em-editor-fullbleed">
     <div class="px-3 px-lg-4 pt-4">
@@ -123,8 +128,8 @@
     </div>
 </div>
 
-<script src="https://unpkg.com/grapesjs@0.21.13"></script>
-<script src="https://unpkg.com/grapesjs-mjml@1.0.4"></script>
+<script src="https://unpkg.com/grapesjs"></script>
+<script src="https://unpkg.com/grapesjs-mjml"></script>
 <script>
 (function () {
     const saveBtn    = document.getElementById('save-btn');
@@ -142,21 +147,38 @@
     }
     function clearError() { errorBox.classList.add('d-none'); }
 
-    // GrapesJS init with the MJML preset
-    const editor = grapesjs.init({
-        container: '#gjs-editor',
-        height: '100%',
-        width: 'auto',
-        storageManager: false,
-        plugins: ['grapesjs-mjml'],
-        pluginsOpts: {
-            'grapesjs-mjml': {
-                fonts: {
-                    Inter: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap',
-                },
+    // Sanity-check the libs actually loaded
+    if (typeof grapesjs === 'undefined') {
+        showError('GrapesJS failed to load from unpkg. Check the browser console — likely a network block or CSP.');
+        return;
+    }
+    if (typeof grapesjsMjml === 'undefined' && typeof window['grapesjs-mjml'] === 'undefined') {
+        showError('GrapesJS MJML plugin failed to load from unpkg. Falling back to plain HTML editor.');
+    }
+
+    // GrapesJS init with the MJML preset.
+    // fromElement: false → don't try to parse the container's HTML as a design.
+    // width: '100%'      → MJML plugin's left blocks panel needs the real width
+    //                       to lay out; 'auto' collapsed it to nothing.
+    let editor;
+    try {
+        editor = grapesjs.init({
+            container: '#gjs-editor',
+            fromElement: false,
+            height: '100%',
+            width: '100%',
+            storageManager: false,
+            plugins: ['grapesjs-mjml'],
+            pluginsOpts: {
+                'grapesjs-mjml': {},
             },
-        },
-    });
+        });
+        console.log('GrapesJS + MJML initialized:', editor);
+    } catch (e) {
+        console.error('GrapesJS init failed', e);
+        showError('Editor failed to initialize: ' + e.message);
+        return;
+    }
 
     // Load previous design (stored as MJML markup) if editing
     const existing = @json($template->design_json);
