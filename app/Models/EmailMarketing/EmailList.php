@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class EmailList extends Model
 {
     protected $fillable = [
-        'name', 'description', 'double_opt_in',
+        'name', 'description', 'double_opt_in', 'auto_domain',
         'default_from_email', 'default_from_name', 'default_reply_to',
         'created_by',
     ];
@@ -19,6 +19,11 @@ class EmailList extends Model
     protected $casts = [
         'double_opt_in' => 'boolean',
     ];
+
+    public function isDynamic(): bool
+    {
+        return ! empty($this->auto_domain);
+    }
 
     public function creator(): BelongsTo
     {

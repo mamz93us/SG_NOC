@@ -4,8 +4,10 @@ namespace App\Observers;
 
 use App\Models\ActivityLog;
 use App\Models\Employee;
+use App\Services\EmailMarketing\DynamicListSyncService;
 use App\Services\Identity\GraphService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class EmployeeObserver
 {
@@ -14,6 +16,8 @@ class EmployeeObserver
         if (Auth::check()) {
             ActivityLog::create(['model_type' => 'Employee', 'model_id' => $model->id, 'action' => 'created', 'changes' => $model->toArray(), 'user_id' => Auth::id()]);
         }
+
+        $this->syncDynamicLists($model);
     }
 
     public function updated(Employee $model): void
@@ -30,12 +34,36 @@ class EmployeeObserver
             && $model->getOriginal('status') !== 'terminated') {
             $this->cascadeTermination($model);
         }
+
+        // Reconcile dynamic email marketing lists whenever the email address
+        // or employment status changes — those are the only fields that affect
+        // dynamic list membership.
+        if ($model->wasChanged('email') || $model->wasChanged('status')) {
+            $previousEmail = $model->wasChanged('email')
+                ? $model->getOriginal('email')
+                : null;
+            $this->syncDynamicLists($model, $previousEmail);
+        }
     }
 
     public function deleted(Employee $model): void
     {
         if (Auth::check()) {
             ActivityLog::create(['model_type' => 'Employee', 'model_id' => $model->id, 'action' => 'deleted', 'changes' => $model->toArray(), 'user_id' => Auth::id()]);
+        }
+
+        $this->syncDynamicLists($model);
+    }
+
+    /**
+     * Best-effort: failures here must never abort the employee write.
+     */
+    private function syncDynamicLists(Employee $employee, ?string $previousEmail = null): void
+    {
+        try {
+            app(DynamicListSyncService::class)->syncEmployee($employee, $previousEmail);
+        } catch (\Throwable $e) {
+            Log::warning("DynamicListSync failed for employee #{$employee->id}: ".$e->getMessage());
         }
     }
 

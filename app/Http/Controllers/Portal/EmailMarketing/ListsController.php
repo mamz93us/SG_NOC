@@ -54,6 +54,11 @@ class ListsController extends Controller
 
     public function destroy(EmailList $list)
     {
+        if ($list->isDynamic()) {
+            return redirect()->route('portal.marketing.lists.show', $list)
+                ->with('error', 'Dynamic lists (auto-synced from employees) cannot be deleted from the portal.');
+        }
+
         $list->delete();
 
         return redirect()->route('portal.marketing.lists.index')
@@ -66,6 +71,7 @@ class ListsController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:500'],
             'double_opt_in' => ['nullable', 'boolean'],
+            'auto_domain' => ['nullable', 'string', 'max:191', 'regex:/^[a-z0-9.-]+\.[a-z]{2,}$/i'],
             'default_from_email' => ['nullable', 'email', 'max:191'],
             'default_from_name' => ['nullable', 'string', 'max:191'],
             'default_reply_to' => ['nullable', 'email', 'max:191'],

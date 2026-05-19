@@ -501,3 +501,11 @@ Schedule::command('email-marketing:prune-events')
     ->dailyAt('03:45')
     ->withoutOverlapping(60)
     ->runInBackground();
+
+// Reconcile dynamic email lists (auto_domain) against the employees table.
+// EmployeeObserver handles incremental changes; this hourly pass catches
+// drift from external writes (identity sync, raw SQL, etc.).
+Schedule::command('email-marketing:sync-dynamic-lists')
+    ->hourly()
+    ->withoutOverlapping(10)
+    ->runInBackground();

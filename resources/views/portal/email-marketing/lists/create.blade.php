@@ -44,6 +44,17 @@
                     <input type="email" name="default_reply_to" class="form-control"
                            value="{{ old('default_reply_to', $list->default_reply_to) }}">
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label">Auto-sync from employees with domain</label>
+                    <input type="text" name="auto_domain" class="form-control"
+                           placeholder="e.g. samirgroup.com"
+                           value="{{ old('auto_domain', $list->auto_domain) }}">
+                    <small class="text-muted">
+                        Leave blank for a manual list. When set, membership mirrors
+                        active employees whose email ends with @&lt;domain&gt; — manual
+                        subscriber edits will be reverted on the next sync.
+                    </small>
+                </div>
                 <div class="col-12">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" id="double_opt_in"

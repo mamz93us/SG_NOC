@@ -26,7 +26,14 @@
                 <tbody>
                 @forelse ($lists as $list)
                     <tr>
-                        <td><a href="{{ route('portal.marketing.lists.show', $list) }}"><strong>{{ $list->name }}</strong></a></td>
+                        <td>
+                            <a href="{{ route('portal.marketing.lists.show', $list) }}"><strong>{{ $list->name }}</strong></a>
+                            @if ($list->isDynamic())
+                                <span class="badge bg-info text-dark ms-1" title="Membership auto-synced from the employees table">
+                                    <i class="bi bi-arrow-repeat"></i> Dynamic @&#64;{{ $list->auto_domain }}
+                                </span>
+                            @endif
+                        </td>
                         <td><small class="text-muted">{{ $list->description }}</small></td>
                         <td>{{ $list->subscribers_count }}</td>
                         <td>
