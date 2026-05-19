@@ -145,7 +145,15 @@
                             @endif
                         </td>
                         <td><small>{{ $r->last_activity_at ? \Carbon\Carbon::parse($r->last_activity_at)->diffForHumans() : '—' }}</small></td>
-                        <td><small><code>{{ $r->last_ip ?: '—' }}</code></small></td>
+                        <td>
+                            <small><code>{{ $r->last_ip ?: '—' }}</code></small>
+                            @if ($r->last_country_code)
+                                <br><small class="text-muted" title="{{ $r->last_country_name }}">
+                                    {{ \App\Services\EmailMarketing\GeoIpLookup::flagEmoji($r->last_country_code) }}
+                                    {{ $r->last_country_code }} — {{ $r->last_country_name }}
+                                </small>
+                            @endif
+                        </td>
                         <td class="text-truncate" style="max-width: 260px;">
                             <small class="text-muted" title="{{ $r->last_user_agent }}">{{ \Illuminate\Support\Str::limit($r->last_user_agent ?? '—', 50) }}</small>
                         </td>
@@ -214,7 +222,15 @@
                                 <small class="text-muted">—</small>
                             @endif
                         </td>
-                        <td><small><code>{{ $ev->ip_address ?: '—' }}</code></small></td>
+                        <td>
+                            <small><code>{{ $ev->ip_address ?: '—' }}</code></small>
+                            @if ($ev->country_code)
+                                <br><small class="text-muted" title="{{ $ev->country_name }}">
+                                    {{ \App\Services\EmailMarketing\GeoIpLookup::flagEmoji($ev->country_code) }}
+                                    {{ $ev->country_code }}
+                                </small>
+                            @endif
+                        </td>
                         <td class="text-truncate" style="max-width: 260px;">
                             <small class="text-muted" title="{{ $ev->user_agent }}">{{ \Illuminate\Support\Str::limit($ev->user_agent ?? '—', 60) }}</small>
                         </td>

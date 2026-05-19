@@ -70,6 +70,35 @@
                 </div>
             </div>
 
+            {{-- ── Available merge tags reference (click to copy) ──── --}}
+            <div class="card shadow-sm mb-3 border-info">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center flex-wrap gap-3">
+                        <strong class="text-info"><i class="bi bi-braces me-1"></i>Available variables</strong>
+                        @foreach ([
+                            '{{first_name}}'      => "First name",
+                            '{{last_name}}'       => "Last name",
+                            '{{email}}'           => 'Email address',
+                            '{{unsubscribe_url}}' => 'Unsubscribe link (required)',
+                        ] as $tag => $desc)
+                            <span class="badge bg-light text-dark border copy-tag" role="button"
+                                  data-tag="{{ $tag }}" title="Click to copy {{ $tag }}"
+                                  style="cursor: pointer;">
+                                <code class="text-info">{{ $tag }}</code>
+                                <small class="text-muted ms-1">{{ $desc }}</small>
+                            </span>
+                        @endforeach
+                        <span id="copy-feedback" class="text-success d-none ms-2">
+                            <i class="bi bi-check-circle me-1"></i>Copied
+                        </span>
+                    </div>
+                    <small class="text-muted d-block mt-1">
+                        Click any variable to copy it to your clipboard, then paste into the email body or subject.
+                        The Unlayer editor also has a <strong>Merge Tags</strong> picker in any text block's toolbar.
+                    </small>
+                </div>
+            </div>
+
             {{-- Unlayer editor embedded — design + HTML are exported on save. --}}
             <div class="card shadow-sm">
                 <div class="card-body p-0">
@@ -207,6 +236,30 @@
         });
     }
     initUnlayer();
+
+    // Click-to-copy for the merge-tag reference badges
+    document.querySelectorAll('.copy-tag').forEach(function (el) {
+        el.addEventListener('click', function () {
+            const tag = el.getAttribute('data-tag');
+            const fb  = document.getElementById('copy-feedback');
+            const reveal = function () {
+                fb.classList.remove('d-none');
+                clearTimeout(window.__copyTimer);
+                window.__copyTimer = setTimeout(function () { fb.classList.add('d-none'); }, 1500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(tag).then(reveal).catch(function () {
+                    // Fallback for older browsers / non-HTTPS
+                    const ta = document.createElement('textarea');
+                    ta.value = tag;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    try { document.execCommand('copy'); reveal(); } catch (e) {}
+                    document.body.removeChild(ta);
+                });
+            }
+        });
+    });
 })();
 </script>
 @endsection

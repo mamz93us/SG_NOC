@@ -12,6 +12,7 @@ class EmailEvent extends Model
     protected $fillable = [
         'ses_message_id', 'email_campaign_send_id', 'email_subscriber_id',
         'event_type', 'url', 'user_agent', 'ip_address',
+        'country_code', 'country_name',
         'bounce_type', 'bounce_subtype', 'complaint_type',
         'raw_payload', 'created_at',
     ];

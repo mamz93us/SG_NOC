@@ -100,6 +100,15 @@ class ProcessSnsEventJob implements ShouldQueue
                 break;
         }
 
+        // Enrich Open / Click with country lookup if we have an IP.
+        // GeoIpLookup is cached + fault-tolerant — never blocks the event write.
+        if (! empty($eventRow['ip_address'])) {
+            $geo = app(\App\Services\EmailMarketing\GeoIpLookup::class)
+                ->lookup($eventRow['ip_address']);
+            $eventRow['country_code'] = $geo['country_code'] ?? null;
+            $eventRow['country_name'] = $geo['country_name'] ?? null;
+        }
+
         // Write event (insert via Eloquent so casts apply)
         EmailEvent::create($eventRow);
 

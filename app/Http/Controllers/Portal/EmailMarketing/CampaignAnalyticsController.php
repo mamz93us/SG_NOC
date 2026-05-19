@@ -54,8 +54,10 @@ class CampaignAnalyticsController extends Controller
                        SUM(event_type = 'Open')   AS opens,
                        SUM(event_type = 'Click')  AS clicks,
                        MAX(created_at)            AS last_activity_at,
-                       SUBSTRING_INDEX(GROUP_CONCAT(ip_address ORDER BY created_at DESC), ',', 1) AS last_ip,
-                       SUBSTRING_INDEX(GROUP_CONCAT(user_agent ORDER BY created_at DESC SEPARATOR '||'), '||', 1) AS last_user_agent
+                       SUBSTRING_INDEX(GROUP_CONCAT(ip_address    ORDER BY created_at DESC SEPARATOR '||'), '||', 1) AS last_ip,
+                       SUBSTRING_INDEX(GROUP_CONCAT(country_code  ORDER BY created_at DESC SEPARATOR '||'), '||', 1) AS last_country_code,
+                       SUBSTRING_INDEX(GROUP_CONCAT(country_name  ORDER BY created_at DESC SEPARATOR '||'), '||', 1) AS last_country_name,
+                       SUBSTRING_INDEX(GROUP_CONCAT(user_agent    ORDER BY created_at DESC SEPARATOR '||'), '||', 1) AS last_user_agent
                 FROM email_events
                 WHERE event_type IN ('Open','Click','Bounce','Complaint','Delivery')
                 GROUP BY email_campaign_send_id
@@ -76,6 +78,8 @@ class CampaignAnalyticsController extends Controller
                 DB::raw('COALESCE(agg.clicks, 0) as clicks'),
                 'agg.last_activity_at',
                 'agg.last_ip',
+                'agg.last_country_code',
+                'agg.last_country_name',
                 'agg.last_user_agent',
             )
             ->when($recipientFilter !== '', fn ($q) => $q->where('email_campaign_sends.status', $recipientFilter))
@@ -102,6 +106,8 @@ class CampaignAnalyticsController extends Controller
                 'email_events.event_type',
                 'email_events.url',
                 'email_events.ip_address',
+                'email_events.country_code',
+                'email_events.country_name',
                 'email_events.user_agent',
                 'email_events.bounce_type',
                 'email_events.bounce_subtype',
