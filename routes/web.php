@@ -220,7 +220,9 @@ Route::prefix('portal')->name('portal.')->group(function () {
             Route::post('campaigns/{campaign}/pause', [EmCampaignsController::class, 'pause'])->name('campaigns.pause');
             Route::post('campaigns/{campaign}/duplicate', [EmCampaignsController::class, 'duplicate'])->name('campaigns.duplicate');
             Route::post('campaigns/{campaign}/archive',   [EmCampaignsController::class, 'archive'])->name('campaigns.archive');
+            Route::post('campaigns/{campaign}/test-send', [EmCampaignsController::class, 'testSend'])->name('campaigns.test-send');
             Route::get('campaigns/{campaign}/analytics', [EmCampaignAnalyticsController::class, 'show'])->name('campaigns.analytics');
+            Route::get('campaigns/{campaign}/analytics/recipient/{send}', [EmCampaignAnalyticsController::class, 'recipient'])->name('campaigns.analytics.recipient');
             Route::resource('campaigns', EmCampaignsController::class);
 
             // Templates duplicate + archive
@@ -268,6 +270,11 @@ Route::prefix('portal')->name('portal.')->group(function () {
 Route::get('email/unsubscribe/{token}', [UnsubscribeController::class, 'show'])->name('email.unsubscribe.show');
 Route::post('email/unsubscribe/{token}', [UnsubscribeController::class, 'confirm'])->name('email.unsubscribe.confirm');
 Route::get('email/opt-in/{token}', [OptInConfirmController::class, 'confirm'])->name('email.opt-in.confirm');
+
+// Public template preview — signed URL, no auth. Used to share design drafts
+// with stakeholders. Link expires after 7 days; regenerate from the editor.
+Route::get('email/template-preview/{template}', [EmTemplatesController::class, 'publicPreview'])
+    ->name('email.template.preview');
 
 // Public tokenised access to course completion certificates. The token is the
 // only credential; links never expire by design.

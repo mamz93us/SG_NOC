@@ -96,6 +96,26 @@ class TemplatesController extends Controller
     }
 
     /**
+     * Public, signed-URL-protected preview of a template's rendered HTML.
+     * Anyone with the URL can view (no auth) — useful for sharing draft
+     * designs with stakeholders. Sign expires after 7 days.
+     */
+    public function publicPreview(Request $request, EmailTemplate $template)
+    {
+        if (! $request->hasValidSignature()) {
+            abort(403, 'Preview link is invalid or expired.');
+        }
+
+        $html = $template->rendered_html ?: '<!doctype html><html><body style="font-family:sans-serif;padding:40px;"><p>No content yet — this template has no rendered HTML.</p></body></html>';
+
+        return response($html, 200, [
+            'Content-Type'        => 'text/html; charset=UTF-8',
+            'X-Robots-Tag'        => 'noindex, nofollow',
+            'Content-Security-Policy' => "default-src 'self' data: https:; img-src * data:; style-src 'unsafe-inline' *;",
+        ]);
+    }
+
+    /**
      * Route to the editor-specific view based on the template's editor_type.
      */
     private function editView(EmailTemplate $template): View

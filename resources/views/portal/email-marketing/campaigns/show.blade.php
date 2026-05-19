@@ -83,5 +83,32 @@
             </form>
         @endif
     </div>
+
+    {{-- ── Send test email to an arbitrary address ───────────────── --}}
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-light">
+            <strong><i class="bi bi-send-check me-1"></i>Send test email</strong>
+            <small class="text-muted ms-2">Renders the template with placeholder data and sends only to this address — doesn't touch real recipients or analytics.</small>
+        </div>
+        <form class="card-body" method="POST" action="{{ route('portal.marketing.campaigns.test-send', $campaign) }}">
+            @csrf
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label">Recipient email</label>
+                    <input type="email" name="to" class="form-control" required
+                           placeholder="you@samirgroup.com"
+                           value="{{ old('to', auth()->user()->email) }}">
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-outline-primary w-100">
+                        <i class="bi bi-send me-1"></i>Send test
+                    </button>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Subject is prefixed <code>[TEST]</code>. Recipient must be verified if SES is in sandbox.</small>
+                </div>
+            </div>
+        </form>
+    </div>
 </div>
 @endsection

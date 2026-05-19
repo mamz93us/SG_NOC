@@ -150,6 +150,43 @@ class CampaignsController extends Controller
         return back()->with('status', $wasArchived ? 'Campaign restored.' : 'Campaign archived.');
     }
 
+    /**
+     * Render the campaign template against a placeholder subscriber and send it
+     * via SES to an arbitrary address. Doesn't touch email_campaign_sends or
+     * counters — purely a preview send. Subject is prefixed [TEST].
+     */
+    public function testSend(Request $request, EmailCampaign $campaign)
+    {
+        $data = $request->validate([
+            'to' => ['required', 'email', 'max:191'],
+        ]);
+
+        $campaign->loadMissing(['template', 'list']);
+        if (! $campaign->template || ! $campaign->template->rendered_html) {
+            return back()->withErrors(['test' => 'This campaign has no template HTML to send.']);
+        }
+
+        // Render merge tags with a placeholder subscriber so {{first_name}} etc. resolve
+        $fake = new \App\Models\EmailMarketing\EmailSubscriber([
+            'email'      => $data['to'],
+            'first_name' => 'Test',
+            'last_name'  => 'Recipient',
+        ]);
+        $renderer = app(\App\Services\EmailMarketing\MergeTagRenderer::class);
+        $html = $renderer->render($campaign->template->rendered_html, $fake, null, $campaign->list);
+
+        try {
+            $ses = app(\App\Services\EmailMarketing\SesService::class);
+            $messageId = $ses->sendRawTestEmail($data['to'], '[TEST] '.$campaign->subject, $html);
+
+            return back()->with('status', "Test email sent to {$data['to']} (SES MessageId: {$messageId}).");
+        } catch (\App\Services\EmailMarketing\EmailMarketingNotConfiguredException $e) {
+            return back()->withErrors(['test' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['test' => 'AWS error: '.$e->getMessage()]);
+        }
+    }
+
     private function editPayload(EmailCampaign $campaign): array
     {
         $spamHits = $campaign->subject

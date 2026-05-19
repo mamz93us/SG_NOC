@@ -114,7 +114,10 @@
                 @forelse ($recipients as $r)
                     <tr>
                         <td>
-                            <a href="{{ route('portal.marketing.subscribers.edit', $r->subscriber_id) }}">{{ $r->email }}</a>
+                            <a href="{{ route('portal.marketing.campaigns.analytics.recipient', ['campaign' => $campaign, 'send' => $r->send_id]) }}"
+                               title="View full event log for this recipient">
+                                <strong>{{ $r->email }}</strong>
+                            </a>
                             @if ($r->first_name || $r->last_name)
                                 <br><small class="text-muted">{{ trim(($r->first_name ?? '').' '.($r->last_name ?? '')) }}</small>
                             @endif

@@ -167,13 +167,38 @@
                 <div class="card-body p-0">
                     <div id="unlayer-editor" class="em-editor-canvas"></div>
                 </div>
-                <div class="card-footer d-flex justify-content-end">
-                    <button type="button" id="preview-btn" class="btn btn-outline-secondary me-2">
-                        <i class="bi bi-eye me-1"></i>Preview HTML
-                    </button>
-                    <button type="button" id="save-btn" class="btn btn-primary">
-                        <i class="bi bi-check2-circle me-1"></i>Save template
-                    </button>
+                <div class="card-footer d-flex justify-content-between flex-wrap gap-2">
+                    @if ($template->exists)
+                        @php
+                            $shareUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+                                'email.template.preview',
+                                now()->addDays(7),
+                                ['template' => $template->id]
+                            );
+                        @endphp
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-info copy-share-link"
+                                    data-url="{{ $shareUrl }}" title="Copy shareable preview URL (valid 7 days)">
+                                <i class="bi bi-share me-1"></i>Copy share link
+                            </button>
+                            <a href="{{ $shareUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>Open
+                            </a>
+                            <small id="share-feedback" class="text-success d-none">
+                                <i class="bi bi-check-circle me-1"></i>Link copied — valid 7 days
+                            </small>
+                        </div>
+                    @else
+                        <small class="text-muted">Save the template to get a shareable preview link.</small>
+                    @endif
+                    <div>
+                        <button type="button" id="preview-btn" class="btn btn-outline-secondary me-2">
+                            <i class="bi bi-eye me-1"></i>Preview HTML
+                        </button>
+                        <button type="button" id="save-btn" class="btn btn-primary">
+                            <i class="bi bi-check2-circle me-1"></i>Save template
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -299,6 +324,22 @@
         });
     }
     initUnlayer();
+
+    // Click-to-copy for "Share preview link"
+    document.querySelectorAll('.copy-share-link').forEach(function (el) {
+        el.addEventListener('click', function () {
+            const url = el.getAttribute('data-url');
+            const fb = document.getElementById('share-feedback');
+            const reveal = function () {
+                fb.classList.remove('d-none');
+                clearTimeout(window.__shareTimer);
+                window.__shareTimer = setTimeout(function () { fb.classList.add('d-none'); }, 2500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(reveal).catch(function () {});
+            }
+        });
+    });
 
     // Click-to-copy for SAMIR icon library
     document.querySelectorAll('.copy-icon').forEach(function (el) {

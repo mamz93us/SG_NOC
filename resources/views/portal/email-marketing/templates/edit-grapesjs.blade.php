@@ -103,9 +103,30 @@
         <div id="gjs-editor"></div>
 
         <div class="d-flex justify-content-between align-items-center mt-3 mb-3 gap-2 flex-wrap">
-            <button type="button" id="fullscreen-btn" class="btn btn-outline-info">
-                <i class="bi bi-arrows-fullscreen me-1"></i>Open editor fullscreen
-            </button>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <button type="button" id="fullscreen-btn" class="btn btn-outline-info">
+                    <i class="bi bi-arrows-fullscreen me-1"></i>Open editor fullscreen
+                </button>
+                @if ($template->exists)
+                    @php
+                        $shareUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+                            'email.template.preview',
+                            now()->addDays(7),
+                            ['template' => $template->id]
+                        );
+                    @endphp
+                    <button type="button" class="btn btn-outline-info copy-share-link"
+                            data-url="{{ $shareUrl }}" title="Copy shareable preview URL (valid 7 days)">
+                        <i class="bi bi-share me-1"></i>Copy share link
+                    </button>
+                    <a href="{{ $shareUrl }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>Open
+                    </a>
+                    <small id="share-feedback" class="text-success d-none">
+                        <i class="bi bi-check-circle me-1"></i>Copied — valid 7 days
+                    </small>
+                @endif
+            </div>
             <div class="d-flex gap-2">
                 <button type="button" id="preview-btn" class="btn btn-outline-secondary">
                     <i class="bi bi-eye me-1"></i>Preview HTML
@@ -234,6 +255,23 @@
     document.getElementById('fullscreen-btn').addEventListener('click', function () {
         try { editor.runCommand('fullscreen'); }
         catch (e) { console.error('Fullscreen failed', e); }
+    });
+
+    // Click-to-copy for "Share preview link"
+    document.querySelectorAll('.copy-share-link').forEach(function (el) {
+        el.addEventListener('click', function () {
+            const url = el.getAttribute('data-url');
+            const fb = document.getElementById('share-feedback');
+            const reveal = function () {
+                if (!fb) return;
+                fb.classList.remove('d-none');
+                clearTimeout(window.__shareTimer);
+                window.__shareTimer = setTimeout(function () { fb.classList.add('d-none'); }, 2500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(reveal).catch(function () {});
+            }
+        });
     });
 
     // Merge-tag click-to-copy (same UX as Unlayer view)

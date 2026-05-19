@@ -12,6 +12,23 @@ use Illuminate\View\View;
 
 class CampaignAnalyticsController extends Controller
 {
+    /**
+     * Per-recipient drilldown. Shows the subscriber's profile, their send
+     * status, and every email_events row for this specific (campaign,
+     * subscriber) pair in chronological order.
+     */
+    public function recipient(EmailCampaign $campaign, EmailCampaignSend $send): View
+    {
+        abort_unless((int) $send->email_campaign_id === (int) $campaign->id, 404);
+
+        $send->load('subscriber');
+        $events = EmailEvent::where('email_campaign_send_id', $send->id)
+            ->orderBy('created_at')
+            ->get();
+
+        return view('portal.email-marketing.campaigns.recipient', compact('campaign', 'send', 'events'));
+    }
+
     public function show(Request $request, EmailCampaign $campaign): View
     {
         $campaign->load(['list', 'template']);
