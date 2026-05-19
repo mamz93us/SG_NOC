@@ -31,6 +31,9 @@
                     <i class="bi bi-upload me-1"></i>Import CSV
                 </a>
             @endunless
+            <a href="{{ route('portal.marketing.lists.export', $list) }}" class="btn btn-outline-success btn-sm">
+                <i class="bi bi-download me-1"></i>Export CSV
+            </a>
             <a href="{{ route('portal.marketing.lists.edit', $list) }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-pencil me-1"></i>Edit
             </a>

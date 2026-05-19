@@ -9,7 +9,15 @@
 
     @if (session('status'))<div class="alert alert-success">{{ session('status') }}</div>@endif
 
-    <div class="d-flex justify-content-end mb-3 gap-2">
+    <div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
+        <div>
+            <a href="{{ route('portal.marketing.templates.index') }}"
+               class="btn btn-sm {{ ($showArchived ?? false) ? 'btn-outline-secondary' : 'btn-secondary' }}">Active</a>
+            <a href="{{ route('portal.marketing.templates.index', ['archived' => 1]) }}"
+               class="btn btn-sm {{ ($showArchived ?? false) ? 'btn-secondary' : 'btn-outline-secondary' }}">
+                <i class="bi bi-archive me-1"></i>Archived
+            </a>
+        </div>
         <div class="btn-group">
             <a href="{{ route('portal.marketing.templates.create') }}" class="btn btn-primary btn-sm">
                 <i class="bi bi-plus me-1"></i>New template (Unlayer)
@@ -53,10 +61,21 @@
                         <td><small class="text-muted">{{ $t->preview_text }}</small></td>
                         <td><small>{{ $t->created_at?->diffForHumans() }}</small></td>
                         <td class="text-end">
+                            <form method="POST" action="{{ route('portal.marketing.templates.duplicate', $t) }}" class="d-inline">
+                                @csrf
+                                <button class="btn btn-sm btn-outline-secondary" title="Duplicate"><i class="bi bi-files"></i></button>
+                            </form>
+                            <form method="POST" action="{{ route('portal.marketing.templates.archive', $t) }}" class="d-inline">
+                                @csrf
+                                <button class="btn btn-sm btn-outline-warning"
+                                        title="{{ $t->archived_at ? 'Restore' : 'Archive' }}">
+                                    <i class="bi bi-{{ $t->archived_at ? 'arrow-counterclockwise' : 'archive' }}"></i>
+                                </button>
+                            </form>
                             <form method="POST" action="{{ route('portal.marketing.templates.destroy', $t) }}" class="d-inline"
                                   onsubmit="return confirm('Delete template? Existing campaigns retain their rendered HTML.')">
                                 @csrf @method('DELETE')
-                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
                             </form>
                         </td>
                     </tr>

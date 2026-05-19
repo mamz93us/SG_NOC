@@ -10,7 +10,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class EmailTemplate extends Model
 {
     protected $fillable = [
-        'name', 'editor_type', 'design_json', 'rendered_html', 'preview_text', 'created_by',
+        'name', 'editor_type', 'design_json', 'rendered_html', 'preview_text', 'archived_at', 'created_by',
+    ];
+
+    protected $casts = [
+        'archived_at' => 'datetime',
     ];
 
     public function creator(): BelongsTo

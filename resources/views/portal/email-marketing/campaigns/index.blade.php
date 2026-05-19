@@ -8,8 +8,19 @@
     @include('portal.email-marketing._nav')
 
     @if (session('status'))<div class="alert alert-success">{{ session('status') }}</div>@endif
+    @if ($errors->any())
+        <div class="alert alert-danger"><ul class="mb-0">@foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul></div>
+    @endif
 
-    <div class="d-flex justify-content-end mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <a href="{{ route('portal.marketing.campaigns.index') }}"
+               class="btn btn-sm {{ ($showArchived ?? false) ? 'btn-outline-secondary' : 'btn-secondary' }}">Active</a>
+            <a href="{{ route('portal.marketing.campaigns.index', ['archived' => 1]) }}"
+               class="btn btn-sm {{ ($showArchived ?? false) ? 'btn-secondary' : 'btn-outline-secondary' }}">
+                <i class="bi bi-archive me-1"></i>Archived
+            </a>
+        </div>
         <a href="{{ route('portal.marketing.campaigns.create') }}" class="btn btn-primary btn-sm">
             <i class="bi bi-plus me-1"></i>New campaign
         </a>
@@ -20,13 +31,18 @@
             <table class="table table-hover mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Name</th><th>Subject</th><th>List / Segment</th><th>Status</th><th>Schedule</th><th>Sent</th>
+                        <th>Name</th><th>Subject</th><th>List / Segment</th><th>Status</th><th>Schedule</th><th>Sent</th><th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                 @forelse ($campaigns as $c)
                     <tr>
-                        <td><a href="{{ route('portal.marketing.campaigns.show', $c) }}"><strong>{{ $c->name }}</strong></a></td>
+                        <td>
+                            <a href="{{ route('portal.marketing.campaigns.show', $c) }}"><strong>{{ $c->name }}</strong></a>
+                            @if ($c->archived_at)
+                                <span class="badge bg-light text-muted ms-1"><i class="bi bi-archive"></i> archived</span>
+                            @endif
+                        </td>
                         <td><small>{{ $c->subject }}</small></td>
                         <td>{{ $c->list?->name ?: ($c->segment_id ? 'Segment #' . $c->segment_id : '—') }}</td>
                         <td>
@@ -41,9 +57,22 @@
                         </td>
                         <td><small>{{ $c->scheduled_at?->format('Y-m-d H:i') ?: '—' }}</small></td>
                         <td><small>{{ $c->total_sent }} / {{ $c->total_recipients }}</small></td>
+                        <td class="text-end">
+                            <form method="POST" action="{{ route('portal.marketing.campaigns.duplicate', $c) }}" class="d-inline">
+                                @csrf
+                                <button class="btn btn-sm btn-outline-secondary" title="Duplicate"><i class="bi bi-files"></i></button>
+                            </form>
+                            <form method="POST" action="{{ route('portal.marketing.campaigns.archive', $c) }}" class="d-inline">
+                                @csrf
+                                <button class="btn btn-sm btn-outline-warning"
+                                        title="{{ $c->archived_at ? 'Restore' : 'Archive' }}">
+                                    <i class="bi bi-{{ $c->archived_at ? 'arrow-counterclockwise' : 'archive' }}"></i>
+                                </button>
+                            </form>
+                        </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="text-center text-muted py-4">No campaigns yet.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-4">No campaigns to show.</td></tr>
                 @endforelse
                 </tbody>
             </table>

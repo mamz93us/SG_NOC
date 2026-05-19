@@ -219,8 +219,16 @@ Route::prefix('portal')->name('portal.')->group(function () {
             Route::post('campaigns/{campaign}/schedule', [EmCampaignsController::class, 'schedule'])->name('campaigns.schedule');
             Route::post('campaigns/{campaign}/pause', [EmCampaignsController::class, 'pause'])->name('campaigns.pause');
             Route::post('campaigns/{campaign}/duplicate', [EmCampaignsController::class, 'duplicate'])->name('campaigns.duplicate');
+            Route::post('campaigns/{campaign}/archive',   [EmCampaignsController::class, 'archive'])->name('campaigns.archive');
             Route::get('campaigns/{campaign}/analytics', [EmCampaignAnalyticsController::class, 'show'])->name('campaigns.analytics');
             Route::resource('campaigns', EmCampaignsController::class);
+
+            // Templates duplicate + archive
+            Route::post('templates/{template}/duplicate', [EmTemplatesController::class, 'duplicate'])->name('templates.duplicate');
+            Route::post('templates/{template}/archive',   [EmTemplatesController::class, 'archive'])->name('templates.archive');
+
+            // List export
+            Route::get('lists/{list}/export', [EmListsController::class, 'export'])->name('lists.export');
 
             // Courses + per-employee completion certificates.
             // Concrete paths come before wildcards so `/create` and

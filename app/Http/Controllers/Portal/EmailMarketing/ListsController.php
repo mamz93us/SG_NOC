@@ -65,6 +65,44 @@ class ListsController extends Controller
             ->with('status', 'List deleted.');
     }
 
+    /**
+     * Streams every subscriber on this list as a CSV. Chunked so it stays
+     * memory-flat on huge lists. UTF-8 BOM so Excel opens it cleanly.
+     */
+    public function export(EmailList $list): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $filename = 'subscribers-'.\Illuminate\Support\Str::slug($list->name).'-'.now()->format('Ymd-His').'.csv';
+
+        return response()->streamDownload(function () use ($list) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, [
+                'email', 'first_name', 'last_name', 'status',
+                'subscribed_at', 'unsubscribed_at', 'source', 'last_bounce_type',
+            ]);
+
+            $list->subscribers()->orderBy('email_subscribers.id')->chunk(500, function ($subs) use ($out) {
+                foreach ($subs as $s) {
+                    fputcsv($out, [
+                        $s->email,
+                        $s->first_name,
+                        $s->last_name,
+                        $s->status,
+                        optional($s->pivot->subscribed_at)?->toDateTimeString(),
+                        optional($s->pivot->unsubscribed_at)?->toDateTimeString(),
+                        $s->source,
+                        $s->last_bounce_type,
+                    ]);
+                }
+            });
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type'  => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+        ]);
+    }
+
     private function validated(Request $request): array
     {
         return $request->validate([

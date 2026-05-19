@@ -141,6 +141,10 @@ class RolePermission extends Model
                 'manage-email-marketing'          => 'Admin oversight (suppressions, quota, all campaigns)',
                 'manage-email-marketing-settings' => 'Edit AWS SES credentials & sender domain',
             ],
+            'Training (Courses)' => [
+                'view-courses'   => 'View training courses, certificates & marketing course campaigns',
+                'manage-courses' => 'Create / edit / delete courses & manage issued certificates',
+            ],
         ];
     }
 
@@ -183,7 +187,7 @@ class RolePermission extends Model
             'view-offboarding',
             'manage-offboarding',
         ];
-        $marketingPerms = ['view-email-marketing'];
+        $marketingPerms = ['view-email-marketing', 'view-courses', 'manage-courses'];
 
         return [
             'super_admin'  => $all,

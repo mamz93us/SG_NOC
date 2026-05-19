@@ -10,11 +10,18 @@ use Illuminate\View\View;
 
 class TemplatesController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $templates = EmailTemplate::latest()->paginate(25);
+        $showArchived = $request->boolean('archived');
 
-        return view('portal.email-marketing.templates.index', compact('templates'));
+        $templates = EmailTemplate::query()
+            ->when(! $showArchived, fn ($q) => $q->whereNull('archived_at'))
+            ->when($showArchived, fn ($q) => $q->whereNotNull('archived_at'))
+            ->latest()
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('portal.email-marketing.templates.index', compact('templates', 'showArchived'));
     }
 
     public function create(Request $request): View
@@ -63,6 +70,24 @@ class TemplatesController extends Controller
 
         return redirect()->route('portal.marketing.templates.index')
             ->with('status', 'Template deleted.');
+    }
+
+    public function duplicate(EmailTemplate $template)
+    {
+        $copy = $template->replicate(['archived_at']);
+        $copy->name = $template->name.' (copy)';
+        $copy->save();
+
+        return redirect()->route('portal.marketing.templates.edit', $copy)
+            ->with('status', 'Template duplicated.');
+    }
+
+    public function archive(EmailTemplate $template)
+    {
+        $wasArchived = $template->archived_at !== null;
+        $template->update(['archived_at' => $wasArchived ? null : now()]);
+
+        return back()->with('status', $wasArchived ? 'Template restored.' : 'Template archived.');
     }
 
     public function show(EmailTemplate $template): View

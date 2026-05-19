@@ -13,7 +13,7 @@ class EmailCampaign extends Model
         'name', 'subject', 'preview_text',
         'from_email', 'from_name', 'reply_to',
         'email_template_id', 'email_list_id', 'email_segment_id', 'course_id',
-        'status', 'scheduled_at', 'started_at', 'sent_at',
+        'status', 'scheduled_at', 'started_at', 'sent_at', 'archived_at',
         'total_recipients', 'total_sent', 'total_delivered',
         'total_opens', 'total_unique_opens',
         'total_clicks', 'total_unique_clicks',
@@ -25,6 +25,7 @@ class EmailCampaign extends Model
         'scheduled_at' => 'datetime',
         'started_at' => 'datetime',
         'sent_at' => 'datetime',
+        'archived_at' => 'datetime',
     ];
 
     public function template(): BelongsTo

@@ -14,13 +14,19 @@ use Illuminate\View\View;
 
 class CampaignsController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $campaigns = EmailCampaign::with(['list', 'template'])
-            ->latest('updated_at')
-            ->paginate(25);
+        $showArchived = $request->boolean('archived');
 
-        return view('portal.email-marketing.campaigns.index', compact('campaigns'));
+        $campaigns = EmailCampaign::query()
+            ->with(['list', 'template'])
+            ->when(! $showArchived, fn ($q) => $q->whereNull('archived_at'))
+            ->when($showArchived, fn ($q) => $q->whereNotNull('archived_at'))
+            ->latest('updated_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('portal.email-marketing.campaigns.index', compact('campaigns', 'showArchived'));
     }
 
     public function create(): View
@@ -119,7 +125,7 @@ class CampaignsController extends Controller
     public function duplicate(EmailCampaign $campaign)
     {
         $copy = $campaign->replicate([
-            'status', 'scheduled_at', 'started_at', 'sent_at',
+            'status', 'scheduled_at', 'started_at', 'sent_at', 'archived_at',
             'total_recipients', 'total_sent', 'total_delivered',
             'total_opens', 'total_unique_opens',
             'total_clicks', 'total_unique_clicks',
@@ -131,6 +137,17 @@ class CampaignsController extends Controller
 
         return redirect()->route('portal.marketing.campaigns.edit', $copy)
             ->with('status', 'Campaign duplicated.');
+    }
+
+    public function archive(EmailCampaign $campaign)
+    {
+        if (in_array($campaign->status, ['scheduled', 'sending'])) {
+            return back()->withErrors(['campaign' => 'Pause the campaign before archiving.']);
+        }
+        $wasArchived = $campaign->archived_at !== null;
+        $campaign->update(['archived_at' => $wasArchived ? null : now()]);
+
+        return back()->with('status', $wasArchived ? 'Campaign restored.' : 'Campaign archived.');
     }
 
     private function editPayload(EmailCampaign $campaign): array
