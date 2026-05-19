@@ -536,6 +536,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('devices/{device}/return', [DeviceController::class, 'quickReturn'])->name('devices.return');
         Route::post('devices/phone-auto-assign', [PhoneAutoAssignController::class, 'store'])->name('devices.phone-auto-assign.store');
         Route::post('devices/phone-auto-assign/create-assets', [PhoneAutoAssignController::class, 'createAssets'])->name('devices.phone-auto-assign.create-assets');
+        Route::post('devices/phone-auto-assign/manual-assign', [PhoneAutoAssignController::class, 'manualAssign'])->name('devices.phone-auto-assign.manual-assign');
         Route::post('devices/import/preview', [DeviceImportController::class, 'preview'])->name('devices.import.preview');
         Route::post('devices/import/apply', [DeviceImportController::class, 'apply'])->name('devices.import.apply');
         Route::post('devices/import/manual', [DeviceImportController::class, 'manualStore'])->name('devices.import.manual');

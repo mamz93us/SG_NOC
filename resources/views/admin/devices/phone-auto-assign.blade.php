@@ -153,6 +153,7 @@
                         <th>Asset in DB</th>
                         <th>Currently Assigned To</th>
                         <th>Status</th>
+                        <th class="text-end pe-3">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -302,10 +303,30 @@
                                 <span class="badge bg-secondary">{{ $st }}</span>
                         @endswitch
                     </td>
+
+                    {{-- Action: Manual Assign --}}
+                    <td class="text-end pe-3">
+                        @if($r['device'])
+                            @php
+                                $btnLabel = $st === 'assigned' || $st === 'wrong_employee' ? 'Reassign' : 'Manual Assign';
+                                $btnClass = $st === 'wrong_employee' ? 'btn-outline-danger' : 'btn-outline-primary';
+                            @endphp
+                            <button type="button" class="btn btn-sm {{ $btnClass }} manual-assign-btn"
+                                    data-device-id="{{ $r['device']->id }}"
+                                    data-device-name="{{ $r['device']->name }}"
+                                    data-asset-code="{{ $r['device']->asset_code }}"
+                                    data-current-employee="{{ $r['assignedEmployee']?->name ?? '' }}"
+                                    data-suggested-employee="{{ $r['employee']?->id ?? '' }}">
+                                <i class="bi bi-person-plus me-1"></i>{{ $btnLabel }}
+                            </button>
+                        @else
+                            <span class="text-muted small">Create asset first</span>
+                        @endif
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="text-center py-5 text-muted">
+                    <td colspan="10" class="text-center py-5 text-muted">
                         <i class="bi bi-telephone-x display-4 d-block mb-2"></i>
                         No phones found. GDMS may be unreachable or no devices are registered.
                     </td>
@@ -338,9 +359,96 @@
         <i class="bi bi-telephone-x display-4 d-block mb-2"></i>
         No phone data available. Check GDMS connectivity or run
         <code>php artisan gdms:sync-device-accounts</code> to populate SIP data.
+        @php($manualPhones = \App\Models\Device::where('type', 'phone')->with('currentAssignment.employee')->orderBy('name')->get())
+        @if($manualPhones->count() > 0)
+        <div class="mt-4 text-start">
+            <h6 class="text-muted small text-uppercase fw-semibold mb-2"><i class="bi bi-keyboard me-1"></i>Manual Assignment</h6>
+            <p class="small text-muted mb-2">GDMS data isn't available, but you have {{ $manualPhones->count() }} phone(s) in the local database. You can assign them manually.</p>
+            <div class="table-responsive border rounded">
+                <table class="table table-sm table-hover mb-0 small">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Asset Code</th>
+                            <th>Phone</th>
+                            <th>Currently Assigned To</th>
+                            <th class="text-end pe-3">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($manualPhones as $ph)
+                        <tr>
+                            <td class="font-monospace">{{ $ph->asset_code ?? '—' }}</td>
+                            <td>{{ $ph->name }}</td>
+                            <td>{{ $ph->currentAssignment?->employee?->name ?? '—' }}</td>
+                            <td class="text-end pe-3">
+                                <button type="button" class="btn btn-sm btn-outline-primary manual-assign-btn"
+                                        data-device-id="{{ $ph->id }}"
+                                        data-device-name="{{ $ph->name }}"
+                                        data-asset-code="{{ $ph->asset_code }}"
+                                        data-current-employee="{{ $ph->currentAssignment?->employee?->name ?? '' }}"
+                                        data-suggested-employee="">
+                                    <i class="bi bi-person-plus me-1"></i>{{ $ph->currentAssignment ? 'Reassign' : 'Manual Assign' }}
+                                </button>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @endif
     </div>
 </div>
 @endif
+
+{{-- ── Manual Assign Modal ─────────────────────────────────────────────────── --}}
+<div class="modal fade" id="manualAssignModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" action="{{ route('admin.devices.phone-auto-assign.manual-assign') }}">
+            @csrf
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-semibold"><i class="bi bi-person-plus me-2 text-primary"></i>Manual Phone Assignment</h6>
+                    <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="device_id" id="maDeviceId">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Phone</label>
+                        <div class="fw-semibold" id="maDeviceName">—</div>
+                        <code class="small text-muted" id="maAssetCode"></code>
+                    </div>
+                    <div class="mb-3" id="maCurrentWrap" style="display:none">
+                        <label class="form-label small text-muted">Currently Assigned To</label>
+                        <div id="maCurrentEmployee" class="fw-semibold text-danger"></div>
+                        <small class="text-muted">Confirming will close the existing assignment and reassign.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Assign To Employee <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm mb-1" id="maSearch"
+                               placeholder="Filter employees by name, email, or extension..." autocomplete="off">
+                        <select name="employee_id" id="maEmployeeSelect" class="form-select" required size="6" style="height:auto">
+                            @foreach($allEmployees ?? [] as $emp)
+                            <option value="{{ $emp->id }}"
+                                    data-search="{{ strtolower($emp->name . ' ' . ($emp->email ?? '') . ' ' . ($emp->extension_number ?? '')) }}">
+                                {{ $emp->name }}@if($emp->extension_number) — ext {{ $emp->extension_number }}@endif
+                            </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes <span class="text-muted small">(optional)</span></label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Reason for manual assignment..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg me-1"></i>Assign</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 
 @push('scripts')
 <script>
@@ -393,6 +501,65 @@ if (selectAll) {
 document.querySelectorAll('.assign-cb').forEach(cb => {
     cb.addEventListener('change', updateCount);
 });
+
+// ── Manual assign modal ────────────────────────────────────
+(function () {
+    const modalEl = document.getElementById('manualAssignModal');
+    if (!modalEl) return;
+    const modal = new bootstrap.Modal(modalEl);
+    const deviceIdInput = document.getElementById('maDeviceId');
+    const nameEl = document.getElementById('maDeviceName');
+    const codeEl = document.getElementById('maAssetCode');
+    const currentWrap = document.getElementById('maCurrentWrap');
+    const currentEl = document.getElementById('maCurrentEmployee');
+    const searchEl = document.getElementById('maSearch');
+    const selectEl = document.getElementById('maEmployeeSelect');
+
+    document.querySelectorAll('.manual-assign-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            deviceIdInput.value = this.dataset.deviceId;
+            nameEl.textContent = this.dataset.deviceName || '—';
+            codeEl.textContent = this.dataset.assetCode || '';
+
+            const current = this.dataset.currentEmployee;
+            if (current) {
+                currentWrap.style.display = '';
+                currentEl.textContent = current;
+            } else {
+                currentWrap.style.display = 'none';
+            }
+
+            // Pre-select the suggested employee if one came back from auto-match
+            const suggested = this.dataset.suggestedEmployee;
+            if (suggested) selectEl.value = suggested;
+            else selectEl.selectedIndex = -1;
+
+            // Reset search filter so all options are visible again
+            searchEl.value = '';
+            Array.from(selectEl.options).forEach(o => { o.hidden = false; });
+
+            modal.show();
+            setTimeout(() => searchEl.focus(), 250);
+        });
+    });
+
+    if (searchEl) {
+        searchEl.addEventListener('input', function () {
+            const q = this.value.trim().toLowerCase();
+            let firstVisible = null;
+            Array.from(selectEl.options).forEach(o => {
+                const hay = o.dataset.search || o.text.toLowerCase();
+                const match = !q || hay.includes(q);
+                o.hidden = !match;
+                if (match && !firstVisible) firstVisible = o;
+            });
+            // Keep selection valid if hidden by filter
+            if (selectEl.selectedOptions[0]?.hidden && firstVisible) {
+                selectEl.value = firstVisible.value;
+            }
+        });
+    }
+})();
 </script>
 @endpush
 

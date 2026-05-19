@@ -71,10 +71,14 @@ class PhoneAutoAssignController extends Controller
             ->values()
             ->all();
 
+        $allEmployees = Employee::orderBy('name')
+            ->get(['id', 'name', 'email', 'extension_number', 'branch_id']);
+
         if (empty($allMacs)) {
             return view('admin.devices.phone-auto-assign', [
-                'results'   => [],
-                'gdmsError' => $gdmsError,
+                'results'      => [],
+                'gdmsError'    => $gdmsError,
+                'allEmployees' => $allEmployees,
             ]);
         }
 
@@ -219,7 +223,7 @@ class PhoneAutoAssignController extends Controller
         ];
         usort($results, fn ($a, $b) => ($order[$a['status']] ?? 9) <=> ($order[$b['status']] ?? 9));
 
-        return view('admin.devices.phone-auto-assign', compact('results', 'gdmsError'));
+        return view('admin.devices.phone-auto-assign', compact('results', 'gdmsError', 'allEmployees'));
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -353,5 +357,64 @@ class PhoneAutoAssignController extends Controller
 
         return redirect()->route('admin.devices.phone-auto-assign')
             ->with($count > 0 ? 'success' : 'error', $msg);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Manual assign — for phones with no GDMS/SIP match (no_account /
+    // no_employee), or to override an existing/auto-suggested assignment.
+    // ─────────────────────────────────────────────────────────────
+
+    public function manualAssign(Request $request)
+    {
+        $this->authorize('manage-assets');
+
+        $validated = $request->validate([
+            'device_id' => 'required|integer|exists:devices,id',
+            'employee_id' => 'required|integer|exists:employees,id',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $device = Device::find($validated['device_id']);
+        $employee = Employee::find($validated['employee_id']);
+
+        if ($device->type !== 'phone') {
+            return back()->with('error', 'Selected asset is not a phone.');
+        }
+
+        DB::transaction(function () use ($device, $employee, $validated) {
+            // Close any existing open assignment so the device has at most
+            // one active assignment at a time.
+            $existing = EmployeeAsset::where('asset_id', $device->id)
+                ->whereNull('returned_date')
+                ->get();
+
+            foreach ($existing as $prev) {
+                $prev->update([
+                    'returned_date' => now()->toDateString(),
+                    'notes' => trim(($prev->notes ?: '').' [closed on manual reassign]'),
+                ]);
+                AssetHistory::record($device, 'returned',
+                    'Previous assignment closed during manual reassign.');
+            }
+
+            EmployeeAsset::create([
+                'employee_id' => $employee->id,
+                'asset_id' => $device->id,
+                'assigned_date' => now()->toDateString(),
+                'condition' => 'good',
+                'notes' => $validated['notes']
+                    ?: 'Manually assigned via Phone Auto-Assign page.',
+            ]);
+
+            $device->update(['status' => 'assigned']);
+
+            AssetHistory::record($device, 'assigned',
+                "Manually assigned to {$employee->name} via Phone Auto-Assign page.");
+        });
+
+        ActivityLog::log("Manually assigned phone '{$device->name}' to {$employee->name}");
+
+        return redirect()->route('admin.devices.phone-auto-assign')
+            ->with('success', "Phone '{$device->name}' assigned to {$employee->name}.");
     }
 }
