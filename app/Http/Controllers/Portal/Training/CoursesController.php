@@ -26,6 +26,7 @@ class CoursesController extends Controller
         return view('portal.email-marketing.courses.create', [
             'course'    => new Course,
             'templates' => EmailTemplate::orderBy('name')->get(['id', 'name']),
+            'senders'   => $this->loadSenders(),
         ]);
     }
 
@@ -54,7 +55,25 @@ class CoursesController extends Controller
             ->orderBy('email')
             ->paginate(50);
 
-        return view('portal.email-marketing.courses.show', compact('course', 'certificates'));
+        // Campaign-style stats: every campaign this course has fired + lifetime totals.
+        $campaigns = \App\Models\EmailMarketing\EmailCampaign::query()
+            ->where('course_id', $course->id)
+            ->latest('updated_at')
+            ->get();
+
+        $totals = [
+            'total_sent'          => (int) $campaigns->sum('total_sent'),
+            'total_delivered'     => (int) $campaigns->sum('total_delivered'),
+            'total_unique_opens'  => (int) $campaigns->sum('total_unique_opens'),
+            'total_unique_clicks' => (int) $campaigns->sum('total_unique_clicks'),
+            'total_bounces'       => (int) $campaigns->sum('total_bounces'),
+            'total_complaints'    => (int) $campaigns->sum('total_complaints'),
+        ];
+        $totals['open_rate']   = $totals['total_delivered'] > 0 ? round($totals['total_unique_opens']  / $totals['total_delivered'] * 100, 1) : 0;
+        $totals['click_rate']  = $totals['total_delivered'] > 0 ? round($totals['total_unique_clicks'] / $totals['total_delivered'] * 100, 1) : 0;
+        $totals['bounce_rate'] = $totals['total_sent']      > 0 ? round($totals['total_bounces']      / $totals['total_sent']      * 100, 1) : 0;
+
+        return view('portal.email-marketing.courses.show', compact('course', 'certificates', 'campaigns', 'totals'));
     }
 
     public function edit(Course $course): View
@@ -62,6 +81,7 @@ class CoursesController extends Controller
         return view('portal.email-marketing.courses.create', [
             'course'    => $course,
             'templates' => EmailTemplate::orderBy('name')->get(['id', 'name']),
+            'senders'   => $this->loadSenders(),
         ]);
     }
 
@@ -100,8 +120,26 @@ class CoursesController extends Controller
             'description'         => ['nullable', 'string', 'max:500'],
             'default_template_id' => ['nullable', 'integer', 'exists:email_templates,id'],
             'default_subject'     => ['nullable', 'string', 'max:255'],
-            'default_from_email'  => ['nullable', 'email', 'max:191'],
+            // default_from_email must come from the admin allowlist (nullable so
+            // a course can be drafted before the admin adds any senders).
+            'default_from_email'  => ['nullable', 'email', 'max:191',
+                \Illuminate\Validation\Rule::in(
+                    \App\Models\EmailMarketing\EmailSenderIdentity::active()->pluck('email')->all()
+                ),
+            ],
             'default_from_name'   => ['nullable', 'string', 'max:191'],
+            'default_reply_to'    => ['nullable', 'email', 'max:191'],
         ]);
+    }
+
+    /**
+     * Active sender identities ordered so the default appears first.
+     */
+    private function loadSenders()
+    {
+        return \App\Models\EmailMarketing\EmailSenderIdentity::active()
+            ->orderByDesc('is_default')
+            ->orderBy('email')
+            ->get(['id', 'email', 'name', 'reply_to', 'is_default']);
     }
 }

@@ -18,6 +18,7 @@ class Course extends Model
         'default_subject',
         'default_from_email',
         'default_from_name',
+        'default_reply_to',
         'created_by',
     ];
 

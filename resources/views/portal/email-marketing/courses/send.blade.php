@@ -66,20 +66,38 @@
                         @endforeach
                     </select>
                 </div>
+                <div class="col-md-5">
+                    <label class="form-label">Sender (admin allowlist)</label>
+                    @if (($senders ?? collect())->isEmpty())
+                        <div class="alert alert-warning py-2 mb-0">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            No allowed senders. Ask an admin to add one at
+                            <strong>Admin → Marketing → Sender Allowlist</strong>.
+                        </div>
+                        <input type="hidden" name="from_email" value="">
+                    @else
+                        <select id="send-sender" name="from_email" class="form-select" required>
+                            <option value="">— Pick a sender —</option>
+                            @foreach ($senders as $s)
+                                <option value="{{ $s->email }}"
+                                        data-name="{{ $s->name }}"
+                                        data-reply-to="{{ $s->reply_to }}"
+                                        @selected(old('from_email', $course->default_from_email) === $s->email)>
+                                    {{ $s->name }} &lt;{{ $s->email }}&gt;@if ($s->is_default) (default)@endif
+                                </option>
+                            @endforeach
+                        </select>
+                    @endif
+                </div>
                 <div class="col-md-3">
                     <label class="form-label">From name</label>
-                    <input type="text" name="from_name" class="form-control" required
+                    <input type="text" name="from_name" id="send-from-name" class="form-control" required
                            value="{{ old('from_name', $course->default_from_name) }}">
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">From email</label>
-                    <input type="email" name="from_email" class="form-control" required
-                           value="{{ old('from_email', $course->default_from_email) }}">
-                </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <label class="form-label">Reply-to (optional)</label>
-                    <input type="email" name="reply_to" class="form-control"
-                           value="{{ old('reply_to') }}">
+                    <input type="email" name="reply_to" id="send-reply-to" class="form-control"
+                           value="{{ old('reply_to', $course->default_reply_to) }}">
                 </div>
             </div>
         </div>
@@ -92,4 +110,19 @@
         </div>
     </form>
 </div>
+
+<script>
+(function () {
+    const picker = document.getElementById('send-sender');
+    if (!picker) return;
+    const name  = document.getElementById('send-from-name');
+    const reply = document.getElementById('send-reply-to');
+    picker.addEventListener('change', function () {
+        const opt = this.selectedOptions[0];
+        if (!opt) return;
+        if (name)  name.value  = opt.getAttribute('data-name') || name.value;
+        if (reply && !reply.value.trim()) reply.value = opt.getAttribute('data-reply-to') || '';
+    });
+})();
+</script>
 @endsection

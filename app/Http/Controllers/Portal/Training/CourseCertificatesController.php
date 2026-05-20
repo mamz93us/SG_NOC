@@ -84,11 +84,17 @@ class CourseCertificatesController extends Controller
         $eligibleCount = $course->certificates()->whereNotNull('employee_id')->count();
         $alreadySent = $course->certificates()->whereNotNull('sent_at')->count();
 
+        $senders = \App\Models\EmailMarketing\EmailSenderIdentity::active()
+            ->orderByDesc('is_default')
+            ->orderBy('email')
+            ->get(['id', 'email', 'name', 'reply_to', 'is_default']);
+
         return view('portal.email-marketing.courses.send', [
             'course'        => $course,
             'templates'     => EmailTemplate::orderBy('name')->get(['id', 'name']),
             'eligibleCount' => $eligibleCount,
             'alreadySent'   => $alreadySent,
+            'senders'       => $senders,
         ]);
     }
 
@@ -105,7 +111,12 @@ class CourseCertificatesController extends Controller
             'subject'           => ['required', 'string', 'max:255'],
             'preview_text'      => ['nullable', 'string', 'max:255'],
             'email_template_id' => ['required', 'integer', 'exists:email_templates,id'],
-            'from_email'        => ['required', 'email', 'max:191'],
+            // from_email must be one of the admin-managed allowed senders
+            'from_email'        => ['required', 'email', 'max:191',
+                \Illuminate\Validation\Rule::in(
+                    \App\Models\EmailMarketing\EmailSenderIdentity::active()->pluck('email')->all()
+                ),
+            ],
             'from_name'         => ['required', 'string', 'max:191'],
             'reply_to'          => ['nullable', 'email', 'max:191'],
             'scheduled_at'      => ['nullable', 'date'],

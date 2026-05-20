@@ -50,6 +50,87 @@
         </div></div></div>
     </div>
 
+    {{-- ── Campaign-style email engagement (across every send for this course) ── --}}
+    @if (! empty($totals) && ($campaigns ?? collect())->isNotEmpty())
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-bar-chart me-1"></i>Email engagement (across all sends)</strong>
+                <small class="text-muted">{{ $campaigns->count() }} campaign(s)</small>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 text-center">
+                    <div class="col-md-2 col-6">
+                        <div class="text-muted small">Sent</div>
+                        <div class="h4 text-primary mb-0">{{ number_format($totals['total_sent']) }}</div>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <div class="text-muted small">Delivered</div>
+                        <div class="h4 text-success mb-0">{{ number_format($totals['total_delivered']) }}</div>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <div class="text-muted small">Unique opens</div>
+                        <div class="h4 text-info mb-0">{{ number_format($totals['total_unique_opens']) }}</div>
+                        <small class="text-muted">{{ $totals['open_rate'] }}% rate</small>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <div class="text-muted small">Unique clicks</div>
+                        <div class="h4 text-primary mb-0">{{ number_format($totals['total_unique_clicks']) }}</div>
+                        <small class="text-muted">{{ $totals['click_rate'] }}% rate</small>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <div class="text-muted small">Bounces</div>
+                        <div class="h4 text-danger mb-0">{{ number_format($totals['total_bounces']) }}</div>
+                        <small class="text-muted">{{ $totals['bounce_rate'] }}% rate</small>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <div class="text-muted small">Complaints</div>
+                        <div class="h4 text-warning mb-0">{{ number_format($totals['total_complaints']) }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive border-top">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Campaign</th>
+                            <th>Status</th>
+                            <th class="text-end">Sent</th>
+                            <th class="text-end">Delivered</th>
+                            <th class="text-end">Open rate</th>
+                            <th class="text-end">Click rate</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach ($campaigns as $c)
+                        <tr>
+                            <td>
+                                <a href="{{ route('portal.marketing.campaigns.show', $c) }}"><small><strong>{{ $c->name }}</strong></small></a>
+                                <br><small class="text-muted">{{ $c->sent_at?->format('Y-m-d H:i') ?: ($c->scheduled_at?->format('Y-m-d H:i') ?: '—') }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ match($c->status) {
+                                    'sent' => 'success', 'sending' => 'primary', 'scheduled' => 'warning',
+                                    'paused' => 'secondary', 'failed' => 'danger', default => 'light text-dark',
+                                } }} text-capitalize">{{ $c->status }}</span>
+                            </td>
+                            <td class="text-end">{{ number_format($c->total_sent) }}</td>
+                            <td class="text-end">{{ number_format($c->total_delivered) }}</td>
+                            <td class="text-end">{{ $c->openRate() }}%</td>
+                            <td class="text-end">{{ $c->clickRate() }}%</td>
+                            <td class="text-end">
+                                <a href="{{ route('portal.marketing.campaigns.analytics', $c) }}" class="btn btn-sm btn-outline-info" title="Open analytics">
+                                    <i class="bi bi-bar-chart"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
+
     <div class="card shadow-sm">
         <div class="card-header"><strong>Certificates</strong> <small class="text-muted">orphans shown first</small></div>
         <div class="table-responsive">

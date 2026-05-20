@@ -51,14 +51,37 @@
                            value="{{ old('default_subject', $course->default_subject) }}">
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Default From email</label>
-                    <input type="email" name="default_from_email" class="form-control"
-                           value="{{ old('default_from_email', $course->default_from_email) }}">
+                    <label class="form-label">Default sender (admin allowlist)</label>
+                    @if (($senders ?? collect())->isEmpty())
+                        <div class="alert alert-warning py-2 mb-0">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            No allowed senders configured. Ask an admin to add one at
+                            <strong>Admin → Marketing → Sender Allowlist</strong>.
+                        </div>
+                    @else
+                        <select id="course-sender" name="default_from_email" class="form-select">
+                            <option value="">— Pick a sender —</option>
+                            @foreach ($senders as $s)
+                                <option value="{{ $s->email }}"
+                                        data-name="{{ $s->name }}"
+                                        data-reply-to="{{ $s->reply_to }}"
+                                        @selected(old('default_from_email', $course->default_from_email) === $s->email)>
+                                    {{ $s->name }} &lt;{{ $s->email }}&gt;@if ($s->is_default) (default)@endif
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Auto-fills From name + Reply-to below.</small>
+                    @endif
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <label class="form-label">Default From name</label>
-                    <input type="text" name="default_from_name" class="form-control"
+                    <input type="text" name="default_from_name" id="course-from-name" class="form-control"
                            value="{{ old('default_from_name', $course->default_from_name) }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Default Reply-to</label>
+                    <input type="email" name="default_reply_to" id="course-reply-to" class="form-control"
+                           value="{{ old('default_reply_to', $course->default_reply_to) }}">
                 </div>
             </div>
         </div>
@@ -68,4 +91,19 @@
         </div>
     </form>
 </div>
+
+<script>
+(function () {
+    const picker = document.getElementById('course-sender');
+    if (!picker) return;
+    const name  = document.getElementById('course-from-name');
+    const reply = document.getElementById('course-reply-to');
+    picker.addEventListener('change', function () {
+        const opt = this.selectedOptions[0];
+        if (!opt) return;
+        if (name)  name.value  = opt.getAttribute('data-name')     || name.value;
+        if (reply && !reply.value.trim()) reply.value = opt.getAttribute('data-reply-to') || '';
+    });
+})();
+</script>
 @endsection
