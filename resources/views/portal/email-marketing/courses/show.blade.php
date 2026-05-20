@@ -154,13 +154,19 @@
                                 <small class="text-muted d-block">{{ $cert->employee->email }}</small>
                             @else
                                 @can('manage-courses')
-                                    <form method="POST" action="{{ route('portal.marketing.courses.certificates.relink', [$course, $cert]) }}" class="d-flex gap-2">
+                                    <form method="POST" action="{{ route('portal.marketing.courses.certificates.relink', [$course, $cert]) }}"
+                                          class="d-flex gap-1 align-items-start employee-picker-form" style="min-width: 320px;">
                                         @csrf
-                                        <input type="text" name="employee_search" class="form-control form-control-sm employee-search"
-                                               placeholder="Search employees…" autocomplete="off"
-                                               data-target="emp-{{ $cert->id }}">
-                                        <input type="hidden" name="employee_id" id="emp-{{ $cert->id }}">
-                                        <button class="btn btn-sm btn-outline-success" type="submit">Link</button>
+                                        <div class="position-relative flex-grow-1">
+                                            <input type="text" class="form-control form-control-sm employee-picker-input"
+                                                   placeholder="Type name or email…" autocomplete="off">
+                                            <input type="hidden" name="employee_id" class="employee-picker-id">
+                                            <div class="list-group position-absolute w-100 employee-picker-results"
+                                                 style="z-index: 10; max-height: 240px; overflow-y: auto; display: none;"></div>
+                                        </div>
+                                        <button type="submit" class="btn btn-sm btn-outline-success employee-picker-submit" disabled>
+                                            <i class="bi bi-link"></i>
+                                        </button>
                                     </form>
                                 @else
                                     <span class="badge bg-warning text-dark">Orphan</span>
@@ -197,28 +203,61 @@
 </div>
 
 <script>
-// Lightweight employee search for the orphan relink dropdown. Avoids
-// shipping a full SPA component just for this — straight fetch + datalist.
-document.addEventListener('input', (e) => {
-    const el = e.target;
-    if (!el.classList.contains('employee-search')) return;
+(function () {
+    // Live employee picker — type to search, click to pick, only then enable submit.
+    const SEARCH_URL = @json(route('portal.marketing.courses.employees.search'));
 
-    const q = el.value.trim();
-    if (q.length < 2) return;
+    function debounce(fn, ms) {
+        let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
 
-    const targetId = el.dataset.target;
-    fetch('{{ route('portal.marketing.courses.employees.search') }}?q=' + encodeURIComponent(q), {
-        headers: { 'Accept': 'application/json' },
-    })
-        .then(r => r.json())
-        .then(rows => {
-            // First match wins. Surface the chosen employee in the input
-            // and stash the id in the hidden field.
-            if (rows.length > 0) {
-                el.value = rows[0].name + ' <' + rows[0].email + '>';
-                document.getElementById(targetId).value = rows[0].id;
+    document.querySelectorAll('.employee-picker-form').forEach(function (form) {
+        const input   = form.querySelector('.employee-picker-input');
+        const idField = form.querySelector('.employee-picker-id');
+        const results = form.querySelector('.employee-picker-results');
+        const submit  = form.querySelector('.employee-picker-submit');
+
+        const search = debounce(function (q) {
+            if (q.length < 2) { results.style.display = 'none'; return; }
+            fetch(SEARCH_URL + '?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
+                .then(r => r.json())
+                .then(rows => {
+                    if (! rows.length) {
+                        results.innerHTML = '<div class="list-group-item text-muted small">No matches.</div>';
+                        results.style.display = 'block';
+                        return;
+                    }
+                    results.innerHTML = rows.map(r =>
+                        '<button type="button" class="list-group-item list-group-item-action small employee-picker-option"'
+                        + ' data-id="' + r.id + '" data-label="' + r.name + ' &lt;' + r.email + '&gt;">'
+                        + '<strong>' + r.name + '</strong> <span class="text-muted">' + r.email + '</span>'
+                        + '</button>'
+                    ).join('');
+                    results.style.display = 'block';
+                })
+                .catch(() => { results.style.display = 'none'; });
+        }, 250);
+
+        input.addEventListener('input', e => search(e.target.value.trim()));
+        input.addEventListener('focus', e => { if (e.target.value.trim().length >= 2) search(e.target.value.trim()); });
+        results.addEventListener('click', function (e) {
+            const btn = e.target.closest('.employee-picker-option');
+            if (! btn) return;
+            input.value   = btn.getAttribute('data-label').replace('&lt;', '<').replace('&gt;', '>');
+            idField.value = btn.getAttribute('data-id');
+            submit.disabled = false;
+            results.style.display = 'none';
+        });
+        document.addEventListener('click', function (e) {
+            if (! form.contains(e.target)) results.style.display = 'none';
+        });
+        input.addEventListener('input', function () {
+            if (idField.value && ! input.value.includes('<')) {
+                idField.value = '';
+                submit.disabled = true;
             }
         });
-});
+    });
+})();
 </script>
 @endsection
