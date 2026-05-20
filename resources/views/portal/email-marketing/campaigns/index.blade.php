@@ -38,9 +38,14 @@
                 @endif
             </form>
         </div>
-        <a href="{{ route('portal.marketing.campaigns.create') }}" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus me-1"></i>New campaign
-        </a>
+        <div class="d-flex gap-2">
+            <a href="{{ route('portal.marketing.campaigns.benchmark') }}" class="btn btn-outline-info btn-sm">
+                <i class="bi bi-bar-chart-line me-1"></i>Benchmark
+            </a>
+            <a href="{{ route('portal.marketing.campaigns.create') }}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus me-1"></i>New campaign
+            </a>
+        </div>
     </div>
 
     <div class="card shadow-sm">

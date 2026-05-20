@@ -223,6 +223,8 @@ Route::prefix('portal')->name('portal.')->group(function () {
             Route::post('campaigns/{campaign}/duplicate', [EmCampaignsController::class, 'duplicate'])->name('campaigns.duplicate');
             Route::post('campaigns/{campaign}/archive',   [EmCampaignsController::class, 'archive'])->name('campaigns.archive');
             Route::post('campaigns/{campaign}/test-send', [EmCampaignsController::class, 'testSend'])->name('campaigns.test-send');
+            // Concrete `benchmark` route before the resource binding so it isn't swallowed by {campaign}
+            Route::get('campaigns/benchmark', [\App\Http\Controllers\Portal\EmailMarketing\CampaignBenchmarkController::class, 'show'])->name('campaigns.benchmark');
             Route::get('campaigns/{campaign}/analytics', [EmCampaignAnalyticsController::class, 'show'])->name('campaigns.analytics');
             Route::get('campaigns/{campaign}/analytics/recipient/{send}', [EmCampaignAnalyticsController::class, 'recipient'])->name('campaigns.analytics.recipient');
             Route::resource('campaigns', EmCampaignsController::class);
