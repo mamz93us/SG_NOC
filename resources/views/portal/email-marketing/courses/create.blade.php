@@ -50,6 +50,14 @@
                            placeholder="e.g. Your Cybersecurity Awareness certificate"
                            value="{{ old('default_subject', $course->default_subject) }}">
                 </div>
+                <div class="col-12">
+                    <label class="form-label">Default preview text</label>
+                    <input type="text" name="default_preview_text" class="form-control"
+                           maxlength="255"
+                           placeholder="Short blurb shown next to the subject in most inboxes (Gmail, Outlook, Apple Mail)"
+                           value="{{ old('default_preview_text', $course->default_preview_text) }}">
+                    <small class="text-muted">Keeps inbox previews on-brand. Aim for &lt; 100 characters.</small>
+                </div>
                 <div class="col-md-6">
                     <label class="form-label">Default sender (admin allowlist)</label>
                     @if (($senders ?? collect())->isEmpty())

@@ -120,6 +120,7 @@ class CoursesController extends Controller
             'description'         => ['nullable', 'string', 'max:500'],
             'default_template_id' => ['nullable', 'integer', 'exists:email_templates,id'],
             'default_subject'     => ['nullable', 'string', 'max:255'],
+            'default_preview_text' => ['nullable', 'string', 'max:255'],
             // default_from_email must come from the admin allowlist (nullable so
             // a course can be drafted before the admin adds any senders).
             'default_from_email'  => ['nullable', 'email', 'max:191',

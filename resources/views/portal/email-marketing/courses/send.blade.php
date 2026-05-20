@@ -51,8 +51,10 @@
 
                 <div class="col-12">
                     <label class="form-label">Preview text</label>
-                    <input type="text" name="preview_text" class="form-control"
-                           value="{{ old('preview_text') }}">
+                    <input type="text" name="preview_text" class="form-control" maxlength="255"
+                           placeholder="Short blurb shown next to the subject in most inboxes"
+                           value="{{ old('preview_text', $course->default_preview_text) }}">
+                    <small class="text-muted">Pre-filled from the course default. Aim for &lt; 100 characters.</small>
                 </div>
 
                 <div class="col-md-6">

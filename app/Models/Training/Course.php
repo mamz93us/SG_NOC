@@ -16,6 +16,7 @@ class Course extends Model
         'description',
         'default_template_id',
         'default_subject',
+        'default_preview_text',
         'default_from_email',
         'default_from_name',
         'default_reply_to',
