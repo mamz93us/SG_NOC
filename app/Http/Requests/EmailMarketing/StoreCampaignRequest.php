@@ -18,7 +18,15 @@ class StoreCampaignRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'subject' => ['required', 'string', 'max:255'],
             'preview_text' => ['nullable', 'string', 'max:255'],
-            'from_email' => ['required', 'email', 'max:191'],
+            // from_email MUST come from the admin-managed sender allowlist —
+            // free-text isn't accepted. (No exists rule against email_sender_identities
+            // because the table may be empty on a fresh install; we surface a clearer
+            // error message via `in:` against the loaded list in the controller layer.)
+            'from_email' => ['required', 'email', 'max:191',
+                \Illuminate\Validation\Rule::in(
+                    \App\Models\EmailMarketing\EmailSenderIdentity::active()->pluck('email')->all()
+                ),
+            ],
             'from_name' => ['required', 'string', 'max:191'],
             'reply_to' => ['nullable', 'email', 'max:191'],
             'email_template_id' => ['required', 'integer', 'exists:email_templates,id'],

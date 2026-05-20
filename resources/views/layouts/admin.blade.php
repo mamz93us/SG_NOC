@@ -971,6 +971,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('manage-email-marketing-settings')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.senders.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.email-marketing.senders.index') }}">
+                                    <i class="bi bi-person-badge me-2"></i>Sender Allowlist
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-email-marketing')
                             <li><hr class="dropdown-divider"></li>
                             <li>

@@ -1119,6 +1119,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('suppressions/import', [EmAdminSuppressionsController::class, 'import'])->name('suppressions.import');
 
             Route::get('quota', [EmAdminQuotaController::class, 'index'])->name('quota');
+
+            // Sender allowlist (super_admin / settings-manager only).
+            Route::middleware('permission:manage-email-marketing-settings')->group(function () {
+                Route::get('senders',                     [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'index'])->name('senders.index');
+                Route::post('senders',                    [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'store'])->name('senders.store');
+                Route::put('senders/{identity}',          [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'update'])->name('senders.update');
+                Route::delete('senders/{identity}',       [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'destroy'])->name('senders.destroy');
+                Route::post('senders/{identity}/default', [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'setDefault'])->name('senders.default');
+            });
         });
 
     // ─── Remote Browser Portal — ADMIN MANAGEMENT ONLY ───────────────

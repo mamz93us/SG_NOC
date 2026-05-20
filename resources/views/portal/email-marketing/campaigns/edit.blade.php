@@ -40,17 +40,41 @@
                     <label class="form-label">Preview text</label>
                     <input type="text" name="preview_text" class="form-control" value="{{ old('preview_text', $campaign->preview_text) }}">
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">From email</label>
-                    <input type="email" name="from_email" class="form-control" required value="{{ old('from_email', $campaign->from_email) }}">
+                <div class="col-md-5">
+                    <label class="form-label">Sender (from email — admin allowlist)</label>
+                    @if ($senders->isEmpty())
+                        <div class="alert alert-warning py-2 mb-0">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            No allowed senders configured. Ask an admin to add one at
+                            <strong>Admin → Marketing → Sender allowlist</strong>.
+                        </div>
+                        <input type="hidden" name="from_email" value="">
+                        <input type="hidden" name="from_name" value="">
+                    @else
+                        <select id="sender-picker" name="from_email" class="form-select" required>
+                            <option value="">Select a sender…</option>
+                            @foreach ($senders as $s)
+                                <option value="{{ $s->email }}"
+                                        data-name="{{ $s->name }}"
+                                        data-reply-to="{{ $s->reply_to }}"
+                                        @selected(old('from_email', $campaign->from_email) === $s->email)>
+                                    {{ $s->name }} &lt;{{ $s->email }}&gt;
+                                    @if ($s->is_default) (default)@endif
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Picking auto-fills From name + Reply-to below.</small>
+                    @endif
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">From name</label>
-                    <input type="text" name="from_name" class="form-control" required value="{{ old('from_name', $campaign->from_name) }}">
+                    <label class="form-label">From name (display)</label>
+                    <input type="text" name="from_name" id="from_name" class="form-control" required
+                           value="{{ old('from_name', $campaign->from_name) }}">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Reply-to (optional)</label>
-                    <input type="email" name="reply_to" class="form-control" value="{{ old('reply_to', $campaign->reply_to) }}">
+                    <input type="email" name="reply_to" id="reply_to" class="form-control"
+                           value="{{ old('reply_to', $campaign->reply_to) }}">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Template</label>
@@ -100,4 +124,24 @@
         </div>
     </form>
 </div>
+
+<script>
+(function () {
+    // Auto-populate from_name + reply_to when the marketing user picks a sender.
+    const picker = document.getElementById('sender-picker');
+    if (!picker) return;
+    const nameInput  = document.getElementById('from_name');
+    const replyInput = document.getElementById('reply_to');
+    picker.addEventListener('change', function () {
+        const opt = this.selectedOptions[0];
+        if (!opt) return;
+        const name    = opt.getAttribute('data-name')     || '';
+        const replyTo = opt.getAttribute('data-reply-to') || '';
+        // Overwrite name (most users want the admin-curated label),
+        // only fill reply_to if blank so users can clear it intentionally.
+        if (nameInput)  nameInput.value = name;
+        if (replyInput && !replyInput.value.trim()) replyInput.value = replyTo;
+    });
+})();
+</script>
 @endsection

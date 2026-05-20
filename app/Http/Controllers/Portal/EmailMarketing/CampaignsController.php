@@ -207,12 +207,18 @@ class CampaignsController extends Controller
             ? app(SpamWordChecker::class)->checkSubject($campaign->subject)
             : [];
 
+        $senders = \App\Models\EmailMarketing\EmailSenderIdentity::active()
+            ->orderByDesc('is_default')
+            ->orderBy('email')
+            ->get(['id', 'email', 'name', 'reply_to', 'is_default']);
+
         return [
-            'campaign' => $campaign,
-            'lists' => EmailList::orderBy('name')->get(['id', 'name']),
-            'segments' => EmailSegment::orderBy('name')->get(['id', 'name']),
+            'campaign'  => $campaign,
+            'lists'     => EmailList::orderBy('name')->get(['id', 'name']),
+            'segments'  => EmailSegment::orderBy('name')->get(['id', 'name']),
             'templates' => EmailTemplate::orderBy('name')->get(['id', 'name']),
-            'spamHits' => $spamHits,
+            'spamHits'  => $spamHits,
+            'senders'   => $senders,
         ];
     }
 }
