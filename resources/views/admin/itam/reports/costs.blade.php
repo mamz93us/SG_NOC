@@ -12,17 +12,58 @@
         }
         return empty($parts) ? '<span class="text-muted">—</span>' : implode('<br>', $parts);
     };
+
+    // Indices of expandable rows (non-section rows that have detail items).
+    $expandableIndices = [];
+    foreach ($rows as $i => $r) {
+        if (empty($r['is_section']) && !empty($r['details'])) {
+            $expandableIndices[] = $i;
+        }
+    }
 @endphp
 
 @section('content')
-<div class="container-fluid py-4">
+<style>
+@media print {
+    /* Keep employee summary row together with its expanded detail block */
+    tbody tr { page-break-inside: avoid; }
+    /* Preserve panel/badge colors on paper */
+    .table-primary, .badge, .bg-white, .bg-light { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* Tighten spacing for paper */
+    .container-fluid { padding: 0 !important; }
+    .card { border: 0 !important; box-shadow: none !important; }
+}
+[x-cloak] { display: none !important; }
+</style>
+<div class="container-fluid py-4"
+     x-data="{
+        open: {},
+        expandableIds: @js($expandableIndices),
+        expandAll() { this.expandableIds.forEach(i => this.open[i] = true); },
+        collapseAll() { this.open = {}; },
+        printAll() { this.expandAll(); this.$nextTick(() => window.print()); }
+     }">
     <div class="d-flex justify-content-between align-items-center mb-3 d-print-none">
         <h4 class="mb-0"><i class="bi bi-cash-stack me-2"></i>Cost Report</h4>
         <div class="d-flex gap-2">
+            @if(count($expandableIndices) > 0)
+                <button type="button" @click="expandAll()" class="btn btn-sm btn-outline-info">
+                    <i class="bi bi-arrows-expand me-1"></i>Expand All
+                </button>
+                <button type="button" @click="collapseAll()" class="btn btn-sm btn-outline-warning">
+                    <i class="bi bi-arrows-collapse me-1"></i>Collapse All
+                </button>
+            @endif
             <a href="{{ route('admin.itam.reports.costs', array_merge(request()->all(), ['csv' => 1])) }}" class="btn btn-sm btn-outline-success">
                 <i class="bi bi-filetype-csv me-1"></i>Export CSV
             </a>
-            <button onclick="window.print()" class="btn btn-sm btn-outline-primary"><i class="bi bi-printer me-1"></i>Print</button>
+            @if(count($expandableIndices) > 0)
+                <button type="button" @click="printAll()" class="btn btn-sm btn-primary">
+                    <i class="bi bi-printer me-1"></i>Expand &amp; Print
+                </button>
+            @else
+                <button onclick="window.print()" class="btn btn-sm btn-outline-primary"><i class="bi bi-printer me-1"></i>Print</button>
+            @endif
             <a href="{{ route('admin.itam.reports.index') }}" class="btn btn-sm btn-outline-secondary">Back</a>
         </div>
     </div>
@@ -133,7 +174,7 @@
                     </tr>
                 </thead>
                 @php($colspan = $mode === 'branch' ? 8 : 9)
-                <tbody x-data="{ open: {} }">
+                <tbody>
                     @forelse($rows as $i => $r)
                         @if(!empty($r['is_section']))
                             {{-- Branch section header row (drill-down mode) --}}
