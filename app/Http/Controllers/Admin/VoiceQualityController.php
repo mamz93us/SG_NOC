@@ -13,6 +13,21 @@ use Illuminate\Support\Facades\DB;
 
 class VoiceQualityController extends Controller
 {
+    /**
+     * SQL expression that resolves the branch: stored `branch` column when set,
+     * otherwise derived from the first digit of `extension` via BRANCH_PREFIX_MAP.
+     * Works in both MySQL (production) and SQLite (tests).
+     */
+    private function branchExpr(): string
+    {
+        $cases = [];
+        foreach (VoiceQualityReport::BRANCH_PREFIX_MAP as $digit => $code) {
+            $d = (int) $digit;
+            $cases[] = "WHEN extension LIKE '{$d}%' THEN '{$code}'";
+        }
+        return "COALESCE(NULLIF(branch, ''), CASE " . implode(' ', $cases) . " ELSE NULL END)";
+    }
+
     public function dashboard()
     {
         $today = today();
@@ -31,10 +46,11 @@ class VoiceQualityController extends Controller
             ->limit(10)
             ->get();
 
+        $branchExpr = $this->branchExpr();
         $byBranch = $baseToday()
-            ->select('branch', DB::raw('avg(mos_lq) as avg_mos'), DB::raw('count(*) as call_count'))
-            ->whereNotNull('branch')
-            ->groupBy('branch')
+            ->selectRaw("{$branchExpr} as branch, avg(mos_lq) as avg_mos, count(*) as call_count")
+            ->whereRaw("{$branchExpr} IS NOT NULL")
+            ->groupBy(DB::raw($branchExpr))
             ->orderBy('avg_mos')
             ->get();
 
@@ -122,17 +138,19 @@ class VoiceQualityController extends Controller
             ->select(DB::raw('DATE(created_at) as date'), DB::raw('avg(mos_lq) as avg_mos'), DB::raw('count(*) as calls'))
             ->groupBy('date')->orderBy('date')->get();
 
+        $branchExpr = $this->branchExpr();
         $branchComparison = VoiceQualityReport::where('created_at', '>=', $from)
-            ->select('branch', DB::raw('avg(mos_lq) as avg_mos'), DB::raw('count(*) as calls'))
-            ->whereNotNull('branch')->groupBy('branch')->orderBy('avg_mos')->get();
+            ->selectRaw("{$branchExpr} as branch, avg(mos_lq) as avg_mos, count(*) as calls")
+            ->whereRaw("{$branchExpr} IS NOT NULL")
+            ->groupBy(DB::raw($branchExpr))->orderBy('avg_mos')->get();
 
         $worstExtensions = VoiceQualityReport::where('created_at', '>=', now()->subDays(7))
-            ->select('extension', DB::raw('avg(mos_lq) as avg_mos'), DB::raw('avg(jitter_avg) as avg_jitter'), DB::raw('count(*) as calls'), 'branch')
-            ->groupBy('extension','branch')->orderBy('avg_mos')->limit(10)->get();
+            ->selectRaw("extension, {$branchExpr} as branch, avg(mos_lq) as avg_mos, avg(jitter_avg) as avg_jitter, count(*) as calls")
+            ->groupBy('extension', DB::raw($branchExpr))->orderBy('avg_mos')->limit(10)->get();
 
         $bestExtensions = VoiceQualityReport::where('created_at', '>=', now()->subDays(7))
-            ->select('extension', DB::raw('avg(mos_lq) as avg_mos'), DB::raw('count(*) as calls'), 'branch')
-            ->groupBy('extension','branch')->orderByDesc('avg_mos')->limit(10)->get();
+            ->selectRaw("extension, {$branchExpr} as branch, avg(mos_lq) as avg_mos, count(*) as calls")
+            ->groupBy('extension', DB::raw($branchExpr))->orderByDesc('avg_mos')->limit(10)->get();
 
         $codecComparison = VoiceQualityReport::where('created_at', '>=', $from)
             ->select('codec', DB::raw('avg(mos_lq) as avg_mos'), DB::raw('avg(jitter_avg) as avg_jitter'), DB::raw('avg(packet_loss) as avg_loss'), DB::raw('count(*) as calls'))
@@ -218,8 +236,10 @@ class VoiceQualityController extends Controller
             $data = $query->select(DB::raw('HOUR(created_at) as label'), DB::raw('avg(mos_lq) as value'), DB::raw('count(*) as calls'))
                 ->groupBy('label')->orderBy('label')->get();
         } elseif ($type === 'branch') {
-            $data = $query->select('branch as label', DB::raw('avg(mos_lq) as value'), DB::raw('count(*) as calls'))
-                ->whereNotNull('branch')->groupBy('label')->orderBy('value')->get();
+            $branchExpr = $this->branchExpr();
+            $data = $query->selectRaw("{$branchExpr} as label, avg(mos_lq) as value, count(*) as calls")
+                ->whereRaw("{$branchExpr} IS NOT NULL")
+                ->groupBy(DB::raw($branchExpr))->orderBy('value')->get();
         } else {
             $data = $query->select('codec as label', DB::raw('avg(mos_lq) as value'), DB::raw('count(*) as calls'))
                 ->whereNotNull('codec')->groupBy('label')->orderByDesc('calls')->get();
@@ -231,7 +251,17 @@ class VoiceQualityController extends Controller
     public function exportCsv(Request $request)
     {
         $query = VoiceQualityReport::query();
-        if ($request->filled('branch'))    $query->where('branch', $request->branch);
+        if ($request->filled('branch')) {
+            $branch = $request->branch;
+            $prefix = array_search($branch, VoiceQualityReport::BRANCH_PREFIX_MAP, true);
+            if ($prefix !== false) {
+                $query->where(function ($q) use ($branch, $prefix) {
+                    $q->where('branch', $branch)->orWhere('extension', 'like', $prefix.'%');
+                });
+            } else {
+                $query->where('branch', $branch);
+            }
+        }
         if ($request->filled('extension')) $query->where('extension', 'like', '%'.$request->extension.'%');
         if ($request->filled('date_from')) $query->whereDate('created_at', '>=', $request->date_from);
         if ($request->filled('date_to'))   $query->whereDate('created_at', '<=', $request->date_to);
