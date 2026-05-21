@@ -21,6 +21,7 @@ class IspProviderController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255|unique:isp_providers,name',
+            'default_currency' => 'nullable|in:'.implode(',', IspProvider::CURRENCIES),
             'notes' => 'nullable|string',
         ]);
 
@@ -38,6 +39,7 @@ class IspProviderController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255|unique:isp_providers,name,'.$ispProvider->id,
+            'default_currency' => 'nullable|in:'.implode(',', IspProvider::CURRENCIES),
             'notes' => 'nullable|string',
         ]);
 
@@ -68,8 +70,13 @@ class IspProviderController extends Controller
             'speed_down' => 'nullable|integer|min:0',
             'speed_up' => 'nullable|integer|min:0',
             'monthly_cost' => 'nullable|numeric|min:0',
+            'currency' => 'nullable|in:'.implode(',', IspProviderPackage::CURRENCIES),
             'notes' => 'nullable|string',
         ]);
+
+        if (empty($data['currency']) && $ispProvider->default_currency) {
+            $data['currency'] = $ispProvider->default_currency;
+        }
 
         $package = $ispProvider->packages()->create($data);
         ActivityLog::log("Added package '{$package->name}' to provider '{$ispProvider->name}'.");
@@ -86,6 +93,7 @@ class IspProviderController extends Controller
             'speed_down' => 'nullable|integer|min:0',
             'speed_up' => 'nullable|integer|min:0',
             'monthly_cost' => 'nullable|numeric|min:0',
+            'currency' => 'nullable|in:'.implode(',', IspProviderPackage::CURRENCIES),
             'notes' => 'nullable|string',
         ]);
 

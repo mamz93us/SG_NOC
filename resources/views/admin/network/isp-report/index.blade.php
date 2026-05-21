@@ -59,11 +59,16 @@
 </div></div>
 @else
 @foreach($byBranch as $branchName => $items)
-@php($branchTotal = $items->sum('monthly_cost'))
+@php($branchTotals = $items->groupBy(fn($c) => $c->currency ?: 'EGP')->map(fn($g) => (float) $g->sum('monthly_cost')))
 <div class="card shadow-sm mb-3">
     <div class="card-header d-flex justify-content-between">
         <strong><i class="bi bi-building me-1"></i>{{ $branchName }}</strong>
-        <span class="text-muted small">{{ $items->count() }} connection(s) — Branch total: <strong>{{ number_format($branchTotal, 2) }}</strong></span>
+        <span class="text-muted small">
+            {{ $items->count() }} connection(s) — Branch total:
+            @foreach($branchTotals as $cur => $sum)
+                <strong class="ms-1">{{ number_format($sum, 2) }} {{ $cur }}</strong>@if(!$loop->last) <span class="text-muted">·</span>@endif
+            @endforeach
+        </span>
     </div>
     <div class="table-responsive">
         <table class="table table-sm table-hover mb-0 small align-middle">
@@ -90,7 +95,7 @@
                     <td>{{ $c->package ?: '—' }}</td>
                     <td>{{ $c->payment_type ? ucfirst($c->payment_type) : '—' }}</td>
                     <td>{{ $c->billing_day ?: '—' }}</td>
-                    <td>{{ $c->monthly_cost ? number_format($c->monthly_cost, 2) : '—' }}</td>
+                    <td>{{ $c->costLabel() }}</td>
                     <td>
                         @php($nextRenew = $c->nextRenewalDate())
                         @if($nextRenew)
@@ -109,8 +114,12 @@
 </div>
 @endforeach
 
+@php($grandTotals = $connections->groupBy(fn($c) => $c->currency ?: 'EGP')->map(fn($g) => (float) $g->sum('monthly_cost')))
 <div class="alert alert-primary text-end">
-    <strong>Total monthly cost (all filtered ISPs):</strong> {{ number_format($totalCost, 2) }}
+    <strong>Total monthly cost (all filtered ISPs):</strong>
+    @foreach($grandTotals as $cur => $sum)
+        <span class="ms-2">{{ number_format($sum, 2) }} {{ $cur }}</span>@if(!$loop->last) <span class="text-muted">·</span>@endif
+    @endforeach
 </div>
 @endif
 

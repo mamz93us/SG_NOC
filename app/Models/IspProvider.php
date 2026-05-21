@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class IspProvider extends Model
 {
-    protected $fillable = ['name', 'notes'];
+    protected $fillable = ['name', 'default_currency', 'notes'];
+
+    const CURRENCIES = ['EGP', 'SAR', 'USD'];
 
     public function packages(): HasMany
     {

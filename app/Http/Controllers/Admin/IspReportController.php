@@ -45,7 +45,7 @@ class IspReportController extends Controller
             $out = fopen('php://output', 'w');
             fputcsv($out, [
                 'Branch', 'Provider', 'Account #', 'Connection Type', 'Customer Type',
-                'Payment Type', 'Package', 'Billing Day', 'Monthly Cost',
+                'Payment Type', 'Package', 'Billing Day', 'Monthly Cost', 'Currency',
                 'Renewal Date', 'Contract End', 'Circuit ID', 'Static IP',
             ]);
             foreach ($connections as $c) {
@@ -59,6 +59,7 @@ class IspReportController extends Controller
                     $c->package,
                     $c->billing_day,
                     $c->monthly_cost,
+                    $c->currency,
                     $c->renewal_date?->format('Y-m-d'),
                     $c->contract_end?->format('Y-m-d'),
                     $c->circuit_id,

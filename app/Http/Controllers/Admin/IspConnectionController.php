@@ -134,6 +134,7 @@ class IspConnectionController extends Controller
             'router_device_id' => 'nullable|exists:devices,id',
             'renewal_remind_days' => 'nullable|integer|min:1|max:90',
             'monthly_cost' => 'nullable|numeric|min:0',
+            'currency' => 'nullable|in:'.implode(',', \App\Models\IspConnection::CURRENCIES),
             'notes' => 'nullable|string',
         ]);
     }
@@ -149,6 +150,9 @@ class IspConnectionController extends Controller
         $provider = IspProvider::find($data['isp_provider_id'] ?? null);
         if ($provider) {
             $data['provider'] = $provider->name;
+            if (empty($data['currency']) && $provider->default_currency) {
+                $data['currency'] = $provider->default_currency;
+            }
         }
 
         if (! empty($data['isp_provider_package_id'])) {
@@ -169,6 +173,9 @@ class IspConnectionController extends Controller
                     }
                     if (empty($data['monthly_cost']) && $package->monthly_cost) {
                         $data['monthly_cost'] = $package->monthly_cost;
+                    }
+                    if (empty($data['currency']) && $package->currency) {
+                        $data['currency'] = $package->currency;
                     }
                 }
             }

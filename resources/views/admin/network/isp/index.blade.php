@@ -84,7 +84,7 @@
                             <span class="text-muted">—</span>
                             @endif
                         </td>
-                        <td>{{ $c->monthly_cost ? number_format($c->monthly_cost, 2) : '—' }}</td>
+                        <td>{{ $c->costLabel() }}</td>
                         <td class="text-nowrap">
                             @can('manage-network-settings')
                             <a href="{{ route('admin.network.isp.edit', $c) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>

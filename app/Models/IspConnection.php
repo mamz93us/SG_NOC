@@ -32,6 +32,7 @@ class IspConnection extends Model
         'renewal_remind_days',
         'renewal_reminded_at',
         'monthly_cost',
+        'currency',
         'notes',
     ];
 
@@ -52,6 +53,17 @@ class IspConnection extends Model
     const CUSTOMER_TYPES = ['business', 'home'];
 
     const PAYMENT_TYPES = ['prepaid', 'postpaid'];
+
+    const CURRENCIES = ['EGP', 'SAR', 'USD'];
+
+    public function costLabel(): string
+    {
+        if ($this->monthly_cost === null) {
+            return '—';
+        }
+
+        return number_format((float) $this->monthly_cost, 2).' '.($this->currency ?: 'EGP');
+    }
 
     // ─── Relationships ──────────────────────────────────────────
 

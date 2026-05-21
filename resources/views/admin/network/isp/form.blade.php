@@ -16,10 +16,11 @@
         <form method="POST"
               action="{{ isset($isp) ? route('admin.network.isp.update', $isp) : route('admin.network.isp.store') }}"
               x-data="ispForm({
-                  providers: @js($providers->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'packages' => $p->packages->map(fn($pk) => ['id' => $pk->id, 'name' => $pk->name, 'speed_down' => $pk->speed_down, 'speed_up' => $pk->speed_up, 'monthly_cost' => $pk->monthly_cost])])->values()),
+                  providers: @js($providers->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'default_currency' => $p->default_currency, 'packages' => $p->packages->map(fn($pk) => ['id' => $pk->id, 'name' => $pk->name, 'speed_down' => $pk->speed_down, 'speed_up' => $pk->speed_up, 'monthly_cost' => $pk->monthly_cost, 'currency' => $pk->currency])])->values()),
                   selectedProviderId: @js(old('isp_provider_id', $isp->isp_provider_id ?? '')),
                   selectedPackageId:  @js(old('isp_provider_package_id', $isp->isp_provider_package_id ?? '')),
-                  initialBillingDay:  @js((int) old('billing_day', $isp->billing_day ?? 0))
+                  initialBillingDay:  @js((int) old('billing_day', $isp->billing_day ?? 0)),
+                  initialCurrency:    @js(old('currency', $isp->currency ?? 'EGP'))
               })">
             @csrf
             @if(isset($isp)) @method('PUT') @endif
@@ -106,7 +107,7 @@
 
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Package</label>
-                    <select name="isp_provider_package_id" class="form-select" x-model="selectedPackageId">
+                    <select name="isp_provider_package_id" class="form-select" x-model="selectedPackageId" @change="onPackageChange()">
                         <option value="">— Select Package —</option>
                         <template x-for="pk in availablePackages()" :key="pk.id">
                             <option :value="pk.id" x-text="pk.name + (pk.speed_down ? ' (' + pk.speed_down + '/' + pk.speed_up + ' Mbps)' : '')"></option>
@@ -145,10 +146,19 @@
                     </select>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label fw-semibold">Monthly Cost</label>
                     <input type="number" name="monthly_cost" class="form-control" value="{{ old('monthly_cost', $isp->monthly_cost ?? '') }}" min="0" step="0.01">
                     <small class="text-muted">Auto-filled from package if blank</small>
+                </div>
+
+                <div class="col-md-1">
+                    <label class="form-label fw-semibold">Currency</label>
+                    <select name="currency" class="form-select" x-model="currency">
+                        @foreach(\App\Models\IspConnection::CURRENCIES as $cur)
+                        <option value="{{ $cur }}">{{ $cur }}</option>
+                        @endforeach
+                    </select>
                 </div>
 
                 {{-- ── Renewal Cycle (replaces single renewal_date) ── --}}
@@ -212,6 +222,7 @@ function ispForm(initial) {
         selectedProviderId: initial.selectedProviderId || '',
         selectedPackageId:  initial.selectedPackageId || '',
         billingDay:         initial.initialBillingDay || null,
+        currency:           initial.initialCurrency || 'EGP',
 
         availablePackages() {
             const pid = String(this.selectedProviderId || '');
@@ -223,6 +234,13 @@ function ispForm(initial) {
             // provider, clear it so we don't submit a cross-provider mismatch.
             const valid = this.availablePackages().some(pk => String(pk.id) === String(this.selectedPackageId));
             if (! valid) this.selectedPackageId = '';
+            // Adopt provider default currency if the user hasn't overridden it.
+            const p = this.providers.find(x => String(x.id) === String(this.selectedProviderId));
+            if (p && p.default_currency) this.currency = p.default_currency;
+        },
+        onPackageChange() {
+            const pk = this.availablePackages().find(x => String(x.id) === String(this.selectedPackageId));
+            if (pk && pk.currency) this.currency = pk.currency;
         },
         upcomingCycles(count = 6) {
             const out = [];

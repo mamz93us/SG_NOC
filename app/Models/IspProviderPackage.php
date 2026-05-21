@@ -14,6 +14,7 @@ class IspProviderPackage extends Model
         'speed_down',
         'speed_up',
         'monthly_cost',
+        'currency',
         'notes',
     ];
 
@@ -22,6 +23,17 @@ class IspProviderPackage extends Model
         'speed_up' => 'integer',
         'monthly_cost' => 'decimal:2',
     ];
+
+    const CURRENCIES = ['EGP', 'SAR', 'USD'];
+
+    public function costLabel(): string
+    {
+        if ($this->monthly_cost === null) {
+            return '—';
+        }
+
+        return number_format((float) $this->monthly_cost, 2).' '.($this->currency ?: 'EGP');
+    }
 
     public function provider(): BelongsTo
     {
