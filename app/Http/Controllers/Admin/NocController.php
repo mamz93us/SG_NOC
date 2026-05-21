@@ -131,6 +131,8 @@ class NocController extends Controller
         });
 
         // Branch Health (heaviest — calls HealthScoringService for each branch)
+        // ->values() re-indexes; allBranches() uses sortByDesc which leaves sparse
+        // keys, and PHP encodes sparse-keyed arrays as JSON objects, breaking .map() in JS.
         $branches = $this->health->allBranches()->map(fn ($b) => [
             'id'     => $b->id,
             'name'   => $b->name,
@@ -141,7 +143,7 @@ class NocController extends Controller
                 'network'  => HealthScoringService::healthColorStatic($b->health['network'] ?? 0),
                 'asset'    => HealthScoringService::healthColorStatic($b->health['asset'] ?? 0),
             ],
-        ]);
+        ])->values();
 
         // VPN Tunnel Details (was loading ::all() for the detail grid)
         $vpnTunnels = \App\Models\VpnTunnel::with('branch')->orderBy('status')->get()->map(fn ($t) => [
