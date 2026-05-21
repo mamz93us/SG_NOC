@@ -255,7 +255,7 @@ class VoiceQualityController extends Controller
             $fh = fopen('php://output', 'w');
             fputcsv($fh, ['ID','Extension','Remote Ext','Branch','Codec','MOS-LQ','MOS-CQ','R-Factor','Jitter Avg','Jitter Max','Packet Loss','RTT','Quality','Duration(s)','Start','End','Created']);
             foreach ($rows as $r) {
-                fputcsv($fh, [$r->id,$r->extension,$r->remote_extension,$r->branch,$r->codec,$r->mos_lq,$r->mos_cq,$r->r_factor,$r->jitter_avg,$r->jitter_max,$r->packet_loss,$r->rtt,$r->quality_label,$r->call_duration_seconds,$r->call_start,$r->call_end,$r->created_at]);
+                fputcsv($fh, [$r->id,$r->extension,$r->remote_extension,$r->branch_display,$r->codec,$r->mos_lq,$r->mos_cq,$r->r_factor,$r->jitter_avg,$r->jitter_max,$r->packet_loss,$r->rtt,$r->quality_label,$r->call_duration_seconds,$r->call_start,$r->call_end,$r->created_at]);
             }
             fclose($fh);
         };

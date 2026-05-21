@@ -29,7 +29,7 @@
         — MOS-LQ: <strong>{{ number_format($mos, 3) }}</strong>
         @endif
         <div class="small">Extension {{ $report->extension }} &rarr; {{ $report->remote_extension ?: 'Unknown' }}
-            @if($report->branch) &bull; {{ $report->branch }} @endif
+            @if($report->branch_display) &bull; {{ $report->branch_display }} @endif
         </div>
     </div>
 </div>
@@ -80,7 +80,7 @@
                     <tr><th class="text-muted fw-normal w-50">Extension</th><td class="fw-semibold">{{ $report->extension ?: '—' }}</td></tr>
                     <tr><th class="text-muted fw-normal">Remote Extension</th><td>{{ $report->remote_extension ?: '—' }}</td></tr>
                     <tr><th class="text-muted fw-normal">Remote IP</th><td class="font-monospace">{{ $report->remote_ip ?: '—' }}</td></tr>
-                    <tr><th class="text-muted fw-normal">Branch</th><td>{{ $report->branch ?: '—' }}</td></tr>
+                    <tr><th class="text-muted fw-normal">Branch</th><td>{{ $report->branch_display ?: '—' }}</td></tr>
                     <tr><th class="text-muted fw-normal">Codec</th><td class="font-monospace">{{ $report->codec ?: '—' }}</td></tr>
                     <tr><th class="text-muted fw-normal">Call Start</th><td>{{ $report->call_start?->format('d M Y H:i:s') ?: '—' }}</td></tr>
                     <tr><th class="text-muted fw-normal">Call End</th><td>{{ $report->call_end?->format('d M Y H:i:s') ?: '—' }}</td></tr>
