@@ -180,7 +180,7 @@
                             <tr>
                                 <td class="fw-semibold">{{ $r->extension }}</td>
                                 <td class="text-muted">{{ $r->remote_extension ?: '—' }}</td>
-                                <td>{{ $r->branch ?: '—' }}</td>
+                                <td>{{ $r->branch_display ?: '—' }}</td>
                                 <td>
                                     <span class="badge bg-{{ $r->mos_lq >= 4.0 ? 'success' : ($r->mos_lq >= 3.6 ? 'warning' : 'danger') }}">
                                         {{ $r->mos_lq ? number_format($r->mos_lq, 2) : '—' }}

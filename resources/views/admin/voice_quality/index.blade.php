@@ -97,7 +97,7 @@
                     <tr>
                         <td class="fw-semibold">{{ $r->extension ?: '—' }}</td>
                         <td class="text-muted">{{ $r->remote_extension ?: '—' }}</td>
-                        <td>{{ $r->branch ?: '—' }}</td>
+                        <td>{{ $r->branch_display ?: '—' }}</td>
                         <td class="font-monospace text-muted small">{{ $r->codec ?: '—' }}</td>
                         <td>
                             @if($r->mos_lq !== null)
