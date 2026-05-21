@@ -21,7 +21,27 @@ class VoiceQualityReport extends Model
         'call_end'   => 'datetime',
     ];
 
+    public const BRANCH_PREFIX_MAP = [
+        '1' => 'JED',
+        '2' => 'RYD',
+        '3' => 'KBR',
+        '4' => 'ABH',
+        '6' => 'CAI',
+    ];
+
     public function branch() { return $this->belongsTo(Branch::class); }
+
+    public static function branchFromExtension(?string $ext): ?string
+    {
+        if ($ext === null || $ext === '') return null;
+        $first = substr(ltrim($ext), 0, 1);
+        return self::BRANCH_PREFIX_MAP[$first] ?? null;
+    }
+
+    public function getBranchDisplayAttribute(): ?string
+    {
+        return $this->branch ?: self::branchFromExtension($this->extension);
+    }
 
     public static function mosLabel(float $mos): string
     {

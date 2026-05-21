@@ -74,7 +74,19 @@ class VoiceQualityController extends Controller
     {
         $query = VoiceQualityReport::query();
 
-        if ($request->filled('branch'))        $query->where('branch', $request->branch);
+        if ($request->filled('branch')) {
+            $branch = $request->branch;
+            $prefix = array_search($branch, VoiceQualityReport::BRANCH_PREFIX_MAP, true);
+            if ($prefix !== false) {
+                // Match rows tagged with the branch name OR whose extension starts with the mapped digit
+                $query->where(function ($q) use ($branch, $prefix) {
+                    $q->where('branch', $branch)
+                      ->orWhere('extension', 'like', $prefix.'%');
+                });
+            } else {
+                $query->where('branch', $branch);
+            }
+        }
         if ($request->filled('extension'))     $query->where('extension', 'like', '%'.$request->extension.'%');
         if ($request->filled('quality_label')) $query->where('quality_label', $request->quality_label);
         if ($request->filled('codec'))         $query->where('codec', $request->codec);
@@ -88,7 +100,9 @@ class VoiceQualityController extends Controller
         }
 
         $reports  = $query->paginate(50)->withQueryString();
-        $branches = Branch::orderBy('name')->pluck('name');
+        $branches = Branch::orderBy('name')->pluck('name')
+            ->merge(array_values(VoiceQualityReport::BRANCH_PREFIX_MAP))
+            ->unique()->values();
         $codecs   = VoiceQualityReport::whereNotNull('codec')->distinct()->pluck('codec');
 
         return view('admin.voice_quality.index', compact('reports','branches','codecs'));
@@ -170,6 +184,11 @@ class VoiceQualityController extends Controller
                 $branchId   = $branch->id;
                 $branchName = $branch->name;
             }
+        }
+
+        // Fallback: derive branch from extension prefix when IP-based resolution failed
+        if (!$branchName) {
+            $branchName = VoiceQualityReport::branchFromExtension($data['extension'] ?? null);
         }
 
         $data['branch_id'] = $branchId;
