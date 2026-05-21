@@ -95,13 +95,26 @@ class SesService
     }
 
     /**
-     * Raw send for the admin "Send test email" button on Settings page.
-     * Doesn't wrap a CampaignSend.
+     * Raw send for the admin "Send test email" button on Settings page,
+     * and for the per-campaign "Send test" button on the campaign show
+     * page. Doesn't wrap a CampaignSend.
+     *
+     * When called from a campaign, the caller passes the campaign's
+     * own from_email / from_name / reply_to so the test arrives from
+     * the same sender the real send would use. When called from the
+     * Settings page (or without overrides) we fall back to the
+     * ses_default_* values in Settings.
      */
-    public function sendRawTestEmail(string $toAddress, string $subject, string $html): string
-    {
-        $from = $this->settings->ses_default_from_email;
-        $fromName = $this->settings->ses_default_from_name ?: 'SG NOC';
+    public function sendRawTestEmail(
+        string $toAddress,
+        string $subject,
+        string $html,
+        ?string $fromEmail = null,
+        ?string $fromName = null,
+        ?string $replyTo = null,
+    ): string {
+        $from = $fromEmail ?: $this->settings->ses_default_from_email;
+        $fromName = $fromName ?: ($this->settings->ses_default_from_name ?: 'SG NOC');
 
         if (! $from) {
             throw EmailMarketingNotConfiguredException::missing('ses_default_from_email');
@@ -117,6 +130,10 @@ class SesService
                 'Body' => ['Html' => ['Charset' => 'UTF-8', 'Data' => $html]],
             ],
         ];
+
+        if ($replyTo) {
+            $payload['ReplyToAddresses'] = [$replyTo];
+        }
 
         if ($this->settings->ses_configuration_set) {
             $payload['ConfigurationSetName'] = $this->settings->ses_configuration_set;

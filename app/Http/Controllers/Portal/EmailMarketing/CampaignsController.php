@@ -191,9 +191,20 @@ class CampaignsController extends Controller
 
         try {
             $ses = app(\App\Services\EmailMarketing\SesService::class);
-            $messageId = $ses->sendRawTestEmail($data['to'], '[TEST] '.$campaign->subject, $html);
+            // Pass the campaign's own from_email / from_name / reply_to so the
+            // test arrives from the exact sender the real send would use —
+            // otherwise sendRawTestEmail falls back to ses_default_from_email
+            // and the "Send test" button silently overrides the user's pick.
+            $messageId = $ses->sendRawTestEmail(
+                $data['to'],
+                '[TEST] '.$campaign->subject,
+                $html,
+                $campaign->from_email,
+                $campaign->from_name,
+                $campaign->reply_to,
+            );
 
-            return back()->with('status', "Test email sent to {$data['to']} (SES MessageId: {$messageId}).");
+            return back()->with('status', "Test email sent to {$data['to']} from {$campaign->from_email} (SES MessageId: {$messageId}).");
         } catch (\App\Services\EmailMarketing\EmailMarketingNotConfiguredException $e) {
             return back()->withErrors(['test' => $e->getMessage()]);
         } catch (\Throwable $e) {
