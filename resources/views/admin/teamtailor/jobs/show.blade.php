@@ -93,6 +93,59 @@
 </form>
 @endif
 
+{{-- Bulk CV export → Azure Blob. The zip is built out-of-band by the
+     teamtailor:process-cv-exports scheduler, then proxied back through an
+     auth-gated download (candidate résumés are PII, never a public link). --}}
+@if($configured && !$error)
+@can('view-candidates')
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <div class="fw-semibold mb-1"><i class="bi bi-file-earmark-zip me-2 text-primary"></i>Download all CVs</div>
+            <small class="text-muted">
+                @if($cvExport && $cvExport->inProgress())
+                    Preparing a zip of every applicant's résumé&hellip;
+                    @if($cvExport->cv_count){{ $cvExport->cv_count }} added so far. @endif
+                    Refresh this page in a minute.
+                @elseif($cvExport && $cvExport->isCompleted())
+                    {{ $cvExport->cv_count }} CV{{ $cvExport->cv_count === 1 ? '' : 's' }} zipped@if($cvExport->failed_count), {{ $cvExport->failed_count }} could not be fetched@endif
+                    &middot; {{ $cvExport->humanSize() }}
+                    @if($cvExport->completed_at)&middot; prepared {{ $cvExport->completed_at->diffForHumans() }}@endif
+                @elseif($cvExport && $cvExport->isFailed())
+                    The last export could not be prepared.
+                @else
+                    Fetch every applicant's résumé into one zip stored on Azure Blob.
+                @endif
+            </small>
+            @if($cvExport && $cvExport->isFailed() && $cvExport->error)
+            <div class="small text-danger mt-1">{{ $cvExport->error }}</div>
+            @endif
+        </div>
+        <div class="d-flex gap-2">
+            @if($cvExport && $cvExport->inProgress())
+                <span class="badge bg-info-subtle text-info border border-info-subtle d-inline-flex align-items-center">
+                    <span class="spinner-border spinner-border-sm me-1" style="width:.7rem;height:.7rem"></span>Preparing&hellip;
+                </span>
+            @else
+                @if($cvExport && $cvExport->isCompleted())
+                <a href="{{ route('admin.jobs.cv-exports.download', ['job' => $jobId, 'export' => $cvExport->id]) }}" class="btn btn-success btn-sm">
+                    <i class="bi bi-download me-1"></i>Download ZIP
+                </a>
+                @endif
+                <form method="POST" action="{{ route('admin.jobs.cv-exports.store', ['job' => $jobId]) }}" class="d-inline">
+                    @csrf
+                    <input type="hidden" name="title" value="{{ $jobTitle }}">
+                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                        <i class="bi {{ $cvExport && $cvExport->isCompleted() ? 'bi-arrow-repeat' : 'bi-file-earmark-zip' }} me-1"></i>{{ $cvExport && $cvExport->isCompleted() ? 'Re-export' : 'Export all CVs' }}
+                    </button>
+                </form>
+            @endif
+        </div>
+    </div>
+</div>
+@endcan
+@endif
+
 <div class="card shadow-sm border-0">
     <div class="card-body p-0">
         @if($applications->isEmpty())

@@ -1729,6 +1729,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::middleware('permission:view-candidates')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\Teamtailor\JobController::class, 'index'])->name('index');
             Route::get('/{job}', [\App\Http\Controllers\Admin\Teamtailor\JobController::class, 'show'])->name('show');
+            // Bulk CV export → Azure Blob. The POST queues a TeamtailorCvExport
+            // for the scheduled command to build; the download proxies the
+            // finished zip (candidate PII — never a public blob link).
+            Route::post('/{job}/cv-exports', [\App\Http\Controllers\Admin\Teamtailor\JobController::class, 'exportCvs'])
+                ->name('cv-exports.store');
+            Route::get('/{job}/cv-exports/{export}/download', [\App\Http\Controllers\Admin\Teamtailor\JobController::class, 'downloadCvExport'])
+                ->name('cv-exports.download');
         });
         // Rejecting writes to the live ATS — gated separately from viewing.
         Route::middleware('permission:reject-candidates')->group(function () {

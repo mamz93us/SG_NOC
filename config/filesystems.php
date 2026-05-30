@@ -114,6 +114,22 @@ return [
             'throw'     => false,
         ],
 
+        // Azure Blob storage for bulk Teamtailor CV exports — one zip per job,
+        // built by the teamtailor:process-cv-exports command and served back to
+        // admins through an auth-gated download proxy (résumés are candidate PII,
+        // never a public link). Same container as offboarding, 'teamtailor-resumes/'
+        // prefix. Credentials are re-read from Setting on each call by the
+        // AppServiceProvider azure driver, like the other azure_* disks.
+        'azure_resumes' => [
+            'driver'    => 'azure',
+            'account'   => env('AZURE_BLOB_ACCOUNT'),
+            'key'       => env('AZURE_BLOB_KEY'),
+            'container' => env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups'),
+            'endpoint'  => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'prefix'    => 'teamtailor-resumes/',
+            'throw'     => false,
+        ],
+
     ],
 
     /*

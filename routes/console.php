@@ -509,3 +509,14 @@ Schedule::command('email-marketing:sync-dynamic-lists')
     ->hourly()
     ->withoutOverlapping(10)
     ->runInBackground();
+
+// ──────────────────────────────────────────────────────────────────────
+// Teamtailor — drain pending bulk CV exports (fetch every applicant résumé,
+// zip, upload to Azure Blob). No queue worker in production, so this is the
+// async path. withoutOverlapping guards against a long export overrunning the
+// next tick.
+// ──────────────────────────────────────────────────────────────────────
+Schedule::command('teamtailor:process-cv-exports')
+    ->everyMinute()
+    ->withoutOverlapping(20)
+    ->runInBackground();

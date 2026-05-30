@@ -4,11 +4,15 @@ namespace App\Http\Controllers\Admin\Teamtailor;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\TeamtailorCvExport;
 use App\Services\Teamtailor\TeamtailorApiService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class JobController extends Controller
 {
@@ -104,6 +108,13 @@ class JobController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
+        // Latest bulk-CV-export request for this job, if any — drives the
+        // "Download all CVs" card's preparing / ready / failed state.
+        $cvExport = TeamtailorCvExport::query()
+            ->where('job_id', $job)
+            ->latest('id')
+            ->first();
+
         return view('admin.teamtailor.jobs.show', [
             'jobId' => $job,
             'jobTitle' => $jobTitle,
@@ -114,6 +125,84 @@ class JobController extends Controller
             'error' => $error,
             'filtersIgnored' => $filtersIgnored,
             'configured' => $configured,
+            'cvExport' => $cvExport,
+        ]);
+    }
+
+    /**
+     * Queue a bulk export of every applicant's CV for this job. The actual work
+     * (paging the ATS, downloading each résumé, zipping, uploading to Azure
+     * Blob) is drained by the teamtailor:process-cv-exports scheduled command —
+     * a synchronous request would time out on a job with hundreds of applicants.
+     */
+    public function exportCvs(Request $request, TeamtailorApiService $teamtailor, string $job)
+    {
+        if (! $teamtailor->isConfigured()) {
+            return back()->with('error', 'Teamtailor is not configured, so CVs cannot be exported.');
+        }
+
+        // One in-flight export per job is enough — collapse repeat clicks onto
+        // the existing run rather than spawning duplicate zips.
+        $existing = TeamtailorCvExport::query()
+            ->where('job_id', $job)
+            ->whereIn('status', [TeamtailorCvExport::STATUS_PENDING, TeamtailorCvExport::STATUS_PROCESSING])
+            ->first();
+
+        if ($existing) {
+            return back()->with('info', 'A CV export for this job is already being prepared. Refresh in a minute to download it.');
+        }
+
+        $export = TeamtailorCvExport::create([
+            'job_id' => $job,
+            'job_title' => (string) $request->input('title', $request->query('title', '')) ?: null,
+            'status' => TeamtailorCvExport::STATUS_PENDING,
+            'disk' => 'azure_resumes',
+            'requested_by' => Auth::id(),
+        ]);
+
+        ActivityLog::create([
+            'model_type' => 'TeamtailorCvExport',
+            'model_id' => $export->id,
+            'action' => 'requested',
+            'changes' => ['job_id' => $job],
+            'user_id' => Auth::id(),
+        ]);
+
+        return back()->with('success', 'Preparing a zip of all CVs for this job. Refresh in a minute and a download button will appear.');
+    }
+
+    /**
+     * Stream a finished CV-export zip down to the admin. The file is candidate
+     * PII living in Azure Blob, so it is proxied through this auth + permission
+     * gated route, never exposed via a public blob link.
+     */
+    public function downloadCvExport(string $job, TeamtailorCvExport $export): StreamedResponse
+    {
+        abort_unless($export->job_id === $job && $export->isDownloadable(), 404);
+
+        $stream = Storage::disk($export->disk)->readStream($export->file_path);
+        abort_if($stream === null, 404);
+
+        ActivityLog::create([
+            'model_type' => 'TeamtailorCvExport',
+            'model_id' => $export->id,
+            'action' => 'downloaded',
+            'changes' => ['job_id' => $job],
+            'user_id' => Auth::id(),
+        ]);
+
+        $filename = (Str::slug((string) ($export->job_title ?: $export->job_id)) ?: 'job').'-cvs.zip';
+
+        return new StreamedResponse(function () use ($stream) {
+            while (! feof($stream)) {
+                echo fread($stream, 1024 * 1024);
+                flush();
+            }
+            fclose($stream);
+        }, 200, [
+            'Content-Type' => 'application/zip',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Length' => (string) ($export->file_size ?: ''),
         ]);
     }
 
