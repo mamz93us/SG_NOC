@@ -416,7 +416,10 @@
       "Bash(vendor/bin/pint app/Models/Setting.php app/Http/Controllers/Admin/SettingsController.php app/Services/Teamtailor/TeamtailorApiService.php)",
       "Bash(vendor/bin/pest tests/Unit/Teamtailor/TeamtailorApiServiceTest.php)",
       "Bash(vendor/bin/pint database/migrations/2026_05_30_000002_add_teamtailor_to_settings_table.php routes/web.php)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "WebFetch(domain:docs.teamtailor.com)",
+      "WebFetch(domain:support.teamtailor.com)",
+      "Bash(php -l app/Services/Teamtailor/TeamtailorApiService.php)"
     ]
   }
 }

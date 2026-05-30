@@ -83,3 +83,26 @@ it('reports not configured when the api key is blank', function () {
     expect($service->isConfigured())->toBeFalse()
         ->and(fn () => $service->listCandidates())->toThrow(RuntimeException::class, 'not configured');
 });
+
+it('normalizes base URLs so the /v1 prefix is never doubled', function (string $input, string $expected) {
+    expect(TeamtailorApiService::normalizeBaseUrl($input))->toBe($expected);
+})->with([
+    'bare host'            => ['https://api.teamtailor.com', 'https://api.teamtailor.com'],
+    'trailing slash'       => ['https://api.teamtailor.com/', 'https://api.teamtailor.com'],
+    'pasted /v1'           => ['https://api.teamtailor.com/v1', 'https://api.teamtailor.com'],
+    'pasted /v1/'          => ['https://api.teamtailor.com/v1/', 'https://api.teamtailor.com'],
+    'full endpoint pasted' => ['https://api.teamtailor.com/v1/candidates', 'https://api.teamtailor.com'],
+    'NA stack with /v1'    => ['https://api.na.teamtailor.com/v1', 'https://api.na.teamtailor.com'],
+    'blank falls back'     => ['', 'https://api.teamtailor.com'],
+]);
+
+it('still calls /v1/candidates when the configured base url already includes /v1', function () {
+    Http::fake(['api.teamtailor.com/*' => Http::response(['data' => []], 200)]);
+
+    // Base URL pasted straight from the docs (includes the version prefix) —
+    // this is the exact mistake that produced a 404 (/v1/v1/candidates).
+    (new TeamtailorApiService(apiKey: 'k', baseUrl: 'https://api.teamtailor.com/v1'))->listCandidates();
+
+    Http::assertSent(fn ($request) => str_starts_with($request->url(), 'https://api.teamtailor.com/v1/candidates')
+        && ! str_contains($request->url(), '/v1/v1'));
+});

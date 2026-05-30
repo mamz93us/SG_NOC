@@ -15,6 +15,7 @@ use App\Services\AvePoint\AvePointApiService;
 use App\Services\Identity\GraphService;
 use App\Services\Network\MerakiService;
 use App\Services\SmtpConfigService;
+use App\Services\Teamtailor\TeamtailorApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -357,7 +358,7 @@ class SettingsController extends Controller
             'teamtailor_base_url'    => $settings->teamtailor_base_url,
             'teamtailor_api_version' => $settings->teamtailor_api_version,
         ];
-        $settings->teamtailor_base_url    = rtrim($request->teamtailor_base_url ?: 'https://api.teamtailor.com', '/');
+        $settings->teamtailor_base_url    = TeamtailorApiService::normalizeBaseUrl($request->teamtailor_base_url ?: 'https://api.teamtailor.com');
         $settings->teamtailor_api_version = $request->teamtailor_api_version ?: '20240904';
 
         if ($request->filled('teamtailor_api_key')) {

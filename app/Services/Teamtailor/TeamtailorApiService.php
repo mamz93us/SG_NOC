@@ -43,9 +43,9 @@ class TeamtailorApiService
             ?: $settings?->teamtailor_api_key
             ?: config('teamtailor.api_key'));
 
-        $this->baseUrl = rtrim((string) ($baseUrl
+        $this->baseUrl = static::normalizeBaseUrl($baseUrl
             ?: $settings?->teamtailor_base_url
-            ?: config('teamtailor.base_url')), '/');
+            ?: config('teamtailor.base_url'));
 
         $this->apiVersion = (string) ($apiVersion
             ?: $settings?->teamtailor_api_version
@@ -65,6 +65,32 @@ class TeamtailorApiService
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Reduce a configured base URL to scheme://host[:port], discarding any path.
+     *
+     * The endpoint strings already carry the `/v1` prefix, so a base URL pasted
+     * from the docs (e.g. `https://api.teamtailor.com/v1`) would otherwise be
+     * doubled into `/v1/v1/candidates` and return a bare HTTP 404. Collapsing to
+     * the host makes every paste variant resolve correctly.
+     */
+    public static function normalizeBaseUrl(?string $url): string
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return 'https://api.teamtailor.com';
+        }
+
+        $parts = parse_url($url);
+        if (! isset($parts['host'])) {
+            return rtrim($url, '/');
+        }
+
+        $scheme = $parts['scheme'] ?? 'https';
+        $port = isset($parts['port']) ? ':'.$parts['port'] : '';
+
+        return "{$scheme}://{$parts['host']}{$port}";
     }
 
     /**
