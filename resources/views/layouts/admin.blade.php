@@ -1002,6 +1002,16 @@
                     </li>
                     @endcan
 
+                    {{-- ── Recruitment (Teamtailor) ── --}}
+                    @can('view-candidates')
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('admin/candidates*') ? 'active' : '' }}"
+                           href="{{ route('admin.candidates.index') }}">
+                            <i class="bi bi-person-rolodex me-1"></i>Candidates
+                        </a>
+                    </li>
+                    @endcan
+
                     {{-- ── Settings dropdown ── --}}
                     @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains'])
                     <li class="nav-item dropdown">

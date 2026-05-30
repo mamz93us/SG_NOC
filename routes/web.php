@@ -1716,6 +1716,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/{report}', [\App\Http\Controllers\Admin\VoiceQualityController::class, 'show'])->name('show')->where('report', '[0-9]+');
     });
 
+    // ─── Recruitment (Teamtailor candidates) ───────────────────────
+    Route::prefix('candidates')->name('candidates.')->middleware('permission:view-candidates')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\Teamtailor\CandidateController::class, 'index'])->name('index');
+    });
+
     // ─── Switch Drops — RETIRED ────────────────────────────────────
     // Superseded by Switch QoS dashboard. Controller preserved; routes
     // disabled so /admin/switch-drops/* 404s. To re-enable, un-comment.

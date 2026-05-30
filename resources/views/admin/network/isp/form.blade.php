@@ -40,11 +40,12 @@
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Provider <span class="text-danger">*</span></label>
                     <div class="d-flex gap-1">
-                        <select name="isp_provider_id" class="form-select" required x-model="selectedProviderId" @change="onProviderChange()">
+                        <select name="isp_provider_id" class="form-select" required
+                                @change="selectedProviderId = $event.target.value; onProviderChange()">
                             <option value="">— Select Provider —</option>
-                            <template x-for="p in providers" :key="p.id">
-                                <option :value="p.id" x-text="p.name"></option>
-                            </template>
+                            @foreach($providers as $p)
+                            <option value="{{ $p->id }}" {{ (string) old('isp_provider_id', $isp->isp_provider_id ?? '') === (string) $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
+                            @endforeach
                         </select>
                         <a href="{{ route('admin.network.isp-providers.index') }}" class="btn btn-outline-primary" title="Manage providers" target="_blank">
                             <i class="bi bi-pencil-square"></i>
@@ -107,11 +108,17 @@
 
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Package</label>
-                    <select name="isp_provider_package_id" class="form-select" x-model="selectedPackageId" @change="onPackageChange()">
+                    @php($currentProviderId = (int) old('isp_provider_id', $isp->isp_provider_id ?? 0))
+                    @php($currentPackageId  = (int) old('isp_provider_package_id', $isp->isp_provider_package_id ?? 0))
+                    @php($currentProvider   = $providers->firstWhere('id', $currentProviderId))
+                    <select name="isp_provider_package_id" class="form-select" x-ref="packageSelect"
+                            @change="selectedPackageId = $event.target.value; onPackageChange()">
                         <option value="">— Select Package —</option>
-                        <template x-for="pk in availablePackages()" :key="pk.id">
-                            <option :value="pk.id" x-text="pk.name + (pk.speed_down ? ' (' + pk.speed_down + '/' + pk.speed_up + ' Mbps)' : '')"></option>
-                        </template>
+                        @if($currentProvider)
+                            @foreach($currentProvider->packages as $pk)
+                            <option value="{{ $pk->id }}" {{ $currentPackageId === $pk->id ? 'selected' : '' }}>{{ $pk->name }}{{ $pk->speed_down ? ' ('.$pk->speed_down.'/'.$pk->speed_up.' Mbps)' : '' }}</option>
+                            @endforeach
+                        @endif
                     </select>
                     <small class="text-muted">Filtered by selected provider</small>
                 </div>
@@ -230,11 +237,20 @@ function ispForm(initial) {
             return p ? p.packages : [];
         },
         onProviderChange() {
-            // If the previously-selected package doesn't belong to the new
-            // provider, clear it so we don't submit a cross-provider mismatch.
-            const valid = this.availablePackages().some(pk => String(pk.id) === String(this.selectedPackageId));
-            if (! valid) this.selectedPackageId = '';
-            // Adopt provider default currency if the user hasn't overridden it.
+            // Rebuild the package <select> options for the newly chosen provider.
+            const select = this.$refs.packageSelect;
+            if (select) {
+                select.innerHTML = '<option value="">— Select Package —</option>';
+                for (const pk of this.availablePackages()) {
+                    const opt = document.createElement('option');
+                    opt.value = pk.id;
+                    opt.textContent = pk.name + (pk.speed_down ? ' (' + pk.speed_down + '/' + pk.speed_up + ' Mbps)' : '');
+                    select.appendChild(opt);
+                }
+                this.selectedPackageId = '';
+                select.value = '';
+            }
+            // Adopt provider default currency if available.
             const p = this.providers.find(x => String(x.id) === String(this.selectedProviderId));
             if (p && p.default_currency) this.currency = p.default_currency;
         },

@@ -19,131 +19,134 @@ class RolePermission extends Model
     {
         return [
             'Branches' => [
-                'view-branches'   => 'View Branches',
+                'view-branches' => 'View Branches',
                 'manage-branches' => 'Create / Edit / Delete Branches',
             ],
             'Contacts' => [
-                'view-contacts'   => 'View Contacts',
+                'view-contacts' => 'View Contacts',
                 'manage-contacts' => 'Create / Edit / Delete Contacts',
                 'export-contacts' => 'Export Contacts (CSV)',
             ],
             'Logs' => [
                 'view-activity-logs' => 'View Activity Logs',
-                'view-phone-logs'    => 'View Phone XML Logs',
-                'sync-phone-logs'    => 'Sync Phone XML Logs',
+                'view-phone-logs' => 'View Phone XML Logs',
+                'sync-phone-logs' => 'Sync Phone XML Logs',
             ],
             'PBX' => [
-                'view-extensions'   => 'View Extensions',
+                'view-extensions' => 'View Extensions',
                 'manage-extensions' => 'Create / Edit / Delete Extensions',
-                'view-trunks'       => 'View VoIP Trunks',
+                'view-trunks' => 'View VoIP Trunks',
             ],
             'Network' => [
-                'view-network'            => 'View Network (Switches, Clients, Events)',
+                'view-network' => 'View Network (Switches, Clients, Events)',
                 'manage-network-settings' => 'Manage Meraki Network Settings',
-                'manage-vpn-settings'     => 'Manage VPN Settings',
-                'view-network-events'     => 'View Network Change Events',
-                'view-dhcp-leases'        => 'View DHCP Leases',
-                'view-sophos'             => 'View Sophos Firewalls',
-                'manage-sophos'           => 'Manage Sophos Firewalls',
-                'view-dns'                => 'View DNS Accounts & Domains',
-                'manage-dns'              => 'Manage DNS Records & Settings',
+                'manage-vpn-settings' => 'Manage VPN Settings',
+                'view-network-events' => 'View Network Change Events',
+                'view-dhcp-leases' => 'View DHCP Leases',
+                'view-sophos' => 'View Sophos Firewalls',
+                'manage-sophos' => 'Manage Sophos Firewalls',
+                'view-dns' => 'View DNS Accounts & Domains',
+                'manage-dns' => 'Manage DNS Records & Settings',
             ],
             'Assets' => [
-                'view-assets'   => 'View Device Inventory',
+                'view-assets' => 'View Device Inventory',
                 'manage-assets' => 'Create / Edit / Delete Devices',
             ],
             'Credentials' => [
-                'view-credentials'   => 'View Credentials (masked)',
+                'view-credentials' => 'View Credentials (masked)',
                 'manage-credentials' => 'Create / Edit / Delete / Reveal Credentials',
             ],
             'Printers' => [
-                'view-printers'   => 'View Printer Inventory',
+                'view-printers' => 'View Printer Inventory',
                 'manage-printers' => 'Create / Edit / Delete Printers',
             ],
             'Identity' => [
-                'view-identity'            => 'View Identity (Users, Licenses, Groups)',
-                'manage-identity'          => 'Manage Identity (Reset PW, Toggle, Assign)',
+                'view-identity' => 'View Identity (Users, Licenses, Groups)',
+                'manage-identity' => 'Manage Identity (Reset PW, Toggle, Assign)',
                 'manage-identity-settings' => 'Manage Microsoft Graph API Settings',
             ],
             'Administration' => [
-                'manage-settings'    => 'Access & Edit Settings',
-                'manage-users'       => 'Manage Users',
+                'manage-settings' => 'Access & Edit Settings',
+                'manage-users' => 'Manage Users',
                 'manage-permissions' => 'Manage Role Permissions',
             ],
             'Workflows' => [
-                'view-workflows'    => 'View Workflow Requests',
-                'manage-workflows'  => 'Create / Cancel Workflow Requests',
+                'view-workflows' => 'View Workflow Requests',
+                'manage-workflows' => 'Create / Cancel Workflow Requests',
                 'approve-workflows' => 'Approve / Reject Workflow Steps',
             ],
             'Employees' => [
-                'view-employees'   => 'View Employee Directory',
+                'view-employees' => 'View Employee Directory',
                 'manage-employees' => 'Create / Edit Employees & Assign Assets',
             ],
             'Offboarding' => [
-                'view-offboarding'   => 'View Offboarding Workflows',
+                'view-offboarding' => 'View Offboarding Workflows',
                 'manage-offboarding' => 'Manage Offboarding (force delete, cancel, upload backups)',
             ],
             'AvePoint' => [
-                'view-avepoint'   => 'View AvePoint Module (dashboard, users, jobs, backups)',
+                'view-avepoint' => 'View AvePoint Module (dashboard, users, jobs, backups)',
                 'manage-avepoint' => 'Manage AvePoint Backups (request, retry, download)',
             ],
             'HR' => [
                 'submit-hr-onboarding' => 'Submit HR Onboarding Requests (portal)',
             ],
             'NOC' => [
-                'view-noc'        => 'View NOC Dashboard & Events',
-                'manage-noc'      => 'Acknowledge / Resolve NOC Events',
-                'view-incidents'  => 'View Incidents',
-                'manage-incidents'=> 'Create / Edit / Close Incidents',
-                'view-syslog'     => 'View Syslog Messages & Search',
-                'manage-syslog'   => 'Manage Syslog Alert Rules',
+                'view-noc' => 'View NOC Dashboard & Events',
+                'manage-noc' => 'Acknowledge / Resolve NOC Events',
+                'view-incidents' => 'View Incidents',
+                'manage-incidents' => 'Create / Edit / Close Incidents',
+                'view-syslog' => 'View Syslog Messages & Search',
+                'manage-syslog' => 'Manage Syslog Alert Rules',
             ],
             'Platform' => [
                 'manage-workflow-templates' => 'Edit Workflow Types & Approval Chains',
-                'view-email-logs'           => 'View Email Send Log',
+                'view-email-logs' => 'View Email Send Log',
                 'manage-notification-rules' => 'Manage Notification Routing Rules',
-                'manage-license-monitors'   => 'Manage License Inventory Monitors',
-                'manage-allowed-domains'    => 'Manage Allowed Domains',
+                'manage-license-monitors' => 'Manage License Inventory Monitors',
+                'manage-allowed-domains' => 'Manage Allowed Domains',
             ],
             'ITAM' => [
-                'view-itam'           => 'View ITAM Dashboard',
-                'manage-itam'         => 'Manage ITAM (Azure Sync, Transfer, Branch Stores)',
-                'manage-suppliers'    => 'Manage Suppliers',
-                'view-licenses'       => 'View Software Licenses',
-                'manage-licenses'     => 'Create / Edit / Delete Licenses & Assign',
-                'view-accessories'    => 'View Accessories',
-                'manage-accessories'  => 'Create / Edit / Delete Accessories & Assign',
-                'request-scrap'       => 'Submit Asset Scrap Requests',
-                'approve-scrap'       => 'Approve / Reject Asset Scrap Requests',
+                'view-itam' => 'View ITAM Dashboard',
+                'manage-itam' => 'Manage ITAM (Azure Sync, Transfer, Branch Stores)',
+                'manage-suppliers' => 'Manage Suppliers',
+                'view-licenses' => 'View Software Licenses',
+                'manage-licenses' => 'Create / Edit / Delete Licenses & Assign',
+                'view-accessories' => 'View Accessories',
+                'manage-accessories' => 'Create / Edit / Delete Accessories & Assign',
+                'request-scrap' => 'Submit Asset Scrap Requests',
+                'approve-scrap' => 'Approve / Reject Asset Scrap Requests',
             ],
             'Admin Tools' => [
-                'view-admin-links'   => 'View Admin Tools / Quick Links',
+                'view-admin-links' => 'View Admin Tools / Quick Links',
                 'manage-admin-links' => 'Create / Edit / Delete Admin Links',
             ],
             'Documentation' => [
-                'view-documentation'   => 'View Documentation',
+                'view-documentation' => 'View Documentation',
                 'manage-documentation' => 'Upload / Delete Documentation Files',
             ],
             'Print Manager' => [
-                'view-print-manager'   => 'View CUPS Print Manager',
+                'view-print-manager' => 'View CUPS Print Manager',
                 'manage-print-manager' => 'Manage CUPS Printers & Jobs',
             ],
             'Remote Browser' => [
-                'view-browser-portal'    => 'Launch & use a remote browser session',
-                'share-browser-session'  => 'Generate a share link to invite another user into their own session',
-                'manage-browser-portal'  => 'View / force-stop any session, view events, edit portal settings',
+                'view-browser-portal' => 'Launch & use a remote browser session',
+                'share-browser-session' => 'Generate a share link to invite another user into their own session',
+                'manage-browser-portal' => 'View / force-stop any session, view events, edit portal settings',
             ],
             'Forms' => [
                 'manage-forms' => 'Manage Form Builder Templates & Submissions',
             ],
             'Email Marketing' => [
-                'view-email-marketing'            => 'View & use marketing portal (lists, subscribers, campaigns)',
-                'manage-email-marketing'          => 'Admin oversight (suppressions, quota, all campaigns)',
+                'view-email-marketing' => 'View & use marketing portal (lists, subscribers, campaigns)',
+                'manage-email-marketing' => 'Admin oversight (suppressions, quota, all campaigns)',
                 'manage-email-marketing-settings' => 'Edit AWS SES credentials & sender domain',
             ],
             'Training (Courses)' => [
-                'view-courses'   => 'View training courses, certificates & marketing course campaigns',
+                'view-courses' => 'View training courses, certificates & marketing course campaigns',
                 'manage-courses' => 'Create / edit / delete courses & manage issued certificates',
+            ],
+            'Recruitment' => [
+                'view-candidates' => 'View & filter Teamtailor candidates',
             ],
         ];
     }
@@ -154,7 +157,7 @@ class RolePermission extends Model
     public static function allSlugs(): array
     {
         return collect(static::allPermissions())
-            ->flatMap(fn($perms) => array_keys($perms))
+            ->flatMap(fn ($perms) => array_keys($perms))
             ->all();
     }
 
@@ -163,8 +166,8 @@ class RolePermission extends Model
      */
     public static function defaultPermissions(): array
     {
-        $all         = static::allSlugs();
-        $adminPerms  = array_values(array_diff($all, [
+        $all = static::allSlugs();
+        $adminPerms = array_values(array_diff($all, [
             'manage-users', 'manage-permissions',
             'manage-credentials', 'manage-identity-settings',
             'manage-email-marketing-settings',
@@ -190,12 +193,12 @@ class RolePermission extends Model
         $marketingPerms = ['view-email-marketing', 'view-courses', 'manage-courses'];
 
         return [
-            'super_admin'  => $all,
-            'admin'        => $adminPerms,
-            'hr'           => $hrPerms,
-            'viewer'       => $viewerPerms,
+            'super_admin' => $all,
+            'admin' => $adminPerms,
+            'hr' => $hrPerms,
+            'viewer' => $viewerPerms,
             'browser_user' => ['view-browser-portal'],
-            'marketing'    => $marketingPerms,
+            'marketing' => $marketingPerms,
         ];
     }
 
@@ -204,9 +207,10 @@ class RolePermission extends Model
      */
     public static function forRole(string $role): array
     {
-        if (!isset(static::$cache[$role])) {
+        if (! isset(static::$cache[$role])) {
             static::$cache[$role] = static::where('role', $role)->pluck('permission')->all();
         }
+
         return static::$cache[$role];
     }
 

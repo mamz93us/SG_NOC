@@ -404,7 +404,15 @@
       "Bash(php -l resources/views/admin/itam/stores/universal.blade.php)",
       "Bash(php -l resources/views/admin/itam/stores/index.blade.php)",
       "Bash(php -l resources/views/admin/itam/reports/costs.blade.php)",
-      "Bash(grep -n '$disabledActiveAssets\\\\|$allContacts' C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/resources/views/admin/employees/show.blade.php)"
+      "Bash(grep -n '$disabledActiveAssets\\\\|$allContacts' C:/Users/MohamedZahran/Downloads/phonebook/SG_NOC/resources/views/admin/employees/show.blade.php)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\MohamedZahran\\\\Downloads\\\\phonebook\\\\SG_NOC\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(./vendor/bin/pint app/Services/Teamtailor app/Http/Controllers/Admin/Teamtailor config/teamtailor.php \"database/migrations/2026_05_30_000001_seed_view_candidates_permission.php\" app/Models/RolePermission.php)",
+      "Bash(./vendor/bin/pest tests/Feature/Teamtailor/TeamtailorApiServiceTest.php)",
+      "Bash(rm \"tests/Feature/Teamtailor/TeamtailorApiServiceTest.php\")",
+      "Bash(rmdir \"tests/Feature/Teamtailor\")",
+      "Bash(mkdir -p \"tests/Unit/Teamtailor\")",
+      "Bash(./vendor/bin/pest tests/Unit/Teamtailor/TeamtailorApiServiceTest.php)"
     ]
   }
 }
