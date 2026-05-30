@@ -181,10 +181,15 @@ class TeamtailorApiService
     }
 
     /**
-     * GET /v1/job-applications for one job. Each row links a candidate to the
-     * job and carries the pipeline stage (and, once rejected, a rejected-at
-     * stamp). The candidate is side-loaded via `include` so the applicants
-     * table renders names without an N+1 of per-candidate calls.
+     * GET /v1/jobs/{id}/job-applications — the applications for one job, fetched
+     * through the job's JSON:API relationship link. (The flat /v1/job-applications
+     * endpoint rejects filter[job-id] with a 400; relationship traversal is the
+     * supported path, mirroring /v1/candidates/{id}/job-applications.)
+     *
+     * Each row links a candidate to the job and carries the pipeline stage (and,
+     * once rejected, a rejected-at stamp). The candidate is side-loaded via
+     * `include` so the applicants table renders names without an N+1 of
+     * per-candidate calls.
      *
      * @return array decoded JSON:API body: data[], included[] (candidates), meta{}
      */
@@ -200,7 +205,6 @@ class TeamtailorApiService
         ));
 
         $query = [
-            'filter[job-id]' => $jobId,
             'include' => 'candidate',
             'page[size]' => $size,
             'page[number]' => max(1, $page),
@@ -210,7 +214,7 @@ class TeamtailorApiService
             $query['sort'] = $sort;
         }
 
-        return $this->get('/v1/job-applications', $query);
+        return $this->get('/v1/jobs/'.rawurlencode($jobId).'/job-applications', $query);
     }
 
     /**

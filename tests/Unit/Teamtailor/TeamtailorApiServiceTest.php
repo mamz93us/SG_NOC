@@ -130,15 +130,15 @@ it('lists jobs with token auth and pagination', function () {
     });
 });
 
-it('lists job applications filtered by job id with the candidate included', function () {
+it('lists a job\'s applications via the nested relationship endpoint with the candidate included', function () {
     Http::fake(['api.teamtailor.com/*' => Http::response(['data' => [], 'included' => []], 200)]);
 
     (new TeamtailorApiService)->listJobApplications('123');
 
     Http::assertSent(function ($request) {
-        return str_starts_with($request->url(), 'https://api.teamtailor.com/v1/job-applications')
-            && $request['filter[job-id]'] === '123'
-            && $request['include'] === 'candidate';
+        return str_starts_with($request->url(), 'https://api.teamtailor.com/v1/jobs/123/job-applications')
+            && $request['include'] === 'candidate'
+            && ! isset($request['filter[job-id]']);
     });
 });
 
