@@ -213,9 +213,20 @@ class TeamtailorApiService
             $err = $json['errors'][0];
             $msg = trim(($err['title'] ?? '').' '.($err['detail'] ?? ''));
 
-            return $msg !== '' ? $msg : "HTTP {$status}";
+            if ($msg !== '') {
+                return $msg;
+            }
         }
 
-        return "HTTP {$status}";
+        // Teamtailor frequently returns these statuses with an empty (or
+        // non-JSON:API) body, which would otherwise surface as a dead-end
+        // "HTTP 403". Add an actionable hint for the ones seen in practice.
+        return match ($status) {
+            401 => 'Unauthorized — the API token is missing or invalid.',
+            403 => 'Forbidden — the token is valid but lacks permission. Listing candidates requires an Admin-scope Teamtailor API key (the key may also be IP-restricted).',
+            404 => 'Not found — check the base URL; it should be just the host, e.g. https://api.teamtailor.com.',
+            406 => 'Unsupported API version — check the X-Api-Version value.',
+            default => "HTTP {$status}",
+        };
     }
 }

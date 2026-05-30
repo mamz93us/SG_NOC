@@ -75,6 +75,15 @@ it('throws a readable error from a JSON:API error body', function () {
         ->toThrow(RuntimeException::class, 'Admin scope required');
 });
 
+it('gives an actionable hint for a bare 403 with no JSON:API body', function () {
+    Http::fake(['api.teamtailor.com/*' => Http::response('', 403)]);
+
+    // A 403 means the path/token are fine but the token lacks Admin scope —
+    // the bare body must not collapse to an unhelpful "HTTP 403".
+    expect(fn () => (new TeamtailorApiService)->listCandidates())
+        ->toThrow(RuntimeException::class, 'Admin-scope');
+});
+
 it('reports not configured when the api key is blank', function () {
     config()->set('teamtailor.api_key', '');
 
