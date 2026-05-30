@@ -4,6 +4,12 @@ return [
     // API stack base URL. EU: https://api.teamtailor.com — NA: https://api.na.teamtailor.com
     'base_url' => rtrim(env('TEAMTAILOR_BASE_URL', 'https://api.teamtailor.com'), '/'),
 
+    // Recruiter-app base used to deep-link a candidate out to Teamtailor. Paste the
+    // part of a candidate URL BEFORE "/candidates/{id}" — e.g.
+    // https://app.teamtailor.com/companies/<company> — and the profile page appends
+    // "/candidates/{id}". Optional: the "View in Teamtailor" link is hidden when blank.
+    'app_url' => rtrim((string) env('TEAMTAILOR_APP_URL', ''), '/'),
+
     // Admin-scoped API token (Teamtailor → Settings → Integrations → API keys).
     // Listing candidates requires the Admin scope. Never commit this — set it in .env.
     'api_key' => env('TEAMTAILOR_API_KEY', ''),

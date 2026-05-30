@@ -190,30 +190,53 @@ class TeamtailorApiService
      * reject) is side-loaded via include=job-applications and matched back to
      * this job in the controller.
      *
+     * Candidate-level filters (e.g. ['filter[email]' => 'a@b.com']) and a sort
+     * key are passed straight through; callers should fall back to an unfiltered
+     * call if the nested endpoint rejects a param, since support is undocumented.
+     *
+     * @param  array<string,string|int>  $filters
      * @return array decoded JSON:API body: data[] (candidates), included[] (job-applications), meta{}
      */
     public function listJobApplicants(
         string $jobId,
         int $page = 1,
         ?int $size = null,
-        ?string $sort = null
+        ?string $sort = null,
+        array $filters = []
     ): array {
         $size = max(1, min(
             $size ?? (int) config('teamtailor.page_size', 25),
             self::MAX_PAGE_SIZE
         ));
 
-        $query = [
+        $query = array_merge($filters, [
             'include' => 'job-applications',
             'page[size]' => $size,
             'page[number]' => max(1, $page),
-        ];
+        ]);
 
         if ($sort) {
             $query['sort'] = $sort;
         }
 
         return $this->get('/v1/jobs/'.rawurlencode($jobId).'/candidates', $query);
+    }
+
+    /**
+     * GET /v1/jobs/{id}/stages — the pipeline stages configured for one job.
+     *
+     * The applicants list shows each candidate's stage as their status, but a
+     * job-application only carries the stage *id*. Stage names live on the stage
+     * resource, so this is fetched once per page and zipped in by id. Failure is
+     * non-fatal — callers fall back to a plain Active/Rejected badge.
+     *
+     * @return array decoded JSON:API body: data[] (stages), meta{}
+     */
+    public function listJobStages(string $jobId): array
+    {
+        return $this->get('/v1/jobs/'.rawurlencode($jobId).'/stages', [
+            'page[size]' => self::MAX_PAGE_SIZE,
+        ]);
     }
 
     /**

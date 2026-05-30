@@ -115,7 +115,13 @@
                     @foreach($candidates as $c)
                     <tr>
                         <td class="ps-3">
-                            <div class="fw-semibold">{{ $c['name'] }}</div>
+                            <div class="fw-semibold">
+                                @if($c['id'])
+                                    <a href="{{ route('admin.candidates.show', $c['id']) }}" class="text-decoration-none">{{ $c['name'] }}</a>
+                                @else
+                                    {{ $c['name'] }}
+                                @endif
+                            </div>
                             @if($c['email'])
                             <div class="text-muted" style="font-size:.75rem">
                                 <a href="mailto:{{ $c['email'] }}" class="text-decoration-none text-muted">{{ $c['email'] }}</a>

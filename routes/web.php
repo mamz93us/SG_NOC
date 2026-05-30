@@ -1721,6 +1721,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── Recruitment (Teamtailor candidates) ───────────────────────
     Route::prefix('candidates')->name('candidates.')->middleware('permission:view-candidates')->group(function () {
         Route::get('/', [\App\Http\Controllers\Admin\Teamtailor\CandidateController::class, 'index'])->name('index');
+        Route::get('/{candidate}', [\App\Http\Controllers\Admin\Teamtailor\CandidateController::class, 'show'])->name('show');
     });
 
     // ─── Recruitment: Jobs & applicants (Teamtailor) ───────────────

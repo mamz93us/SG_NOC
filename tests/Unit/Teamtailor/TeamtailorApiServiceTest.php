@@ -145,6 +145,39 @@ it('lists a job\'s applicants via the candidates relationship with job-applicati
     });
 });
 
+it('passes candidate filters and sort through to the job applicants request', function () {
+    Http::fake(['api.teamtailor.com/*' => Http::response(['data' => [], 'included' => []], 200)]);
+
+    (new TeamtailorApiService)->listJobApplicants(
+        '123',
+        page: 1,
+        size: 25,
+        sort: '-created-at',
+        filters: ['filter[email]' => 'a@b.com', 'filter[created-at][from]' => '2026-01-01'],
+    );
+
+    Http::assertSent(function ($request) {
+        // Sort + candidate filters ride alongside the mandatory include; the
+        // controller downgrades to an unfiltered call only if Teamtailor 4xxs.
+        return str_starts_with($request->url(), 'https://api.teamtailor.com/v1/jobs/123/candidates')
+            && $request['include'] === 'job-applications'
+            && $request['sort'] === '-created-at'
+            && $request['filter[email]'] === 'a@b.com'
+            && $request['filter[created-at][from]'] === '2026-01-01';
+    });
+});
+
+it('lists a job\'s pipeline stages so applicant status can show a stage name', function () {
+    Http::fake(['api.teamtailor.com/*' => Http::response(['data' => []], 200)]);
+
+    (new TeamtailorApiService)->listJobStages('123');
+
+    Http::assertSent(function ($request) {
+        return str_starts_with($request->url(), 'https://api.teamtailor.com/v1/jobs/123/stages')
+            && $request['page[size]'] == 30;
+    });
+});
+
 it('rejects a job application with a silent rejected-at PATCH', function () {
     Http::fake(['api.teamtailor.com/*' => Http::response(['data' => ['id' => '77', 'type' => 'job-applications']], 200)]);
 
