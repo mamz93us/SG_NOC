@@ -1004,17 +1004,25 @@
 
                     {{-- ── Recruitment (Teamtailor) ── --}}
                     @can('view-candidates')
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('admin/jobs*') ? 'active' : '' }}"
-                           href="{{ route('admin.jobs.index') }}">
-                            <i class="bi bi-briefcase me-1"></i>Jobs
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/jobs*','admin/candidates*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-people-fill me-1"></i>Teamtailor
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('admin/candidates*') ? 'active' : '' }}"
-                           href="{{ route('admin.candidates.index') }}">
-                            <i class="bi bi-person-rolodex me-1"></i>Candidates
-                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/jobs*') ? 'active' : '' }}"
+                                   href="{{ route('admin.jobs.index') }}">
+                                    <i class="bi bi-briefcase me-2"></i>Jobs
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/candidates*') ? 'active' : '' }}"
+                                   href="{{ route('admin.candidates.index') }}">
+                                    <i class="bi bi-person-rolodex me-2"></i>Candidates
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                     @endcan
 
