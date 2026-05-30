@@ -341,6 +341,53 @@ class SettingsController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Teamtailor / Recruitment API Settings
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateTeamtailor(Request $request)
+    {
+        $request->validate([
+            'teamtailor_base_url'    => 'nullable|url|max:255',
+            'teamtailor_api_version' => 'nullable|string|max:20',
+            'teamtailor_api_key'     => 'nullable|string|max:500',
+        ]);
+
+        $settings = Setting::get();
+        $before = [
+            'teamtailor_base_url'    => $settings->teamtailor_base_url,
+            'teamtailor_api_version' => $settings->teamtailor_api_version,
+        ];
+        $settings->teamtailor_base_url    = rtrim($request->teamtailor_base_url ?: 'https://api.teamtailor.com', '/');
+        $settings->teamtailor_api_version = $request->teamtailor_api_version ?: '20240904';
+
+        if ($request->filled('teamtailor_api_key')) {
+            $settings->teamtailor_api_key = $request->teamtailor_api_key;
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id'   => 1,
+            'action'     => 'teamtailor_updated',
+            'changes'    => [
+                'before'      => $before,
+                'after'       => [
+                    'teamtailor_base_url'    => $settings->teamtailor_base_url,
+                    'teamtailor_api_version' => $settings->teamtailor_api_version,
+                ],
+                'key_changed' => $request->filled('teamtailor_api_key'),
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'Teamtailor API settings updated.')
+            ->withFragment('teamtailor');
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // SMTP / Outgoing Mail Settings
     // ─────────────────────────────────────────────────────────────
 

@@ -2,6 +2,7 @@
 
 namespace App\Services\Teamtailor;
 
+use App\Models\Setting;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -26,12 +27,44 @@ class TeamtailorApiService
     /** Teamtailor hard-caps page[size] at 30. */
     private const MAX_PAGE_SIZE = 30;
 
-    public function __construct()
-    {
-        $this->baseUrl = rtrim((string) config('teamtailor.base_url'), '/');
-        $this->apiKey = (string) config('teamtailor.api_key');
-        $this->apiVersion = (string) config('teamtailor.api_version');
+    /**
+     * Credentials are resolved DB-first (admin Settings UI), then fall back to
+     * the env-driven config. Constructor params override both, mirroring
+     * App\Services\Identity\GraphService.
+     */
+    public function __construct(
+        ?string $apiKey = null,
+        ?string $baseUrl = null,
+        ?string $apiVersion = null
+    ) {
+        $settings = $this->settings();
+
+        $this->apiKey = (string) ($apiKey
+            ?: $settings?->teamtailor_api_key
+            ?: config('teamtailor.api_key'));
+
+        $this->baseUrl = rtrim((string) ($baseUrl
+            ?: $settings?->teamtailor_base_url
+            ?: config('teamtailor.base_url')), '/');
+
+        $this->apiVersion = (string) ($apiVersion
+            ?: $settings?->teamtailor_api_version
+            ?: config('teamtailor.api_version'));
+
         $this->timeout = (int) config('teamtailor.timeout', 30);
+    }
+
+    /**
+     * The settings singleton, or null if the table is unavailable (e.g. during
+     * a fresh install before migrations run, or in unit tests that skip them).
+     */
+    private function settings(): ?Setting
+    {
+        try {
+            return Setting::get();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

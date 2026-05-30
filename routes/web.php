@@ -455,6 +455,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('settings.graph');
         Route::post('settings/gdms', [SettingsController::class, 'updateGdms'])
             ->name('settings.gdms');
+        Route::post('settings/teamtailor', [SettingsController::class, 'updateTeamtailor'])
+            ->name('settings.teamtailor');
         Route::post('settings/avepoint', [SettingsController::class, 'updateAvePoint'])->name('settings.avepoint');
         Route::post('settings/azure-blob', [SettingsController::class, 'updateAzureBlob'])->name('settings.azure-blob');
         Route::post('settings/offboarding', [SettingsController::class, 'updateOffboarding'])->name('settings.offboarding');

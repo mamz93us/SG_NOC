@@ -628,6 +628,63 @@
 </div>
 
 {{-- ─────────────────────────────────────────────────────── --}}
+{{-- Teamtailor / Recruitment API Section                   --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="teamtailor">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-person-rolodex text-primary fs-5"></i>
+        <h5 class="mb-0">Teamtailor API (Recruitment)</h5>
+        @if($settings->teamtailor_api_key)
+            <span class="badge bg-success ms-auto">Configured</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Not Configured</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Teamtailor public API token for viewing &amp; filtering candidates. The token must have
+            <strong>Admin</strong> scope to list candidates. Use the NA base URL
+            (<code>https://api.na.teamtailor.com</code>) only if your account is on the North-America stack;
+            EU is the default.
+        </div>
+        <form method="POST" action="{{ route('admin.settings.teamtailor') }}">
+            @csrf
+            <div class="row g-3 mb-3">
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Base URL</label>
+                    <input type="text" name="teamtailor_base_url" class="form-control font-monospace"
+                        value="{{ old('teamtailor_base_url', $settings->teamtailor_base_url ?? 'https://api.teamtailor.com') }}"
+                        placeholder="https://api.teamtailor.com">
+                    <div class="form-text">EU: <code>https://api.teamtailor.com</code> &middot; NA: <code>https://api.na.teamtailor.com</code></div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">API Version</label>
+                    <input type="text" name="teamtailor_api_version" class="form-control font-monospace"
+                        value="{{ old('teamtailor_api_version', $settings->teamtailor_api_version ?? '20240904') }}"
+                        placeholder="20240904">
+                    <div class="form-text">Sent as the <code>X-Api-Version</code> header.</div>
+                </div>
+
+                <div class="col-md-12">
+                    <label class="form-label fw-semibold">API Key (Token)</label>
+                    <input type="password" name="teamtailor_api_key" class="form-control"
+                        placeholder="{{ $settings->teamtailor_api_key ? '•••••• (leave blank to keep current)' : 'Paste Admin-scope API token here' }}">
+                    <div class="form-text">Stored encrypted. Sent as <code>Authorization: Token token=…</code>.</div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1"></i>Save Teamtailor Settings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- ─────────────────────────────────────────────────────── --}}
 {{-- Ticketing API Section                                  --}}
 {{-- ─────────────────────────────────────────────────────── --}}
 <div class="card mt-4" id="ticketing">

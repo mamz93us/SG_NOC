@@ -116,6 +116,10 @@ class Setting extends Model
         'email_marketing_event_retention_days',
         'email_marketing_open_pixel_enabled',
         'email_marketing_click_tracking_enabled',
+        // Teamtailor / Recruitment
+        'teamtailor_api_key',
+        'teamtailor_base_url',
+        'teamtailor_api_version',
     ];
 
     protected $casts = [
@@ -310,6 +314,23 @@ class Setting extends Model
     }
 
     public function getSesSecretAccessKeyAttribute(?string $value): ?string
+    {
+        if (!$value) return null;
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── Teamtailor API key — encrypted at rest ───────────────────
+
+    public function setTeamtailorApiKeyAttribute(?string $value): void
+    {
+        $this->attributes['teamtailor_api_key'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getTeamtailorApiKeyAttribute(?string $value): ?string
     {
         if (!$value) return null;
         try {
