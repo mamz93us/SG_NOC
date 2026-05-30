@@ -115,3 +115,55 @@ it('still calls /v1/candidates when the configured base url already includes /v1
     Http::assertSent(fn ($request) => str_starts_with($request->url(), 'https://api.teamtailor.com/v1/candidates')
         && ! str_contains($request->url(), '/v1/v1'));
 });
+
+it('lists jobs with token auth and pagination', function () {
+    Http::fake(['api.teamtailor.com/*' => Http::response(['data' => [], 'meta' => ['record-count' => 0]], 200)]);
+
+    (new TeamtailorApiService)->listJobs(page: 2, size: 10, sort: '-created-at');
+
+    Http::assertSent(function ($request) {
+        return str_starts_with($request->url(), 'https://api.teamtailor.com/v1/jobs')
+            && $request->hasHeader('Authorization', 'Token token=test-key-123')
+            && $request['page[size]'] == 10
+            && $request['page[number]'] == 2
+            && $request['sort'] === '-created-at';
+    });
+});
+
+it('lists job applications filtered by job id with the candidate included', function () {
+    Http::fake(['api.teamtailor.com/*' => Http::response(['data' => [], 'included' => []], 200)]);
+
+    (new TeamtailorApiService)->listJobApplications('123');
+
+    Http::assertSent(function ($request) {
+        return str_starts_with($request->url(), 'https://api.teamtailor.com/v1/job-applications')
+            && $request['filter[job-id]'] === '123'
+            && $request['include'] === 'candidate';
+    });
+});
+
+it('rejects a job application with a silent rejected-at PATCH', function () {
+    Http::fake(['api.teamtailor.com/*' => Http::response(['data' => ['id' => '77', 'type' => 'job-applications']], 200)]);
+
+    (new TeamtailorApiService)->rejectJobApplication('77');
+
+    Http::assertSent(function ($request) {
+        $body = json_decode($request->body(), true);
+
+        // The whole point of "silent reject": a bare rejected-at PATCH, no
+        // email flag, sent as JSON:API.
+        return $request->method() === 'PATCH'
+            && str_starts_with($request->url(), 'https://api.teamtailor.com/v1/job-applications/77')
+            && $request->hasHeader('Content-Type', 'application/vnd.api+json')
+            && ($body['data']['type'] ?? null) === 'job-applications'
+            && ($body['data']['id'] ?? null) === '77'
+            && ! empty($body['data']['attributes']['rejected-at']);
+    });
+});
+
+it('surfaces a readable error when a reject is forbidden', function () {
+    Http::fake(['api.teamtailor.com/*' => Http::response('', 403)]);
+
+    expect(fn () => (new TeamtailorApiService)->rejectJobApplication('77'))
+        ->toThrow(RuntimeException::class, 'Forbidden');
+});

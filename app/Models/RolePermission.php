@@ -147,6 +147,7 @@ class RolePermission extends Model
             ],
             'Recruitment' => [
                 'view-candidates' => 'View & filter Teamtailor candidates',
+                'reject-candidates' => 'Reject Teamtailor job applications',
             ],
         ];
     }

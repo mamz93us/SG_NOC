@@ -1005,6 +1005,12 @@
                     {{-- ── Recruitment (Teamtailor) ── --}}
                     @can('view-candidates')
                     <li class="nav-item">
+                        <a class="nav-link {{ request()->is('admin/jobs*') ? 'active' : '' }}"
+                           href="{{ route('admin.jobs.index') }}">
+                            <i class="bi bi-briefcase me-1"></i>Jobs
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {{ request()->is('admin/candidates*') ? 'active' : '' }}"
                            href="{{ route('admin.candidates.index') }}">
                             <i class="bi bi-person-rolodex me-1"></i>Candidates

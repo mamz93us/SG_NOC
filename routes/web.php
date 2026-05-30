@@ -1723,6 +1723,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/', [\App\Http\Controllers\Admin\Teamtailor\CandidateController::class, 'index'])->name('index');
     });
 
+    // ─── Recruitment: Jobs & applicants (Teamtailor) ───────────────
+    Route::prefix('jobs')->name('jobs.')->group(function () {
+        Route::middleware('permission:view-candidates')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\Teamtailor\JobController::class, 'index'])->name('index');
+            Route::get('/{job}', [\App\Http\Controllers\Admin\Teamtailor\JobController::class, 'show'])->name('show');
+        });
+        // Rejecting writes to the live ATS — gated separately from viewing.
+        Route::middleware('permission:reject-candidates')->group(function () {
+            Route::post('/{job}/applications/{application}/reject', [\App\Http\Controllers\Admin\Teamtailor\JobController::class, 'reject'])
+                ->name('applications.reject');
+        });
+    });
+
     // ─── Switch Drops — RETIRED ────────────────────────────────────
     // Superseded by Switch QoS dashboard. Controller preserved; routes
     // disabled so /admin/switch-drops/* 404s. To re-enable, un-comment.

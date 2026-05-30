@@ -151,6 +151,89 @@ class TeamtailorApiService
         return $this->get("/v1/candidates/{$id}", $query);
     }
 
+    /**
+     * GET /v1/jobs — the recruiting positions candidates apply to.
+     *
+     * @param  array<string,string|int>  $filters
+     * @return array decoded JSON:API body: data[], links{}, meta{}
+     */
+    public function listJobs(
+        array $filters = [],
+        int $page = 1,
+        ?int $size = null,
+        ?string $sort = null
+    ): array {
+        $size = max(1, min(
+            $size ?? (int) config('teamtailor.page_size', 25),
+            self::MAX_PAGE_SIZE
+        ));
+
+        $query = array_merge($filters, [
+            'page[size]' => $size,
+            'page[number]' => max(1, $page),
+        ]);
+
+        if ($sort) {
+            $query['sort'] = $sort;
+        }
+
+        return $this->get('/v1/jobs', $query);
+    }
+
+    /**
+     * GET /v1/job-applications for one job. Each row links a candidate to the
+     * job and carries the pipeline stage (and, once rejected, a rejected-at
+     * stamp). The candidate is side-loaded via `include` so the applicants
+     * table renders names without an N+1 of per-candidate calls.
+     *
+     * @return array decoded JSON:API body: data[], included[] (candidates), meta{}
+     */
+    public function listJobApplications(
+        string $jobId,
+        int $page = 1,
+        ?int $size = null,
+        ?string $sort = null
+    ): array {
+        $size = max(1, min(
+            $size ?? (int) config('teamtailor.page_size', 25),
+            self::MAX_PAGE_SIZE
+        ));
+
+        $query = [
+            'filter[job-id]' => $jobId,
+            'include' => 'candidate',
+            'page[size]' => $size,
+            'page[number]' => max(1, $page),
+        ];
+
+        if ($sort) {
+            $query['sort'] = $sort;
+        }
+
+        return $this->get('/v1/job-applications', $query);
+    }
+
+    /**
+     * Reject a single job application by stamping `rejected-at`, moving it out
+     * of the active pipeline into Teamtailor's "Rejected" section.
+     *
+     * Deliberately SILENT: a bare PATCH does not email the candidate — the
+     * Teamtailor rejection email is a separate, opt-in action. It is also
+     * reversible: clearing rejected-at in Teamtailor restores the application.
+     *
+     * @return array<string,mixed> the updated job-application resource
+     */
+    public function rejectJobApplication(string $applicationId): array
+    {
+        return $this->patch("/v1/job-applications/{$applicationId}", [
+            'data' => [
+                'type' => 'job-applications',
+                'id' => $applicationId,
+                'attributes' => ['rejected-at' => now()->toIso8601String()],
+            ],
+        ]);
+    }
+
     private function headers(): array
     {
         return [
@@ -195,6 +278,60 @@ class TeamtailorApiService
         if (! $response->successful()) {
             $body = $response->body();
             Log::error("Teamtailor GET {$endpoint} failed ({$response->status()}): {$body}");
+            throw new \RuntimeException(
+                "Teamtailor API error ({$response->status()}): ".$this->extractError($body, $response->status())
+            );
+        }
+
+        return $response->json() ?? [];
+    }
+
+    /**
+     * PATCH a JSON:API document. Writes must carry the vnd.api+json content
+     * type; auth/version/accept come from headers(). Shares the same 429
+     * back-off and error surfacing as get().
+     *
+     * @param  array<string,mixed>  $payload  JSON:API document
+     * @return array<string,mixed>
+     */
+    private function patch(string $endpoint, array $payload): array
+    {
+        if (! $this->isConfigured()) {
+            throw new \RuntimeException('Teamtailor API key is not configured. Set TEAMTAILOR_API_KEY in your .env.');
+        }
+
+        $url = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl.$endpoint;
+        $body = json_encode($payload);
+
+        try {
+            $response = Http::timeout($this->timeout)
+                ->withHeaders($this->headers())
+                ->withBody($body, 'application/vnd.api+json')
+                ->patch($url);
+
+            // Same 50 req / 10s rate limit applies to writes.
+            $attempts = 0;
+            while ($response->status() === 429 && $attempts < 3) {
+                $wait = (int) ($response->header('Retry-After')
+                    ?: $response->header('X-Rate-Limit-Reset')
+                    ?: 2);
+                $wait = max(1, min($wait, 10));
+                Log::warning("Teamtailor 429 on PATCH {$url} — waiting {$wait}s (attempt ".($attempts + 1).'/3)');
+                sleep($wait);
+                $response = Http::timeout($this->timeout)
+                    ->withHeaders($this->headers())
+                    ->withBody($body, 'application/vnd.api+json')
+                    ->patch($url);
+                $attempts++;
+            }
+        } catch (ConnectionException $e) {
+            Log::error("Teamtailor PATCH {$endpoint} connection error: ".$e->getMessage());
+            throw new \RuntimeException('Could not reach Teamtailor: '.$e->getMessage(), 0, $e);
+        }
+
+        if (! $response->successful()) {
+            $body = $response->body();
+            Log::error("Teamtailor PATCH {$endpoint} failed ({$response->status()}): {$body}");
             throw new \RuntimeException(
                 "Teamtailor API error ({$response->status()}): ".$this->extractError($body, $response->status())
             );
