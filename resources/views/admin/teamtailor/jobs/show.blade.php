@@ -101,9 +101,9 @@
                         </td>
                         @can('reject-candidates')
                         <td class="pe-3 text-end">
-                            @unless($a['rejected'])
+                            @if(! $a['rejected'] && $a['application_id'])
                             <form method="POST"
-                                  action="{{ route('admin.jobs.applications.reject', ['job' => $jobId, 'application' => $a['id']]) }}"
+                                  action="{{ route('admin.jobs.applications.reject', ['job' => $jobId, 'application' => $a['application_id']]) }}"
                                   onsubmit="return confirm('Reject this application in Teamtailor? The candidate will be moved to Rejected. No email is sent, and you can restore it in Teamtailor.');"
                                   class="d-inline">
                                 @csrf
@@ -113,7 +113,7 @@
                             </form>
                             @else
                                 <span class="text-muted small">—</span>
-                            @endunless
+                            @endif
                         </td>
                         @endcan
                     </tr>

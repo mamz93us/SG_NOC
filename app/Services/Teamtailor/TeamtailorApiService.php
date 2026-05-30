@@ -181,19 +181,18 @@ class TeamtailorApiService
     }
 
     /**
-     * GET /v1/jobs/{id}/job-applications — the applications for one job, fetched
-     * through the job's JSON:API relationship link. (The flat /v1/job-applications
-     * endpoint rejects filter[job-id] with a 400; relationship traversal is the
-     * supported path, mirroring /v1/candidates/{id}/job-applications.)
+     * GET /v1/jobs/{id}/candidates — the people who applied to one job.
      *
-     * Each row links a candidate to the job and carries the pipeline stage (and,
-     * once rejected, a rejected-at stamp). The candidate is side-loaded via
-     * `include` so the applicants table renders names without an N+1 of
-     * per-candidate calls.
+     * Teamtailor has no job→applications route and the flat /v1/job-applications
+     * endpoint cannot be filtered by job (only stage-type / date filters). The
+     * supported path is the job's `candidates` relationship; each applicant's
+     * job-application (which carries the rejected-at stamp and the id needed to
+     * reject) is side-loaded via include=job-applications and matched back to
+     * this job in the controller.
      *
-     * @return array decoded JSON:API body: data[], included[] (candidates), meta{}
+     * @return array decoded JSON:API body: data[] (candidates), included[] (job-applications), meta{}
      */
-    public function listJobApplications(
+    public function listJobApplicants(
         string $jobId,
         int $page = 1,
         ?int $size = null,
@@ -205,7 +204,7 @@ class TeamtailorApiService
         ));
 
         $query = [
-            'include' => 'candidate',
+            'include' => 'job-applications',
             'page[size]' => $size,
             'page[number]' => max(1, $page),
         ];
@@ -214,7 +213,7 @@ class TeamtailorApiService
             $query['sort'] = $sort;
         }
 
-        return $this->get('/v1/jobs/'.rawurlencode($jobId).'/job-applications', $query);
+        return $this->get('/v1/jobs/'.rawurlencode($jobId).'/candidates', $query);
     }
 
     /**

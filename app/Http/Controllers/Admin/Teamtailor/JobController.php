@@ -70,16 +70,16 @@ class JobController extends Controller
 
         if ($configured) {
             try {
-                $body = $teamtailor->listJobApplications($job, $page, self::PER_PAGE, '-created-at');
+                $body = $teamtailor->listJobApplicants($job, $page, self::PER_PAGE);
                 $total = (int) Arr::get($body, 'meta.record-count', 0);
 
-                // Index the side-loaded resources so each application can resolve
-                // its candidate without a per-row API call.
+                // Side-loaded job-applications, indexed so each candidate can
+                // resolve its application for this job without a per-row call.
                 $included = collect(Arr::get($body, 'included', []))
                     ->keyBy(fn ($r) => ($r['type'] ?? '').':'.($r['id'] ?? ''));
 
                 $applications = collect(Arr::get($body, 'data', []))
-                    ->map(fn ($row) => $this->mapApplication($row, $included));
+                    ->map(fn ($row) => $this->mapApplicant($row, $included, $job));
             } catch (\Throwable $e) {
                 $error = $e->getMessage();
             }
@@ -146,32 +146,49 @@ class JobController extends Controller
     }
 
     /**
-     * Flatten a JSON:API job-application resource, resolving its candidate from
-     * the side-loaded `included` collection.
+     * Flatten a candidate (the primary resource on /v1/jobs/{id}/candidates) into
+     * a view-friendly applicant row, resolving its job-application FOR THIS JOB
+     * from the side-loaded `included` collection — that application carries the
+     * id needed to reject and the rejected-at stamp.
      *
-     * @param  array<string,mixed>  $row
+     * @param  array<string,mixed>  $row  a candidate resource
      * @param  \Illuminate\Support\Collection<string,array<string,mixed>>  $included
      * @return array<string,mixed>
      */
-    private function mapApplication(array $row, $included): array
+    private function mapApplicant(array $row, $included, string $jobId): array
     {
         $a = $row['attributes'] ?? [];
 
-        $candidateId = Arr::get($row, 'relationships.candidate.data.id');
-        $candidate = $candidateId ? ($included->get("candidates:{$candidateId}")['attributes'] ?? []) : [];
+        // Match this candidate's application to the current job.
+        $applicationId = null;
+        $rejectedAt = null;
+        $appliedAt = $a['created-at'] ?? null;
 
-        $first = $candidate['first-name'] ?? '';
-        $last = $candidate['last-name'] ?? '';
-        $rejectedAt = $a['rejected-at'] ?? null;
+        foreach (Arr::get($row, 'relationships.job-applications.data', []) as $ref) {
+            $app = $included->get('job-applications:'.($ref['id'] ?? ''));
+            if (! $app) {
+                continue;
+            }
+            if ((string) Arr::get($app, 'relationships.job.data.id') === $jobId) {
+                $applicationId = $app['id'] ?? null;
+                $rejectedAt = Arr::get($app, 'attributes.rejected-at');
+                $appliedAt = Arr::get($app, 'attributes.created-at', $appliedAt);
+                break;
+            }
+        }
+
+        $first = $a['first-name'] ?? '';
+        $last = $a['last-name'] ?? '';
 
         return [
-            'id' => $row['id'] ?? null,
+            'application_id' => $applicationId,
+            'candidate_id' => $row['id'] ?? null,
             'name' => trim("{$first} {$last}") ?: '—',
-            'email' => $candidate['email'] ?? null,
-            'phone' => $candidate['phone'] ?? null,
-            'linkedin' => $candidate['linkedin-url'] ?? null,
-            'resume' => $candidate['resume'] ?? null,
-            'applied_at' => $a['created-at'] ?? null,
+            'email' => $a['email'] ?? null,
+            'phone' => $a['phone'] ?? null,
+            'linkedin' => $a['linkedin-url'] ?? null,
+            'resume' => $a['resume'] ?? null,
+            'applied_at' => $appliedAt,
             'rejected' => ! empty($rejectedAt),
             'rejected_at' => $rejectedAt,
         ];

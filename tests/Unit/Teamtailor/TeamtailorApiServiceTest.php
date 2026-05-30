@@ -130,14 +130,17 @@ it('lists jobs with token auth and pagination', function () {
     });
 });
 
-it('lists a job\'s applications via the nested relationship endpoint with the candidate included', function () {
+it('lists a job\'s applicants via the candidates relationship with job-applications included', function () {
     Http::fake(['api.teamtailor.com/*' => Http::response(['data' => [], 'included' => []], 200)]);
 
-    (new TeamtailorApiService)->listJobApplications('123');
+    (new TeamtailorApiService)->listJobApplicants('123');
 
     Http::assertSent(function ($request) {
-        return str_starts_with($request->url(), 'https://api.teamtailor.com/v1/jobs/123/job-applications')
-            && $request['include'] === 'candidate'
+        // Teamtailor has no job→applications route and no job filter on the flat
+        // /v1/job-applications endpoint. The supported path is the job's
+        // candidates relationship, side-loading each applicant's job-application.
+        return str_starts_with($request->url(), 'https://api.teamtailor.com/v1/jobs/123/candidates')
+            && $request['include'] === 'job-applications'
             && ! isset($request['filter[job-id]']);
     });
 });
