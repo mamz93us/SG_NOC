@@ -42,3 +42,47 @@ it('serves a marketing-branded login on the marketing host', function () {
     expect($login->getName())->toBe('portal.marketing.login');
     expect($login->getDomain())->toBe('em.samirgroup.net');
 });
+
+/**
+ * Run the host-isolation middleware against a request that resolves to a route
+ * with the given name, returning the response (or letting abort() throw).
+ */
+function marketingIsolation(string $url, ?string $routeName): \Symfony\Component\HttpFoundation\Response
+{
+    $request = Illuminate\Http\Request::create($url, 'GET');
+
+    if ($routeName !== null) {
+        $route = (new Illuminate\Routing\Route('GET', '/x', []))->name($routeName);
+        $request->setRouteResolver(fn () => $route);
+    }
+
+    return (new App\Http\Middleware\EnforceMarketingHostIsolation)
+        ->handle($request, fn ($r) => response('ok'));
+}
+
+it('404s NOC routes (portal hub, admin) on the marketing host', function () {
+    expect(fn () => marketingIsolation('https://em.samirgroup.net/portal', 'portal.index'))
+        ->toThrow(Symfony\Component\HttpKernel\Exception\NotFoundHttpException::class);
+    expect(fn () => marketingIsolation('https://em.samirgroup.net/admin/devices', 'admin.devices.index'))
+        ->toThrow(Symfony\Component\HttpKernel\Exception\NotFoundHttpException::class);
+});
+
+it('allows the marketing portal, SSO and the 2FA flow on the marketing host', function () {
+    $allowed = [
+        'portal.marketing.dashboard',
+        'portal.marketing.login',
+        'portal.marketing.campaigns.index',
+        'auth.microsoft',
+        'two-factor.challenge',
+        'admin.two-factor.setup',
+        'email.unsubscribe.show',
+    ];
+
+    foreach ($allowed as $name) {
+        expect(marketingIsolation('https://em.samirgroup.net/x', $name)->getContent())->toBe('ok');
+    }
+});
+
+it('does not restrict the NOC host', function () {
+    expect(marketingIsolation('https://noc.samirgroup.net/portal', 'portal.index')->getContent())->toBe('ok');
+});

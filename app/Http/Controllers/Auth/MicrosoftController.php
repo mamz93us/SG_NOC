@@ -74,24 +74,26 @@ class MicrosoftController extends Controller
         // Portal-only users always land in the portal, regardless of where
         // SSO was initiated. Admin-initiated SSO for an admin-capable user
         // lands in the admin dashboard.
+        // On the marketing subdomain everyone lands on the marketing portal — it
+        // is the only thing served there. Marketing-role users land there too,
+        // even when they sign in from NOC.
+        $onMarketingHost = $request->getHost() === \App\Support\Marketing::domain();
+
         $landing = match (true) {
-            // Marketing-only users always land on the isolated marketing portal,
-            // regardless of where SSO was initiated.
-            $user->isMarketing() => route('portal.marketing.dashboard'),
+            $onMarketingHost, $user->isMarketing() => route('portal.marketing.dashboard'),
             $from === 'admin' && ! $user->usesPortal() => route($user->homeRoute()),
             default => route('portal.index'),
         };
 
         $request->session()->put('url.intended', $landing);
 
-        // Browser-only and marketing users skip the app's own 2FA gate. The
-        // marketing portal lives on its own subdomain where the 2FA enrollment
-        // pages (under /admin) are intentionally unreachable; Microsoft SSO (with
-        // Azure MFA) is the authentication boundary for these users.
-        if ($user->isBrowserUser() || $user->isMarketing()) {
+        // Browser-only users bypass the app's 2FA. Everyone else — including
+        // marketing — goes through the mandatory 2FA flow below; its standalone
+        // enrolment + challenge pages are explicitly allowed on the marketing host.
+        if ($user->isBrowserUser()) {
             $request->session()->put('2fa_verified', true);
 
-            return redirect()->intended($landing);
+            return redirect()->intended(route('portal.index'));
         }
 
         if ($user->hasTwoFactorEnabled()) {

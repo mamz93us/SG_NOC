@@ -14,7 +14,8 @@ The subdomain is **configured in the UI**, not in `.env`.
 | Surface | Host | Notes |
 |---|---|---|
 | Marketing portal (dashboard, campaigns, subscribers, lists, templates, courses) | `em.samirgroup.net` **only** | `Route::domain(...)`, served at the subdomain root. Route names unchanged (`portal.marketing.*`). |
-| NOC admin, incl. **Email Marketing → Settings** | `noc.samirgroup.net` **only** | `/admin/*` is 404 on the marketing host (`EnforceMarketingHostIsolation`). |
+| Marketing login + SSO + 2FA enrol/challenge | `em.samirgroup.net` | Dedicated `portal.marketing.login`; Microsoft SSO; standalone 2FA pages. |
+| Everything else NOC (portal hub `/portal`, admin `/admin`, phonebook, …) | `noc.samirgroup.net` **only** | **404 on the marketing host.** `EnforceMarketingHostIsolation` is an allow-list: only `portal.marketing.*` + sign-in/2FA + the email endpoints below are served on `em`. |
 | Public unsubscribe / opt-in / SNS webhook | both hosts | Stay host-agnostic so links already delivered against `noc` keep working. **New** unsubscribe links point at the marketing host. |
 
 - **Domain source of truth:** `settings.marketing_domain`, resolved by
@@ -112,7 +113,12 @@ Set a user's role to **Marketing** (User admin → Role). The role grants:
 It deliberately does **not** grant `manage-email-marketing` /
 `manage-email-marketing-settings` — SES credentials and the sender allowlist stay
 NOC-admin-only. After login, a marketing-only user lands on
-`https://em.samirgroup.net/` and cannot reach `/admin/*` (404).
+`https://em.samirgroup.net/` and cannot reach the NOC portal hub or admin (404).
+
+**2FA is mandatory for marketing users.** Like every non-browser role, a marketing
+user is forced to enrol in TOTP 2FA on first sign-in (standalone enrol page, then a
+6-digit challenge on each subsequent login). Those 2FA pages are explicitly allowed
+on the marketing host. Only `browser_user` bypasses app 2FA.
 
 Run the migrations on deploy so the role gets its grants and the settings column exists:
 
@@ -133,6 +139,10 @@ php artisan migrate
   marketing host. The unsubscribe route is intentionally not domain-locked.
 - **`ses_unsubscribe_base_url` override** still wins if set; otherwise links default
   to `https://{marketing_domain}`.
-- **Isolation is defense-in-depth.** `/admin/*` is 404 on the marketing host, but
-  every admin route is permission-gated anyway — a marketing user could never act
-  there even if it were reachable.
+- **Isolation is an allow-list.** On the marketing host, only `portal.marketing.*`,
+  the sign-in/2FA routes, and the recipient-facing email endpoints are served;
+  everything else NOC (the `/portal` hub, `/admin`, the public phonebook) 404s. The
+  entire portal lives under `portal.marketing.*`, so new portal routes are covered
+  automatically. It's also defense-in-depth — those NOC routes are permission-gated
+  regardless. To expose a NEW non-`portal.marketing` route on `em`, add its route
+  name to `EnforceMarketingHostIsolation::ALLOWED_NAMES`.
