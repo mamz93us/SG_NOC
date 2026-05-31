@@ -104,6 +104,33 @@
         }
 
         .back-link:hover { color: white; }
+
+        .step-badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 22px; height: 22px; border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff; font-size: 12px; font-weight: 700; margin-right: 6px;
+        }
+
+        .ms-auth-box {
+            background: #f3f6ff;
+            border: 1px solid #e1e8ff;
+            border-radius: 14px;
+            padding: 16px;
+        }
+
+        .ms-auth-box .qr-dl {
+            border-radius: 10px;
+            background: #fff;
+            border: 1px solid #eceef5;
+            padding: 6px;
+            flex-shrink: 0;
+        }
+
+        .store-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 13px; font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -138,11 +165,43 @@
                 @endif
 
                 <p class="text-muted small mb-3">
-                    Scan the QR code with an authenticator app
-                    (Google Authenticator, Microsoft Authenticator, Authy, 1Password, etc.)
-                    then enter the 6-digit code to confirm.
+                    Use any TOTP authenticator app — we recommend
+                    <strong>Microsoft Authenticator</strong>. (Google Authenticator, Authy,
+                    1Password, etc. also work.)
                 </p>
 
+                {{-- Step 1 — install Microsoft Authenticator --}}
+                <div class="ms-auth-box mb-4">
+                    <div class="fw-semibold mb-2">
+                        <span class="step-badge">1</span> Get Microsoft Authenticator
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <img class="qr-dl"
+                             src="https://quickchart.io/qr?size=104&margin=1&text={{ urlencode('https://aka.ms/authapp') }}"
+                             alt="Scan to download Microsoft Authenticator"
+                             width="104" height="104">
+                        <div class="flex-grow-1">
+                            <p class="text-muted small mb-2">
+                                No app yet? Point your phone camera at this code to install it, or use a store link:
+                            </p>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a href="https://apps.apple.com/app/microsoft-authenticator/id983156458"
+                                   target="_blank" rel="noopener" class="btn btn-sm btn-dark store-btn">
+                                    <i class="bi bi-apple"></i> App Store
+                                </a>
+                                <a href="https://play.google.com/store/apps/details?id=com.azure.authenticator"
+                                   target="_blank" rel="noopener" class="btn btn-sm btn-dark store-btn">
+                                    <i class="bi bi-google-play"></i> Google Play
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Step 2 — scan the account QR with the app --}}
+                <div class="fw-semibold mb-2">
+                    <span class="step-badge">2</span> Scan this with the app
+                </div>
                 <div class="text-center my-3">
                     <div class="qr-wrap">
                         <img src="https://quickchart.io/qr?size=200&text={{ urlencode($qrUrl) }}"
@@ -170,7 +229,7 @@
 
                 <form method="POST" action="{{ route('admin.two-factor.confirm') }}">
                     @csrf
-                    <label for="code" class="form-label fw-semibold">Verification Code</label>
+                    <label for="code" class="form-label fw-semibold"><span class="step-badge">3</span> Enter the 6-digit code</label>
                     <input type="text"
                            class="form-control otp-input mb-2 @error('code') is-invalid @enderror"
                            id="code"
