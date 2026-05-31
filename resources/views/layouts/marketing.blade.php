@@ -61,7 +61,7 @@
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
-                        <form method="POST" action="{{ route('portal.logout') }}">
+                        <form method="POST" action="{{ route('portal.marketing.logout') }}">
                             @csrf
                             <button type="submit" class="dropdown-item text-danger">
                                 <i class="bi bi-box-arrow-right me-2"></i>Logout

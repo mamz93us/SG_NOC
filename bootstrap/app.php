@@ -29,7 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // admin login. Everyone else falls back to 'login'.
         $middleware->redirectGuestsTo(function (\Illuminate\Http\Request $request) {
             if ($request->getHost() === \App\Support\Marketing::domain()) {
-                return route('portal.login');
+                return route('portal.marketing.login');
             }
             if ($request->is('portal') || $request->is('portal/*')) {
                 return route('portal.login');

@@ -200,6 +200,28 @@ Route::prefix('portal')->name('portal.')->group(function () {
 });
 
 // ──────────────────────────────────────────────────────────────────
+// Marketing subdomain — GUEST auth (login page + logout). No auth middleware so
+// guests can reach the SSO login; every other route on em requires auth.
+// ──────────────────────────────────────────────────────────────────
+Route::domain(Marketing::domain())->group(function () {
+    Route::get('/login', function () {
+        if (auth()->check()) {
+            return redirect()->route('portal.marketing.dashboard');
+        }
+
+        return view('auth.marketing-login');
+    })->name('portal.marketing.login');
+
+    Route::post('/logout', function (\Illuminate\Http\Request $request) {
+        \Illuminate\Support\Facades\Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('portal.marketing.login');
+    })->name('portal.marketing.logout');
+});
+
+// ──────────────────────────────────────────────────────────────────
 // Email Marketing portal — ISOLATED on its own subdomain (em.samirgroup.net by
 // default; configurable in Admin → Email Marketing → Settings, stored in the DB,
 // nothing in .env). Served at the subdomain ROOT. Route names stay

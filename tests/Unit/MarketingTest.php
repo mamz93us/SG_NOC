@@ -34,3 +34,11 @@ it('routes the marketing host root to the dashboard and other hosts to welcome',
     expect($noc->getName())->toBeNull();
     expect($noc->getDomain())->toBeNull();
 });
+
+it('serves a marketing-branded login on the marketing host', function () {
+    $routes = app('router')->getRoutes();
+
+    $login = $routes->match(Illuminate\Http\Request::create('https://em.samirgroup.net/login', 'GET'));
+    expect($login->getName())->toBe('portal.marketing.login');
+    expect($login->getDomain())->toBe('em.samirgroup.net');
+});

@@ -45,18 +45,23 @@ class MicrosoftController extends Controller
         try {
             $msUser = Socialite::driver('microsoft')->user();
         } catch (\Exception $e) {
-            $errorRoute = $from === 'admin' ? 'login' : 'portal.login';
+            $errorRoute = match (true) {
+                $from === 'admin' => 'login',
+                $request->getHost() === \App\Support\Marketing::domain() => 'portal.marketing.login',
+                default => 'portal.login',
+            };
+
             return redirect()->route($errorRoute)
-                ->with('error', 'Microsoft login failed: ' . $e->getMessage());
+                ->with('error', 'Microsoft login failed: '.$e->getMessage());
         }
 
         // Always default new SSO users to browser_user (no admin access).
         $user = User::firstOrCreate(
             ['email' => $msUser->getEmail()],
             [
-                'name'              => $msUser->getName() ?? $msUser->getEmail(),
-                'password'          => \Illuminate\Support\Str::random(32), // unusable random password
-                'role'              => 'browser_user',
+                'name' => $msUser->getName() ?? $msUser->getEmail(),
+                'password' => \Illuminate\Support\Str::random(32), // unusable random password
+                'role' => 'browser_user',
                 'email_verified_at' => now(),
             ]
         );
@@ -69,16 +74,24 @@ class MicrosoftController extends Controller
         // Portal-only users always land in the portal, regardless of where
         // SSO was initiated. Admin-initiated SSO for an admin-capable user
         // lands in the admin dashboard.
-        $landing = ($from === 'admin' && !$user->usesPortal())
-            ? route($user->homeRoute())
-            : route('portal.index');
+        $landing = match (true) {
+            // Marketing-only users always land on the isolated marketing portal,
+            // regardless of where SSO was initiated.
+            $user->isMarketing() => route('portal.marketing.dashboard'),
+            $from === 'admin' && ! $user->usesPortal() => route($user->homeRoute()),
+            default => route('portal.index'),
+        };
 
         $request->session()->put('url.intended', $landing);
 
-        // Browser-only users skip 2FA — straight to the portal.
-        if ($user->isBrowserUser()) {
+        // Browser-only and marketing users skip the app's own 2FA gate. The
+        // marketing portal lives on its own subdomain where the 2FA enrollment
+        // pages (under /admin) are intentionally unreachable; Microsoft SSO (with
+        // Azure MFA) is the authentication boundary for these users.
+        if ($user->isBrowserUser() || $user->isMarketing()) {
             $request->session()->put('2fa_verified', true);
-            return redirect()->intended(route('portal.index'));
+
+            return redirect()->intended($landing);
         }
 
         if ($user->hasTwoFactorEnabled()) {
@@ -96,15 +109,15 @@ class MicrosoftController extends Controller
 
         // Guard: if any required field is missing, fail early with a clear message
         // instead of letting Azure return a cryptic 401.
-        $clientId     = $settings->sso_client_id;
+        $clientId = $settings->sso_client_id;
         $clientSecret = $settings->sso_client_secret;  // decrypted by accessor
-        $tenantId     = $settings->sso_tenant_id;
+        $tenantId = $settings->sso_tenant_id;
 
-        if (!$clientId || !$clientSecret || !$tenantId) {
+        if (! $clientId || ! $clientSecret || ! $tenantId) {
             abort(redirect()->route('login')->with(
                 'error',
-                'SSO is not fully configured. ' .
-                'Please check Settings → SSO (Tenant ID, Client ID, and Client Secret must all be set). ' .
+                'SSO is not fully configured. '.
+                'Please check Settings → SSO (Tenant ID, Client ID, and Client Secret must all be set). '.
                 ($clientSecret === null && $settings->getRawOriginal('sso_client_secret')
                     ? 'The stored client secret could not be decrypted — please re-enter it.'
                     : '')
@@ -112,10 +125,10 @@ class MicrosoftController extends Controller
         }
 
         Config::set('services.microsoft', [
-            'client_id'     => $clientId,
+            'client_id' => $clientId,
             'client_secret' => $clientSecret,
-            'redirect'      => url('/auth/microsoft/callback'),
-            'tenant'        => $tenantId,
+            'redirect' => url('/auth/microsoft/callback'),
+            'tenant' => $tenantId,
         ]);
     }
 }
