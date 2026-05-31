@@ -109,9 +109,9 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// The NOC root route (welcome view) is intentionally declared *after* the
+// marketing subdomain group below — see the note there. An unconstrained '/'
+// registered here would shadow the domain-constrained marketing dashboard on em.
 
 Route::get('/phonebook.xml', [PhonebookController::class, 'generate'])
     ->withoutMiddleware(['web'])
@@ -280,6 +280,13 @@ Route::domain(Marketing::domain())
         // Wildcard show MUST be last — it would otherwise swallow `create` etc.
         Route::get('courses/{course}', [EmCoursesController::class, 'show'])->middleware($view)->name('courses.show');
     });
+
+// NOC public root. Declared AFTER the marketing domain group so a request to
+// em.samirgroup.net/ matches the domain-constrained marketing dashboard first;
+// every other host falls through to the welcome page.
+Route::get('/', function () {
+    return view('welcome');
+});
 
 // ──────────────────────────────────────────────────────────────────
 // Public email marketing endpoints (no auth — signed URLs / SNS)
