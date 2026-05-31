@@ -1,4 +1,4 @@
-@extends('layouts.portal')
+@extends('layouts.marketing')
 
 @section('title', $segment->exists ? 'Edit segment' : 'New segment')
 

@@ -1,4 +1,4 @@
-@extends('layouts.portal')
+@extends('layouts.marketing')
 
 @section('title', $template->exists ? 'Edit template' : 'New template')
 

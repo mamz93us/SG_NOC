@@ -106,6 +106,26 @@
             </div>
         </div>
 
+        <div class="card-header bg-light"><strong>Marketing Portal</strong></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-12">
+                    <label class="form-label">Marketing portal domain</label>
+                    <div class="input-group">
+                        <span class="input-group-text">https://</span>
+                        <input type="text" name="marketing_domain" class="form-control"
+                               value="{{ old('marketing_domain', $settings->marketing_domain ?: \App\Support\Marketing::domain()) }}"
+                               placeholder="em.samirgroup.net">
+                    </div>
+                    <small class="text-muted">
+                        Isolated subdomain that serves the email-marketing portal and the recipient-facing
+                        unsubscribe links. Point this host's DNS + nginx at this app
+                        (see <code>docs/MARKETING_SUBDOMAIN.md</code>). Saving a new value clears the route cache automatically.
+                    </small>
+                </div>
+            </div>
+        </div>
+
         <div class="card-header bg-light"><strong>Throttling & Tracking</strong></div>
         <div class="card-body">
             <div class="row g-3">

@@ -116,6 +116,8 @@ class Setting extends Model
         'email_marketing_event_retention_days',
         'email_marketing_open_pixel_enabled',
         'email_marketing_click_tracking_enabled',
+        // Marketing portal (isolated subdomain — configured in the UI, not .env)
+        'marketing_domain',
         // Teamtailor / Recruitment
         'teamtailor_api_key',
         'teamtailor_base_url',
@@ -123,38 +125,38 @@ class Setting extends Model
     ];
 
     protected $casts = [
-        'sso_enabled'             => 'boolean',
-        'meraki_enabled'          => 'boolean',
+        'sso_enabled' => 'boolean',
+        'meraki_enabled' => 'boolean',
         'meraki_polling_interval' => 'integer',
-        'sophos_sync_enabled'     => 'boolean',
-        'sophos_sync_interval'    => 'integer',
-        'identity_sync_enabled'   => 'boolean',
-        'identity_sync_interval'  => 'integer',
-        'gdms_sync_interval'      => 'integer',
-        'default_ucm_id'          => 'integer',
-        'ext_range_start'              => 'integer',
-        'ext_range_end'                => 'integer',
-        'graph_default_license_skus'   => 'array',
-        'itam_code_padding'            => 'integer',
-        'metrics_retention_days'       => 'integer',
-        'vq_retention_days'            => 'integer',
-        'switch_drop_retention_days'   => 'integer',
-        'workflow_retention_days'      => 'integer',
-        'cups_enabled'                 => 'boolean',
-        'cups_refresh_interval'        => 'integer',
-        'ticketing_api_enabled'        => 'boolean',
-        'avepoint_enabled'                  => 'boolean',
-        'azure_blob_enabled'                => 'boolean',
-        'offboarding_enabled'               => 'boolean',
-        'offboarding_retention_days'        => 'integer',
-        'offboarding_download_expiry_days'  => 'integer',
-        'offboarding_manager_grace_days'    => 'integer',
+        'sophos_sync_enabled' => 'boolean',
+        'sophos_sync_interval' => 'integer',
+        'identity_sync_enabled' => 'boolean',
+        'identity_sync_interval' => 'integer',
+        'gdms_sync_interval' => 'integer',
+        'default_ucm_id' => 'integer',
+        'ext_range_start' => 'integer',
+        'ext_range_end' => 'integer',
+        'graph_default_license_skus' => 'array',
+        'itam_code_padding' => 'integer',
+        'metrics_retention_days' => 'integer',
+        'vq_retention_days' => 'integer',
+        'switch_drop_retention_days' => 'integer',
+        'workflow_retention_days' => 'integer',
+        'cups_enabled' => 'boolean',
+        'cups_refresh_interval' => 'integer',
+        'ticketing_api_enabled' => 'boolean',
+        'avepoint_enabled' => 'boolean',
+        'azure_blob_enabled' => 'boolean',
+        'offboarding_enabled' => 'boolean',
+        'offboarding_retention_days' => 'integer',
+        'offboarding_download_expiry_days' => 'integer',
+        'offboarding_manager_grace_days' => 'integer',
         // Email Marketing
-        'email_marketing_enabled'                  => 'boolean',
-        'ses_throttle_per_second'                  => 'integer',
-        'email_marketing_event_retention_days'     => 'integer',
-        'email_marketing_open_pixel_enabled'       => 'boolean',
-        'email_marketing_click_tracking_enabled'   => 'boolean',
+        'email_marketing_enabled' => 'boolean',
+        'ses_throttle_per_second' => 'integer',
+        'email_marketing_event_retention_days' => 'integer',
+        'email_marketing_open_pixel_enabled' => 'boolean',
+        'email_marketing_click_tracking_enabled' => 'boolean',
     ];
 
     /**
@@ -163,9 +165,9 @@ class Setting extends Model
     public static function get(): static
     {
         return static::first() ?? static::create([
-            'company_name'     => 'Company Name',
-            'company_logo'     => null,
-            'sso_enabled'      => false,
+            'company_name' => 'Company Name',
+            'company_logo' => null,
+            'sso_enabled' => false,
             'sso_default_role' => 'viewer',
         ]);
     }
@@ -179,7 +181,9 @@ class Setting extends Model
 
     public function getSsoClientSecretAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {
@@ -196,7 +200,9 @@ class Setting extends Model
 
     public function getMerakiApiKeyAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {
@@ -213,7 +219,9 @@ class Setting extends Model
 
     public function getGraphClientSecretAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {
@@ -230,7 +238,9 @@ class Setting extends Model
 
     public function getSmtpPasswordAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {
@@ -247,7 +257,9 @@ class Setting extends Model
 
     public function getGdmsClientSecretAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {
@@ -264,7 +276,9 @@ class Setting extends Model
 
     public function getTicketingApiKeyAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {
@@ -281,7 +295,9 @@ class Setting extends Model
 
     public function getAvepointClientSecretAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {
@@ -298,7 +314,9 @@ class Setting extends Model
 
     public function getAzureBlobKeyAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {
@@ -315,7 +333,9 @@ class Setting extends Model
 
     public function getSesSecretAccessKeyAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {
@@ -332,7 +352,9 @@ class Setting extends Model
 
     public function getTeamtailorApiKeyAttribute(?string $value): ?string
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
         try {
             return Crypt::decryptString($value);
         } catch (\Exception) {

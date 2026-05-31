@@ -126,6 +126,13 @@ class User extends Authenticatable
      */
     public function homeRoute(): string
     {
+        // Marketing-only users land directly on the isolated marketing portal
+        // (its own subdomain). The route name is unchanged; because the route is
+        // domain-constrained, route() yields an absolute URL on the marketing host.
+        if ($this->isMarketing()) {
+            return 'portal.marketing.dashboard';
+        }
+
         return $this->usesPortal() ? 'portal.index' : 'admin.dashboard';
     }
 

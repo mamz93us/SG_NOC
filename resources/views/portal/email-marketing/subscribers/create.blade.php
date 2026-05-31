@@ -1,4 +1,4 @@
-@extends('layouts.portal')
+@extends('layouts.marketing')
 
 @section('title', $subscriber->exists ? 'Edit subscriber' : 'New subscriber')
 

@@ -96,10 +96,11 @@ use App\Http\Controllers\Portal\EmailMarketing\TemplatesController as EmTemplate
 use App\Http\Controllers\Portal\Training\CourseCertificatesController as EmCourseCertificatesController;
 use App\Http\Controllers\Portal\Training\CoursesController as EmCoursesController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\Training\PublicCertificateController;
 use App\Http\Controllers\Public\OptInConfirmController;
 use App\Http\Controllers\Public\UnsubscribeController;
 use App\Http\Controllers\PublicContactController;
+use App\Http\Controllers\Training\PublicCertificateController;
+use App\Support\Marketing;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -196,81 +197,89 @@ Route::prefix('portal')->name('portal.')->group(function () {
             Route::get('/create', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'create'])->name('create');
             Route::post('/', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'store'])->name('store');
         });
-
-    // Email Marketing portal — gated by view-email-marketing.
-    Route::middleware(['auth', 'permission:view-email-marketing', 'throttle:120,1'])
-        ->prefix('marketing')
-        ->name('marketing.')
-        ->group(function () {
-            Route::get('/', [EmDashboardController::class, 'index'])->name('dashboard');
-
-            Route::resource('lists', EmListsController::class);
-
-            // Subscribers + import — import routes must precede the resource binding for /import
-            Route::get('subscribers/import', [EmSubscribersController::class, 'importForm'])->name('subscribers.import.form');
-            Route::get('subscribers/import/template', [EmSubscribersController::class, 'importTemplate'])->name('subscribers.import.template');
-            Route::post('subscribers/import/map', [EmSubscribersController::class, 'importMap'])->name('subscribers.import.map');
-            Route::post('subscribers/import', [EmSubscribersController::class, 'importStore'])->name('subscribers.import.store');
-            Route::resource('subscribers', EmSubscribersController::class);
-
-            Route::resource('tags', EmTagsController::class)->except(['show']);
-            Route::resource('segments', EmSegmentsController::class);
-            Route::resource('templates', EmTemplatesController::class);
-
-            Route::post('campaigns/{campaign}/send-now', [EmCampaignsController::class, 'sendNow'])->name('campaigns.send-now');
-            Route::post('campaigns/{campaign}/schedule', [EmCampaignsController::class, 'schedule'])->name('campaigns.schedule');
-            Route::post('campaigns/{campaign}/pause', [EmCampaignsController::class, 'pause'])->name('campaigns.pause');
-            Route::post('campaigns/{campaign}/duplicate', [EmCampaignsController::class, 'duplicate'])->name('campaigns.duplicate');
-            Route::post('campaigns/{campaign}/archive',   [EmCampaignsController::class, 'archive'])->name('campaigns.archive');
-            Route::post('campaigns/{campaign}/test-send', [EmCampaignsController::class, 'testSend'])->name('campaigns.test-send');
-            // Concrete `benchmark` route before the resource binding so it isn't swallowed by {campaign}
-            Route::get('campaigns/benchmark', [\App\Http\Controllers\Portal\EmailMarketing\CampaignBenchmarkController::class, 'show'])->name('campaigns.benchmark');
-            Route::get('campaigns/{campaign}/analytics', [EmCampaignAnalyticsController::class, 'show'])->name('campaigns.analytics');
-            Route::get('campaigns/{campaign}/analytics/recipient/{send}', [EmCampaignAnalyticsController::class, 'recipient'])->name('campaigns.analytics.recipient');
-            Route::resource('campaigns', EmCampaignsController::class);
-
-            // Templates duplicate + archive
-            Route::post('templates/{template}/duplicate', [EmTemplatesController::class, 'duplicate'])->name('templates.duplicate');
-            Route::post('templates/{template}/archive',   [EmTemplatesController::class, 'archive'])->name('templates.archive');
-
-            // SAMIR icon library + custom fonts (used by the Unlayer template editor)
-            Route::resource('icons', EmIconsController::class)->except(['show']);
-            Route::resource('fonts', EmFontsController::class)->except(['show']);
-
-            // List export
-            Route::get('lists/{list}/export', [EmListsController::class, 'export'])->name('lists.export');
-
-            // Courses + per-employee completion certificates.
-            // Concrete paths come before wildcards so `/create` and
-            // `/employees/search` aren't swallowed by `{course}`.
-            $view = ['permission:view-courses'];
-            $manage = ['permission:manage-courses'];
-
-            Route::get('courses',                 [EmCoursesController::class, 'index'])->middleware($view)->name('courses.index');
-            Route::get('courses/create',          [EmCoursesController::class, 'create'])->middleware($manage)->name('courses.create');
-            Route::post('courses',                [EmCoursesController::class, 'store'])->middleware($manage)->name('courses.store');
-            Route::get('courses/employees/search', [EmCourseCertificatesController::class, 'employeeSearch'])
-                ->middleware($view)->name('courses.employees.search');
-
-            Route::get('courses/{course}/edit',    [EmCoursesController::class, 'edit'])->middleware($manage)->name('courses.edit');
-            Route::put('courses/{course}',         [EmCoursesController::class, 'update'])->middleware($manage)->name('courses.update');
-            Route::delete('courses/{course}',      [EmCoursesController::class, 'destroy'])->middleware($manage)->name('courses.destroy');
-
-            Route::get('courses/{course}/upload',  [EmCourseCertificatesController::class, 'uploadForm'])->middleware($manage)->name('courses.upload.form');
-            Route::post('courses/{course}/upload', [EmCourseCertificatesController::class, 'uploadStore'])->middleware($manage)->name('courses.upload.store');
-
-            Route::post('courses/{course}/certificates/{certificate}/relink',
-                [EmCourseCertificatesController::class, 'relink'])->middleware($manage)->name('courses.certificates.relink');
-            Route::delete('courses/{course}/certificates/{certificate}',
-                [EmCourseCertificatesController::class, 'destroy'])->middleware($manage)->name('courses.certificates.destroy');
-
-            Route::get('courses/{course}/send',    [EmCourseCertificatesController::class, 'sendForm'])->middleware($manage)->name('courses.send.form');
-            Route::post('courses/{course}/send',   [EmCourseCertificatesController::class, 'sendStore'])->middleware($manage)->name('courses.send.store');
-
-            // Wildcard show MUST be last — it would otherwise swallow `create` etc.
-            Route::get('courses/{course}',         [EmCoursesController::class, 'show'])->middleware($view)->name('courses.show');
-        });
 });
+
+// ──────────────────────────────────────────────────────────────────
+// Email Marketing portal — ISOLATED on its own subdomain (em.samirgroup.net by
+// default; configurable in Admin → Email Marketing → Settings, stored in the DB,
+// nothing in .env). Served at the subdomain ROOT. Route names stay
+// `portal.marketing.*` so every existing route('portal.marketing.*') reference
+// keeps working unchanged. The host is resolved from settings (App\Support\Marketing)
+// with a safe fallback, so this is robust during fresh installs / route:cache.
+// Admin-side controls (SES creds, suppressions, senders) stay on NOC.
+// ──────────────────────────────────────────────────────────────────
+Route::domain(Marketing::domain())
+    ->middleware(['auth', 'permission:view-email-marketing', 'throttle:120,1'])
+    ->name('portal.marketing.')
+    ->group(function () {
+        Route::get('/', [EmDashboardController::class, 'index'])->name('dashboard');
+
+        Route::resource('lists', EmListsController::class);
+
+        // Subscribers + import — import routes must precede the resource binding for /import
+        Route::get('subscribers/import', [EmSubscribersController::class, 'importForm'])->name('subscribers.import.form');
+        Route::get('subscribers/import/template', [EmSubscribersController::class, 'importTemplate'])->name('subscribers.import.template');
+        Route::post('subscribers/import/map', [EmSubscribersController::class, 'importMap'])->name('subscribers.import.map');
+        Route::post('subscribers/import', [EmSubscribersController::class, 'importStore'])->name('subscribers.import.store');
+        Route::resource('subscribers', EmSubscribersController::class);
+
+        Route::resource('tags', EmTagsController::class)->except(['show']);
+        Route::resource('segments', EmSegmentsController::class);
+        Route::resource('templates', EmTemplatesController::class);
+
+        Route::post('campaigns/{campaign}/send-now', [EmCampaignsController::class, 'sendNow'])->name('campaigns.send-now');
+        Route::post('campaigns/{campaign}/schedule', [EmCampaignsController::class, 'schedule'])->name('campaigns.schedule');
+        Route::post('campaigns/{campaign}/pause', [EmCampaignsController::class, 'pause'])->name('campaigns.pause');
+        Route::post('campaigns/{campaign}/duplicate', [EmCampaignsController::class, 'duplicate'])->name('campaigns.duplicate');
+        Route::post('campaigns/{campaign}/archive', [EmCampaignsController::class, 'archive'])->name('campaigns.archive');
+        Route::post('campaigns/{campaign}/test-send', [EmCampaignsController::class, 'testSend'])->name('campaigns.test-send');
+        // Concrete `benchmark` route before the resource binding so it isn't swallowed by {campaign}
+        Route::get('campaigns/benchmark', [\App\Http\Controllers\Portal\EmailMarketing\CampaignBenchmarkController::class, 'show'])->name('campaigns.benchmark');
+        Route::get('campaigns/{campaign}/analytics', [EmCampaignAnalyticsController::class, 'show'])->name('campaigns.analytics');
+        Route::get('campaigns/{campaign}/analytics/recipient/{send}', [EmCampaignAnalyticsController::class, 'recipient'])->name('campaigns.analytics.recipient');
+        Route::resource('campaigns', EmCampaignsController::class);
+
+        // Templates duplicate + archive
+        Route::post('templates/{template}/duplicate', [EmTemplatesController::class, 'duplicate'])->name('templates.duplicate');
+        Route::post('templates/{template}/archive', [EmTemplatesController::class, 'archive'])->name('templates.archive');
+
+        // SAMIR icon library + custom fonts (used by the Unlayer template editor)
+        Route::resource('icons', EmIconsController::class)->except(['show']);
+        Route::resource('fonts', EmFontsController::class)->except(['show']);
+
+        // List export
+        Route::get('lists/{list}/export', [EmListsController::class, 'export'])->name('lists.export');
+
+        // Courses + per-employee completion certificates.
+        // Concrete paths come before wildcards so `/create` and
+        // `/employees/search` aren't swallowed by `{course}`.
+        $view = ['permission:view-courses'];
+        $manage = ['permission:manage-courses'];
+
+        Route::get('courses', [EmCoursesController::class, 'index'])->middleware($view)->name('courses.index');
+        Route::get('courses/create', [EmCoursesController::class, 'create'])->middleware($manage)->name('courses.create');
+        Route::post('courses', [EmCoursesController::class, 'store'])->middleware($manage)->name('courses.store');
+        Route::get('courses/employees/search', [EmCourseCertificatesController::class, 'employeeSearch'])
+            ->middleware($view)->name('courses.employees.search');
+
+        Route::get('courses/{course}/edit', [EmCoursesController::class, 'edit'])->middleware($manage)->name('courses.edit');
+        Route::put('courses/{course}', [EmCoursesController::class, 'update'])->middleware($manage)->name('courses.update');
+        Route::delete('courses/{course}', [EmCoursesController::class, 'destroy'])->middleware($manage)->name('courses.destroy');
+
+        Route::get('courses/{course}/upload', [EmCourseCertificatesController::class, 'uploadForm'])->middleware($manage)->name('courses.upload.form');
+        Route::post('courses/{course}/upload', [EmCourseCertificatesController::class, 'uploadStore'])->middleware($manage)->name('courses.upload.store');
+
+        Route::post('courses/{course}/certificates/{certificate}/relink',
+            [EmCourseCertificatesController::class, 'relink'])->middleware($manage)->name('courses.certificates.relink');
+        Route::delete('courses/{course}/certificates/{certificate}',
+            [EmCourseCertificatesController::class, 'destroy'])->middleware($manage)->name('courses.certificates.destroy');
+
+        Route::get('courses/{course}/send', [EmCourseCertificatesController::class, 'sendForm'])->middleware($manage)->name('courses.send.form');
+        Route::post('courses/{course}/send', [EmCourseCertificatesController::class, 'sendStore'])->middleware($manage)->name('courses.send.store');
+
+        // Wildcard show MUST be last — it would otherwise swallow `create` etc.
+        Route::get('courses/{course}', [EmCoursesController::class, 'show'])->middleware($view)->name('courses.show');
+    });
 
 // ──────────────────────────────────────────────────────────────────
 // Public email marketing endpoints (no auth — signed URLs / SNS)
@@ -1124,10 +1133,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
             // Sender allowlist (super_admin / settings-manager only).
             Route::middleware('permission:manage-email-marketing-settings')->group(function () {
-                Route::get('senders',                     [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'index'])->name('senders.index');
-                Route::post('senders',                    [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'store'])->name('senders.store');
-                Route::put('senders/{identity}',          [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'update'])->name('senders.update');
-                Route::delete('senders/{identity}',       [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'destroy'])->name('senders.destroy');
+                Route::get('senders', [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'index'])->name('senders.index');
+                Route::post('senders', [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'store'])->name('senders.store');
+                Route::put('senders/{identity}', [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'update'])->name('senders.update');
+                Route::delete('senders/{identity}', [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'destroy'])->name('senders.destroy');
                 Route::post('senders/{identity}/default', [\App\Http\Controllers\Admin\EmailMarketing\SenderIdentitiesController::class, 'setDefault'])->name('senders.default');
             });
         });

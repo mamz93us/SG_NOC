@@ -1,4 +1,4 @@
-@extends('layouts.portal')
+@extends('layouts.marketing')
 
 @section('title', $icon->exists ? 'Edit icon' : 'New icon')
 

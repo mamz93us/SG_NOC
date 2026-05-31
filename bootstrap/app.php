@@ -12,22 +12,29 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role'        => \App\Http\Middleware\EnsureRole::class,
-            'permission'  => \App\Http\Middleware\EnsurePermission::class,
-            '2fa'         => \App\Http\Middleware\RequireTwoFactor::class,
-            'hr.api_key'  => \App\Http\Middleware\HrApiKeyMiddleware::class,
+            'role' => \App\Http\Middleware\EnsureRole::class,
+            'permission' => \App\Http\Middleware\EnsurePermission::class,
+            '2fa' => \App\Http\Middleware\RequireTwoFactor::class,
+            'hr.api_key' => \App\Http\Middleware\HrApiKeyMiddleware::class,
             'internal.ip' => \App\Http\Middleware\InternalIpOnly::class,
         ]);
 
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);
         $middleware->appendToGroup('web', \App\Http\Middleware\SecurityHeaders::class);
+        // Keep the NOC admin surface (/admin/*) off the marketing subdomain.
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnforceMarketingHostIsolation::class);
 
-        // Guests hitting the isolated /portal/* routes go to the portal's SSO-only
-        // login page — not the admin login. Everyone else falls back to 'login'.
+        // Guests hitting the isolated /portal/* routes — or anything on the
+        // marketing subdomain — go to the portal's SSO-only login page, not the
+        // admin login. Everyone else falls back to 'login'.
         $middleware->redirectGuestsTo(function (\Illuminate\Http\Request $request) {
+            if ($request->getHost() === \App\Support\Marketing::domain()) {
+                return route('portal.login');
+            }
             if ($request->is('portal') || $request->is('portal/*')) {
                 return route('portal.login');
             }
+
             return route('login');
         });
 

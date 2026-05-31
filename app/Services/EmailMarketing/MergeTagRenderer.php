@@ -8,6 +8,7 @@ use App\Models\EmailMarketing\EmailList;
 use App\Models\EmailMarketing\EmailSubscriber;
 use App\Models\Setting;
 use App\Models\Training\CourseCertificate;
+use App\Support\Marketing;
 use Illuminate\Support\Facades\URL;
 
 /**
@@ -87,16 +88,31 @@ class MergeTagRenderer
      */
     public function unsubscribeUrl(EmailSubscriber $subscriber, ?EmailList $list = null): string
     {
-        $base = Setting::get()->ses_unsubscribe_base_url ?: url('/');
         $token = $this->buildToken($subscriber, $list);
 
-        // Use temporarySignedRoute with a far-future expiry rather than
-        // a never-expiring URL, because Laravel requires an expiry.
-        return URL::temporarySignedRoute(
-            'email.unsubscribe.show',
-            now()->addYears(5),
-            ['token' => $token]
-        );
+        // Recipient-facing links live on the isolated marketing subdomain so the
+        // inbox never shows a NOC URL. An explicit unsubscribe base URL (if the
+        // admin set one) wins; otherwise we default to https://{marketing_domain}.
+        // The route itself stays host-agnostic (answers on NOC too), so links
+        // already delivered against the old host keep resolving — we only change
+        // where NEW links point. The signature is computed over this host, so we
+        // force the generator root for the duration of this call and restore it.
+        $base = rtrim(Setting::get()->ses_unsubscribe_base_url ?: Marketing::url('/'), '/');
+        $original = rtrim(URL::to('/'), '/');
+
+        URL::forceRootUrl($base);
+
+        try {
+            // Far-future expiry rather than a never-expiring URL, because
+            // Laravel's signed routes require an expiry.
+            return URL::temporarySignedRoute(
+                'email.unsubscribe.show',
+                now()->addYears(5),
+                ['token' => $token]
+            );
+        } finally {
+            URL::forceRootUrl($original);
+        }
     }
 
     private function buildToken(EmailSubscriber $subscriber, ?EmailList $list): string

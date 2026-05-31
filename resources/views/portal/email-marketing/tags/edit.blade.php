@@ -1,4 +1,4 @@
-@extends('layouts.portal')
+@extends('layouts.marketing')
 
 @section('title', $tag->exists ? 'Edit tag' : 'New tag')
 

@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Services\EmailMarketing\EmailMarketingNotConfiguredException;
 use App\Services\EmailMarketing\SesService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\View\View;
 
 class EmailMarketingSettingsController extends Controller
@@ -33,7 +34,17 @@ class EmailMarketingSettingsController extends Controller
             unset($data['ses_secret_access_key']);
         }
 
+        $domainChanged = array_key_exists('marketing_domain', $data)
+            && $data['marketing_domain'] !== $settings->marketing_domain;
+
         $settings->fill($data)->save();
+
+        // The marketing subdomain is baked into the route table (Route::domain).
+        // Clear the route cache so a new host takes effect on the next request,
+        // even when routes were cached at deploy time.
+        if ($domainChanged) {
+            Artisan::call('route:clear');
+        }
 
         return back()->with('status', 'Email marketing settings saved.');
     }
