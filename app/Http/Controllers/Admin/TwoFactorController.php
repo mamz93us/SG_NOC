@@ -16,14 +16,14 @@ class TwoFactorController extends Controller
     public function setup(Request $request)
     {
         $user = $request->user();
-        $google2fa = new Google2FA();
+        $google2fa = new Google2FA;
 
         // If 2FA is already confirmed, show the enabled state (no secret needed)
         if ($user->hasTwoFactorEnabled()) {
             return view('auth.two-factor.setup', [
                 'enabled' => true,
-                'qrUrl'   => null,
-                'secret'  => null,
+                'qrUrl' => null,
+                'secret' => null,
             ]);
         }
 
@@ -42,7 +42,25 @@ class TwoFactorController extends Controller
 
         // Forced enrollment — render the standalone enrollment page (no admin chrome)
         return view('auth.two-factor.enroll', [
-            'qrUrl'  => $qrUrl,
+            'qrUrl' => $qrUrl,
+            'secret' => $secret,
+        ]);
+    }
+
+    /**
+     * Render the forced-enrolment screen with a throwaway secret so its design can
+     * be previewed without disabling the current user's real 2FA. super_admin only.
+     */
+    public function preview(Request $request)
+    {
+        abort_unless($request->user()?->isSuperAdmin(), 403);
+
+        $google2fa = new Google2FA;
+        $secret = $google2fa->generateSecretKey();
+        $qrUrl = $google2fa->getQRCodeUrl('SG NOC (preview)', $request->user()->email, $secret);
+
+        return view('auth.two-factor.enroll', [
+            'qrUrl' => $qrUrl,
             'secret' => $secret,
         ]);
     }
@@ -57,32 +75,33 @@ class TwoFactorController extends Controller
         ]);
 
         $user = $request->user();
-        $google2fa = new Google2FA();
+        $google2fa = new Google2FA;
 
         $valid = $google2fa->verifyKey($user->two_factor_secret, $request->input('code'));
 
         if (! $valid) {
             ActivityLog::create([
                 'model_type' => \App\Models\User::class,
-                'model_id'   => $user->id,
-                'action'     => '2fa_verify_failed',
-                'changes'    => ['context' => 'enrollment'],
-                'user_id'    => $user->id,
+                'model_id' => $user->id,
+                'action' => '2fa_verify_failed',
+                'changes' => ['context' => 'enrollment'],
+                'user_id' => $user->id,
             ]);
+
             return redirect()->back()->withErrors(['code' => 'The provided code is invalid. Please try again.']);
         }
 
         $user->update([
-            'two_factor_enabled'      => true,
+            'two_factor_enabled' => true,
             'two_factor_confirmed_at' => now(),
         ]);
 
         ActivityLog::create([
             'model_type' => \App\Models\User::class,
-            'model_id'   => $user->id,
-            'action'     => '2fa_enabled',
-            'changes'    => null,
-            'user_id'    => $user->id,
+            'model_id' => $user->id,
+            'action' => '2fa_enabled',
+            'changes' => null,
+            'user_id' => $user->id,
         ]);
 
         // Mark the current session as 2FA-verified so the middleware won't kick in
@@ -108,26 +127,27 @@ class TwoFactorController extends Controller
         if (! Hash::check($request->input('password'), $user->password)) {
             ActivityLog::create([
                 'model_type' => \App\Models\User::class,
-                'model_id'   => $user->id,
-                'action'     => '2fa_disable_failed',
-                'changes'    => ['reason' => 'bad_password'],
-                'user_id'    => $user->id,
+                'model_id' => $user->id,
+                'action' => '2fa_disable_failed',
+                'changes' => ['reason' => 'bad_password'],
+                'user_id' => $user->id,
             ]);
+
             return redirect()->back()->withErrors(['password' => 'The password you entered is incorrect.']);
         }
 
         $user->update([
-            'two_factor_secret'       => null,
-            'two_factor_enabled'      => false,
+            'two_factor_secret' => null,
+            'two_factor_enabled' => false,
             'two_factor_confirmed_at' => null,
         ]);
 
         ActivityLog::create([
             'model_type' => \App\Models\User::class,
-            'model_id'   => $user->id,
-            'action'     => '2fa_disabled',
-            'changes'    => null,
-            'user_id'    => $user->id,
+            'model_id' => $user->id,
+            'action' => '2fa_disabled',
+            'changes' => null,
+            'user_id' => $user->id,
         ]);
 
         // Clear the session flag

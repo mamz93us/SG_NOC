@@ -393,6 +393,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // Two-Factor Authentication setup (authenticated users)
     Route::get('two-factor', [TwoFactorController::class, 'setup'])
         ->name('two-factor.setup');
+    // Design preview of the forced-enrolment screen — super_admin only, non-destructive.
+    Route::get('two-factor/preview', [TwoFactorController::class, 'preview'])
+        ->name('two-factor.preview');
     Route::post('two-factor/confirm', [TwoFactorController::class, 'confirm'])
         ->name('two-factor.confirm');
     Route::delete('two-factor', [TwoFactorController::class, 'disable'])
