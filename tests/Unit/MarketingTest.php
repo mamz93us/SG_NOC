@@ -86,3 +86,10 @@ it('allows the marketing portal, SSO and the 2FA flow on the marketing host', fu
 it('does not restrict the NOC host', function () {
     expect(marketingIsolation('https://noc.samirgroup.net/portal', 'portal.index')->getContent())->toBe('ok');
 });
+
+// End-to-end through the real HTTP kernel: isolation must run BEFORE auth, so a
+// NOC route on the marketing host 404s for guests rather than 302-ing to login.
+it('404s NOC routes for guests on the marketing host (isolation precedes auth)', function () {
+    $this->get('https://em.samirgroup.net/portal')->assertNotFound();
+    $this->get('https://em.samirgroup.net/admin')->assertNotFound();
+});

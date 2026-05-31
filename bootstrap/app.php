@@ -21,8 +21,15 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);
         $middleware->appendToGroup('web', \App\Http\Middleware\SecurityHeaders::class);
-        // Keep the NOC admin surface (/admin/*) off the marketing subdomain.
+        // The marketing subdomain serves ONLY the marketing portal (+ sign-in / 2FA /
+        // recipient-facing email endpoints); everything else NOC 404s. Run this BEFORE
+        // the auth middleware (via the priority list) so a NOC route on em 404s for
+        // guests too, instead of auth redirecting them to the marketing login first.
         $middleware->appendToGroup('web', \App\Http\Middleware\EnforceMarketingHostIsolation::class);
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\EnforceMarketingHostIsolation::class,
+        );
 
         // Guests hitting the isolated /portal/* routes — or anything on the
         // marketing subdomain — go to the portal's SSO-only login page, not the
