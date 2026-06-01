@@ -6,8 +6,9 @@ use App\Models\BrowserPortalSettings;
 use App\Models\BrowserSession;
 use App\Models\BrowserSessionEvent;
 use App\Models\User;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -53,14 +54,14 @@ class SessionManager
     ): void {
         try {
             BrowserSessionEvent::create([
-                'user_id'            => $userId,
+                'user_id' => $userId,
                 'browser_session_id' => $session?->id,
-                'session_id'         => $session?->session_id,
-                'event_type'         => $eventType,
-                'message'            => $message,
-                'metadata'           => $metadata ?: null,
-                'ip_address'         => $ipAddress,
-                'created_at'         => now(),
+                'session_id' => $session?->session_id,
+                'event_type' => $eventType,
+                'message' => $message,
+                'metadata' => $metadata ?: null,
+                'ip_address' => $ipAddress,
+                'created_at' => now(),
             ]);
         } catch (\Throwable $e) {
             Log::warning('SessionManager: event log failed', [
@@ -83,59 +84,84 @@ class SessionManager
 
         $this->logEvent(null, $user->id, 'launch_requested', null, [], request()?->ip());
 
-        if (BrowserSession::active()->count() >= $settings->max_concurrent_sessions) {
-            $this->logEvent(null, $user->id, 'launch_failed', 'Max concurrent sessions reached', [
-                'max' => $settings->max_concurrent_sessions,
-            ], request()?->ip());
-            throw new \RuntimeException('Maximum concurrent browser sessions reached. Please try again later.');
+        // Reserve a slot under a short-lived lock. Allocating the UDP chunk and
+        // inserting the 'starting' row must be atomic across requests: two
+        // concurrent launches that both read "no active session" would otherwise
+        // allocate the SAME chunk (the scan always starts at 52000) and the
+        // second `docker run` dies with "Bind for 0.0.0.0:52000 failed: port is
+        // already allocated". docker run + the readiness waits stay OUTSIDE the
+        // lock, so it's held only for the few milliseconds the reservation takes.
+        $lock = Cache::lock('browser-portal:launch', 30);
+        try {
+            $lock->block(10);
+        } catch (LockTimeoutException) {
+            throw new \RuntimeException('A browser session is already starting; please retry in a moment.');
         }
 
-        [$portStart, $portEnd] = $this->allocatePortChunk();
-
-        // Retry 3 times in the (astronomically unlikely) event of a session_id collision.
-        $sessionId = null;
-        for ($i = 0; $i < 3; $i++) {
-            $candidate = strtolower(Str::random(12));
-            $candidate = preg_replace('/[^a-z0-9]/', '', $candidate);
-            if (strlen($candidate) < 12) continue;
-            if (!BrowserSession::where('session_id', $candidate)->exists()) {
-                $sessionId = $candidate;
-                break;
+        try {
+            // Re-check inside the lock — another request may have just created one.
+            if ($existing = BrowserSession::where('user_id', $user->id)->active()->first()) {
+                return $existing;
             }
-        }
-        if (!$sessionId) {
-            throw new \RuntimeException('Failed to allocate a unique session id');
-        }
 
-        $containerName = "neko-$sessionId";
-        $volumeName    = "neko-user-{$user->id}";
-        $nekoPassword  = Str::random(24);
+            if (BrowserSession::active()->count() >= $settings->max_concurrent_sessions) {
+                $this->logEvent(null, $user->id, 'launch_failed', 'Max concurrent sessions reached', [
+                    'max' => $settings->max_concurrent_sessions,
+                ], request()?->ip());
+                throw new \RuntimeException('Maximum concurrent browser sessions reached. Please try again later.');
+            }
 
-        $session = BrowserSession::create([
-            'session_id'              => $sessionId,
-            'user_id'                 => $user->id,
-            'container_name'          => $containerName,
-            'volume_name'             => $volumeName,
-            'webrtc_port_start'       => $portStart,
-            'webrtc_port_end'         => $portEnd,
-            'status'                  => 'starting',
-            // Encrypted (not hashed) so we can decrypt server-side and inject into the
-            // iframe URL as ?pwd=... — Neko's multiuser provider needs the plaintext.
-            'neko_user_password_hash' => Crypt::encryptString($nekoPassword),
-            'last_active_at'          => now(),
-        ]);
+            [$portStart, $portEnd] = $this->allocatePortChunk();
+
+            // Retry 3 times in the (astronomically unlikely) event of a session_id collision.
+            $sessionId = null;
+            for ($i = 0; $i < 3; $i++) {
+                $candidate = strtolower(Str::random(12));
+                $candidate = preg_replace('/[^a-z0-9]/', '', $candidate);
+                if (strlen($candidate) < 12) {
+                    continue;
+                }
+                if (! BrowserSession::where('session_id', $candidate)->exists()) {
+                    $sessionId = $candidate;
+                    break;
+                }
+            }
+            if (! $sessionId) {
+                throw new \RuntimeException('Failed to allocate a unique session id');
+            }
+
+            $containerName = "neko-$sessionId";
+            $volumeName = "neko-user-{$user->id}";
+            $nekoPassword = Str::random(24);
+
+            $session = BrowserSession::create([
+                'session_id' => $sessionId,
+                'user_id' => $user->id,
+                'container_name' => $containerName,
+                'volume_name' => $volumeName,
+                'webrtc_port_start' => $portStart,
+                'webrtc_port_end' => $portEnd,
+                'status' => 'starting',
+                // Encrypted (not hashed) so we can decrypt server-side and inject into the
+                // iframe URL as ?pwd=... — Neko's multiuser provider needs the plaintext.
+                'neko_user_password_hash' => Crypt::encryptString($nekoPassword),
+                'last_active_at' => now(),
+            ]);
+        } finally {
+            $lock->release();
+        }
 
         try {
             $this->dockerRun($session, $nekoPassword);
 
             // Give Docker a moment to attach the container to browser-net.
             $ip = null;
-            for ($i = 0; $i < 15 && !$ip; $i++) {
+            for ($i = 0; $i < 15 && ! $ip; $i++) {
                 usleep(300_000);
                 $ip = $this->docker->bridgeIp($containerName, self::NETWORK);
             }
-            if (!$ip) {
-                throw new \RuntimeException('Container started but bridge IP never appeared on ' . self::NETWORK);
+            if (! $ip) {
+                throw new \RuntimeException('Container started but bridge IP never appeared on '.self::NETWORK);
             }
 
             $session->internal_ip = $ip;
@@ -148,22 +174,26 @@ class SessionManager
             // user manually refreshes. ~15s ceiling covers cold-start + X11
             // + supervisord bring-up on first launch.
             $ready = false;
-            for ($i = 0; $i < 30 && !$ready; $i++) {
+            for ($i = 0; $i < 30 && ! $ready; $i++) {
                 try {
                     $ctx = stream_context_create(['http' => [
-                        'method'  => 'GET',
+                        'method' => 'GET',
                         'timeout' => 1,
                         'ignore_errors' => true,
                     ]]);
                     $body = @file_get_contents("http://$ip:8080/", false, $ctx);
-                    if ($body !== false && !empty($http_response_header)) {
+                    if ($body !== false && ! empty($http_response_header)) {
                         $status = (int) (explode(' ', $http_response_header[0])[1] ?? 0);
-                        if ($status > 0 && $status < 500) { $ready = true; break; }
+                        if ($status > 0 && $status < 500) {
+                            $ready = true;
+                            break;
+                        }
                     }
-                } catch (\Throwable) { /* retry */ }
+                } catch (\Throwable) { /* retry */
+                }
                 usleep(500_000);
             }
-            if (!$ready) {
+            if (! $ready) {
                 Log::warning('SessionManager: Neko HTTP readiness probe timed out; continuing anyway', [
                     'session_id' => $sessionId, 'ip' => $ip,
                 ]);
@@ -175,18 +205,24 @@ class SessionManager
             $this->nginx->write($session);
 
             $this->logEvent($session, $user->id, 'launch_succeeded', null, [
-                'ip'    => $ip,
+                'ip' => $ip,
                 'ports' => "$portStart-$portEnd",
             ], request()?->ip());
         } catch (\Throwable $e) {
             Log::error('SessionManager: launch failed', [
                 'session_id' => $sessionId,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             // Best-effort cleanup — ignore secondary failures so we report the original.
-            try { $this->docker->rm($containerName, force: true); } catch (\Throwable) {}
-            try { $this->nginx->remove($sessionId); } catch (\Throwable) {}
+            try {
+                $this->docker->rm($containerName, force: true);
+            } catch (\Throwable) {
+            }
+            try {
+                $this->nginx->remove($sessionId);
+            } catch (\Throwable) {
+            }
 
             $session->status = 'error';
             $session->error_message = $e->getMessage();
@@ -210,7 +246,7 @@ class SessionManager
         } catch (\Throwable $e) {
             Log::warning('SessionManager: docker stop failed (continuing)', [
                 'session_id' => $session->session_id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -219,7 +255,7 @@ class SessionManager
         } catch (\Throwable $e) {
             Log::warning('SessionManager: docker rm failed (continuing)', [
                 'session_id' => $session->session_id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -228,11 +264,26 @@ class SessionManager
         } catch (\Throwable $e) {
             Log::warning('SessionManager: nginx remove failed (continuing)', [
                 'session_id' => $session->session_id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 
-        $session->status     = 'stopped';
+        // Defense in depth: if the container outlived stop()+rm() (a transient
+        // docker/sudo failure swallowed above), don't let the DB pretend it's
+        // gone while it still holds its UDP chunk — log it so the next
+        // reconcileOrphans() pass reclaims it.
+        try {
+            if (in_array($session->container_name, $this->docker->listNekoContainers(), true)) {
+                Log::error('SessionManager: container still running after stop+rm; left for reconcile', [
+                    'session_id' => $session->session_id,
+                    'container' => $session->container_name,
+                ]);
+            }
+        } catch (\Throwable) {
+            // best effort — never block the stop on a status probe
+        }
+
+        $session->status = 'stopped';
         $session->stopped_at = now();
         $session->save();
 
@@ -250,11 +301,26 @@ class SessionManager
     {
         $s = $this->settings();
         $rangeStart = (int) $s->udp_port_range_start;
-        $rangeEnd   = (int) $s->udp_port_range_end;
-        $chunk      = (int) $s->ports_per_session;
+        $rangeEnd = (int) $s->udp_port_range_end;
+        $chunk = (int) $s->ports_per_session;
 
-        $taken = BrowserSession::active()
-            ->get(['webrtc_port_start', 'webrtc_port_end'])
+        // A chunk is off-limits if an active DB session claims it OR a neko
+        // container is physically still running on it — even if that container's
+        // DB row has drifted out of 'active' (a stop() whose docker calls failed,
+        // or a `--restart unless-stopped` survivor after a reboot). Trusting the
+        // DB alone is exactly what let a forgotten container keep 52000-52009 and
+        // made every new launch collide on 52000.
+        $rows = BrowserSession::active()->get(['webrtc_port_start', 'webrtc_port_end']);
+
+        $runningContainers = $this->docker->listNekoContainers();
+        if ($runningContainers) {
+            $rows = $rows->merge(
+                BrowserSession::whereIn('container_name', $runningContainers)
+                    ->get(['webrtc_port_start', 'webrtc_port_end'])
+            );
+        }
+
+        $taken = $rows
             ->map(fn ($r) => [(int) $r->webrtc_port_start, (int) $r->webrtc_port_end])
             ->all();
 
@@ -262,9 +328,14 @@ class SessionManager
             $end = $start + $chunk - 1;
             $overlaps = false;
             foreach ($taken as [$ps, $pe]) {
-                if ($start <= $pe && $ps <= $end) { $overlaps = true; break; }
+                if ($start <= $pe && $ps <= $end) {
+                    $overlaps = true;
+                    break;
+                }
             }
-            if (!$overlaps) return [$start, $end];
+            if (! $overlaps) {
+                return [$start, $end];
+            }
         }
         throw new \RuntimeException("No free UDP port chunk available in $rangeStart-$rangeEnd");
     }
@@ -287,7 +358,7 @@ class SessionManager
 
         $portRange = "{$session->webrtc_port_start}-{$session->webrtc_port_end}";
         $supervisorConf = base_path('deployment/browser-portal/test/chromium-supervisor.conf');
-        $policiesJson   = base_path('deployment/browser-portal/test/chromium-policies.json');
+        $policiesJson = base_path('deployment/browser-portal/test/chromium-policies.json');
 
         $args = [
             '-d',
@@ -302,7 +373,7 @@ class SessionManager
             '-v', "$policiesJson:/etc/chromium/policies/managed/policies.json:ro",
             '-e', "NEKO_DESKTOP_SCREEN={$settings->desktop_resolution}",
             '-e', 'NEKO_SERVER_BIND=0.0.0.0:8080',
-            '-e', "NEKO_SERVER_PROXY=true",
+            '-e', 'NEKO_SERVER_PROXY=true',
             '-e', "NEKO_SERVER_PATH_PREFIX=/s/{$session->session_id}",
             '-e', 'NEKO_MEMBER_PROVIDER=multiuser',
             // The session OWNER logs in as admin so they get input control on
@@ -335,10 +406,55 @@ class SessionManager
             } catch (\Throwable $e) {
                 Log::error('SessionManager: idle-cleanup failed', [
                     'session_id' => $session->session_id,
-                    'error'      => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
+
         return $stopped;
+    }
+
+    /**
+     * Reclaim "orphan" neko containers: still running in Docker but with no
+     * active BrowserSession backing them. These are what hold a UDP chunk
+     * hostage (most visibly 52000-52009, the first chunk the allocator scans)
+     * and make launches fail with "port is already allocated".
+     *
+     * A container is an orphan iff `docker ps` lists it under a neko-* name but
+     * no active() session owns that container_name. In-flight launches are safe:
+     * the 'starting' row is committed before the container appears, so active()
+     * already covers them. Returns the number of containers removed.
+     */
+    public function reconcileOrphans(): int
+    {
+        $running = $this->docker->listNekoContainers();
+        if (empty($running)) {
+            return 0;
+        }
+
+        $activeNames = BrowserSession::active()->pluck('container_name')->all();
+        $orphans = array_values(array_diff($running, $activeNames));
+
+        $removed = 0;
+        foreach ($orphans as $name) {
+            try {
+                $this->docker->rm($name, force: true);
+                $removed++;
+                Log::warning('SessionManager: reclaimed orphan neko container', ['container' => $name]);
+
+                // If a now-inactive row still points at it, settle its status so
+                // its chunk is unambiguously free for reuse.
+                BrowserSession::where('container_name', $name)
+                    ->whereNotIn('status', ['stopped', 'error'])
+                    ->update(['status' => 'stopped', 'stopped_at' => now()]);
+            } catch (\Throwable $e) {
+                Log::error('SessionManager: orphan reclaim failed', [
+                    'container' => $name,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $removed;
     }
 }
