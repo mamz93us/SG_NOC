@@ -39,6 +39,13 @@ class TwoFactorChallengeController extends Controller
         $user = $request->user();
 
         if (! $user || ! $user->hasTwoFactorEnabled()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'valid'    => false,
+                    'redirect' => route('login'),
+                ], 409);
+            }
+
             return redirect()->route('login');
         }
 
@@ -53,6 +60,14 @@ class TwoFactorChallengeController extends Controller
                 'changes'    => ['context' => 'challenge'],
                 'user_id'    => $user->id,
             ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'valid'   => false,
+                    'message' => 'The authentication code is invalid. Please try again.',
+                ], 422);
+            }
+
             return redirect()->back()->withErrors([
                 'code' => 'The authentication code is invalid. Please try again.',
             ]);
@@ -69,6 +84,16 @@ class TwoFactorChallengeController extends Controller
             'user_id'    => $user->id,
         ]);
 
-        return redirect()->intended(route($user->homeRoute()));
+        // Resolve the post-login target once (consumes the stored intended URL).
+        $target = redirect()->intended(route($user->homeRoute()))->getTargetUrl();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'valid'    => true,
+                'redirect' => $target,
+            ]);
+        }
+
+        return redirect()->to($target);
     }
 }
