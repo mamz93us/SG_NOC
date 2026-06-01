@@ -46,128 +46,110 @@
             padding: 30px;
         }
 
-        .otp-input {
-            font-size: 2rem;
-            text-align: center;
-            letter-spacing: 0.5em;
-            font-family: 'Courier New', monospace;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            padding: 12px 15px;
-            transition: all 0.3s;
+        /* ── 6-digit segmented input ─────────────────────────────────── */
+        .otp-stage {
+            position: relative;
+            min-height: 96px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            perspective: 600px;
         }
 
-        .otp-input:focus {
+        .otp-boxes {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .otp-digit {
+            width: 46px;
+            height: 56px;
+            text-align: center;
+            font-size: 1.7rem;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            color: #333;
+            background: #fff;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            transform-style: preserve-3d;
+        }
+
+        .otp-digit:focus {
+            outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
         }
 
-        .btn-verify {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            border-radius: 10px;
-            color: white;
-            font-weight: 600;
-            padding: 12px;
-            font-size: 16px;
-            width: 100%;
-            transition: transform 0.2s, box-shadow 0.2s;
+        .otp-digit.filled {
+            border-color: #667eea;
         }
 
-        .btn-verify:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-            color: white;
+        /* Each number spins as it is entered */
+        .otp-digit.spin {
+            animation: digitSpin 0.45s ease;
         }
 
-        .back-link {
-            color: rgba(255, 255, 255, 0.85);
-            text-decoration: none;
-            transition: color 0.3s;
+        @keyframes digitSpin {
+            from { transform: rotateY(0deg); }
+            to   { transform: rotateY(360deg); }
         }
 
-        .back-link:hover {
-            color: white;
+        /* Loading: all six keep spinning (a staggered wave) while we verify */
+        .otp-stage.is-loading .otp-digit {
+            animation: spinY 0.8s linear infinite;
+            border-color: #667eea;
+            color: transparent;
+        }
+        .otp-stage.is-loading .otp-digit:nth-child(2) { animation-delay: 0.08s; }
+        .otp-stage.is-loading .otp-digit:nth-child(3) { animation-delay: 0.16s; }
+        .otp-stage.is-loading .otp-digit:nth-child(4) { animation-delay: 0.24s; }
+        .otp-stage.is-loading .otp-digit:nth-child(5) { animation-delay: 0.32s; }
+        .otp-stage.is-loading .otp-digit:nth-child(6) { animation-delay: 0.40s; }
+
+        @keyframes spinY {
+            to { transform: rotateY(360deg); }
         }
 
-        .otp-input.shake {
-            animation: shake 0.45s cubic-bezier(.36,.07,.19,.97) both;
-            border-color: #ef4444;
+        /* Success: the boxes collapse inward and the green check grows in */
+        .otp-stage.is-success .otp-boxes {
+            animation: mergeOut 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
-        @keyframes shake {
-            10%, 90% { transform: translateX(-2px); }
-            20%, 80% { transform: translateX(4px); }
-            30%, 50%, 70% { transform: translateX(-7px); }
-            40%, 60% { transform: translateX(7px); }
+        @keyframes mergeOut {
+            to { transform: scale(0.2); opacity: 0; }
         }
 
-        /* ── Verifying → success/error status animation ───────────────── */
-        .status-overlay {
-            display: none;
-            flex-direction: column;
+        .otp-logo {
+            position: absolute;
+            inset: 0;
+            display: flex;
             align-items: center;
             justify-content: center;
-            text-align: center;
-            padding: 10px 0 6px;
-            animation: fadeIn 0.25s ease-out;
+            opacity: 0;
+            pointer-events: none;
         }
 
-        .status-overlay.is-loading,
-        .status-overlay.is-success,
-        .status-overlay.is-error {
-            display: flex;
+        .otp-stage.is-success .otp-logo {
+            animation: logoIn 0.5s ease 0.28s both;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to   { opacity: 1; }
+        @keyframes logoIn {
+            from { opacity: 0; transform: scale(0.3); }
+            to   { opacity: 1; transform: scale(1); }
         }
 
-        .status-svg {
-            width: 96px;
-            height: 96px;
-        }
+        .otp-logo svg { width: 84px; height: 84px; }
 
-        .status-overlay.is-success .status-svg {
-            animation: pop 0.45s ease-out;
-        }
-
-        @keyframes pop {
-            0%   { transform: scale(0.85); }
-            55%  { transform: scale(1.06); }
-            100% { transform: scale(1); }
-        }
-
-        /* shared circle geometry: r=40 → circumference ≈ 251.3 */
-        .status-svg circle,
-        .status-svg path,
-        .status-svg line {
+        .otp-logo circle, .otp-logo path {
             fill: none;
             stroke-width: 6;
             stroke-linecap: round;
             stroke-linejoin: round;
         }
 
-        /* Loading: a sweeping arc that spins like a clock hand */
-        .spinner-ring {
-            stroke: #667eea;
-            stroke-dasharray: 175 251;
-            stroke-dashoffset: 0;
-            transform-origin: 50% 50%;
-            opacity: 0;
-        }
-
-        .status-overlay.is-loading .spinner-ring {
-            opacity: 1;
-            animation: spin 0.9s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Success: green ring draws, then checkmark draws — the "merge" */
         .success-circle {
             stroke: #22c55e;
             stroke-dasharray: 251;
@@ -183,59 +165,65 @@
             stroke-dashoffset: 80;
         }
 
-        .status-overlay.is-success .success-circle {
-            animation: draw 0.5s ease-out forwards;
+        .otp-stage.is-success .success-circle {
+            animation: draw 0.55s ease-out 0.32s forwards;
         }
 
-        .status-overlay.is-success .success-check {
-            animation: draw 0.35s ease-out 0.42s forwards;
-        }
-
-        /* Error: red ring + X, same draw treatment */
-        .error-circle {
-            stroke: #ef4444;
-            stroke-dasharray: 251;
-            stroke-dashoffset: 251;
-            transform: rotate(-90deg);
-            transform-origin: 50% 50%;
-        }
-
-        .error-x {
-            stroke: #ef4444;
-            stroke-width: 7;
-            stroke-dasharray: 40;
-            stroke-dashoffset: 40;
-        }
-
-        .status-overlay.is-error .error-circle {
-            animation: draw 0.5s ease-out forwards;
-        }
-
-        .status-overlay.is-error .error-x1 {
-            animation: draw 0.25s ease-out 0.4s forwards;
-        }
-
-        .status-overlay.is-error .error-x2 {
-            animation: draw 0.25s ease-out 0.6s forwards;
+        .otp-stage.is-success .success-check {
+            animation: draw 0.4s ease-out 0.78s forwards;
         }
 
         @keyframes draw {
             to { stroke-dashoffset: 0; }
         }
 
-        .status-text {
-            margin: 14px 0 0;
-            font-weight: 600;
-            color: #4b5563;
+        /* Error: boxes flash red and shake, then reset for another try */
+        .otp-stage.is-error .otp-digit {
+            border-color: #ef4444;
+            color: #ef4444;
         }
 
-        .status-overlay.is-success .status-text { color: #16a34a; }
-        .status-overlay.is-error   .status-text { color: #dc2626; }
+        .otp-stage.is-error .otp-boxes {
+            animation: shake 0.45s cubic-bezier(.36, .07, .19, .97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translateX(-2px); }
+            20%, 80% { transform: translateX(4px); }
+            30%, 50%, 70% { transform: translateX(-7px); }
+            40%, 60% { transform: translateX(7px); }
+        }
+
+        .status-text {
+            margin: 18px 0 0;
+            min-height: 1.2em;
+            font-weight: 600;
+            color: #6b7280;
+            transition: color 0.2s;
+        }
+        .status-text.is-success { color: #16a34a; }
+        .status-text.is-error   { color: #dc2626; }
+
+        .back-link {
+            color: rgba(255, 255, 255, 0.85);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .back-link:hover {
+            color: white;
+        }
 
         @media (prefers-reduced-motion: reduce) {
-            .status-svg, .otp-input.shake,
-            .spinner-ring, .success-circle, .success-check,
-            .error-circle, .error-x { animation-duration: 0.001s !important; }
+            .otp-digit.spin,
+            .otp-stage.is-loading .otp-digit,
+            .otp-stage.is-success .otp-boxes,
+            .otp-stage.is-success .otp-logo,
+            .otp-stage.is-success .success-circle,
+            .otp-stage.is-success .success-check,
+            .otp-stage.is-error .otp-boxes {
+                animation-duration: 0.001s !important;
+            }
         }
     </style>
 </head>
@@ -264,7 +252,7 @@
 
             {{-- Body --}}
             <div class="challenge-body">
-                {{-- Errors --}}
+                {{-- Errors (server-rendered fallback for the no-JS path) --}}
                 @if($errors->any())
                     <div class="alert alert-danger border-0 rounded-3 mb-3">
                         @foreach($errors->all() as $error)
@@ -273,46 +261,49 @@
                     </div>
                 @endif
 
-                <div id="formArea">
-                    <p class="text-muted text-center mb-4">
-                        Enter the 6-digit code from your authenticator app.
-                    </p>
+                <p class="text-muted text-center mb-4" id="otpPrompt">
+                    Enter the 6-digit code from your authenticator app.
+                </p>
 
-                    <form method="POST" action="{{ route('two-factor.verify') }}" id="otpForm">
-                        @csrf
+                <form method="POST" action="{{ route('two-factor.verify') }}" id="otpForm" autocomplete="off">
+                    @csrf
+                    <input type="hidden" name="code" id="otpCode">
 
-                        <div class="mb-4">
-                            <input type="text"
-                                   id="otpInput"
-                                   class="form-control otp-input"
-                                   name="code"
-                                   maxlength="6"
-                                   inputmode="numeric"
-                                   pattern="[0-9]{6}"
-                                   autocomplete="one-time-code"
-                                   placeholder="------"
-                                   required
-                                   autofocus>
+                    <div class="otp-stage" id="otpStage">
+                        <div class="otp-boxes" id="otpBoxes">
+                            @for($i = 0; $i < 6; $i++)
+                                <input type="text"
+                                       class="otp-digit"
+                                       inputmode="numeric"
+                                       pattern="[0-9]*"
+                                       maxlength="6"
+                                       autocomplete="{{ $i === 0 ? 'one-time-code' : 'off' }}"
+                                       aria-label="Digit {{ $i + 1 }}"
+                                       @if($i === 0) autofocus @endif>
+                            @endfor
                         </div>
 
-                        <button type="submit" class="btn btn-verify">
-                            <i class="bi bi-shield-check me-1"></i> Verify
-                        </button>
-                    </form>
-                </div>
+                        {{-- The "verified" logo the boxes merge into --}}
+                        <div class="otp-logo" id="otpLogo" aria-hidden="true">
+                            <svg viewBox="0 0 100 100">
+                                <circle class="success-circle" cx="50" cy="50" r="40"></circle>
+                                <path   class="success-check"  d="M30 51 L44 65 L71 35"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </form>
 
-                {{-- Verifying → success/error animation (driven by JS) --}}
-                <div class="status-overlay" id="statusOverlay" aria-live="polite">
-                    <svg class="status-svg" viewBox="0 0 100 100" aria-hidden="true">
-                        <circle class="spinner-ring"   cx="50" cy="50" r="40"></circle>
-                        <circle class="success-circle" cx="50" cy="50" r="40"></circle>
-                        <path   class="success-check"  d="M30 51 L44 65 L71 35"></path>
-                        <circle class="error-circle"   cx="50" cy="50" r="40"></circle>
-                        <line   class="error-x error-x1" x1="35" y1="35" x2="65" y2="65"></line>
-                        <line   class="error-x error-x2" x1="65" y1="35" x2="35" y2="65"></line>
-                    </svg>
-                    <p class="status-text" id="statusText">Verifying…</p>
-                </div>
+                <p class="status-text text-center" id="statusText" aria-live="polite"></p>
+
+                {{-- No-JS fallback: a plain field + button --}}
+                <noscript>
+                    <form method="POST" action="{{ route('two-factor.verify') }}" class="mt-2">
+                        @csrf
+                        <input type="text" name="code" maxlength="6" inputmode="numeric"
+                               class="form-control text-center mb-2" placeholder="------" required>
+                        <button type="submit" class="btn btn-primary w-100">Verify</button>
+                    </form>
+                </noscript>
             </div>
         </div>
 
@@ -333,42 +324,102 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         (function () {
-            const form     = document.getElementById('otpForm');
-            const input    = document.getElementById('otpInput');
-            const formArea = document.getElementById('formArea');
-            const overlay  = document.getElementById('statusOverlay');
-            const status   = document.getElementById('statusText');
-            const token    = form.querySelector('input[name="_token"]').value;
+            const form   = document.getElementById('otpForm');
+            const stage  = document.getElementById('otpStage');
+            const boxes  = Array.prototype.slice.call(document.querySelectorAll('.otp-digit'));
+            const code   = document.getElementById('otpCode');
+            const prompt = document.getElementById('otpPrompt');
+            const status = document.getElementById('statusText');
+            const token  = form.querySelector('input[name="_token"]').value;
 
             let submitting = false;
 
-            // Keep only digits, and auto-verify the moment the 6th lands.
-            input.addEventListener('input', function () {
-                const cleaned = input.value.replace(/\D/g, '').slice(0, 6);
-                if (cleaned !== input.value) {
-                    input.value = cleaned;
-                }
-                if (input.value.length === 6) {
-                    verify();
-                }
+            const value = () => boxes.map(b => b.value).join('');
+
+            function focusFirstEmpty() {
+                const b = boxes.find(x => !x.value) || boxes[boxes.length - 1];
+                b.focus();
+                if (b.select) b.select();
+            }
+
+            // Spread a multi-char value (paste or autofill) across the boxes.
+            function distribute(str, start) {
+                const digits = String(str).replace(/\D/g, '').slice(0, boxes.length - start).split('');
+                digits.forEach((d, k) => {
+                    const b = boxes[start + k];
+                    b.value = d;
+                    b.classList.add('filled');
+                });
+                focusFirstEmpty();
+                maybeSubmit();
+            }
+
+            boxes.forEach((box, i) => {
+                box.addEventListener('input', function () {
+                    const raw = box.value.replace(/\D/g, '');
+
+                    if (raw.length > 1) {            // paste / OTP autofill landed here
+                        distribute(raw, i);
+                        return;
+                    }
+
+                    box.value = raw;                 // single digit (or cleared)
+                    if (raw) {
+                        box.classList.add('filled');
+                        box.classList.remove('spin');
+                        void box.offsetWidth;        // restart the spin animation
+                        box.classList.add('spin');
+                        if (i < boxes.length - 1) boxes[i + 1].focus();
+                    } else {
+                        box.classList.remove('filled');
+                    }
+                    maybeSubmit();
+                });
+
+                box.addEventListener('keydown', function (e) {
+                    if (e.key === 'Backspace' && !box.value && i > 0) {
+                        e.preventDefault();
+                        const prev = boxes[i - 1];
+                        prev.value = '';
+                        prev.classList.remove('filled');
+                        prev.focus();
+                    } else if (e.key === 'ArrowLeft' && i > 0) {
+                        e.preventDefault();
+                        boxes[i - 1].focus();
+                    } else if (e.key === 'ArrowRight' && i < boxes.length - 1) {
+                        e.preventDefault();
+                        boxes[i + 1].focus();
+                    }
+                });
+
+                box.addEventListener('paste', function (e) {
+                    e.preventDefault();
+                    distribute((e.clipboardData || window.clipboardData).getData('text'), i);
+                });
+
+                box.addEventListener('focus', function () {
+                    if (box.select) box.select();
+                });
             });
 
-            // Manual button / Enter still routes through the animation when JS is on.
-            form.addEventListener('submit', function (e) {
-                e.preventDefault();
-                if (input.value.length === 6) {
+            function maybeSubmit() {
+                if (value().length === 6 && !submitting) {
                     verify();
-                } else {
-                    nudgeError();
                 }
-            });
+            }
+
+            function setState(state, text) {
+                stage.className = 'otp-stage' + (state ? ' ' + state : '');
+                if (prompt) prompt.style.visibility = state ? 'hidden' : 'visible';
+                status.textContent = text || '';
+                status.className = 'status-text text-center'
+                    + (state === 'is-success' ? ' is-success' : state === 'is-error' ? ' is-error' : '');
+            }
 
             function verify() {
-                if (submitting) {
-                    return;
-                }
                 submitting = true;
-                input.blur();
+                boxes.forEach(b => b.blur());
+                code.value = value();
                 setState('is-loading', 'Verifying…');
 
                 fetch(form.action, {
@@ -379,7 +430,7 @@
                         'Accept': 'application/json',
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: new URLSearchParams({ code: input.value }),
+                    body: new URLSearchParams({ code: value() }),
                     credentials: 'same-origin',
                 }).then(function (res) {
                     if (res.ok) {
@@ -387,14 +438,13 @@
                             setState('is-success', 'Verified');
                             setTimeout(function () {
                                 window.location.href = data.redirect || '{{ route('login') }}';
-                            }, 1100);
+                            }, 1300);
                         });
                     }
                     if (res.status === 429) {
                         return fail('Too many attempts. Please wait a moment, then try again.');
                     }
                     return res.json().then(function (data) {
-                        // 409 (session lost) → bounce to login; everything else is a bad code.
                         if (res.status === 409 && data && data.redirect) {
                             setState('is-error', 'Session expired. Redirecting…');
                             setTimeout(function () { window.location.href = data.redirect; }, 1200);
@@ -409,31 +459,15 @@
                 });
             }
 
-            // Failed attempt: show the red X briefly, then hand the form back.
+            // Wrong code: show the red shake, then clear and hand the boxes back.
             function fail(message) {
                 setState('is-error', message);
                 setTimeout(function () {
-                    overlay.className = 'status-overlay';
-                    formArea.style.display = '';
-                    input.value = '';
-                    input.classList.add('shake');
-                    setTimeout(function () { input.classList.remove('shake'); }, 450);
-                    input.focus();
+                    boxes.forEach(b => { b.value = ''; b.classList.remove('filled'); });
+                    setState('', '');
+                    boxes[0].focus();
                     submitting = false;
                 }, 1500);
-            }
-
-            // Too-short manual submit: just shake, no server round-trip.
-            function nudgeError() {
-                input.classList.add('shake');
-                setTimeout(function () { input.classList.remove('shake'); }, 450);
-                input.focus();
-            }
-
-            function setState(stateClass, text) {
-                formArea.style.display = 'none';
-                overlay.className = 'status-overlay ' + stateClass;
-                status.textContent = text;
             }
         })();
     </script>
