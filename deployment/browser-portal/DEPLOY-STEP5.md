@@ -27,6 +27,28 @@ The existing SG_NOC vhost must already contain
 `include /etc/nginx/sites-dynamic/*.conf;` inside the HTTPS server block
 (this was done in Step 4).
 
+**Verify it is actually present and parsed** — a missing include is the #1
+cause of `/s/{id}/` returning a Laravel 404. The per-session snippets still get
+written to `sites-dynamic/`, but without the include Nginx never parses them, so
+the viewer iframe shows `404 NOT FOUND` even though the container is healthy:
+
+```bash
+sudo nginx -T 2>&1 | grep -n 'sites-dynamic'
+```
+
+You must see `include /etc/nginx/sites-dynamic/*.conf;`. If it prints nothing,
+add it inside the `server { … }` block that owns `server_name noc.samirgroup.net;`
+(right after the `server_name` line), then test + reload:
+
+```bash
+# adjust the line number to your vhost; on prod server_name is line 3
+sudo sed --follow-symlinks -i '3a include /etc/nginx/sites-dynamic/*.conf;' /etc/nginx/sites-enabled/phonebook2
+sudo nginx -t && sudo nginx -s reload
+```
+
+This line is **manual host state — not in the repo** — so re-verify it after any
+vhost rebuild or server re-provision. (Verified present on prod 2026-06-02.)
+
 ## 3. Add env vars
 
 Append to `.env` on the VPS:
