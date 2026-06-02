@@ -43,6 +43,38 @@
     @if($totalUnreachable)<span class="badge bg-danger fs-6 px-3 py-2">{{ $totalUnreachable }} Trunk Unreachable</span>@endif
 </div>
 
+{{-- ── GDMS Cloud · SIP Servers (Wave) ─────────────────────────────────── --}}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center gap-2 py-2 flex-wrap">
+        <i class="bi bi-cloud-check text-primary"></i>
+        <strong class="fs-6">GDMS Cloud · SIP Servers (Wave)</strong>
+        <span class="ms-auto small text-muted">Accounts created on the UCM auto-sync to GDMS via RemoteConnect, then to Wave.</span>
+    </div>
+    <div class="card-body py-3">
+        @if($gdmsError ?? false)
+            <div class="alert alert-warning py-2 mb-0 small"><i class="bi bi-cloud-slash me-1"></i>GDMS unavailable: {{ $gdmsError }}</div>
+        @elseif(empty($sipServers))
+            <p class="text-muted small mb-0">No SIP servers returned by GDMS. If unexpected, run <code>php artisan gdms:probe</code> to confirm the endpoint path.</p>
+        @else
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Name</th><th>Server / Domain</th><th>Type</th><th>Accounts</th></tr></thead>
+                    <tbody>
+                    @foreach($sipServers as $s)
+                        <tr>
+                            <td>{{ data_get($s, 'name', data_get($s, 'serverName', '—')) }}</td>
+                            <td class="font-monospace small">{{ data_get($s, 'serverAddr', data_get($s, 'domain', data_get($s, 'address', '—'))) }}</td>
+                            <td>{{ data_get($s, 'serverType', data_get($s, 'type', '—')) }}</td>
+                            <td>{{ data_get($s, 'accountCount', data_get($s, 'accountNum', '—')) }}</td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
+</div>
+
 @foreach($results as $i => $result)
 @php
     $server          = $result['server'];
@@ -70,6 +102,15 @@
         @endif
         <strong class="fs-6">{{ $server->name }}</strong>
         <span class="text-muted small font-monospace">{{ $server->url }}</span>
+        @php $g = $result['gdms'] ?? null; @endphp
+        @if($g)
+            <span class="badge {{ ($g['online'] ?? false) ? 'bg-success' : 'bg-secondary' }} bg-opacity-75" title="GDMS cloud device state">
+                <i class="bi bi-cloud me-1"></i>GDMS {{ ($g['online'] ?? false) ? 'Online' : 'Offline' }}
+            </span>
+        @endif
+        @if(! empty($result['wave_domain']))
+            <span class="badge bg-info text-dark" title="Wave / RemoteConnect domain"><i class="bi bi-soundwave me-1"></i>{{ $result['wave_domain'] }}</span>
+        @endif
         @if($online && !empty($gen['product-model']))
             <span class="badge bg-primary ms-auto">{{ $gen['product-model'] }}</span>
         @endif

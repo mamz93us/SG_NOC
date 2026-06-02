@@ -26,6 +26,9 @@
             <i class="bi bi-plus-circle me-1"></i>Add Phone to GDMS
         </a>
         @endcan
+        <a href="{{ route('admin.gdms.templates.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-file-earmark-code me-1"></i>Templates
+        </a>
         <a href="{{ route('admin.gdms.ucm') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-hdd-rack me-1"></i>PBX Status
         </a>
