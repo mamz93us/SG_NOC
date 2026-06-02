@@ -21,7 +21,7 @@ class GdmsTemplate extends Model
     ];
 
     protected $casts = [
-        'raw'       => 'array',
+        'raw' => 'array',
         'synced_at' => 'datetime',
     ];
 }

@@ -11,11 +11,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class GdmsTask extends Model
 {
-    public const TYPE_REBOOT         = 'reboot';
-    public const TYPE_FACTORY_RESET  = 'factory_reset';
-    public const TYPE_CONFIG_PUSH    = 'config_push';
+    public const TYPE_REBOOT = 'reboot';
+
+    public const TYPE_FACTORY_RESET = 'factory_reset';
+
+    public const TYPE_CONFIG_PUSH = 'config_push';
+
     public const TYPE_ASSIGN_ACCOUNT = 'assign_account';
-    public const TYPE_UPGRADE        = 'upgrade';
+
+    public const TYPE_UPGRADE = 'upgrade';
 
     protected $fillable = [
         'mac',
@@ -30,7 +34,7 @@ class GdmsTask extends Model
 
     protected $casts = [
         'payload' => 'array',
-        'result'  => 'array',
+        'result' => 'array',
     ];
 
     public function device(): BelongsTo
