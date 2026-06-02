@@ -45,6 +45,12 @@ Schedule::command('gdms:sync-contacts')
     ->withoutOverlapping(15)
     ->runInBackground();
 
+// GDMS Config Template cache refresh (templates change rarely → daily)
+Schedule::command('gdms:sync-templates')
+    ->dailyAt('05:30')
+    ->withoutOverlapping(10)
+    ->runInBackground();
+
 // Meraki Network Sync
 Schedule::command('meraki:sync')
     ->cron($everyN($merakiInterval))

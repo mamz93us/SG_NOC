@@ -32,6 +32,7 @@ use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\EmployeeItemController;
 use App\Http\Controllers\Admin\ExtensionController;
 use App\Http\Controllers\Admin\GdmsController;
+use App\Http\Controllers\Admin\GdmsTemplateController;
 use App\Http\Controllers\Admin\HrApiKeyController;
 use App\Http\Controllers\Admin\IdentityController;
 use App\Http\Controllers\Admin\IpamController;
@@ -503,6 +504,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:reset-phones')->group(function () {
         Route::post('phones/{mac}/factory-reset', [PhoneManagementController::class, 'factoryReset'])
             ->name('phones.factory-reset')->where('mac', '[0-9a-fA-F:\-\.]{12,17}');
+    });
+
+    // ─── GDMS Config Templates ────────────────────────────────
+    Route::middleware('permission:view-phones')->group(function () {
+        Route::get('gdms/templates', [GdmsTemplateController::class, 'index'])
+            ->name('gdms.templates.index');
+    });
+    Route::middleware('permission:manage-phones')->group(function () {
+        Route::post('gdms/templates/sync', [GdmsTemplateController::class, 'sync'])
+            ->name('gdms.templates.sync');
+        Route::get('gdms/templates/{template}/edit', [GdmsTemplateController::class, 'edit'])
+            ->name('gdms.templates.edit');
+        Route::put('gdms/templates/{template}', [GdmsTemplateController::class, 'update'])
+            ->name('gdms.templates.update');
+        Route::post('gdms/templates/{template}/assign', [GdmsTemplateController::class, 'assign'])
+            ->name('gdms.templates.assign');
     });
 
     // ─── Settings ─────────────────────────────────────────────
