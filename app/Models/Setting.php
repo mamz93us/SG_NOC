@@ -62,6 +62,8 @@ class Setting extends Model
         'gdms_org_id',
         'gdms_username',
         'gdms_password_hash',
+        'gdms_site_id',
+        'gdms_project_id',
         // ITAM
         'itam_asset_prefix',
         'itam_code_padding',

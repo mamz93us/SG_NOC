@@ -23,7 +23,7 @@ return [
     ],
 
     'ses' => [
-        'key'    => env('AWS_ACCESS_KEY_ID'),
+        'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
@@ -31,15 +31,25 @@ return [
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
-            'channel'              => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
+            'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
 
     'gdms' => [
-        'base_url'      => env('GDMS_BASE_URL', 'https://www.gdms.cloud/oapi'),
-        'client_id'     => env('GDMS_CLIENT_ID'),
+        'base_url' => env('GDMS_BASE_URL', 'https://www.gdms.cloud/oapi'),
+        'client_id' => env('GDMS_CLIENT_ID'),
         'client_secret' => env('GDMS_CLIENT_SECRET'),
-        'org_id'        => env('GDMS_ORG_ID'),
+        'org_id' => env('GDMS_ORG_ID'),
+
+        // Default GDMS site/project used when claiming new devices (overridable
+        // per-add; Settings → GDMS can also store these in the DB).
+        'site_id' => env('GDMS_SITE_ID'),
+        'project_id' => env('GDMS_PROJECT_ID', 1),
+
+        // /task/add taskType integers. REBOOT (1) is confirmed; factory reset
+        // is PROBE-PENDING — override here once confirmed via `gdms:probe`
+        // without touching code.
+        'task_factory_reset' => env('GDMS_TASK_FACTORY_RESET', 2),
     ],
 
     'hr_api' => [
@@ -47,15 +57,15 @@ return [
     ],
 
     'browser_portal' => [
-        'vps_public_ip'      => env('BROWSER_PORTAL_VPS_IP'),
-        'neko_admin_password'=> env('BROWSER_PORTAL_NEKO_ADMIN_PASSWORD'),
-        'idle_minutes'       => (int) env('BROWSER_PORTAL_IDLE_MINUTES', 240),
+        'vps_public_ip' => env('BROWSER_PORTAL_VPS_IP'),
+        'neko_admin_password' => env('BROWSER_PORTAL_NEKO_ADMIN_PASSWORD'),
+        'idle_minutes' => (int) env('BROWSER_PORTAL_IDLE_MINUTES', 240),
     ],
 
     'graylog' => [
         // Public URL users land on when clicking "Logs" in the navbar.
         // e.g. https://logs.samirgroup.net
-        'url'            => env('GRAYLOG_URL'),
+        'url' => env('GRAYLOG_URL'),
         // Shared secret Graylog sends in X-Graylog-Secret header so the
         // /api/graylog/webhook endpoint can verify alert payloads are
         // really from your Graylog instance.
