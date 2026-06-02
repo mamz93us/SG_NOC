@@ -57,59 +57,68 @@ class PhoneAutoAssignController extends Controller
     {
         $this->authorize('manage-assets');
 
-        $gdms       = app(GdmsService::class);
+        $gdms = app(GdmsService::class);
         $rawDevices = $gdms->listAllPhoneDevices();
-        $created    = 0;
-        $skipped    = 0;
+        $created = 0;
+        $skipped = 0;
 
         DB::transaction(function () use ($rawDevices, &$created, &$skipped) {
             foreach ($rawDevices as $d) {
                 $mac = $this->normMac($d['mac'] ?? $d['macAddr'] ?? '');
                 if (strlen($mac) !== 12) {
                     $skipped++;
+
                     continue;
                 }
 
                 // Skip if already in DB by MAC or serial
                 $serial = $d['sn'] ?? null;
-                if (Device::where('mac_address', $mac)->exists()) { $skipped++; continue; }
-                if ($serial && Device::where('serial_number', $serial)->exists()) { $skipped++; continue; }
+                if (Device::where('mac_address', $mac)->exists()) {
+                    $skipped++;
 
-                $model    = $d['productName'] ?? 'GRP-Phone';
-                $ip       = $d['deviceIp']    ?? null;
+                    continue;
+                }
+                if ($serial && Device::where('serial_number', $serial)->exists()) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                $model = $d['productName'] ?? 'GRP-Phone';
+                $ip = $d['deviceIp'] ?? null;
                 $macUpper = strtoupper($mac);
 
                 // Asset code: MODEL-LAST6OFMAC  e.g. GRP2601-B04474
-                $assetCode = strtoupper($model) . '-' . substr($macUpper, 6);
+                $assetCode = strtoupper($model).'-'.substr($macUpper, 6);
 
                 // Human name: model + colon-separated MAC
                 $macFormatted = strtoupper(implode(':', str_split($mac, 2)));
-                $name         = $model . ' ' . $macFormatted;
+                $name = $model.' '.$macFormatted;
 
                 Device::create([
-                    'name'             => $name,
-                    'type'             => 'phone',
-                    'mac_address'      => $mac,
-                    'serial_number'    => $serial,
-                    'ip_address'       => $ip,
-                    'model'            => $model,
-                    'manufacturer'     => 'Grandstream',
-                    'asset_code'       => $assetCode,
+                    'name' => $name,
+                    'type' => 'phone',
+                    'mac_address' => $mac,
+                    'serial_number' => $serial,
+                    'ip_address' => $ip,
+                    'model' => $model,
+                    'manufacturer' => 'Grandstream',
+                    'asset_code' => $assetCode,
                     'firmware_version' => $d['firmwareVersion'] ?? null,
-                    'status'           => 'available',
-                    'source'           => 'gdms',
+                    'status' => 'available',
+                    'source' => 'gdms',
                     // (source, source_id) has a composite unique index — give
                     // every GDMS-imported phone its own source_id so the
                     // second insert doesn't collide on 'gdms-' with the first.
                     // MAC is the natural GDMS identity.
-                    'source_id'        => $mac,
+                    'source_id' => $mac,
                 ]);
 
                 $created++;
             }
         });
 
-        ActivityLog::log("Phone assets created from GDMS", [
+        ActivityLog::log('Phone assets created from GDMS', [
             'created' => $created,
             'skipped' => $skipped,
         ]);
@@ -127,36 +136,38 @@ class PhoneAutoAssignController extends Controller
         $this->authorize('manage-assets');
 
         $request->validate([
-            'assignments'   => 'required|array|min:1',
+            'assignments' => 'required|array|min:1',
             'assignments.*' => 'required|string',
         ]);
 
-        $count  = 0;
+        $count = 0;
         $errors = [];
 
         DB::transaction(function () use ($request, &$count, &$errors) {
             foreach ($request->assignments as $pair) {
                 [$employeeId, $deviceId] = explode(':', $pair);
 
-                $device   = Device::find($deviceId);
+                $device = Device::find($deviceId);
                 $employee = Employee::find($employeeId);
 
                 if (! $device || ! $employee) {
                     $errors[] = "Invalid pair: {$pair}";
+
                     continue;
                 }
 
                 if (EmployeeAsset::where('asset_id', $deviceId)->whereNull('returned_date')->exists()) {
                     $errors[] = "\"{$device->name}\" is already assigned — skipped.";
+
                     continue;
                 }
 
                 EmployeeAsset::create([
-                    'employee_id'   => $employeeId,
-                    'asset_id'      => $deviceId,
+                    'employee_id' => $employeeId,
+                    'asset_id' => $deviceId,
                     'assigned_date' => now()->toDateString(),
-                    'condition'     => 'good',
-                    'notes'         => 'Auto-assigned via GDMS phone extension matching',
+                    'condition' => 'good',
+                    'notes' => 'Auto-assigned via GDMS phone extension matching',
                 ]);
 
                 $device->update(['status' => 'assigned']);
@@ -175,7 +186,7 @@ class PhoneAutoAssignController extends Controller
 
         $msg = "Successfully assigned {$count} device(s).";
         if (! empty($errors)) {
-            $msg .= ' ' . implode(' ', $errors);
+            $msg .= ' '.implode(' ', $errors);
         }
 
         return redirect()->route('admin.devices.phone-auto-assign')

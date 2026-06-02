@@ -43,7 +43,7 @@ class PhoneManagementController extends Controller
         $counts['all'] = count($results);
 
         $status = $request->query('status');
-        $q      = trim((string) $request->query('q', ''));
+        $q = trim((string) $request->query('q', ''));
 
         if ($status && $status !== 'all') {
             $results = array_values(array_filter($results, fn ($r) => $r['status'] === $status));
@@ -72,7 +72,7 @@ class PhoneManagementController extends Controller
     {
         $this->authorize('manage-phones');
 
-        $sites     = $this->safeSites();
+        $sites = $this->safeSites();
         $employees = Employee::orderBy('name')->get(['id', 'name', 'extension_number']);
 
         return view('admin.phones.create', compact('sites', 'employees'));
@@ -83,11 +83,11 @@ class PhoneManagementController extends Controller
         $this->authorize('manage-phones');
 
         $validated = $request->validate([
-            'mac'         => ['required', 'string', 'regex:/^[0-9a-fA-F:\-\.]{12,17}$/'],
-            'sn'          => ['required', 'string', 'max:64'],
-            'name'        => ['nullable', 'string', 'max:120'],
-            'site_id'     => ['nullable', 'integer'],
-            'model'       => ['nullable', 'string', 'max:60'],
+            'mac' => ['required', 'string', 'regex:/^[0-9a-fA-F:\-\.]{12,17}$/'],
+            'sn' => ['required', 'string', 'max:64'],
+            'name' => ['nullable', 'string', 'max:120'],
+            'site_id' => ['nullable', 'integer'],
+            'model' => ['nullable', 'string', 'max:60'],
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
         ]);
 
@@ -142,9 +142,9 @@ class PhoneManagementController extends Controller
             $detailError = $e->getMessage();
         }
 
-        $accounts    = $detail['sipAccountList'] ?? $detail['fxsPortList'] ?? [];
-        $employees   = Employee::orderBy('name')->get(['id', 'name', 'extension_number']);
-        $ucmServers  = UcmServer::active()->orderBy('name')->get();
+        $accounts = $detail['sipAccountList'] ?? $detail['fxsPortList'] ?? [];
+        $employees = Employee::orderBy('name')->get(['id', 'name', 'extension_number']);
+        $ucmServers = UcmServer::active()->orderBy('name')->get();
         $recentTasks = GdmsTask::where('mac', $mac)->latest()->limit(10)->get();
 
         return view('admin.phones.show', compact(
@@ -185,7 +185,7 @@ class PhoneManagementController extends Controller
 
         $validated = $request->validate([
             'ucm_server_id' => ['required', 'integer', 'exists:ucm_servers,id'],
-            'extension'     => ['required', 'string', 'max:20'],
+            'extension' => ['required', 'string', 'max:20'],
             'account_index' => ['required', 'integer', 'min:1', 'max:16'],
         ]);
 
@@ -198,20 +198,20 @@ class PhoneManagementController extends Controller
         }
 
         $sipAccount = [
-            'userId'      => $wave['extension'],
-            'authId'      => $wave['extension'],
-            'password'    => $wave['secret'],
-            'sipServer'   => $wave['server'],
+            'userId' => $wave['extension'],
+            'authId' => $wave['extension'],
+            'password' => $wave['secret'],
+            'sipServer' => $wave['server'],
             'displayName' => $wave['fullname'] ?: $wave['extension'],
         ];
 
         $task = GdmsTask::create([
-            'mac'                  => $mac,
-            'device_id'            => Device::where('mac_address', $mac)->value('id'),
-            'task_type'            => GdmsTask::TYPE_ASSIGN_ACCOUNT,
-            'status'               => 'queued',
+            'mac' => $mac,
+            'device_id' => Device::where('mac_address', $mac)->value('id'),
+            'task_type' => GdmsTask::TYPE_ASSIGN_ACCOUNT,
+            'status' => 'queued',
             // Never persist the SIP secret.
-            'payload'              => ['extension' => $validated['extension'], 'account_index' => $validated['account_index'], 'ucm_server_id' => $ucm->id],
+            'payload' => ['extension' => $validated['extension'], 'account_index' => $validated['account_index'], 'ucm_server_id' => $ucm->id],
             'requested_by_user_id' => auth()->id(),
         ]);
 
@@ -255,11 +255,11 @@ class PhoneManagementController extends Controller
         }
 
         $task = GdmsTask::create([
-            'mac'                  => $mac,
-            'device_id'            => Device::where('mac_address', $mac)->value('id'),
-            'task_type'            => GdmsTask::TYPE_CONFIG_PUSH,
-            'status'               => 'queued',
-            'payload'              => ['params' => array_keys($params)],
+            'mac' => $mac,
+            'device_id' => Device::where('mac_address', $mac)->value('id'),
+            'task_type' => GdmsTask::TYPE_CONFIG_PUSH,
+            'status' => 'queued',
+            'payload' => ['params' => array_keys($params)],
             'requested_by_user_id' => auth()->id(),
         ]);
 
@@ -291,18 +291,18 @@ class PhoneManagementController extends Controller
     private function runTask(string $mac, string $type, \Closure $fn, string $label)
     {
         $task = GdmsTask::create([
-            'mac'                  => $mac,
-            'device_id'            => Device::where('mac_address', $mac)->value('id'),
-            'task_type'            => $type,
-            'status'               => 'queued',
+            'mac' => $mac,
+            'device_id' => Device::where('mac_address', $mac)->value('id'),
+            'task_type' => $type,
+            'status' => 'queued',
             'requested_by_user_id' => auth()->id(),
         ]);
 
         try {
             $result = $fn();
             $task->update([
-                'status'       => 'sent',
-                'result'       => $this->scrub($result),
+                'status' => 'sent',
+                'result' => $this->scrub($result),
                 'gdms_task_id' => $result['data']['taskId'] ?? $result['data']['id'] ?? null,
             ]);
             ActivityLog::log("GDMS {$label} requested", ['mac' => $mac]);
@@ -325,22 +325,22 @@ class PhoneManagementController extends Controller
             return $device;
         }
 
-        $model        = $model ?: 'GRP-Phone';
-        $macUpper     = strtoupper($mac);
-        $assetCode    = strtoupper($model).'-'.substr($macUpper, 6);
+        $model = $model ?: 'GRP-Phone';
+        $macUpper = strtoupper($mac);
+        $assetCode = strtoupper($model).'-'.substr($macUpper, 6);
         $macFormatted = strtoupper(implode(':', str_split($mac, 2)));
 
         return Device::create([
-            'name'          => $name ?: ($model.' '.$macFormatted),
-            'type'          => 'phone',
-            'mac_address'   => $mac,
+            'name' => $name ?: ($model.' '.$macFormatted),
+            'type' => 'phone',
+            'mac_address' => $mac,
             'serial_number' => $serial,
-            'model'         => $model,
-            'manufacturer'  => 'Grandstream',
-            'asset_code'    => $assetCode,
-            'status'        => 'available',
-            'source'        => 'gdms',
-            'source_id'     => $mac,
+            'model' => $model,
+            'manufacturer' => 'Grandstream',
+            'asset_code' => $assetCode,
+            'status' => 'available',
+            'source' => 'gdms',
+            'source_id' => $mac,
         ]);
     }
 
@@ -353,17 +353,17 @@ class PhoneManagementController extends Controller
                 ->each(function ($prev) use ($device) {
                     $prev->update([
                         'returned_date' => now()->toDateString(),
-                        'notes'         => trim(($prev->notes ?: '').' [closed on reassign]'),
+                        'notes' => trim(($prev->notes ?: '').' [closed on reassign]'),
                     ]);
                     AssetHistory::record($device, 'returned', 'Previous assignment closed during phone (re)assign.');
                 });
 
             EmployeeAsset::create([
-                'employee_id'   => $employeeId,
-                'asset_id'      => $device->id,
+                'employee_id' => $employeeId,
+                'asset_id' => $device->id,
                 'assigned_date' => now()->toDateString(),
-                'condition'     => 'good',
-                'notes'         => $note,
+                'condition' => 'good',
+                'notes' => $note,
             ]);
 
             $device->update(['status' => 'assigned']);
@@ -421,16 +421,16 @@ class PhoneManagementController extends Controller
         if ($index === 1) {
             return [
                 'P271' => '1',                       // account 1 active
-                'P47'  => $sip['sipServer'] ?? '',   // SIP server
-                'P35'  => $sip['userId'] ?? '',      // SIP user ID
-                'P36'  => $sip['authId'] ?? '',      // authenticate ID
-                'P34'  => $sip['password'] ?? '',    // authenticate password
-                'P3'   => $sip['displayName'] ?? '', // account name
+                'P47' => $sip['sipServer'] ?? '',   // SIP server
+                'P35' => $sip['userId'] ?? '',      // SIP user ID
+                'P36' => $sip['authId'] ?? '',      // authenticate ID
+                'P34' => $sip['password'] ?? '',    // authenticate password
+                'P3' => $sip['displayName'] ?? '', // account name
             ];
         }
 
         throw new \RuntimeException(
-            "Per-device P-value fallback currently supports account slot 1 only; "
+            'Per-device P-value fallback currently supports account slot 1 only; '
             ."confirm slot {$index} P-value offsets via `gdms:probe` first."
         );
     }

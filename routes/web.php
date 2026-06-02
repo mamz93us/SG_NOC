@@ -52,6 +52,7 @@ use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\NotificationRuleController;
 use App\Http\Controllers\Admin\PermissionsController;
 use App\Http\Controllers\Admin\PhoneAutoAssignController;
+use App\Http\Controllers\Admin\PhoneManagementController;
 use App\Http\Controllers\Admin\PortMapController;
 use App\Http\Controllers\Admin\PrinterController;
 use App\Http\Controllers\Admin\PrinterMaintenanceController;
@@ -478,6 +479,30 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:view-trunks')->group(function () {
         Route::get('trunks', [TrunkController::class, 'index'])
             ->name('trunks.index');
+    });
+
+    // ─── Phone Management (GDMS) ──────────────────────────────
+    Route::middleware('permission:view-phones')->group(function () {
+        Route::get('phones', [PhoneManagementController::class, 'index'])
+            ->name('phones.index');
+        Route::get('phones/{mac}', [PhoneManagementController::class, 'show'])
+            ->name('phones.show')->where('mac', '[0-9a-fA-F:\-\.]{12,17}');
+    });
+    Route::middleware('permission:manage-phones')->group(function () {
+        Route::get('phones/create', [PhoneManagementController::class, 'create'])
+            ->name('phones.create');
+        Route::post('phones', [PhoneManagementController::class, 'store'])
+            ->name('phones.store');
+        Route::post('phones/{mac}/reboot', [PhoneManagementController::class, 'reboot'])
+            ->name('phones.reboot')->where('mac', '[0-9a-fA-F:\-\.]{12,17}');
+        Route::post('phones/{mac}/assign-account', [PhoneManagementController::class, 'assignAccount'])
+            ->name('phones.assign-account')->where('mac', '[0-9a-fA-F:\-\.]{12,17}');
+        Route::post('phones/{mac}/push-config', [PhoneManagementController::class, 'pushConfig'])
+            ->name('phones.push-config')->where('mac', '[0-9a-fA-F:\-\.]{12,17}');
+    });
+    Route::middleware('permission:reset-phones')->group(function () {
+        Route::post('phones/{mac}/factory-reset', [PhoneManagementController::class, 'factoryReset'])
+            ->name('phones.factory-reset')->where('mac', '[0-9a-fA-F:\-\.]{12,17}');
     });
 
     // ─── Settings ─────────────────────────────────────────────

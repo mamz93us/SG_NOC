@@ -40,7 +40,7 @@ class PhoneInventoryService
      */
     public function build(): array
     {
-        $gdmsError   = null;
+        $gdmsError = null;
         $gdmsDevices = [];   // normalized mac → raw GDMS array
 
         try {
@@ -102,9 +102,9 @@ class PhoneInventoryService
             ->values()
             ->all();
 
-        $contactsByPhone    = collect();
+        $contactsByPhone = collect();
         $employeesByContact = collect();
-        $employeesByExt     = collect();
+        $employeesByExt = collect();
 
         if (! empty($allSipIds)) {
             $contactsByPhone = Contact::whereIn('phone', $allSipIds)
@@ -137,9 +137,9 @@ class PhoneInventoryService
             $accounts = $phoneAccountsByMac[$mac] ?? collect();
 
             $primaryAcc = $accounts->first(fn ($a) => filled($a->sip_user_id));
-            $sipUserId  = $primaryAcc?->sip_user_id;
+            $sipUserId = $primaryAcc?->sip_user_id;
 
-            $contact  = $sipUserId ? ($contactsByPhone[$sipUserId] ?? null) : null;
+            $contact = $sipUserId ? ($contactsByPhone[$sipUserId] ?? null) : null;
             $employee = null;
             if ($contact) {
                 $employee = $employeesByContact[$contact->id] ?? null;
@@ -149,13 +149,13 @@ class PhoneInventoryService
             }
 
             $currentAssignment = $device?->currentAssignment;
-            $assignedEmployee  = $currentAssignment?->employee;
+            $assignedEmployee = $currentAssignment?->employee;
 
-            $model    = $gdmsData['productName']     ?? $device?->model;
-            $ip       = $gdmsData['deviceIp']        ?? $device?->ip_address;
-            $online   = $gdmsData !== null ? ($gdmsData['deviceStatus'] === 1) : null;
+            $model = $gdmsData['productName'] ?? $device?->model;
+            $ip = $gdmsData['deviceIp'] ?? $device?->ip_address;
+            $online = $gdmsData !== null ? ($gdmsData['deviceStatus'] === 1) : null;
             $firmware = $gdmsData['firmwareVersion'] ?? $device?->firmware_version;
-            $serial   = $gdmsData['sn']              ?? $device?->serial_number;
+            $serial = $gdmsData['sn'] ?? $device?->serial_number;
 
             if (! $device) {
                 $status = 'no_asset';
@@ -172,31 +172,31 @@ class PhoneInventoryService
             }
 
             $results[] = [
-                'mac'              => $mac,
-                'gdms'             => $gdmsData,
-                'device'           => $device,
-                'sipUserId'        => $sipUserId,
-                'contact'          => $contact,
-                'employee'         => $employee,
-                'accounts'         => $accounts,
-                'status'           => $status,
+                'mac' => $mac,
+                'gdms' => $gdmsData,
+                'device' => $device,
+                'sipUserId' => $sipUserId,
+                'contact' => $contact,
+                'employee' => $employee,
+                'accounts' => $accounts,
+                'status' => $status,
                 'assignedEmployee' => $assignedEmployee,
-                'model'            => $model,
-                'ip'               => $ip,
-                'online'           => $online,
-                'firmware'         => $firmware,
-                'serial'           => $serial,
+                'model' => $model,
+                'ip' => $ip,
+                'online' => $online,
+                'firmware' => $firmware,
+                'serial' => $serial,
             ];
         }
 
         // Sort: action-needed first, correctly-assigned last.
         $order = [
-            'ready'          => 0,
-            'no_asset'       => 1,
+            'ready' => 0,
+            'no_asset' => 1,
             'wrong_employee' => 2,
-            'no_account'     => 3,
-            'no_employee'    => 4,
-            'assigned'       => 5,
+            'no_account' => 3,
+            'no_employee' => 4,
+            'assigned' => 5,
         ];
         usort($results, fn ($a, $b) => ($order[$a['status']] ?? 9) <=> ($order[$b['status']] ?? 9));
 

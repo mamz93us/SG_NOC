@@ -37,6 +37,12 @@
                         {{ __('Extensions') }}
                     </x-nav-link>
 
+                    @can('view-phones')
+                    <x-nav-link :href="route('admin.phones.index')" :active="request()->routeIs('admin.phones.*')">
+                        {{ __('Phones') }}
+                    </x-nav-link>
+                    @endcan
+
                     <x-nav-link :href="route('admin.settings.index')" :active="request()->routeIs('admin.settings.*')">
                         {{ __('Settings') }}
                     </x-nav-link>
@@ -169,6 +175,12 @@
             <x-responsive-nav-link :href="route('admin.extensions.index')" :active="request()->routeIs('admin.extensions.*')">
                 {{ __('Extensions') }}
             </x-responsive-nav-link>
+
+            @can('view-phones')
+            <x-responsive-nav-link :href="route('admin.phones.index')" :active="request()->routeIs('admin.phones.*')">
+                {{ __('Phones') }}
+            </x-responsive-nav-link>
+            @endcan
 
             <x-responsive-nav-link :href="route('admin.settings.index')" :active="request()->routeIs('admin.settings.*')">
                 {{ __('Settings') }}
