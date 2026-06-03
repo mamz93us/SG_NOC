@@ -17,8 +17,8 @@ class SendTonerDigestCommand extends Command
         $force = (bool) $this->option('force');
 
         // Only auto-run in digest mode; --force overrides (manual test / on-demand).
-        if (! $force && config('printer_alerts.toner_email_mode') !== 'monthly_digest') {
-            $this->info('toner_email_mode is not "monthly_digest" — skipping. Use --force to send anyway.');
+        if (! $force && ! PrinterTonerDigestService::isDigestMode()) {
+            $this->info('toner_email_mode is "immediate" — skipping. Use --force to send anyway.');
 
             return self::SUCCESS;
         }

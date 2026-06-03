@@ -19,6 +19,20 @@ use Illuminate\Support\Facades\Mail;
 class PrinterTonerDigestService
 {
     /**
+     * Whether toner/supply emails should be held for the monthly digest rather
+     * than sent immediately.
+     *
+     * Defaults to TRUE (digest) unless the mode is explicitly 'immediate'. The
+     * default is applied in-call so this still returns true even when production
+     * is running a config cache generated before this setting existed (missing
+     * key → default), which is the usual reason "the digest isn't taking effect".
+     */
+    public static function isDigestMode(): bool
+    {
+        return config('printer_alerts.toner_email_mode', 'monthly_digest') !== 'immediate';
+    }
+
+    /**
      * All low toner cartridges, grouped by branch.
      *
      * @return array<int, array{branch:string, rows:array<int, array{

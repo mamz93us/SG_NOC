@@ -60,7 +60,7 @@ class PrinterSupplyMonitorService
         if ($isLow && ! $supply->is_low_alert_active) {
             // Toner just crossed below threshold for the first time. In monthly-digest
             // mode the once-a-month report covers it; otherwise email immediately.
-            if (config('printer_alerts.toner_email_mode') !== 'monthly_digest') {
+            if (! \App\Services\Printers\PrinterTonerDigestService::isDigestMode()) {
                 $this->sendLowTonerAlert($printer, $supply);
             }
             $supply->update([

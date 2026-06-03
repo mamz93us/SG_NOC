@@ -542,7 +542,7 @@ class PollPrinterSnmpJob implements ShouldQueue
         // still created above (dashboard stays accurate); we just skip the email.
         // Printer errors and paper-low alerts always email immediately.
         $isToner = str_contains($eventKey, '_toner_') || str_ends_with($eventKey, '_waste');
-        if ($isToner && config('printer_alerts.toner_email_mode') === 'monthly_digest') {
+        if ($isToner && \App\Services\Printers\PrinterTonerDigestService::isDigestMode()) {
             return;
         }
 

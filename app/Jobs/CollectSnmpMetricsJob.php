@@ -421,7 +421,7 @@ class CollectSnmpMetricsJob implements ShouldQueue
                 // main source of toner inbox noise. Paper-low still emails immediately.
                 $isToner = $sensor->data_type === 'toner_gauge'
                     || in_array(strtolower($sensor->sensor_group ?? ''), ['toner', 'consumables']);
-                $digestSuppressed = $isToner && config('printer_alerts.toner_email_mode') === 'monthly_digest';
+                $digestSuppressed = $isToner && \App\Services\Printers\PrinterTonerDigestService::isDigestMode();
 
                 if ($isLowAlert && ! $digestSuppressed) {
                     try {
