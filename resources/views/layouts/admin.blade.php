@@ -109,9 +109,9 @@
                 <ul class="navbar-nav me-auto">
 
                     {{-- ── VoIP dropdown (Contacts + UCM/Extensions) ── --}}
-                    @canany(['view-contacts','view-extensions','view-trunks'])
+                    @canany(['view-contacts','view-extensions','view-trunks','view-phones'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/contacts*','admin/extensions*','admin/trunks*','admin/gdms*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/contacts*','admin/extensions*','admin/trunks*','admin/gdms*','admin/phones*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-telephone-fill me-1"></i>VoIP
                         </a>
@@ -124,7 +124,7 @@
                                 </a>
                             </li>
                             @endcan
-                            @canany(['view-extensions','view-trunks'])
+                            @canany(['view-extensions','view-trunks','view-phones'])
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-hdd-stack me-1"></i>UCM / PBX</h6></li>
                             @can('view-extensions')
@@ -148,6 +148,20 @@
                                 <a class="dropdown-item {{ request()->is('admin/gdms*') ? 'active' : '' }}"
                                    href="{{ route('admin.gdms.ucm') }}">
                                     <i class="bi bi-cloud-check-fill me-2"></i>UCM Status
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-phones')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/phones*') ? 'active' : '' }}"
+                                   href="{{ route('admin.phones.index') }}">
+                                    <i class="bi bi-telephone-plus me-2"></i>Phones
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/gdms/templates*') ? 'active' : '' }}"
+                                   href="{{ route('admin.gdms.templates.index') }}">
+                                    <i class="bi bi-file-earmark-code me-2"></i>Config Templates
                                 </a>
                             </li>
                             @endcan
