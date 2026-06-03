@@ -180,6 +180,11 @@
                     <p class="fw-semibold small text-muted mb-0 mt-2">
                         <i class="bi bi-activity me-1"></i>SNMP Monitoring
                     </p>
+                    <div class="form-text mt-1">
+                        <i class="bi bi-broadcast-pin me-1 text-success"></i>With monitoring enabled and an IP set, the printer
+                        is pinged, discovered and polled (toner, page counts, model) automatically on save. Community
+                        defaults to <code>public</code> and version to <code>v2c</code> if left blank.
+                    </div>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">SNMP Community</label>

@@ -7,14 +7,52 @@
         <small class="text-muted">Printer inventory across all branches</small>
     </div>
     @can('manage-printers')
-    <a href="{{ route('admin.printers.create') }}" class="btn btn-primary btn-sm">
-        <i class="bi bi-plus-lg me-1"></i>Add Printer
-    </a>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#discoverPrintersModal">
+            <i class="bi bi-broadcast-pin me-1"></i>Discover Printers
+        </button>
+        <a href="{{ route('admin.printers.create') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Printer
+        </a>
+    </div>
     @endcan
 </div>
 
 @if(session('success'))
 <div class="alert alert-success alert-dismissible fade show py-2"><i class="bi bi-check-circle me-1"></i>{{ session('success') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+@endif
+@if(session('info'))
+<div class="alert alert-info alert-dismissible fade show py-2"><i class="bi bi-info-circle me-1"></i>{{ session('info') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+@endif
+@if(session('error'))
+<div class="alert alert-danger alert-dismissible fade show py-2"><i class="bi bi-exclamation-triangle me-1"></i>{{ session('error') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+@endif
+
+@if(session('discovery_summary') && !empty(session('discovery_summary')['created']))
+@php $ds = session('discovery_summary'); @endphp
+<div class="card border-success shadow-sm mb-3">
+    <div class="card-header bg-success-subtle py-2 d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-printer-fill me-1 text-success"></i>{{ count($ds['created']) }} printer(s) discovered &amp; added</span>
+        <small class="text-muted">{{ $ds['scanned'] }} scanned · {{ $ds['reachable'] }} online · {{ $ds['printers'] }} printers found</small>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0 small">
+            <thead class="table-light"><tr><th>Name</th><th>IP</th><th>Model</th><th>Lowest Toner</th><th></th></tr></thead>
+            <tbody>
+                @foreach($ds['created'] as $c)
+                <tr>
+                    <td class="fw-semibold">{{ $c['name'] }}</td>
+                    <td class="font-monospace">{{ $c['ip'] }}</td>
+                    <td class="text-muted">{{ $c['model'] ?: '—' }}</td>
+                    <td>{{ $c['toner'] !== null ? $c['toner'] . '%' : '—' }}</td>
+                    <td class="text-end"><a href="{{ route('admin.printers.show', $c['id']) }}" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-eye"></i></a></td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer py-1 small text-muted">Tip: discovered printers have no location set — edit each to assign a floor/office.</div>
+</div>
 @endif
 
 <form method="GET" class="row g-2 mb-3 align-items-end">
@@ -93,4 +131,8 @@
         @endif
     </div>
 </div>
+
+@can('manage-printers')
+@include('admin.printers._discover-modal')
+@endcan
 @endsection

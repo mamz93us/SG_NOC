@@ -7,6 +7,11 @@
         <small class="text-muted">Live toner, paper, and status monitoring via SNMP</small>
     </div>
     <div class="d-flex gap-2">
+        @can('manage-printers')
+        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#discoverPrintersModal">
+            <i class="bi bi-broadcast-pin me-1"></i>Discover Printers
+        </button>
+        @endcan
         <form method="POST" action="{{ route('admin.printers.snmp.poll-all') }}" class="d-inline">
             @csrf
             <button type="submit" class="btn btn-sm btn-outline-success">
@@ -338,4 +343,7 @@
     @endforelse
 </div>
 
+@can('manage-printers')
+@include('admin.printers._discover-modal')
+@endcan
 @endsection
