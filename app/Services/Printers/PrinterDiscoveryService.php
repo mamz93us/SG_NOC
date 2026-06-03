@@ -223,8 +223,9 @@ class PrinterDiscoveryService
      * etc.) reliably reads vendor MIBs that PollPrinterSnmpJob sometimes can't,
      * so this is how the SNMP page stays in sync with host monitoring.
      *
-     * Fill-when-missing: only fields the printer's own poll left empty are
-     * touched, so a printer that polls fine is never overwritten.
+     * Host-authoritative: whenever a host sensor has a reading it overwrites the
+     * printer's value (so a stale "N/A" is always replaced). Fields with no
+     * matching host sensor are left untouched.
      */
     public function backfillFromHostSensors(Printer $printer): bool
     {
@@ -257,7 +258,8 @@ class PrinterDiscoveryService
         $changed = false;
         $supplyIndex = 910; // synthetic, above real-MIB (1..N) and Ricoh fallback (900..)
 
-        // ── Toner (reuse the host's own K/C/M/Y resolver) ──
+        // ── Toner — host monitoring is the source of truth: set whenever the
+        //    host has a reading so the printer page mirrors it (replaces N/A). ──
         $toner = $host->tonerLevels();
         $tonerCols = [
             'toner_black' => ['v' => $toner['K'], 'color' => 'black'],
@@ -266,8 +268,8 @@ class PrinterDiscoveryService
             'toner_yellow' => ['v' => $toner['Y'], 'color' => 'yellow'],
         ];
         foreach ($tonerCols as $col => $info) {
-            if ($printer->$col !== null || $info['v'] === null) {
-                continue; // printer already has it, or host has nothing
+            if ($info['v'] === null) {
+                continue; // host has no reading for this colour
             }
             $pct = max(0, min(100, (int) round($info['v'])));
             $printer->$col = $pct;
@@ -275,7 +277,7 @@ class PrinterDiscoveryService
             $changed = true;
         }
 
-        // ── Page counters ──
+        // ── Page counters — host-authoritative when present. ──
         $counters = [
             'page_count_total' => ['total counter', 'total pages', 'total'],
             'page_count_print' => ['print counter'],
@@ -286,9 +288,6 @@ class PrinterDiscoveryService
             'page_count_scan' => ['scan counter', 'scan'],
         ];
         foreach ($counters as $col => $needles) {
-            if ($printer->$col !== null) {
-                continue;
-            }
             $v = $byName($needles);
             if ($v !== null && (int) round($v) >= 0) {
                 $printer->$col = (int) round($v);
@@ -297,16 +296,14 @@ class PrinterDiscoveryService
         }
 
         // ── Printer status (3=idle, 4=printing, 5=warmup) ──
-        if (empty($printer->printer_status) || $printer->printer_status === 'unknown') {
-            $statusVal = $byName(['printer status']);
-            if ($statusVal !== null) {
-                $mapped = match ((int) round($statusVal)) {
-                    3 => 'idle', 4 => 'printing', 5 => 'warmup', default => null,
-                };
-                if ($mapped) {
-                    $printer->printer_status = $mapped;
-                    $changed = true;
-                }
+        $statusVal = $byName(['printer status']);
+        if ($statusVal !== null) {
+            $mapped = match ((int) round($statusVal)) {
+                3 => 'idle', 4 => 'printing', 5 => 'warmup', default => null,
+            };
+            if ($mapped) {
+                $printer->printer_status = $mapped;
+                $changed = true;
             }
         }
 
