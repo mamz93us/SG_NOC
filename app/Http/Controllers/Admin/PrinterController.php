@@ -20,6 +20,7 @@ use App\Services\Printers\PrinterDiscoveryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class PrinterController extends Controller
@@ -455,21 +456,46 @@ class PrinterController extends Controller
             ->whereDoesntHave('snmpSensors')
             ->count();
 
-        return view('admin.printers.snmp-status', compact('printers', 'branches', 'missingSensors'));
+        // Pull the live host-monitoring state (ping up/down, last poll, sensor
+        // count) so the SNMP page reflects the same reachability monitoring sees.
+        $hostsByIp = MonitoredHost::withCount('snmpSensors')
+            ->whereIn('ip', $printers->pluck('ip_address')->filter()->unique())
+            ->get()
+            ->keyBy('ip');
+
+        return view('admin.printers.snmp-status', compact('printers', 'branches', 'missingSensors', 'hostsByIp'));
     }
 
     public function snmpPoll(Printer $printer)
     {
-        PollPrinterSnmpJob::dispatchSync($printer->id);
+        // Manual poll → force (bypass the recent-poll lock) so it always refreshes.
+        PollPrinterSnmpJob::dispatchSync($printer->id, true);
 
         return back()->with('success', "SNMP poll completed for \"{$printer->printer_name}\".");
     }
 
+    /**
+     * Force an immediate SNMP pull for every enabled printer. Flags the
+     * every-minute 'force-poll-printers' task rather than polling inline — an
+     * unreachable printer can take ~30-50s of SNMP timeouts, so polling the
+     * whole fleet in one web request would risk a gateway timeout.
+     */
     public function snmpPollAll()
     {
-        PollPrinterSnmpJob::dispatch();
+        $count = Printer::where('snmp_enabled', true)
+            ->whereNotNull('ip_address')
+            ->whereNotNull('snmp_community')
+            ->count();
 
-        return back()->with('success', 'SNMP poll job dispatched for all enabled printers.');
+        if ($count === 0) {
+            return back()->with('info', 'No SNMP-enabled printers with an IP to poll.');
+        }
+
+        Cache::put('printers.force_poll_all', true, 600);
+
+        return back()->with('info',
+            "Force-pulling all {$count} SNMP printer(s) now — data refreshes within a minute. Reload to see it."
+        );
     }
 
     public function toggleSnmp(Request $request, Printer $printer)

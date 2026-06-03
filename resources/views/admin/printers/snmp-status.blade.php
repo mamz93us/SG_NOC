@@ -22,8 +22,9 @@
         @endcan
         <form method="POST" action="{{ route('admin.printers.snmp.poll-all') }}" class="d-inline">
             @csrf
-            <button type="submit" class="btn btn-sm btn-outline-success">
-                <i class="bi bi-arrow-repeat me-1"></i>Poll All Now
+            <button type="submit" class="btn btn-sm btn-outline-success"
+                    title="Force an immediate SNMP pull for every enabled printer (bypasses the poll cooldown)">
+                <i class="bi bi-arrow-repeat me-1"></i>Force Pull Now
             </button>
         </form>
         <a href="{{ route('admin.printers.index') }}" class="btn btn-sm btn-outline-secondary">
@@ -37,31 +38,54 @@
     {{ session('success') }}<button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
 </div>
 @endif
+@if(session('info'))
+<div class="alert alert-info alert-dismissible fade show py-2" role="alert">
+    {{ session('info') }}<button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
+</div>
+@endif
 
 {{-- Summary Cards --}}
+@php
+    $hostsByIp = $hostsByIp ?? collect();
+    $hostFor = fn ($p) => $p->ip_address ? $hostsByIp->get($p->ip_address) : null;
+    $onlineCount  = $printers->filter(fn ($p) => optional($hostFor($p))->status === 'up')->count();
+    $offlineCount = $printers->filter(fn ($p) => optional($hostFor($p))->status === 'down')->count();
+    $lowToner = $printers->filter(fn ($p) => $p->lowestTonerLevel() !== null && $p->lowestTonerLevel() <= 20)->count();
+    $errors   = $printers->filter(fn ($p) => $p->error_state && $p->error_state !== 'normal')->count();
+@endphp
 <div class="row g-2 mb-4">
-    <div class="col-sm-6 col-lg-3">
+    <div class="col-6 col-lg-2">
         <div class="card shadow-sm text-center py-2">
             <div class="fw-bold fs-4 text-primary">{{ $printers->count() }}</div>
             <small class="text-muted">SNMP Printers</small>
         </div>
     </div>
-    <div class="col-sm-6 col-lg-3">
+    <div class="col-6 col-lg-2">
+        <div class="card shadow-sm text-center py-2">
+            <div class="fw-bold fs-4 text-success">{{ $onlineCount }}</div>
+            <small class="text-muted">Online</small>
+        </div>
+    </div>
+    <div class="col-6 col-lg-2">
+        <div class="card shadow-sm text-center py-2">
+            <div class="fw-bold fs-4 {{ $offlineCount > 0 ? 'text-danger' : 'text-muted' }}">{{ $offlineCount }}</div>
+            <small class="text-muted">Offline</small>
+        </div>
+    </div>
+    <div class="col-6 col-lg-2">
         <div class="card shadow-sm text-center py-2">
             <div class="fw-bold fs-4 text-success">{{ $printers->where('printer_status', 'idle')->count() }}</div>
             <small class="text-muted">Idle / Ready</small>
         </div>
     </div>
-    <div class="col-sm-6 col-lg-3">
+    <div class="col-6 col-lg-2">
         <div class="card shadow-sm text-center py-2">
-            @php $lowToner = $printers->filter(fn($p) => $p->lowestTonerLevel() !== null && $p->lowestTonerLevel() <= 20)->count(); @endphp
             <div class="fw-bold fs-4 {{ $lowToner > 0 ? 'text-warning' : 'text-success' }}">{{ $lowToner }}</div>
             <small class="text-muted">Low Toner</small>
         </div>
     </div>
-    <div class="col-sm-6 col-lg-3">
+    <div class="col-6 col-lg-2">
         <div class="card shadow-sm text-center py-2">
-            @php $errors = $printers->filter(fn($p) => $p->error_state && $p->error_state !== 'normal')->count(); @endphp
             <div class="fw-bold fs-4 {{ $errors > 0 ? 'text-danger' : 'text-success' }}">{{ $errors }}</div>
             <small class="text-muted">Errors</small>
         </div>
@@ -109,8 +133,9 @@
 {{-- Printer Cards Grid --}}
 <div class="row g-3">
     @forelse($printers as $printer)
+    @php $host = $hostFor($printer); @endphp
     <div class="col-xl-4 col-lg-6">
-        <div class="card shadow-sm h-100 {{ $printer->error_state && $printer->error_state !== 'normal' ? 'border-danger' : '' }}">
+        <div class="card shadow-sm h-100 {{ (($printer->error_state && $printer->error_state !== 'normal') || ($host && $host->status === 'down')) ? 'border-danger' : '' }}">
             {{-- Header --}}
             <div class="card-header py-2 d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-2">
@@ -120,6 +145,16 @@
                     </a>
                 </div>
                 <div class="d-flex align-items-center gap-1">
+                    {{-- Reachability from host monitoring (ping) --}}
+                    @if($host)
+                        @if($host->status === 'up')
+                        <span class="badge bg-success badge-sm" title="Host monitoring: reachable{{ $host->last_ping_at ? ' — last ping '.$host->last_ping_at->diffForHumans() : '' }}"><i class="bi bi-wifi"></i></span>
+                        @elseif($host->status === 'down')
+                        <span class="badge bg-danger badge-sm" title="Host monitoring: DOWN{{ $host->last_ping_at ? ' — since '.$host->last_ping_at->diffForHumans() : '' }}"><i class="bi bi-wifi-off"></i> Offline</span>
+                        @else
+                        <span class="badge bg-secondary badge-sm" title="Reachability unknown">?</span>
+                        @endif
+                    @endif
                     <span class="badge {{ $printer->statusBadgeClass() }} badge-sm">{{ $printer->statusLabel() }}</span>
                     @if($printer->error_state && $printer->error_state !== 'normal')
                     <span class="badge {{ $printer->errorBadgeClass() }} badge-sm">{{ $printer->errorLabel() }}</span>
@@ -133,6 +168,21 @@
                     <span><i class="bi bi-geo-alt me-1"></i>{{ $printer->branch?->name ?? '—' }}</span>
                     <span class="font-monospace">{{ $printer->ip_address }}</span>
                 </div>
+
+                {{-- Host-monitoring sync line --}}
+                @if($host)
+                <div class="d-flex justify-content-between small text-muted mb-2">
+                    <span title="Last ICMP ping by host monitoring">
+                        <i class="bi bi-activity me-1"></i>Host: <span class="fw-semibold {{ $host->status === 'up' ? 'text-success' : ($host->status === 'down' ? 'text-danger' : '') }}">{{ ucfirst($host->status ?? 'unknown') }}</span>
+                        @if($host->last_ping_at)<span class="ms-1">· {{ $host->last_ping_at->diffForHumans(null, true) }} ago</span>@endif
+                    </span>
+                    @if(($host->snmp_sensors_count ?? 0) > 0)
+                    <a href="{{ route('admin.network.monitoring.show', $host) }}" class="text-decoration-none" title="{{ $host->snmp_sensors_count }} sensor(s) — view in host monitoring">
+                        <i class="bi bi-box-arrow-up-right"></i> Monitor
+                    </a>
+                    @endif
+                </div>
+                @endif
 
                 @if($printer->snmp_model)
                 <div class="small text-muted mb-2">

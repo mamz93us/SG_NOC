@@ -70,17 +70,22 @@ class StatsService
 
     private function dbStats(): array
     {
-        $rows = (int) $this->pdo->query("SELECT COUNT(*) FROM syslog_messages")->fetchColumn();
-
+        // Row count uses InnoDB's estimate from information_schema, NOT an
+        // exact SELECT COUNT(*): a full count scans the whole multi-million-row
+        // table and overruns the NOC's 8s HTTP timeout, which made /api/stats
+        // (and therefore the branch's health badge) read as "unreachable".
         $sizeRow = $this->pdo->query("
             SELECT
                 ROUND(SUM(data_length+index_length)/1024/1024/1024, 2) AS gb,
                 ROUND(SUM(data_length)/1024/1024/1024, 2) AS data_gb,
-                ROUND(SUM(index_length)/1024/1024/1024, 2) AS idx_gb
+                ROUND(SUM(index_length)/1024/1024/1024, 2) AS idx_gb,
+                SUM(table_rows)                                        AS est_rows
             FROM information_schema.tables
             WHERE table_schema = DATABASE()
               AND table_name   = 'syslog_messages'
         ")->fetch();
+
+        $rows = (int) ($sizeRow['est_rows'] ?? 0);
 
         $partRow = $this->pdo->query("
             SELECT

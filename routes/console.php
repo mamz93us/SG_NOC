@@ -368,6 +368,21 @@ Schedule::call(function () {
     }
 })->name('poll-printer-snmp')->withoutOverlapping(5)->everyFiveMinutes();
 
+// ─── Force Pull All — every minute, flag-gated ───────────────
+// The Printers "Force Pull Now" button sets a cache flag for larger fleets;
+// this drains it with a forced poll (bypassing the recent-poll lock) so a
+// full refresh never has to run inside the web request.
+Schedule::call(function () {
+    if (! \Illuminate\Support\Facades\Cache::pull('printers.force_poll_all')) {
+        return;
+    }
+    try {
+        (new \App\Jobs\PollPrinterSnmpJob(null, true))->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Forced printer SNMP poll failed: '.$e->getMessage());
+    }
+})->name('force-poll-printers')->withoutOverlapping(10)->everyMinute();
+
 // ─── Network Discovery Scan Processor — every minute ─────────
 // Runs one pending discovery scan inline (no queue worker in prod). For scans
 // started from the Printers "Discover Printers" button (auto_import_printers),
