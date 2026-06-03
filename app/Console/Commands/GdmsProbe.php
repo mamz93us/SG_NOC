@@ -59,6 +59,32 @@ class GdmsProbe extends Command
             }
         }
 
+        // ── Candidate-path discovery for the PROBE-PENDING endpoints ──────
+        // The template / account-assign / sip-server / config-push paths only
+        // live in the GDMS SPA reference. Try plausible paths and report which
+        // actually exist on this tenant. A "✓ EXISTS" line is the real path —
+        // put it in config/services.gdms.endpoints (or the EP_* constants).
+        $this->newLine();
+        $this->info('Discovering PROBE-PENDING endpoint paths (which candidates exist?)...');
+        $listBody = ['pageNum' => 1, 'pageSize' => 1, 'orgId' => (int) (config('services.gdms.org_id') ?: 0)];
+        $groups = [
+            'template list' => [
+                '/v1.0.0/template/list', '/v1.0.0/template/byModel', '/v1.0.0/model/template/list',
+                '/v1.0.0/group/template/list', '/v1.0.0/site/template/list', '/v1.0.0/config/template/list',
+                '/v1.0.0/device/template/list', '/v1.0.0/template/group/list', '/v1.0.0/template/model/list',
+                '/v1.0.0/cfgtemplate/list', '/v1.0.0/template/page',
+            ],
+            'sip server list' => ['/v1.0.0/sip/server/list', '/v1.0.0/sipserver/list', '/v1.0.0/server/list'],
+            'sip account assign' => ['/v1.0.0/sip/account/assign', '/v1.0.0/sip/account/add', '/v1.0.0/sip/account/bind'],
+            'device config push' => ['/v1.0.0/device/config/set', '/v1.0.0/device/config', '/v1.0.0/device/param/set', '/v1.0.0/config/push'],
+        ];
+        foreach ($groups as $label => $paths) {
+            $this->line("· {$label}:");
+            foreach ($paths as $p) {
+                $this->line("    {$p}  →  ".$this->classify($gdms->probeEndpoint($p, $listBody)));
+            }
+        }
+
         $this->newLine();
         $this->info('Task types currently configured (confirm against the GDMS UI before wiring buttons):');
         $this->line('  REBOOT        = '.GdmsService::TASK_REBOOT.'   (confirmed)');
@@ -91,5 +117,25 @@ class GdmsProbe extends Command
     private function accountRows(array $resp): array
     {
         return $resp['data']['result'] ?? $resp['result'] ?? $resp['data'] ?? [];
+    }
+
+    /** Classify a probeEndpoint() response: does the route exist on this tenant? */
+    private function classify(array $r): string
+    {
+        if (isset($r['_exception'])) {
+            return 'ERR '.Str::limit($r['_exception'], 90);
+        }
+        if (($r['status'] ?? null) === 404 || ($r['error'] ?? '') === 'Not Found') {
+            return '404 no-route';
+        }
+        if (array_key_exists('retCode', $r)) {
+            $rc = $r['retCode'];
+
+            return $rc === 0
+                ? '✓ EXISTS (retCode 0 — this is the path!)'
+                : "✓ EXISTS (retCode {$rc}: ".($r['msg'] ?? '').')';
+        }
+
+        return 'unknown: '.Str::limit(json_encode($r), 90);
     }
 }

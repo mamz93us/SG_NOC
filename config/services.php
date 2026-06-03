@@ -50,6 +50,18 @@ return [
         // is PROBE-PENDING — override here once confirmed via `gdms:probe`
         // without touching code.
         'task_factory_reset' => env('GDMS_TASK_FACTORY_RESET', 2),
+
+        // PROBE-PENDING endpoint overrides. Run `php artisan gdms:probe` to find
+        // the real paths on your tenant, then set these in .env (no code change).
+        'endpoints' => [
+            'template_list' => env('GDMS_EP_TEMPLATE_LIST'),
+            'template_detail' => env('GDMS_EP_TEMPLATE_DETAIL'),
+            'template_update' => env('GDMS_EP_TEMPLATE_UPDATE'),
+            'template_assign' => env('GDMS_EP_TEMPLATE_ASSIGN'),
+            'device_config' => env('GDMS_EP_DEVICE_CONFIG'),
+            'sip_account_assign' => env('GDMS_EP_SIP_ACCOUNT_ASSIGN'),
+            'sip_server_list' => env('GDMS_EP_SIP_SERVER_LIST'),
+        ],
     ],
 
     'hr_api' => [

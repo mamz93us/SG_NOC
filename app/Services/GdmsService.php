@@ -455,7 +455,7 @@ class GdmsService
             'orgId' => $this->orgId ?: null,
         ], $sipAccount);
 
-        return $this->signedRequest(self::EP_SIP_ACCT_ASSIGN, array_filter($body, fn ($v) => $v !== null));
+        return $this->signedRequest($this->ep('sip_account_assign', self::EP_SIP_ACCT_ASSIGN), array_filter($body, fn ($v) => $v !== null));
     }
 
     /**
@@ -465,7 +465,7 @@ class GdmsService
      */
     public function listSipServers(int $pageNum = 1, int $pageSize = 200): array
     {
-        return $this->extractList($this->postSigned(self::EP_SIP_SERVER_LIST, $pageNum, $pageSize));
+        return $this->extractList($this->postSigned($this->ep('sip_server_list', self::EP_SIP_SERVER_LIST), $pageNum, $pageSize));
     }
 
     /** List GDMS organizations (GET, org-level signature). */
@@ -485,13 +485,13 @@ class GdmsService
     /** List GDMS configuration templates. */
     public function listTemplates(int $pageNum = 1, int $pageSize = 200): array
     {
-        return $this->extractList($this->postSigned(self::EP_TEMPLATE_LIST, $pageNum, $pageSize));
+        return $this->extractList($this->postSigned($this->ep('template_list', self::EP_TEMPLATE_LIST), $pageNum, $pageSize));
     }
 
     /** Get a single template's parameter set. */
     public function getTemplate(string $templateId): array
     {
-        return $this->signedRequest(self::EP_TEMPLATE_DETAIL, ['templateId' => $templateId]);
+        return $this->signedRequest($this->ep('template_detail', self::EP_TEMPLATE_DETAIL), ['templateId' => $templateId]);
     }
 
     /**
@@ -501,7 +501,7 @@ class GdmsService
      */
     public function updateTemplate(string $templateId, array $params): array
     {
-        return $this->signedRequest(self::EP_TEMPLATE_UPDATE, [
+        return $this->signedRequest($this->ep('template_update', self::EP_TEMPLATE_UPDATE), [
             'templateId' => $templateId,
             'params' => $params,
         ]);
@@ -512,7 +512,7 @@ class GdmsService
     {
         $macList = array_values(array_map(fn ($m) => $this->formatMacForApi($m), $rawMacs));
 
-        return $this->signedRequest(self::EP_TEMPLATE_ASSIGN, [
+        return $this->signedRequest($this->ep('template_assign', self::EP_TEMPLATE_ASSIGN), [
             'templateId' => $templateId,
             'macList' => $macList,
         ]);
@@ -525,7 +525,7 @@ class GdmsService
      */
     public function pushConfig(string $rawMac, array $params): array
     {
-        return $this->signedRequest(self::EP_DEVICE_CONFIG, array_filter([
+        return $this->signedRequest($this->ep('device_config', self::EP_DEVICE_CONFIG), array_filter([
             'mac' => $this->formatMacForApi($rawMac),
             'params' => $params,
             'orgId' => $this->orgId ?: null,
@@ -605,6 +605,32 @@ class GdmsService
         }
 
         return $data;
+    }
+
+    /**
+     * Read-only endpoint probe for `gdms:probe` — hits an arbitrary signed path
+     * and returns the raw decoded response (never throws). A Spring-gateway 404
+     * body (status=404 / error="Not Found") means "no such route"; a body that
+     * contains retCode means the route EXISTS (retCode 0 = OK; non-zero = the
+     * route exists but the params are off).
+     */
+    public function probeEndpoint(string $path, array $body = [], string $method = 'POST'): array
+    {
+        try {
+            return $this->signedRequest($path, $method === 'GET' ? null : $body, [], $method, false);
+        } catch (\Throwable $e) {
+            return ['_exception' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Resolve a PROBE-PENDING endpoint path: a config override
+     * (services.gdms.endpoints.<key>, set once confirmed via gdms:probe) wins
+     * over the best-guess EP_* constant.
+     */
+    private function ep(string $key, string $default): string
+    {
+        return config("services.gdms.endpoints.{$key}") ?: $default;
     }
 
     /**
