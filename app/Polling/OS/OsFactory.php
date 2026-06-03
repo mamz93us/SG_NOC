@@ -21,6 +21,7 @@ class OsFactory
      */
     private const OS_CLASSES = [
         RicohPrinterOS::class,    // Ricoh/NRG/Lanier printers (before generic printer)
+        EpsonPrinterOS::class,    // Epson inkjet/laser (standard Printer MIB, dynamic supplies)
         GenericPrinterOS::class,  // HP LaserJet, Lexmark, Canon, Xerox, Kyocera
         CiscoOS::class,           // Cisco IOS / NX-OS
         SophosOS::class,          // Sophos SFOS firewall
@@ -34,10 +35,8 @@ class OsFactory
     /**
      * Create the appropriate OS instance for the given host.
      *
-     * @param MonitoredHost $host
-     * @param SnmpClient    $client
-     * @param string        $sysDescr    Raw sysDescr string from SNMP
-     * @param string        $sysObjectID Raw sysObjectID string from SNMP
+     * @param  string  $sysDescr  Raw sysDescr string from SNMP
+     * @param  string  $sysObjectID  Raw sysObjectID string from SNMP
      */
     public static function make(
         MonitoredHost $host,
@@ -48,6 +47,7 @@ class OsFactory
         foreach (self::OS_CLASSES as $class) {
             if ($class::detect($sysDescr, $sysObjectID)) {
                 Log::info("[OsFactory] Matched {$class} for host {$host->ip}");
+
                 return new $class($host, $client);
             }
         }
@@ -66,17 +66,19 @@ class OsFactory
     ): BaseOS {
         $map = [
             'ricoh_printer' => RicohPrinterOS::class,
-            'printer'       => GenericPrinterOS::class,
-            'cisco'         => CiscoOS::class,
-            'sophos'        => SophosOS::class,
-            'grandstream'   => GrandstreamOS::class,
-            'hp_aruba'      => HpArubaOS::class,
-            'linux'         => LinuxOS::class,
-            'windows'       => WindowsOS::class,
-            'generic_switch'=> GenericOS::class,
+            'epson_printer' => EpsonPrinterOS::class,
+            'printer' => GenericPrinterOS::class,
+            'cisco' => CiscoOS::class,
+            'sophos' => SophosOS::class,
+            'grandstream' => GrandstreamOS::class,
+            'hp_aruba' => HpArubaOS::class,
+            'linux' => LinuxOS::class,
+            'windows' => WindowsOS::class,
+            'generic_switch' => GenericOS::class,
         ];
 
         $class = $map[$discoveredType] ?? GenericOS::class;
+
         return new $class($host, $client);
     }
 }

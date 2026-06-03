@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\DiscoveryScan;
 use App\Models\DiscoveryResult;
+use App\Models\DiscoveryScan;
 use Illuminate\Support\Facades\Log;
 
 class NetworkDiscoveryService
@@ -21,22 +21,22 @@ class NetworkDiscoveryService
     public function parseRange(string $input): array
     {
         $input = trim($input);
-        $ips   = [];
+        $ips = [];
 
         // CIDR notation
         if (str_contains($input, '/')) {
             $ips = $this->parseCidr($input);
 
-        // Dash range — last octet or full IP
+            // Dash range — last octet or full IP
         } elseif (str_contains($input, '-')) {
             [$start, $end] = explode('-', $input, 2);
             $start = trim($start);
-            $end   = trim($end);
+            $end = trim($end);
 
             if (filter_var($end, FILTER_VALIDATE_IP)) {
                 // Full IP range: 192.168.1.1-192.168.1.50
                 $startLong = ip2long($start);
-                $endLong   = ip2long($end);
+                $endLong = ip2long($end);
                 if ($startLong !== false && $endLong !== false && $endLong >= $startLong) {
                     for ($i = $startLong; $i <= $endLong && count($ips) < 1024; $i++) {
                         $ips[] = long2ip($i);
@@ -44,21 +44,21 @@ class NetworkDiscoveryService
                 }
             } else {
                 // Last-octet range: 192.168.1.1-254
-                $parts    = explode('.', $start);
-                $base     = implode('.', array_slice($parts, 0, 3));
+                $parts = explode('.', $start);
+                $base = implode('.', array_slice($parts, 0, 3));
                 $startOct = (int) end($parts);
-                $endOct   = (int) $end;
+                $endOct = (int) $end;
                 for ($i = $startOct; $i <= $endOct && count($ips) < 256; $i++) {
                     $ips[] = "{$base}.{$i}";
                 }
             }
 
-        // Single IP
+            // Single IP
         } elseif (filter_var($input, FILTER_VALIDATE_IP)) {
             $ips[] = $input;
         }
 
-        return array_filter($ips, fn($ip) => filter_var($ip, FILTER_VALIDATE_IP) !== false);
+        return array_filter($ips, fn ($ip) => filter_var($ip, FILTER_VALIDATE_IP) !== false);
     }
 
     private function parseCidr(string $cidr): array
@@ -70,9 +70,9 @@ class NetworkDiscoveryService
             return []; // Safety limit — refuse /0 to /15
         }
 
-        $baseInt  = ip2long($base);
+        $baseInt = ip2long($base);
         $hostBits = 32 - $prefix;
-        $count    = min(1024, (int) pow(2, $hostBits));
+        $count = min(1024, (int) pow(2, $hostBits));
         $networkInt = $baseInt & (~((1 << $hostBits) - 1));
 
         $ips = [];
@@ -80,6 +80,7 @@ class NetworkDiscoveryService
         for ($i = 1; $i < $count - 1 && count($ips) < 1024; $i++) {
             $ips[] = long2ip($networkInt + $i);
         }
+
         return $ips;
     }
 
@@ -88,9 +89,10 @@ class NetworkDiscoveryService
     public function ping(string $ip, int $timeout = 1): bool
     {
         $cmd = PHP_OS_FAMILY === 'Windows'
-            ? "ping -n 1 -w " . ($timeout * 1000) . " {$ip}"
+            ? 'ping -n 1 -w '.($timeout * 1000)." {$ip}"
             : "ping -c 1 -W {$timeout} {$ip}";
-        $output = @shell_exec($cmd . ' 2>/dev/null');
+        $output = @shell_exec($cmd.' 2>/dev/null');
+
         return $output && (
             str_contains($output, 'TTL=') ||    // Windows
             str_contains($output, 'ttl=') ||    // Linux
@@ -107,14 +109,16 @@ class NetworkDiscoveryService
                 $session->valueretrieval = \SNMP_VALUE_PLAIN;
                 $result = @$session->get($oid);
                 $session->close();
+
                 return ($result !== false && $result !== null) ? (string) $result : null;
             }
-            $cmd    = "snmpget -v2c -c " . escapeshellarg($community)
-                    . " -t {$timeout} -r 0 -On {$ip} " . escapeshellarg($oid) . " 2>/dev/null";
+            $cmd = 'snmpget -v2c -c '.escapeshellarg($community)
+                    ." -t {$timeout} -r 0 -On {$ip} ".escapeshellarg($oid).' 2>/dev/null';
             $output = @shell_exec($cmd);
             if ($output && preg_match('/=\s*(.+)$/', trim($output), $m)) {
                 return trim(preg_replace('/^[A-Z][a-zA-Z0-9-]+:\s*/', '', $m[1]));
             }
+
             return null;
         } catch (\Throwable) {
             return null;
@@ -129,17 +133,17 @@ class NetworkDiscoveryService
     public function probeHost(string $ip, string $community, int $timeout): array
     {
         $result = [
-            'ip_address'      => $ip,
-            'hostname'        => null,
-            'mac_address'     => null,
-            'vendor'          => null,
-            'model'           => null,
-            'sys_name'        => null,
-            'sys_descr'       => null,
-            'device_type'     => 'unknown',
-            'is_reachable'    => false,
+            'ip_address' => $ip,
+            'hostname' => null,
+            'mac_address' => null,
+            'vendor' => null,
+            'model' => null,
+            'sys_name' => null,
+            'sys_descr' => null,
+            'device_type' => 'unknown',
+            'is_reachable' => false,
             'snmp_accessible' => false,
-            'raw_data'        => [],
+            'raw_data' => [],
         ];
 
         // 1. Ping
@@ -155,17 +159,18 @@ class NetworkDiscoveryService
             if ($host && $host !== $ip) {
                 $result['hostname'] = $host;
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable) {
+        }
 
         // 3. SNMP queries
-        $sysDescr  = $this->snmpGet($ip, $community, '1.3.6.1.2.1.1.1.0', $timeout);
-        $sysName   = $this->snmpGet($ip, $community, '1.3.6.1.2.1.1.5.0', $timeout);
-        $sysObjId  = $this->snmpGet($ip, $community, '1.3.6.1.2.1.1.2.0', $timeout);
+        $sysDescr = $this->snmpGet($ip, $community, '1.3.6.1.2.1.1.1.0', $timeout);
+        $sysName = $this->snmpGet($ip, $community, '1.3.6.1.2.1.1.5.0', $timeout);
+        $sysObjId = $this->snmpGet($ip, $community, '1.3.6.1.2.1.1.2.0', $timeout);
 
         if ($sysDescr !== null) {
             $result['snmp_accessible'] = true;
             $result['sys_descr'] = trim($sysDescr);
-            $result['sys_name']  = $sysName ? trim($sysName) : null;
+            $result['sys_name'] = $sysName ? trim($sysName) : null;
             $result['raw_data']['sysObjectID'] = $sysObjId;
 
             // Printer MIB — prtGeneralSerialNumber
@@ -173,7 +178,7 @@ class NetworkDiscoveryService
             $result['raw_data']['printer_mib'] = $printerMib;
 
             // Enrich model/vendor from sysDescr
-            $result['model']  = $this->extractModel($sysDescr);
+            $result['model'] = $this->extractModel($sysDescr);
             $result['vendor'] = $this->extractVendor($sysDescr);
 
             // Classify device type
@@ -186,13 +191,14 @@ class NetworkDiscoveryService
     private function extractVendor(string $sysDescr): ?string
     {
         $vendors = ['Ricoh', 'HP', 'Canon', 'Epson', 'Brother', 'Xerox', 'Kyocera', 'Lexmark',
-                    'Cisco', 'Meraki', 'Juniper', 'Aruba', 'MikroTik', 'Ubiquiti', 'TP-Link',
-                    'Netgear', 'D-Link', 'Grandstream', 'Yealink', 'Polycom'];
+            'Cisco', 'Meraki', 'Juniper', 'Aruba', 'MikroTik', 'Ubiquiti', 'TP-Link',
+            'Netgear', 'D-Link', 'Grandstream', 'Yealink', 'Polycom'];
         foreach ($vendors as $vendor) {
             if (stripos($sysDescr, $vendor) !== false) {
                 return $vendor;
             }
         }
+
         return null;
     }
 
@@ -201,6 +207,7 @@ class NetworkDiscoveryService
         if (preg_match('/\b(MP\s?[A-Z0-9]+|Color\s?LaserJet\s?[A-Z0-9]+|LaserJet\s?[A-Z0-9]+|MFC-[A-Z0-9]+|WorkCentre\s?[A-Z0-9]+|[A-Z]{2,}\s?[A-Z]?\d{3,}[A-Z]?)\b/i', $sysDescr, $m)) {
             return trim($m[1]);
         }
+
         return null;
     }
 
@@ -210,22 +217,31 @@ class NetworkDiscoveryService
 
         // Printer indicators
         $printerKeywords = ['ricoh', 'printer', 'laserjet', 'mfc', 'workcentre', 'imagerunner',
-                            'phaser', 'colorqube', 'docuprint', 'kyocera', 'print', 'copier'];
+            'phaser', 'colorqube', 'docuprint', 'kyocera', 'print', 'copier',
+            'epson', 'workforce', 'ecotank', 'expression', 'stylus'];
         foreach ($printerKeywords as $kw) {
-            if (str_contains($desc, $kw)) return 'printer';
+            if (str_contains($desc, $kw)) {
+                return 'printer';
+            }
         }
-        if ($printerMib !== null) return 'printer'; // Printer MIB responded
+        if ($printerMib !== null) {
+            return 'printer';
+        } // Printer MIB responded
 
         // Switch / network device indicators
         $switchKeywords = ['switch', 'catalyst', 'nexus', 'juniper', 'aruba', 'procurve',
-                           'ios ', 'junos', 'comware', 'netgear', 'mikrotik', 'ubiquiti',
-                           'meraki', 'ex series', 'srx'];
+            'ios ', 'junos', 'comware', 'netgear', 'mikrotik', 'ubiquiti',
+            'meraki', 'ex series', 'srx'];
         foreach ($switchKeywords as $kw) {
-            if (str_contains($desc, $kw)) return 'switch';
+            if (str_contains($desc, $kw)) {
+                return 'switch';
+            }
         }
 
         // Generic device
-        if ($sysDescr) return 'device';
+        if ($sysDescr) {
+            return 'device';
+        }
 
         return 'unknown';
     }
@@ -244,10 +260,11 @@ class NetworkDiscoveryService
 
             if (empty($ips)) {
                 $scan->update([
-                    'status'        => 'failed',
-                    'finished_at'   => now(),
-                    'error_message' => 'No valid IPs parsed from range: ' . $scan->range_input,
+                    'status' => 'failed',
+                    'finished_at' => now(),
+                    'error_message' => 'No valid IPs parsed from range: '.$scan->range_input,
                 ]);
+
                 return;
             }
 
@@ -271,21 +288,21 @@ class NetworkDiscoveryService
                         $reachable++;
                     }
                 } catch (\Throwable $e) {
-                    Log::warning("Discovery probe failed for {$ip}: " . $e->getMessage());
+                    Log::warning("Discovery probe failed for {$ip}: ".$e->getMessage());
                 }
             }
 
             $scan->update([
-                'status'          => 'completed',
-                'finished_at'     => now(),
+                'status' => 'completed',
+                'finished_at' => now(),
                 'reachable_count' => $reachable,
             ]);
 
         } catch (\Throwable $e) {
-            Log::error("Discovery scan #{$scan->id} failed: " . $e->getMessage());
+            Log::error("Discovery scan #{$scan->id} failed: ".$e->getMessage());
             $scan->update([
-                'status'        => 'failed',
-                'finished_at'   => now(),
+                'status' => 'failed',
+                'finished_at' => now(),
                 'error_message' => $e->getMessage(),
             ]);
         }
