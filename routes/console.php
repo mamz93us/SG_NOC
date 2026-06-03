@@ -18,24 +18,34 @@ try {
 } catch (\Throwable) {
     $settings = null;
 }
-$gdmsInterval     = max(1, (int) ($settings?->gdms_sync_interval     ?: 5));
-$merakiInterval   = max(1, (int) ($settings?->meraki_polling_interval ?: 5));
-$identityInterval = max(1, (int) ($settings?->identity_sync_interval  ?: 720));
+$gdmsInterval = max(1, (int) ($settings?->gdms_sync_interval ?: 5));
+$merakiInterval = max(1, (int) ($settings?->meraki_polling_interval ?: 5));
+$identityInterval = max(1, (int) ($settings?->identity_sync_interval ?: 720));
 
 // Helper: build a valid cron expression for "every N minutes".
 // Cron's minute field is 0–59, so naive */N breaks for N >= 60. This collapses
 // hourly / multi-hour / daily intervals to the correct multi-field form.
 $everyN = function (int $n): string {
-    if ($n <= 1)                              return '* * * * *';            // every minute
-    if ($n < 60)                              return "*/{$n} * * * *";       // every N minutes
-    if ($n === 60)                            return '0 * * * *';            // hourly
+    if ($n <= 1) {
+        return '* * * * *';
+    }            // every minute
+    if ($n < 60) {
+        return "*/{$n} * * * *";
+    }       // every N minutes
+    if ($n === 60) {
+        return '0 * * * *';
+    }            // hourly
     if ($n % 60 === 0 && ($n / 60) <= 23) {
         $h = intdiv($n, 60);
+
         return "0 */{$h} * * *";                                              // every H hours on the hour
     }
-    if ($n >= 1440)                           return '0 0 * * *';            // daily floor
+    if ($n >= 1440) {
+        return '0 0 * * *';
+    }            // daily floor
     // Non-whole-hour intervals > 60min: round down to nearest hour.
     $h = max(1, intdiv($n, 60));
+
     return "0 */{$h} * * *";
 };
 
@@ -91,19 +101,27 @@ Schedule::job(new \App\Jobs\CheckLicenseMonitorsJob)->hourly();
 // Daily expiry scan — software licenses (ITAM) and SSL certificates.
 // Raises NocEvents so the existing notification rules pick them up.
 Schedule::call(function () {
-    try { (new \App\Jobs\CheckExpiryAlertsJob)->handle(); } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error('Expiry alerts check failed: ' . $e->getMessage());
+    try {
+        (new \App\Jobs\CheckExpiryAlertsJob)->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Expiry alerts check failed: '.$e->getMessage());
     }
 })->name('check-expiry-alerts')->withoutOverlapping(30)->dailyAt('07:00');
 
 // Warranty Expiry Check — weekly (runs inline)
 Schedule::call(function () {
-    try { (new \App\Jobs\CheckWarrantyExpiryJob)->handle(); } catch (\Throwable $e) {}
+    try {
+        (new \App\Jobs\CheckWarrantyExpiryJob)->handle();
+    } catch (\Throwable $e) {
+    }
 })->name('check-warranty-expiry')->withoutOverlapping(60)->weekly();
 
 // Monitoring jobs run directly (not via queue) — shared hosting has no queue worker
 Schedule::call(function () {
-    try { (new \App\Jobs\CheckVpnStatusJob)->handle(); } catch (\Throwable $e) {}
+    try {
+        (new \App\Jobs\CheckVpnStatusJob)->handle();
+    } catch (\Throwable $e) {
+    }
 })->name('check-vpn-status')->withoutOverlapping(5)->everyMinute();
 
 Schedule::call(function () {
@@ -126,7 +144,7 @@ Schedule::call(function () {
             $host->last_checked_at = now();
             $host->save();
 
-            if (!$result['success']) {
+            if (! $result['success']) {
                 $event = \App\Models\NocEvent::firstOrCreate(
                     ['source_id' => $host->id, 'source_type' => 'host_down', 'status' => 'open'],
                     ['module' => 'ping', 'title' => "Host Down: {$host->name}", 'message' => "Ping failed for {$host->ip}.", 'severity' => 'critical', 'first_seen' => now(), 'last_seen' => now()]
@@ -139,7 +157,8 @@ Schedule::call(function () {
                 \App\Models\NocEvent::where('source_id', $host->id)->where('source_type', 'host_down')->where('status', 'open')
                     ->update(['status' => 'resolved', 'resolved_at' => now()]);
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+        }
     }
 })->name('check-host-ping')->withoutOverlapping(2)->everyMinute();
 
@@ -153,7 +172,7 @@ Schedule::call(function () {
         try {
             (new \App\Jobs\CollectSnmpMetricsJob($host))->handle();
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("SNMP metrics failed for {$host->ip}: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("SNMP metrics failed for {$host->ip}: ".$e->getMessage());
         }
     }
 })->name('collect-snmp-metrics')->withoutOverlapping(5)->everyTwoMinutes();
@@ -166,7 +185,7 @@ Schedule::call(function () {
         try {
             $sla->checkLink($isp);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("SLA check failed for ISP #{$isp->id}: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("SLA check failed for ISP #{$isp->id}: ".$e->getMessage());
         }
     }
 })->name('check-isp-sla')->withoutOverlapping(5)->everyFiveMinutes();
@@ -178,7 +197,7 @@ Schedule::call(function () {
         try {
             (new \App\Jobs\DiscoverSnmpDeviceJob($host))->handle();
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("SNMP discover failed for {$host->ip}: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("SNMP discover failed for {$host->ip}: ".$e->getMessage());
         }
     }
 })->name('discover-snmp-devices')->withoutOverlapping(30)->daily();
@@ -190,7 +209,7 @@ Schedule::call(function () {
         try {
             (new \App\Jobs\DiscoverSnmpInterfacesJob($host))->handle();
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("SNMP interface discover failed for {$host->ip}: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("SNMP interface discover failed for {$host->ip}: ".$e->getMessage());
         }
     }
 })->name('discover-snmp-interfaces')->withoutOverlapping(30)->daily();
@@ -205,7 +224,7 @@ Schedule::call(function () {
         try {
             (new \App\Jobs\SyncSophosDataJob($fw))->handle();
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("Sophos sync failed for {$fw->name}: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("Sophos sync failed for {$fw->name}: ".$e->getMessage());
         }
     }
 })->name('sync-sophos-data')->withoutOverlapping(10)->cron($everyN($sophosInterval));
@@ -219,7 +238,7 @@ Schedule::call(function () {
         try {
             (new \App\Jobs\CollectArpTableJob($host))->handle();
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("ARP collection failed for {$host->ip}: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("ARP collection failed for {$host->ip}: ".$e->getMessage());
         }
     }
 })->name('collect-arp-tables')->withoutOverlapping(10)->everyTenMinutes();
@@ -229,7 +248,7 @@ Schedule::call(function () {
     try {
         (new \App\Jobs\DetectDhcpConflictsJob)->handle();
     } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error("DHCP conflict detection failed: " . $e->getMessage());
+        \Illuminate\Support\Facades\Log::error('DHCP conflict detection failed: '.$e->getMessage());
     }
 })->name('detect-dhcp-conflicts')->withoutOverlapping(10)->everyTenMinutes();
 
@@ -239,22 +258,28 @@ Schedule::call(function () {
 
 // UCM Extensions + Trunks — every 20 seconds (runs inline to avoid queue dependency)
 Schedule::call(function () {
-    try { (new \App\Jobs\SyncUcmExtensionsJob)->handle(); } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error("UCM extension sync failed: " . $e->getMessage());
+    try {
+        (new \App\Jobs\SyncUcmExtensionsJob)->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('UCM extension sync failed: '.$e->getMessage());
     }
 })->name('sync-ucm-extensions')->withoutOverlapping(15)->everyFifteenSeconds();
 
 // UCM Active Calls — every 15 seconds (runs inline)
 Schedule::call(function () {
-    try { (new \App\Jobs\SyncUcmActiveCallsJob)->handle(); } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error("UCM active calls sync failed: " . $e->getMessage());
+    try {
+        (new \App\Jobs\SyncUcmActiveCallsJob)->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('UCM active calls sync failed: '.$e->getMessage());
     }
 })->name('sync-ucm-active-calls')->withoutOverlapping(10)->everyFifteenSeconds();
 
 // Phone-Port MAC Correlation — every 60 seconds (runs inline)
 Schedule::call(function () {
-    try { (new \App\Jobs\SyncPhonePortMappingJob)->handle(app(\App\Services\PhonePortDetectionService::class)); } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error("Phone-port mapping failed: " . $e->getMessage());
+    try {
+        (new \App\Jobs\SyncPhonePortMappingJob)->handle(app(\App\Services\PhonePortDetectionService::class));
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Phone-port mapping failed: '.$e->getMessage());
     }
 })->name('sync-phone-port-map')->withoutOverlapping(30)->everyMinute();
 
@@ -272,7 +297,7 @@ Schedule::call(function () {
         ->get();
 
     foreach ($isps as $isp) {
-        if (!$isp->needsRenewalReminder()) {
+        if (! $isp->needsRenewalReminder()) {
             continue;
         }
 
@@ -301,14 +326,16 @@ Schedule::call(function () {
         // Fallback: notify first user if no admins
         if ($recipients->isEmpty()) {
             $first = \App\Models\User::first();
-            if ($first) $recipients->push($first);
+            if ($first) {
+                $recipients->push($first);
+            }
         }
 
         $recipients->unique('id')->each(function ($user) use ($isp) {
             try {
                 $user->notify(new \App\Notifications\IspRenewalReminderNotification($isp));
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error("ISP renewal notification failed for ISP #{$isp->id}: " . $e->getMessage());
+                \Illuminate\Support\Facades\Log::error("ISP renewal notification failed for ISP #{$isp->id}: ".$e->getMessage());
             }
         });
 
@@ -320,32 +347,65 @@ Schedule::call(function () {
             $nextDate = $isp->nextRenewalDate();
             $providerName = $isp->ispProvider?->name ?? $isp->provider;
             \App\Models\Notification::create([
-                'user_id'  => $recipients->first()?->id,
-                'type'     => 'system_alert',
+                'user_id' => $recipients->first()?->id,
+                'type' => 'system_alert',
                 'severity' => ($nextDate && $nextDate->isPast()) ? 'critical' : 'warning',
-                'title'    => "ISP Renewal: {$providerName}",
-                'message'  => "ISP contract for {$providerName} (".($isp->branch?->name ?: 'N/A').") is due for renewal on ".($nextDate ? $nextDate->format('M d, Y') : 'N/A').'.',
-                'link'     => '/admin/network/isp',
+                'title' => "ISP Renewal: {$providerName}",
+                'message' => "ISP contract for {$providerName} (".($isp->branch?->name ?: 'N/A').') is due for renewal on '.($nextDate ? $nextDate->format('M d, Y') : 'N/A').'.',
+                'link' => '/admin/network/isp',
             ]);
-        } catch (\Throwable) {}
+        } catch (\Throwable) {
+        }
     }
 })->name('check-isp-renewals')->withoutOverlapping(60)->dailyAt('08:00');
 
 // ─── Printer SNMP Polling — every 5 minutes ─────────────────
 Schedule::call(function () {
     try {
-        (new \App\Jobs\PollPrinterSnmpJob())->handle();
+        (new \App\Jobs\PollPrinterSnmpJob)->handle();
     } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error("Printer SNMP polling failed: " . $e->getMessage());
+        \Illuminate\Support\Facades\Log::error('Printer SNMP polling failed: '.$e->getMessage());
     }
 })->name('poll-printer-snmp')->withoutOverlapping(5)->everyFiveMinutes();
+
+// ─── Network Discovery Scan Processor — every minute ─────────
+// Runs one pending discovery scan inline (no queue worker in prod). For scans
+// started from the Printers "Discover Printers" button (auto_import_printers),
+// every printer found is auto-created + polled. This is the async path that
+// keeps large /24 sweeps from hitting a web gateway timeout.
+Schedule::call(function () {
+    $scan = \App\Models\DiscoveryScan::where('status', 'pending')->orderBy('id')->first();
+    if (! $scan) {
+        return;
+    }
+    try {
+        app(\App\Services\NetworkDiscoveryService::class)->runScan($scan);
+        if ($scan->fresh()->auto_import_printers) {
+            app(\App\Services\Printers\PrinterDiscoveryService::class)->importScanResults($scan->fresh());
+        }
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error("Discovery scan #{$scan->id} failed: ".$e->getMessage());
+        $scan->update(['status' => 'failed', 'finished_at' => now(), 'error_message' => $e->getMessage()]);
+    }
+})->name('process-discovery-scans')->withoutOverlapping(15)->everyMinute();
+
+// ─── Printer Sensor Discovery — every 10 minutes ─────────────
+// Heals SNMP printers that have no sensors yet (DiscoverSnmpDeviceJob is
+// dispatched on create but never drained without a worker). Bounded per run.
+Schedule::call(function () {
+    try {
+        app(\App\Services\Printers\PrinterDiscoveryService::class)->discoverPrinterSensors(10, true);
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Printer sensor discovery failed: '.$e->getMessage());
+    }
+})->name('discover-printer-sensors')->withoutOverlapping(15)->everyTenMinutes();
 
 // ─── Low Toner Monitor — every 30 minutes ────────────────────
 Schedule::call(function () {
     try {
         app(\App\Services\PrinterSupplyMonitorService::class)->checkAll();
     } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error("Low toner monitor failed: " . $e->getMessage());
+        \Illuminate\Support\Facades\Log::error('Low toner monitor failed: '.$e->getMessage());
     }
 })->name('check-low-toner')->withoutOverlapping(10)->everyThirtyMinutes();
 
@@ -354,9 +414,9 @@ Schedule::call(function () {
 // end-of-day so period diffs (e.g. "pages this month") can be computed.
 Schedule::call(function () {
     try {
-        (new \App\Jobs\SnapshotPrinterCountersJob())->handle();
+        (new \App\Jobs\SnapshotPrinterCountersJob)->handle();
     } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error("Printer counter snapshot failed: " . $e->getMessage());
+        \Illuminate\Support\Facades\Log::error('Printer counter snapshot failed: '.$e->getMessage());
     }
 })->name('snapshot-printer-counters')->withoutOverlapping(60)->dailyAt('23:55');
 
@@ -366,9 +426,9 @@ Schedule::call(function () {
 // Runs inline (not queued) to avoid queue-worker dependency on shared hosting.
 Schedule::call(function () {
     try {
-        (new \App\Jobs\RollupMetricsJob())->handle();
+        (new \App\Jobs\RollupMetricsJob)->handle();
     } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error("Metrics rollup failed: " . $e->getMessage());
+        \Illuminate\Support\Facades\Log::error('Metrics rollup failed: '.$e->getMessage());
     }
 })->name('rollup-metrics')->withoutOverlapping(30)->hourly();
 
@@ -377,9 +437,9 @@ Schedule::call(function () {
 // configurable metrics_retention_days setting from the DB.
 Schedule::call(function () {
     try {
-        (new \App\Jobs\PruneOldMetricsJob())->handle();
+        (new \App\Jobs\PruneOldMetricsJob)->handle();
     } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error("Prune metrics failed: " . $e->getMessage());
+        \Illuminate\Support\Facades\Log::error('Prune metrics failed: '.$e->getMessage());
     }
 })->name('prune-old-metrics')->withoutOverlapping(60)->weeklyOn(0, '02:00');
 
@@ -432,7 +492,7 @@ Schedule::call(function () {
             app(\App\Services\BrowserPortal\SessionManager::class)
         );
     } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error('Browser portal cleanup failed: ' . $e->getMessage());
+        \Illuminate\Support\Facades\Log::error('Browser portal cleanup failed: '.$e->getMessage());
     }
 })->name('cleanup-browser-sessions')->withoutOverlapping(5)->everyFiveMinutes();
 
@@ -444,7 +504,7 @@ Schedule::call(function () {
     try {
         (new \App\Jobs\RenewExpiringCertificatesJob)->handle();
     } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error('SSL auto-renewal failed: ' . $e->getMessage());
+        \Illuminate\Support\Facades\Log::error('SSL auto-renewal failed: '.$e->getMessage());
     }
 })->name('renew-expiring-certs')->withoutOverlapping(30)->dailyAt('02:00');
 
@@ -465,32 +525,40 @@ Schedule::command('onboarding:remind-managers')
 // Tag source_type / source_id on freshly-received syslog rows by IP
 // against SophosFirewall / UcmServer / Printer / MonitoredHost.
 Schedule::call(function () {
-    try { (new \App\Jobs\TagSyslogSourcesJob)->handle(); } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error('TagSyslogSourcesJob failed: ' . $e->getMessage());
+    try {
+        (new \App\Jobs\TagSyslogSourcesJob)->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('TagSyslogSourcesJob failed: '.$e->getMessage());
     }
 })->name('tag-syslog-sources')->withoutOverlapping(5)->everyMinute();
 
 // Run user-defined alert rules over recent syslog rows and surface
 // matches as NocEvents (so the existing notification routing fires).
 Schedule::call(function () {
-    try { (new \App\Jobs\MatchSyslogAlertsJob)->handle(); } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error('MatchSyslogAlertsJob failed: ' . $e->getMessage());
+    try {
+        (new \App\Jobs\MatchSyslogAlertsJob)->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('MatchSyslogAlertsJob failed: '.$e->getMessage());
     }
 })->name('match-syslog-alerts')->withoutOverlapping(5)->everyMinute();
 
 // Parse vendor-specific KV payloads (Sophos firewalls today; Cisco/UCM
 // can be added later) into the syslog_messages.parsed JSON column.
 Schedule::call(function () {
-    try { (new \App\Jobs\ParseSyslogPayloadsJob)->handle(); } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error('ParseSyslogPayloadsJob failed: ' . $e->getMessage());
+    try {
+        (new \App\Jobs\ParseSyslogPayloadsJob)->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('ParseSyslogPayloadsJob failed: '.$e->getMessage());
     }
 })->name('parse-syslog-payloads')->withoutOverlapping(5)->everyMinute();
 
 // Daily prune — drops syslog_messages rows older than the retention
 // window (Setting::syslog_retention_days, default 30).
 Schedule::call(function () {
-    try { (new \App\Jobs\PruneOldSyslogJob)->handle(); } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::error('PruneOldSyslogJob failed: ' . $e->getMessage());
+    try {
+        (new \App\Jobs\PruneOldSyslogJob)->handle();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('PruneOldSyslogJob failed: '.$e->getMessage());
     }
 })->name('prune-old-syslog')->withoutOverlapping(60)->dailyAt('03:30');
 

@@ -11,6 +11,14 @@
         <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#discoverPrintersModal">
             <i class="bi bi-broadcast-pin me-1"></i>Discover Printers
         </button>
+        <form method="POST" action="{{ route('admin.printers.discover-sensors') }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-secondary"
+                    title="Discover SNMP sensors for printers that don't have any yet">
+                <i class="bi bi-hdd-network me-1"></i>Discover Sensors
+                @if(($missingSensors ?? 0) > 0)<span class="badge bg-warning text-dark ms-1">{{ $missingSensors }}</span>@endif
+            </button>
+        </form>
         @endcan
         <form method="POST" action="{{ route('admin.printers.snmp.poll-all') }}" class="d-inline">
             @csrf

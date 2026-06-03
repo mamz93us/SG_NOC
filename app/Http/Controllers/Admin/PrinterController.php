@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\CupsPrinter;
 use App\Models\Department;
 use App\Models\Device;
+use App\Models\DiscoveryScan;
 use App\Models\MonitoredHost;
 use App\Models\NocEvent;
 use App\Models\Printer;
@@ -153,7 +154,18 @@ class PrinterController extends Controller
         $branches = Branch::orderBy('name')->get(['id', 'name']);
         $departments = Printer::whereNotNull('department')->distinct()->orderBy('department')->pluck('department');
 
-        return view('admin.printers.index', compact('printers', 'branches', 'departments'));
+        // Most recent auto-discovery scan (for the progress banner) + count of
+        // SNMP printers still missing sensors (for the "Discover Sensors" badge).
+        $lastScan = DiscoveryScan::where('auto_import_printers', true)
+            ->where('created_at', '>=', now()->subHours(6))
+            ->orderByDesc('id')
+            ->first();
+        $missingSensors = MonitoredHost::where('snmp_enabled', true)
+            ->where('type', 'printer')
+            ->whereDoesntHave('snmpSensors')
+            ->count();
+
+        return view('admin.printers.index', compact('printers', 'branches', 'departments', 'lastScan', 'missingSensors'));
     }
 
     public function show(Printer $printer)
@@ -438,8 +450,12 @@ class PrinterController extends Controller
 
         $printers = $query->get();
         $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $missingSensors = MonitoredHost::where('snmp_enabled', true)
+            ->where('type', 'printer')
+            ->whereDoesntHave('snmpSensors')
+            ->count();
 
-        return view('admin.printers.snmp-status', compact('printers', 'branches'));
+        return view('admin.printers.snmp-status', compact('printers', 'branches', 'missingSensors'));
     }
 
     public function snmpPoll(Printer $printer)
@@ -467,42 +483,58 @@ class PrinterController extends Controller
 
     /**
      * POST /admin/printers/discover-scan
-     * Scan an IP range over SNMP, auto-create + poll every printer found that
-     * isn't already in the system. Runs synchronously (no queue worker in prod).
+     * Queue an SNMP network scan that auto-creates + polls every printer found.
+     * The scan runs in the background (scheduled processor) so large ranges never
+     * hit a gateway timeout; printers appear in the list as they're imported.
      */
-    public function discoverScan(Request $request, PrinterDiscoveryService $discovery)
+    public function discoverScan(Request $request)
     {
         $data = $request->validate([
             'range_input' => 'required|string|max:255',
             'branch_id' => 'nullable|exists:branches,id',
             'snmp_community' => 'nullable|string|max:100',
-            'snmp_version' => 'nullable|in:v1,v2c,v3',
             'snmp_timeout' => 'nullable|integer|min:1|max:5',
         ]);
 
-        $summary = $discovery->scanForPrinters($data['range_input'], [
-            'community' => $data['snmp_community'] ?? 'public',
-            'version' => $data['snmp_version'] ?? 'v2c',
+        $scan = DiscoveryScan::create([
+            'name' => 'Printer auto-discovery',
+            'range_input' => trim($data['range_input']),
             'branch_id' => $data['branch_id'] ?? null,
-            'timeout' => $data['snmp_timeout'] ?? 2,
+            'snmp_community' => $data['snmp_community'] ?: 'public',
+            'snmp_timeout' => $data['snmp_timeout'] ?? 2,
+            'auto_import_printers' => true,
+            'status' => 'pending',
+            'created_by' => Auth::id(),
         ]);
 
-        if (! empty($summary['error'])) {
-            return back()->with('error', $summary['error']);
+        return redirect()->route('admin.printers.index')->with('info',
+            "Discovery scan queued for {$scan->range_input}. Discovered printers are added "
+            .'automatically within a minute or two — refresh this page to see them.'
+        );
+    }
+
+    /**
+     * POST /admin/printers/discover-sensors
+     * Discover SNMP sensors for printer hosts that don't have any yet. Runs a
+     * small bounded batch inline (so the request can't time out); the scheduled
+     * 'discover-printer-sensors' task clears any remainder every 10 minutes.
+     */
+    public function discoverSensors(PrinterDiscoveryService $discovery)
+    {
+        // Small inline batch keeps the request well under the gateway timeout;
+        // the scheduled 'discover-printer-sensors' task clears the remainder.
+        $res = $discovery->discoverPrinterSensors(limit: 3, onlyMissing: true);
+
+        if ($res['processed'] === 0 && $res['remaining'] === 0) {
+            return back()->with('info', 'All SNMP-enabled printers already have sensors discovered.');
         }
 
-        $created = count($summary['created']);
-        $msg = "Discovery scan finished: {$summary['scanned']} IP(s) scanned, "
-            ."{$summary['reachable']} online, {$summary['printers']} printer(s) detected — "
-            ."{$created} newly added, {$summary['existing']} already known.";
-        if ($summary['truncated']) {
-            $msg .= ' Range capped at 256 IPs — use Network Discovery for larger sweeps.';
+        $msg = "Discovered SNMP sensors for {$res['processed']} printer(s).";
+        if ($res['remaining'] > 0) {
+            $msg .= " {$res['remaining']} still pending — processed automatically every 10 minutes.";
         }
 
-        // Hand the detailed result to the index view for a rich summary panel.
-        return redirect()->route('admin.printers.index')
-            ->with($created > 0 ? 'success' : 'info', $msg)
-            ->with('discovery_summary', $summary);
+        return back()->with('success', $msg);
     }
 
     // ─── Manual Employee Assignment ─────────────────────────────

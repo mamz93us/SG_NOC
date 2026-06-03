@@ -5,6 +5,7 @@ namespace App\Services\Printers;
 use App\Jobs\DiscoverSnmpDeviceJob;
 use App\Jobs\PollPrinterSnmpJob;
 use App\Models\Device;
+use App\Models\DiscoveryScan;
 use App\Models\MonitoredHost;
 use App\Models\Printer;
 use App\Services\AssetCodeService;
@@ -13,18 +14,19 @@ use App\Services\PingService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Symfony\Component\Process\Process;
 
 /**
  * Printer-focused SNMP discovery.
  *
  * Wraps the generic NetworkDiscoveryService + PollPrinterSnmpJob so the
- * Printers UI can, in one click:
- *   1. ping + SNMP-discover + pull a single printer (on create / SNMP-enable)
- *   2. scan an IP range and auto-create + poll every printer it finds
+ * Printers UI can:
+ *   1. ping + SNMP-discover + pull a single printer (on create / SNMP-enable) — synchronous, bounded
+ *   2. import the printer results of a completed network scan (auto-create + poll)
+ *   3. discover SNMP sensors for printer hosts that don't have any yet
  *
- * Everything runs synchronously — production has no dedicated queue worker
- * (see CLAUDE.md), so we never rely on dispatch() actually being drained.
+ * Production has no dedicated queue worker (see CLAUDE.md), so bulk work (#2, #3)
+ * is driven from scheduled tasks rather than dispatch(); buttons only enqueue a
+ * DiscoveryScan or run a small bounded batch so the web request never times out.
  */
 class PrinterDiscoveryService
 {
@@ -101,108 +103,110 @@ class PrinterDiscoveryService
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Feature 2 — network scan: find printers and auto-import them
+    // Feature 2 — import printers from a completed network scan
     // ─────────────────────────────────────────────────────────────
 
     /**
-     * Scan an IP range for SNMP printers and auto-create + poll any that
-     * aren't already in the system.
+     * Auto-create + poll every printer-type result of a finished DiscoveryScan
+     * that isn't already in the system. Called by the scheduled scan processor
+     * (NOT in a web request) so it can take as long as it needs.
      *
-     * @param  array{community?:?string,version?:?string,branch_id?:?int,timeout?:int}  $opts
-     * @return array{
-     *   scanned:int, reachable:int, printers:int, existing:int,
-     *   created:array<int,array{id:int,name:string,ip:string,model:?string,toner:?int}>,
-     *   truncated:bool, error:?string
-     * }
+     * @return array{created:int, existing:int} counts
      */
-    public function scanForPrinters(string $range, array $opts = []): array
+    public function importScanResults(DiscoveryScan $scan): array
     {
         @set_time_limit(0);
 
-        $community = ($opts['community'] ?? null) ?: 'public';
-        $version = ($opts['version'] ?? null) ?: 'v2c';
-        $branchId = $opts['branch_id'] ?? null;
-        $timeout = (int) ($opts['timeout'] ?? 2);
+        $counts = ['created' => 0, 'existing' => 0];
 
-        $summary = [
-            'scanned' => 0,
-            'reachable' => 0,
-            'printers' => 0,
-            'existing' => 0,
-            'created' => [],
-            'truncated' => false,
-            'error' => null,
-        ];
+        $results = $scan->results()
+            ->where('device_type', 'printer')
+            ->where('already_imported', false)
+            ->get();
 
-        $ips = $this->discovery->parseRange($range);
-
-        if (empty($ips)) {
-            $summary['error'] = 'No valid IPs parsed. Use CIDR (192.168.1.0/24) or a range (192.168.1.1-254).';
-
-            return $summary;
-        }
-
-        // Bound the synchronous path. Larger sweeps belong in the full
-        // Network Discovery tool (which runs as a background scan).
-        $cap = 256;
-        if (count($ips) > $cap) {
-            $ips = array_slice($ips, 0, $cap);
-            $summary['truncated'] = true;
-        }
-        $summary['scanned'] = count($ips);
-
-        // Fast parallel liveness pass, then SNMP-probe only the live hosts.
-        $alive = $this->fastPing($ips);
-        $summary['reachable'] = count($alive);
-
-        foreach ($alive as $ip) {
-            try {
-                $probe = $this->discovery->probeHost($ip, $community, $timeout);
-            } catch (\Throwable $e) {
-                Log::warning("PrinterDiscoveryService: probe failed for {$ip}: {$e->getMessage()}");
-
-                continue;
-            }
-
-            if (! ($probe['snmp_accessible'] ?? false) || ($probe['device_type'] ?? null) !== 'printer') {
-                continue;
-            }
-
-            $summary['printers']++;
-
-            if (Printer::where('ip_address', $ip)->exists()) {
-                $summary['existing']++;
+        foreach ($results as $result) {
+            if (Printer::where('ip_address', $result->ip_address)->exists()) {
+                $result->update(['already_imported' => true]);
+                $counts['existing']++;
 
                 continue;
             }
 
             try {
-                $printer = $this->createPrinterFromProbe($probe, $community, $version, $branchId);
+                $printer = $this->createPrinterFromProbe([
+                    'ip_address' => $result->ip_address,
+                    'sys_name' => $result->sys_name,
+                    'hostname' => $result->hostname,
+                    'model' => $result->model,
+                    'vendor' => $result->vendor,
+                    'mac_address' => $result->mac_address,
+                ], $scan->snmp_community ?: 'public', 'v2c', $scan->branch_id);
             } catch (\Throwable $e) {
-                Log::error("PrinterDiscoveryService: failed to create printer for {$ip}: {$e->getMessage()}");
+                Log::error("PrinterDiscoveryService: import failed for {$result->ip_address}: {$e->getMessage()}");
 
                 continue;
             }
 
-            // Pull live data immediately so the new card isn't empty.
+            // Register for monitoring + pull live data so the card isn't empty.
             try {
                 $this->syncMonitoredHost($printer);
                 PollPrinterSnmpJob::dispatchSync($printer->id);
-                $printer->refresh();
             } catch (\Throwable $e) {
-                Log::warning("PrinterDiscoveryService: first poll failed for {$ip}: {$e->getMessage()}");
+                Log::warning("PrinterDiscoveryService: first poll failed for {$result->ip_address}: {$e->getMessage()}");
             }
 
-            $summary['created'][] = [
-                'id' => $printer->id,
-                'name' => $printer->printer_name,
-                'ip' => $printer->ip_address,
-                'model' => $printer->snmp_model ?: $printer->model,
-                'toner' => $printer->lowestTonerLevel(),
-            ];
+            $result->update([
+                'already_imported' => true,
+                'imported_type' => 'printer',
+                'imported_id' => $printer->id,
+            ]);
+            $counts['created']++;
         }
 
-        return $summary;
+        if ($counts['created'] > 0) {
+            $scan->increment('imported_count', $counts['created']);
+        }
+
+        return $counts;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Feature 3 — SNMP sensor discovery for printer hosts
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Run SNMP sensor discovery for printer MonitoredHosts that have no sensors
+     * yet (the gap left when DiscoverSnmpDeviceJob is dispatched but never drained
+     * by a worker). Bounded by $limit so it's safe to call from a web request.
+     *
+     * Pass $onlyMissing=false to (re)discover sensors for every SNMP printer.
+     *
+     * @return array{processed:int, remaining:int}
+     */
+    public function discoverPrinterSensors(int $limit = 10, bool $onlyMissing = true): array
+    {
+        $query = MonitoredHost::where('snmp_enabled', true)
+            ->where('type', 'printer')
+            ->whereNotNull('ip');
+
+        if ($onlyMissing) {
+            $query->whereDoesntHave('snmpSensors');
+        }
+
+        $remaining = (clone $query)->count();
+        $hosts = $query->orderBy('id')->limit($limit)->get();
+
+        $processed = 0;
+        foreach ($hosts as $host) {
+            try {
+                (new DiscoverSnmpDeviceJob($host))->handle();
+                $processed++;
+            } catch (\Throwable $e) {
+                Log::error("PrinterDiscoveryService: sensor discovery failed for {$host->ip}: {$e->getMessage()}");
+            }
+        }
+
+        return ['processed' => $processed, 'remaining' => max(0, $remaining - $processed)];
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -242,62 +246,6 @@ class PrinterDiscoveryService
         if ($printer->snmp_enabled && ($isNew || $host->wasRecentlyCreated)) {
             DiscoverSnmpDeviceJob::dispatch($host);
         }
-    }
-
-    /**
-     * Fast liveness check for a list of IPs. Uses fping -g in parallel when
-     * available; falls back to a bounded serial ping otherwise.
-     *
-     * @param  array<int,string>  $ips
-     * @return array<int,string> the subset that responded
-     */
-    protected function fastPing(array $ips): array
-    {
-        if (empty($ips)) {
-            return [];
-        }
-
-        if (count($ips) === 1) {
-            try {
-                return ($this->ping->ping($ips[0], 1)['success'] ?? false) ? $ips : [];
-            } catch (\Throwable) {
-                return [];
-            }
-        }
-
-        // Parallel sweep via fping (same approach as IpScannerController).
-        try {
-            $process = new Process(['fping', '-g', $ips[0], end($ips), '-a', '-r', '1', '-t', '200']);
-            $process->setTimeout(90);
-            $process->run();
-            $output = $process->getOutput();
-            if ($output !== '') {
-                $alive = array_filter(array_map('trim', explode("\n", trim($output))));
-
-                // fping -g walks a contiguous range; intersect to honour the exact list.
-                return array_values(array_intersect($ips, $alive));
-            }
-            // fping ran but nothing answered → genuinely empty.
-            if ($process->isSuccessful() || $process->getExitCode() === 1) {
-                return [];
-            }
-        } catch (\Throwable $e) {
-            Log::debug('PrinterDiscoveryService: fping unavailable, falling back to serial ping: '.$e->getMessage());
-        }
-
-        // Fallback: serial ping (bounded by the 256 cap upstream).
-        $alive = [];
-        foreach ($ips as $ip) {
-            try {
-                if ($this->ping->ping($ip, 1)['success'] ?? false) {
-                    $alive[] = $ip;
-                }
-            } catch (\Throwable) {
-                // skip
-            }
-        }
-
-        return $alive;
     }
 
     /**

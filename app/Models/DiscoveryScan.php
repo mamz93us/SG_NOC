@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DiscoveryScan extends Model
 {
@@ -12,11 +12,13 @@ class DiscoveryScan extends Model
         'name', 'range_input', 'branch_id', 'snmp_community', 'snmp_timeout',
         'status', 'total_hosts', 'reachable_count', 'error_message',
         'started_at', 'finished_at', 'created_by',
+        'auto_import_printers', 'imported_count',
     ];
 
     protected $casts = [
-        'started_at'  => 'datetime',
+        'started_at' => 'datetime',
         'finished_at' => 'datetime',
+        'auto_import_printers' => 'boolean',
     ];
 
     public function results(): HasMany
@@ -43,9 +45,9 @@ class DiscoveryScan extends Model
     {
         return match ($this->status) {
             'completed' => 'success',
-            'running'   => 'primary',
-            'failed'    => 'danger',
-            default     => 'secondary',
+            'running' => 'primary',
+            'failed' => 'danger',
+            default => 'secondary',
         };
     }
 
@@ -55,6 +57,7 @@ class DiscoveryScan extends Model
             return null;
         }
         $secs = $this->started_at->diffInSeconds($this->finished_at);
-        return $secs < 60 ? "{$secs}s" : round($secs / 60, 1) . 'm';
+
+        return $secs < 60 ? "{$secs}s" : round($secs / 60, 1).'m';
     }
 }

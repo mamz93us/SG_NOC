@@ -26,7 +26,7 @@
                     </div>
 
                     <div class="row g-2">
-                        <div class="col-md-6">
+                        <div class="col-md-7">
                             <label class="form-label">Assign to branch</label>
                             <select name="branch_id" class="form-select">
                                 <option value="">— None —</option>
@@ -35,29 +35,23 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Community</label>
+                        <div class="col-md-5">
+                            <label class="form-label">SNMP community</label>
                             <input type="text" name="snmp_community" class="form-control font-monospace"
                                    value="public" maxlength="100" placeholder="public">
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Version</label>
-                            <select name="snmp_version" class="form-select">
-                                <option value="v2c" selected>v2c</option>
-                                <option value="v1">v1</option>
-                            </select>
-                        </div>
                     </div>
 
-                    <div class="alert alert-warning small mt-3 mb-0 py-2">
+                    <div class="alert alert-info small mt-3 mb-0 py-2">
                         <i class="bi bi-clock-history me-1"></i>
-                        A full /24 sweep can take up to a minute. Please wait after starting — don't close the tab.
+                        The scan runs in the background — discovered printers appear in the list automatically
+                        within a minute or two. You can close this and keep working.
                     </div>
                 </div>
                 <div class="modal-footer py-2">
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-success btn-sm" id="discoverPrintersSubmit">
-                        <i class="bi bi-search me-1"></i>Start Scan
+                        <i class="bi bi-search me-1"></i>Queue Scan
                     </button>
                 </div>
             </form>
@@ -72,7 +66,7 @@ document.getElementById('discoverPrintersForm')?.addEventListener('submit', func
     const btn = document.getElementById('discoverPrintersSubmit');
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Scanning…';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Queuing…';
     }
 });
 </script>

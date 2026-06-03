@@ -11,6 +11,14 @@
         <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#discoverPrintersModal">
             <i class="bi bi-broadcast-pin me-1"></i>Discover Printers
         </button>
+        <form method="POST" action="{{ route('admin.printers.discover-sensors') }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-outline-secondary btn-sm"
+                    title="Discover SNMP sensors for printers that don't have any yet">
+                <i class="bi bi-hdd-network me-1"></i>Discover Sensors
+                @if(($missingSensors ?? 0) > 0)<span class="badge bg-warning text-dark ms-1">{{ $missingSensors }}</span>@endif
+            </button>
+        </form>
         <a href="{{ route('admin.printers.create') }}" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Printer
         </a>
@@ -28,30 +36,25 @@
 <div class="alert alert-danger alert-dismissible fade show py-2"><i class="bi bi-exclamation-triangle me-1"></i>{{ session('error') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 @endif
 
-@if(session('discovery_summary') && !empty(session('discovery_summary')['created']))
-@php $ds = session('discovery_summary'); @endphp
-<div class="card border-success shadow-sm mb-3">
-    <div class="card-header bg-success-subtle py-2 d-flex justify-content-between align-items-center">
-        <span class="fw-semibold"><i class="bi bi-printer-fill me-1 text-success"></i>{{ count($ds['created']) }} printer(s) discovered &amp; added</span>
-        <small class="text-muted">{{ $ds['scanned'] }} scanned · {{ $ds['reachable'] }} online · {{ $ds['printers'] }} printers found</small>
+@if(!empty($lastScan))
+<div class="alert {{ $lastScan->status === 'completed' ? 'alert-success' : ($lastScan->status === 'failed' ? 'alert-danger' : 'alert-info') }} d-flex justify-content-between align-items-center py-2">
+    <div>
+        <i class="bi bi-broadcast-pin me-1"></i>
+        @if($lastScan->status === 'pending')
+            Discovery scan for <span class="font-monospace">{{ $lastScan->range_input }}</span> is queued — it starts within a minute.
+        @elseif($lastScan->status === 'running')
+            Discovery scan for <span class="font-monospace">{{ $lastScan->range_input }}</span> is running…
+        @elseif($lastScan->status === 'completed')
+            Discovery scan for <span class="font-monospace">{{ $lastScan->range_input }}</span> completed —
+            <strong>{{ $lastScan->imported_count }}</strong> printer(s) added, {{ $lastScan->reachable_count }} host(s) online.
+            @if($lastScan->imported_count > 0)<span class="text-muted">Newly added printers have no location set — edit each to assign a floor/office.</span>@endif
+        @else
+            Discovery scan for <span class="font-monospace">{{ $lastScan->range_input }}</span> failed: {{ $lastScan->error_message }}
+        @endif
     </div>
-    <div class="card-body p-0">
-        <table class="table table-sm table-hover mb-0 small">
-            <thead class="table-light"><tr><th>Name</th><th>IP</th><th>Model</th><th>Lowest Toner</th><th></th></tr></thead>
-            <tbody>
-                @foreach($ds['created'] as $c)
-                <tr>
-                    <td class="fw-semibold">{{ $c['name'] }}</td>
-                    <td class="font-monospace">{{ $c['ip'] }}</td>
-                    <td class="text-muted">{{ $c['model'] ?: '—' }}</td>
-                    <td>{{ $c['toner'] !== null ? $c['toner'] . '%' : '—' }}</td>
-                    <td class="text-end"><a href="{{ route('admin.printers.show', $c['id']) }}" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-eye"></i></a></td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
-    <div class="card-footer py-1 small text-muted">Tip: discovered printers have no location set — edit each to assign a floor/office.</div>
+    @if(in_array($lastScan->status, ['pending', 'running']))
+    <a href="{{ route('admin.printers.index') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</a>
+    @endif
 </div>
 @endif
 
