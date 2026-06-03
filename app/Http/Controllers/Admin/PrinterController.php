@@ -466,10 +466,12 @@ class PrinterController extends Controller
         return view('admin.printers.snmp-status', compact('printers', 'branches', 'missingSensors', 'hostsByIp'));
     }
 
-    public function snmpPoll(Printer $printer)
+    public function snmpPoll(Printer $printer, PrinterDiscoveryService $discovery)
     {
-        // Manual poll → force (bypass the recent-poll lock) so it always refreshes.
+        // Manual poll → force (bypass the recent-poll lock) so it always refreshes,
+        // then sync anything it missed from host-monitoring sensors.
         PollPrinterSnmpJob::dispatchSync($printer->id, true);
+        $discovery->backfillFromHostSensors($printer->refresh());
 
         return back()->with('success', "SNMP poll completed for \"{$printer->printer_name}\".");
     }

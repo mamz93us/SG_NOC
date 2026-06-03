@@ -363,6 +363,9 @@ Schedule::call(function () {
 Schedule::call(function () {
     try {
         (new \App\Jobs\PollPrinterSnmpJob)->handle();
+        // Sync anything the direct poll missed from host-monitoring sensors
+        // (vendor MIBs the host pipeline reads but PollPrinterSnmpJob can't).
+        app(\App\Services\Printers\PrinterDiscoveryService::class)->backfillAllFromHostSensors();
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('Printer SNMP polling failed: '.$e->getMessage());
     }
@@ -378,6 +381,7 @@ Schedule::call(function () {
     }
     try {
         (new \App\Jobs\PollPrinterSnmpJob(null, true))->handle();
+        app(\App\Services\Printers\PrinterDiscoveryService::class)->backfillAllFromHostSensors();
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('Forced printer SNMP poll failed: '.$e->getMessage());
     }

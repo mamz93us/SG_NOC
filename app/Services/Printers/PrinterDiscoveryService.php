@@ -8,6 +8,7 @@ use App\Models\Device;
 use App\Models\DiscoveryScan;
 use App\Models\MonitoredHost;
 use App\Models\Printer;
+use App\Models\PrinterSupply;
 use App\Services\AssetCodeService;
 use App\Services\NetworkDiscoveryService;
 use App\Services\PingService;
@@ -90,7 +91,10 @@ class PrinterDiscoveryService
 
         // 3. Full poll: toner, supplies, counters, status, model, serial.
         try {
-            PollPrinterSnmpJob::dispatchSync($printer->id);
+            PollPrinterSnmpJob::dispatchSync($printer->id, true);
+            $printer->refresh();
+            // Fill anything the direct poll missed from host-monitoring sensors.
+            $this->backfillFromHostSensors($printer);
             $printer->refresh();
             $summary['polled'] = true;
             $summary['message'] = 'Printer discovered and polled — '.$this->pollSummary($printer).'.';
@@ -207,6 +211,163 @@ class PrinterDiscoveryService
         }
 
         return ['processed' => $processed, 'remaining' => max(0, $remaining - $processed)];
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Feature 4 — sync printer fields from host-monitoring sensors
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Backfill a printer's toner / page-counter / status fields from its
+     * MonitoredHost SNMP sensors. The host's sensor pipeline (RicohPrinterOS,
+     * etc.) reliably reads vendor MIBs that PollPrinterSnmpJob sometimes can't,
+     * so this is how the SNMP page stays in sync with host monitoring.
+     *
+     * Fill-when-missing: only fields the printer's own poll left empty are
+     * touched, so a printer that polls fine is never overwritten.
+     */
+    public function backfillFromHostSensors(Printer $printer): bool
+    {
+        if (empty($printer->ip_address)) {
+            return false;
+        }
+
+        $host = MonitoredHost::with(['snmpSensors.latestMetric'])
+            ->where('ip', $printer->ip_address)
+            ->first();
+
+        if (! $host || $host->snmpSensors->isEmpty()) {
+            return false;
+        }
+
+        // First sensor whose name contains any needle → its latest value.
+        $byName = function (array $needles) use ($host) {
+            foreach ($host->snmpSensors as $s) {
+                $name = strtolower($s->name);
+                foreach ($needles as $n) {
+                    if (str_contains($name, $n)) {
+                        return $s->latestMetric?->value;
+                    }
+                }
+            }
+
+            return null;
+        };
+
+        $changed = false;
+        $supplyIndex = 910; // synthetic, above real-MIB (1..N) and Ricoh fallback (900..)
+
+        // ── Toner (reuse the host's own K/C/M/Y resolver) ──
+        $toner = $host->tonerLevels();
+        $tonerCols = [
+            'toner_black' => ['v' => $toner['K'], 'color' => 'black'],
+            'toner_cyan' => ['v' => $toner['C'], 'color' => 'cyan'],
+            'toner_magenta' => ['v' => $toner['M'], 'color' => 'magenta'],
+            'toner_yellow' => ['v' => $toner['Y'], 'color' => 'yellow'],
+        ];
+        foreach ($tonerCols as $col => $info) {
+            if ($printer->$col !== null || $info['v'] === null) {
+                continue; // printer already has it, or host has nothing
+            }
+            $pct = max(0, min(100, (int) round($info['v'])));
+            $printer->$col = $pct;
+            $this->upsertTonerSupply($printer, $info['color'], $pct, $supplyIndex++);
+            $changed = true;
+        }
+
+        // ── Page counters ──
+        $counters = [
+            'page_count_total' => ['total counter', 'total pages', 'total'],
+            'page_count_print' => ['print counter'],
+            'page_count_copy' => ['copy counter', 'copy'],
+            'page_count_fax' => ['fax counter', 'fax'],
+            'page_count_color' => ['color pages', 'color counter', 'color'],
+            'page_count_mono' => ['mono pages', 'mono', 'b/w'],
+            'page_count_scan' => ['scan counter', 'scan'],
+        ];
+        foreach ($counters as $col => $needles) {
+            if ($printer->$col !== null) {
+                continue;
+            }
+            $v = $byName($needles);
+            if ($v !== null && (int) round($v) >= 0) {
+                $printer->$col = (int) round($v);
+                $changed = true;
+            }
+        }
+
+        // ── Printer status (3=idle, 4=printing, 5=warmup) ──
+        if (empty($printer->printer_status) || $printer->printer_status === 'unknown') {
+            $statusVal = $byName(['printer status']);
+            if ($statusVal !== null) {
+                $mapped = match ((int) round($statusVal)) {
+                    3 => 'idle', 4 => 'printing', 5 => 'warmup', default => null,
+                };
+                if ($mapped) {
+                    $printer->printer_status = $mapped;
+                    $changed = true;
+                }
+            }
+        }
+
+        if ($changed) {
+            $printer->snmp_last_polled_at = now();
+            $printer->save();
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Backfill every SNMP printer from its host sensors. Returns the number of
+     * printers that gained data. Safe for the scheduler (no time bound needed —
+     * it only reads already-collected sensor rows, no live SNMP).
+     */
+    public function backfillAllFromHostSensors(): int
+    {
+        $count = 0;
+
+        Printer::where('snmp_enabled', true)
+            ->whereNotNull('ip_address')
+            ->chunkById(100, function ($printers) use (&$count) {
+                foreach ($printers as $printer) {
+                    try {
+                        if ($this->backfillFromHostSensors($printer)) {
+                            $count++;
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning("PrinterDiscoveryService: host-sensor backfill failed for {$printer->ip_address}: {$e->getMessage()}");
+                    }
+                }
+            });
+
+        return $count;
+    }
+
+    /**
+     * Mirror a toner percentage into PrinterSupply so the SNMP cards, dashboard
+     * widgets and low-toner alerts (which read PrinterSupply) all reflect it.
+     * Reuses an existing row for the colour to avoid duplicates.
+     */
+    protected function upsertTonerSupply(Printer $printer, string $color, int $pct, int $fallbackIndex): void
+    {
+        $existing = PrinterSupply::where('printer_id', $printer->id)
+            ->where('supply_color', $color)
+            ->where('supply_type', 'toner')
+            ->first();
+
+        PrinterSupply::updateOrCreate(
+            ['printer_id' => $printer->id, 'supply_index' => $existing->supply_index ?? $fallbackIndex],
+            [
+                'supply_type' => 'toner',
+                'supply_color' => $color,
+                'supply_descr' => $existing->supply_descr ?? (ucfirst($color).' Toner'),
+                'supply_percent' => $pct,
+                'warning_threshold' => $existing->warning_threshold ?? 20,
+                'critical_threshold' => $existing->critical_threshold ?? 5,
+                'last_updated_at' => now(),
+            ]
+        );
     }
 
     // ─────────────────────────────────────────────────────────────
