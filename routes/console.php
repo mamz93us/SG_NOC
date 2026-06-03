@@ -428,6 +428,14 @@ Schedule::call(function () {
     }
 })->name('check-low-toner')->withoutOverlapping(10)->everyThirtyMinutes();
 
+// ─── Monthly Low-Toner Digest ────────────────────────────────
+// One consolidated low-toner email per month instead of an email per cartridge.
+// The command no-ops unless printer_alerts.toner_email_mode = 'monthly_digest'.
+Schedule::command('printers:toner-digest')
+    ->monthlyOn((int) config('printer_alerts.digest.day', 1), config('printer_alerts.digest.time', '08:00'))
+    ->withoutOverlapping(60)
+    ->name('printer-toner-digest');
+
 // ─── Printer Counter Snapshot — daily at 23:55 ────────────────
 // Drives the Usage Report by capturing each printer's page counters at
 // end-of-day so period diffs (e.g. "pages this month") can be computed.

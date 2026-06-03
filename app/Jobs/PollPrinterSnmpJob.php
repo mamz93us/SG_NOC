@@ -537,6 +537,15 @@ class PollPrinterSnmpJob implements ShouldQueue
             'cooldown_minutes' => 1440,
         ]);
 
+        // In monthly-digest mode, toner/waste conditions are summarised in the
+        // once-a-month report instead of emailing per cartridge. The NOC event is
+        // still created above (dashboard stays accurate); we just skip the email.
+        // Printer errors and paper-low alerts always email immediately.
+        $isToner = str_contains($eventKey, '_toner_') || str_ends_with($eventKey, '_waste');
+        if ($isToner && config('printer_alerts.toner_email_mode') === 'monthly_digest') {
+            return;
+        }
+
         // Dispatch alert email exactly once per fresh event. Re-occurrences
         // (existing-open path above) bump last_seen but don't email again.
         try {

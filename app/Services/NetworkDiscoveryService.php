@@ -218,7 +218,8 @@ class NetworkDiscoveryService
         // Printer indicators
         $printerKeywords = ['ricoh', 'printer', 'laserjet', 'mfc', 'workcentre', 'imagerunner',
             'phaser', 'colorqube', 'docuprint', 'kyocera', 'print', 'copier',
-            'epson', 'workforce', 'ecotank', 'expression', 'stylus'];
+            'epson', 'workforce', 'ecotank', 'expression', 'stylus',
+            'canon', 'imageclass', 'i-sensys', 'pixma', 'maxify'];
         foreach ($printerKeywords as $kw) {
             if (str_contains($desc, $kw)) {
                 return 'printer';

@@ -797,6 +797,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         // Network SNMP auto-discovery (creates printers) — keep before {printer} wildcards
         Route::post('printers/discover-scan', [PrinterController::class, 'discoverScan'])->name('printers.discover-scan');
         Route::post('printers/discover-sensors', [PrinterController::class, 'discoverSensors'])->name('printers.discover-sensors');
+        Route::post('printers/toner-digest', [PrinterController::class, 'tonerDigest'])->name('printers.toner-digest');
         Route::put('printers/{printer}', [PrinterController::class, 'update'])->name('printers.update');
         Route::delete('printers/{printer}', [PrinterController::class, 'destroy'])->name('printers.destroy');
         // Manual employee assignment

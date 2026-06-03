@@ -3,9 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\MonitoredHost;
+use App\Models\NocEvent;
 use App\Models\SensorMetric;
 use App\Models\SnmpSensor;
-use App\Models\NocEvent;
 use App\Services\NotificationService;
 use App\Services\Snmp\SnmpClient;
 use Illuminate\Bus\Queueable;
@@ -41,13 +41,13 @@ class CollectSnmpMetricsJob implements ShouldQueue
                 ->get();
         }
 
-        if (!SnmpClient::isSnmpExtensionLoaded()) {
-            Log::warning("CollectSnmpMetricsJob: PHP SNMP extension not loaded — will attempt CLI fallback.");
+        if (! SnmpClient::isSnmpExtensionLoaded()) {
+            Log::warning('CollectSnmpMetricsJob: PHP SNMP extension not loaded — will attempt CLI fallback.');
         }
 
         foreach ($hosts as $host) {
             // Give each host up to 3 minutes to finish.
-            @set_time_limit(180); 
+            @set_time_limit(180);
             $this->pollHost($host);
         }
     }
@@ -62,6 +62,7 @@ class CollectSnmpMetricsJob implements ShouldQueue
         try {
             if (Cache::store('redis')->has("snmp_lock_{$host->id}")) {
                 Log::debug("CollectSnmpMetricsJob: Skipping host {$host->ip} (ID: {$host->id}) — cache lock active.");
+
                 return;
             }
         } catch (\Throwable $e) {
@@ -78,7 +79,7 @@ class CollectSnmpMetricsJob implements ShouldQueue
 
             $snmpSuccess = false;
             $sensors = $host->snmpSensors;
-            
+
             // Chunk sensors to avoid too many OIDs in a single SNMP packet
             foreach ($sensors->chunk(20) as $chunk) {
                 $oids = $chunk->pluck('oid')->toArray();
@@ -97,6 +98,7 @@ class CollectSnmpMetricsJob implements ShouldQueue
 
                         if ($rawResult === false) {
                             $this->recordSensorFailure($sensor, $host);
+
                             continue;
                         }
 
@@ -123,7 +125,9 @@ class CollectSnmpMetricsJob implements ShouldQueue
                         if ($sensor->data_type === 'counter') {
                             $isFirstPoll = ($sensor->last_raw_counter === null);
                             $finalValue = $this->calculateCounterRate($sensor, $parsedValue);
-                            if ($isFirstPoll) $skipMetric = true;
+                            if ($isFirstPoll) {
+                                $skipMetric = true;
+                            }
                         }
 
                         // Absolute page-counter — store raw cumulative total, not a rate
@@ -149,7 +153,7 @@ class CollectSnmpMetricsJob implements ShouldQueue
                             $finalValue = (float) min(100, max(0, $finalValue));
                         }
 
-                        if (!$skipMetric) {
+                        if (! $skipMetric) {
                             SensorMetric::create([
                                 'sensor_id' => $sensor->id,
                                 'value' => $finalValue,
@@ -162,7 +166,7 @@ class CollectSnmpMetricsJob implements ShouldQueue
                         $sensor->update(['status' => 'active', 'consecutive_failures' => 0]);
 
                     } catch (\Exception $e) {
-                        Log::error("Error processing sensor {$sensor->name} on {$host->ip}: " . $e->getMessage());
+                        Log::error("Error processing sensor {$sensor->name} on {$host->ip}: ".$e->getMessage());
                     }
                 }
             }
@@ -186,11 +190,11 @@ class CollectSnmpMetricsJob implements ShouldQueue
             }
 
         } catch (\Exception $e) {
-            Log::error("SNMP session failed", [
+            Log::error('SNMP session failed', [
                 'host' => $host->ip,
                 'snmp_version' => $host->snmp_version,
                 'port' => $host->snmp_port ?? 161,
-                'community_set' => !empty($host->snmp_community),
+                'community_set' => ! empty($host->snmp_community),
                 'error' => $e->getMessage(),
             ]);
             if ($host->status === 'up') {
@@ -294,13 +298,18 @@ class CollectSnmpMetricsJob implements ShouldQueue
         $upStates = ['reachable', 'up', 'running', 'active', 'idle', 'registered', 'ringing', 'inuse'];
 
         foreach ($downStates as $state) {
-            if (str_contains($lower, $state)) return 0;
+            if (str_contains($lower, $state)) {
+                return 0;
+            }
         }
         foreach ($upStates as $state) {
-            if (str_contains($lower, $state)) return 1;
+            if (str_contains($lower, $state)) {
+                return 1;
+            }
         }
 
-        Log::debug("parseValue: Could not parse value, defaulting to 0", ['raw' => $value]);
+        Log::debug('parseValue: Could not parse value, defaulting to 0', ['raw' => $value]);
+
         return 0;
     }
 
@@ -322,19 +331,19 @@ class CollectSnmpMetricsJob implements ShouldQueue
                 ->where('title', $eventTitle)
                 ->first();
 
-            if (!$existingEvent) {
+            if (! $existingEvent) {
                 NocEvent::create([
-                    'module'      => 'network',
+                    'module' => 'network',
                     'entity_type' => 'snmp_threshold',
-                    'entity_id'   => (string) $sensor->id,
+                    'entity_id' => (string) $sensor->id,
                     'source_type' => 'monitored_host',
-                    'source_id'   => $host->id,
-                    'title'       => $eventTitle,
-                    'message'     => "Interface {$sensorName} is operating in half-duplex mode — possible duplex mismatch",
-                    'severity'    => 'warning',
-                    'status'      => 'open',
-                    'first_seen'  => now(),
-                    'last_seen'   => now(),
+                    'source_id' => $host->id,
+                    'title' => $eventTitle,
+                    'message' => "Interface {$sensorName} is operating in half-duplex mode — possible duplex mismatch",
+                    'severity' => 'warning',
+                    'status' => 'open',
+                    'first_seen' => now(),
+                    'last_seen' => now(),
                 ]);
             }
         } else {
@@ -345,7 +354,7 @@ class CollectSnmpMetricsJob implements ShouldQueue
                 ->where('status', 'open')
                 ->where('title', $eventTitle)
                 ->update([
-                    'status'      => 'resolved',
+                    'status' => 'resolved',
                     'resolved_at' => now(),
                 ]);
         }
@@ -391,23 +400,30 @@ class CollectSnmpMetricsJob implements ShouldQueue
                 ->where('title', $eventTitle)
                 ->first();
 
-            if (!$existingEvent) {
+            if (! $existingEvent) {
                 NocEvent::create([
-                    'module'      => 'network',
+                    'module' => 'network',
                     'entity_type' => 'snmp_threshold',
-                    'entity_id'   => (string) $sensor->id,
+                    'entity_id' => (string) $sensor->id,
                     'source_type' => 'monitored_host',
-                    'source_id'   => $host->id,
-                    'title'       => $eventTitle,
-                    'message'     => $message,
-                    'severity'    => $severity,
-                    'status'      => 'open',
-                    'first_seen'  => now(),
-                    'last_seen'   => now(),
+                    'source_id' => $host->id,
+                    'title' => $eventTitle,
+                    'message' => $message,
+                    'severity' => $severity,
+                    'status' => 'open',
+                    'first_seen' => now(),
+                    'last_seen' => now(),
                 ]);
 
-                // Send in-app notification + email to all admins for toner/supply alerts
-                if ($isLowAlert) {
+                // Send in-app notification + email to all admins for supply alerts.
+                // In monthly-digest mode, toner/consumable low-alerts are rolled into
+                // the once-a-month report instead of emailing per sensor — this is the
+                // main source of toner inbox noise. Paper-low still emails immediately.
+                $isToner = $sensor->data_type === 'toner_gauge'
+                    || in_array(strtolower($sensor->sensor_group ?? ''), ['toner', 'consumables']);
+                $digestSuppressed = $isToner && config('printer_alerts.toner_email_mode') === 'monthly_digest';
+
+                if ($isLowAlert && ! $digestSuppressed) {
                     try {
                         app(NotificationService::class)->notifyAdmins(
                             type: 'supply_alert',

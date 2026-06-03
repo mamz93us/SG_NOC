@@ -22,7 +22,8 @@ class OsFactory
     private const OS_CLASSES = [
         RicohPrinterOS::class,    // Ricoh/NRG/Lanier printers (before generic printer)
         EpsonPrinterOS::class,    // Epson inkjet/laser (standard Printer MIB, dynamic supplies)
-        GenericPrinterOS::class,  // HP LaserJet, Lexmark, Canon, Xerox, Kyocera
+        CanonPrinterOS::class,    // Canon imageRUNNER/i-SENSYS/PIXMA (standard MIB, dynamic supplies)
+        GenericPrinterOS::class,  // HP LaserJet, Lexmark, Xerox, Kyocera
         CiscoOS::class,           // Cisco IOS / NX-OS
         SophosOS::class,          // Sophos SFOS firewall
         GrandstreamOS::class,     // Grandstream UCM PBX
@@ -67,6 +68,7 @@ class OsFactory
         $map = [
             'ricoh_printer' => RicohPrinterOS::class,
             'epson_printer' => EpsonPrinterOS::class,
+            'canon_printer' => CanonPrinterOS::class,
             'printer' => GenericPrinterOS::class,
             'cisco' => CiscoOS::class,
             'sophos' => SophosOS::class,

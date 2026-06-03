@@ -510,6 +510,18 @@ class PrinterController extends Controller
     }
 
     /**
+     * POST /admin/printers/toner-digest
+     * Send the consolidated low-toner report email now (manual / test). Always
+     * sends regardless of the immediate-vs-digest mode.
+     */
+    public function tonerDigest(\App\Services\Printers\PrinterTonerDigestService $digest)
+    {
+        $res = $digest->send(force: true);
+
+        return back()->with($res['sent'] ? 'success' : 'info', $res['message']);
+    }
+
+    /**
      * POST /admin/printers/discover-scan
      * Queue an SNMP network scan that auto-creates + polls every printer found.
      * The scan runs in the background (scheduled processor) so large ranges never

@@ -19,6 +19,14 @@
                 @if(($missingSensors ?? 0) > 0)<span class="badge bg-warning text-dark ms-1">{{ $missingSensors }}</span>@endif
             </button>
         </form>
+        <form method="POST" action="{{ route('admin.printers.toner-digest') }}" class="d-inline"
+              onsubmit="return confirm('Send the consolidated low-toner report email now?');">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-secondary"
+                    title="Send the consolidated low-toner report email now (test the monthly digest)">
+                <i class="bi bi-envelope-paper me-1"></i>Email Toner Digest
+            </button>
+        </form>
         @endcan
         <form method="POST" action="{{ route('admin.printers.snmp.poll-all') }}" class="d-inline">
             @csrf

@@ -58,11 +58,14 @@ class PrinterSupplyMonitorService
         $isLow = $supply->supply_percent <= $threshold;
 
         if ($isLow && ! $supply->is_low_alert_active) {
-            // Toner just crossed below threshold for the first time — send alert
-            $this->sendLowTonerAlert($printer, $supply);
+            // Toner just crossed below threshold for the first time. In monthly-digest
+            // mode the once-a-month report covers it; otherwise email immediately.
+            if (config('printer_alerts.toner_email_mode') !== 'monthly_digest') {
+                $this->sendLowTonerAlert($printer, $supply);
+            }
             $supply->update([
                 'is_low_alert_active' => true,
-                'low_alert_sent_at'   => now(),
+                'low_alert_sent_at' => now(),
             ]);
 
         } elseif (! $isLow && $supply->is_low_alert_active) {
@@ -77,30 +80,30 @@ class PrinterSupplyMonitorService
         $supplyName = ucwords(str_replace('_', ' ', $supply->supply_color ?? $supply->supply_descr ?? $supply->supply_type));
         $level = $supply->supply_percent;
 
-        $title   = "Low Toner Alert: {$printer->printer_name}";
+        $title = "Low Toner Alert: {$printer->printer_name}";
         $message = "Printer {$printer->printer_name} at {$location} has low toner "
-                 . "({$supplyName}: {$level}%). Please replace soon.";
+                 ."({$supplyName}: {$level}%). Please replace soon.";
         $link = route('admin.printers.show', $printer->id);
 
         try {
             $this->notifications->notifyViaRules(
-                type:     'printer_maintenance',
-                title:    $title,
-                message:  $message,
-                link:     $link,
+                type: 'printer_maintenance',
+                title: $title,
+                message: $message,
+                link: $link,
                 severity: 'warning'
             );
 
-            Log::info("PrinterSupplyMonitor: low toner alert sent", [
-                'printer'  => $printer->printer_name,
-                'supply'   => $supplyName,
-                'level'    => $level,
-                'threshold'=> $supply->low_alert_threshold ?? $supply->warning_threshold ?? 10,
+            Log::info('PrinterSupplyMonitor: low toner alert sent', [
+                'printer' => $printer->printer_name,
+                'supply' => $supplyName,
+                'level' => $level,
+                'threshold' => $supply->low_alert_threshold ?? $supply->warning_threshold ?? 10,
             ]);
         } catch (\Throwable $e) {
-            Log::error("PrinterSupplyMonitor: failed to notify", [
+            Log::error('PrinterSupplyMonitor: failed to notify', [
                 'printer' => $printer->printer_name,
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
