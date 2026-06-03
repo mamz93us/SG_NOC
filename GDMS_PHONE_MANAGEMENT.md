@@ -8,27 +8,39 @@ Nav: **Phones** (`/admin/phones`). Related: **PBX Status** (`/admin/gdms/ucm`), 
 
 - **Inventory** — every phone (GDMS device list ⨯ ITAM `devices` ⨯ `phone_accounts` SIP data ⨯ `contacts` ⨯ `employees`), with a status badge (`ready` / `no_asset` / `no_account` / `no_employee` / `assigned` / `wrong_employee`). Built by `app/Services/PhoneInventoryService.php` (shared with the older Phone Auto-Assign screen).
 - **Provisioning** — claim a phone into GDMS by **MAC + serial**, auto-create the ITAM asset, optionally assign an employee.
-- **Detail + actions** — per-phone SIP accounts, **reboot**, **factory reset** (super-admin only), **assign/change SIP account**, **push config**. Every action is logged to `gdms_tasks`.
-- **Config templates** — list/edit GDMS config templates (P-values) and assign them to devices by MAC.
+- **Detail + actions** — per-phone live SIP accounts and **Reboot** (logged to `gdms_tasks`).
+- **Config templates** — **read-only** list of GDMS "group" templates (`/admin/gdms/templates`, refreshed by `gdms:sync-templates`).
 - **PBX status + Wave** — the existing UCM status page keeps its live SNMP memory/disk, plus GDMS cloud online-state per UCM and the **GDMS SIP servers** that Wave registers against.
+
+### Not exposed by the GDMS OpenAPI (do these in the GDMS web console)
+
+Confirmed via `gdms:probe` against the live org: GDMS exposes **list/read** (devices, sites, orgs, SIP accounts, SIP servers, templates), **device claim** (`device/add`), **reboot** (`task/add`), and SIP-account **create/edit**. It does **not** expose:
+
+- Template **edit / assign** — only `template/group/list` exists; editing/assigning templates is a console operation.
+- Per-device **config push** — no `device/config*` route; device config is template-driven.
+- An explicit **account → device** binding endpoint — only `sip/account/add|edit` (params undocumented).
+- A confirmed **factory-reset** taskType.
+
+So those actions show a "manage in the GDMS console" note in the UI rather than a button.
 
 ## Account flow (NOC → UCM → GDMS → phone)
 
 1. Create the extension on the UCM from the NOC (existing **Extensions** page / `IppbxApiService::createExtension`).
 2. The UCM auto-syncs the SIP account to GDMS via **RemoteConnect** (this is why `UcmServer.cloud_domain` is set).
-3. On the phone's detail page, **Assign SIP Account**: pick the UCM + extension + account slot. The NOC reads the extension's secret from the UCM (`getExtensionWave`) and binds it on the phone via GDMS.
+3. In GDMS, assign that SIP account to the phone's account slot (GDMS web console — the API has no account→device binding). GDMS then provisions the phone automatically.
 
-## ⚠️ Run the probe before using write actions
+## Endpoint discovery (`gdms:probe`)
 
-The public GDMS API reference is a JS SPA that can't be scraped, so a few **write** endpoints are best-guess by symmetry with the confirmed read endpoints. They are marked `⚠️ PROBE-PENDING` in `app/Services/GdmsService.php` (`EP_*` constants) and `config/services.php` (`task_factory_reset`).
+The public GDMS API reference is a JS SPA that can't be scraped, so unconfirmed endpoints were discovered with the read-only probe:
 
 ```sh
-php artisan gdms:probe                          # read-only: confirms paths + response shapes
+php artisan gdms:probe                          # tries candidate paths, reports which exist
 php artisan gdms:probe --mac=EC:74:D7:80:04:74  # also dumps device/detail (memory/storage fields)
 ```
 
-Confirmed: `oauth/token`, `device/list`, `device/detail`, `sip/account/list`, `device/add`, `task/add` (REBOOT = taskType 1), `org/list`, `site/list`.
-Confirm-before-use: `factory_reset` taskType, `sip/account/assign`, `sip/server/list`, `template/*`, `device/config/set`. Update the `EP_*` paths / `TASK_*` values for any `[ERR]` line the probe reports. **Do not click Factory Reset in production until its taskType is confirmed.**
+Confirmed on the live org: `oauth/token`, `device/list`, `device/detail`, `sip/account/list`, `sip/server/list`, `template/group/list`, `device/add`, `task/add` (REBOOT = taskType 1), `org/list`, `site/list`.
+
+Endpoints that exist but are unused (no UI) are config-overridable — set `GDMS_EP_*` in `.env` (see `config/services.php` → `gdms.endpoints`) if a path ever changes, no code edit needed.
 
 ## Deploy notes
 

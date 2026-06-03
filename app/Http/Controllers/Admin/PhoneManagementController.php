@@ -10,18 +10,18 @@ use App\Models\Employee;
 use App\Models\EmployeeAsset;
 use App\Models\GdmsTask;
 use App\Models\Setting;
-use App\Models\UcmServer;
 use App\Services\GdmsService;
-use App\Services\IppbxApiService;
 use App\Services\PhoneInventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
  * GDMS phone management: inventory, provisioning (claim a phone into GDMS by
- * MAC + serial), per-phone detail, and device actions (reboot, factory reset,
- * assign SIP account, push config). Auto-links phones to ITAM assets + employees
- * through PhoneInventoryService.
+ * MAC + serial), per-phone detail, and Reboot. Auto-links phones to ITAM assets
+ * + employees through PhoneInventoryService.
+ *
+ * NOTE: assigning SIP accounts, pushing config/templates, and factory reset are
+ * GDMS web-console operations — the GDMS OpenAPI doesn't expose them.
  */
 class PhoneManagementController extends Controller
 {
@@ -143,12 +143,10 @@ class PhoneManagementController extends Controller
         }
 
         $accounts = $detail['sipAccountList'] ?? $detail['fxsPortList'] ?? [];
-        $employees = Employee::orderBy('name')->get(['id', 'name', 'extension_number']);
-        $ucmServers = UcmServer::active()->orderBy('name')->get();
         $recentTasks = GdmsTask::where('mac', $mac)->latest()->limit(10)->get();
 
         return view('admin.phones.show', compact(
-            'mac', 'device', 'detail', 'detailError', 'accounts', 'employees', 'ucmServers', 'recentTasks'
+            'mac', 'device', 'detail', 'detailError', 'accounts', 'recentTasks'
         ));
     }
 
@@ -162,118 +160,6 @@ class PhoneManagementController extends Controller
         $mac = $this->normMac($mac);
 
         return $this->runTask($mac, GdmsTask::TYPE_REBOOT, fn () => $this->gdms->rebootDevices([$mac]), 'Reboot');
-    }
-
-    public function factoryReset(Request $request, string $mac)
-    {
-        // reset-phones is super_admin-only (destructive).
-        $this->authorize('reset-phones');
-        $mac = $this->normMac($mac);
-
-        return $this->runTask($mac, GdmsTask::TYPE_FACTORY_RESET, fn () => $this->gdms->factoryResetDevices([$mac]), 'Factory reset');
-    }
-
-    /**
-     * Assign / change the SIP account on a phone account slot.
-     * Reads the extension's credentials from the UCM, then binds it on the phone
-     * via GDMS (native account bind, falling back to a per-device config push).
-     */
-    public function assignAccount(Request $request, string $mac)
-    {
-        $this->authorize('manage-phones');
-        $mac = $this->normMac($mac);
-
-        $validated = $request->validate([
-            'ucm_server_id' => ['required', 'integer', 'exists:ucm_servers,id'],
-            'extension' => ['required', 'string', 'max:20'],
-            'account_index' => ['required', 'integer', 'min:1', 'max:16'],
-        ]);
-
-        $ucm = UcmServer::findOrFail($validated['ucm_server_id']);
-
-        try {
-            $wave = (new IppbxApiService($ucm))->getExtensionWave($validated['extension']);
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Could not read extension from UCM: '.$e->getMessage());
-        }
-
-        $sipAccount = [
-            'userId' => $wave['extension'],
-            'authId' => $wave['extension'],
-            'password' => $wave['secret'],
-            'sipServer' => $wave['server'],
-            'displayName' => $wave['fullname'] ?: $wave['extension'],
-        ];
-
-        $task = GdmsTask::create([
-            'mac' => $mac,
-            'device_id' => Device::where('mac_address', $mac)->value('id'),
-            'task_type' => GdmsTask::TYPE_ASSIGN_ACCOUNT,
-            'status' => 'queued',
-            // Never persist the SIP secret.
-            'payload' => ['extension' => $validated['extension'], 'account_index' => $validated['account_index'], 'ucm_server_id' => $ucm->id],
-            'requested_by_user_id' => auth()->id(),
-        ]);
-
-        try {
-            try {
-                $result = $this->gdms->assignSipAccountToDevice($mac, (int) $validated['account_index'], $sipAccount);
-            } catch (\Throwable $bindError) {
-                // Fallback: push the account-slot P-values directly to the device.
-                $result = $this->gdms->pushConfig($mac, $this->accountPValues((int) $validated['account_index'], $sipAccount));
-                $result['_fallback'] = 'pushConfig: '.$bindError->getMessage();
-            }
-
-            $task->update(['status' => 'sent', 'result' => $this->scrub($result)]);
-            ActivityLog::log('GDMS account assigned to phone', [
-                'mac' => $mac, 'extension' => $validated['extension'], 'slot' => $validated['account_index'],
-            ]);
-
-            return back()->with('success', "Account {$validated['extension']} assigned to {$mac} (slot {$validated['account_index']}). It may take a moment to register.");
-        } catch (\Throwable $e) {
-            $task->update(['status' => 'failed', 'result' => ['error' => $e->getMessage()]]);
-
-            return back()->with('error', 'Assign failed: '.$e->getMessage());
-        }
-    }
-
-    /**
-     * Push one-off custom configuration parameters (P-values) to a single phone.
-     */
-    public function pushConfig(Request $request, string $mac)
-    {
-        $this->authorize('manage-phones');
-        $mac = $this->normMac($mac);
-
-        $validated = $request->validate([
-            'params' => ['required', 'string'],
-        ]);
-
-        $params = $this->parseParams($validated['params']);
-        if (empty($params)) {
-            return back()->with('error', 'No valid KEY=VALUE parameters were provided.');
-        }
-
-        $task = GdmsTask::create([
-            'mac' => $mac,
-            'device_id' => Device::where('mac_address', $mac)->value('id'),
-            'task_type' => GdmsTask::TYPE_CONFIG_PUSH,
-            'status' => 'queued',
-            'payload' => ['params' => array_keys($params)],
-            'requested_by_user_id' => auth()->id(),
-        ]);
-
-        try {
-            $result = $this->gdms->pushConfig($mac, $params);
-            $task->update(['status' => 'sent', 'result' => $this->scrub($result)]);
-            ActivityLog::log('GDMS config pushed to phone', ['mac' => $mac, 'keys' => array_keys($params)]);
-
-            return back()->with('success', 'Configuration pushed to '.$mac.'.');
-        } catch (\Throwable $e) {
-            $task->update(['status' => 'failed', 'result' => ['error' => $e->getMessage()]]);
-
-            return back()->with('error', 'Config push failed: '.$e->getMessage());
-        }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -387,52 +273,6 @@ class PhoneManagementController extends Controller
         } catch (\Throwable) {
             return [];
         }
-    }
-
-    /**
-     * Parse a textarea of newline-separated KEY=VALUE pairs into a param map.
-     */
-    private function parseParams(string $raw): array
-    {
-        $out = [];
-        foreach (preg_split('/\r\n|\r|\n/', $raw) as $line) {
-            $line = trim($line);
-            if ($line === '' || str_starts_with($line, '#') || ! str_contains($line, '=')) {
-                continue;
-            }
-            [$k, $v] = explode('=', $line, 2);
-            $k = trim($k);
-            if ($k !== '') {
-                $out[$k] = trim($v);
-            }
-        }
-
-        return $out;
-    }
-
-    /**
-     * Fallback only: map a SIP account to Grandstream account-slot P-values for
-     * a per-device config push. P-value keys differ across models/slots; the
-     * set below is for GRP-series account 1 and is PROBE-PENDING for other slots
-     * (the native assignSipAccountToDevice() path is preferred).
-     */
-    private function accountPValues(int $index, array $sip): array
-    {
-        if ($index === 1) {
-            return [
-                'P271' => '1',                       // account 1 active
-                'P47' => $sip['sipServer'] ?? '',   // SIP server
-                'P35' => $sip['userId'] ?? '',      // SIP user ID
-                'P36' => $sip['authId'] ?? '',      // authenticate ID
-                'P34' => $sip['password'] ?? '',    // authenticate password
-                'P3' => $sip['displayName'] ?? '', // account name
-            ];
-        }
-
-        throw new \RuntimeException(
-            'Per-device P-value fallback currently supports account slot 1 only; '
-            ."confirm slot {$index} P-value offsets via `gdms:probe` first."
-        );
     }
 
     /**

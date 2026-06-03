@@ -71,67 +71,31 @@
 
 @can('manage-phones')
 <div class="row g-3 mt-1">
-    {{-- Assign account --}}
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header fw-semibold"><i class="bi bi-link-45deg me-1"></i>Assign / Change SIP Account</div>
-            <div class="card-body">
-                <form method="POST" action="{{ route('admin.phones.assign-account', $mac) }}" class="row g-2">
-                    @csrf
-                    <div class="col-md-5">
-                        <label class="form-label small mb-1">UCM Server</label>
-                        <select name="ucm_server_id" class="form-select form-select-sm" required>
-                            @foreach($ucmServers as $u)<option value="{{ $u->id }}">{{ $u->name }}</option>@endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small mb-1">Extension</label>
-                        <input type="text" name="extension" class="form-control form-control-sm" placeholder="1401" required>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label small mb-1">Slot</label>
-                        <input type="number" name="account_index" class="form-control form-control-sm" value="1" min="1" max="16" required>
-                    </div>
-                    <div class="col-12">
-                        <button class="btn btn-sm btn-primary"><i class="bi bi-link me-1"></i>Assign</button>
-                        <small class="text-muted ms-2">Reads the extension's secret from the UCM and binds it on the phone.</small>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
     {{-- Device controls --}}
     <div class="col-lg-6">
         <div class="card h-100">
             <div class="card-header fw-semibold"><i class="bi bi-sliders me-1"></i>Device Controls</div>
-            <div class="card-body d-flex flex-column gap-2">
+            <div class="card-body">
                 <form method="POST" action="{{ route('admin.phones.reboot', $mac) }}" onsubmit="return confirm('Reboot this phone now?')">
                     @csrf<button class="btn btn-sm btn-outline-warning w-100"><i class="bi bi-arrow-clockwise me-1"></i>Reboot</button>
                 </form>
-                @can('reset-phones')
-                <form method="POST" action="{{ route('admin.phones.factory-reset', $mac) }}" onsubmit="return confirm('FACTORY RESET erases the phone config. It re-syncs from GDMS when it next comes online. Continue?')">
-                    @csrf<button class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-exclamation-octagon me-1"></i>Factory Reset</button>
-                </form>
-                <div class="form-text text-warning mb-0"><i class="bi bi-info-circle me-1"></i>Factory-reset task type is pending confirmation via <code>gdms:probe</code>.</div>
-                @endcan
             </div>
         </div>
     </div>
-</div>
 
-{{-- Push config --}}
-<div class="card mt-3">
-    <div class="card-header fw-semibold"><i class="bi bi-file-earmark-code me-1"></i>Push Configuration (P-values)</div>
-    <div class="card-body">
-        <form method="POST" action="{{ route('admin.phones.push-config', $mac) }}">
-            @csrf
-            <textarea name="params" class="form-control font-monospace small" rows="4" placeholder="P271=1&#10;P47=ucm.example.com"></textarea>
-            <div class="d-flex justify-content-between mt-2">
-                <small class="text-muted">One <code>KEY=VALUE</code> per line. Lines starting with <code>#</code> are ignored. Endpoint pending <code>gdms:probe</code> confirmation.</small>
-                <button class="btn btn-sm btn-primary"><i class="bi bi-upload me-1"></i>Push</button>
+    {{-- GDMS-console-managed actions (not exposed by the GDMS API) --}}
+    <div class="col-lg-6">
+        <div class="card h-100 border-info">
+            <div class="card-header fw-semibold bg-info bg-opacity-10"><i class="bi bi-cloud me-1"></i>Managed in the GDMS console</div>
+            <div class="card-body small text-muted">
+                The GDMS API doesn't expose the following, so do them in the GDMS web console:
+                <ul class="mb-0 ps-3 mt-1">
+                    <li><strong>Assign / change the SIP account</strong> (account → device slot)</li>
+                    <li><strong>Push config / apply a template</strong></li>
+                    <li><strong>Factory reset</strong></li>
+                </ul>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 @endcan

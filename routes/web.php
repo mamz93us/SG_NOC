@@ -496,17 +496,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('phones.store');
         Route::post('phones/{mac}/reboot', [PhoneManagementController::class, 'reboot'])
             ->name('phones.reboot')->where('mac', '[0-9a-fA-F:\-\.]{12,17}');
-        Route::post('phones/{mac}/assign-account', [PhoneManagementController::class, 'assignAccount'])
-            ->name('phones.assign-account')->where('mac', '[0-9a-fA-F:\-\.]{12,17}');
-        Route::post('phones/{mac}/push-config', [PhoneManagementController::class, 'pushConfig'])
-            ->name('phones.push-config')->where('mac', '[0-9a-fA-F:\-\.]{12,17}');
-    });
-    Route::middleware('permission:reset-phones')->group(function () {
-        Route::post('phones/{mac}/factory-reset', [PhoneManagementController::class, 'factoryReset'])
-            ->name('phones.factory-reset')->where('mac', '[0-9a-fA-F:\-\.]{12,17}');
+        // Assign-account, push-config and factory-reset are GDMS-console operations:
+        // the GDMS OpenAPI exposes no account→device binding, device/config push,
+        // or confirmed factory-reset taskType. See GDMS_PHONE_MANAGEMENT.md.
     });
 
-    // ─── GDMS Config Templates ────────────────────────────────
+    // ─── GDMS Config Templates (read-only list; edit/assign live in GDMS console) ──
     Route::middleware('permission:view-phones')->group(function () {
         Route::get('gdms/templates', [GdmsTemplateController::class, 'index'])
             ->name('gdms.templates.index');
@@ -514,12 +509,6 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:manage-phones')->group(function () {
         Route::post('gdms/templates/sync', [GdmsTemplateController::class, 'sync'])
             ->name('gdms.templates.sync');
-        Route::get('gdms/templates/{template}/edit', [GdmsTemplateController::class, 'edit'])
-            ->name('gdms.templates.edit');
-        Route::put('gdms/templates/{template}', [GdmsTemplateController::class, 'update'])
-            ->name('gdms.templates.update');
-        Route::post('gdms/templates/{template}/assign', [GdmsTemplateController::class, 'assign'])
-            ->name('gdms.templates.assign');
     });
 
     // ─── Settings ─────────────────────────────────────────────

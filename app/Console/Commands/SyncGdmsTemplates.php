@@ -37,8 +37,8 @@ class SyncGdmsTemplates extends Command
             GdmsTemplate::updateOrCreate(
                 ['gdms_template_id' => $id],
                 [
-                    'name' => $t['name'] ?? $t['templateName'] ?? $t['groupName'] ?? ('Template '.$id),
-                    'type' => $t['type'] ?? (isset($t['groupId']) ? 'group' : (isset($t['siteId']) ? 'site' : 'model')),
+                    'name' => $t['groupName'] ?? $t['name'] ?? $t['templateName'] ?? ('Template '.$id),
+                    'type' => 'group',
                     'model' => $t['model'] ?? $t['deviceType'] ?? null,
                     'scope_ref' => $t['siteId'] ?? $t['groupId'] ?? null,
                     'raw' => $t,
