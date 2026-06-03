@@ -786,6 +786,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('printers.unified.show');
         Route::get('printers', [PrinterController::class, 'index'])->name('printers.index');
         Route::get('printers/create', [PrinterController::class, 'create'])->name('printers.create');
+        // SNMP live dashboard — static segment, MUST be before the printers/{printer}
+        // wildcard or it 404s (matched as a printer id by the show route).
+        Route::get('printers/snmp-status', [PrinterController::class, 'snmpStatus'])->name('printers.snmp.status');
         Route::get('printers/{printer}/edit', [PrinterController::class, 'edit'])->name('printers.edit');
         Route::get('printers/{printer}', [PrinterController::class, 'show'])->name('printers.show');
     });
@@ -801,8 +804,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     // ─── Printer SNMP Dashboard ──────────────────────────────
+    // NOTE: GET printers/snmp-status is registered above (before the
+    // printers/{printer} wildcard) so it doesn't 404. Only the {printer}-scoped
+    // and POST actions live here.
     Route::middleware('permission:view-printers')->group(function () {
-        Route::get('printers/snmp-status', [PrinterController::class, 'snmpStatus'])->name('printers.snmp.status');
         Route::post('printers/{printer}/snmp-poll', [PrinterController::class, 'snmpPoll'])->name('printers.snmp.poll');
         Route::post('printers/snmp-poll-all', [PrinterController::class, 'snmpPollAll'])->name('printers.snmp.poll-all');
         Route::post('printers/{printer}/snmp-toggle', [PrinterController::class, 'toggleSnmp'])->name('printers.snmp.toggle');
