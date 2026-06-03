@@ -68,15 +68,20 @@ class GdmsProbe extends Command
         $this->info('Discovering PROBE-PENDING endpoint paths (which candidates exist?)...');
         $listBody = ['pageNum' => 1, 'pageSize' => 1, 'orgId' => (int) (config('services.gdms.org_id') ?: 0)];
         $groups = [
-            'template list' => [
-                '/v1.0.0/template/list', '/v1.0.0/template/byModel', '/v1.0.0/model/template/list',
-                '/v1.0.0/group/template/list', '/v1.0.0/site/template/list', '/v1.0.0/config/template/list',
-                '/v1.0.0/device/template/list', '/v1.0.0/template/group/list', '/v1.0.0/template/model/list',
-                '/v1.0.0/cfgtemplate/list', '/v1.0.0/template/page',
+            // template/group/list is confirmed; find the rest of the family.
+            'template detail/update/assign (group/*)' => [
+                '/v1.0.0/template/group/get', '/v1.0.0/template/group/detail', '/v1.0.0/template/group/info',
+                '/v1.0.0/template/group/update', '/v1.0.0/template/group/edit', '/v1.0.0/template/group/save',
+                '/v1.0.0/template/group/add', '/v1.0.0/template/group/assign', '/v1.0.0/template/group/push',
+                '/v1.0.0/template/group/bind', '/v1.0.0/template/group/sendToDevice', '/v1.0.0/template/group/applyToDevice',
+                '/v1.0.0/template/group/param/list', '/v1.0.0/template/group/delete',
             ],
-            'sip server list' => ['/v1.0.0/sip/server/list', '/v1.0.0/sipserver/list', '/v1.0.0/server/list'],
-            'sip account assign' => ['/v1.0.0/sip/account/assign', '/v1.0.0/sip/account/add', '/v1.0.0/sip/account/bind'],
-            'device config push' => ['/v1.0.0/device/config/set', '/v1.0.0/device/config', '/v1.0.0/device/param/set', '/v1.0.0/config/push'],
+            'sip account create / assign-to-device' => [
+                '/v1.0.0/sip/account/add', '/v1.0.0/sip/account/update', '/v1.0.0/sip/account/edit',
+                '/v1.0.0/sip/account/assignDevice', '/v1.0.0/sip/account/bindDevice', '/v1.0.0/sip/account/device/add',
+                '/v1.0.0/device/account/assign', '/v1.0.0/device/account/add', '/v1.0.0/device/account/bind',
+                '/v1.0.0/device/sipaccount/add',
+            ],
         ];
         foreach ($groups as $label => $paths) {
             $this->line("· {$label}:");

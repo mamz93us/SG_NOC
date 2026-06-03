@@ -24,13 +24,13 @@ class GdmsService
 
     private const EP_SIP_ACCT_ASSIGN = '/v1.0.0/sip/account/assign'; // ⚠️ PROBE-PENDING
 
-    private const EP_SIP_SERVER_LIST = '/v1.0.0/sip/server/list';    // ⚠️ PROBE-PENDING
+    private const EP_SIP_SERVER_LIST = '/v1.0.0/sip/server/list';    // ✅ confirmed via gdms:probe
 
     private const EP_ORG_LIST = '/v1.0.0/org/list';           // ✅
 
     private const EP_SITE_LIST = '/v1.0.0/site/list';          // ✅
 
-    private const EP_TEMPLATE_LIST = '/v1.0.0/template/list';      // ⚠️ PROBE-PENDING
+    private const EP_TEMPLATE_LIST = '/v1.0.0/template/group/list'; // ✅ confirmed via gdms:probe
 
     private const EP_TEMPLATE_DETAIL = '/v1.0.0/template/detail';    // ⚠️ PROBE-PENDING
 
