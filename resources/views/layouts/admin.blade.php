@@ -108,12 +108,169 @@
 
                 <ul class="navbar-nav me-auto">
 
-                    {{-- ── VoIP dropdown (Contacts + UCM/Extensions) ── --}}
-                    @canany(['view-contacts','view-extensions','view-trunks','view-phones'])
+                    {{-- ── NOC dropdown (ops landing — first) ── --}}
+                    @can('view-noc')
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/contacts*','admin/extensions*','admin/trunks*','admin/gdms*','admin/phones*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/noc*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-telephone-fill me-1"></i>VoIP
+                            <i class="bi bi-speedometer2 me-1"></i>NOC
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.dashboard') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.dashboard') }}">
+                                    <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.alerts') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.alerts') }}">
+                                    <i class="bi bi-bell-fill me-2"></i>Alert Feed
+                                    @php $__openAlerts = \App\Models\NocEvent::where('status','open')->count(); @endphp
+                                    @if($__openAlerts > 0)
+                                    <span class="badge bg-danger ms-1">{{ $__openAlerts }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.extensions') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.extensions') }}">
+                                    <i class="bi bi-telephone-fill me-2"></i>Extension Grid
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.events') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.events') }}">
+                                    <i class="bi bi-clock-history me-2"></i>Events Log
+                                </a>
+                            </li>
+                            @can('view-syslog')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.index') ? 'active' : '' }}"
+                                   href="{{ route('admin.logs.branches.index') }}">
+                                    <i class="bi bi-diagram-3 me-2 text-success"></i>Branch Logs
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.sophos') ? 'active' : '' }}"
+                                   href="{{ route('admin.logs.branches.sophos') }}">
+                                    <i class="bi bi-shield-shaded me-2 text-danger"></i>Branch Logs · Sophos
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.ucm') ? 'active' : '' }}"
+                                   href="{{ route('admin.logs.branches.ucm') }}">
+                                    <i class="bi bi-telephone-fill me-2 text-warning"></i>Branch Logs · UCM (by IP)
+                                </a>
+                            </li>
+                            @can('manage-syslog')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.branches.log-collectors.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.branches.log-collectors.index') }}">
+                                    <i class="bi bi-hdd-network me-2 text-secondary"></i>Branch Log Collectors
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.snmp-devices.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.snmp-devices.index') }}">
+                                    <i class="bi bi-router me-2 text-primary"></i>SNMP Devices
+                                </a>
+                            </li>
+                            @if(config('services.grafana.url'))
+                            <li>
+                                <a class="dropdown-item"
+                                   href="{{ config('services.grafana.url') }}"
+                                   target="_blank" rel="noopener noreferrer">
+                                    <i class="bi bi-graph-up me-2 text-success"></i>Metrics (Grafana)
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
+                                </a>
+                            </li>
+                            @endif
+                            @endcan
+                            @endcan
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.wallboard') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.wallboard') }}" target="_blank">
+                                    <i class="bi bi-display me-2"></i>Wallboard
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
+                                </a>
+                            </li>
+                            @canany(['view-incidents','manage-incidents'])
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.incidents.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.incidents.index') }}">
+                                    <i class="bi bi-journal-text me-2"></i>Incidents
+                                    @php $__openInc = \App\Models\Incident::whereIn('status',['open','investigating'])->count(); @endphp
+                                    @if($__openInc > 0)
+                                    <span class="badge bg-danger ms-1">{{ $__openInc }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            @endcanany
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.telnet.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.telnet.index') }}">
+                                    <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet / SSH Client
+                                </a>
+                            </li>
+                            @can('view-browser-portal')
+                            <li>
+                                <a class="dropdown-item" href="{{ route('portal.browser') }}" target="_blank">
+                                    <i class="bi bi-shield-lock me-2 text-warning"></i>Remote Browser (Portal)
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-browser-portal')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.index') || request()->routeIs('admin.browser-portal.logs') ? 'active' : '' }}"
+                                   href="{{ route('admin.browser-portal.index') }}">
+                                    <i class="bi bi-people-fill me-2 text-info"></i>Browser — Active Sessions
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.events') ? 'active' : '' }}"
+                                   href="{{ route('admin.browser-portal.events') }}">
+                                    <i class="bi bi-journal-text me-2 text-muted"></i>Browser — Activity Log
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.settings') ? 'active' : '' }}"
+                                   href="{{ route('admin.browser-portal.settings') }}">
+                                    <i class="bi bi-gear me-2 text-muted"></i>Browser — Settings
+                                </a>
+                            </li>
+                            @endcan
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.alerts.dashboard') || request()->routeIs('admin.alert-rules.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.alerts.dashboard') }}">
+                                    <i class="bi bi-shield-exclamation me-2"></i>Alert Rules
+                                    @php
+                                        try {
+                                            $__activeAlerts = \App\Models\AlertState::where('state','alerted')->count();
+                                        } catch (\Throwable $e) {
+                                            $__activeAlerts = 0;
+                                        }
+                                    @endphp
+                                    @if($__activeAlerts > 0)
+                                    <span class="badge bg-danger ms-1">{{ $__activeAlerts }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    @endcan
+
+                    {{-- ── Telephony dropdown (Contacts + UCM/Extensions + Call Quality) ── --}}
+                    @canany(['view-contacts','view-extensions','view-trunks','view-phones','view-voice-quality'])
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/contacts*','admin/extensions*','admin/trunks*','admin/gdms*','admin/phones*','admin/voice-quality*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-telephone-fill me-1"></i>Telephony
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
                             @can('view-contacts')
@@ -176,6 +333,16 @@
                             </li>
                             @endcan
                             @endcanany
+                            @can('view-voice-quality')
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-soundwave me-1"></i>Call Quality</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.voice-quality.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.voice-quality.dashboard') }}">
+                                    <i class="bi bi-soundwave me-2 text-info"></i>Voice Quality
+                                </a>
+                            </li>
+                            @endcan
                         </ul>
                     </li>
                     @endcanany
@@ -255,12 +422,6 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.voice-quality.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.voice-quality.dashboard') }}">
-                                    <i class="bi bi-soundwave me-2 text-info"></i>Voice Quality
-                                </a>
-                            </li>
-                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.workers.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.workers.index') }}">
                                     <i class="bi bi-cpu-fill me-2"></i>Workers & Tasks
@@ -272,6 +433,14 @@
                                     <i class="bi bi-radar me-2"></i>IP Scanner
                                 </a>
                             </li>
+                            @can('view-printers')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/network-discovery*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network-discovery.index') }}">
+                                    <i class="bi bi-broadcast-pin me-2"></i>Network Discovery
+                                </a>
+                            </li>
+                            @endcan
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.sla.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.sla.index') }}">
@@ -558,7 +727,7 @@
 
                     {{-- ── Printers dropdown (all printer pages in one place) ── --}}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/printers*','admin/print-manager*','admin/my-printers*','admin/intune-groups*','admin/network-discovery*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/printers*','admin/print-manager*','admin/my-printers*','admin/intune-groups*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-printer-fill me-1"></i>Printers
                         </a>
@@ -626,14 +795,6 @@
                                 <a class="dropdown-item {{ request()->is('admin/intune-groups*') ? 'active' : '' }}"
                                    href="{{ route('admin.intune-groups.index') }}">
                                     <i class="bi bi-collection me-2 text-primary"></i>Intune Groups
-                                </a>
-                            </li>
-                            @endcan
-                            @can('view-printers')
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/network-discovery*') ? 'active' : '' }}"
-                                   href="{{ route('admin.network-discovery.index') }}">
-                                    <i class="bi bi-radar me-2 text-info"></i>Network Discovery
                                 </a>
                             </li>
                             @endcan
@@ -750,163 +911,6 @@
                     </li>
                     @endcanany
 
-                    {{-- ── NOC dropdown ── --}}
-                    @can('view-noc')
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/noc*') ? 'active' : '' }}"
-                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-speedometer2 me-1"></i>NOC
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-dark shadow">
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.noc.dashboard') ? 'active' : '' }}"
-                                   href="{{ route('admin.noc.dashboard') }}">
-                                    <i class="bi bi-speedometer2 me-2"></i>Dashboard
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.noc.alerts') ? 'active' : '' }}"
-                                   href="{{ route('admin.noc.alerts') }}">
-                                    <i class="bi bi-bell-fill me-2"></i>Alert Feed
-                                    @php $__openAlerts = \App\Models\NocEvent::where('status','open')->count(); @endphp
-                                    @if($__openAlerts > 0)
-                                    <span class="badge bg-danger ms-1">{{ $__openAlerts }}</span>
-                                    @endif
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.noc.extensions') ? 'active' : '' }}"
-                                   href="{{ route('admin.noc.extensions') }}">
-                                    <i class="bi bi-telephone-fill me-2"></i>Extension Grid
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.noc.events') ? 'active' : '' }}"
-                                   href="{{ route('admin.noc.events') }}">
-                                    <i class="bi bi-clock-history me-2"></i>Events Log
-                                </a>
-                            </li>
-                            @can('view-syslog')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.index') ? 'active' : '' }}"
-                                   href="{{ route('admin.logs.branches.index') }}">
-                                    <i class="bi bi-diagram-3 me-2 text-success"></i>Branch Logs
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.sophos') ? 'active' : '' }}"
-                                   href="{{ route('admin.logs.branches.sophos') }}">
-                                    <i class="bi bi-shield-shaded me-2 text-danger"></i>Branch Logs · Sophos
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.ucm') ? 'active' : '' }}"
-                                   href="{{ route('admin.logs.branches.ucm') }}">
-                                    <i class="bi bi-telephone-fill me-2 text-warning"></i>Branch Logs · UCM (by IP)
-                                </a>
-                            </li>
-                            @can('manage-syslog')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.branches.log-collectors.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.branches.log-collectors.index') }}">
-                                    <i class="bi bi-hdd-network me-2 text-secondary"></i>Branch Log Collectors
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.snmp-devices.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.snmp-devices.index') }}">
-                                    <i class="bi bi-router me-2 text-primary"></i>SNMP Devices
-                                </a>
-                            </li>
-                            @if(config('services.grafana.url'))
-                            <li>
-                                <a class="dropdown-item"
-                                   href="{{ config('services.grafana.url') }}"
-                                   target="_blank" rel="noopener noreferrer">
-                                    <i class="bi bi-graph-up me-2 text-success"></i>Metrics (Grafana)
-                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
-                                </a>
-                            </li>
-                            @endif
-                            @endcan
-                            @endcan
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.noc.wallboard') ? 'active' : '' }}"
-                                   href="{{ route('admin.noc.wallboard') }}" target="_blank">
-                                    <i class="bi bi-display me-2"></i>Wallboard
-                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
-                                </a>
-                            </li>
-                            @canany(['view-incidents','manage-incidents'])
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.noc.incidents.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.noc.incidents.index') }}">
-                                    <i class="bi bi-journal-text me-2"></i>Incidents
-                                    @php $__openInc = \App\Models\Incident::whereIn('status',['open','investigating'])->count(); @endphp
-                                    @if($__openInc > 0)
-                                    <span class="badge bg-danger ms-1">{{ $__openInc }}</span>
-                                    @endif
-                                </a>
-                            </li>
-                            @endcanany
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.telnet.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.telnet.index') }}">
-                                    <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet / SSH Client
-                                </a>
-                            </li>
-                            @can('view-browser-portal')
-                            <li>
-                                <a class="dropdown-item" href="{{ route('portal.browser') }}" target="_blank">
-                                    <i class="bi bi-shield-lock me-2 text-warning"></i>Remote Browser (Portal)
-                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
-                                </a>
-                            </li>
-                            @endcan
-                            @can('manage-browser-portal')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.index') || request()->routeIs('admin.browser-portal.logs') ? 'active' : '' }}"
-                                   href="{{ route('admin.browser-portal.index') }}">
-                                    <i class="bi bi-people-fill me-2 text-info"></i>Browser — Active Sessions
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.events') ? 'active' : '' }}"
-                                   href="{{ route('admin.browser-portal.events') }}">
-                                    <i class="bi bi-journal-text me-2 text-muted"></i>Browser — Activity Log
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.settings') ? 'active' : '' }}"
-                                   href="{{ route('admin.browser-portal.settings') }}">
-                                    <i class="bi bi-gear me-2 text-muted"></i>Browser — Settings
-                                </a>
-                            </li>
-                            @endcan
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.alerts.dashboard') || request()->routeIs('admin.alert-rules.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.alerts.dashboard') }}">
-                                    <i class="bi bi-shield-exclamation me-2"></i>Alert Rules
-                                    @php
-                                        try {
-                                            $__activeAlerts = \App\Models\AlertState::where('state','alerted')->count();
-                                        } catch (\Throwable $e) {
-                                            $__activeAlerts = 0;
-                                        }
-                                    @endphp
-                                    @if($__activeAlerts > 0)
-                                    <span class="badge bg-danger ms-1">{{ $__activeAlerts }}</span>
-                                    @endif
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                    @endcan
-
                     {{-- ── Identity dropdown ── --}}
                     @can('view-identity')
                     <li class="nav-item dropdown">
@@ -961,107 +965,14 @@
 
                     {{-- My Printers moved into the Printers menu --}}
 
-                    {{-- ── Documentation ── --}}
-                    @can('view-documentation')
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('admin/documentation*') ? 'active' : '' }}"
-                           href="{{ route('admin.documentation.index') }}">
-                            <i class="bi bi-book-fill me-1"></i>Documentation
-                        </a>
-                    </li>
-                    @endcan
+                    {{-- Documentation, Marketing, Teamtailor & Admin Tools folded into the Admin menu below --}}
 
-                    {{-- ── Email Marketing dropdown ── --}}
-                    @canany(['manage-email-marketing','manage-email-marketing-settings'])
+                    {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
+                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/email-marketing*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-envelope-paper me-1"></i>Marketing
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-dark shadow">
-                            @can('manage-email-marketing-settings')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.settings') ? 'active' : '' }}"
-                                   href="{{ route('admin.email-marketing.settings') }}">
-                                    <i class="bi bi-gear me-2"></i>SES Settings
-                                </a>
-                            </li>
-                            @endcan
-                            @can('manage-email-marketing')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.suppressions') ? 'active' : '' }}"
-                                   href="{{ route('admin.email-marketing.suppressions') }}">
-                                    <i class="bi bi-shield-x me-2"></i>Suppression List
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.quota') ? 'active' : '' }}"
-                                   href="{{ route('admin.email-marketing.quota') }}">
-                                    <i class="bi bi-speedometer2 me-2"></i>Quota &amp; Status
-                                </a>
-                            </li>
-                            @endcan
-                            @can('manage-email-marketing-settings')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.senders.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.email-marketing.senders.index') }}">
-                                    <i class="bi bi-person-badge me-2"></i>Sender Allowlist
-                                </a>
-                            </li>
-                            @endcan
-                            @can('view-email-marketing')
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item" href="{{ route('portal.marketing.dashboard') }}" target="_blank">
-                                    <i class="bi bi-grid me-2 text-info"></i>Marketing Portal
-                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
-                                </a>
-                            </li>
-                            @endcan
-                        </ul>
-                    </li>
-                    @endcanany
-
-                    {{-- ── Admin Tools ── --}}
-                    @can('view-admin-links')
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('admin/admin-links*') ? 'active' : '' }}"
-                           href="{{ route('admin.admin-links.index') }}">
-                            <i class="bi bi-grid-3x3-gap-fill me-1"></i>Admin Tools
-                        </a>
-                    </li>
-                    @endcan
-
-                    {{-- ── Recruitment (Teamtailor) ── --}}
-                    @can('view-candidates')
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/jobs*','admin/candidates*') ? 'active' : '' }}"
-                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-people-fill me-1"></i>Teamtailor
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-dark shadow">
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/jobs*') ? 'active' : '' }}"
-                                   href="{{ route('admin.jobs.index') }}">
-                                    <i class="bi bi-briefcase me-2"></i>Jobs
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/candidates*') ? 'active' : '' }}"
-                                   href="{{ route('admin.candidates.index') }}">
-                                    <i class="bi bi-person-rolodex me-2"></i>Candidates
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                    @endcan
-
-                    {{-- ── Settings dropdown ── --}}
-                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains'])
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*') ? 'active' : '' }}"
-                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-gear-fill me-1"></i>Settings
+                            <i class="bi bi-gear-fill me-1"></i>Admin
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark dropdown-mega shadow">
                             @can('manage-settings')
@@ -1206,6 +1117,86 @@
                             </li>
                             @endcan
                             @endcanany
+                            {{-- ── Documentation (folded into Admin) ── --}}
+                            @can('view-documentation')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/documentation*') ? 'active' : '' }}"
+                                   href="{{ route('admin.documentation.index') }}">
+                                    <i class="bi bi-book-fill me-2"></i>Documentation
+                                </a>
+                            </li>
+                            @endcan
+                            {{-- ── Recruitment / Teamtailor (folded into Admin) ── --}}
+                            @can('view-candidates')
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-people-fill me-1"></i>Recruitment</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/jobs*') ? 'active' : '' }}"
+                                   href="{{ route('admin.jobs.index') }}">
+                                    <i class="bi bi-briefcase me-2"></i>Jobs
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/candidates*') ? 'active' : '' }}"
+                                   href="{{ route('admin.candidates.index') }}">
+                                    <i class="bi bi-person-rolodex me-2"></i>Candidates
+                                </a>
+                            </li>
+                            @endcan
+                            {{-- ── Email Marketing (folded into Admin) ── --}}
+                            @canany(['manage-email-marketing','manage-email-marketing-settings','view-email-marketing'])
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-envelope-paper me-1"></i>Email Marketing</h6></li>
+                            @can('manage-email-marketing-settings')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.settings') ? 'active' : '' }}"
+                                   href="{{ route('admin.email-marketing.settings') }}">
+                                    <i class="bi bi-gear me-2"></i>SES Settings
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-email-marketing')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.suppressions') ? 'active' : '' }}"
+                                   href="{{ route('admin.email-marketing.suppressions') }}">
+                                    <i class="bi bi-shield-x me-2"></i>Suppression List
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.quota') ? 'active' : '' }}"
+                                   href="{{ route('admin.email-marketing.quota') }}">
+                                    <i class="bi bi-speedometer2 me-2"></i>Quota &amp; Status
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-email-marketing-settings')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.senders.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.email-marketing.senders.index') }}">
+                                    <i class="bi bi-person-badge me-2"></i>Sender Allowlist
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-email-marketing')
+                            <li>
+                                <a class="dropdown-item" href="{{ route('portal.marketing.dashboard') }}" target="_blank">
+                                    <i class="bi bi-grid me-2 text-info"></i>Marketing Portal
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
+                                </a>
+                            </li>
+                            @endcan
+                            @endcanany
+                            {{-- ── Admin Tools (folded into Admin) ── --}}
+                            @can('view-admin-links')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/admin-links*') ? 'active' : '' }}"
+                                   href="{{ route('admin.admin-links.index') }}">
+                                    <i class="bi bi-grid-3x3-gap-fill me-2"></i>Admin Tools
+                                </a>
+                            </li>
+                            @endcan
                         </ul>
                     </li>
                     @endcanany
