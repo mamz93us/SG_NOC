@@ -16,9 +16,14 @@ CREATE DATABASE IF NOT EXISTS `sftpgo`
 -- Change 'REPLACE_ME' to a strong password (and put the SAME value in sftpgo.env).
 -- It must satisfy MySQL's validate_password policy (default MEDIUM): >= 8 chars with
 -- upper + lower + digit + special, or CREATE USER fails with ERROR 1819. No quote (').
+--
+-- SFTPGo connects over TCP to 127.0.0.1, which MySQL treats as a DIFFERENT host
+-- account than 'localhost' (the unix socket). Create BOTH so it works either way.
 CREATE USER IF NOT EXISTS 'sftpgo'@'localhost' IDENTIFIED BY 'REPLACE_ME';
+CREATE USER IF NOT EXISTS 'sftpgo'@'127.0.0.1' IDENTIFIED BY 'REPLACE_ME';
 
 -- Full rights on ITS OWN database only (DDL included). No access to phonebook2.
 GRANT ALL PRIVILEGES ON `sftpgo`.* TO 'sftpgo'@'localhost';
+GRANT ALL PRIVILEGES ON `sftpgo`.* TO 'sftpgo'@'127.0.0.1';
 
 FLUSH PRIVILEGES;
