@@ -30,32 +30,38 @@ Azure. This **replaces** the OS-user chroot in [`deployment/sftp/`](../sftp/READ
 
 ## 1. Install the SFTPGo binary
 
-Pick one (both leave a `sftpgo` binary on `PATH`):
+The binary is self-contained — the web admin UI is embedded — so just the binary
+on `PATH` is enough. Recommended (binary tarball):
 
-**A — official apt repo (recommended, gives a systemd unit too):**
 ```sh
-# Follow https://github.com/drakkan/sftpgo → "Install" for the current repo command, then:
-sudo apt-get update && sudo apt-get install -y sftpgo
-```
-
-**B — manual binary:**
-```sh
-VER=v2.6.6   # check the latest release; keep it pinned
+VER=v2.7.3   # latest — check https://github.com/drakkan/sftpgo/releases
 cd /tmp
 curl -fsSLO "https://github.com/drakkan/sftpgo/releases/download/${VER}/sftpgo_${VER}_linux_x86_64.tar.xz"
-curl -fsSLO "https://github.com/drakkan/sftpgo/releases/download/${VER}/sftpgo_${VER}_checksums.txt"
-sha256sum --check --ignore-missing "sftpgo_${VER}_checksums.txt"   # MUST print OK
 tar -xf "sftpgo_${VER}_linux_x86_64.tar.xz" sftpgo
 sudo install -m755 sftpgo /usr/local/bin/sftpgo
+sftpgo --version
 ```
 
-> If apt installs its own `sftpgo.service`, `install.sh` detects it and adds a drop-in
-> rather than overwriting it.
+Alternative — the official `.deb` (also installs its own systemd unit + a default
+config in `/etc/sftpgo`):
+
+```sh
+curl -fsSLO "https://github.com/drakkan/sftpgo/releases/download/v2.7.3/sftpgo_2.7.3-1_amd64.deb"
+sudo dpkg -i sftpgo_2.7.3-1_amd64.deb
+```
+
+> With the `.deb`, `install.sh` detects the packaged `sftpgo.service` and adds a
+> drop-in (won't overwrite the unit), and it writes our config to `sftpgo.json.new`
+> rather than clobbering the package's `/etc/sftpgo/sftpgo.json` — merge our
+> settings in (ports 2022/2121, the mysql `data_provider`, FTPS, `users_base_dir`).
+> The tarball path above avoids that merge.
 
 ## 2. Create the data database
 
 ```sh
-sudo nano deployment/sftpgo/setup.sql     # set a strong password in place of REPLACE_ME
+sudo nano deployment/sftpgo/setup.sql     # replace REPLACE_ME with a strong password —
+                                          # MySQL policy wants >=8 chars, upper+lower+
+                                          # digit+special (else ERROR 1819); no quote
 sudo mysql < deployment/sftpgo/setup.sql
 ```
 This creates a dedicated `sftpgo` database and a least-privilege `sftpgo'@'localhost`

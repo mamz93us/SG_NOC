@@ -30,7 +30,7 @@ die()  { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
 # Locate the sftpgo binary (apt → /usr/bin, manual → /usr/local/bin).
 SFTPGO_BIN="$(command -v sftpgo || true)"
-[ -n "$SFTPGO_BIN" ] || die "sftpgo binary not found on PATH — install it first (README §1)."
+[ -n "$SFTPGO_BIN" ] || die "sftpgo binary not found on PATH — install it first (README §1): cd /tmp && curl -fsSLO https://github.com/drakkan/sftpgo/releases/download/v2.7.3/sftpgo_v2.7.3_linux_x86_64.tar.xz && tar -xf sftpgo_v2.7.3_linux_x86_64.tar.xz sftpgo && sudo install -m755 sftpgo /usr/local/bin/sftpgo"
 log "sftpgo binary: ${SFTPGO_BIN}"
 
 # 1. Service user (no login) + dirs ---------------------------------------

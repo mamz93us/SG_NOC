@@ -14,6 +14,8 @@ CREATE DATABASE IF NOT EXISTS `sftpgo`
     CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- Change 'REPLACE_ME' to a strong password (and put the SAME value in sftpgo.env).
+-- It must satisfy MySQL's validate_password policy (default MEDIUM): >= 8 chars with
+-- upper + lower + digit + special, or CREATE USER fails with ERROR 1819. No quote (').
 CREATE USER IF NOT EXISTS 'sftpgo'@'localhost' IDENTIFIED BY 'REPLACE_ME';
 
 -- Full rights on ITS OWN database only (DDL included). No access to phonebook2.
