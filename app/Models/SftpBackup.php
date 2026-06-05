@@ -4,9 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One backup file swept out of the chrooted SFTP inbox on the NOC and uploaded
+ * One backup file swept out of SFTPGo's backup root on the NOC and uploaded
  * to Azure Blob by the sftp-backups:sweep scheduled command.
  *
  * `azure_path` is derived deterministically from the source file (its inbox
@@ -29,6 +30,7 @@ class SftpBackup extends Model
     public const STATUS_PRUNED = 'pruned';
 
     protected $fillable = [
+        'account_id',
         'source',
         'relative_path',
         'filename',
@@ -49,6 +51,13 @@ class SftpBackup extends Model
         'uploaded_at' => 'datetime',
         'pruned_at' => 'datetime',
     ];
+
+    // ─── Relationships ────────────────────────────────────────────
+
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(BackupAccount::class, 'account_id');
+    }
 
     // ─── Scopes ───────────────────────────────────────────────────
 

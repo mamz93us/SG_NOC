@@ -1,5 +1,12 @@
 # SFTP-inbox → Azure Blob device backups
 
+> **⚠️ Superseded by [`deployment/sftpgo/`](../sftpgo/README.md).** This OS-user
+> chroot was the first cut; ingestion now uses **SFTPGo** (SFTP + FTPS, per-device
+> accounts managed from Admin → Device Backups, upload webhooks). **Don't run
+> `setup-sftp.sh` on a host already running SFTPGo** — they differ in port
+> (SFTP 2022 vs sshd 22) and root (`/srv/backups` vs `/srv/sftp-backups`). See the
+> SFTPGo README §9 to decommission this. Kept for reference / rollback only.
+
 Network devices (Sophos firewalls, Grandstream UCM, switches, …) push their own
 backup files into a **chrooted, SFTP-only inbox** on the NOC VM. A scheduled
 Laravel command sweeps the inbox, streams each file up to **Azure Blob**, and

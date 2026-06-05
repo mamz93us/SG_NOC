@@ -473,6 +473,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('view-backups')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.backups.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.backups.index') }}">
+                                    <i class="bi bi-shield-lock-fill me-2"></i>Device Backups
+                                </a>
+                            </li>
+                            @endcan
                             @can('manage-radius')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-shield-lock me-1"></i>RADIUS / 802.1X</h6></li>

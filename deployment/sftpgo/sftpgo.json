@@ -1,0 +1,54 @@
+{
+    "common": {
+        "defender": {
+            "enabled": true,
+            "ban_time": 30,
+            "ban_time_increment": 50,
+            "threshold": 15,
+            "score_invalid": 2,
+            "score_valid": 1,
+            "observation_time": 30,
+            "entries_soft_limit": 100,
+            "entries_hard_limit": 150
+        }
+    },
+    "sftpd": {
+        "bindings": [
+            { "address": "", "port": 2022 }
+        ]
+    },
+    "ftpd": {
+        "bindings": [
+            {
+                "address": "",
+                "port": 2121,
+                "tls_mode": 1,
+                "force_passive_ip": ""
+            }
+        ],
+        "passive_port_range": { "start": 50000, "end": 50100 },
+        "certificate_file": "/etc/sftpgo/certs/fullchain.pem",
+        "certificate_key_file": "/etc/sftpgo/certs/privkey.pem",
+        "banner": "SG-NOC backup endpoint - authorised devices only"
+    },
+    "httpd": {
+        "bindings": [
+            {
+                "address": "127.0.0.1",
+                "port": 8080,
+                "enable_web_admin": true,
+                "enable_web_client": false
+            }
+        ]
+    },
+    "data_provider": {
+        "driver": "mysql",
+        "name": "sftpgo",
+        "host": "127.0.0.1",
+        "port": 3306,
+        "username": "sftpgo",
+        "password": "",
+        "users_base_dir": "/srv/backups",
+        "create_default_admin": true
+    }
+}

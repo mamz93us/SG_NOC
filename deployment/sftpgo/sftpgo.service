@@ -1,0 +1,27 @@
+[Unit]
+Description=SFTPGo — SG-NOC backup ingestion (SFTP / FTPS)
+Documentation=https://github.com/drakkan/sftpgo
+After=network-online.target mysql.service mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=sftpgo
+Group=sftpgo
+EnvironmentFile=/etc/sftpgo/sftpgo.env
+# install.sh rewrites this path to the detected binary if it's not /usr/local/bin.
+ExecStart=/usr/local/bin/sftpgo serve -c /etc/sftpgo
+WorkingDirectory=/var/lib/sftpgo
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+# Hardening — SFTPGo only needs its config, state, and the backup root.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/srv/backups /var/lib/sftpgo /etc/sftpgo
+
+[Install]
+WantedBy=multi-user.target

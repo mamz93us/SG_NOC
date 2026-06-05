@@ -59,6 +59,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'two-factor-challenge',
             'api/graylog/webhook',
+            'api/backup/upload-hook',
             'api/branch-config/*',
             'api/sns/email-events',
             'email/unsubscribe/*',

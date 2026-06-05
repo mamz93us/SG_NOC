@@ -100,6 +100,7 @@ class AppServiceProvider extends ServiceProvider
         User::observe(UserObserver::class);
         VpnTunnel::observe(VpnTunnelObserver::class);
         WorkflowRequest::observe(WorkflowRequestObserver::class);
+        \App\Models\BackupAccount::observe(\App\Observers\BackupAccountObserver::class);
 
         // ── Workflow Event Triggers ──────────────────────────────────
         Event::listen([EmployeeCreated::class, HostStatusChanged::class], WorkflowTriggerListener::class);

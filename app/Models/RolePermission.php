@@ -56,6 +56,10 @@ class RolePermission extends Model
                 'view-credentials' => 'View Credentials (masked)',
                 'manage-credentials' => 'Create / Edit / Delete / Reveal Credentials',
             ],
+            'Device Backups' => [
+                'view-backups' => 'View Device Backup Accounts & Status',
+                'manage-backups' => 'Create / Edit / Rotate / Delete Backup Accounts',
+            ],
             'Printers' => [
                 'view-printers' => 'View Printer Inventory',
                 'manage-printers' => 'Create / Edit / Delete Printers',

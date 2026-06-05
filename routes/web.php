@@ -537,6 +537,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/test-graph', [IdentityController::class, 'testConnection'])->name('settings.test-graph');
         Route::post('settings/avepoint/test', [SettingsController::class, 'testAvePoint'])->name('settings.avepoint.test');
         Route::post('settings/azure-blob/test', [SettingsController::class, 'testAzureBlob'])->name('settings.azure-blob.test');
+        Route::post('settings/sftpgo', [SettingsController::class, 'updateSftpgo'])->name('settings.sftpgo');
+        Route::post('settings/sftpgo/test', [SettingsController::class, 'testSftpgo'])->name('settings.sftpgo.test');
 
         // ── Sync Status Dashboard ────────────────────────────────────
         Route::get('sync-status', [\App\Http\Controllers\Admin\SyncStatusController::class, 'index'])->name('sync-status');
@@ -680,6 +682,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('devices/import/apply', [DeviceImportController::class, 'apply'])->name('devices.import.apply');
         Route::post('devices/import/manual', [DeviceImportController::class, 'manualStore'])->name('devices.import.manual');
         Route::post('devices/import/batch', [DeviceImportController::class, 'batchStore'])->name('devices.import.batch');
+    });
+
+    // ─── Device Backups (SFTPGo accounts + status) ────────────
+    Route::middleware('permission:view-backups')->group(function () {
+        Route::get('backups', [\App\Http\Controllers\Admin\BackupAccountController::class, 'index'])->name('backups.index');
+        Route::get('backups/create', [\App\Http\Controllers\Admin\BackupAccountController::class, 'create'])->name('backups.create');
+        Route::get('backups/{backupAccount}', [\App\Http\Controllers\Admin\BackupAccountController::class, 'show'])->name('backups.show');
+        Route::get('backups/{backupAccount}/edit', [\App\Http\Controllers\Admin\BackupAccountController::class, 'edit'])->name('backups.edit');
+    });
+    Route::middleware('permission:manage-backups')->group(function () {
+        Route::post('backups', [\App\Http\Controllers\Admin\BackupAccountController::class, 'store'])->name('backups.store');
+        Route::put('backups/{backupAccount}', [\App\Http\Controllers\Admin\BackupAccountController::class, 'update'])->name('backups.update');
+        Route::post('backups/{backupAccount}/reveal', [\App\Http\Controllers\Admin\BackupAccountController::class, 'reveal'])->name('backups.reveal');
+        Route::post('backups/{backupAccount}/rotate', [\App\Http\Controllers\Admin\BackupAccountController::class, 'rotate'])->name('backups.rotate');
+        Route::delete('backups/{backupAccount}', [\App\Http\Controllers\Admin\BackupAccountController::class, 'destroy'])->name('backups.destroy');
+        Route::delete('backups/{backupAccount}/purge', [\App\Http\Controllers\Admin\BackupAccountController::class, 'purge'])->name('backups.purge');
     });
 
     // ─── Device Web Proxy & SSH ───────────────────────────────────────────
@@ -1911,6 +1929,12 @@ Route::post('/api/internal/vq-report', [\App\Http\Controllers\Admin\VoiceQuality
 Route::post('/api/graylog/webhook', \App\Http\Controllers\Api\GraylogWebhookController::class)
     ->middleware('throttle:60,1')
     ->name('api.graylog.webhook');
+
+// SFTPGo fires this on every device upload (X-Backup-Secret shared secret).
+// CSRF-exempt (bootstrap/app.php); stamps the matching BackupAccount as received.
+Route::post('/api/backup/upload-hook', \App\Http\Controllers\Api\BackupUploadWebhookController::class)
+    ->middleware('throttle:120,1')
+    ->name('api.backup.upload-hook');
 
 // Branch-config endpoints — branch VMs PULL their device list, POST nmap
 // discoveries. Auth is via Bearer token (the per-branch api_token kept

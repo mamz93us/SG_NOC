@@ -15,12 +15,12 @@ class NotificationRule extends Model
     ];
 
     protected $casts = [
-        'send_email'       => 'boolean',
-        'send_in_app'      => 'boolean',
-        'notify_telegram'  => 'boolean',
-        'notify_sms'       => 'boolean',
+        'send_email' => 'boolean',
+        'send_in_app' => 'boolean',
+        'notify_telegram' => 'boolean',
+        'notify_sms' => 'boolean',
         'notify_dashboard' => 'boolean',
-        'is_active'        => 'boolean',
+        'is_active' => 'boolean',
         'cooldown_minutes' => 'integer',
     ];
 
@@ -41,7 +41,7 @@ class NotificationRule extends Model
     {
         return $query->where(function ($q) use ($type) {
             $q->where('event_type', $type)
-              ->orWhere('event_type', '*');
+                ->orWhere('event_type', '*');
         });
     }
 
@@ -68,42 +68,43 @@ class NotificationRule extends Model
                 '*' => 'All Events (Wildcard)',
             ],
             'Workflow & Approvals' => [
-                'approval_request'        => 'Approval Request',
-                'approval_action'         => 'Approval Action',
+                'approval_request' => 'Approval Request',
+                'approval_action' => 'Approval Action',
                 // `workflow_complete` (engine) and `workflow_completed`
                 // (observer) are both emitted — keep both slugs so rules
                 // targeting either keep working.
-                'workflow_complete'       => 'Workflow Completed (engine)',
-                'workflow_completed'      => 'Workflow Completed (status)',
-                'workflow_failed'         => 'Workflow Failed',
-                'workflow_rejected'       => 'Workflow Rejected',
-                'workflow_cancelled'      => 'Workflow Cancelled',
-                'workflow_notification'   => 'Workflow Custom Notification',
-                'workflow_tasks_created'  => 'Workflow Setup Tasks Created',
+                'workflow_complete' => 'Workflow Completed (engine)',
+                'workflow_completed' => 'Workflow Completed (status)',
+                'workflow_failed' => 'Workflow Failed',
+                'workflow_rejected' => 'Workflow Rejected',
+                'workflow_cancelled' => 'Workflow Cancelled',
+                'workflow_notification' => 'Workflow Custom Notification',
+                'workflow_tasks_created' => 'Workflow Setup Tasks Created',
                 'workflow_all_tasks_done' => 'All Workflow Tasks Complete',
-                'it_onboarding_summary'   => 'IT Onboarding Summary (new-hire credentials)',
+                'it_onboarding_summary' => 'IT Onboarding Summary (new-hire credentials)',
             ],
             'NOC & Monitoring' => [
-                'noc_alert'             => 'NOC Alert (switch / VPN / UCM)',
-                'system_alert'          => 'System Alert (licence / SLA)',
-                'host_down'             => 'Host Down (SNMP / ping)',
-                'supply_alert'          => 'Supply / Toner Alert',
-                'printer_maintenance'   => 'Printer Maintenance',
-                'cups_printer_offline'  => 'CUPS Printer Offline',
+                'noc_alert' => 'NOC Alert (switch / VPN / UCM)',
+                'system_alert' => 'System Alert (licence / SLA)',
+                'host_down' => 'Host Down (SNMP / ping)',
+                'supply_alert' => 'Supply / Toner Alert',
+                'printer_maintenance' => 'Printer Maintenance',
+                'cups_printer_offline' => 'CUPS Printer Offline',
+                'backup_overdue' => 'Device Backup Overdue',
             ],
             'Assets, Licences & Expiries' => [
-                'license_expiring'    => 'Licence Expiring Soon',
-                'license_expired'     => 'Licence Expired',
-                'license_alert'       => 'Licence Alert (generic)',
-                'ssl_expiring'        => 'SSL Certificate Expiring',
-                'ssl_expired'         => 'SSL Certificate Expired',
-                'warranty_expiring'   => 'Warranty Expiring Soon',
-                'warranty_expired'    => 'Warranty Expired',
-                'isp_renewal'         => 'ISP Renewal Reminder',
+                'license_expiring' => 'Licence Expiring Soon',
+                'license_expired' => 'Licence Expired',
+                'license_alert' => 'Licence Alert (generic)',
+                'ssl_expiring' => 'SSL Certificate Expiring',
+                'ssl_expired' => 'SSL Certificate Expired',
+                'warranty_expiring' => 'Warranty Expiring Soon',
+                'warranty_expired' => 'Warranty Expired',
+                'isp_renewal' => 'ISP Renewal Reminder',
             ],
             'Identity / Azure' => [
                 'account_disabled' => 'Azure Account Disabled',
-                'account_removed'  => 'Azure Account Removed',
+                'account_removed' => 'Azure Account Removed',
             ],
         ];
     }

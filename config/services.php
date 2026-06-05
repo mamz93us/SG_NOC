@@ -84,6 +84,13 @@ return [
         'webhook_secret' => env('GRAYLOG_WEBHOOK_SECRET'),
     ],
 
+    'sftpgo' => [
+        // Shared secret SFTPGo sends as the X-Backup-Secret header on its upload
+        // event action so /api/backup/upload-hook can verify the caller. Prefer
+        // setting it in Admin → Settings → SFTPGo, which overrides this.
+        'webhook_secret' => env('SFTPGO_WEBHOOK_SECRET'),
+    ],
+
     'grafana' => [
         // Public URL users land on when clicking "Metrics" in the navbar.
         // Either a sub-path (https://noc.samirgroup.net/grafana) or a

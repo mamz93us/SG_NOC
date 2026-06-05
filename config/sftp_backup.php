@@ -8,7 +8,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Network devices (firewalls, UCM, switches, …) push their own backup files
-    | into a chrooted, SFTP-only inbox on the NOC VM (see deployment/sftp/). The
+    | into per-device SFTPGo accounts on the NOC VM (see deployment/sftpgo/). The
     | `sftp-backups:sweep` scheduled command picks up each *stable* file, streams
     | it to Azure Blob (the `azure_backups` disk), records it in the
     | `sftp_backups` table, and — once the upload is verified — removes the local
@@ -18,11 +18,11 @@ return [
     |
     */
 
-    // Absolute path to the writable inbox the SFTP users land in. Must match the
-    // inbox under ChrootDirectory in deployment/sftp. Files in nested subfolders
-    // (e.g. inbox/sophos-jed/backup.tar.gz) are swept recursively and the first
-    // path segment is recorded as the backup "source".
-    'inbox_path' => env('SFTP_BACKUP_INBOX', '/srv/sftp-backups/inbox'),
+    // Absolute path swept for backups = SFTPGo's users_base_dir. Each device's
+    // SFTPGo account home is a folder here named after the account's username, so
+    // the first path segment of each file is the "source" = its BackupAccount.
+    // (The legacy deployment/sftp inbox was /srv/sftp-backups/inbox.)
+    'inbox_path' => env('SFTP_BACKUP_INBOX', '/srv/backups'),
 
     // Filesystem disk the swept files are uploaded to (config/filesystems.php).
     'disk' => env('SFTP_BACKUP_DISK', 'azure_backups'),

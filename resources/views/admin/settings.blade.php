@@ -1138,6 +1138,116 @@
 </div>
 
 {{-- ─────────────────────────────────────────────────────── --}}
+{{-- SFTPGo — device backup ingestion (SFTP / FTPS)          --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="sftpgo">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-shield-lock-fill text-primary fs-5"></i>
+        <h5 class="mb-0">SFTPGo — Device Backup Ingestion</h5>
+        @if($settings->sftpgo_enabled && $settings->sftpgo_base_url)
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @elseif($settings->sftpgo_base_url)
+            <span class="badge bg-warning text-dark ms-auto">Configured (Disabled)</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Not Configured</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Per-device SFTP/FTP backup logins are managed under
+            <a href="{{ \Illuminate\Support\Facades\Route::has('admin.backups.index') ? route('admin.backups.index') : '#' }}">Device Backups</a>.
+            This section holds the NOC's connection to the SFTPGo service it drives via REST.
+            Deploy SFTPGo per <code>deployment/sftpgo/README.md</code>.
+        </p>
+
+        <form method="POST" action="{{ route('admin.settings.sftpgo') }}">
+            @csrf
+            <div class="row g-3 mb-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="sftpgo_enabled"
+                               id="sftpgo_enabled" value="1" {{ $settings->sftpgo_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="sftpgo_enabled">Enable SFTPGo integration</label>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Base URL (REST API)</label>
+                    <input type="url" name="sftpgo_base_url" class="form-control font-monospace"
+                           value="{{ old('sftpgo_base_url', $settings->sftpgo_base_url ?: 'http://127.0.0.1:8080') }}"
+                           placeholder="http://127.0.0.1:8080">
+                    <div class="form-text">SFTPGo binds its REST/admin API to localhost; the NOC is co-located.</div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Default quota (MB)</label>
+                    <input type="number" min="0" name="sftpgo_default_quota_mb" class="form-control"
+                           value="{{ old('sftpgo_default_quota_mb', $settings->sftpgo_default_quota_mb) }}"
+                           placeholder="e.g. 1024">
+                    <div class="form-text">0 / blank = unlimited.</div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Home root</label>
+                    <input type="text" name="sftpgo_home_root" class="form-control font-monospace"
+                           value="{{ old('sftpgo_home_root', $settings->sftpgo_home_root ?: '/srv/backups') }}">
+                    <div class="form-text">Match <code>users_base_dir</code> + the sweeper inbox.</div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Admin username</label>
+                    <input type="text" name="sftpgo_admin_username" class="form-control font-monospace"
+                           value="{{ old('sftpgo_admin_username', $settings->sftpgo_admin_username) }}" autocomplete="off">
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Admin password</label>
+                    <input type="password" name="sftpgo_admin_password" class="form-control" autocomplete="new-password"
+                           placeholder="{{ $settings->sftpgo_admin_password ? '•••••• (leave blank to keep current)' : 'SFTPGo admin password' }}">
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">API key <small class="text-muted fw-normal">(optional — instead of admin login)</small></label>
+                    <input type="password" name="sftpgo_api_key" class="form-control" autocomplete="off"
+                           placeholder="{{ $settings->sftpgo_api_key ? '•••••• (leave blank to keep current)' : 'optional' }}">
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Upload webhook secret</label>
+                    <input type="password" name="sftpgo_webhook_secret" class="form-control" autocomplete="off"
+                           placeholder="{{ $settings->sftpgo_webhook_secret ? '•••••• (leave blank to keep current)' : 'shared X-Backup-Secret' }}">
+                    <div class="form-text">
+                        Match the <code>X-Backup-Secret</code> header on SFTPGo's upload event action.
+                        Webhook URL: <code>{{ url('/api/backup/upload-hook') }}</code>
+                    </div>
+                </div>
+
+                <div class="col-12 d-flex align-items-center gap-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="sftpgo_sftp_enabled" id="sftpgo_sftp_enabled"
+                               value="1" {{ $settings->sftpgo_sftp_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label" for="sftpgo_sftp_enabled">Offer SFTP (:2022)</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="sftpgo_ftp_enabled" id="sftpgo_ftp_enabled"
+                               value="1" {{ $settings->sftpgo_ftp_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label" for="sftpgo_ftp_enabled">Offer FTPS (:2121)</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="sftpgo-test-btn">
+                    <i class="bi bi-plug me-1"></i>Test Connection
+                </button>
+            </div>
+            <div id="sftpgo-test-result" class="small mt-2"></div>
+        </form>
+    </div>
+</div>
+
+{{-- ─────────────────────────────────────────────────────── --}}
 {{-- AvePoint Graph API (Cloud Backup for M365)              --}}
 {{-- ─────────────────────────────────────────────────────── --}}
 <div class="card mt-4" id="avepoint">
@@ -1460,8 +1570,8 @@
 
 @push('scripts')
 <script>
-// Generic test-connection wiring for AvePoint + Azure Blob.
-['avepoint', 'azure-blob'].forEach(prefix => {
+// Generic test-connection wiring for AvePoint + Azure Blob + SFTPGo.
+['avepoint', 'azure-blob', 'sftpgo'].forEach(prefix => {
     const btn    = document.getElementById(prefix + '-test-btn');
     const result = document.getElementById(prefix + '-test-result');
     if (! btn) return;

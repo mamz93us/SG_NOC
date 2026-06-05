@@ -124,6 +124,17 @@ class Setting extends Model
         'teamtailor_api_key',
         'teamtailor_base_url',
         'teamtailor_api_version',
+        // SFTPGo (device backup ingestion)
+        'sftpgo_enabled',
+        'sftpgo_base_url',
+        'sftpgo_admin_username',
+        'sftpgo_admin_password',
+        'sftpgo_api_key',
+        'sftpgo_sftp_enabled',
+        'sftpgo_ftp_enabled',
+        'sftpgo_webhook_secret',
+        'sftpgo_default_quota_mb',
+        'sftpgo_home_root',
     ];
 
     protected $casts = [
@@ -159,6 +170,11 @@ class Setting extends Model
         'email_marketing_event_retention_days' => 'integer',
         'email_marketing_open_pixel_enabled' => 'boolean',
         'email_marketing_click_tracking_enabled' => 'boolean',
+        // SFTPGo
+        'sftpgo_enabled' => 'boolean',
+        'sftpgo_sftp_enabled' => 'boolean',
+        'sftpgo_ftp_enabled' => 'boolean',
+        'sftpgo_default_quota_mb' => 'integer',
     ];
 
     /**
@@ -353,6 +369,63 @@ class Setting extends Model
     }
 
     public function getTeamtailorApiKeyAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── SFTPGo admin password — encrypted at rest ────────────────
+
+    public function setSftpgoAdminPasswordAttribute(?string $value): void
+    {
+        $this->attributes['sftpgo_admin_password'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getSftpgoAdminPasswordAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── SFTPGo API key — encrypted at rest ───────────────────────
+
+    public function setSftpgoApiKeyAttribute(?string $value): void
+    {
+        $this->attributes['sftpgo_api_key'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getSftpgoApiKeyAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── SFTPGo upload-webhook secret — encrypted at rest ─────────
+
+    public function setSftpgoWebhookSecretAttribute(?string $value): void
+    {
+        $this->attributes['sftpgo_webhook_secret'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getSftpgoWebhookSecretAttribute(?string $value): ?string
     {
         if (! $value) {
             return null;

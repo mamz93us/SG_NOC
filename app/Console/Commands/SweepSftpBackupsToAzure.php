@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\BackupAccount;
 use App\Models\NocEvent;
 use App\Models\SftpBackup;
 use Illuminate\Console\Command;
@@ -12,16 +13,17 @@ use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 
 /**
- * Sweeps the chrooted SFTP inbox on the NOC and ships each backup file to Azure
- * Blob. Network devices (firewalls, UCM, switches, …) push their backups into
- * the inbox over SFTP (see deployment/sftp/); this command — driven by the
- * scheduler, since production has no queue worker — uploads each *stable* file
- * to the `azure_backups` disk, records it in `sftp_backups`, and deletes the
- * local copy once the upload is verified, so the inbox can never fill the VM
- * disk.
+ * Sweeps SFTPGo's per-account backup root on the NOC and ships each file to Azure
+ * Blob. Network devices (firewalls, UCM, switches, …) and WHM push their backups
+ * into per-device SFTPGo accounts (see deployment/sftpgo/); each account's home is
+ * a folder under the sweep root whose name is the SFTPGo username. This command —
+ * driven by the scheduler, since production has no queue worker — uploads each
+ * *stable* file to the `azure_backups` disk, records it in `sftp_backups` (linked
+ * to its BackupAccount), stamps the account's last_archived_at, and deletes the
+ * local copy once the upload is verified, so the root can never fill the VM disk.
  *
  * Idempotency: the blob key is derived deterministically from the file (its
- * inbox path + mtime), so a crash between "uploaded" and "deleted locally" just
+ * path + mtime), so a crash between "uploaded" and "deleted locally" just
  * re-finds the same blob next tick instead of duplicating it, and a failed
  * upload retries cleanly.
  */
@@ -31,7 +33,7 @@ class SweepSftpBackupsToAzure extends Command
                             {--dry-run : List what would be uploaded without touching Azure or local files}
                             {--keep : Do not delete local files after a successful upload (overrides config)}';
 
-    protected $description = 'Sweep the chrooted SFTP inbox, stream each stable backup file to Azure Blob, then delete the local copy.';
+    protected $description = 'Sweep the SFTPGo backup root, stream each stable file to Azure Blob, then delete the local copy.';
 
     public function handle(): int
     {
@@ -237,9 +239,14 @@ class SweepSftpBackupsToAzure extends Command
         int $mtime,
         bool $uploaded,
     ): void {
+        // Link the row to its BackupAccount (top folder = SFTPGo username). An
+        // unmatched folder (legacy / manual) still archives with account_id = null.
+        $account = $source ? BackupAccount::where('sftpgo_username', $source)->first() : null;
+
         SftpBackup::updateOrCreate(
             ['azure_path' => $blobPath],
             [
+                'account_id' => $account?->id,
                 'source' => $source,
                 'relative_path' => $rel,
                 'filename' => $filename,
@@ -252,6 +259,15 @@ class SweepSftpBackupsToAzure extends Command
                 'uploaded_at' => $uploaded ? now() : null,
             ]
         );
+
+        // On a verified archive, stamp the account so the dashboard + overdue
+        // monitor see fresh state. saveQuietly avoids per-file ActivityLog noise.
+        if ($account && $status === SftpBackup::STATUS_UPLOADED) {
+            $account->forceFill([
+                'last_archived_at' => now(),
+                'last_status' => BackupAccount::STATUS_ARCHIVED,
+            ])->saveQuietly();
+        }
     }
 
     /**

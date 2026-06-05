@@ -641,3 +641,11 @@ Schedule::command('sftp-backups:prune')
     ->withoutOverlapping(30)
     ->runInBackground()
     ->name('sftp-backups-prune');
+
+// Device backup overdue monitor — opens/resolves a NocEvent per backup account
+// whose backup is missing within its expected frequency + grace, every 30 min.
+Schedule::command('backups:check-overdue')
+    ->cron($everyN(30))
+    ->withoutOverlapping(15)
+    ->runInBackground()
+    ->name('backups-check-overdue');

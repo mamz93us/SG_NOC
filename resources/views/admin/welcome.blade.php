@@ -87,6 +87,15 @@
             'href'     => Route::has('admin.identity.sync-logs') ? route('admin.identity.sync-logs') : null,
             'show'     => $kpis['identity_sync_health'] !== null,
         ])
+        @include('admin.welcome.kpi-tile', [
+            'title' => 'Backups Overdue',
+            'value' => $kpis['backups_overdue'] ?? null,
+            'subtitle' => ($kpis['backups_overdue'] ?? null) === null ? null : (($kpis['backups_overdue'] ?? 0) > 0 ? 'devices missing backups' : 'all current'),
+            'icon'  => 'bi-shield-exclamation',
+            'tone'  => 'amber',
+            'href'  => Route::has('admin.backups.index') ? route('admin.backups.index').'?status=overdue' : null,
+            'show'  => ($kpis['backups_overdue'] ?? null) !== null,
+        ])
     </div>
 
     {{-- ─── Two-column body ─── --}}

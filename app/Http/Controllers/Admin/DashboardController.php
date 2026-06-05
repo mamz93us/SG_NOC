@@ -8,13 +8,11 @@ use App\Models\AdminLink;
 use App\Models\AdminLinkClick;
 use App\Models\Branch;
 use App\Models\Contact;
+use App\Models\Device;
 use App\Models\FormSubmission;
-use Illuminate\Support\Facades\Route as RouteFacade;
 use App\Models\IdentitySyncLog;
 use App\Models\Incident;
-use App\Models\IspConnection;
 use App\Models\LinkCheck;
-use App\Models\Device;
 use App\Models\NocEvent;
 use App\Models\PhoneRequestLog;
 use App\Models\Setting;
@@ -27,6 +25,7 @@ use App\Services\IppbxApiService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Route as RouteFacade;
 use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
@@ -48,6 +47,10 @@ class DashboardController extends Controller
 
                 'noc_events_open' => $user->can('view-noc') && Schema::hasTable('noc_events')
                     ? NocEvent::where('status', 'open')->count()
+                    : null,
+
+                'backups_overdue' => $user->can('view-backups') && Schema::hasTable('backup_accounts')
+                    ? \App\Models\BackupAccount::overdue()->count()
                     : null,
 
                 'forms_pending' => $user->can('manage-forms') && Schema::hasTable('form_submissions')
@@ -76,8 +79,8 @@ class DashboardController extends Controller
                 'vpn' => Schema::hasTable('vpn_tunnels')
                     ? ['up' => VpnTunnel::where('status', 'up')->count(), 'total' => VpnTunnel::count()]
                     : ['up' => 0, 'total' => 0],
-                'users'    => Schema::hasTable('users')             ? User::count() : 0,
-                'assets'   => Schema::hasTable('devices')           ? Device::count() : 0,
+                'users' => Schema::hasTable('users') ? User::count() : 0,
+                'assets' => Schema::hasTable('devices') ? Device::count() : 0,
                 'pending_approvals' => Schema::hasTable('workflow_requests')
                     ? WorkflowRequest::whereIn('status', ['pending', 'manager_input_pending', 'awaiting_manager_form'])->count()
                     : 0,
@@ -108,12 +111,16 @@ class DashboardController extends Controller
 
         $availableTools = collect(config('admin_tools', []))
             ->filter(function ($t) use ($user) {
-                if (! RouteFacade::has($t['route'])) return false;
+                if (! RouteFacade::has($t['route'])) {
+                    return false;
+                }
                 $perm = $t['permission'] ?? null;
+
                 return $perm === null || $user->can($perm);
             })
             ->map(function ($t) {
                 $t['url'] = route($t['route']);
+
                 return $t;
             })
             ->reject(fn ($t) => in_array($t['url'], $pinnedUrls, true))
@@ -144,14 +151,15 @@ class DashboardController extends Controller
             });
 
         $ucmServers = UcmServer::orderBy('name')->get();
-        $ucmStats   = [];
+        $ucmStats = [];
 
         foreach ($ucmServers as $server) {
             if (! $server->is_active) {
                 $ucmStats[] = [
                     'server' => $server,
-                    'stats'  => ['online' => false, 'error' => 'Server is disabled'],
+                    'stats' => ['online' => false, 'error' => 'Server is disabled'],
                 ];
+
                 continue;
             }
 
@@ -159,14 +167,14 @@ class DashboardController extends Controller
             $ucmStats[] = ['server' => $server, 'stats' => $stats];
         }
 
-        $ucmOnline        = collect($ucmStats)->where('stats.online', true)->count();
-        $totalExt         = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['total']        ?? 0);
-        $totalIdle        = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['idle']         ?? 0);
-        $totalInUse       = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['inuse']        ?? 0);
-        $totalUnavail     = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['unavailable']  ?? 0);
-        $totalTrunks      = collect($ucmStats)->sum(fn ($u) => $u['stats']['trunk_counts']['total']      ?? 0);
-        $totalReachable   = collect($ucmStats)->sum(fn ($u) => $u['stats']['trunk_counts']['reachable']  ?? 0);
-        $totalUnreachable = collect($ucmStats)->sum(fn ($u) => $u['stats']['trunk_counts']['unreachable']?? 0);
+        $ucmOnline = collect($ucmStats)->where('stats.online', true)->count();
+        $totalExt = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['total'] ?? 0);
+        $totalIdle = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['idle'] ?? 0);
+        $totalInUse = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['inuse'] ?? 0);
+        $totalUnavail = collect($ucmStats)->sum(fn ($u) => $u['stats']['extensions']['unavailable'] ?? 0);
+        $totalTrunks = collect($ucmStats)->sum(fn ($u) => $u['stats']['trunk_counts']['total'] ?? 0);
+        $totalReachable = collect($ucmStats)->sum(fn ($u) => $u['stats']['trunk_counts']['reachable'] ?? 0);
+        $totalUnreachable = collect($ucmStats)->sum(fn ($u) => $u['stats']['trunk_counts']['unreachable'] ?? 0);
 
         $settings = Setting::get();
 
@@ -183,6 +191,7 @@ class DashboardController extends Controller
             if ($clicks->isEmpty()) {
                 $clicks = AdminLink::active()->orderBy('sort_order')->limit(5)->get();
             }
+
             return $clicks;
         });
 
@@ -211,15 +220,15 @@ class DashboardController extends Controller
     private function identitySyncHealth(): array
     {
         $recent = IdentitySyncLog::latest('id')->limit(20)->get(['status', 'started_at', 'completed_at']);
-        $count  = $recent->count();
-        $okPct  = $count > 0
+        $count = $recent->count();
+        $okPct = $count > 0
             ? (int) round($recent->where('status', 'completed')->count() / $count * 100)
             : null;
         $lastRun = $recent->first()?->completed_at ?? $recent->first()?->started_at;
 
         return [
             'success_pct' => $okPct,
-            'last_run'    => $lastRun,
+            'last_run' => $lastRun,
         ];
     }
 
@@ -245,9 +254,9 @@ class DashboardController extends Controller
         }
 
         return [
-            'total'         => $totalBranches,
-            'down'          => $downBranchIds->count(),
-            'healthy'       => max(0, $totalBranches - $downBranchIds->count()),
+            'total' => $totalBranches,
+            'down' => $downBranchIds->count(),
+            'healthy' => max(0, $totalBranches - $downBranchIds->count()),
             'down_branches' => $downBranchIds->isNotEmpty()
                 ? Branch::whereIn('id', $downBranchIds)->limit(5)->get(['id', 'name'])
                 : collect(),
@@ -274,9 +283,9 @@ class DashboardController extends Controller
             if ($user?->can($c['perm']) && Route::has($c['route'])) {
                 $out[] = [
                     'label' => $c['label'],
-                    'url'   => route($c['route']),
-                    'icon'  => $c['icon'],
-                    'tone'  => $c['tone'],
+                    'url' => route($c['route']),
+                    'icon' => $c['icon'],
+                    'tone' => $c['tone'],
                 ];
             }
         }
