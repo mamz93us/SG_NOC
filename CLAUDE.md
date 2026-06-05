@@ -86,6 +86,7 @@ The Laravel app does not run alone — these run alongside it in production:
 - **`deployment/branch-vm/`** — Ansible playbooks for branch VM provisioning.
 - **`deployment/browser-portal/`** — nginx snippet template + Chromium/Neko supervisor.
 - **`deployment/supervisor/`** — `switch-poll.conf` keeps `php artisan schedule:run` alive.
+- **`deployment/sftp/`** — chrooted, SFTP-only inbox network devices push backups into (`setup-sftp.sh` + sshd `Match` snippet). The scheduled `sftp-backups:sweep` command streams each stable file to Azure Blob (the `azure_backups` disk) and deletes the local copy; `sftp-backups:prune` enforces Azure retention. Tracked in `sftp_backups`. See [deployment/sftp/README.md](deployment/sftp/README.md).
 
 VPN: strongSwan IPsec configs (`JED.conf`, `RYD.conf`, etc.) plus the `sg-vpn-control.sh` wrapper. See [INFRA_SETUP.md](INFRA_SETUP.md).
 

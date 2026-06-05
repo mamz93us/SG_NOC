@@ -78,26 +78,26 @@ return [
         // on every Storage::disk('azure_offboarding') call so admins can configure them
         // via the Settings UI without redeploying.
         'azure_offboarding' => [
-            'driver'    => 'azure',
-            'account'   => env('AZURE_BLOB_ACCOUNT'),
-            'key'       => env('AZURE_BLOB_KEY'),
+            'driver' => 'azure',
+            'account' => env('AZURE_BLOB_ACCOUNT'),
+            'key' => env('AZURE_BLOB_KEY'),
             'container' => env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups'),
-            'endpoint'  => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
-            'prefix'    => 'offboarding/',
-            'throw'     => false,
+            'endpoint' => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'prefix' => 'offboarding/',
+            'throw' => false,
         ],
 
         // Azure Blob storage for ad-hoc AvePoint backups (mailbox / OneDrive) requested
         // from the AvePoint admin module. Same container as offboarding, but uses an
         // 'avepoint/' prefix so the two contexts are clearly separated.
         'azure_avepoint' => [
-            'driver'    => 'azure',
-            'account'   => env('AZURE_BLOB_ACCOUNT'),
-            'key'       => env('AZURE_BLOB_KEY'),
+            'driver' => 'azure',
+            'account' => env('AZURE_BLOB_ACCOUNT'),
+            'key' => env('AZURE_BLOB_KEY'),
             'container' => env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups'),
-            'endpoint'  => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
-            'prefix'    => 'avepoint/',
-            'throw'     => false,
+            'endpoint' => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'prefix' => 'avepoint/',
+            'throw' => false,
         ],
 
         // Azure Blob storage for course completion certificates. Files are uploaded
@@ -105,13 +105,13 @@ return [
         // employee. Same container as offboarding, separated by 'certificates/'
         // prefix.
         'azure_certificates' => [
-            'driver'    => 'azure',
-            'account'   => env('AZURE_BLOB_ACCOUNT'),
-            'key'       => env('AZURE_BLOB_KEY'),
+            'driver' => 'azure',
+            'account' => env('AZURE_BLOB_ACCOUNT'),
+            'key' => env('AZURE_BLOB_KEY'),
             'container' => env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups'),
-            'endpoint'  => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
-            'prefix'    => 'certificates/',
-            'throw'     => false,
+            'endpoint' => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'prefix' => 'certificates/',
+            'throw' => false,
         ],
 
         // Azure Blob storage for bulk Teamtailor CV exports — one zip per job,
@@ -121,13 +121,29 @@ return [
         // prefix. Credentials are re-read from Setting on each call by the
         // AppServiceProvider azure driver, like the other azure_* disks.
         'azure_resumes' => [
-            'driver'    => 'azure',
-            'account'   => env('AZURE_BLOB_ACCOUNT'),
-            'key'       => env('AZURE_BLOB_KEY'),
+            'driver' => 'azure',
+            'account' => env('AZURE_BLOB_ACCOUNT'),
+            'key' => env('AZURE_BLOB_KEY'),
             'container' => env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups'),
-            'endpoint'  => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
-            'prefix'    => 'teamtailor-resumes/',
-            'throw'     => false,
+            'endpoint' => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'prefix' => 'teamtailor-resumes/',
+            'throw' => false,
+        ],
+
+        // Azure Blob storage for device/system backups pushed into the SFTP
+        // inbox on the NOC (see deployment/sftp/ + config/sftp_backup.php). The
+        // sftp-backups:sweep command streams each stable inbox file here and
+        // then deletes the local copy. Same container as the other azure_*
+        // disks by default, separated by the 'sftp-backups/' prefix; set
+        // AZURE_BLOB_BACKUP_CONTAINER to isolate backups in their own container.
+        'azure_backups' => [
+            'driver' => 'azure',
+            'account' => env('AZURE_BLOB_ACCOUNT'),
+            'key' => env('AZURE_BLOB_KEY'),
+            'container' => env('AZURE_BLOB_BACKUP_CONTAINER', env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups')),
+            'endpoint' => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'prefix' => 'sftp-backups/',
+            'throw' => false,
         ],
 
     ],

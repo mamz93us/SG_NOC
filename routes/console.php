@@ -621,3 +621,23 @@ Schedule::command('teamtailor:process-cv-exports')
     ->everyMinute()
     ->withoutOverlapping(20)
     ->runInBackground();
+
+// ──────────────────────────────────────────────────────────────────────
+// SFTP-inbox → Azure Blob device backups. Network devices push their own
+// backups into the chrooted SFTP inbox on the NOC (deployment/sftp/); the
+// sweep streams each stable file up to Azure Blob and deletes the local copy
+// so the inbox can't fill the VM disk. No queue worker in prod, so this is the
+// async path. The prune enforces Azure-side retention and no-ops unless
+// SFTP_BACKUP_RETENTION_DAYS is set.
+// ──────────────────────────────────────────────────────────────────────
+Schedule::command('sftp-backups:sweep')
+    ->cron($everyN(max(1, (int) config('sftp_backup.sweep_interval', 5))))
+    ->withoutOverlapping(20)
+    ->runInBackground()
+    ->name('sftp-backups-sweep');
+
+Schedule::command('sftp-backups:prune')
+    ->dailyAt('02:45')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('sftp-backups-prune');
