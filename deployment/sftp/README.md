@@ -183,7 +183,8 @@ existing notification rules fire, and it auto-resolves after a clean sweep.
 | Client connects then disconnects; `/var/log/auth.log` shows *"bad ownership or modes for chroot directory"* | A path component of the chroot is writable by group/other. `chown root:root /srv/sftp-backups && chmod 755 /srv/sftp-backups`. The **inbox** subfolder is the only writable part. |
 | `Permission denied` on `put` | Device is writing to the chroot root, not `inbox/`. Prefix the remote path with `inbox/<source>/`. |
 | Sweep logs *"Backup disk [azure_backups] is not ready"* | Azure account/key not set. Configure **Admin → Settings → Azure Blob** (or the `AZURE_BLOB_*` env). Files stay in the inbox until it's configured — no data loss. |
-| Sweep logs *"uploaded, but local delete failed"* | The app user isn't in `sftpbackup`, or the inbox lost its `2770`/setgid. Re-run `setup-sftp.sh` and restart the scheduler/supervisor so group membership refreshes. |
+| `RecursiveDirectoryIterator(...inbox): Permission denied` | The app user's session/scheduler started **before** it joined `sftpbackup`, so it can't read the `2770` inbox yet. `setup-sftp.sh` now also sets an ACL (`setfacl -R -m u:<app>:rwx <inbox>` + a default ACL) that fixes this instantly; otherwise start a fresh login or `sudo systemctl restart supervisor`. One-off without re-login: `sg sftpbackup -c 'php artisan sftp-backups:sweep --dry-run'`. |
+| Sweep logs *"uploaded, but local delete failed"* | The inbox lost its `2770`/setgid or the app user's ACL/group grant. Re-run `setup-sftp.sh` (it re-applies the ACL). |
 | Files never picked up | They're newer than `SFTP_BACKUP_STABILITY_SECONDS`, match an ignored suffix, or exceed `SFTP_BACKUP_MAX_BYTES`. Check `php artisan sftp-backups:sweep --dry-run`. |
 | Validate sshd after any change | `sudo sshd -t` **before** reloading; a bad `Match` block can lock everyone out. |
 

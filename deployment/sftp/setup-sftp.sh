@@ -79,6 +79,24 @@ chown "${SFTP_USER}:${SFTP_GROUP}" "$INBOX"
 chmod 2770 "$INBOX"
 log "inbox ${INBOX} → ${SFTP_USER}:${SFTP_GROUP} 2770 (setgid)"
 
+# 5b. Grant the app user durable rwx on the inbox via ACLs. Group membership
+#     only takes effect on a fresh login, so a long-lived scheduler/SSH session
+#     started before this run can't read the 2770 inbox yet — and the SFTP user
+#     creates nested subfolders the app user would otherwise be "other" on. An
+#     ACL (with default inheritance via -d) grants access immediately and for
+#     every future upload, independent of login sessions.
+if ! command -v setfacl >/dev/null 2>&1; then
+    warn "setfacl not found; attempting to install 'acl'…"
+    (apt-get update -qq && apt-get install -y acl) >/dev/null 2>&1 || true
+fi
+if command -v setfacl >/dev/null 2>&1 && getent passwd "$APP_USER" >/dev/null; then
+    setfacl -R    -m "u:${APP_USER}:rwx" "$INBOX"
+    setfacl -R -d -m "u:${APP_USER}:rwx" "$INBOX"
+    log "ACL: ${APP_USER} granted rwx on ${INBOX} (with default inheritance)"
+else
+    warn "setfacl unavailable — the sweeper then needs ${APP_USER} in ${SFTP_GROUP} AND a fresh login / 'sudo systemctl restart supervisor'."
+fi
+
 # 6. authorized_keys dir, OUTSIDE the chroot (sshd reads keys before chroot) -
 mkdir -p "$KEYDIR"
 chown root:root "$KEYDIR"
