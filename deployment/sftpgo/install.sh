@@ -46,6 +46,19 @@ chown "${SFTPGO_USER}:${SFTPGO_USER}" "$BACKUP_ROOT" "$STATE_DIR" "$CERT_DIR"
 chmod 750 "$BACKUP_ROOT" "$STATE_DIR" "$CERT_DIR"
 log "dirs ready: ${BACKUP_ROOT}, ${STATE_DIR}, ${CERT_DIR}"
 
+# Data-provider backups/credentials live under the (writable) state dir; the log
+# goes to journald (log_file_path:"" in sftpgo.json), so /etc/sftpgo stays read-only.
+mkdir -p "$STATE_DIR/backups" "$STATE_DIR/credentials"
+chown "${SFTPGO_USER}:${SFTPGO_USER}" "$STATE_DIR/backups" "$STATE_DIR/credentials"
+
+# SFTPGo loads templates/static/openapi from disk (NOT embedded) and resolves them
+# relative to the config dir. If absent, tell the operator how to install them.
+if [ ! -d "${CONF_DIR}/templates" ]; then
+    warn "SFTPGo resource dirs missing — install them into ${CONF_DIR} (version-matched):"
+    warn "    cd /tmp && curl -fsSLO https://github.com/drakkan/sftpgo/releases/download/v2.7.3/sftpgo_2.7.3-1_amd64.deb"
+    warn "    dpkg-deb -x sftpgo_2.7.3-1_amd64.deb d && sudo cp -r d/usr/share/sftpgo/templates d/usr/share/sftpgo/static d/usr/share/sftpgo/openapi ${CONF_DIR}/"
+fi
+
 # 2. ACL so the sweeper (APP_USER) can read AND DELETE every future per-account
 #    folder SFTPGo creates. rwX (capital X) grants dir traversal without marking
 #    files executable; the default (-d) entry makes new folders inherit it.
@@ -102,8 +115,8 @@ cat <<EOF
   2. Edit ${CONF_DIR}/sftpgo.env        (DB password to match setup.sql + admin password)
   3. FTPS certs in ${CERT_DIR}/         (fullchain.pem + privkey.pem; LE deploy-hook in README §5)
   4. Start it:                          sudo systemctl restart sftpgo && systemctl status sftpgo
-  5. First login (SSH tunnel):          ssh -L 8080:127.0.0.1:8080 ${APP_USER}@<host>  ->  http://localhost:8080
+  5. First login (SSH tunnel):          ssh -L 8090:127.0.0.1:8090 ${APP_USER}@<host>  ->  http://localhost:8090
                                         then rotate the bootstrap admin password.
   6. Create the upload event rule       (README §7) so uploads POST to the NOC webhook.
-  7. Admin -> Settings -> SFTPGo        base URL http://127.0.0.1:8080, admin creds, webhook secret, Test.
+  7. Admin -> Settings -> SFTPGo        base URL http://127.0.0.1:8090, admin creds, webhook secret, Test.
 EOF

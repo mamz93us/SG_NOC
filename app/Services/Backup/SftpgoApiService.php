@@ -41,7 +41,7 @@ class SftpgoApiService
         ?string $apiKey = null,
     ) {
         $s = Setting::get();
-        $this->baseUrl = rtrim($baseUrl ?? ($s->sftpgo_base_url ?: 'http://127.0.0.1:8080'), '/');
+        $this->baseUrl = rtrim($baseUrl ?? ($s->sftpgo_base_url ?: 'http://127.0.0.1:8090'), '/');
         $this->adminUser = $adminUser ?? ($s->sftpgo_admin_username ?? '') ?? '';
         $this->adminPass = $adminPass ?? ($s->sftpgo_admin_password ?? '') ?? '';
         $this->apiKey = $apiKey ?? ($s->sftpgo_api_key ?? '') ?? '';

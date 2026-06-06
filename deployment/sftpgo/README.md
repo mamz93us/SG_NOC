@@ -30,8 +30,9 @@ Azure. This **replaces** the OS-user chroot in [`deployment/sftp/`](../sftp/READ
 
 ## 1. Install the SFTPGo binary
 
-The binary is self-contained — the web admin UI is embedded — so just the binary
-on `PATH` is enough. Recommended (binary tarball):
+Install the binary (SFTPGo also needs its `templates/`/`static/`/`openapi/` resource
+dirs on disk — `install.sh` step 3 detects if they're missing and prints how to add
+them from the `.deb`). Recommended (binary tarball):
 
 ```sh
 VER=v2.7.3   # latest — check https://github.com/drakkan/sftpgo/releases
@@ -113,12 +114,12 @@ sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/sftpgo.sh
 ```sh
 sudo systemctl restart sftpgo
 systemctl status sftpgo            # should be active (running)
-sudo ss -ltnp | grep -E '2022|2121|8080'   # sftpd, ftpd, local REST
+sudo ss -ltnp | grep -E '2022|2121|8090'   # sftpd, ftpd, local REST
 ```
-The REST/web admin binds `127.0.0.1:8080` only. Reach it through an SSH tunnel:
+The REST/web admin binds `127.0.0.1:8090` only. Reach it through an SSH tunnel:
 ```sh
-ssh -L 8080:127.0.0.1:8080 azureuser@noc.samirgroup.net
-#   then browse http://localhost:8080  → log in with the bootstrap admin → CHANGE the password
+ssh -L 8090:127.0.0.1:8090 azureuser@noc.samirgroup.net
+#   then browse http://localhost:8090  → log in with the bootstrap admin → CHANGE the password
 ```
 
 ## 7. Define the upload → NOC webhook (one-time, in the web admin)
@@ -147,7 +148,7 @@ archive + the `sftp_backups` rows.)
 
 ## 8. Wire the NOC
 
-**Admin → Settings → SFTPGo:** base URL `http://127.0.0.1:8080`, the admin username +
+**Admin → Settings → SFTPGo:** base URL `http://127.0.0.1:8090`, the admin username +
 password (or an API key), the **same** webhook secret as §7, enable SFTP + FTP, set a
 default quota → **Test Connection** (expects OK). Then create per-device logins under
 **Admin → Device Backups** (each provisions an SFTPGo user via the REST API).
@@ -186,7 +187,7 @@ so nothing in the app needs the old path.
 | 2022 | SFTP | open to devices |
 | 2121 | FTPS control | open to devices (if FTP used) |
 | 50000–50100 | FTPS passive data | open to devices (if FTP used) |
-| 8080 | REST / web admin | **localhost only** (SSH-tunnel to reach) |
+| 8090 | REST / web admin | **localhost only** (SSH-tunnel to reach) |
 
 ## Troubleshooting
 
@@ -194,6 +195,6 @@ so nothing in the app needs the old path.
 |---|---|
 | `systemctl status sftpgo` fails on start | Check `journalctl -u sftpgo -n50`. Usual causes: wrong DB password in `sftpgo.env`, `sftpgo` DB/user not created (run `setup.sql`), or cert files missing in `/etc/sftpgo/certs`. |
 | FTPS connects but data transfer hangs | Passive range `50000–50100` not open, or `force_passive_ip` unset behind NAT (set `SFTPGO_FTPD__BINDINGS__0__FORCE_PASSIVE_IP` in `sftpgo.env`). |
-| NOC "Test Connection" fails | Confirm `sftpgo` is running and `curl -s http://127.0.0.1:8080/healthz` works on the VM; check the admin creds in Settings. |
+| NOC "Test Connection" fails | Confirm `sftpgo` is running and `curl -s http://127.0.0.1:8090/healthz` works on the VM; check the admin creds in Settings. |
 | Upload arrives but no webhook | The event rule (§7) isn't defined/enabled, or the `X-Backup-Secret` differs between SFTPGo and Settings (→ NOC returns 401). |
 | Sweeper can't read/delete uploads | Re-run `install.sh` (re-applies the `azureuser` ACL on `/srv/backups`) and restart the scheduler/supervisor. |

@@ -1,4 +1,5 @@
 {
+    "log_file_path": "",
     "common": {
         "defender": {
             "enabled": true,
@@ -15,6 +16,11 @@
     "sftpd": {
         "bindings": [
             { "address": "", "port": 2022 }
+        ],
+        "host_keys": [
+            "/var/lib/sftpgo/id_ed25519",
+            "/var/lib/sftpgo/id_ecdsa",
+            "/var/lib/sftpgo/id_rsa"
         ]
     },
     "ftpd": {
@@ -35,7 +41,7 @@
         "bindings": [
             {
                 "address": "127.0.0.1",
-                "port": 8080,
+                "port": 8090,
                 "enable_web_admin": true,
                 "enable_web_client": false
             }
@@ -49,6 +55,8 @@
         "username": "sftpgo",
         "password": "",
         "users_base_dir": "/srv/backups",
+        "backups_path": "/var/lib/sftpgo/backups",
+        "credentials_path": "/var/lib/sftpgo/credentials",
         "create_default_admin": true
     }
 }

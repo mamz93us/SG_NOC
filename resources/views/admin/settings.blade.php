@@ -1174,8 +1174,8 @@
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Base URL (REST API)</label>
                     <input type="url" name="sftpgo_base_url" class="form-control font-monospace"
-                           value="{{ old('sftpgo_base_url', $settings->sftpgo_base_url ?: 'http://127.0.0.1:8080') }}"
-                           placeholder="http://127.0.0.1:8080">
+                           value="{{ old('sftpgo_base_url', $settings->sftpgo_base_url ?: 'http://127.0.0.1:8090') }}"
+                           placeholder="http://127.0.0.1:8090">
                     <div class="form-text">SFTPGo binds its REST/admin API to localhost; the NOC is co-located.</div>
                 </div>
 
