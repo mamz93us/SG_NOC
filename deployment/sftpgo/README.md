@@ -169,10 +169,19 @@ The old chroot inbox is **superseded** by SFTPGo. They can coexist during migrat
 SFTPGo's SFTP is on **2022**, the OS `sshd` stays on **22**, so there's no conflict.
 Migrate each device to its new account/port, then decommission:
 
+> **⚠️ Do the group removal FIRST.** `setup-sftp.sh` added the app user (`azureuser`)
+> to the `sftpbackup` group, and the `Match Group sftpbackup` block forces those
+> members into SFTP-only + chroot and redirects their `authorized_keys` — which
+> **locks `azureuser` out of normal SSH** (symptom: *"This service allows sftp
+> connections only"* + key auth failing on port 22). SFTPGo doesn't use this group
+> (it uses an ACL on `/srv/backups`), so removing it is safe.
+
 ```sh
+sudo gpasswd -d azureuser sftpbackup                     # admin user OUT of the SFTP-only group
 sudo rm -f /etc/ssh/sshd_config.d/60-sftp-backup.conf
 sudo sshd -t && sudo systemctl reload ssh
 sudo deluser --remove-home backuppush 2>/dev/null || sudo userdel backuppush
+sudo groupdel sftpbackup 2>/dev/null || true
 sudo rm -rf /srv/sftp-backups           # old inbox (after confirming everything migrated)
 ```
 The sweeper already reads `/srv/backups` (SFTPGo's root) after the Phase D config change,
