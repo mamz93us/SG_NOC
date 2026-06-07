@@ -59,7 +59,7 @@
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" id="double_opt_in"
                                name="double_opt_in" value="1"
-                               @checked(old('double_opt_in', $list->double_opt_in ?? true))>
+                               @checked(old('double_opt_in', $list->double_opt_in ?? false))>
                         <label class="form-check-label" for="double_opt_in">
                             Require double opt-in (recommended)
                         </label>
