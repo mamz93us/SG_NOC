@@ -500,6 +500,20 @@ Schedule::command('intune:sync-net-data')
     ->runInBackground()
     ->name('intune-net-data');
 
+// ─── Ad-hoc Queue Drainer — every minute ─────────────────────────────────
+// This NOC runs NO long-lived queue worker (scheduler-as-worker model).
+// A handful of admin buttons still dispatch ShouldQueue jobs onto the
+// `default` DB queue — Intune HW sync (SyncIntuneHwDataJob, 30-min timeout),
+// GDMS device-account sync (SyncGdmsDeviceAccountsJob), SSL issuance
+// (IssueSslCertificateJob). Without a drainer those rows sit in `jobs`
+// forever ("queued… never runs"). This short-lived worker empties the queue
+// each minute and exits; withoutOverlapping(60) safely spans the longest job.
+Schedule::command('queue:work --stop-when-empty --max-time=280 --tries=1 --sleep=1')
+    ->everyMinute()
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('queue-drainer');
+
 // ─── RADIUS MAC Registry Sync — hourly ───────────────────────────────────
 // Pulls MACs from `devices` (phones, switches, APs, printers) into the
 // `device_macs` registry so they become RADIUS-eligible. Idempotent —
