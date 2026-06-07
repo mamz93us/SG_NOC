@@ -76,7 +76,11 @@ class EmailCampaign extends Model
 
     public function isEditable(): bool
     {
-        return in_array($this->status, ['draft', 'scheduled', 'paused']);
+        // 'scheduled' is intentionally NOT editable: a campaign that has cleared the
+        // approval gate (or was internal-only) must not be silently re-pointed at
+        // external recipients while queued. Pause it first — editing a paused
+        // campaign and re-sending re-runs the approval check.
+        return in_array($this->status, ['draft', 'paused']);
     }
 
     public function isPendingApproval(): bool
