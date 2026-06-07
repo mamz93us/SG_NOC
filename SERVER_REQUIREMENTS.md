@@ -143,6 +143,10 @@ Supervisor: install units to `/etc/supervisor/conf.d/`, then
 ### strongSwan — branch VPN hub (repo root + `deployment/`)
 - Connection configs are committed at repo root: **`JED.conf`, `RYD.conf`** (swanctl format) →
   `/etc/swanctl/conf.d/` (`chmod 600`), then `swanctl --load-all`.
+- **Run ONLY `charon-systemd` (`strongswan.service`).** The `strongswan` metapackage also pulls
+  the legacy `strongswan-starter` daemon — if both run they fight over UDP 500/4500 and the loser
+  logs `no socket implementation registered`, leaving tunnels stuck CONNECTING (config in one
+  charon, sockets in the other). `systemctl disable --now strongswan-starter` + `ipsec stop`.
 - ⚠️ **Only JED + RYD are in git.** The other ~7 branch tunnels lived on the wiped disk —
   recreate each from `JED.conf` (change `remote_addrs`, IDs, `remote_ts`, `secret`).
 - Control wrapper `sg-vpn-control.sh` → `/usr/local/sbin/` + `/etc/sudoers.d/sg-vpn-control`

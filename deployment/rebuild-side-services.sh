@@ -157,7 +157,13 @@ if [ -f "${APP_DIR}/sg-vpn-control.sh" ]; then
         rm -f /etc/sudoers.d/sg-vpn-control; warn "sudoers validation failed — removed (set WEB_USER correctly and re-run)"
     fi
 fi
-systemctl enable --now strongswan >/dev/null 2>&1 || systemctl enable --now strongswan-starter >/dev/null 2>&1 || true
+# Run ONLY charon-systemd (swanctl/vici). The strongswan metapackage also pulls the
+# legacy 'strongswan-starter' daemon; if BOTH run they fight over UDP 500/4500 and the
+# loser logs "no socket implementation registered" — tunnels stay stuck CONNECTING with
+# the config in one charon and the sockets in the other. Kill the legacy one first.
+systemctl disable --now strongswan-starter >/dev/null 2>&1 || true
+ipsec stop >/dev/null 2>&1 || true
+systemctl enable --now strongswan >/dev/null 2>&1 && ok "charon-systemd (strongswan.service) running; legacy starter disabled" || warn "strongswan.service failed to start"
 if command -v swanctl >/dev/null 2>&1; then
     swanctl --load-all >/dev/null 2>&1 && ok "swanctl --load-all done (start_action=start → tunnels initiating)" || warn "swanctl --load-all failed — 'systemctl status strongswan'"
 fi
