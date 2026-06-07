@@ -59,6 +59,18 @@ class EnsurePermission
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
+        // On the isolated marketing host an authenticated-but-unauthorized user must
+        // NOT be bounced to the NOC /portal — that leaks the NOC's existence and breaks
+        // the host isolation EnforceMarketingHostIsolation enforces. A brand-new SSO
+        // user is created as browser_user (no marketing access) until an admin grants
+        // the `marketing` role, so this is the common landing for first-time sign-ins.
+        // Keep them on em with a self-explanatory "no access yet" page (no permission
+        // gate on that route, so there's no redirect loop back through here).
+        if ($request->getHost() === \App\Support\Marketing::domain()) {
+            return redirect()->route('portal.marketing.no-access')
+                ->with('error', 'Your account does not have access to the marketing portal yet. Please contact your administrator.');
+        }
+
         // Portal-only roles (browser_user, hr) should never be sent to admin.dashboard —
         // /admin/ bounces them back to /portal, causing an infinite redirect. Instead,
         // send them to the portal hub (which is unguarded) with the error message.

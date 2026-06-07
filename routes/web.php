@@ -221,6 +221,13 @@ Route::domain(Marketing::domain())->group(function () {
 
         return redirect()->route('portal.marketing.login');
     })->name('portal.marketing.logout');
+
+    // Authenticated users who lack `view-email-marketing` land here (EnsurePermission
+    // routes them in on the marketing host). NO permission middleware — otherwise it
+    // would loop back through EnsurePermission. Authed but access-less; never the NOC.
+    Route::middleware('auth')->get('/no-access', function () {
+        return view('auth.marketing-no-access');
+    })->name('portal.marketing.no-access');
 });
 
 // ──────────────────────────────────────────────────────────────────
