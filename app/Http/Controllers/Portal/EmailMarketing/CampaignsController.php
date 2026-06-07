@@ -63,12 +63,21 @@ class CampaignsController extends Controller
             ->with('status', 'Campaign created.');
     }
 
-    public function show(EmailCampaign $campaign, CampaignApprovalService $approval): View
+    public function show(EmailCampaign $campaign): View
     {
         $campaign->load(['list', 'segment', 'template', 'creator']);
 
-        // Tell the editor up front whether sending will need approval (external recipients).
-        $needsApproval = $campaign->isEditable() && $approval->requiresApproval($campaign);
+        // Pre-flight hint: will sending need approval (external recipients)? This is
+        // only a hint — never let recipient resolution (or an unconfigured SES) break
+        // the page, so resolve lazily and swallow any failure.
+        $needsApproval = false;
+        if ($campaign->isEditable()) {
+            try {
+                $needsApproval = app(CampaignApprovalService::class)->requiresApproval($campaign);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Campaign approval pre-check failed: '.$e->getMessage());
+            }
+        }
 
         return view('portal.email-marketing.campaigns.show', compact('campaign', 'needsApproval'));
     }

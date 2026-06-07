@@ -15,23 +15,38 @@ use Illuminate\Support\Facades\Cache;
  */
 class SesService
 {
-    private SesClient $client;
+    private ?SesClient $client = null;
 
     private Setting $settings;
 
     public function __construct(?Setting $settings = null)
     {
+        // Cheap, never-throwing construction so the service can be injected (e.g.
+        // by the campaign approval recipient check) without SES being configured
+        // yet. The client — and its config assertion — is built lazily on first use.
         $this->settings = $settings ?? Setting::get();
-        $this->assertConfigured();
+    }
 
-        $this->client = new SesClient([
-            'version' => 'latest',
-            'region' => $this->settings->ses_region,
-            'credentials' => [
-                'key' => $this->settings->ses_access_key_id,
-                'secret' => $this->settings->ses_secret_access_key,
-            ],
-        ]);
+    /**
+     * Lazily build the AWS SES client. The configuration assertion lives here, not
+     * in the constructor, so SES only needs to be set up when you actually send.
+     */
+    private function client(): SesClient
+    {
+        if ($this->client === null) {
+            $this->assertConfigured();
+
+            $this->client = new SesClient([
+                'version' => 'latest',
+                'region' => $this->settings->ses_region,
+                'credentials' => [
+                    'key' => $this->settings->ses_access_key_id,
+                    'secret' => $this->settings->ses_secret_access_key,
+                ],
+            ]);
+        }
+
+        return $this->client;
     }
 
     /**
@@ -89,7 +104,7 @@ class SesService
             $payload['ConfigurationSetName'] = $configSet;
         }
 
-        $result = $this->client->sendEmail($payload);
+        $result = $this->client()->sendEmail($payload);
 
         return (string) $result->get('MessageId');
     }
@@ -139,7 +154,7 @@ class SesService
             $payload['ConfigurationSetName'] = $this->settings->ses_configuration_set;
         }
 
-        $result = $this->client->sendEmail($payload);
+        $result = $this->client()->sendEmail($payload);
 
         return (string) $result->get('MessageId');
     }
@@ -153,7 +168,7 @@ class SesService
         $ttl = (int) config('email_marketing.quota_cache_seconds', 60);
 
         return Cache::remember('email_marketing.ses_quota', $ttl, function () {
-            $r = $this->client->getSendQuota();
+            $r = $this->client()->getSendQuota();
 
             return [
                 'Max24HourSend' => (float) $r->get('Max24HourSend'),
@@ -165,14 +180,14 @@ class SesService
 
     public function getSendStatistics(): array
     {
-        $r = $this->client->getSendStatistics();
+        $r = $this->client()->getSendStatistics();
 
         return (array) ($r->get('SendDataPoints') ?? []);
     }
 
     public function listVerifiedIdentities(): array
     {
-        $r = $this->client->listIdentities(['IdentityType' => 'Domain']);
+        $r = $this->client()->listIdentities(['IdentityType' => 'Domain']);
 
         return (array) ($r->get('Identities') ?? []);
     }
