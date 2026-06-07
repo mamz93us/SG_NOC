@@ -78,7 +78,7 @@ wrapper script + `/etc/sudoers.d/*`, never raw).
 | `fping` | `fping` | `IpScannerController` (parallel subnet scan) | no |
 | `nmap` | `nmap` | `NetworkDiscoveryService` / IP scanner | no |
 | `snmpget` / `snmpwalk` | `snmp` | `Snmp\SnmpClient`, discovery (CLI fallback) | no |
-| **`swanctl`** | `strongswan-swanctl` | `VpnControlService` → `/usr/local/sbin/sg-vpn-control.sh` | **yes** |
+| **`swanctl`** | `strongswan-swanctl` | `VpnControlService` → `/usr/local/bin/sg-vpn-control` (exact path is hardcoded as `$wrapperPath`) | **yes** |
 | **`lpadmin` / `cupsenable` / `cupsdisable` / `cupsaccept` / `cancel` / `lp`** | `cups` | `CupsService` | **yes** |
 | `lpstat` | `cups` | `CupsService` (read-only status) | no |
 | **`docker`** | docker-ce / docker.io | `BrowserPortal\DockerClient` (Neko containers) | via `docker` group |
@@ -181,7 +181,7 @@ plus ESP/IKE (UDP 500/4500) for the VPN tunnels.
 ## 6. Sudoers / systemd / filesystem
 
 **Sudoers (`/etc/sudoers.d/`, NOPASSWD, scoped, `visudo -c` validated):**
-- `sg-vpn-control` → php-fpm user may run `/usr/local/sbin/sg-vpn-control.sh *`
+- `sg-vpn-control` → php-fpm user may run `/usr/local/bin/sg-vpn-control *` (wrapper path is hardcoded in `VpnControlService` — NOT `/usr/local/sbin`, NOT `.sh`)
 - `sg-radius` → app user may run `sg-radius-control reload-clients|restart`
 - `sg-cups` → app user may run the `lpadmin`/`cups*`/`lp`/`cancel` set (create if CUPS is app-managed)
 - app user in the **`docker`** group (browser portal)
@@ -191,7 +191,7 @@ plus ESP/IKE (UDP 500/4500) for the VPN tunnels.
 
 **Filesystem:**
 - `/srv/backups` → `sftpgo:sftpgo 750` + default ACL `u:azureuser:rwX`
-- `/etc/swanctl/conf.d/*.conf` → `root:root 600` (PSKs inside)
+- `/etc/swanctl/conf.d/*.conf` → `root:root 600` (PSKs inside). **The VPN Hub UI writes per-tunnel `.conf` files directly as the php-fpm user**, so that user needs write on the dir — grant via ACL: `setfacl -m u:<php-fpm-user>:rwx /etc/swanctl/conf.d` + `setfacl -d -m …` for new files. Without it the UI throws "Failed to save swanctl configuration file."
 - `storage/`, `bootstrap/cache/` → app-writable; run `php artisan storage:link`
 - CUPS TLS: `/etc/cups/ssl/<hostname>.{crt,key}` symlinked to the LE cert
   (**CUPS keys off the machine hostname, not ServerName** — don't rename the host).

@@ -134,13 +134,25 @@ for f in "${APP_DIR}"/*.conf; do
     fi
 done
 if [ "$SWAN_N" -gt 0 ]; then ok "restored ${SWAN_N} swanctl connection file(s) → /etc/swanctl/conf.d (chmod 600)"; else warn "no swanctl connection files (with 'connections {') found in ${APP_DIR}"; fi
-# control wrapper invoked by the web UI via sudo (status/up/down/reload/logs)
+# The VPN Hub UI writes each tunnel's .conf DIRECTLY as the php-fpm user
+# (VpnControlService::saveConfig → file_put_contents /etc/swanctl/conf.d/<name>.conf),
+# so php-fpm needs write on that root-owned dir. Grant via ACL (+ default for new
+# files); swanctl still runs as root via the wrapper, so it reads the 600 files fine.
+command -v setfacl >/dev/null 2>&1 || apt-get install -y acl >/dev/null 2>&1 || true
+if command -v setfacl >/dev/null 2>&1; then
+    setfacl -m   "u:${WEB_USER}:rwx" /etc/swanctl/conf.d 2>/dev/null \
+      && setfacl -d -m "u:${WEB_USER}:rwx" /etc/swanctl/conf.d 2>/dev/null \
+      && ok "ACL: ${WEB_USER} can write /etc/swanctl/conf.d (UI tunnel saves)" \
+      || warn "setfacl on /etc/swanctl/conf.d failed — UI tunnel saves will fail until ${WEB_USER} can write there"
+fi
+# control wrapper invoked by the web UI via sudo (status/up/down/reload/logs).
+# MUST be /usr/local/bin/sg-vpn-control (no .sh) — VpnControlService::$wrapperPath.
 if [ -f "${APP_DIR}/sg-vpn-control.sh" ]; then
-    install -m 0755 "${APP_DIR}/sg-vpn-control.sh" /usr/local/sbin/sg-vpn-control.sh
-    printf '%s ALL=(root) NOPASSWD: /usr/local/sbin/sg-vpn-control.sh *\n' "$WEB_USER" > /etc/sudoers.d/sg-vpn-control
+    install -m 0755 "${APP_DIR}/sg-vpn-control.sh" /usr/local/bin/sg-vpn-control
+    printf '%s ALL=(root) NOPASSWD: /usr/local/bin/sg-vpn-control *\n' "$WEB_USER" > /etc/sudoers.d/sg-vpn-control
     chmod 440 /etc/sudoers.d/sg-vpn-control
     if visudo -cf /etc/sudoers.d/sg-vpn-control >/dev/null 2>&1; then
-        ok "vpn wrapper → /usr/local/sbin/sg-vpn-control.sh + sudoers NOPASSWD for ${WEB_USER}"
+        ok "vpn wrapper → /usr/local/bin/sg-vpn-control + sudoers NOPASSWD for ${WEB_USER}"
     else
         rm -f /etc/sudoers.d/sg-vpn-control; warn "sudoers validation failed — removed (set WEB_USER correctly and re-run)"
     fi
@@ -151,7 +163,8 @@ if command -v swanctl >/dev/null 2>&1; then
 fi
 note "VPN: only the tunnels committed to git (JED/RYD) were restored. The other ~7 branch tunnels lived only on the wiped disk — recreate each from JED.conf as a template (remote_addrs, local/remote id, remote_ts, secret) into /etc/swanctl/conf.d/, then 'swanctl --load-all'. Verify: 'swanctl --list-sas'. NEVER add a 0.0.0.0/0 child SA to an existing IKE conn — Sophos widens it on rekey and hijacks ALL VPS egress."
 note "VPN SECURITY: the PSK is committed inside JED.conf/RYD.conf — rotate those PSKs and keep the live secret only in /etc/swanctl/conf.d (the repo copy is just a template)."
-note "VPN: confirm the app's VPN controller calls the wrapper at /usr/local/sbin/sg-vpn-control.sh (and that php-fpm runs as ${WEB_USER}); adjust WEB_USER and re-run if not."
+note "VPN: the wrapper path (/usr/local/bin/sg-vpn-control) and the conf.d ACL are keyed to php-fpm user '${WEB_USER}'. If 'Failed to save swanctl configuration file' appears in the UI, php-fpm runs as a different user — re-run with WEB_USER=<that user>."
+note "VPN: leaving a tunnel's local/remote subnet BLANK in the UI makes the app generate a 0.0.0.0/0 child SA (VpnControlService default). Always fill both subnets — a 0.0.0.0/0 selector risks hijacking VPS egress on rekey."
 
 # ─────────────────────────────────── supervisor daemons (scheduler + VQ collector)
 sec "Supervisor daemons (scheduler-as-worker + VQ collector)"
