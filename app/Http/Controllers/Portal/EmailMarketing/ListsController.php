@@ -73,6 +73,14 @@ class ListsController extends Controller
     {
         $filename = 'subscribers-'.\Illuminate\Support\Str::slug($list->name).'-'.now()->format('Ymd-His').'.csv';
 
+        \App\Models\ActivityLog::create([
+            'model_type' => 'EmailList',
+            'model_id' => $list->id,
+            'action' => 'subscribers_exported',
+            'changes' => ['list' => $list->name],
+            'user_id' => auth()->id(),
+        ]);
+
         return response()->streamDownload(function () use ($list) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF");
@@ -98,7 +106,7 @@ class ListsController extends Controller
 
             fclose($out);
         }, $filename, [
-            'Content-Type'  => 'text/csv; charset=UTF-8',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Cache-Control' => 'no-store, no-cache, must-revalidate',
         ]);
     }

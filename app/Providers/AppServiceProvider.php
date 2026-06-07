@@ -102,6 +102,17 @@ class AppServiceProvider extends ServiceProvider
         WorkflowRequest::observe(WorkflowRequestObserver::class);
         \App\Models\BackupAccount::observe(\App\Observers\BackupAccountObserver::class);
 
+        // ── Email Marketing audit (portal + admin actions → activity_logs) ──
+        $emAuditObserver = \App\Observers\EmailMarketingActivityObserver::class;
+        \App\Models\EmailMarketing\EmailCampaign::observe($emAuditObserver);
+        \App\Models\EmailMarketing\EmailList::observe($emAuditObserver);
+        \App\Models\EmailMarketing\EmailSubscriber::observe($emAuditObserver);
+        \App\Models\EmailMarketing\EmailTemplate::observe($emAuditObserver);
+        \App\Models\EmailMarketing\EmailSegment::observe($emAuditObserver);
+        \App\Models\EmailMarketing\EmailTag::observe($emAuditObserver);
+        \App\Models\EmailMarketing\EmailSenderIdentity::observe($emAuditObserver);
+        \App\Models\EmailMarketing\EmailSuppression::observe($emAuditObserver);
+
         // ── Workflow Event Triggers ──────────────────────────────────
         Event::listen([EmployeeCreated::class, HostStatusChanged::class], WorkflowTriggerListener::class);
 

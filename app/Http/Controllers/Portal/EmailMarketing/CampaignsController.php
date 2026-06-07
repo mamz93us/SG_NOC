@@ -276,6 +276,14 @@ class CampaignsController extends Controller
                 $campaign->reply_to,
             );
 
+            \App\Models\ActivityLog::create([
+                'model_type' => 'EmailCampaign',
+                'model_id' => $campaign->id,
+                'action' => 'test_sent',
+                'changes' => ['to' => $data['to'], 'from' => $campaign->from_email],
+                'user_id' => $request->user()->id,
+            ]);
+
             return back()->with('status', "Test email sent to {$data['to']} from {$campaign->from_email} (SES MessageId: {$messageId}).");
         } catch (\App\Services\EmailMarketing\EmailMarketingNotConfiguredException $e) {
             return back()->withErrors(['test' => $e->getMessage()]);

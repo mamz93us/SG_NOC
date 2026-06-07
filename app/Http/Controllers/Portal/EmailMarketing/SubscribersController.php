@@ -187,9 +187,9 @@ class SubscribersController extends Controller
             fputcsv($out, ['leila.example@samirgroup.com', 'Leila', 'Mansour']);
             fclose($out);
         }, 'subscribers-import-template.csv', [
-            'Content-Type'              => 'text/csv; charset=UTF-8',
-            'Cache-Control'             => 'no-store, no-cache, must-revalidate',
-            'Content-Disposition'       => 'attachment; filename="subscribers-import-template.csv"',
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            'Content-Disposition' => 'attachment; filename="subscribers-import-template.csv"',
         ]);
     }
 
@@ -238,14 +238,28 @@ class SubscribersController extends Controller
             $mapping['last_name'] = (int) $data['last_name_col'];
         }
 
-        $stats = $importer->import(
+        // Silence per-row audit rows during the bulk import; record one summary instead.
+        $stats = \App\Observers\EmailMarketingActivityObserver::silently(fn () => $importer->import(
             $list,
             $abs,
             $mapping,
             [],
             $request->boolean('skip_header', true),
             $request->user()->id,
-        );
+        ));
+
+        \App\Models\ActivityLog::create([
+            'model_type' => 'EmailList',
+            'model_id' => $list->id,
+            'action' => 'subscribers_imported',
+            'changes' => [
+                'list' => $list->name,
+                'imported' => $stats['imported'] ?? null,
+                'skipped_invalid' => $stats['skipped_invalid'] ?? null,
+                'skipped_suppressed' => $stats['skipped_suppressed'] ?? null,
+            ],
+            'user_id' => $request->user()->id,
+        ]);
 
         // For double-opt-in lists, send confirmations to newly pending subscribers.
         if ($list->double_opt_in) {
