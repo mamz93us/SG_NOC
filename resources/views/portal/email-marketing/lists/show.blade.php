@@ -19,6 +19,15 @@
                 <code>&#64;{{ $list->auto_domain }}</code>. New employees are added automatically;
                 terminated employees are removed. Manual subscriber edits made here will be
                 overwritten by the next sync.
+                <div class="mt-2">
+                    <form method="POST" action="{{ route('portal.marketing.lists.sync', $list) }}" class="d-inline">
+                        @csrf
+                        <button class="btn btn-sm btn-info">
+                            <i class="bi bi-arrow-repeat me-1"></i>Sync now
+                        </button>
+                    </form>
+                    <small class="text-muted ms-1">Reconcile members from employees on <code>&#64;{{ $list->auto_domain }}</code> right now.</small>
+                </div>
             </div>
         </div>
     @endif

@@ -282,6 +282,7 @@ Route::domain(Marketing::domain())
 
         // List export
         Route::get('lists/{list}/export', [EmListsController::class, 'export'])->name('lists.export');
+        Route::post('lists/{list}/sync', [EmListsController::class, 'sync'])->name('lists.sync');
 
         // Courses + per-employee completion certificates.
         // Concrete paths come before wildcards so `/create` and

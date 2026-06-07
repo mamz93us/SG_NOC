@@ -111,6 +111,42 @@ class ListsController extends Controller
         ]);
     }
 
+    /**
+     * Manually reconcile a dynamic list against the employees table — the same
+     * reconciliation the scheduled `email-marketing:sync-dynamic-lists` runs, but
+     * on demand from the portal.
+     */
+    public function sync(EmailList $list, \App\Services\EmailMarketing\DynamicListSyncService $service)
+    {
+        if (! $list->isDynamic()) {
+            return back()->with('error', 'This list is not dynamic — only lists with an auto-domain sync from employees.');
+        }
+
+        // Suppress per-subscriber audit rows during the reconcile; log one summary.
+        $result = \App\Observers\EmailMarketingActivityObserver::silently(fn () => $service->syncList($list));
+
+        \App\Models\ActivityLog::create([
+            'model_type' => 'EmailList',
+            'model_id' => $list->id,
+            'action' => 'dynamic_list_synced',
+            'changes' => [
+                'list' => $list->name,
+                'domain' => $list->auto_domain,
+                'added' => $result['added'],
+                'removed' => $result['removed'],
+            ],
+            'user_id' => auth()->id(),
+        ]);
+
+        return back()->with('status', sprintf(
+            'Synced “%s” from @%s — %d added, %d removed.',
+            $list->name,
+            $list->auto_domain,
+            $result['added'],
+            $result['removed'],
+        ));
+    }
+
     private function validated(Request $request): array
     {
         return $request->validate([
