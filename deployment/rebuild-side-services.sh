@@ -167,8 +167,7 @@ systemctl enable --now strongswan >/dev/null 2>&1 && ok "charon-systemd (strongs
 if command -v swanctl >/dev/null 2>&1; then
     swanctl --load-all >/dev/null 2>&1 && ok "swanctl --load-all done (start_action=start → tunnels initiating)" || warn "swanctl --load-all failed — 'systemctl status strongswan'"
 fi
-note "VPN: only the tunnels committed to git (JED/RYD) were restored. The other ~7 branch tunnels lived only on the wiped disk — recreate each from JED.conf as a template (remote_addrs, local/remote id, remote_ts, secret) into /etc/swanctl/conf.d/, then 'swanctl --load-all'. Verify: 'swanctl --list-sas'. NEVER add a 0.0.0.0/0 child SA to an existing IKE conn — Sophos widens it on rekey and hijacks ALL VPS egress."
-note "VPN SECURITY: the PSK is committed inside JED.conf/RYD.conf — rotate those PSKs and keep the live secret only in /etc/swanctl/conf.d (the repo copy is just a template)."
+note "VPN: tunnels are managed from the admin UI (VPN Hub) — stored in the DB and written to /etc/swanctl/conf.d/<name>.conf by the app, then 'swanctl --load-all'. Recreate each branch tunnel there after a rebuild. Verify: 'swanctl --list-sas'. NEVER add a 0.0.0.0/0 child SA to an existing IKE conn — Sophos widens it on rekey and hijacks ALL VPS egress."
 note "VPN: the wrapper path (/usr/local/bin/sg-vpn-control) and the conf.d ACL are keyed to php-fpm user '${WEB_USER}'. If 'Failed to save swanctl configuration file' appears in the UI, php-fpm runs as a different user — re-run with WEB_USER=<that user>."
 note "VPN: leaving a tunnel's local/remote subnet BLANK in the UI makes the app generate a 0.0.0.0/0 child SA (VpnControlService default). Always fill both subnets — a 0.0.0.0/0 selector risks hijacking VPS egress on rekey."
 

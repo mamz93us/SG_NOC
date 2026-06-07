@@ -141,8 +141,9 @@ Supervisor: install units to `/etc/supervisor/conf.d/`, then
 - UDP/TCP **514** → writes directly to MySQL `syslog_messages` (and/or forwards to Graylog).
 
 ### strongSwan — branch VPN hub (repo root + `deployment/`)
-- Connection configs are committed at repo root: **`JED.conf`, `RYD.conf`** (swanctl format) →
-  `/etc/swanctl/conf.d/` (`chmod 600`), then `swanctl --load-all`.
+- Tunnels are **managed from the admin UI (VPN Hub)** — stored in the DB (`VpnTunnel`) and
+  written to `/etc/swanctl/conf.d/<name>.conf` by the app, then `swanctl --load-all`. Recreate
+  each branch tunnel from the UI after a rebuild (peer IP, IDs, PSK, local/remote subnets).
 - **Run ONLY `charon-systemd` (`strongswan.service`).** The `strongswan` metapackage also pulls
   the legacy `strongswan-starter` daemon — if both run they fight over UDP 500/4500 and the loser
   logs `no socket implementation registered`, leaving tunnels stuck CONNECTING (config in one
