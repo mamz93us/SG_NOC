@@ -29,6 +29,8 @@ class UpdateEmailMarketingSettingsRequest extends FormRequest
             'email_marketing_open_pixel_enabled' => ['nullable', 'boolean'],
             'email_marketing_click_tracking_enabled' => ['nullable', 'boolean'],
             'marketing_domain' => ['nullable', 'string', 'max:255', 'regex:/^[A-Za-z0-9.-]+$/'],
+            'email_marketing_internal_domains' => ['nullable', 'string', 'max:500'],
+            'email_marketing_require_all_approval' => ['nullable', 'boolean'],
         ];
     }
 
@@ -39,6 +41,7 @@ class UpdateEmailMarketingSettingsRequest extends FormRequest
             'email_marketing_enabled' => $this->boolean('email_marketing_enabled'),
             'email_marketing_open_pixel_enabled' => $this->boolean('email_marketing_open_pixel_enabled'),
             'email_marketing_click_tracking_enabled' => $this->boolean('email_marketing_click_tracking_enabled'),
+            'email_marketing_require_all_approval' => $this->boolean('email_marketing_require_all_approval'),
         ]);
 
         // Accept a pasted URL ("https://em.samirgroup.net/") and store just the host.

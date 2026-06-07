@@ -45,6 +45,16 @@ class CampaignDispatcher
             return 0;
         }
 
+        // Defense in depth: a campaign still flagged for approval must never send,
+        // even if its status was set to 'scheduled' by some other path. Park it.
+        if ($campaign->requires_approval && $campaign->approved_at === null) {
+            if ($campaign->status === 'scheduled') {
+                $campaign->update(['status' => 'pending_approval']);
+            }
+
+            return 0;
+        }
+
         if ($campaign->status === 'scheduled') {
             $campaign->status = 'sending';
             $campaign->started_at = $campaign->started_at ?? now();
@@ -142,6 +152,31 @@ class CampaignDispatcher
         return $count;
     }
 
+    /**
+     * Read-only recipient email addresses for this campaign — used by the approval
+     * gate to classify internal vs external recipients. Unlike resolveRecipientIds()
+     * this NEVER creates subscriber rows (course campaigns read certificate emails
+     * directly).
+     *
+     * @return \Illuminate\Support\Collection<int,string>
+     */
+    public function recipientEmails(EmailCampaign $campaign): \Illuminate\Support\Collection
+    {
+        if ($campaign->course_id) {
+            return CourseCertificate::where('course_id', $campaign->course_id)
+                ->whereNotNull('employee_id')
+                ->pluck('email')
+                ->filter()
+                ->values();
+        }
+
+        $ids = $this->resolveRecipientIds($campaign);
+
+        return empty($ids)
+            ? collect()
+            : EmailSubscriber::whereIn('id', $ids)->pluck('email')->filter()->values();
+    }
+
     private function resolveRecipientIds(EmailCampaign $campaign): array
     {
         // Course campaigns: recipients are the holders of certificates for the
@@ -197,8 +232,8 @@ class CampaignDispatcher
             $sub = EmailSubscriber::firstOrCreate(
                 ['email' => $email],
                 [
-                    'status'       => 'subscribed',
-                    'source'       => 'certificate',
+                    'status' => 'subscribed',
+                    'source' => 'certificate',
                     'confirmed_at' => now(),
                 ]
             );

@@ -14,6 +14,8 @@ class EmailCampaign extends Model
         'from_email', 'from_name', 'reply_to',
         'email_template_id', 'email_list_id', 'email_segment_id', 'course_id',
         'status', 'scheduled_at', 'started_at', 'sent_at', 'archived_at',
+        'requires_approval', 'submitted_for_approval_at',
+        'approved_by', 'approved_at', 'rejected_by', 'rejected_at', 'rejection_reason',
         'total_recipients', 'total_sent', 'total_delivered',
         'total_opens', 'total_unique_opens',
         'total_clicks', 'total_unique_clicks',
@@ -26,6 +28,10 @@ class EmailCampaign extends Model
         'started_at' => 'datetime',
         'sent_at' => 'datetime',
         'archived_at' => 'datetime',
+        'requires_approval' => 'boolean',
+        'submitted_for_approval_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     public function template(): BelongsTo
@@ -58,9 +64,29 @@ class EmailCampaign extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejecter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
+    }
+
     public function isEditable(): bool
     {
         return in_array($this->status, ['draft', 'scheduled', 'paused']);
+    }
+
+    public function isPendingApproval(): bool
+    {
+        return $this->status === 'pending_approval';
+    }
+
+    public function wasRejected(): bool
+    {
+        return $this->rejected_at !== null && $this->status === 'draft';
     }
 
     public function deliveryRate(): float

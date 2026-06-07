@@ -21,10 +21,32 @@
             <span class="badge bg-{{ match($campaign->status) {
                 'sent' => 'success', 'sending' => 'primary',
                 'scheduled' => 'warning', 'paused' => 'secondary',
-                'failed' => 'danger', default => 'light text-dark',
-            } }} text-capitalize fs-6">{{ $campaign->status }}</span>
+                'pending_approval' => 'info', 'failed' => 'danger',
+                default => 'light text-dark',
+            } }} text-capitalize fs-6">{{ str_replace('_', ' ', $campaign->status) }}</span>
         </div>
     </div>
+
+    @if ($campaign->isPendingApproval())
+        <div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <i class="bi bi-hourglass-split me-1"></i>
+                <strong>Awaiting IT approval.</strong>
+                This campaign has external recipients, so it was submitted to IT and will send once approved@if($campaign->scheduled_at) ({{ $campaign->scheduled_at->format('Y-m-d H:i') }})@endif.
+            </div>
+            <form method="POST" action="{{ route('portal.marketing.campaigns.recall', $campaign) }}"
+                  onsubmit="return confirm('Recall this campaign back to draft?')">
+                @csrf
+                <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-counterclockwise me-1"></i>Recall to draft</button>
+            </form>
+        </div>
+    @elseif ($campaign->wasRejected())
+        <div class="alert alert-danger">
+            <i class="bi bi-x-octagon me-1"></i>
+            <strong>Not approved.</strong> {{ $campaign->rejection_reason }}
+            <div class="small text-muted mt-1">Update the campaign and send again to resubmit for approval.</div>
+        </div>
+    @endif
 
     <div class="row g-3 mb-3">
         <div class="col-md-3"><div class="card shadow-sm"><div class="card-body"><small class="text-muted">Recipients</small><h4>{{ $campaign->total_recipients }}</h4></div></div></div>
@@ -59,10 +81,17 @@
                 <i class="bi bi-pencil me-1"></i>Edit
             </a>
             <form method="POST" action="{{ route('portal.marketing.campaigns.send-now', $campaign) }}"
-                  onsubmit="return confirm('Send this campaign immediately?')">
+                  onsubmit="return confirm('{{ ($needsApproval ?? false) ? 'Submit this campaign to IT for approval?' : 'Send this campaign immediately?' }}')">
                 @csrf
-                <button class="btn btn-primary"><i class="bi bi-send me-1"></i>Send now</button>
+                <button class="btn btn-primary">
+                    <i class="bi bi-send me-1"></i>{{ ($needsApproval ?? false) ? 'Submit for approval' : 'Send now' }}
+                </button>
             </form>
+            @if ($needsApproval ?? false)
+                <span class="align-self-center text-muted small">
+                    <i class="bi bi-shield-lock me-1"></i>External recipients — sending needs IT approval.
+                </span>
+            @endif
         @endif
         @if (in_array($campaign->status, ['scheduled', 'sending']))
             <form method="POST" action="{{ route('portal.marketing.campaigns.pause', $campaign) }}">

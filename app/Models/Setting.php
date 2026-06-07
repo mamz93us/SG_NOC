@@ -120,6 +120,9 @@ class Setting extends Model
         'email_marketing_click_tracking_enabled',
         // Marketing portal (isolated subdomain — configured in the UI, not .env)
         'marketing_domain',
+        // Campaign approval (auto-detect internal recipients + super_admin override)
+        'email_marketing_internal_domains',
+        'email_marketing_require_all_approval',
         // Teamtailor / Recruitment
         'teamtailor_api_key',
         'teamtailor_base_url',
@@ -170,6 +173,7 @@ class Setting extends Model
         'email_marketing_event_retention_days' => 'integer',
         'email_marketing_open_pixel_enabled' => 'boolean',
         'email_marketing_click_tracking_enabled' => 'boolean',
+        'email_marketing_require_all_approval' => 'boolean',
         // SFTPGo
         'sftpgo_enabled' => 'boolean',
         'sftpgo_sftp_enabled' => 'boolean',

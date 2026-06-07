@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\DnsNameserversController;
 use App\Http\Controllers\Admin\DnsRecordsController;
 use App\Http\Controllers\Admin\DocumentationController;
 use App\Http\Controllers\Admin\EmailLogController;
+use App\Http\Controllers\Admin\EmailMarketing\CampaignApprovalsController;
 use App\Http\Controllers\Admin\EmailMarketing\EmailMarketingSettingsController;
 use App\Http\Controllers\Admin\EmailMarketing\QuotaController as EmAdminQuotaController;
 use App\Http\Controllers\Admin\EmailMarketing\SuppressionsController as EmAdminSuppressionsController;
@@ -264,6 +265,7 @@ Route::domain(Marketing::domain())
         Route::post('campaigns/{campaign}/duplicate', [EmCampaignsController::class, 'duplicate'])->name('campaigns.duplicate');
         Route::post('campaigns/{campaign}/archive', [EmCampaignsController::class, 'archive'])->name('campaigns.archive');
         Route::post('campaigns/{campaign}/test-send', [EmCampaignsController::class, 'testSend'])->name('campaigns.test-send');
+        Route::post('campaigns/{campaign}/recall', [EmCampaignsController::class, 'recall'])->name('campaigns.recall');
         // Concrete `benchmark` route before the resource binding so it isn't swallowed by {campaign}
         Route::get('campaigns/benchmark', [\App\Http\Controllers\Portal\EmailMarketing\CampaignBenchmarkController::class, 'show'])->name('campaigns.benchmark');
         Route::get('campaigns/{campaign}/analytics', [EmCampaignAnalyticsController::class, 'show'])->name('campaigns.analytics');
@@ -1227,6 +1229,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('suppressions/import', [EmAdminSuppressionsController::class, 'import'])->name('suppressions.import');
 
             Route::get('quota', [EmAdminQuotaController::class, 'index'])->name('quota');
+
+            // Campaign approvals — super_admin only (enforced in the controller).
+            Route::get('approvals', [CampaignApprovalsController::class, 'index'])->name('approvals.index');
+            Route::post('approvals/{campaign}/approve', [CampaignApprovalsController::class, 'approve'])->name('approvals.approve');
+            Route::post('approvals/{campaign}/reject', [CampaignApprovalsController::class, 'reject'])->name('approvals.reject');
 
             // Sender allowlist (super_admin / settings-manager only).
             Route::middleware('permission:manage-email-marketing-settings')->group(function () {

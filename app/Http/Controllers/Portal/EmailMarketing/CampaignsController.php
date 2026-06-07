@@ -8,8 +8,12 @@ use App\Models\EmailMarketing\EmailCampaign;
 use App\Models\EmailMarketing\EmailList;
 use App\Models\EmailMarketing\EmailSegment;
 use App\Models\EmailMarketing\EmailTemplate;
+use App\Models\User;
+use App\Notifications\CampaignAwaitingApproval;
+use App\Services\EmailMarketing\CampaignApprovalService;
 use App\Services\EmailMarketing\SpamWordChecker;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\View\View;
 
 class CampaignsController extends Controller
@@ -17,7 +21,7 @@ class CampaignsController extends Controller
     public function index(Request $request): View
     {
         $showArchived = $request->boolean('archived');
-        $domain       = trim((string) $request->query('domain', ''));
+        $domain = trim((string) $request->query('domain', ''));
 
         $campaigns = EmailCampaign::query()
             ->with(['list', 'template'])
@@ -59,11 +63,14 @@ class CampaignsController extends Controller
             ->with('status', 'Campaign created.');
     }
 
-    public function show(EmailCampaign $campaign): View
+    public function show(EmailCampaign $campaign, CampaignApprovalService $approval): View
     {
         $campaign->load(['list', 'segment', 'template', 'creator']);
 
-        return view('portal.email-marketing.campaigns.show', compact('campaign'));
+        // Tell the editor up front whether sending will need approval (external recipients).
+        $needsApproval = $campaign->isEditable() && $approval->requiresApproval($campaign);
+
+        return view('portal.email-marketing.campaigns.show', compact('campaign', 'needsApproval'));
     }
 
     public function edit(EmailCampaign $campaign): View
@@ -98,32 +105,97 @@ class CampaignsController extends Controller
             ->with('status', 'Campaign deleted.');
     }
 
-    public function sendNow(Request $request, EmailCampaign $campaign)
+    public function sendNow(Request $request, EmailCampaign $campaign, CampaignApprovalService $approval)
     {
         if (! in_array($campaign->status, ['draft', 'scheduled', 'paused'])) {
             return back()->withErrors(['campaign' => 'Campaign is not eligible to send.']);
         }
+
+        if ($approval->requiresApproval($campaign)) {
+            $this->submitForApproval($campaign, now(), $approval);
+
+            return redirect()->route('portal.marketing.campaigns.show', $campaign)
+                ->with('status', 'This campaign has external recipients — it has been submitted to IT for approval and will send once approved.');
+        }
+
         $campaign->update([
             'status' => 'scheduled',
             'scheduled_at' => now(),
+            'requires_approval' => false,
         ]);
 
         return redirect()->route('portal.marketing.campaigns.show', $campaign)
             ->with('status', 'Campaign queued for immediate send.');
     }
 
-    public function schedule(Request $request, EmailCampaign $campaign)
+    public function schedule(Request $request, EmailCampaign $campaign, CampaignApprovalService $approval)
     {
         $data = $request->validate([
             'scheduled_at' => ['required', 'date', 'after:now'],
         ]);
+
+        if ($approval->requiresApproval($campaign)) {
+            $this->submitForApproval($campaign, $data['scheduled_at'], $approval);
+
+            return redirect()->route('portal.marketing.campaigns.show', $campaign)
+                ->with('status', 'This campaign has external recipients — it has been submitted to IT for approval and will send at the scheduled time once approved.');
+        }
+
         $campaign->update([
             'status' => 'scheduled',
             'scheduled_at' => $data['scheduled_at'],
+            'requires_approval' => false,
         ]);
 
         return redirect()->route('portal.marketing.campaigns.show', $campaign)
             ->with('status', 'Campaign scheduled.');
+    }
+
+    /**
+     * Park the campaign in pending_approval and notify the approvers (super_admins).
+     * The requested send time is kept in scheduled_at so it goes out then once
+     * approved (for "send now", now() is already past, so it sends immediately).
+     */
+    private function submitForApproval(EmailCampaign $campaign, $sendAt, CampaignApprovalService $approval): void
+    {
+        $campaign->update([
+            'status' => 'pending_approval',
+            'scheduled_at' => $sendAt,
+            'requires_approval' => true,
+            'submitted_for_approval_at' => now(),
+            'approved_by' => null,
+            'approved_at' => null,
+            'rejected_by' => null,
+            'rejected_at' => null,
+            'rejection_reason' => null,
+        ]);
+
+        try {
+            $approvers = User::where('role', 'super_admin')->get();
+            if ($approvers->isNotEmpty()) {
+                Notification::send($approvers, new CampaignAwaitingApproval($campaign, $approval->summary($campaign)));
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Campaign approval notification failed: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Marketing user recalls a campaign awaiting approval, back to draft.
+     */
+    public function recall(EmailCampaign $campaign)
+    {
+        if ($campaign->status !== 'pending_approval') {
+            return back()->withErrors(['campaign' => 'Only campaigns awaiting approval can be recalled.']);
+        }
+
+        $campaign->update([
+            'status' => 'draft',
+            'requires_approval' => false,
+            'submitted_for_approval_at' => null,
+        ]);
+
+        return back()->with('status', 'Campaign recalled to draft.');
     }
 
     public function pause(EmailCampaign $campaign)
@@ -182,9 +254,9 @@ class CampaignsController extends Controller
 
         // Render merge tags with a placeholder subscriber so {{first_name}} etc. resolve
         $fake = new \App\Models\EmailMarketing\EmailSubscriber([
-            'email'      => $data['to'],
+            'email' => $data['to'],
             'first_name' => 'Test',
-            'last_name'  => 'Recipient',
+            'last_name' => 'Recipient',
         ]);
         $renderer = app(\App\Services\EmailMarketing\MergeTagRenderer::class);
         $html = $renderer->render($campaign->template->rendered_html, $fake, null, $campaign->list);
@@ -224,12 +296,12 @@ class CampaignsController extends Controller
             ->get(['id', 'email', 'name', 'reply_to', 'is_default']);
 
         return [
-            'campaign'  => $campaign,
-            'lists'     => EmailList::orderBy('name')->get(['id', 'name']),
-            'segments'  => EmailSegment::orderBy('name')->get(['id', 'name']),
+            'campaign' => $campaign,
+            'lists' => EmailList::orderBy('name')->get(['id', 'name']),
+            'segments' => EmailSegment::orderBy('name')->get(['id', 'name']),
             'templates' => EmailTemplate::orderBy('name')->get(['id', 'name']),
-            'spamHits'  => $spamHits,
-            'senders'   => $senders,
+            'spamHits' => $spamHits,
+            'senders' => $senders,
         ];
     }
 }

@@ -7,6 +7,13 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3 class="mb-0"><i class="bi bi-envelope-paper me-2"></i>Email Marketing — Settings</h3>
         <div>
+            @if(auth()->user()?->isSuperAdmin())
+                @php($pendingApprovals = \App\Models\EmailMarketing\EmailCampaign::where('status', 'pending_approval')->count())
+                <a href="{{ route('admin.email-marketing.approvals.index') }}" class="btn btn-outline-primary btn-sm me-2">
+                    <i class="bi bi-patch-check me-1"></i>Approvals
+                    @if($pendingApprovals > 0)<span class="badge bg-danger">{{ $pendingApprovals }}</span>@endif
+                </a>
+            @endif
             <a href="{{ route('admin.email-marketing.suppressions') }}" class="btn btn-outline-secondary btn-sm me-2">
                 <i class="bi bi-shield-x me-1"></i>Suppressions
             </a>
@@ -122,6 +129,33 @@
                         unsubscribe links. Point this host's DNS + nginx at this app
                         (see <code>docs/MARKETING_SUBDOMAIN.md</code>). Saving a new value clears the route cache automatically.
                     </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-header bg-light"><strong>Campaign Approval</strong></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label">Internal recipient domains</label>
+                    <input type="text" name="email_marketing_internal_domains" class="form-control"
+                           value="{{ old('email_marketing_internal_domains', $settings->email_marketing_internal_domains ?: 'samirgroup.com,sssegypt.com') }}"
+                           placeholder="samirgroup.com, sssegypt.com">
+                    <small class="text-muted">
+                        Comma-separated. A campaign whose recipients are <strong>all</strong> on these domains
+                        is internal and sends without approval. Any external recipient routes the campaign to
+                        super_admin approval first.
+                    </small>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="email_marketing_require_all_approval"
+                               name="email_marketing_require_all_approval" value="1"
+                               @checked(old('email_marketing_require_all_approval', $settings->email_marketing_require_all_approval))>
+                        <label class="form-check-label" for="email_marketing_require_all_approval">
+                            Require approval for <strong>all</strong> campaigns
+                        </label>
+                    </div>
                 </div>
             </div>
         </div>

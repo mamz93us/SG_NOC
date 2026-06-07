@@ -94,9 +94,10 @@
                                 'sending' => 'primary',
                                 'scheduled' => 'warning',
                                 'paused' => 'secondary',
+                                'pending_approval' => 'info',
                                 'failed' => 'danger',
                                 default => 'light text-dark',
-                            } }} text-capitalize">{{ $c->status }}</span>
+                            } }} text-capitalize">{{ str_replace('_', ' ', $c->status) }}</span>
                         </td>
                         <td><small>{{ $c->scheduled_at?->format('Y-m-d H:i') ?: '—' }}</small></td>
                         <td><small>{{ $c->total_sent }} / {{ $c->total_recipients }}</small></td>
