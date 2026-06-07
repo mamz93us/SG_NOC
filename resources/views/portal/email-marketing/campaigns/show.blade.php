@@ -32,7 +32,7 @@
             <div>
                 <i class="bi bi-hourglass-split me-1"></i>
                 <strong>Awaiting IT approval.</strong>
-                This campaign has external recipients, so it was submitted to IT and will send once approved@if($campaign->scheduled_at) ({{ $campaign->scheduled_at->format('Y-m-d H:i') }})@endif.
+                This campaign has external recipients, so it was submitted to IT and will send once approved{{ $campaign->scheduled_at ? ' ('.$campaign->scheduled_at->format('Y-m-d H:i').')' : '' }}.
             </div>
             <form method="POST" action="{{ route('portal.marketing.campaigns.recall', $campaign) }}"
                   onsubmit="return confirm('Recall this campaign back to draft?')">
