@@ -43,3 +43,21 @@ func (c *Client) PostDiscovered(ctx context.Context, devices []DiscoveredDevice)
 	body := map[string]any{"devices": devices}
 	return c.do(ctx, http.MethodPost, "/api/branch-config/discovered-devices", body, nil)
 }
+
+// DDNSResult reports whether the NOC acted on the WAN IP.
+type DDNSResult struct {
+	OK            bool `json:"ok"`
+	Changed       bool `json:"changed"`
+	AppliedDNS    bool `json:"applied_dns"`
+	AppliedTunnel bool `json:"applied_tunnel"`
+}
+
+// ReportDDNS posts the current WAN IP. The NOC updates DNS + the VPN tunnel on
+// a change (and dedups unchanged IPs cheaply).
+func (c *Client) ReportDDNS(ctx context.Context, wanIP string) (*DDNSResult, error) {
+	var out DDNSResult
+	if err := c.do(ctx, http.MethodPost, "/api/branch-agents/ddns", map[string]string{"wan_ip": wanIP}, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}

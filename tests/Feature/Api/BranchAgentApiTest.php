@@ -118,3 +118,54 @@ describe('Branch agent heartbeat & config', function () {
             ]);
     });
 });
+
+describe('Branch agent DDNS', function () {
+
+    it('dedups an unchanged WAN IP without applying DNS/tunnel', function () {
+        $agent = pendingAgent([
+            'enrollment_code'       => null,
+            'enrollment_expires_at' => null,
+            'api_token'             => 'tok_'.str_repeat('c', 60),
+            'wan_ip'                => '203.0.113.5',
+            'dns_account_id'        => null, // no DNS/tunnel links → no external calls
+            'vpn_tunnel_id'         => null,
+        ]);
+
+        $this->withToken($agent->api_token)
+            ->postJson('/api/branch-agents/ddns', ['wan_ip' => '203.0.113.5'])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'changed' => false]);
+    });
+
+    it('records a changed WAN IP and history when no links are configured', function () {
+        $agent = pendingAgent([
+            'enrollment_code'       => null,
+            'enrollment_expires_at' => null,
+            'api_token'             => 'tok_'.str_repeat('d', 60),
+            'wan_ip'                => '203.0.113.5',
+            'dns_account_id'        => null,
+            'vpn_tunnel_id'         => null,
+        ]);
+
+        $this->withToken($agent->api_token)
+            ->postJson('/api/branch-agents/ddns', ['wan_ip' => '203.0.113.9'])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'changed' => true]);
+
+        $agent->refresh();
+        expect($agent->wan_ip)->toBe('203.0.113.9');
+        expect($agent->wanIpHistory()->where('ip', '203.0.113.9')->exists())->toBeTrue();
+    });
+
+    it('rejects a non-IP wan_ip', function () {
+        $agent = pendingAgent([
+            'enrollment_code'       => null,
+            'enrollment_expires_at' => null,
+            'api_token'             => 'tok_'.str_repeat('e', 60),
+        ]);
+
+        $this->withToken($agent->api_token)
+            ->postJson('/api/branch-agents/ddns', ['wan_ip' => 'not-an-ip'])
+            ->assertStatus(422);
+    });
+});

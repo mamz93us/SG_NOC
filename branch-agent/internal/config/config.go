@@ -244,6 +244,16 @@ func (c *Config) DiscoveryInterval() time.Duration {
 	return d
 }
 
+func (c *Config) DDNSInterval() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	d := time.Duration(c.Runtime.DDNSCheckIntervalS) * time.Second
+	if d < 60*time.Second {
+		return 5 * time.Minute
+	}
+	return d
+}
+
 // BranchCode returns the enrolled branch code under the read lock.
 func (c *Config) BranchCode() string {
 	c.mu.RLock()

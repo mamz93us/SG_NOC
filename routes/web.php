@@ -1986,14 +1986,15 @@ Route::prefix('api/branch-config')
     });
 
 // Branch-agent endpoints — sg-branch-agent enrolls (one-time code → token),
-// then heartbeats and pulls config with its Bearer token. CSRF-exempt
-// (machine-to-machine, no session). DDNS endpoint added in Phase 5.
+// then heartbeats, reports its WAN IP (DDNS) and pulls config with its Bearer
+// token. CSRF-exempt (machine-to-machine, no session).
 Route::prefix('api/branch-agents')
     ->name('api.branch-agents.')
     ->middleware('throttle:120,1')
     ->group(function () {
         Route::post('enroll', [\App\Http\Controllers\Api\BranchAgentController::class, 'enroll'])->name('enroll');
         Route::post('heartbeat', [\App\Http\Controllers\Api\BranchAgentController::class, 'heartbeat'])->name('heartbeat');
+        Route::post('ddns', [\App\Http\Controllers\Api\BranchAgentController::class, 'ddns'])->name('ddns');
         Route::get('config', [\App\Http\Controllers\Api\BranchAgentController::class, 'config'])->name('config');
     });
 

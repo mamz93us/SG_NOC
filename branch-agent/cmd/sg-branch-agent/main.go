@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/samirgroup/sg-branch-agent/internal/config"
+	"github.com/samirgroup/sg-branch-agent/internal/ddns"
 	"github.com/samirgroup/sg-branch-agent/internal/monitor"
 	"github.com/samirgroup/sg-branch-agent/internal/nocclient"
 	"github.com/samirgroup/sg-branch-agent/internal/store"
@@ -68,6 +69,9 @@ func main() {
 	// Device monitoring: SNMP poll + metric push + subnet discovery.
 	mon := monitor.New(cfg, noc)
 	go mon.Run(ctx)
+
+	// DDNS: detect WAN IP and report changes to the NOC.
+	go ddnsLoop(ctx, cfg, noc)
 
 	// Until setup completes, mint a one-time token that the wizard requires.
 	// Printed here so it shows up in `journalctl -u sg-branch-agent` and the
@@ -123,6 +127,42 @@ func heartbeatLoop(cfg *config.Config, noc *nocclient.Client, started time.Time,
 		}
 
 		time.Sleep(interval)
+	}
+}
+
+// ddnsLoop detects the WAN IP and reports it to the NOC whenever it changes
+// (the NOC updates DNS + the tunnel). Reports only on change vs the last value
+// we sent, so a stable IP costs nothing beyond the detection probe.
+func ddnsLoop(ctx context.Context, cfg *config.Config, noc *nocclient.Client) {
+	var lastReported string
+	// First check shortly after boot, then on the configured cadence.
+	timer := time.NewTimer(30 * time.Second)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+
+		if cfg.Linked() {
+			ip, err := ddns.DetectWANIP(ctx)
+			if err != nil {
+				log.Printf("ddns: detect WAN IP: %v", err)
+			} else if ip != lastReported {
+				rc, err := noc.ReportDDNS(ctx, ip)
+				if err != nil {
+					log.Printf("ddns: report %s: %v", ip, err)
+				} else {
+					lastReported = ip
+					if rc.Changed {
+						log.Printf("ddns: reported %s (dns=%v tunnel=%v)", ip, rc.AppliedDNS, rc.AppliedTunnel)
+					}
+				}
+			}
+		}
+		timer.Reset(cfg.DDNSInterval())
 	}
 }
 

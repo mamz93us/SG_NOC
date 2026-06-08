@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\BranchAgent;
 use App\Models\BranchLogCollector;
+use App\Services\BranchAgent\BranchDdnsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -112,6 +113,38 @@ class BranchAgentController extends Controller
             'ok' => true,
             'config' => $this->runtimeConfig($agent),
         ]);
+    }
+
+    /**
+     * POST /api/branch-agents/ddns
+     * Body: { wan_ip }
+     *
+     * The agent reports its current public WAN IP. On a change we update the
+     * GoDaddy A record + the linked VPN tunnel and audit it (BranchDdnsService).
+     * Unchanged IPs just refresh the timestamp — cheap dedup so the agent can
+     * report freely.
+     */
+    public function ddns(Request $request, BranchDdnsService $ddns): JsonResponse
+    {
+        $agent = $this->resolveAgent($request);
+        if (! $agent) {
+            return response()->json(['ok' => false, 'error' => 'unauthorized'], 401);
+        }
+
+        $data = $request->validate([
+            'wan_ip' => ['required', 'ip'],
+        ]);
+        $newIp = $data['wan_ip'];
+
+        if ($agent->wan_ip === $newIp) {
+            $agent->forceFill(['wan_ip_updated_at' => now()])->save();
+
+            return response()->json(['ok' => true, 'changed' => false]);
+        }
+
+        $result = $ddns->apply($agent, $newIp);
+
+        return response()->json(['ok' => true, 'changed' => true] + $result);
     }
 
     /**
