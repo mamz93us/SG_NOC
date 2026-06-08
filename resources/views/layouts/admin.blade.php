@@ -170,6 +170,16 @@
                                     <i class="bi bi-hdd-network me-2 text-secondary"></i>Branch Log Collectors
                                 </a>
                             </li>
+                            @endcan
+                            @can('view-branch-agents')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.branch-agents.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.branch-agents.index') }}">
+                                    <i class="bi bi-pc-display-horizontal me-2 text-info"></i>Branch Agents
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-syslog')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.snmp-devices.*') ? 'active' : '' }}"
                                    href="{{ route('admin.snmp-devices.index') }}">

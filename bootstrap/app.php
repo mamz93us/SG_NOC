@@ -61,6 +61,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/graylog/webhook',
             'api/backup/upload-hook',
             'api/branch-config/*',
+            'api/branch-agents/*',
             'api/sns/email-events',
             'email/unsubscribe/*',
         ]);

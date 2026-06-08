@@ -1341,6 +1341,28 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('/refresh-all', [\App\Http\Controllers\Admin\BranchLogCollectorController::class, 'refreshAll'])->name('refresh-all');
         });
 
+    // ─── Branch Agents (sg-branch-agent VMs: enroll, heartbeat, DDNS) ──
+    // Identity/enrollment/health for the consolidated branch agent. View is
+    // gated by view-branch-agents; mutations by manage-branch-agents.
+    Route::prefix('branch-agents')
+        ->name('branch-agents.')
+        ->group(function () {
+            Route::middleware('permission:view-branch-agents')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Admin\BranchAgentController::class, 'index'])->name('index');
+                Route::get('/{branchAgent}', [\App\Http\Controllers\Admin\BranchAgentController::class, 'show'])
+                    ->whereNumber('branchAgent')->name('show');
+            });
+            Route::middleware('permission:manage-branch-agents')->group(function () {
+                Route::get('/create', [\App\Http\Controllers\Admin\BranchAgentController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\Admin\BranchAgentController::class, 'store'])->name('store');
+                Route::get('/{branchAgent}/edit', [\App\Http\Controllers\Admin\BranchAgentController::class, 'edit'])->name('edit');
+                Route::put('/{branchAgent}', [\App\Http\Controllers\Admin\BranchAgentController::class, 'update'])->name('update');
+                Route::delete('/{branchAgent}', [\App\Http\Controllers\Admin\BranchAgentController::class, 'destroy'])->name('destroy');
+                Route::post('/{branchAgent}/regenerate-code', [\App\Http\Controllers\Admin\BranchAgentController::class, 'regenerateCode'])->name('regenerate-code');
+                Route::post('/{branchAgent}/revoke-token', [\App\Http\Controllers\Admin\BranchAgentController::class, 'revokeToken'])->name('revoke-token');
+            });
+        });
+
     // ─── SNMP Devices (per-branch, polled by Telegraf) ──────────
     Route::middleware('permission:manage-syslog')
         ->prefix('snmp-devices')
@@ -1724,6 +1746,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/mappings', [AzureSyncController::class, 'storeMapping'])->name('mappings.store');
         Route::delete('/mappings/{mapping}', [AzureSyncController::class, 'deleteMapping'])->name('mappings.delete');
         Route::post('/mappings/sync-all', [AzureSyncController::class, 'bulkSyncBranches'])->name('mappings.sync-all');
+        Route::post('/mappings/sync-employees', [AzureSyncController::class, 'bulkSyncEmployeeBranches'])->name('mappings.sync-employees');
     });
 
     // ─── IT Tasks — RETIRED ───────────────────────────────────────
@@ -1960,6 +1983,31 @@ Route::prefix('api/branch-config')
     ->group(function () {
         Route::get('snmp-devices', [\App\Http\Controllers\Api\BranchConfigController::class, 'snmpDevices'])->name('snmp-devices');
         Route::post('discovered-devices', [\App\Http\Controllers\Api\BranchConfigController::class, 'postDiscovered'])->name('discovered-devices');
+    });
+
+// Branch-agent endpoints — sg-branch-agent enrolls (one-time code → token),
+// then heartbeats, reports its WAN IP (DDNS) and pulls config with its Bearer
+// token. CSRF-exempt (machine-to-machine, no session).
+Route::prefix('api/branch-agents')
+    ->name('api.branch-agents.')
+    ->middleware('throttle:120,1')
+    ->group(function () {
+        Route::post('enroll', [\App\Http\Controllers\Api\BranchAgentController::class, 'enroll'])->name('enroll');
+        Route::post('heartbeat', [\App\Http\Controllers\Api\BranchAgentController::class, 'heartbeat'])->name('heartbeat');
+        Route::post('ddns', [\App\Http\Controllers\Api\BranchAgentController::class, 'ddns'])->name('ddns');
+        Route::get('config', [\App\Http\Controllers\Api\BranchAgentController::class, 'config'])->name('config');
+    });
+
+// Public branch-agent download artifacts so the one-line installer works on a
+// bare VM (no auth). Read-only files (installer script + prebuilt binary +
+// checksum); no secrets.
+Route::prefix('branch-agent')
+    ->name('branch-agent.')
+    ->middleware('throttle:60,1')
+    ->group(function () {
+        Route::get('install.sh', [\App\Http\Controllers\BranchAgentDownloadController::class, 'install'])->name('install');
+        Route::get('sg-branch-agent', [\App\Http\Controllers\BranchAgentDownloadController::class, 'binary'])->name('binary');
+        Route::get('sg-branch-agent.sha256', [\App\Http\Controllers\BranchAgentDownloadController::class, 'sha256'])->name('sha256');
     });
 
 /*

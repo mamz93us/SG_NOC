@@ -78,6 +78,7 @@ The pieces below need multiple files read together to make sense — start here 
 
 The Laravel app does not run alone — these run alongside it in production:
 
+- **`branch-agent/`** — single Go binary (`sg-branch-agent`) that runs on each branch VM: syslog collection into daily-rolling SQLite, SNMP polling + discovery, and a DDNS WAN-IP reporter, with a local web UI (browser setup wizard, no file editing). Enrolls to the NOC via a one-time code (`/api/branch-agents/*`), then heartbeats. The NOC searches its logs on demand (drop-in for `BranchLogClient`); logs are **not** uploaded. Installed with a one-liner that the NOC hosts (`/branch-agent/install.sh`). Supersedes the older `deployment/branch-vm/`. NOC side: `BranchAgent` model, `Admin\BranchAgentController` (Branch Agents page), `Services\BranchAgent\BranchDdnsService` (GoDaddy + VPN tunnel), `branch-agents:check-stale` scheduler. See [BRANCH_AGENT_SETUP.md](BRANCH_AGENT_SETUP.md).
 - **`telnet-proxy/`** — Node.js WebSocket↔Telnet/SSH bridge (default port 8765, PM2 via `ecosystem.config.js`). Validates session tokens against the Laravel app over `INTERNAL_SECRET`.
 - **`deployment/metrics/`** — VictoriaMetrics + Grafana (Docker Compose). Receives Prometheus `remote_write` from branch Telegraf collectors. Public link is set via `GRAFANA_URL` in `.env`.
 - **`deployment/graylog/`** — Graylog Open + OpenSearch + MongoDB (Docker Compose). See [SYSLOG_GRAYLOG_SETUP.md](SYSLOG_GRAYLOG_SETUP.md).
