@@ -32,5 +32,11 @@ return [
         'discovery_interval_s' => (int) env('BRANCH_AGENTS_DISCOVERY_INTERVAL', 3600),
         'heartbeat_interval_s' => (int) env('BRANCH_AGENTS_HEARTBEAT_INTERVAL', 60),
         'ddns_check_interval_s' => (int) env('BRANCH_AGENTS_DDNS_INTERVAL', 300),
+
+        // VictoriaMetrics remote_write target the agent pushes SNMP metrics to.
+        // Reuses the same endpoint/creds the branch Telegraf collectors used.
+        'metrics_url' => env('BRANCH_AGENTS_METRICS_URL', env('NOC_METRICS_URL', 'https://metrics.samirgroup.net/api/v1/write')),
+        'metrics_user' => env('BRANCH_AGENTS_METRICS_USER', env('NOC_METRICS_USER', 'sg-noc')),
+        'metrics_password' => env('BRANCH_AGENTS_METRICS_PASSWORD', env('NOC_METRICS_PASSWORD', '')),
     ],
 ];

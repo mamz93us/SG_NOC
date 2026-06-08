@@ -51,6 +51,10 @@ type RuntimeConfig struct {
 	DiscoveryIntervalS int     `json:"discovery_interval_s"`
 	HeartbeatIntervalS int     `json:"heartbeat_interval_s"`
 	DDNSCheckIntervalS int     `json:"ddns_check_interval_s"`
+
+	MetricsURL      string `json:"metrics_url"`
+	MetricsUser     string `json:"metrics_user"`
+	MetricsPassword string `json:"metrics_password"`
 }
 
 // EnrollResult is the response to a successful enrollment.

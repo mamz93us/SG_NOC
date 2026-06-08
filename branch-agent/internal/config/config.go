@@ -48,6 +48,12 @@ type Runtime struct {
 	DiscoveryIntervalS int     `yaml:"discovery_interval_s"`
 	HeartbeatIntervalS int     `yaml:"heartbeat_interval_s"`
 	DDNSCheckIntervalS int     `yaml:"ddns_check_interval_s"`
+
+	// VictoriaMetrics remote_write target (NOC-managed: pushed in the config
+	// payload so creds aren't hand-entered on each branch).
+	MetricsURL      string `yaml:"metrics_url"`
+	MetricsUser     string `yaml:"metrics_user"`
+	MetricsPassword string `yaml:"metrics_password"`
 }
 
 // Config is the full agent configuration.
@@ -200,6 +206,49 @@ func (c *Config) Retention() (days int, maxBytes int64) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Runtime.LogRetentionDays, int64(c.Runtime.LogMaxTotalGB * (1 << 30))
+}
+
+// MetricsTarget returns the VictoriaMetrics remote_write URL + basic-auth.
+func (c *Config) MetricsTarget() (url, user, pass string) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Runtime.MetricsURL, c.Runtime.MetricsUser, c.Runtime.MetricsPassword
+}
+
+// SNMPParams returns the local SNMP scan settings (community, version, subnets).
+func (c *Config) SNMPParams() (community, version string, subnets []string) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	subs := append([]string(nil), c.Monitoring.ScanSubnets...)
+	return c.Monitoring.SNMPCommunity, c.Monitoring.SNMPVersion, subs
+}
+
+// PollInterval / DiscoveryInterval return the SNMP loop cadences (with floors).
+func (c *Config) PollInterval() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	d := time.Duration(c.Runtime.SNMPPollIntervalS) * time.Second
+	if d < 15*time.Second {
+		return 60 * time.Second
+	}
+	return d
+}
+
+func (c *Config) DiscoveryInterval() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	d := time.Duration(c.Runtime.DiscoveryIntervalS) * time.Second
+	if d < time.Minute {
+		return time.Hour
+	}
+	return d
+}
+
+// BranchCode returns the enrolled branch code under the read lock.
+func (c *Config) BranchCode() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.NOC.BranchCode
 }
 
 // LogsDir is where the daily-rolling SQLite log files live.

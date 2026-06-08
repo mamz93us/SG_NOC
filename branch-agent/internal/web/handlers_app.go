@@ -87,6 +87,15 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "logs.html", pageData{Title: "Logs", Data: data})
 }
 
+// ─── Devices ─────────────────────────────────────────────────────────
+
+func (s *Server) handleDevices(w http.ResponseWriter, r *http.Request) {
+	s.render(w, "devices.html", pageData{
+		Title: "Devices",
+		Data:  map[string]any{"Devices": s.Devices()},
+	})
+}
+
 // ─── Settings ────────────────────────────────────────────────────────
 
 func (s *Server) handleSettingsForm(w http.ResponseWriter, r *http.Request) {

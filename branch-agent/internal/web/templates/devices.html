@@ -1,0 +1,26 @@
+{{define "devices.html"}}{{template "header" .}}
+<div class="card">
+  <h1>Monitored devices</h1>
+  <p class="muted">SNMP devices the NOC assigned to this branch. Polled locally; metrics pushed to the NOC.</p>
+
+  {{if .Data.Devices}}
+    <table class="logtable">
+      <thead><tr><th>Status</th><th>Name</th><th>Host</th><th>System</th><th>Last poll</th><th>Error</th></tr></thead>
+      <tbody>
+        {{range .Data.Devices}}
+        <tr>
+          <td>{{if .Up}}<span class="badge ok">up</span>{{else}}<span class="sev sev-high">down</span>{{end}}</td>
+          <td>{{.Name}}</td>
+          <td class="mono">{{.Host}}</td>
+          <td class="muted">{{.SysName}}{{if .SysDescr}}<br><span class="small">{{.SysDescr}}</span>{{end}}</td>
+          <td class="muted">{{.LastPoll.Format "15:04:05"}}</td>
+          <td class="mono" style="color:var(--err)">{{.Err}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  {{else}}
+    <p class="muted">No devices polled yet. Assign SNMP devices to this branch in the NOC (Branch Logs → SNMP Devices), or wait for the next discovery sweep.</p>
+  {{end}}
+</div>
+{{template "footer" .}}{{end}}

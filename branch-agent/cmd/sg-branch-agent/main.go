@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/samirgroup/sg-branch-agent/internal/config"
+	"github.com/samirgroup/sg-branch-agent/internal/monitor"
 	"github.com/samirgroup/sg-branch-agent/internal/nocclient"
 	"github.com/samirgroup/sg-branch-agent/internal/store"
 	"github.com/samirgroup/sg-branch-agent/internal/syslog"
@@ -64,6 +65,10 @@ func main() {
 
 	noc := nocclient.New(cfg.NOC.BaseURL, cfg.NOC.Token)
 
+	// Device monitoring: SNMP poll + metric push + subnet discovery.
+	mon := monitor.New(cfg, noc)
+	go mon.Run(ctx)
+
 	// Until setup completes, mint a one-time token that the wizard requires.
 	// Printed here so it shows up in `journalctl -u sg-branch-agent` and the
 	// installer output.
@@ -79,11 +84,12 @@ func main() {
 		log.Fatalf("init web server: %v", err)
 	}
 	srv.Store = st
+	srv.Devices = func() any { return mon.Statuses() }
 
 	started := time.Now()
-	srv.Health = func() map[string]any { return collectHealth(started, st) }
+	srv.Health = func() map[string]any { return collectHealth(started, st, mon) }
 
-	go heartbeatLoop(cfg, noc, started, st)
+	go heartbeatLoop(cfg, noc, started, st, mon)
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Listen,
@@ -98,7 +104,7 @@ func main() {
 
 // heartbeatLoop periodically reports health to the NOC and applies any runtime
 // config the NOC returns. It no-ops until the agent is linked.
-func heartbeatLoop(cfg *config.Config, noc *nocclient.Client, started time.Time, st *store.Manager) {
+func heartbeatLoop(cfg *config.Config, noc *nocclient.Client, started time.Time, st *store.Manager, mon *monitor.Monitor) {
 	// Small initial delay so setup can complete first on a fresh box.
 	time.Sleep(10 * time.Second)
 
@@ -107,7 +113,7 @@ func heartbeatLoop(cfg *config.Config, noc *nocclient.Client, started time.Time,
 
 		if cfg.Linked() {
 			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
-			rc, err := noc.Heartbeat(ctx, version.Version, collectHealth(started, st))
+			rc, err := noc.Heartbeat(ctx, version.Version, collectHealth(started, st, mon))
 			cancel()
 			if err != nil {
 				log.Printf("heartbeat: %v", err)
@@ -168,11 +174,20 @@ func applyRuntimeConfig(c *config.Config, rc *nocclient.RuntimeConfig) {
 	if rc.DDNSCheckIntervalS > 0 {
 		c.Runtime.DDNSCheckIntervalS = rc.DDNSCheckIntervalS
 	}
+	if rc.MetricsURL != "" {
+		c.Runtime.MetricsURL = rc.MetricsURL
+	}
+	if rc.MetricsUser != "" {
+		c.Runtime.MetricsUser = rc.MetricsUser
+	}
+	if rc.MetricsPassword != "" {
+		c.Runtime.MetricsPassword = rc.MetricsPassword
+	}
 }
 
 // collectHealth builds the heartbeat health snapshot: version + uptime, disk/
-// RAM (Linux), and the log-store summary (size, rows, ingest rate, drops).
-func collectHealth(started time.Time, st *store.Manager) map[string]any {
+// RAM (Linux), the log-store summary, and the device up/down counts.
+func collectHealth(started time.Time, st *store.Manager, mon *monitor.Monitor) map[string]any {
 	h := map[string]any{
 		"agent_version": version.Version,
 		"uptime_s":      int(time.Since(started).Seconds()),
@@ -187,6 +202,11 @@ func collectHealth(started time.Time, st *store.Manager) map[string]any {
 		if _, ok := h["disk_pct"]; !ok && s.DiskUsedPct > 0 {
 			h["disk_pct"] = s.DiskUsedPct
 		}
+	}
+	if mon != nil {
+		up, down := mon.Summary()
+		h["devices_up"] = up
+		h["devices_down"] = down
 	}
 	return h
 }

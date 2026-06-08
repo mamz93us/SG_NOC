@@ -140,6 +140,15 @@ func applyRuntime(c *config.Config, rc nocclient.RuntimeConfig) {
 	if rc.DDNSCheckIntervalS > 0 {
 		c.Runtime.DDNSCheckIntervalS = rc.DDNSCheckIntervalS
 	}
+	if rc.MetricsURL != "" {
+		c.Runtime.MetricsURL = rc.MetricsURL
+	}
+	if rc.MetricsUser != "" {
+		c.Runtime.MetricsUser = rc.MetricsUser
+	}
+	if rc.MetricsPassword != "" {
+		c.Runtime.MetricsPassword = rc.MetricsPassword
+	}
 }
 
 // outboundIP returns the IP the host would use to reach the internet, which is

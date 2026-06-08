@@ -38,6 +38,10 @@ type Server struct {
 	// Health returns the current health snapshot for the dashboard. main wires
 	// this so the web layer stays decoupled from collectors.
 	Health func() map[string]any
+
+	// Devices returns the current SNMP device statuses for the Devices page.
+	// Typed as any so the web layer doesn't import the snmp package.
+	Devices func() any
 }
 
 // NewServer parses templates and returns a ready server.
@@ -57,6 +61,7 @@ func NewServer(cfg *config.Config, noc *nocclient.Client, version, setupToken st
 		sessions:   newSessionStore(sessionTTL),
 		tmpl:       tmpl,
 		Health:     func() map[string]any { return map[string]any{} },
+		Devices:    func() any { return nil },
 	}, nil
 }
 
@@ -86,6 +91,7 @@ func (s *Server) Handler() http.Handler {
 	// Authenticated UI.
 	mux.HandleFunc("GET /{$}", s.requireAuth(s.handleDashboard))
 	mux.HandleFunc("GET /logs", s.requireAuth(s.handleLogs))
+	mux.HandleFunc("GET /devices", s.requireAuth(s.handleDevices))
 	mux.HandleFunc("GET /settings", s.requireAuth(s.handleSettingsForm))
 	mux.HandleFunc("POST /settings", s.requireAuth(s.handleSettingsSubmit))
 
