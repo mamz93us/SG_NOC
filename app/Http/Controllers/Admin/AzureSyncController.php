@@ -868,29 +868,38 @@ class AzureSyncController extends Controller
 
     private function detectBranchId(AzureDevice $az): ?int
     {
-        $mappings = AzureBranchMapping::all();
-        if ($mappings->isEmpty()) return null;
-
         // Collect all possible strings to search in
         $searchStrings = [];
-        
+
         // From Device Data
         if ($az->display_name) $searchStrings[] = $az->display_name;
         if (!empty($az->raw_data['officeLocation'])) $searchStrings[] = $az->raw_data['officeLocation'];
         if (!empty($az->raw_data['location'])) $searchStrings[] = $az->raw_data['location'];
-        
+
         // From Associated User Data (Most reliable for branch/office)
         if ($az->upn) {
             $user = \App\Models\IdentityUser::where('user_principal_name', $az->upn)
                 ->orWhere('mail', $az->upn)
                 ->first();
-            
+
             if ($user) {
                 if ($user->office_location) $searchStrings[] = $user->office_location;
                 if ($user->city) $searchStrings[] = $user->city;
                 if ($user->department) $searchStrings[] = $user->department;
             }
         }
+
+        return $this->matchBranchIdFromStrings($searchStrings);
+    }
+
+    /**
+     * Match a branch_id by scanning the given strings against the keyword mappings.
+     * Case-insensitive substring match; first hit wins.
+     */
+    private function matchBranchIdFromStrings(array $searchStrings, ?\Illuminate\Support\Collection $mappings = null): ?int
+    {
+        $mappings ??= AzureBranchMapping::all();
+        if ($mappings->isEmpty()) return null;
 
         foreach ($searchStrings as $str) {
             if (!$str) continue;
@@ -902,6 +911,77 @@ class AzureSyncController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Resolve the IdentityUser linked to an Employee (by azure_id, then email).
+     */
+    private function identityUserForEmployee(\App\Models\Employee $employee): ?\App\Models\IdentityUser
+    {
+        if ($employee->azure_id) {
+            $user = \App\Models\IdentityUser::where('azure_id', $employee->azure_id)->first();
+            if ($user) return $user;
+        }
+
+        if ($employee->email) {
+            return \App\Models\IdentityUser::where('mail', $employee->email)
+                ->orWhere('user_principal_name', $employee->email)
+                ->first();
+        }
+
+        return null;
+    }
+
+    /**
+     * Apply the keyword mappings to existing employees, setting their branch_id
+     * from the linked Azure identity (office location / city / department).
+     */
+    public function bulkSyncEmployeeBranches(Request $request)
+    {
+        $onlyUnassigned = $request->boolean('only_unassigned');
+
+        $mappings = AzureBranchMapping::all();
+        if ($mappings->isEmpty()) {
+            return back()->with('error', 'No keyword mappings defined yet. Add at least one mapping first.');
+        }
+
+        $query = \App\Models\Employee::query();
+        if ($onlyUnassigned) {
+            $query->whereNull('branch_id');
+        }
+
+        $updated = 0;
+        $unmatched = 0;
+
+        $query->chunkById(200, function ($employees) use ($mappings, &$updated, &$unmatched) {
+            foreach ($employees as $employee) {
+                $strings = [];
+
+                $user = $this->identityUserForEmployee($employee);
+                if ($user) {
+                    if ($user->office_location) $strings[] = $user->office_location;
+                    if ($user->city)            $strings[] = $user->city;
+                    if ($user->department)      $strings[] = $user->department;
+                }
+
+                // Fall back to the employee's own fields when no identity match.
+                if ($employee->job_title) $strings[] = $employee->job_title;
+                if ($employee->name)      $strings[] = $employee->name;
+
+                $branchId = $this->matchBranchIdFromStrings($strings, $mappings);
+
+                if ($branchId) {
+                    if ($employee->branch_id != $branchId) {
+                        $employee->update(['branch_id' => $branchId]);
+                        $updated++;
+                    }
+                } else {
+                    $unmatched++;
+                }
+            }
+        });
+
+        return back()->with('success', "Employee branch sync complete. Updated {$updated} employee(s); {$unmatched} had no keyword match.");
     }
 
     public function reDetectBranch(AzureDevice $azureDevice)

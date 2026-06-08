@@ -1746,6 +1746,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/mappings', [AzureSyncController::class, 'storeMapping'])->name('mappings.store');
         Route::delete('/mappings/{mapping}', [AzureSyncController::class, 'deleteMapping'])->name('mappings.delete');
         Route::post('/mappings/sync-all', [AzureSyncController::class, 'bulkSyncBranches'])->name('mappings.sync-all');
+        Route::post('/mappings/sync-employees', [AzureSyncController::class, 'bulkSyncEmployeeBranches'])->name('mappings.sync-employees');
     });
 
     // ─── IT Tasks — RETIRED ───────────────────────────────────────

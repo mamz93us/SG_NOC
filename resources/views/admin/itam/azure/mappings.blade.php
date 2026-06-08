@@ -12,7 +12,17 @@
             <form action="{{ route('admin.itam.azure.mappings.sync-all') }}" method="POST">
                 @csrf
                 <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Search and update branches for ALL linked devices based on these keywords?')">
-                    <i class="bi bi-arrow-repeat me-1"></i>Sync Branches Now
+                    <i class="bi bi-pc-display me-1"></i>Sync Device Branches
+                </button>
+            </form>
+            <form action="{{ route('admin.itam.azure.mappings.sync-employees') }}" method="POST" class="d-flex align-items-center gap-2">
+                @csrf
+                <div class="form-check form-switch small mb-0">
+                    <input class="form-check-input" type="checkbox" name="only_unassigned" value="1" id="onlyUnassigned" checked>
+                    <label class="form-check-label" for="onlyUnassigned">Only employees with no branch</label>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Apply these keywords to existing employees and set their branch from their Azure office/city/department?')">
+                    <i class="bi bi-people me-1"></i>Sync Employee Branches
                 </button>
             </form>
             <a href="{{ route('admin.itam.azure.index') }}" class="btn btn-outline-secondary btn-sm">
@@ -22,6 +32,7 @@
     </div>
 
     @if(session('success'))<div class="alert alert-success py-2">{{ session('success') }}</div>@endif
+    @if(session('error'))<div class="alert alert-danger py-2">{{ session('error') }}</div>@endif
 
     <div class="row">
         <div class="col-md-4">
@@ -33,7 +44,7 @@
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Keyword</label>
                             <input type="text" name="keyword" class="form-control" placeholder="e.g. Jeddah, JED, RUH" required>
-                            <div class="form-text small">Case-insensitive. System will search displays name and office location.</div>
+                            <div class="form-text small">Case-insensitive. Add as many keywords per branch as you like (one per row). Matched against the Azure office location, city &amp; department of devices and employees.</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Map to Branch</label>
@@ -52,33 +63,38 @@
 
         <div class="col-md-8">
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-white fw-bold">Current Mappings</div>
+                <div class="card-header bg-white fw-bold">Keywords by Branch</div>
                 <div class="card-body p-0">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Keyword</th>
-                                <th>Branch</th>
-                                <th class="text-end">Actions</th>
+                                <th style="width: 30%">Branch</th>
+                                <th>Keywords</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($mappings as $m)
+                            @forelse($mappings->groupBy(fn ($m) => optional($m->branch)->name ?? '— Unknown branch —') as $branchName => $items)
                             <tr>
-                                <td class="fw-bold"><code>{{ $m->keyword }}</code></td>
-                                <td>{{ $m->branch->name }}</td>
-                                <td class="text-end">
-                                    <form action="{{ route('admin.itam.azure.mappings.delete', $m) }}" method="POST" onsubmit="return confirm('Remove this mapping?')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
+                                <td class="fw-bold align-top">{{ $branchName }}</td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        @foreach($items as $m)
+                                        <span class="badge bg-light text-dark border d-inline-flex align-items-center gap-1">
+                                            <code class="text-dark">{{ $m->keyword }}</code>
+                                            <form action="{{ route('admin.itam.azure.mappings.delete', $m) }}" method="POST" onsubmit="return confirm('Remove this keyword?')" class="d-inline">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-link text-danger p-0 lh-1" title="Remove">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            </form>
+                                        </span>
+                                        @endforeach
+                                    </div>
                                 </td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="3" class="text-center py-4 text-muted">No mappings defined yet.</td>
+                                <td colspan="2" class="text-center py-4 text-muted">No mappings defined yet.</td>
                             </tr>
                             @endforelse
                         </tbody>
