@@ -663,3 +663,11 @@ Schedule::command('backups:check-overdue')
     ->withoutOverlapping(15)
     ->runInBackground()
     ->name('backups-check-overdue');
+
+// Branch-agent heartbeat monitor — flags agents stale/down and opens/resolves
+// a NocEvent when a branch VM stops checking in, every 5 minutes.
+Schedule::command('branch-agents:check-stale')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('branch-agents-check-stale');

@@ -1998,6 +1998,18 @@ Route::prefix('api/branch-agents')
         Route::get('config', [\App\Http\Controllers\Api\BranchAgentController::class, 'config'])->name('config');
     });
 
+// Public branch-agent download artifacts so the one-line installer works on a
+// bare VM (no auth). Read-only files (installer script + prebuilt binary +
+// checksum); no secrets.
+Route::prefix('branch-agent')
+    ->name('branch-agent.')
+    ->middleware('throttle:60,1')
+    ->group(function () {
+        Route::get('install.sh', [\App\Http\Controllers\BranchAgentDownloadController::class, 'install'])->name('install');
+        Route::get('sg-branch-agent', [\App\Http\Controllers\BranchAgentDownloadController::class, 'binary'])->name('binary');
+        Route::get('sg-branch-agent.sha256', [\App\Http\Controllers\BranchAgentDownloadController::class, 'sha256'])->name('sha256');
+    });
+
 /*
 |--------------------------------------------------------------------------
 | Public Routes (no auth required)
