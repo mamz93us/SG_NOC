@@ -262,9 +262,13 @@ class BackupAccountController extends Controller
 
     private function uniqueUsername(string $seed): string
     {
-        $base = Str::limit(Str::slug($seed) ?: 'device', 24, '');
+        // Only letters/numbers/underscores: SFTPGo's web admin and WHM/cPanel
+        // destination forms reject hyphens in usernames ("use letters, numbers,
+        // underscores, dots and @ only"). Str::slug's default '-' separator would
+        // produce names those forms refuse, so use '_' here and for the suffix.
+        $base = rtrim(Str::limit(Str::slug($seed, '_') ?: 'device', 24, ''), '_');
         do {
-            $username = $base.'-'.Str::lower(Str::random(4));
+            $username = $base.'_'.Str::lower(Str::random(4));
         } while (BackupAccount::where('sftpgo_username', $username)->exists());
 
         return $username;
