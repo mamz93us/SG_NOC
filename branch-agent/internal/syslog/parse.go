@@ -64,13 +64,37 @@ func parse3164(e *store.Entry, s string, now time.Time) {
 		}
 	}
 
-	// host
+	// Vendor blobs (Sophos, CEF, key="value" lines) have no BSD host/tag —
+	// the first token is real data. Carving a host/program out of them
+	// truncates the message, so keep the whole thing as the message.
 	host, rest := nextToken(s)
+	if !looksLikeHost(host) {
+		e.Message = strings.TrimSpace(s)
+		return
+	}
+
 	e.Source = host
 	rest = strings.TrimSpace(rest)
 
 	// tag[pid]: message
 	e.Program, e.Message = splitTag(rest)
+}
+
+// looksLikeHost reports whether a token is a plausible hostname/IP rather than
+// the start of a structured-data payload (contains '=' or '"').
+func looksLikeHost(tok string) bool {
+	if tok == "" || len(tok) > 255 {
+		return false
+	}
+	for _, r := range tok {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '.' || r == '-' || r == '_' || r == ':':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // parse5424: "timestamp host app procid msgid SD msg"

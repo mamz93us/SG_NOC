@@ -28,7 +28,7 @@ class BranchLogController extends Controller
     {
         $branches = $this->client->enabledBranches();
         $selected = $this->parseSelectedBranches($request, $branches);
-        $filters  = $this->extractFilters($request);
+        $filters = $this->extractFilters($request);
 
         // CSV export bypasses HTML rendering
         if ($request->get('export') === 'csv') {
@@ -36,18 +36,18 @@ class BranchLogController extends Controller
             $results = $this->client->search($selected, $this->toApiParams($filters), limit: $rows);
 
             return $this->streamCsv(
-                'branch-logs-' . date('Ymd-His') . '.csv',
+                'branch-logs-'.date('Ymd-His').'.csv',
                 ['time_utc', 'branch', 'severity', 'source', 'source_ip', 'program', 'message'],
                 function ($fh) use ($results) {
                     foreach ($results['results'] as $r) {
                         fputcsv($fh, [
                             $r['received_at'] ?? '',
-                            $r['branch_id']   ?? '',
-                            $r['severity']    ?? '',
-                            $r['source']      ?? '',
-                            $r['source_ip']   ?? '',
-                            $r['program']     ?? '',
-                            $r['message']     ?? '',
+                            $r['branch_id'] ?? '',
+                            $r['severity'] ?? '',
+                            $r['source'] ?? '',
+                            $r['source_ip'] ?? '',
+                            $r['program'] ?? '',
+                            $r['message'] ?? '',
                         ]);
                     }
                 }
@@ -64,10 +64,10 @@ class BranchLogController extends Controller
         }
 
         return view('admin.logs.branches.index', [
-            'branches'         => $branches,
+            'branches' => $branches,
             'selectedBranches' => $selected,
-            'filters'          => $filters,
-            'results'          => $results,
+            'filters' => $filters,
+            'results' => $results,
         ]);
     }
 
@@ -84,47 +84,50 @@ class BranchLogController extends Controller
     {
         $branches = $this->client->enabledBranches();
         $selected = $this->parseSelectedBranches($request, $branches);
-        $filters  = $this->extractFilters($request);
+        $filters = $this->extractFilters($request);
 
         $apiParams = $this->toApiParams($filters) + ['is_sophos' => 1];
         foreach (['sophos_dst_ip', 'sophos_src_ip'] as $f) {
-            if (!empty($filters[$f])) $apiParams[$f] = $filters[$f];
+            if (! empty($filters[$f])) {
+                $apiParams[$f] = $filters[$f];
+            }
         }
 
         // CSV export
         if ($request->get('export') === 'csv') {
-            $rows    = max(50, min(10000, (int) $request->get('rows', 5000)));
+            $rows = max(50, min(10000, (int) $request->get('rows', 5000)));
             $results = $this->client->search($selected, $apiParams, limit: $rows);
             $results['results'] = array_map(
                 fn ($row) => $row + $this->extraSophosFields($row['message'] ?? ''),
                 $results['results']
             );
+
             return $this->streamCsv(
-                'branch-logs-sophos-' . date('Ymd-His') . '.csv',
+                'branch-logs-sophos-'.date('Ymd-His').'.csv',
                 ['time_utc', 'branch', 'component', 'subtype', 'user',
-                 'rule_id', 'rule_name', 'in_interface', 'out_interface',
-                 'src_ip', 'src_port', 'dst_ip', 'dst_port', 'protocol',
-                 'src_country', 'dst_country', 'message'],
+                    'rule_id', 'rule_name', 'in_interface', 'out_interface',
+                    'src_ip', 'src_port', 'dst_ip', 'dst_port', 'protocol',
+                    'src_country', 'dst_country', 'message'],
                 function ($fh) use ($results) {
                     foreach ($results['results'] as $r) {
                         fputcsv($fh, [
-                            $r['received_at']           ?? '',
-                            $r['branch_id']             ?? '',
-                            $r['sophos_log_component']  ?? '',
-                            $r['sophos_log_subtype']    ?? '',
-                            $r['sophos_user_name']      ?? '',
-                            $r['kv_fw_rule_id']         ?? '',
-                            $r['sophos_fw_rule_name']   ?? '',
-                            $r['kv_in_interface']       ?? '',
-                            $r['kv_out_interface']      ?? '',
-                            $r['sophos_src_ip']         ?? '',
-                            $r['sophos_src_port']       ?? '',
-                            $r['sophos_dst_ip']         ?? '',
-                            $r['sophos_dst_port']       ?? '',
-                            $r['sophos_protocol']       ?? '',
-                            $r['kv_src_country']        ?? '',
-                            $r['kv_dst_country']        ?? '',
-                            $r['message']               ?? '',
+                            $r['received_at'] ?? '',
+                            $r['branch_id'] ?? '',
+                            $r['sophos_log_component'] ?? '',
+                            $r['sophos_log_subtype'] ?? '',
+                            $r['sophos_user_name'] ?? '',
+                            $r['kv_fw_rule_id'] ?? '',
+                            $r['sophos_fw_rule_name'] ?? '',
+                            $r['kv_in_interface'] ?? '',
+                            $r['kv_out_interface'] ?? '',
+                            $r['sophos_src_ip'] ?? '',
+                            $r['sophos_src_port'] ?? '',
+                            $r['sophos_dst_ip'] ?? '',
+                            $r['sophos_dst_port'] ?? '',
+                            $r['sophos_protocol'] ?? '',
+                            $r['kv_src_country'] ?? '',
+                            $r['kv_dst_country'] ?? '',
+                            $r['message'] ?? '',
                         ]);
                     }
                 }
@@ -149,10 +152,10 @@ class BranchLogController extends Controller
         }
 
         return view('admin.logs.branches.sophos', [
-            'branches'         => $branches,
+            'branches' => $branches,
             'selectedBranches' => $selected,
-            'filters'          => $filters,
-            'results'          => $results,
+            'filters' => $filters,
+            'results' => $results,
         ]);
     }
 
@@ -169,41 +172,44 @@ class BranchLogController extends Controller
     {
         $branches = $this->client->enabledBranches();
         $selected = $this->parseSelectedBranches($request, $branches);
-        $filters  = $this->extractFilters($request);
+        $filters = $this->extractFilters($request);
         $sourceIp = trim((string) $request->get('source_ip', ''));
 
         $apiParams = $this->toApiParams($filters);
-        if ($sourceIp !== '') $apiParams['source_ip'] = $sourceIp;
+        if ($sourceIp !== '') {
+            $apiParams['source_ip'] = $sourceIp;
+        }
 
         // CSV export
         if ($request->get('export') === 'csv') {
-            $rows    = max(50, min(10000, (int) $request->get('rows', 5000)));
+            $rows = max(50, min(10000, (int) $request->get('rows', 5000)));
             $results = $this->client->search($selected, $apiParams, limit: $rows);
             $results['results'] = array_map(
                 fn ($row) => $row + $this->extraAsteriskFields($row['message'] ?? ''),
                 $results['results']
             );
+
             return $this->streamCsv(
-                'branch-logs-ucm-' . date('Ymd-His') . '.csv',
+                'branch-logs-ucm-'.date('Ymd-His').'.csv',
                 ['time_utc', 'branch', 'source_ip', 'severity_text',
-                 'asterisk_severity', 'call_id', 'pid', 'task_id',
-                 'file', 'line', 'function', 'body', 'message'],
+                    'asterisk_severity', 'call_id', 'pid', 'task_id',
+                    'file', 'line', 'function', 'body', 'message'],
                 function ($fh) use ($results) {
                     foreach ($results['results'] as $r) {
                         fputcsv($fh, [
                             $r['received_at'] ?? '',
-                            $r['branch_id']   ?? '',
-                            $r['source_ip']   ?? '',
-                            $r['severity']    ?? '',
-                            $r['a_severity']  ?? '',
-                            $r['a_call_id']   ?? '',
-                            $r['a_pid']       ?? '',
-                            $r['a_task']      ?? '',
-                            $r['a_file']      ?? '',
-                            $r['a_line']      ?? '',
-                            $r['a_func']      ?? '',
-                            $r['a_body']      ?? '',
-                            $r['message']     ?? '',
+                            $r['branch_id'] ?? '',
+                            $r['source_ip'] ?? '',
+                            $r['severity'] ?? '',
+                            $r['a_severity'] ?? '',
+                            $r['a_call_id'] ?? '',
+                            $r['a_pid'] ?? '',
+                            $r['a_task'] ?? '',
+                            $r['a_file'] ?? '',
+                            $r['a_line'] ?? '',
+                            $r['a_func'] ?? '',
+                            $r['a_body'] ?? '',
+                            $r['message'] ?? '',
                         ]);
                     }
                 }
@@ -224,11 +230,11 @@ class BranchLogController extends Controller
         }
 
         return view('admin.logs.branches.ucm', [
-            'branches'         => $branches,
+            'branches' => $branches,
             'selectedBranches' => $selected,
-            'filters'          => $filters,
-            'sourceIp'         => $sourceIp,
-            'results'          => $results,
+            'filters' => $filters,
+            'sourceIp' => $sourceIp,
+            'results' => $results,
         ]);
     }
 
@@ -245,8 +251,8 @@ class BranchLogController extends Controller
             $rowsCallback($fh);
             fclose($fh);
         }, $filename, [
-            'Content-Type'        => 'text/csv; charset=UTF-8',
-            'Cache-Control'       => 'no-store, no-cache, must-revalidate',
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
         ]);
     }
 
@@ -258,7 +264,7 @@ class BranchLogController extends Controller
     {
         $out = [
             'a_severity' => '', 'a_pid' => '', 'a_task' => '', 'a_call_id' => '',
-            'a_file'     => '', 'a_line' => '', 'a_func' => '', 'a_body' => '',
+            'a_file' => '', 'a_line' => '', 'a_func' => '', 'a_body' => '',
         ];
         if (preg_match(
             '/asterisk\[(?<pid>\d+)\]:\s+(?<sev>[A-Z]+)\[(?<task>\d+)\](?:\[C-(?<call>[A-Fa-f0-9]+)\])?:\s+(?<file>[^:\s]+):(?<line>\d+)\s+in\s+(?<func>\w+):\s*(?<body>.*)/',
@@ -266,16 +272,17 @@ class BranchLogController extends Controller
             $m
         )) {
             $out = [
-                'a_severity' => $m['sev']  ?? '',
-                'a_pid'      => $m['pid']  ?? '',
-                'a_task'     => $m['task'] ?? '',
-                'a_call_id'  => $m['call'] ?? '',
-                'a_file'     => $m['file'] ?? '',
-                'a_line'     => $m['line'] ?? '',
-                'a_func'     => $m['func'] ?? '',
-                'a_body'     => $m['body'] ?? '',
+                'a_severity' => $m['sev'] ?? '',
+                'a_pid' => $m['pid'] ?? '',
+                'a_task' => $m['task'] ?? '',
+                'a_call_id' => $m['call'] ?? '',
+                'a_file' => $m['file'] ?? '',
+                'a_line' => $m['line'] ?? '',
+                'a_func' => $m['func'] ?? '',
+                'a_body' => $m['body'] ?? '',
             ];
         }
+
         return $out;
     }
 
@@ -292,14 +299,15 @@ class BranchLogController extends Controller
     {
         $branches = $this->client->enabledBranches();
         $selected = $this->parseSelectedBranches($request, $branches);
-        $filters  = $this->extractFilters($request);
+        $filters = $this->extractFilters($request);
 
         $field = (string) $request->get('field', 'source');
-        $resp  = $this->client->aggregate(
+        $resp = $this->client->aggregate(
             $selected,
             $this->toApiParams($filters) + ['field' => $field, 'limit' => 25],
             limit: 25
         );
+
         return response()->json($resp);
     }
 
@@ -307,21 +315,26 @@ class BranchLogController extends Controller
     private function extractFilters(Request $request): array
     {
         return [
-            'from'           => trim((string) $request->get('from', '')),
-            'to'             => trim((string) $request->get('to',   '')),
-            'source'         => trim((string) $request->get('source', '')),
-            'q'              => trim((string) $request->get('q', '')),
-            'severity'       => $request->get('severity', ''),
-            'program'        => trim((string) $request->get('program', '')),
+            'from' => trim((string) $request->get('from', '')),
+            'to' => trim((string) $request->get('to', '')),
+            'source' => trim((string) $request->get('source', '')),
+            'q' => trim((string) $request->get('q', '')),
+            'severity' => $request->get('severity', ''),
+            'program' => trim((string) $request->get('program', '')),
             'sophos_subtype' => trim((string) $request->get('sophos_subtype', '')),
-            'sophos_dst_ip'  => trim((string) $request->get('sophos_dst_ip', '')),
-            'sophos_src_ip'  => trim((string) $request->get('sophos_src_ip', '')),
+            'sophos_dst_ip' => trim((string) $request->get('sophos_dst_ip', '')),
+            'sophos_src_ip' => trim((string) $request->get('sophos_src_ip', '')),
         ];
     }
 
     /**
-     * Parse the additional KV fields from a Sophos message that aren't
-     * stored as columns yet — interfaces, fw_rule_id, NAT rule.
+     * Parse Sophos KV fields from the raw message.
+     *
+     * The `sophos_*` keys used to be pre-parsed and returned by the branch-vm
+     * search API. The consolidated branch agent returns the raw message
+     * instead (which carries everything as KV), so we derive those columns
+     * here. The caller merges via `$row + extra`, so any value a branch *does*
+     * supply still wins — this only fills the gaps.
      */
     private function extraSophosFields(string $msg): array
     {
@@ -330,19 +343,36 @@ class BranchLogController extends Controller
             foreach ($m as $pair) {
                 $k = $pair[1] !== '' ? $pair[1] : $pair[3];
                 $v = $pair[2] !== '' ? $pair[2] : ($pair[4] ?? '');
-                if ($k !== '') $kv[$k] = $v;
+                if ($k !== '') {
+                    $kv[$k] = $v;
+                }
             }
         }
+
         return [
-            'kv_fw_rule_id'      => $kv['fw_rule_id']      ?? '',
-            'kv_in_interface'    => $kv['in_interface']    ?? '',
-            'kv_out_interface'   => $kv['out_interface']   ?? '',
-            'kv_nat_rule_id'     => $kv['nat_rule_id']     ?? '',
-            'kv_nat_rule_name'   => $kv['nat_rule_name']   ?? '',
-            'kv_dst_country'     => $kv['dst_country']     ?? '',
-            'kv_src_country'     => $kv['src_country']     ?? '',
+            // Extra KV columns (interfaces, rule id, NAT, country, app).
+            'kv_fw_rule_id' => $kv['fw_rule_id'] ?? '',
+            'kv_in_interface' => $kv['in_interface'] ?? '',
+            'kv_out_interface' => $kv['out_interface'] ?? '',
+            'kv_nat_rule_id' => $kv['nat_rule_id'] ?? '',
+            'kv_nat_rule_name' => $kv['nat_rule_name'] ?? '',
+            'kv_dst_country' => $kv['dst_country'] ?? '',
+            'kv_src_country' => $kv['src_country'] ?? '',
             'kv_app_resolved_by' => $kv['app_resolved_by'] ?? '',
-            'kv_application'     => $kv['application']     ?? ($kv['app_name'] ?? ''),
+            'kv_application' => $kv['application'] ?? ($kv['app_name'] ?? ''),
+
+            // Primary columns the Sophos view expects (derived from the raw
+            // message when the branch didn't pre-parse them).
+            'sophos_log_type' => $kv['log_type'] ?? '',
+            'sophos_log_component' => $kv['log_component'] ?? '',
+            'sophos_log_subtype' => $kv['log_subtype'] ?? '',
+            'sophos_fw_rule_name' => $kv['fw_rule_name'] ?? '',
+            'sophos_user_name' => $kv['user_name'] ?? ($kv['user'] ?? ''),
+            'sophos_src_ip' => $kv['src_ip'] ?? '',
+            'sophos_src_port' => $kv['src_port'] ?? '',
+            'sophos_dst_ip' => $kv['dst_ip'] ?? '',
+            'sophos_dst_port' => $kv['dst_port'] ?? '',
+            'sophos_protocol' => $kv['protocol'] ?? '',
         ];
     }
 
@@ -356,9 +386,12 @@ class BranchLogController extends Controller
     private function parseSelectedBranches(Request $request, array $allBranches): array
     {
         $raw = (string) $request->get('branches', '');
-        if ($raw === '') return array_keys($allBranches);
+        if ($raw === '') {
+            return array_keys($allBranches);
+        }
 
         $picked = array_filter(array_map('trim', explode(',', $raw)));
+
         return array_values(array_intersect($picked, array_keys($allBranches)));
     }
 }

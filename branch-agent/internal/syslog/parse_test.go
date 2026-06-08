@@ -1,6 +1,7 @@
 package syslog
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -56,6 +57,25 @@ func TestParseRFC5424(t *testing.T) {
 	}
 	if e.DeviceTime == nil {
 		t.Errorf("device_time not parsed for 5424")
+	}
+}
+
+func TestParseSophosKVPreservesMessage(t *testing.T) {
+	// Sophos XGS lines are key="value" blobs with no BSD host/tag. The full
+	// message (incl. leading device=/date=/time=) must survive so the NOC's
+	// columnar view can parse src_ip, log_subtype, etc.
+	line := `<134>device="SFW" date=2026-06-08 time=16:47:53 timezone="+0300" ` +
+		`device_model="XGS2100" log_type="Content Filtering" log_subtype="Denied" ` +
+		`fw_rule_id="22" src_ip="10.9.8.145" dst_ip="34.96.106.127" protocol="TCP"`
+	e := Parse(line, "10.3.0.1", time.Now().UTC())
+
+	for _, needle := range []string{`device="SFW"`, `src_ip="10.9.8.145"`, `log_subtype="Denied"`, `protocol="TCP"`} {
+		if !strings.Contains(e.Message, needle) {
+			t.Errorf("message lost %q; got %q", needle, e.Message)
+		}
+	}
+	if e.SourceIP != "10.3.0.1" {
+		t.Errorf("source_ip = %q", e.SourceIP)
 	}
 }
 

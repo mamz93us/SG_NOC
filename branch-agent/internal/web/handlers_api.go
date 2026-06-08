@@ -77,10 +77,15 @@ func (s *Server) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// queryParams pulls the forwarded log filters from the query string.
+// queryParams pulls the forwarded log filters from the query string. Includes
+// the Sophos-view filters, which match against the raw message (the agent is
+// vendor-neutral — Sophos fields live inside the message as KV pairs).
 func queryParams(r *http.Request) map[string]string {
 	q := r.URL.Query()
-	keys := []string{"from", "to", "q", "source", "source_ip", "program", "severity", "field"}
+	keys := []string{
+		"from", "to", "q", "source", "source_ip", "program", "severity", "field",
+		"is_sophos", "sophos_src_ip", "sophos_dst_ip", "sophos_subtype",
+	}
 	out := map[string]string{}
 	for _, k := range keys {
 		if v := q.Get(k); v != "" {

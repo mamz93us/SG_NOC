@@ -173,6 +173,25 @@ func buildWhere(p map[string]string) (string, []any) {
 		}
 	}
 
+	// Sophos-view filters — these live inside the raw message as KV pairs, so
+	// they match against `message`. is_sophos narrows to firewall logs.
+	if p["is_sophos"] == "1" {
+		clauses = append(clauses, "(message LIKE ? OR message LIKE ?)")
+		args = append(args, "%device_serial_id=%", "%log_component=%")
+	}
+	if v := strings.TrimSpace(p["sophos_subtype"]); v != "" {
+		clauses = append(clauses, "message LIKE ?")
+		args = append(args, `%log_subtype="`+v+`"%`)
+	}
+	if v := strings.TrimSpace(p["sophos_src_ip"]); v != "" {
+		clauses = append(clauses, "message LIKE ?")
+		args = append(args, `%src_ip="`+v+`"%`)
+	}
+	if v := strings.TrimSpace(p["sophos_dst_ip"]); v != "" {
+		clauses = append(clauses, "message LIKE ?")
+		args = append(args, `%dst_ip="`+v+`"%`)
+	}
+
 	if len(clauses) == 0 {
 		return "", nil
 	}
