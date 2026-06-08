@@ -706,6 +706,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::put('backups/{backupAccount}', [\App\Http\Controllers\Admin\BackupAccountController::class, 'update'])->name('backups.update');
         Route::post('backups/{backupAccount}/reveal', [\App\Http\Controllers\Admin\BackupAccountController::class, 'reveal'])->name('backups.reveal');
         Route::post('backups/{backupAccount}/rotate', [\App\Http\Controllers\Admin\BackupAccountController::class, 'rotate'])->name('backups.rotate');
+        Route::get('backups/file/{sftpBackup}/download', [\App\Http\Controllers\Admin\BackupAccountController::class, 'downloadFile'])->name('backups.download');
         Route::delete('backups/{backupAccount}', [\App\Http\Controllers\Admin\BackupAccountController::class, 'destroy'])->name('backups.destroy');
         Route::delete('backups/{backupAccount}/purge', [\App\Http\Controllers\Admin\BackupAccountController::class, 'purge'])->name('backups.purge');
     });

@@ -53,7 +53,7 @@
             <div class="card-header"><strong>Recent backups</strong></div>
             <div class="table-responsive">
                 <table class="table table-sm mb-0">
-                    <thead><tr><th>File</th><th>Size</th><th>Status</th><th>Archived</th></tr></thead>
+                    <thead><tr><th>File</th><th>Size</th><th>Status</th><th>Archived</th><th></th></tr></thead>
                     <tbody>
                     @forelse($recent as $b)
                         <tr>
@@ -61,9 +61,18 @@
                             <td>{{ $b->humanSize() }}</td>
                             <td><span class="badge bg-secondary">{{ $b->status }}</span></td>
                             <td>{{ $b->uploaded_at?->diffForHumans() ?? '—' }}</td>
+                            <td class="text-end">
+                                @if($b->status === \App\Models\SftpBackup::STATUS_UPLOADED)
+                                    @can('manage-backups')
+                                    <a href="{{ route('admin.backups.download', $b) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-download me-1"></i>Download
+                                    </a>
+                                    @endcan
+                                @endif
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="text-center text-muted py-3">No files archived yet.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted py-3">No files archived yet.</td></tr>
                     @endforelse
                     </tbody>
                 </table>

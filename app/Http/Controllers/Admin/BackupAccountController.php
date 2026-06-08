@@ -8,11 +8,13 @@ use App\Models\BackupAccount;
 use App\Models\MonitoredHost;
 use App\Models\NetworkSwitch;
 use App\Models\Setting;
+use App\Models\SftpBackup;
 use App\Models\SophosFirewall;
 use App\Models\UcmServer;
 use App\Services\Backup\SftpgoApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class BackupAccountController extends Controller
@@ -168,6 +170,34 @@ class BackupAccountController extends Controller
         ]);
 
         return response()->json(['password' => $backupAccount->password]);
+    }
+
+    /**
+     * Stream an archived backup file from Azure Blob through the NOC so operators
+     * can restore without touching the Azure portal. Gated by manage-backups and
+     * logged — backup contents are sensitive (DB dumps, configs, credentials).
+     */
+    public function downloadFile(SftpBackup $sftpBackup)
+    {
+        abort_unless(
+            $sftpBackup->status === SftpBackup::STATUS_UPLOADED && $sftpBackup->azure_path,
+            404,
+            'This backup is not archived to Azure.'
+        );
+
+        $disk = Storage::disk($sftpBackup->disk ?: config('sftp_backup.disk', 'azure_backups'));
+
+        abort_unless($disk->exists($sftpBackup->azure_path), 404, 'Archived file no longer exists in storage.');
+
+        ActivityLog::create([
+            'model_type' => 'SftpBackup', 'model_id' => $sftpBackup->id,
+            'action' => 'backup_downloaded',
+            'changes' => ['azure_path' => $sftpBackup->azure_path, 'account_id' => $sftpBackup->account_id, 'size' => $sftpBackup->size],
+            'user_id' => Auth::id(),
+        ]);
+
+        // Streams the blob (no full-file buffering) — fine for multi-GB backups.
+        return $disk->download($sftpBackup->azure_path, $sftpBackup->filename);
     }
 
     public function rotate(BackupAccount $backupAccount)
