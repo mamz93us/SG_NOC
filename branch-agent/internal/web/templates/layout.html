@@ -1,0 +1,30 @@
+{{define "header"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · SG Branch Agent</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">SG&nbsp;Branch&nbsp;Agent</div>
+    {{if .Linked}}
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/settings">Settings</a>
+      <form method="post" action="/logout" class="inline"><button class="linkbtn">Sign out</button></form>
+    </nav>
+    {{end}}
+  </header>
+  <main class="wrap">
+    {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+    {{if .Flash}}<div class="alert ok">{{.Flash}}</div>{{end}}
+{{end}}
+
+{{define "footer"}}
+  </main>
+  <footer class="foot">sg-branch-agent {{.Version}}</footer>
+</body>
+</html>
+{{end}}

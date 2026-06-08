@@ -1,0 +1,31 @@
+{{define "settings.html"}}{{template "header" .}}
+<div class="card wide">
+  <h1>Settings</h1>
+
+  <form method="post" action="/settings" class="stack">
+    <fieldset>
+      <legend>Device monitoring</legend>
+      <label>SNMP community
+        <input type="text" name="snmp_community" value="{{.Data.SNMPCommunity}}">
+      </label>
+      <label>SNMP version
+        <input type="text" name="snmp_version" value="{{.Data.SNMPVersion}}">
+      </label>
+      <label>Subnets to scan <small class="muted">(one per line)</small>
+        <textarea name="scan_subnets" rows="3">{{.Data.ScanSubnets}}</textarea>
+      </label>
+    </fieldset>
+    <button type="submit" class="btn primary">Save</button>
+  </form>
+
+  <fieldset class="readonly">
+    <legend>NOC link</legend>
+    <dl>
+      <dt>NOC</dt><dd>{{.Data.NOCURL}}</dd>
+      <dt>Branch</dt><dd><code>{{.Data.BranchCode}}</code></dd>
+      <dt>Log retention</dt><dd>{{.Data.Runtime.LogRetentionDays}} days <span class="muted">(NOC-managed)</span></dd>
+    </dl>
+    <small class="muted">Retention and poll intervals are managed centrally from the NOC and refreshed on each heartbeat.</small>
+  </fieldset>
+</div>
+{{template "footer" .}}{{end}}

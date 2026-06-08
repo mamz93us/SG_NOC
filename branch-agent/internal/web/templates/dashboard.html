@@ -1,0 +1,34 @@
+{{define "dashboard.html"}}{{template "header" .}}
+<div class="grid">
+  <div class="card">
+    <h2>NOC link</h2>
+    <dl>
+      <dt>Status</dt><dd><span class="badge ok">linked</span></dd>
+      <dt>Branch</dt><dd><code>{{.Data.BranchCode}}</code></dd>
+      <dt>NOC</dt><dd>{{.Data.NOCURL}}</dd>
+      <dt>FQDN</dt><dd>{{if .Data.FQDN}}<code>{{.Data.FQDN}}</code>{{else}}<span class="muted">—</span>{{end}}</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>Health (last reported)</h2>
+    {{if .Data.Health}}
+      <dl>
+        {{range $k, $v := .Data.Health}}<dt>{{$k}}</dt><dd>{{$v}}</dd>{{end}}
+      </dl>
+    {{else}}
+      <p class="muted">No health snapshot yet — first heartbeat pending.</p>
+    {{end}}
+  </div>
+
+  <div class="card">
+    <h2>Runtime config</h2>
+    <dl>
+      <dt>Log retention</dt><dd>{{.Data.Runtime.LogRetentionDays}} days</dd>
+      <dt>Log size cap</dt><dd>{{.Data.Runtime.LogMaxTotalGB}} GB</dd>
+      <dt>SNMP poll</dt><dd>{{.Data.Runtime.SNMPPollIntervalS}}s</dd>
+      <dt>Heartbeat</dt><dd>{{.Data.Runtime.HeartbeatIntervalS}}s</dd>
+    </dl>
+  </div>
+</div>
+{{template "footer" .}}{{end}}
