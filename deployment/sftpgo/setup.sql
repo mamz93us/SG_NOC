@@ -19,8 +19,14 @@ CREATE DATABASE IF NOT EXISTS `sftpgo`
 --
 -- SFTPGo connects over TCP to 127.0.0.1, which MySQL treats as a DIFFERENT host
 -- account than 'localhost' (the unix socket). Create BOTH so it works either way.
-CREATE USER IF NOT EXISTS 'sftpgo'@'localhost' IDENTIFIED BY 'REPLACE_ME';
-CREATE USER IF NOT EXISTS 'sftpgo'@'127.0.0.1' IDENTIFIED BY 'REPLACE_ME';
+--
+-- IDENTIFIED WITH mysql_native_password: MySQL 8 defaults to caching_sha2_password,
+-- which SFTPGo's Go driver can't complete over a non-TLS TCP socket — you get
+-- "Access denied ... (using password: YES)" even though the `mysql` CLI logs in fine.
+-- Forcing mysql_native_password avoids that. (The Laravel app is unaffected — PHP's
+-- mysqlnd speaks caching_sha2.)
+CREATE USER IF NOT EXISTS 'sftpgo'@'localhost' IDENTIFIED WITH mysql_native_password BY 'REPLACE_ME';
+CREATE USER IF NOT EXISTS 'sftpgo'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY 'REPLACE_ME';
 
 -- Full rights on ITS OWN database only (DDL included). No access to phonebook2.
 GRANT ALL PRIVILEGES ON `sftpgo`.* TO 'sftpgo'@'localhost';
