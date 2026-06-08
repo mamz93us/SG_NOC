@@ -5,7 +5,10 @@ After=network-online.target mysql.service mariadb.service
 Wants=network-online.target
 
 [Service]
-Type=notify
+# Type=simple, not notify: SFTPGo's sd_notify readiness signal doesn't reliably reach
+# systemd in this setup, so Type=notify makes systemd time out after 90s and restart-loop
+# even though the daemon is serving. simple = "running == started".
+Type=simple
 User=sftpgo
 Group=sftpgo
 EnvironmentFile=/etc/sftpgo/sftpgo.env
