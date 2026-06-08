@@ -83,7 +83,9 @@ class BackupAccountController extends Controller
         $account->sftpgo_username = $this->uniqueUsername($account->deviceLabel());
         $account->home_dir = $account->homeDir();
 
-        $password = Str::password(24);
+        // Alphanumeric only — no symbols/spaces. SFTPGo + WHM/cPanel and the
+        // shell-based backup transports reject `$ & | ; > , ' " ( ) and spaces.
+        $password = Str::password(24, letters: true, numbers: true, symbols: false, spaces: false);
         $account->password = $password;
 
         // Provision the SFTPGo user FIRST; only persist the row if that succeeds.
@@ -170,7 +172,9 @@ class BackupAccountController extends Controller
 
     public function rotate(BackupAccount $backupAccount)
     {
-        $password = Str::password(24);
+        // Alphanumeric only — no symbols/spaces. SFTPGo + WHM/cPanel and the
+        // shell-based backup transports reject `$ & | ; > , ' " ( ) and spaces.
+        $password = Str::password(24, letters: true, numbers: true, symbols: false, spaces: false);
 
         try {
             (new SftpgoApiService)->setPassword($backupAccount, $password);
