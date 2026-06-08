@@ -1,0 +1,4 @@
+# The prebuilt agent binary is committed so the VPS can `git pull` it (no Go on
+# the server). Treat it as binary so no platform ever rewrites its bytes.
+sg-branch-agent        binary
+sg-branch-agent.sha256 text eol=lf
