@@ -27,7 +27,7 @@ return [
     // The agent merges these over its local settings on each poll.
     'defaults' => [
         'log_retention_days' => (int) env('BRANCH_AGENTS_LOG_RETENTION_DAYS', 30),
-        'log_max_total_gb' => (float) env('BRANCH_AGENTS_LOG_MAX_GB', 5),
+        'log_max_total_gb' => (float) env('BRANCH_AGENTS_LOG_MAX_GB', 50),
         'snmp_poll_interval_s' => (int) env('BRANCH_AGENTS_SNMP_INTERVAL', 60),
         'discovery_interval_s' => (int) env('BRANCH_AGENTS_DISCOVERY_INTERVAL', 3600),
         'heartbeat_interval_s' => (int) env('BRANCH_AGENTS_HEARTBEAT_INTERVAL', 60),

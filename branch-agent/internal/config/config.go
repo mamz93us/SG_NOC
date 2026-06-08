@@ -83,7 +83,7 @@ func Defaults() *Config {
 		},
 		Runtime: Runtime{
 			LogRetentionDays:   30,
-			LogMaxTotalGB:      5,
+			LogMaxTotalGB:      50,
 			SNMPPollIntervalS:  60,
 			DiscoveryIntervalS: 3600,
 			HeartbeatIntervalS: 60,
