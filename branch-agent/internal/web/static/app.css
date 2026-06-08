@@ -56,3 +56,18 @@ dl { display: grid; grid-template-columns: auto 1fr; gap: .35rem 1rem; margin: 0
 dt { color: var(--muted); }
 dd { margin: 0; }
 .foot { text-align: center; color: var(--muted); font-size: .8rem; padding: 1.5rem 0; }
+
+/* Logs */
+.filters { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.filters input, .filters select { width: auto; margin: 0; flex: 1 1 140px; }
+.filters .btn { flex: 0 0 auto; }
+.logtable { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.logtable th, .logtable td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.logtable th { color: var(--muted); font-weight: 600; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+.nowrap { white-space: nowrap; }
+.msg { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-word; }
+.sev { padding: .05rem .4rem; border-radius: 4px; font-size: .72rem; font-weight: 600; }
+.sev.sev-high { background: #fef2f2; color: var(--err); }
+.sev.sev-warn { background: #fffbeb; color: #b45309; }
+.sev.sev-low { background: #f1f5f9; color: var(--muted); }

@@ -54,6 +54,39 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ─── Logs ────────────────────────────────────────────────────────────
+
+func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	filters := map[string]string{
+		"q":         q.Get("q"),
+		"source_ip": q.Get("source_ip"),
+		"program":   q.Get("program"),
+		"severity":  q.Get("severity"),
+		"from":      q.Get("from"),
+		"to":        q.Get("to"),
+	}
+
+	data := map[string]any{
+		"Filters": filters,
+		"Rows":    nil,
+		"Total":   0,
+	}
+	if s.Store != nil && q.Get("search") != "" {
+		params := map[string]string{}
+		for k, v := range filters {
+			if v != "" {
+				params[k] = v
+			}
+		}
+		res := s.Store.Search(params, 300)
+		data["Rows"] = res.Results
+		data["Total"] = res.Total
+	}
+
+	s.render(w, "logs.html", pageData{Title: "Logs", Data: data})
+}
+
 // ─── Settings ────────────────────────────────────────────────────────
 
 func (s *Server) handleSettingsForm(w http.ResponseWriter, r *http.Request) {

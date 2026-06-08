@@ -186,6 +186,22 @@ func (c *Config) HeartbeatInterval() time.Duration {
 	return d
 }
 
+// NOCToken returns the issued NOC token under the read lock. This is also the
+// shared secret the NOC presents when querying the agent's log API.
+func (c *Config) NOCToken() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.NOC.Token
+}
+
+// Retention returns the log retention policy under the read lock: max age in
+// days and max total bytes across day files.
+func (c *Config) Retention() (days int, maxBytes int64) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Runtime.LogRetentionDays, int64(c.Runtime.LogMaxTotalGB * (1 << 30))
+}
+
 // LogsDir is where the daily-rolling SQLite log files live.
 func (c *Config) LogsDir() string {
 	return filepath.Join(c.DataDir, "logs")

@@ -12,6 +12,7 @@ import (
 
 	"github.com/samirgroup/sg-branch-agent/internal/config"
 	"github.com/samirgroup/sg-branch-agent/internal/nocclient"
+	"github.com/samirgroup/sg-branch-agent/internal/store"
 )
 
 //go:embed templates/*.html
@@ -27,6 +28,7 @@ const sessionTTL = 12 * time.Hour
 type Server struct {
 	Cfg        *config.Config
 	NOC        *nocclient.Client
+	Store      *store.Manager // log store (nil until Phase 3 wiring)
 	Version    string
 	SetupToken string // one-time, in-memory; printed at startup until setup completes
 
@@ -41,7 +43,8 @@ type Server struct {
 // NewServer parses templates and returns a ready server.
 func NewServer(cfg *config.Config, noc *nocclient.Client, version, setupToken string) (*Server, error) {
 	tmpl, err := template.New("").Funcs(template.FuncMap{
-		"upper": func(s string) string { return s },
+		"sevName":  severityName,
+		"sevClass": severityClass,
 	}).ParseFS(templatesFS, "templates/*.html")
 	if err != nil {
 		return nil, err
@@ -82,8 +85,15 @@ func (s *Server) Handler() http.Handler {
 
 	// Authenticated UI.
 	mux.HandleFunc("GET /{$}", s.requireAuth(s.handleDashboard))
+	mux.HandleFunc("GET /logs", s.requireAuth(s.handleLogs))
 	mux.HandleFunc("GET /settings", s.requireAuth(s.handleSettingsForm))
 	mux.HandleFunc("POST /settings", s.requireAuth(s.handleSettingsSubmit))
+
+	// Machine API the NOC calls (Bearer = the agent's NOC token). These are
+	// the drop-in replacement for the branch-vm log API + stats probe.
+	mux.HandleFunc("GET /api/logs/search", s.tokenAuth(s.handleAPISearch))
+	mux.HandleFunc("GET /api/logs/aggregate", s.tokenAuth(s.handleAPIAggregate))
+	mux.HandleFunc("GET /api/stats", s.tokenAuth(s.handleAPIStats))
 
 	return logRequests(mux)
 }
@@ -119,6 +129,27 @@ func logRequests(next http.Handler) http.Handler {
 }
 
 func hasPrefix(s, p string) bool { return len(s) >= len(p) && s[:len(p)] == p }
+
+// severityName maps an RFC5424 severity number to its label.
+func severityName(n int) string {
+	names := []string{"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"}
+	if n >= 0 && n < len(names) {
+		return names[n]
+	}
+	return "?"
+}
+
+// severityClass returns a CSS class bucket for colouring a severity.
+func severityClass(n int) string {
+	switch {
+	case n <= 3:
+		return "sev-high"
+	case n == 4:
+		return "sev-warn"
+	default:
+		return "sev-low"
+	}
+}
 
 // ─── Render helper ───────────────────────────────────────────────────
 

@@ -1,0 +1,48 @@
+{{define "logs.html"}}{{template "header" .}}
+<div class="card">
+  <h1>Logs</h1>
+  <form method="get" action="/logs" class="filters">
+    <input type="hidden" name="search" value="1">
+    <input type="text" name="q" value="{{.Data.Filters.q}}" placeholder="message contains…">
+    <input type="text" name="source_ip" value="{{.Data.Filters.source_ip}}" placeholder="source IP">
+    <input type="text" name="program" value="{{.Data.Filters.program}}" placeholder="program">
+    <select name="severity">
+      <option value="">any severity</option>
+      {{$sev := .Data.Filters.severity}}
+      <option value="0" {{if eq $sev "0"}}selected{{end}}>emerg</option>
+      <option value="1" {{if eq $sev "1"}}selected{{end}}>alert</option>
+      <option value="2" {{if eq $sev "2"}}selected{{end}}>crit</option>
+      <option value="3" {{if eq $sev "3"}}selected{{end}}>err</option>
+      <option value="4" {{if eq $sev "4"}}selected{{end}}>warning</option>
+      <option value="5" {{if eq $sev "5"}}selected{{end}}>notice</option>
+      <option value="6" {{if eq $sev "6"}}selected{{end}}>info</option>
+      <option value="7" {{if eq $sev "7"}}selected{{end}}>debug</option>
+    </select>
+    <input type="datetime-local" name="from" value="{{.Data.Filters.from}}" title="from">
+    <input type="datetime-local" name="to" value="{{.Data.Filters.to}}" title="to">
+    <button type="submit" class="btn primary">Search</button>
+  </form>
+</div>
+
+<div class="card">
+  {{if .Data.Rows}}
+    <p class="muted">{{.Data.Total}} result(s), newest first.</p>
+    <table class="logtable">
+      <thead><tr><th>Time (UTC)</th><th>Source</th><th>Program</th><th>Sev</th><th>Message</th></tr></thead>
+      <tbody>
+        {{range .Data.Rows}}
+        <tr>
+          <td class="mono nowrap">{{.ReceivedAt}}</td>
+          <td class="mono">{{.Source}}{{if .SourceIP}}<br><span class="muted">{{.SourceIP}}</span>{{end}}</td>
+          <td>{{.Program}}</td>
+          <td><span class="sev {{sevClass .Severity}}">{{sevName .Severity}}</span></td>
+          <td class="msg">{{.Message}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  {{else}}
+    <p class="muted">No results. Enter filters and search — logs are kept locally for the configured retention window.</p>
+  {{end}}
+</div>
+{{template "footer" .}}{{end}}
