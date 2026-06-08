@@ -74,6 +74,21 @@ else
     warn "could not set ACL — the sweeper (${APP_USER}) may be unable to read/delete uploads."
 fi
 
+# 2b. The default ACL above is NOT enough on its own: cPanel/WHM (and some devices)
+#     upload backups with mode 0600, which zeroes the POSIX ACL *mask* on each new
+#     file/dir and re-masks APP_USER out — so the next sweep can't read/delete them
+#     ("Failed to open stream: Permission denied"). A tiny root cron re-applies the
+#     ACL every 2 min, re-opening the mask. APP_USER can't do this itself (the files
+#     are sftpgo-owned), and the sweep's 120s stability window guarantees a file is
+#     ACL-fixed before the sweep is eligible to touch it — so there's no race.
+if command -v setfacl >/dev/null 2>&1; then
+    CRON_FILE="/etc/cron.d/sg-sftp-backups-acl"
+    printf '# Keep %s able to read+delete SFTPGo backups (0600 uploads reset the ACL mask).\n*/2 * * * * root setfacl -R -m u:%s:rwX %s 2>/dev/null\n' \
+        "$APP_USER" "$APP_USER" "$BACKUP_ROOT" > "$CRON_FILE"
+    chmod 644 "$CRON_FILE"
+    log "installed ${CRON_FILE} — re-opens the ACL mask for ${APP_USER} every 2 min"
+fi
+
 # 3. Config (don't clobber an edited one) ---------------------------------
 if [ ! -f "${CONF_DIR}/sftpgo.json" ]; then
     install -m640 -o "$SFTPGO_USER" -g "$SFTPGO_USER" "$DIR/sftpgo.json" "${CONF_DIR}/sftpgo.json"
