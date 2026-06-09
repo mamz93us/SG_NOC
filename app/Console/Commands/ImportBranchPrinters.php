@@ -71,6 +71,10 @@ class ImportBranchPrinters extends Command
         // ── ABH ──
         ['ABH', 'EPSON', 'EPSON WF-C20590', '10.4.0.5', 'Ground Floor'],
         ['ABH', 'RICOH', 'RICOH MP C3003', '10.4.0.10', 'First Floor'],
+        // ── CAI ──
+        ['CAI', 'RICOH', 'RICOH IM C4510', '10.9.80.210', 'Finance — 4th Floor'],
+        ['CAI', 'Canon', 'Canon iR1643i', '10.9.1.202', 'HR — 5th Floor'],
+        ['CAI', 'Canon', 'Canon MF742C/744C', '10.9.1.201', 'GM — 4th Floor'],
     ];
 
     /** Branch code → candidate branches.name substrings (lowercase). */
@@ -79,6 +83,7 @@ class ImportBranchPrinters extends Command
         'RYD' => ['ryd', 'riyadh', 'riyad'],
         'KBR' => ['kbr', 'khobar', 'khubar'],
         'ABH' => ['abh', 'abha'],
+        'CAI' => ['cai', 'cairo'],
     ];
 
     public function handle(): int
