@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\Branch;
 use App\Models\IspConnection;
+use App\Models\IspProvider;
+use App\Models\IspProviderPackage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -48,6 +50,11 @@ class ImportIspConnections extends Command
         ['Zain', 'Zain Fiber', 200, 'KBR', 'SG-OPEN', '2016067461', 'home', 'postpaid', 401, null],
         ['Mobily', 'Broadband Business', 100, 'JED', 'Primary Connection (Samir food)', '1000147110643228', 'business', 'postpaid', 573.85, null],
     ];
+
+    /** Caches so providers/packages are created once per run. */
+    private array $providerCache = [];
+
+    private array $packageCache = [];
 
     private array $branchNameHints = [
         'JED' => ['jed', 'jeddah', 'jiddah'],
@@ -100,10 +107,14 @@ class ImportIspConnections extends Command
             foreach ($this->rows as $r) {
                 [$provider, $package, $mbps, $code, $purpose, $account, $custType, $payType, $amount, $payer] = $r;
 
+                [$providerId, $packageId] = $this->linkProviderPackage($provider, $package, $mbps, $amount);
+
                 IspConnection::updateOrCreate(
                     ['account_number' => $account],
                     [
                         'branch_id' => $branches[$code]['id'],
+                        'isp_provider_id' => $providerId,
+                        'isp_provider_package_id' => $packageId,
                         'provider' => $provider,
                         'package' => $package,
                         'billing_account_number' => $payer,
@@ -139,6 +150,28 @@ class ImportIspConnections extends Command
             number_format($g->sum(fn ($r) => $r[8]), 2).' SAR',
         ])->values()->all();
         $this->table(['Payer account', 'Services', 'Total / month'], $rows);
+    }
+
+    /**
+     * Find-or-create the IspProvider + IspProviderPackage and return their IDs.
+     * Called only on --apply (inside the transaction), so dry-run never writes.
+     * The package is a catalog entry keyed by (provider, name); the connection
+     * keeps its own authoritative speed/cost.
+     */
+    private function linkProviderPackage(string $provider, string $package, int $mbps, float $amount): array
+    {
+        $prov = $this->providerCache[$provider] ??= IspProvider::firstOrCreate(
+            ['name' => $provider],
+            ['default_currency' => 'SAR'],
+        );
+
+        $key = $prov->id.'|'.$package;
+        $pkg = $this->packageCache[$key] ??= IspProviderPackage::firstOrCreate(
+            ['isp_provider_id' => $prov->id, 'name' => $package],
+            ['speed_down' => $mbps, 'speed_up' => $mbps, 'monthly_cost' => $amount, 'currency' => 'SAR'],
+        );
+
+        return [$prov->id, $pkg->id];
     }
 
     private function connectionType(string $package): ?string
