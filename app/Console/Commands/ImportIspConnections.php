@@ -112,6 +112,7 @@ class ImportIspConnections extends Command
                         'customer_type' => $custType,
                         'payment_type' => $payType,
                         'speed_down' => $mbps,
+                        'speed_up' => $mbps, // symmetric business links (200/200)
                         'monthly_cost' => $amount,
                         'currency' => 'SAR',
                         'notes' => $code === 'WHKBR' ? 'Warehouse (KBR)' : null,
