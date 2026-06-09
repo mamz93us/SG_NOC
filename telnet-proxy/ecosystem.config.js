@@ -19,10 +19,16 @@ module.exports = {
             watch:        false,
             max_memory_restart: '128M',
             env: {
-                NODE_ENV:          'production',
-                WS_PORT:           '8765',
-                LARAVEL_URL:       'http://127.0.0.1',
-                INTERNAL_SECRET:   'changeme_replace_with_random_string',  // match TELNET_INTERNAL_SECRET in .env
+                NODE_ENV: 'production',
+                WS_PORT:  '8765',
+                // LARAVEL_URL and INTERNAL_SECRET are intentionally NOT set here:
+                //  - server.js defaults LARAVEL_URL to https://noc.samirgroup.net.
+                //    Requires `127.0.0.1 noc.samirgroup.net` in /etc/hosts so the
+                //    internal token call reaches Laravel over loopback (the
+                //    internal.ip guard only allows 127.0.0.1) with a valid cert.
+                //  - the shared secret is read from the app's ../.env
+                //    (TELNET_INTERNAL_SECRET) by server.js — one source of truth,
+                //    never committed to git.
             },
             log_date_format: 'YYYY-MM-DD HH:mm:ss',
             error_file:  '/home/azureuser/.pm2/logs/sg-noc-telnet-error.log',

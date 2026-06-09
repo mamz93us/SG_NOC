@@ -20,9 +20,29 @@ const { Client: SshClient } = require('ssh2');
 const { WebSocketServer, OPEN } = require('ws');
 const url        = require('url');
 
+// Single source of truth for the shared secret: read it from the Laravel app's
+// .env (TELNET_INTERNAL_SECRET) when not provided via the environment, so it
+// can't drift from config('telnet.internal_secret'). Core modules only — no
+// dotenv dependency.
+function fromLaravelEnv(key) {
+    try {
+        const fs   = require('fs');
+        const path = require('path');
+        const txt  = fs.readFileSync(path.join(__dirname, '..', '.env'), 'utf8');
+        const m    = txt.match(new RegExp('^' + key + '=(.*)$', 'm'));
+        return m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+    } catch (e) {
+        return '';
+    }
+}
+
 const WS_PORT       = parseInt(process.env.WS_PORT       || '8765', 10);
-const LARAVEL_URL   = (process.env.LARAVEL_URL           || 'http://127.0.0.1').replace(/\/$/, '');
-const SECRET        = process.env.INTERNAL_SECRET        || 'changeme';
+// Default to the public hostname so the token call reaches the app vhost over a
+// VALID TLS cert AND over loopback (so the internal.ip guard passes). This
+// requires `127.0.0.1 noc.samirgroup.net` in /etc/hosts on the NOC host —
+// plain http://127.0.0.1 hits the wrong nginx vhost (server_name mismatch).
+const LARAVEL_URL   = (process.env.LARAVEL_URL           || 'https://noc.samirgroup.net').replace(/\/$/, '');
+const SECRET        = process.env.INTERNAL_SECRET        || fromLaravelEnv('TELNET_INTERNAL_SECRET') || 'changeme';
 
 // ─── Telnet IAC constants ──────────────────────────────────────────────────
 const IAC  = 0xFF;
