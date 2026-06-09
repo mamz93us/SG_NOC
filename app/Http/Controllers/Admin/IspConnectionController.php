@@ -42,6 +42,8 @@ class IspConnectionController extends Controller
             $query->where(function ($q) use ($s) {
                 $q->where('provider', 'like', "%{$s}%")
                     ->orWhere('account_number', 'like', "%{$s}%")
+                    ->orWhere('billing_account_number', 'like', "%{$s}%")
+                    ->orWhere('purpose', 'like', "%{$s}%")
                     ->orWhere('circuit_id', 'like', "%{$s}%")
                     ->orWhere('static_ip', 'like', "%{$s}%")
                     ->orWhere('gateway', 'like', "%{$s}%");
@@ -51,7 +53,14 @@ class IspConnectionController extends Controller
         $connections = $query->paginate(50)->withQueryString();
         $branches = Branch::orderBy('name')->get(['id', 'name']);
 
-        return view('admin.network.isp.index', compact('connections', 'branches'));
+        // Consolidated billing accounts (one payer covering several services).
+        $billingGroups = IspConnection::whereNotNull('billing_account_number')
+            ->selectRaw('billing_account_number, COUNT(*) as services, SUM(monthly_cost) as total, MAX(currency) as currency')
+            ->groupBy('billing_account_number')
+            ->orderByDesc('total')
+            ->get();
+
+        return view('admin.network.isp.index', compact('connections', 'branches', 'billingGroups'));
     }
 
     public function create()
@@ -121,6 +130,8 @@ class IspConnectionController extends Controller
             'isp_provider_id' => 'required|exists:isp_providers,id',
             'isp_provider_package_id' => 'nullable|exists:isp_provider_packages,id',
             'account_number' => 'nullable|string|max:64',
+            'billing_account_number' => 'nullable|string|max:64',
+            'purpose' => 'nullable|string|max:191',
             'connection_type' => 'nullable|in:'.implode(',', \App\Models\IspConnection::CONNECTION_TYPES),
             'customer_type' => 'nullable|in:'.implode(',', \App\Models\IspConnection::CUSTOMER_TYPES),
             'payment_type' => 'nullable|in:'.implode(',', \App\Models\IspConnection::PAYMENT_TYPES),

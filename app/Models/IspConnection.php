@@ -14,6 +14,8 @@ class IspConnection extends Model
         'isp_provider_package_id',
         'provider',
         'account_number',
+        'billing_account_number',
+        'purpose',
         'connection_type',
         'customer_type',
         'payment_type',

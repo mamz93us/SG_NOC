@@ -32,6 +32,32 @@
     </div>
 </form>
 
+{{-- Consolidated billing accounts: one payer covering several services --}}
+@if(!empty($billingGroups) && $billingGroups->count())
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-light py-2">
+        <i class="bi bi-receipt me-1 text-primary"></i><strong>Billing accounts</strong>
+        <small class="text-muted">— accounts that pay for multiple services</small>
+    </div>
+    <div class="card-body py-2">
+        <div class="row g-2">
+            @foreach($billingGroups as $g)
+            <div class="col-md-4">
+                <a href="{{ route('admin.network.isp.index', ['search' => $g->billing_account_number]) }}"
+                   class="d-block border rounded p-2 text-decoration-none text-dark h-100">
+                    <div class="font-monospace small text-primary">{{ $g->billing_account_number }}</div>
+                    <div class="d-flex justify-content-between mt-1">
+                        <span class="badge bg-secondary-subtle text-secondary">{{ $g->services }} service(s)</span>
+                        <span class="fw-bold">{{ number_format((float) $g->total, 2) }} {{ $g->currency ?: 'SAR' }}/mo</span>
+                    </div>
+                </a>
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
+@endif
+
 <div class="card shadow-sm">
     <div class="card-body p-0">
         @if($connections->isEmpty())
@@ -45,7 +71,7 @@
                     <tr>
                         <th>Branch</th>
                         <th>Provider</th>
-                        <th>Circuit ID</th>
+                        <th>Account / Use</th>
                         <th>Speed</th>
                         <th>Static IP</th>
                         <th>Gateway</th>
@@ -61,7 +87,16 @@
                     <tr>
                         <td class="fw-semibold">{{ $c->branch?->name ?: '—' }}</td>
                         <td>{{ $c->provider }}</td>
-                        <td class="text-muted font-monospace">{{ $c->circuit_id ?: '—' }}</td>
+                        <td>
+                            <div class="font-monospace">{{ $c->account_number ?: '—' }}</div>
+                            @if($c->purpose)<div class="text-muted" style="font-size:11px">{{ $c->purpose }}</div>@endif
+                            @if($c->billing_account_number)
+                            <div style="font-size:10px" title="Billed under {{ $c->billing_account_number }}">
+                                <i class="bi bi-receipt text-primary"></i>
+                                <span class="text-muted font-monospace">→ {{ $c->billing_account_number }}</span>
+                            </div>
+                            @endif
+                        </td>
                         <td>{{ $c->speedLabel() }}</td>
                         <td class="font-monospace">{{ $c->static_ip ?: '—' }}</td>
                         <td class="font-monospace text-muted">{{ $c->gateway ?: '—' }}</td>

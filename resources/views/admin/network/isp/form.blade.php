@@ -107,6 +107,16 @@
                 </div>
 
                 <div class="col-md-4">
+                    <label class="form-label fw-semibold">Billing Account <small class="text-muted">(if consolidated)</small></label>
+                    <input type="text" name="billing_account_number" class="form-control font-monospace" value="{{ old('billing_account_number', $isp->billing_account_number ?? '') }}" placeholder="Payer account # — blank if billed on its own">
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Use / Purpose</label>
+                    <input type="text" name="purpose" class="form-control" value="{{ old('purpose', $isp->purpose ?? '') }}" placeholder="e.g. Primary Connection, SG Open">
+                </div>
+
+                <div class="col-md-4">
                     <label class="form-label fw-semibold">Package</label>
                     @php($currentProviderId = (int) old('isp_provider_id', $isp->isp_provider_id ?? 0))
                     @php($currentPackageId  = (int) old('isp_provider_package_id', $isp->isp_provider_package_id ?? 0))
