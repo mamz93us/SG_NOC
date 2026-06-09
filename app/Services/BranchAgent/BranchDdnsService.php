@@ -61,24 +61,28 @@ class BranchDdnsService
             }
         }
 
-        // ── VPN tunnel (point at FQDN, reload to re-resolve) ────────
-        if ($agent->vpn_tunnel_id && ($tunnel = $agent->vpnTunnel)) {
+        // ── VPN tunnel ──────────────────────────────────────────────
+        // SAFETY: we deliberately do NOT regenerate the swanctl config here.
+        // generateConfig() rebuilds the traffic selectors from the DB's
+        // local_subnet/remote_subnet (and falls back to 0.0.0.0/0 if blank) —
+        // a stale/blank record would break the tunnel (TS_UNACCEPTABLE) or
+        // hijack VPS egress. Instead the operator points the tunnel's remote
+        // endpoint at the branch FQDN ONCE; on a WAN-IP change we only refresh
+        // DNS (above) and reload so strongSwan re-resolves the existing config.
+        if ($agent->vpn_tunnel_id && $agent->vpnTunnel) {
             try {
-                // Prefer the FQDN so strongSwan re-resolves on reload; fall back
-                // to the literal IP only when no DDNS name is configured.
-                $target = $agent->fqdn() ?: $newIp;
-
-                if ($tunnel->remote_public_ip !== $target) {
-                    $tunnel->update(['remote_public_ip' => $target]);
-                    $config = $this->vpn->generateConfig($tunnel);
-                    $this->vpn->saveConfig($tunnel, $config);
+                if (! $agent->fqdn()) {
+                    // No DDNS name → the tunnel must use a literal IP, which a
+                    // reload can't refresh. Leave it to a human rather than
+                    // silently rewriting the config.
+                    $errors[] = 'Tunnel: no FQDN configured; skipped (point the tunnel at the FQDN to enable auto-refresh).';
+                } else {
+                    $this->vpn->reload(); // re-resolve the FQDN-based remote_addrs
+                    $appliedTunnel = true;
                 }
-                // Reload so the (FQDN-based) endpoint re-resolves to the new IP.
-                $this->vpn->reload();
-                $appliedTunnel = true;
             } catch (\Throwable $e) {
                 $errors[] = 'Tunnel: '.$e->getMessage();
-                Log::error('BranchDdns: tunnel update failed', ['agent' => $agent->code, 'e' => $e->getMessage()]);
+                Log::error('BranchDdns: tunnel reload failed', ['agent' => $agent->code, 'e' => $e->getMessage()]);
             }
         }
 
