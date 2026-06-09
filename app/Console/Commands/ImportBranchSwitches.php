@@ -182,21 +182,20 @@ class ImportBranchSwitches extends Command
         }
     }
 
-    /** Cisco Catalyst → cisco_switch, otherwise generic switch SNMP. */
+    /** All branch switches are Cisco. */
     private function snmpType(string $name): string
     {
-        $n = strtolower($name);
-
-        return (str_contains($n, 'cisco') || str_contains($n, 'catalyst')) ? 'cisco_switch' : 'switch_generic';
+        return 'cisco_switch';
     }
 
     private function makeModel(string $name): array
     {
+        // All Cisco; pull a Catalyst model number out of the name when present.
         if (preg_match('/catalyst\s*([a-z0-9\-]+)/i', $name, $m)) {
             return ['Cisco', 'Catalyst '.strtoupper($m[1])];
         }
 
-        return [null, null];
+        return ['Cisco', null];
     }
 
     private function assetCode(): string
