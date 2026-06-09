@@ -34,13 +34,51 @@ class VpnTunnel extends Model
         'dpd_delay' => 'integer',
     ];
 
+    /**
+     * The CHILD_SAs this tunnel is configured for — the cross-product of local
+     * and remote subnets, named exactly as VpnControlService::generateConfig
+     * writes them (first child = tunnel name, then -2, -3…). Used to show
+     * per-child up/down status like the Sophos "Connection detail" view.
+     *
+     * @return array<int, array{name:string, local_ts:string, remote_ts:string}>
+     */
+    public function expectedChildren(): array
+    {
+        $locals = array_values(array_filter(array_map('trim', explode(',', (string) $this->local_subnet))));
+        $remotes = array_values(array_filter(array_map('trim', explode(',', (string) $this->remote_subnet))));
+        if (empty($locals)) {
+            $locals = ['0.0.0.0/0'];
+        }
+        if (empty($remotes)) {
+            $remotes = ['0.0.0.0/0'];
+        }
+
+        $out = [];
+        $i = 1;
+        foreach ($locals as $local) {
+            foreach ($remotes as $remote) {
+                $out[] = [
+                    'name' => $i === 1 ? $this->name : "{$this->name}-{$i}",
+                    'local_ts' => $local,
+                    'remote_ts' => $remote,
+                ];
+                $i++;
+            }
+        }
+
+        return $out;
+    }
+
     public function getPreSharedKeyAttribute($value)
     {
-        if (empty($value)) return '';
+        if (empty($value)) {
+            return '';
+        }
         try {
             return decrypt($value);
         } catch (\Exception $e) {
             \Log::error("Decryption failed for VPN Tunnel {$this->id} ({$this->name}). MAC probably invalid.");
+
             return '********';
         }
     }

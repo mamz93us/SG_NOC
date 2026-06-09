@@ -24,6 +24,7 @@ class VpnHubController extends Controller
     public function index()
     {
         $tunnels = VpnTunnel::with('branch')->orderBy('name')->get();
+
         return view('admin.network.vpn.index', compact('tunnels'));
     }
 
@@ -32,26 +33,27 @@ class VpnHubController extends Controller
         $branches = Branch::orderBy('name')->get();
         $defaultLocalSubnet = config('vpn.local_subnet');
         $defaultLocalId = config('vpn.local_id');
+
         return view('admin.network.vpn.create', compact('branches', 'defaultLocalSubnet', 'defaultLocalId'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'branch_id'        => 'required|exists:branches,id',
-            'name'             => 'required|string|max:255|unique:vpn_tunnels,name|regex:/^[a-zA-Z0-9_]+$/',
+            'branch_id' => 'required|exists:branches,id',
+            'name' => 'required|string|max:255|unique:vpn_tunnels,name|regex:/^[a-zA-Z0-9_]+$/',
             'remote_public_ip' => 'required|string|max:255',
-            'local_id'         => 'nullable|string|max:255',
-            'remote_id'        => 'nullable|string|max:255',
-            'remote_subnet'    => 'required|string', // Comma separated allowed
-            'local_subnet'     => 'required|string',  // Comma separated allowed
-            'pre_shared_key'   => 'required|string',
-            'ike_version'      => 'required|in:IKEv2,IKEv1',
-            'encryption'       => 'required|string',
-            'hash'             => 'required|string',
-            'dh_group'         => 'required|integer',
-            'dpd_delay'        => 'required|integer',
-            'lifetime'         => 'required|string',
+            'local_id' => 'nullable|string|max:255',
+            'remote_id' => 'nullable|string|max:255',
+            'remote_subnet' => 'required|string', // Comma separated allowed
+            'local_subnet' => 'required|string',  // Comma separated allowed
+            'pre_shared_key' => 'required|string',
+            'ike_version' => 'required|in:IKEv2,IKEv1',
+            'encryption' => 'required|string',
+            'hash' => 'required|string',
+            'dh_group' => 'required|integer',
+            'dpd_delay' => 'required|integer',
+            'lifetime' => 'required|string',
         ]);
 
         try {
@@ -61,22 +63,22 @@ class VpnHubController extends Controller
 
             // Generate and save swanctl config
             $config = $this->vpnService->generateConfig($tunnel);
-            if (!$this->vpnService->saveConfig($tunnel, $config)) {
-                throw new \Exception("Failed to save swanctl configuration file.");
+            if (! $this->vpnService->saveConfig($tunnel, $config)) {
+                throw new \Exception('Failed to save swanctl configuration file.');
             }
 
             // Reload swanctl
             $reload = $this->vpnService->reload();
             if ($reload['status'] === 'error') {
                 $this->vpnService->removeConfig($tunnel); // Rollback file
-                throw new \Exception("swanctl reload failed: " . ($reload['message'] ?? 'Unknown error'));
+                throw new \Exception('swanctl reload failed: '.($reload['message'] ?? 'Unknown error'));
             }
 
             // Log attempt
             VpnLog::create([
                 'vpn_id' => $tunnel->id,
                 'event_type' => 'reload',
-                'message' => 'Tunnel created and configuration reloaded.'
+                'message' => 'Tunnel created and configuration reloaded.',
             ]);
 
             \App\Models\ActivityLog::log('VPN', "Created new VPN tunnel '{$tunnel->name}'", 'success', $tunnel->id);
@@ -91,6 +93,7 @@ class VpnHubController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+
             return back()->withInput()->with('error', $e->getMessage());
         }
     }
@@ -98,26 +101,27 @@ class VpnHubController extends Controller
     public function edit(VpnTunnel $tunnel)
     {
         $branches = Branch::orderBy('name')->get();
+
         return view('admin.network.vpn.edit', compact('tunnel', 'branches'));
     }
 
     public function update(Request $request, VpnTunnel $tunnel)
     {
         $data = $request->validate([
-            'branch_id'        => 'required|exists:branches,id',
-            'name'             => 'required|string|max:255|unique:vpn_tunnels,name,' . $tunnel->id . '|regex:/^[a-zA-Z0-9_]+$/',
+            'branch_id' => 'required|exists:branches,id',
+            'name' => 'required|string|max:255|unique:vpn_tunnels,name,'.$tunnel->id.'|regex:/^[a-zA-Z0-9_]+$/',
             'remote_public_ip' => 'required|string|max:255',
-            'local_id'         => 'nullable|string|max:255',
-            'remote_id'        => 'nullable|string|max:255',
-            'remote_subnet'    => 'required|string', // Comma separated allowed
-            'local_subnet'     => 'required|string',  // Comma separated allowed
-            'pre_shared_key'   => 'nullable|string',
-            'ike_version'      => 'required|in:IKEv2,IKEv1',
-            'encryption'       => 'required|string',
-            'hash'             => 'required|string',
-            'dh_group'         => 'required|integer',
-            'dpd_delay'        => 'required|integer',
-            'lifetime'         => 'required|string',
+            'local_id' => 'nullable|string|max:255',
+            'remote_id' => 'nullable|string|max:255',
+            'remote_subnet' => 'required|string', // Comma separated allowed
+            'local_subnet' => 'required|string',  // Comma separated allowed
+            'pre_shared_key' => 'nullable|string',
+            'ike_version' => 'required|in:IKEv2,IKEv1',
+            'encryption' => 'required|string',
+            'hash' => 'required|string',
+            'dh_group' => 'required|integer',
+            'dpd_delay' => 'required|integer',
+            'lifetime' => 'required|string',
         ]);
 
         try {
@@ -132,7 +136,7 @@ class VpnHubController extends Controller
 
             // Re-generate and save config
             $config = $this->vpnService->generateConfig($tunnel);
-            
+
             // If name changed, remove old file
             if ($oldName !== $tunnel->name) {
                 // Mock VpnTunnel object for removal
@@ -140,8 +144,8 @@ class VpnHubController extends Controller
                 $this->vpnService->removeConfig($oldTunnel);
             }
 
-            if (!$this->vpnService->saveConfig($tunnel, $config)) {
-                throw new \Exception("Failed to save swanctl configuration file.");
+            if (! $this->vpnService->saveConfig($tunnel, $config)) {
+                throw new \Exception('Failed to save swanctl configuration file.');
             }
 
             $this->vpnService->reload();
@@ -149,7 +153,7 @@ class VpnHubController extends Controller
             VpnLog::create([
                 'vpn_id' => $tunnel->id,
                 'event_type' => 'reload',
-                'message' => 'Tunnel configuration updated.'
+                'message' => 'Tunnel configuration updated.',
             ]);
 
             \App\Models\ActivityLog::log('VPN', "Updated configuration for VPN tunnel '{$tunnel->name}'", 'info', $tunnel->id);
@@ -161,6 +165,7 @@ class VpnHubController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+
             return back()->withInput()->with('error', $e->getMessage());
         }
     }
@@ -186,12 +191,12 @@ class VpnHubController extends Controller
     public function initiate(VpnTunnel $tunnel)
     {
         $result = $this->vpnService->up($tunnel->name);
-        
+
         if ($result['status'] === 'success') {
             VpnLog::create([
                 'vpn_id' => $tunnel->id,
                 'event_type' => 'manual_up',
-                'message' => "Initiated tunnel '{$tunnel->name}' manually."
+                'message' => "Initiated tunnel '{$tunnel->name}' manually.",
             ]);
 
             \App\Models\ActivityLog::log('VPN', "Initiated VPN tunnel '{$tunnel->name}'", 'info', $tunnel->id);
@@ -199,18 +204,18 @@ class VpnHubController extends Controller
             return back()->with('success', "Initiating tunnel '{$tunnel->name}'...");
         }
 
-        return back()->with('error', "Failed to initiate tunnel: " . ($result['message'] ?? 'Unknown error'));
+        return back()->with('error', 'Failed to initiate tunnel: '.($result['message'] ?? 'Unknown error'));
     }
 
     public function terminate(VpnTunnel $tunnel)
     {
         $result = $this->vpnService->down($tunnel->name);
-        
+
         if ($result['status'] === 'success') {
             VpnLog::create([
                 'vpn_id' => $tunnel->id,
                 'event_type' => 'manual_down',
-                'message' => "Terminated tunnel '{$tunnel->name}' manually."
+                'message' => "Terminated tunnel '{$tunnel->name}' manually.",
             ]);
 
             \App\Models\ActivityLog::log('VPN', "Terminated VPN tunnel '{$tunnel->name}'", 'warning', $tunnel->id);
@@ -218,7 +223,7 @@ class VpnHubController extends Controller
             return back()->with('success', "Terminating tunnel '{$tunnel->name}'...");
         }
 
-        return back()->with('error', "Failed to terminate tunnel: " . ($result['message'] ?? 'Unknown error'));
+        return back()->with('error', 'Failed to terminate tunnel: '.($result['message'] ?? 'Unknown error'));
     }
 
     public function reload()
@@ -230,11 +235,12 @@ class VpnHubController extends Controller
         $redirect = redirect()->route('admin.network.vpn.index');
 
         if ($result['status'] === 'success') {
-            \App\Models\ActivityLog::log('VPN', "Reloaded all VPN configurations", 'info');
-            return $redirect->with('success', "All VPN configurations reloaded successfully.");
+            \App\Models\ActivityLog::log('VPN', 'Reloaded all VPN configurations', 'info');
+
+            return $redirect->with('success', 'All VPN configurations reloaded successfully.');
         }
 
-        return $redirect->with('error', "Reload failed: " . ($result['message'] ?? 'Unknown error'));
+        return $redirect->with('error', 'Reload failed: '.($result['message'] ?? 'Unknown error'));
     }
 
     public function checkStatus(VpnTunnel $tunnel)
@@ -250,14 +256,14 @@ class VpnHubController extends Controller
                 $sophosInfo = $this->getSophosVpnInfo($tunnel);
 
                 return response()->json([
-                    'is_up'             => $tunnel->status === 'up',
+                    'is_up' => $tunnel->status === 'up',
                     'swanctl_available' => false,
                     'last_known_status' => $tunnel->status,
-                    'last_checked_at'   => $tunnel->last_checked_at?->diffForHumans(),
-                    'sophosVpn'         => $sophosInfo,
-                    'raw_output'        => '⚠️ IPSec service (swanctl) is not responding on this server. ' .
-                                          'Check that strongSwan is installed and running. ' .
-                                          'Displaying last known status: ' . strtoupper($tunnel->status ?? 'unknown'),
+                    'last_checked_at' => $tunnel->last_checked_at?->diffForHumans(),
+                    'sophosVpn' => $sophosInfo,
+                    'raw_output' => '⚠️ IPSec service (swanctl) is not responding on this server. '.
+                                          'Check that strongSwan is installed and running. '.
+                                          'Displaying last known status: '.strtoupper($tunnel->status ?? 'unknown'),
                 ]);
             }
 
@@ -267,7 +273,7 @@ class VpnHubController extends Controller
                 // Typically: "tunnel_name: #1, ESTABLISHED, ..."
                 $lines = explode("\n", $result['output']);
                 foreach ($lines as $line) {
-                    if (str_contains($line, $tunnel->name . ':') && str_contains($line, 'ESTABLISHED')) {
+                    if (str_contains($line, $tunnel->name.':') && str_contains($line, 'ESTABLISHED')) {
                         $isEstablished = true;
                         break;
                     }
@@ -284,7 +290,7 @@ class VpnHubController extends Controller
                 VpnLog::create([
                     'vpn_id' => $tunnel->id,
                     'event_type' => 'status_change',
-                    'message' => "Tunnel status changed from {$oldStatus} to {$newStatus}."
+                    'message' => "Tunnel status changed from {$oldStatus} to {$newStatus}.",
                 ]);
 
                 // Also log to general ActivityLog
@@ -301,17 +307,34 @@ class VpnHubController extends Controller
                 $tunnel->update(['last_checked_at' => now()]);
             }
 
+            // Per-child status (Sophos-style): match each configured child
+            // (local_ts/remote_ts) against the INSTALLED CHILD_SAs.
+            $installed = $this->vpnService->parseChildren($result['output'] ?? '', $tunnel->name);
+            $children = collect($tunnel->expectedChildren())->map(function ($c) use ($installed) {
+                $sa = $installed[$c['local_ts'].'|'.$c['remote_ts']] ?? null;
+
+                return [
+                    'name' => $c['name'],
+                    'local_ts' => $c['local_ts'],
+                    'remote_ts' => $c['remote_ts'],
+                    'up' => $sa !== null,
+                    'bytes_in' => $sa['bytes_in'] ?? null,
+                    'bytes_out' => $sa['bytes_out'] ?? null,
+                ];
+            })->values();
+
             return response()->json([
-                'is_up'             => $isEstablished,
+                'is_up' => $isEstablished,
                 'swanctl_available' => true,
-                'sophosVpn'         => $this->getSophosVpnInfo($tunnel),
-                'raw_output'        => $this->sanitizeLog($result['output'] ?? 'No status output available.'),
+                'children' => $children,
+                'sophosVpn' => $this->getSophosVpnInfo($tunnel),
+                'raw_output' => $this->sanitizeLog($result['output'] ?? 'No status output available.'),
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'is_up'             => false,
+                'is_up' => false,
                 'swanctl_available' => false,
-                'raw_output'        => 'Error checking status: ' . $e->getMessage(),
+                'raw_output' => 'Error checking status: '.$e->getMessage(),
             ]);
         }
     }
@@ -325,9 +348,9 @@ class VpnHubController extends Controller
             if (($result['status'] ?? '') === 'unavailable' || ($result['swanctl_available'] ?? true) === false) {
                 return response()->json([
                     'status' => 'unavailable',
-                    'logs'   => "⚠️ IPSec service (swanctl) is not responding on this server.\n" .
-                                "Check that strongSwan is installed and running.\n" .
-                                "Run: sudo systemctl status strongswan",
+                    'logs' => "⚠️ IPSec service (swanctl) is not responding on this server.\n".
+                                "Check that strongSwan is installed and running.\n".
+                                'Run: sudo systemctl status strongswan',
                 ]);
             }
 
@@ -338,12 +361,12 @@ class VpnHubController extends Controller
 
             return response()->json([
                 'status' => $result['status'],
-                'logs'   => $this->sanitizeLog($logText),
+                'logs' => $this->sanitizeLog($logText),
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'logs'   => "Error retrieving logs: " . $e->getMessage()
+                'logs' => 'Error retrieving logs: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -355,20 +378,24 @@ class VpnHubController extends Controller
     protected function getSophosVpnInfo(VpnTunnel $tunnel): ?array
     {
         try {
-            if (!$tunnel->branch_id) return null;
+            if (! $tunnel->branch_id) {
+                return null;
+            }
 
             // Find Sophos firewalls for this branch
             $sophosVpn = SophosVpnTunnel::whereHas('firewall', function ($q) use ($tunnel) {
                 $q->where('branch_id', $tunnel->branch_id);
             })->first();
 
-            if (!$sophosVpn) return null;
+            if (! $sophosVpn) {
+                return null;
+            }
 
             return [
-                'name'           => $sophosVpn->name,
-                'status'         => $sophosVpn->status,
+                'name' => $sophosVpn->name,
+                'status' => $sophosVpn->status,
                 'remote_gateway' => $sophosVpn->remote_gateway,
-                'last_checked'   => $sophosVpn->last_checked_at?->diffForHumans(),
+                'last_checked' => $sophosVpn->last_checked_at?->diffForHumans(),
             ];
         } catch (\Throwable $e) {
             return null;
@@ -377,13 +404,17 @@ class VpnHubController extends Controller
 
     protected function sanitizeLog($text)
     {
-        if (!$text) return '';
-        if (is_array($text)) $text = print_r($text, true);
-        
+        if (! $text) {
+            return '';
+        }
+        if (is_array($text)) {
+            $text = print_r($text, true);
+        }
+
         // Force UTF-8 and discard invalid sequences (aggressive)
         // Using //IGNORE to drop characters that can't be represented
         $clean = iconv('UTF-8', 'UTF-8//IGNORE', $text);
-        
+
         // Final safety net to ensure JSON encoding never fails
         return mb_convert_encoding($clean, 'UTF-8', 'UTF-8');
     }

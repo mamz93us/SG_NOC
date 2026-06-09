@@ -201,7 +201,27 @@ function refreshTroubleshoot() {
                 }
                 saContainer.textContent = msg;
             } else {
-                saContainer.textContent = data.raw_output || 'No specific SA info for this tunnel.';
+                const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+                const kb  = b => (b == null ? '—' : Math.round(b / 1024).toLocaleString() + ' KB');
+                let html = '';
+                if (Array.isArray(data.children) && data.children.length) {
+                    html += '<div class="small text-muted mb-1">Child SAs (per subnet pair):</div>';
+                    html += '<table class="table table-sm table-bordered mb-2 small align-middle">'
+                          + '<thead><tr><th>Local (NOC)</th><th>Remote (branch)</th><th>Status</th><th class="text-end">In / Out</th></tr></thead><tbody>';
+                    data.children.forEach(c => {
+                        const dot = c.up
+                            ? '<span class="badge rounded-circle bg-success p-1 me-1" style="width:9px;height:9px;"></span><span class="text-success fw-bold">UP</span>'
+                            : '<span class="badge rounded-circle bg-danger p-1 me-1" style="width:9px;height:9px;"></span><span class="text-danger fw-bold">DOWN</span>';
+                        html += `<tr><td class="font-monospace">${esc(c.local_ts)}</td>`
+                              + `<td class="font-monospace">${esc(c.remote_ts)}</td>`
+                              + `<td>${dot}</td>`
+                              + `<td class="text-end text-muted">${kb(c.bytes_in)} / ${kb(c.bytes_out)}</td></tr>`;
+                    });
+                    html += '</tbody></table>';
+                }
+                html += '<pre class="small mb-0" style="white-space:pre-wrap;word-break:break-all;">'
+                      + esc(data.raw_output || 'No specific SA info for this tunnel.') + '</pre>';
+                saContainer.innerHTML = html;
             }
             })
             .catch(err => {

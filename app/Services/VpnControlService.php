@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\VpnLog;
 use App\Models\VpnTunnel;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
@@ -53,7 +52,7 @@ class VpnControlService
     {
         $encryption = strtolower($tunnel->encryption);
         $hash = strtolower($tunnel->hash);
-        
+
         // Map DH groups to modp names
         $dhMap = [
             '14' => 'modp2048',
@@ -69,29 +68,29 @@ class VpnControlService
 
         // Main proposal based on user selection
         $proposal = "{$encryption}-{$hash}-{$dh}";
-        
+
         // Build unique proposals list with standard fallbacks
         $fallbackList = [
             $proposal,
-            "aes256-sha512-curve25519",
-            "aes256-sha256-curve25519",
-            "aes256-sha512-modp4096",
-            "aes256-sha256-modp2048",
-            "aes256-sha1-modp2048",
-            "aes128-sha1-modp1024"
+            'aes256-sha512-curve25519',
+            'aes256-sha256-curve25519',
+            'aes256-sha512-modp4096',
+            'aes256-sha256-modp2048',
+            'aes256-sha1-modp2048',
+            'aes128-sha1-modp1024',
         ];
         $proposals = implode(',', array_unique($fallbackList));
 
         $config = "connections {\n";
         $config .= "    {$tunnel->name} {\n";
         $config .= "        remote_addrs = {$tunnel->remote_public_ip}\n";
-        $config .= "        version = " . ($tunnel->ike_version === 'IKEv2' ? '2' : '1') . "\n";
+        $config .= '        version = '.($tunnel->ike_version === 'IKEv2' ? '2' : '1')."\n";
         $config .= "        proposals = {$proposals}\n";
         $config .= "        rekey_time = {$tunnel->lifetime}\n";
         // Retry IKE forever — default of 3 makes a tunnel give up permanently after a brief outage.
         $config .= "        keyingtries = 0\n";
         // DPD frequency — strongSwan ignores it unless set at conn (IKE) level.
-        if (!empty($tunnel->dpd_delay)) {
+        if (! empty($tunnel->dpd_delay)) {
             $config .= "        dpd_delay = {$tunnel->dpd_delay}\n";
         }
         $localId = $tunnel->local_id ?: config('vpn.local_id', 'noc.samirgroup.net');
@@ -106,19 +105,23 @@ class VpnControlService
         $config .= "            id = {$remoteId}\n";
         $config .= "        }\n";
         $config .= "        children {\n";
-        
+
         $localSubnets = array_filter(array_map('trim', explode(',', $tunnel->local_subnet)));
         $remoteSubnets = array_filter(array_map('trim', explode(',', $tunnel->remote_subnet)));
-        
-        if (empty($localSubnets)) $localSubnets = ['0.0.0.0/0'];
-        if (empty($remoteSubnets)) $remoteSubnets = ['0.0.0.0/0'];
-        
+
+        if (empty($localSubnets)) {
+            $localSubnets = ['0.0.0.0/0'];
+        }
+        if (empty($remoteSubnets)) {
+            $remoteSubnets = ['0.0.0.0/0'];
+        }
+
         $childCounter = 1;
         foreach ($localSubnets as $localTs) {
             foreach ($remoteSubnets as $remoteTs) {
                 // First child gets the tunnel name, subsequent get -2, -3, etc.
                 $childName = $childCounter === 1 ? $tunnel->name : "{$tunnel->name}-{$childCounter}";
-                
+
                 $config .= "            {$childName} {\n";
                 $config .= "                local_ts = {$localTs}\n";
                 $config .= "                remote_ts = {$remoteTs}\n";
@@ -126,16 +129,16 @@ class VpnControlService
                 $config .= "                dpd_action = restart\n";
                 $config .= "                start_action = start\n";
                 $config .= "            }\n";
-                
+
                 $childCounter++;
             }
         }
         $config .= "        }\n";
         $config .= "    }\n";
         $config .= "}\n\n";
-        
+
         // Escape PSK for swanctl: wrap in double quotes, escape backslashes and quotes.
-        $psk       = (string) $tunnel->pre_shared_key;
+        $psk = (string) $tunnel->pre_shared_key;
         $pskEscaped = str_replace(['\\', '"'], ['\\\\', '\\"'], $psk);
 
         $config .= "secrets {\n";
@@ -155,9 +158,10 @@ class VpnControlService
     public function saveConfig(VpnTunnel $tunnel, string $config): bool
     {
         $path = "/etc/swanctl/conf.d/{$tunnel->name}.conf";
-        
+
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
             Log::info("VpnControlService: Mocking config save for {$tunnel->name}", ['path' => $path]);
+
             return true;
         }
 
@@ -168,9 +172,11 @@ class VpnControlService
                 return false;
             }
             @chmod($path, 0600);
+
             return true;
         } catch (\Exception $e) {
             Log::error("VpnControlService: Failed to save config for {$tunnel->name}", ['error' => $e->getMessage()]);
+
             return false;
         }
     }
@@ -181,17 +187,78 @@ class VpnControlService
     public function removeConfig(VpnTunnel $tunnel): bool
     {
         $path = "/etc/swanctl/conf.d/{$tunnel->name}.conf";
-        
+
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
             Log::info("VpnControlService: Mocking config removal for {$tunnel->name}", ['path' => $path]);
+
             return true;
         }
 
         if (file_exists($path)) {
             return unlink($path);
         }
-        
+
         return true;
+    }
+
+    /**
+     * Parse the INSTALLED CHILD_SAs for a tunnel out of `swanctl --list-sas`
+     * output, keyed by "local_ts|remote_ts". Lets the UI show per-child status
+     * (like the Sophos "Connection detail" view) instead of one up/down badge.
+     *
+     * @return array<string, array{child:string, state:string, local_ts:string, remote_ts:string, bytes_in:?int, bytes_out:?int}>
+     */
+    public function parseChildren(string $output, string $tunnelName): array
+    {
+        $children = [];
+        $currentIke = null;
+        $cur = null;
+
+        $flush = function () use (&$cur, &$children) {
+            if ($cur && $cur['local_ts'] !== null && $cur['remote_ts'] !== null) {
+                $children[$cur['local_ts'].'|'.$cur['remote_ts']] = $cur;
+            }
+            $cur = null;
+        };
+
+        foreach (preg_split('/\r?\n/', $output) as $line) {
+            // IKE_SA header (column 0): "NAME: #12, ESTABLISHED, IKEv2, ..."
+            if (preg_match('/^(\S+):\s+#\d+,\s+\w+,\s+IKE/', $line, $m)) {
+                $flush();
+                $currentIke = $m[1];
+
+                continue;
+            }
+            // CHILD_SA header (indented): "  NAME: #12, reqid 1, INSTALLED, ..."
+            if (preg_match('/^\s+(\S+):\s+#\d+,\s+reqid\s+\d+,\s+(\w+),/', $line, $m)) {
+                $flush();
+                $cur = [
+                    'ike' => $currentIke, 'child' => $m[1], 'state' => $m[2],
+                    'local_ts' => null, 'remote_ts' => null,
+                    'bytes_in' => null, 'bytes_out' => null,
+                ];
+
+                continue;
+            }
+            if ($cur) {
+                if (preg_match('/^\s+local\s+([\d.\/]+)\s*$/', $line, $m)) {
+                    $cur['local_ts'] = $m[1];
+                } elseif (preg_match('/^\s+remote\s+([\d.\/]+)\s*$/', $line, $m)) {
+                    $cur['remote_ts'] = $m[1];
+                } elseif (preg_match('/^\s+in\s+\w+,\s+(\d+)\s+bytes/', $line, $m)) {
+                    $cur['bytes_in'] = (int) $m[1];
+                } elseif (preg_match('/^\s+out\s+\w+,\s+(\d+)\s+bytes/', $line, $m)) {
+                    $cur['bytes_out'] = (int) $m[1];
+                }
+            }
+        }
+        $flush();
+
+        // Only INSTALLED children under an IKE_SA named for this tunnel.
+        return array_filter(
+            $children,
+            fn ($c) => $c['ike'] === $tunnelName && $c['state'] === 'INSTALLED'
+        );
     }
 
     /**
@@ -203,7 +270,7 @@ class VpnControlService
     public function executeAsync(array $args): array
     {
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-            return ['status' => 'success', 'swanctl_available' => true, 'output' => 'Mocked async for ' . implode(' ', $args)];
+            return ['status' => 'success', 'swanctl_available' => true, 'output' => 'Mocked async for '.implode(' ', $args)];
         }
 
         $command = array_merge(['sudo', $this->wrapperPath], $args);
@@ -219,19 +286,21 @@ class VpnControlService
             $waited += 0.5;
         }
 
-        if (!$process->isRunning()) {
+        if (! $process->isRunning()) {
             // Process finished within 5 s — check for failure
-            if (!$process->isSuccessful()) {
+            if (! $process->isSuccessful()) {
                 $error = trim($process->getErrorOutput() ?: $process->getOutput());
                 Log::error('VpnControlService: Async command failed quickly', [
                     'command' => $command,
-                    'error'   => $error,
+                    'error' => $error,
                 ]);
+
                 return ['status' => 'error', 'message' => $error ?: 'Command failed.'];
             }
             // Finished quickly and successfully (e.g. tunnel was already up)
-            $output  = $process->getOutput();
+            $output = $process->getOutput();
             $decoded = json_decode($output, true);
+
             return $decoded ?: ['status' => 'success', 'swanctl_available' => true, 'output' => $output];
         }
 
@@ -240,6 +309,7 @@ class VpnControlService
         Log::info('VpnControlService: Async command still running (background negotiation)', [
             'command' => $command,
         ]);
+
         return ['status' => 'success', 'swanctl_available' => true, 'output' => 'Negotiation in progress…'];
     }
 
@@ -251,7 +321,7 @@ class VpnControlService
     {
         // On Windows development environment, we mock the output
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-            return ['status' => 'success', 'output' => 'Mocked output for ' . implode(' ', $args)];
+            return ['status' => 'success', 'output' => 'Mocked output for '.implode(' ', $args)];
         }
 
         $command = array_merge(['sudo', $this->wrapperPath], $args);
@@ -259,12 +329,13 @@ class VpnControlService
         $process->setTimeout(30); // 30 s is plenty for status / reload
         $process->run();
 
-        if (!$process->isSuccessful()) {
+        if (! $process->isSuccessful()) {
             $error = $process->getErrorOutput() ?: $process->getOutput();
             Log::error('VpnControlService: Command failed', [
                 'command' => $command,
-                'error' => $error
+                'error' => $error,
             ]);
+
             return ['status' => 'error', 'message' => $error];
         }
 
@@ -273,11 +344,12 @@ class VpnControlService
         // Detect swanctl not responding (empty combined output)
         if (empty(trim($output))) {
             Log::warning('VpnControlService: swanctl returned empty output', ['args' => $args]);
+
             return [
-                'status'            => 'unavailable',
+                'status' => 'unavailable',
                 'swanctl_available' => false,
-                'output'            => '',
-                'message'           => 'swanctl service is not responding. Check that strongSwan is installed and running.',
+                'output' => '',
+                'message' => 'swanctl service is not responding. Check that strongSwan is installed and running.',
             ];
         }
 
