@@ -43,12 +43,25 @@ class ImportBranchSwitches extends Command
         ['KBR', 'KBR_VOIP_CORE', '10.3.1.116'],
         ['KBR', 'Ground Floor', '10.3.0.14'],
         ['KBR', '3rdFloor-SW', '10.3.0.25'],
+        // ── JED ──
+        ['JED', 'Core 1', '10.1.0.100'],
+        ['JED', 'Core 2', '10.1.0.101'],
+        ['JED', 'Mezanine floor', '10.1.0.103'],
+        ['JED', '6th floor', '10.1.0.111'],
+        ['JED', '1st floor', '10.1.0.115'],
+        ['JED', '2nd floor', '10.1.0.106'],
+        // ── RYD ──
+        ['RYD', '1st floor', '10.2.0.13'],
+        ['RYD', 'VOIP switch', '10.2.0.30'],
+        ['RYD', 'core', '10.2.0.5'],
     ];
 
     private array $branchNameHints = [
         'CAI' => ['cai', 'cairo'],
         'ABH' => ['abh', 'abha'],
         'KBR' => ['kbr', 'khobar', 'khubar'],
+        'JED' => ['jed', 'jeddah', 'jiddah'],
+        'RYD' => ['ryd', 'riyadh', 'riyad'],
     ];
 
     public function handle(): int
