@@ -257,20 +257,22 @@ document.addEventListener('DOMContentLoaded', function() {
                         <i class="bi bi-exclamation-triangle text-warning ms-1" title="swanctl not responding"></i>
                     `;
                 } else {
-                    // Per-child aware: green only if ALL children are up,
-                    // ORANGE if some are up (partial), red if none.
+                    // Per-child aware: green only if ALL subnet pairs are up,
+                    // ORANGE if some are up (partial), red if none. Healthy
+                    // tunnels stay a clean single line; the per-subnet list only
+                    // appears when something is down.
                     const kids  = Array.isArray(data.children) ? data.children : [];
                     const total = kids.length;
                     const upN   = kids.filter(c => c.up).length;
+                    const allUp = total > 0 && upN === total;
 
                     let dotClass, txtClass, label, title;
                     if (total === 0) {
-                        // No child detail — fall back to the IKE-level flag.
                         dotClass = data.is_up ? 'bg-success' : 'bg-danger';
                         txtClass = data.is_up ? 'text-success' : 'text-danger';
                         label    = data.is_up ? 'UP' : 'DOWN';
                         title    = 'Click for details';
-                    } else if (upN === total) {
+                    } else if (allUp) {
                         dotClass = 'bg-success'; txtClass = 'text-success';
                         label = 'UP'; title = `All ${total} subnet(s) up`;
                     } else if (upN > 0) {
@@ -281,21 +283,23 @@ document.addEventListener('DOMContentLoaded', function() {
                         label = 'DOWN'; title = 'No subnets up';
                     }
 
+                    // Only expand the subnet list when there's a problem.
                     let kidsHtml = '';
-                    if (total > 1) {
-                        kidsHtml = '<div class="mt-1" style="line-height:1.25">' + kids.map(c => {
-                            const d = c.up ? 'bg-success' : 'bg-danger';
-                            return `<div class="text-muted" style="white-space:nowrap;font-size:.7rem">`
-                                 + `<span class="badge rounded-circle ${d} p-1 me-1" style="width:7px;height:7px;"></span>`
-                                 + `<span class="font-monospace">${c.remote_ts}</span></div>`;
-                        }).join('') + '</div>';
+                    if (total > 1 && !allUp) {
+                        kidsHtml = kids.map(c =>
+                            `<span style="font-size:.72rem;white-space:nowrap" class="text-muted">`
+                          + `<span class="badge rounded-circle ${c.up ? 'bg-success' : 'bg-danger'} p-1 me-1" style="width:7px;height:7px;vertical-align:middle"></span>`
+                          + `<span class="font-monospace">${c.remote_ts}</span></span>`
+                        ).join('');
                     }
 
-                    container.innerHTML = `
-                        <span class="badge rounded-circle ${dotClass} p-1 me-2" style="width:10px;height:10px;"></span>
-                        <span class="${txtClass} small fw-bold" style="cursor:help" title="${title}" onclick="showTroubleshoot(${id})">${label}</span>
-                        ${kidsHtml}
-                    `;
+                    container.innerHTML =
+                        `<div onclick="showTroubleshoot(${id})" title="${title}"`
+                      + ` style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;cursor:pointer">`
+                      + `<span><span class="badge rounded-circle ${dotClass} p-1 me-1" style="width:10px;height:10px;vertical-align:middle"></span>`
+                      + `<span class="${txtClass} small fw-bold">${label}</span></span>`
+                      + kidsHtml
+                      + `</div>`;
                 }
             })
             .catch(error => {
