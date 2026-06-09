@@ -256,15 +256,45 @@ document.addEventListener('DOMContentLoaded', function() {
                               onclick="showTroubleshoot(${id})">${lastStatus}*</span>
                         <i class="bi bi-exclamation-triangle text-warning ms-1" title="swanctl not responding"></i>
                     `;
-                } else if (data.is_up) {
-                    container.innerHTML = `
-                        <span class="badge rounded-circle bg-success p-1 me-2" style="width: 10px; height: 10px;"></span>
-                        <span class="text-success small fw-bold" style="cursor:help" title="Click for details" onclick="showTroubleshoot(${id})">UP</span>
-                    `;
                 } else {
+                    // Per-child aware: green only if ALL children are up,
+                    // ORANGE if some are up (partial), red if none.
+                    const kids  = Array.isArray(data.children) ? data.children : [];
+                    const total = kids.length;
+                    const upN   = kids.filter(c => c.up).length;
+
+                    let dotClass, txtClass, label, title;
+                    if (total === 0) {
+                        // No child detail — fall back to the IKE-level flag.
+                        dotClass = data.is_up ? 'bg-success' : 'bg-danger';
+                        txtClass = data.is_up ? 'text-success' : 'text-danger';
+                        label    = data.is_up ? 'UP' : 'DOWN';
+                        title    = 'Click for details';
+                    } else if (upN === total) {
+                        dotClass = 'bg-success'; txtClass = 'text-success';
+                        label = 'UP'; title = `All ${total} subnet(s) up`;
+                    } else if (upN > 0) {
+                        dotClass = 'bg-warning'; txtClass = 'text-warning';
+                        label = `PARTIAL ${upN}/${total}`; title = `${upN} of ${total} subnet(s) up`;
+                    } else {
+                        dotClass = 'bg-danger'; txtClass = 'text-danger';
+                        label = 'DOWN'; title = 'No subnets up';
+                    }
+
+                    let kidsHtml = '';
+                    if (total > 1) {
+                        kidsHtml = '<div class="mt-1" style="line-height:1.25">' + kids.map(c => {
+                            const d = c.up ? 'bg-success' : 'bg-danger';
+                            return `<div class="text-muted" style="white-space:nowrap;font-size:.7rem">`
+                                 + `<span class="badge rounded-circle ${d} p-1 me-1" style="width:7px;height:7px;"></span>`
+                                 + `<span class="font-monospace">${c.remote_ts}</span></div>`;
+                        }).join('') + '</div>';
+                    }
+
                     container.innerHTML = `
-                        <span class="badge rounded-circle bg-danger p-1 me-2" style="width: 10px; height: 10px;"></span>
-                        <span class="text-danger small fw-bold" style="cursor:help" title="Click for details" onclick="showTroubleshoot(${id})">DOWN</span>
+                        <span class="badge rounded-circle ${dotClass} p-1 me-2" style="width:10px;height:10px;"></span>
+                        <span class="${txtClass} small fw-bold" style="cursor:help" title="${title}" onclick="showTroubleshoot(${id})">${label}</span>
+                        ${kidsHtml}
                     `;
                 }
             })
