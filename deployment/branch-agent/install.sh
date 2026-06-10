@@ -15,8 +15,12 @@ set -euo pipefail
 NOC_URL="${NOC_URL:-https://noc.samirgroup.net}"
 BIN_URL="${NOC_URL%/}/branch-agent/sg-branch-agent"
 SHA_URL="${NOC_URL%/}/branch-agent/sg-branch-agent.sha256"
-BIN_PATH="/usr/local/bin/sg-branch-agent"
+# The binary lives in the (service-user-owned) data dir so the agent can
+# replace itself during a NOC-driven self-update without root. A convenience
+# symlink in /usr/local/bin is created for CLI use.
 SVC_USER="sgagent"
+BIN_PATH="/var/lib/sg-branch-agent/sg-branch-agent"
+BIN_LINK="/usr/local/bin/sg-branch-agent"
 ETC_DIR="/etc/sg-branch-agent"
 DATA_DIR="/var/lib/sg-branch-agent"
 UNIT="/etc/systemd/system/sg-branch-agent.service"
@@ -59,7 +63,9 @@ if curl -fsSL "$SHA_URL" -o "$tmp_sha" 2>/dev/null && [ -s "$tmp_sha" ]; then
 else
     log "WARNING: no published checksum — skipping verification"
 fi
-install -o root -g root -m 0755 "$tmp" "$BIN_PATH"
+# Owned by the service user so the agent can self-replace it on update.
+install -o "$SVC_USER" -g "$SVC_USER" -m 0755 "$tmp" "$BIN_PATH"
+ln -sf "$BIN_PATH" "$BIN_LINK"
 
 # ── systemd unit ────────────────────────────────────────────────────
 # CAP_NET_BIND_SERVICE lets the non-root agent bind syslog :514.

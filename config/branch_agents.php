@@ -23,6 +23,10 @@ return [
     'heartbeat_stale_seconds' => (int) env('BRANCH_AGENTS_STALE_SECONDS', 600),
     'heartbeat_down_seconds' => (int) env('BRANCH_AGENTS_DOWN_SECONDS', 1800),
 
+    // When true, agents auto-update to the binary version the NOC hosts
+    // (deployment/branch-agent/build.sh stamps the version). Set false to pin.
+    'auto_update' => (bool) env('BRANCH_AGENTS_AUTO_UPDATE', true),
+
     // Default agent runtime config served from GET /api/branch-agents/config.
     // The agent merges these over its local settings on each poll.
     'defaults' => [

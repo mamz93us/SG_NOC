@@ -175,8 +175,33 @@ class BranchAgentController extends Controller
                 'branch_code' => $agent->code,
                 'fqdn' => $agent->fqdn(),
                 'ddns_enabled' => $agent->dns_subdomain !== null && $agent->dns_domain !== null,
-            ]
+            ],
+            $this->updatePayload(),
         );
+    }
+
+    /**
+     * Self-update payload: the version + checksum of the binary the NOC is
+     * currently hosting (written by deployment/branch-agent/build.sh) and where
+     * to fetch it. Agents on a different version pull + restart themselves when
+     * auto_update is on. Empty version → agents never self-update.
+     */
+    private function updatePayload(): array
+    {
+        $dir = storage_path('app/branch-agent');
+        $version = is_file("{$dir}/sg-branch-agent.version")
+            ? trim((string) file_get_contents("{$dir}/sg-branch-agent.version"))
+            : '';
+        $sha = is_file("{$dir}/sg-branch-agent.sha256")
+            ? trim((string) file_get_contents("{$dir}/sg-branch-agent.sha256"))
+            : '';
+
+        return [
+            'auto_update' => (bool) config('branch_agents.auto_update', true),
+            'agent_target_version' => $version,
+            'agent_binary_sha256' => $sha,
+            'agent_binary_url' => rtrim(config('app.url'), '/').'/branch-agent/sg-branch-agent',
+        ];
     }
 
     /**

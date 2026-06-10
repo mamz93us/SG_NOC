@@ -21,6 +21,7 @@ import (
 	"github.com/samirgroup/sg-branch-agent/internal/nocclient"
 	"github.com/samirgroup/sg-branch-agent/internal/store"
 	"github.com/samirgroup/sg-branch-agent/internal/syslog"
+	"github.com/samirgroup/sg-branch-agent/internal/updater"
 	"github.com/samirgroup/sg-branch-agent/internal/version"
 	"github.com/samirgroup/sg-branch-agent/internal/web"
 )
@@ -123,11 +124,30 @@ func heartbeatLoop(cfg *config.Config, noc *nocclient.Client, started time.Time,
 				log.Printf("heartbeat: %v", err)
 			} else if rc != nil {
 				_ = cfg.Update(func(c *config.Config) { applyRuntimeConfig(c, rc) })
+				maybeSelfUpdate(rc)
 			}
 		}
 
 		time.Sleep(interval)
 	}
+}
+
+// maybeSelfUpdate applies a NOC-advertised newer binary, then exits so systemd
+// relaunches the new version. No-op unless auto-update is on and the target
+// version differs from what's running.
+func maybeSelfUpdate(rc *nocclient.RuntimeConfig) {
+	if !rc.AutoUpdate || rc.AgentTargetVersion == "" || rc.AgentTargetVersion == version.Version {
+		return
+	}
+	log.Printf("self-update: NOC wants %s (running %s) — downloading", rc.AgentTargetVersion, version.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+	defer cancel()
+	if err := updater.Apply(ctx, rc.AgentBinaryURL, rc.AgentBinarySHA256); err != nil {
+		log.Printf("self-update failed (staying on %s): %v", version.Version, err)
+		return
+	}
+	log.Printf("self-update: replaced binary with %s — restarting", rc.AgentTargetVersion)
+	os.Exit(0)
 }
 
 // ddnsLoop detects the WAN IP and reports it to the NOC whenever it changes

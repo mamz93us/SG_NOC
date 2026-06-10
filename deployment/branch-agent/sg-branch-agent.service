@@ -7,7 +7,9 @@ Wants=network-online.target
 Type=simple
 User=sgagent
 Group=sgagent
-ExecStart=/usr/local/bin/sg-branch-agent
+# Runs from the data dir so the agent can self-replace the binary on a
+# NOC-driven update without root (a /usr/local/bin symlink is created too).
+ExecStart=/var/lib/sg-branch-agent/sg-branch-agent
 Restart=always
 RestartSec=5
 # Allow the non-root agent to bind syslog :514.

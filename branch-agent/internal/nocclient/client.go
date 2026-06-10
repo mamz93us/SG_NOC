@@ -55,6 +55,14 @@ type RuntimeConfig struct {
 	MetricsURL      string `json:"metrics_url"`
 	MetricsUser     string `json:"metrics_user"`
 	MetricsPassword string `json:"metrics_password"`
+
+	// Self-update: the NOC advertises the version it's hosting + where to get
+	// it. When AutoUpdate is on and AgentTargetVersion differs from the running
+	// version, the agent downloads + swaps itself and restarts.
+	AutoUpdate         bool   `json:"auto_update"`
+	AgentTargetVersion string `json:"agent_target_version"`
+	AgentBinaryURL     string `json:"agent_binary_url"`
+	AgentBinarySHA256  string `json:"agent_binary_sha256"`
 }
 
 // EnrollResult is the response to a successful enrollment.
