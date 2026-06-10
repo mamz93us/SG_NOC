@@ -12,6 +12,7 @@ use App\Models\DiscoveryResult;
 use App\Models\DiscoveryScan;
 use App\Models\MonitoredHost;
 use App\Models\Printer;
+use App\Services\AssetCodeService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -111,6 +112,7 @@ class NetworkDiscoveryController extends Controller
                         // Must create a Device record first (1-to-1 FK requirement)
                         $device = Device::create([
                             'type' => 'printer',
+                            'asset_code' => $this->nextAssetCode('printer'),
                             'name' => $printerName,
                             'model' => $result->model,
                             'mac_address' => $result->mac_address,
@@ -146,6 +148,7 @@ class NetworkDiscoveryController extends Controller
                 case 'switch':
                     $model = Device::create([
                         'type' => 'switch',
+                        'asset_code' => $this->nextAssetCode('switch'),
                         'name' => $printerName,
                         'ip_address' => $result->ip_address,
                         'mac_address' => $result->mac_address,
@@ -162,6 +165,7 @@ class NetworkDiscoveryController extends Controller
 
                 default: // device
                     $model = Device::create([
+                        'asset_code' => $this->nextAssetCode('other'),
                         'name' => $printerName,
                         'ip_address' => $result->ip_address,
                         'mac_address' => $result->mac_address,
@@ -192,6 +196,19 @@ class NetworkDiscoveryController extends Controller
         ]);
 
         return back()->with('success', "{$result->ip_address} imported as {$label}.");
+    }
+
+    /**
+     * Next sequential asset code for the type — same convention as manual
+     * device creation. Non-fatal: returns null if settings/types are absent.
+     */
+    protected function nextAssetCode(string $type): ?string
+    {
+        try {
+            return app(AssetCodeService::class)->generate($type);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     // ─── Sync MonitoredHost after printer import ─────────────────
