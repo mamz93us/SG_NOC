@@ -605,6 +605,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::patch('settings/domains/{allowedDomain}/set-primary', [\App\Http\Controllers\Admin\AllowedDomainController::class, 'setPrimary'])->name('settings.domains.set-primary');
     });
 
+    // ─── Server Status (host health + database backups) ──────
+    Route::middleware('permission:view-server-status')->group(function () {
+        Route::get('server-status', [\App\Http\Controllers\Admin\ServerStatusController::class, 'index'])
+            ->name('server-status');
+        Route::get('server-status/metrics', [\App\Http\Controllers\Admin\ServerStatusController::class, 'metrics'])
+            ->name('server-status.metrics');
+    });
+    Route::middleware('permission:manage-server-status')->group(function () {
+        Route::post('server-status/db-backups', [\App\Http\Controllers\Admin\ServerStatusController::class, 'backupNow'])
+            ->name('server-status.db-backups.run');
+        Route::get('server-status/db-backups/{databaseBackup}/download', [\App\Http\Controllers\Admin\ServerStatusController::class, 'downloadBackup'])
+            ->name('server-status.db-backups.download');
+        Route::delete('server-status/db-backups/{databaseBackup}', [\App\Http\Controllers\Admin\ServerStatusController::class, 'deleteBackup'])
+            ->name('server-status.db-backups.destroy');
+    });
+
     // ─── UCM Servers (managed from Settings page) ─────────────
     Route::middleware('permission:manage-settings')->group(function () {
         Route::post('ucm-servers', [UcmServerController::class, 'store'])

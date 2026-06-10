@@ -1081,9 +1081,17 @@
                                 </a>
                             </li>
                             @endcan
-                            @canany(['manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains'])
+                            @canany(['manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-server-status'])
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-layers me-1"></i>Platform</h6></li>
+                            @can('view-server-status')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.server-status') ? 'active' : '' }}"
+                                   href="{{ route('admin.server-status') }}">
+                                    <i class="bi bi-hdd-rack-fill me-2"></i>Server Status
+                                </a>
+                            </li>
+                            @endcan
                             @can('manage-notification-rules')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.notification-rules.index') ? 'active' : '' }}"

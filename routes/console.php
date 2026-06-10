@@ -656,6 +656,34 @@ Schedule::command('sftp-backups:prune')
     ->runInBackground()
     ->name('sftp-backups-prune');
 
+// ──────────────────────────────────────────────────────────────────────
+// NOC database → Azure Blob backups. Daily mysqldump | gzip streamed to
+// the azure_db_backups disk and recorded in database_backups (history +
+// "Backup Now" live on Admin → Server Status). The prune enforces
+// Azure-side retention and no-ops unless DB_BACKUP_RETENTION_DAYS is set.
+// ──────────────────────────────────────────────────────────────────────
+Schedule::command('db-backups:run')
+    ->dailyAt((string) config('db_backup.schedule_time', '01:30'))
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('db-backups-run');
+
+Schedule::command('db-backups:prune')
+    ->dailyAt('03:15')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('db-backups-prune');
+
+// Scheduler heartbeat — Admin → Server Status reads this cache key to tell
+// a live supervisor/cron schedule loop from a stalled one.
+Schedule::call(function () {
+    try {
+        cache()->put('scheduler:last_run', now()->toIso8601String(), 3600);
+    } catch (\Throwable) {
+        // cache table unavailable — the status page just shows "no heartbeat"
+    }
+})->everyMinute()->name('scheduler-heartbeat');
+
 // Device backup overdue monitor — opens/resolves a NocEvent per backup account
 // whose backup is missing within its expected frequency + grace, every 30 min.
 Schedule::command('backups:check-overdue')
