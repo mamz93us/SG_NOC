@@ -254,7 +254,8 @@ class BackupAccountController extends Controller
     private function validateForm(Request $request): array
     {
         return $request->validate([
-            'label' => 'nullable|string|max:150',
+            // An account needs SOME name: a free-text label or a linked device.
+            'label' => 'nullable|required_without:device_link|string|max:150',
             'device_link' => 'nullable|string|max:255',
             'protocols' => 'required|array|min:1',
             'protocols.*' => 'in:SFTP,FTP',

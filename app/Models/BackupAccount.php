@@ -118,7 +118,10 @@ class BackupAccount extends Model
 
     public function deviceLabel(): string
     {
-        return $this->device?->name ?? $this->label ?? $this->sftpgo_username;
+        // 'device' fallback: during store() this runs BEFORE sftpgo_username is
+        // assigned (it seeds the username), so with no device link and no label
+        // every earlier term is null — returning null here fatals (typed string).
+        return $this->device?->name ?? $this->label ?? $this->sftpgo_username ?? 'device';
     }
 
     /** SFTPGo protocol names this account may use (defaults to SFTP-only). */
