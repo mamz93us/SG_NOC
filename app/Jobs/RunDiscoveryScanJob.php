@@ -15,7 +15,8 @@ class RunDiscoveryScanJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $timeout = 600; // 10 minutes max
-    public int $tries   = 1;
+
+    public int $tries = 1;
 
     public function __construct(public readonly int $scanId) {}
 
@@ -23,7 +24,11 @@ class RunDiscoveryScanJob implements ShouldQueue
     {
         $scan = DiscoveryScan::find($this->scanId);
 
-        if (! $scan || $scan->status === 'completed') {
+        // Only start scans that are still pending. A long scan outlives the
+        // queue's retry_after (90s), so the DB queue hands the same job to a
+        // second worker mid-scan — without this guard every host gets probed
+        // and inserted twice.
+        if (! $scan || $scan->status !== 'pending') {
             return;
         }
 

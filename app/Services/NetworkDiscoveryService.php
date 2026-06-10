@@ -283,7 +283,10 @@ class NetworkDiscoveryService
                         \App\Models\NetworkSwitch::where('lan_ip', $ip)->exists() ||
                         \App\Models\Device::where('ip_address', $ip)->exists();
 
-                    DiscoveryResult::create(array_merge(['discovery_scan_id' => $scan->id], $data));
+                    DiscoveryResult::updateOrCreate(
+                        ['discovery_scan_id' => $scan->id, 'ip_address' => $ip],
+                        $data
+                    );
 
                     if ($data['is_reachable']) {
                         $reachable++;
