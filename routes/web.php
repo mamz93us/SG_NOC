@@ -690,6 +690,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('devices/batch-create', [DeviceController::class, 'batchCreate'])->name('devices.batch-create');
         Route::get('devices/phone-auto-assign', [PhoneAutoAssignController::class, 'index'])->name('devices.phone-auto-assign');
         Route::get('devices/import', [DeviceImportController::class, 'showForm'])->name('devices.import');
+        // Must register before devices/{device} or "mac-backfill" binds as a device id.
+        Route::get('devices/mac-backfill', [DeviceController::class, 'macBackfill'])
+            ->middleware('permission:manage-assets')->name('devices.mac-backfill');
         Route::get('devices/{device}/label', [DeviceController::class, 'label'])->name('devices.label');
         Route::get('devices/{device}/edit', [DeviceController::class, 'edit'])->name('devices.edit');
         Route::get('devices/{device}', [DeviceController::class, 'show'])->name('devices.show');
@@ -708,6 +711,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('devices/import/apply', [DeviceImportController::class, 'apply'])->name('devices.import.apply');
         Route::post('devices/import/manual', [DeviceImportController::class, 'manualStore'])->name('devices.import.manual');
         Route::post('devices/import/batch', [DeviceImportController::class, 'batchStore'])->name('devices.import.batch');
+        Route::post('devices/mac-backfill', [DeviceController::class, 'macBackfillApply'])->name('devices.mac-backfill.apply');
     });
 
     // ─── Device Backups (SFTPGo accounts + status) ────────────

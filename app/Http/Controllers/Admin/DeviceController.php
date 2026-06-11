@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\AssetHistory;
 use App\Models\Branch;
-use App\Models\Credential;
 use App\Models\Department;
 use App\Models\Device;
 use App\Models\DeviceModel;
@@ -19,15 +18,14 @@ use App\Services\AssetCodeService;
 use App\Services\DepreciationService;
 use App\Support\Currency;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class DeviceController extends Controller
 {
     public function index(Request $request)
     {
         $allowed = ['asset_code', 'status', 'type', 'name', 'manufacturer', 'model', 'updated_at'];
-        $sort    = in_array($request->sort, $allowed) ? $request->sort : null;
-        $dir     = $request->direction === 'asc' ? 'asc' : 'desc';
+        $sort = in_array($request->sort, $allowed) ? $request->sort : null;
+        $dir = $request->direction === 'asc' ? 'asc' : 'desc';
 
         $query = Device::with(['branch', 'credentials', 'currentAssignment.employee', 'deviceModel']);
 
@@ -46,11 +44,11 @@ class DeviceController extends Controller
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
-                $q->where('name',          'like', "%{$s}%")
-                  ->orWhere('ip_address',  'like', "%{$s}%")
-                  ->orWhere('mac_address', 'like', "%{$s}%")
-                  ->orWhere('serial_number','like',"%{$s}%")
-                  ->orWhere('asset_code',  'like', "%{$s}%");
+                $q->where('name', 'like', "%{$s}%")
+                    ->orWhere('ip_address', 'like', "%{$s}%")
+                    ->orWhere('mac_address', 'like', "%{$s}%")
+                    ->orWhere('serial_number', 'like', "%{$s}%")
+                    ->orWhere('asset_code', 'like', "%{$s}%");
             });
         }
         if ($request->filled('status')) {
@@ -60,10 +58,10 @@ class DeviceController extends Controller
             $query->where('device_model_id', $request->model_id);
         }
 
-        $devices   = $query->paginate(50)->withQueryString();
-        $branches  = Branch::orderBy('name')->get(['id', 'name']);
+        $devices = $query->paginate(50)->withQueryString();
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
         $employees = Employee::orderBy('name')->get(['id', 'name']);
-        $types     = \App\Models\AssetType::allSlugs();
+        $types = \App\Models\AssetType::allSlugs();
 
         return view('admin.devices.index', compact('devices', 'branches', 'employees', 'types'));
     }
@@ -76,14 +74,14 @@ class DeviceController extends Controller
             switch ($request->status) {
                 case 'outdated':
                     $query->whereNotNull('firmware_version')->whereNotNull('latest_firmware')
-                          ->whereColumn('firmware_version', '!=', 'latest_firmware');
+                        ->whereColumn('firmware_version', '!=', 'latest_firmware');
                     break;
                 case 'current':
                     $query->whereNotNull('firmware_version')->whereNotNull('latest_firmware')
-                          ->whereColumn('firmware_version', '=', 'latest_firmware');
+                        ->whereColumn('firmware_version', '=', 'latest_firmware');
                     break;
                 case 'unknown':
-                    $query->where(fn($q) => $q->whereNull('firmware_version')->orWhereNull('latest_firmware'));
+                    $query->where(fn ($q) => $q->whereNull('firmware_version')->orWhereNull('latest_firmware'));
                     break;
             }
         }
@@ -93,7 +91,7 @@ class DeviceController extends Controller
         }
         if ($request->filled('search')) {
             $s = $request->search;
-            $query->where(fn($q) => $q->where('name', 'like', "%{$s}%")->orWhere('model', 'like', "%{$s}%"));
+            $query->where(fn ($q) => $q->where('name', 'like', "%{$s}%")->orWhere('model', 'like', "%{$s}%"));
         }
 
         $devices = $query->orderBy('name')->paginate(25)->withQueryString();
@@ -103,7 +101,7 @@ class DeviceController extends Controller
             ->whereColumn('firmware_version', '!=', 'latest_firmware')->count();
         $uptodateCount = Device::whereNotNull('firmware_version')->whereNotNull('latest_firmware')
             ->whereColumn('firmware_version', '=', 'latest_firmware')->count();
-        $unknownCount = Device::where(fn($q) => $q->whereNull('firmware_version')->orWhereNull('latest_firmware'))->count();
+        $unknownCount = Device::where(fn ($q) => $q->whereNull('firmware_version')->orWhereNull('latest_firmware'))->count();
 
         return view('admin.devices.firmware', compact(
             'devices', 'branches', 'outdatedCount', 'uptodateCount', 'unknownCount'
@@ -118,8 +116,8 @@ class DeviceController extends Controller
             'supplier', 'assetHistory.user', 'licenseAssignments.license',
             'azureDevice.macs', 'currentAssignment.employee',
         ]);
-        $depreciation = new DepreciationService();
-        $employees    = Employee::orderBy('name')->get(['id', 'name']);
+        $depreciation = new DepreciationService;
+        $employees = Employee::orderBy('name')->get(['id', 'name']);
 
         // Access panel data
         $sshSessions = $device->sshSessions()
@@ -136,36 +134,42 @@ class DeviceController extends Controller
         // Resolve IPs from DHCP leases per adapter MAC — skip APIPA (169.x.x.x)
         // Returns map: NORMALISED_MAC (no sep, upper) => ip_address
         $dhcpByMac = [];
-        $rawMacs   = array_filter([$device->mac_address, $device->wifi_mac]);
-        $az        = $device->azureDevice;
+        $rawMacs = array_filter([$device->mac_address, $device->wifi_mac]);
+        $az = $device->azureDevice;
         if ($az) {
-            if ($az->ethernet_mac) $rawMacs[] = $az->ethernet_mac;
-            if ($az->wifi_mac)     $rawMacs[] = $az->wifi_mac;
+            if ($az->ethernet_mac) {
+                $rawMacs[] = $az->ethernet_mac;
+            }
+            if ($az->wifi_mac) {
+                $rawMacs[] = $az->wifi_mac;
+            }
             foreach ($az->usb_eth_decoded() as $usb) {
-                if (!empty($usb['mac'])) $rawMacs[] = $usb['mac'];
+                if (! empty($usb['mac'])) {
+                    $rawMacs[] = $usb['mac'];
+                }
             }
         }
         $normMacs = array_values(array_unique(array_filter(
-            array_map(fn($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), $rawMacs)
+            array_map(fn ($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), $rawMacs)
         )));
-        if (!empty($normMacs)) {
+        if (! empty($normMacs)) {
             \App\Models\DhcpLease::whereRaw(
-                'UPPER(REPLACE(REPLACE(mac_address,\':\',\'\'),\'-\',\'\')) IN (' .
-                implode(',', array_fill(0, count($normMacs), '?')) . ')',
+                'UPPER(REPLACE(REPLACE(mac_address,\':\',\'\'),\'-\',\'\')) IN ('.
+                implode(',', array_fill(0, count($normMacs), '?')).')',
                 $normMacs
             )
-            ->where(function ($q) {
-                // Exclude APIPA (169.254.x.x) — means no real DHCP lease was obtained
-                $q->where('ip_address', 'not like', '169.%');
-            })
-            ->orderByDesc('last_seen')
-            ->get(['mac_address', 'ip_address'])
-            ->each(function ($lease) use (&$dhcpByMac) {
-                $norm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lease->mac_address));
-                if (!isset($dhcpByMac[$norm])) {
-                    $dhcpByMac[$norm] = $lease->ip_address;
-                }
-            });
+                ->where(function ($q) {
+                    // Exclude APIPA (169.254.x.x) — means no real DHCP lease was obtained
+                    $q->where('ip_address', 'not like', '169.%');
+                })
+                ->orderByDesc('last_seen')
+                ->get(['mac_address', 'ip_address'])
+                ->each(function ($lease) use (&$dhcpByMac) {
+                    $norm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lease->mac_address));
+                    if (! isset($dhcpByMac[$norm])) {
+                        $dhcpByMac[$norm] = $lease->ip_address;
+                    }
+                });
         }
 
         return view('admin.devices.show', compact(
@@ -183,11 +187,13 @@ class DeviceController extends Controller
     public function dhcpLookup(\Illuminate\Http\Request $request)
     {
         $mac = $request->get('mac');
-        $ip  = $request->get('ip');
+        $ip = $request->get('ip');
 
         if ($mac) {
             $normMac = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $mac));
-            if (strlen($normMac) !== 12) return response()->json(['error' => 'Invalid MAC'], 422);
+            if (strlen($normMac) !== 12) {
+                return response()->json(['error' => 'Invalid MAC'], 422);
+            }
             $lease = \App\Models\DhcpLease::whereRaw(
                 'UPPER(REPLACE(REPLACE(mac_address,\':\',\'\'),\'-\',\'\')) = ?', [$normMac]
             )->latest('last_seen')->first();
@@ -197,89 +203,207 @@ class DeviceController extends Controller
             return response()->json(['error' => 'Provide mac or ip'], 422);
         }
 
-        if (! $lease) return response()->json(null);
+        if (! $lease) {
+            return response()->json(null);
+        }
 
         return response()->json([
-            'ip'        => $lease->ip_address,
-            'mac'       => strtoupper(str_replace(['-', ':'], '', $lease->mac_address)),
-            'mac_fmt'   => strtoupper(implode(':', str_split(
+            'ip' => $lease->ip_address,
+            'mac' => strtoupper(str_replace(['-', ':'], '', $lease->mac_address)),
+            'mac_fmt' => strtoupper(implode(':', str_split(
                 strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lease->mac_address)), 2
             ))),
-            'hostname'  => $lease->hostname,
-            'source'    => $lease->source,
+            'hostname' => $lease->hostname,
+            'source' => $lease->source,
             'last_seen' => $lease->last_seen?->diffForHumans(),
         ]);
     }
 
+    /**
+     * Preview backfilling device MACs from DHCP leases: every asset that has
+     * an IP but no MAC, matched against the freshest lease for that IP. The
+     * operator confirms the mapping row-by-row before anything is written.
+     */
+    public function macBackfill()
+    {
+        $devices = Device::with('branch')
+            ->whereNotNull('ip_address')->where('ip_address', '!=', '')
+            ->where(fn ($q) => $q->whereNull('mac_address')->orWhere('mac_address', ''))
+            ->orderBy('type')->orderBy('name')
+            ->get();
+
+        $leasesByIp = \App\Models\DhcpLease::whereIn('ip_address', $devices->pluck('ip_address')->unique())
+            ->orderByDesc('last_seen')
+            ->get()
+            ->groupBy('ip_address');
+
+        $rows = $devices->map(function (Device $device) use ($leasesByIp) {
+            $leases = $leasesByIp->get($device->ip_address);
+            if (! $leases) {
+                return null; // no lease ever seen for this IP — nothing to propose
+            }
+
+            $lease = $leases->first(); // freshest (ordered by last_seen desc)
+            $mac = \App\Models\DeviceMac::normalizeMac($lease->mac_address);
+            if (! $mac) {
+                return null; // lease carries a malformed MAC — nothing usable
+            }
+            $distinctMacs = $leases->map(fn ($l) => \App\Models\DeviceMac::normalizeMac($l->mac_address))->filter()->unique();
+
+            // A MAC already on another asset means this IP probably moved.
+            $normRaw = str_replace(':', '', $mac);
+            $usedBy = Device::whereRaw(
+                "UPPER(REPLACE(REPLACE(COALESCE(mac_address,''),':',''),'-','')) = ?", [$normRaw]
+            )->where('id', '!=', $device->id)->first();
+
+            $stale = ! $lease->last_seen || $lease->last_seen->lt(now()->subDays(30));
+
+            return [
+                'device' => $device,
+                'lease' => $lease,
+                'mac' => $mac,
+                'multiple_macs' => $distinctMacs->count() > 1,
+                'used_by' => $usedBy,
+                'stale' => $stale,
+                // preselect only the unambiguous, fresh, unclaimed mappings
+                'preselect' => $distinctMacs->count() === 1 && ! $usedBy && ! $stale,
+            ];
+        })->filter()->values();
+
+        return view('admin.devices.mac-backfill', [
+            'rows' => $rows,
+            'missingCount' => $devices->count(),
+        ]);
+    }
+
+    /**
+     * Apply the confirmed mappings. MACs are re-derived from the freshest
+     * lease server-side (the checkbox only selects WHICH devices, not what
+     * value lands), so a stale form can't write outdated data.
+     */
+    public function macBackfillApply(Request $request)
+    {
+        $data = $request->validate([
+            'device_ids' => 'required|array|min:1',
+            'device_ids.*' => 'integer|exists:devices,id',
+        ]);
+
+        $applied = $skipped = 0;
+        foreach (Device::whereIn('id', $data['device_ids'])->get() as $device) {
+            if (! empty($device->mac_address) || empty($device->ip_address)) {
+                $skipped++;
+
+                continue;
+            }
+
+            $lease = \App\Models\DhcpLease::where('ip_address', $device->ip_address)
+                ->latest('last_seen')->first();
+            $mac = $lease ? \App\Models\DeviceMac::normalizeMac($lease->mac_address) : null;
+            if (! $mac || strlen(str_replace(':', '', $mac)) !== 12) {
+                $skipped++;
+
+                continue;
+            }
+
+            // Don't silently duplicate a MAC that already lives on another asset.
+            $normRaw = str_replace(':', '', $mac);
+            $taken = Device::whereRaw(
+                "UPPER(REPLACE(REPLACE(COALESCE(mac_address,''),':',''),'-','')) = ?", [$normRaw]
+            )->where('id', '!=', $device->id)->exists();
+            if ($taken) {
+                $skipped++;
+
+                continue;
+            }
+
+            $device->update(['mac_address' => $mac]);
+            ActivityLog::log('updated', $device, [
+                'mac_address' => ['old' => null, 'new' => $mac],
+                'source' => 'dhcp_mac_backfill',
+                'dhcp_lease_id' => $lease->id,
+                'lease_hostname' => $lease->hostname,
+            ]);
+            $applied++;
+        }
+
+        $msg = "Backfilled {$applied} MAC address(es) from DHCP leases.";
+        if ($skipped > 0) {
+            $msg .= " {$skipped} skipped (already set, lease gone, or MAC in use by another asset).";
+        }
+
+        return redirect()->route('admin.devices.index')->with('success', $msg);
+    }
+
     public function create()
     {
-        $branches     = Branch::orderBy('name')->get(['id', 'name']);
-        $departments  = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $departments = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
         $deviceModels = DeviceModel::orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
-        $suppliers    = Supplier::orderBy('name')->get(['id', 'name']);
+        $suppliers = Supplier::orderBy('name')->get(['id', 'name']);
+
         return view('admin.devices.form', compact('branches', 'departments', 'deviceModels', 'suppliers'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'type'                 => 'required|in:' . implode(',', \App\Models\AssetType::allSlugs()),
-            'name'                 => 'required|string|max:255',
-            'device_model_id'      => 'nullable|exists:device_models,id',
-            'serial_number'        => 'nullable|string|max:100',
-            'mac_address'          => 'nullable|string|max:20',
-            'wifi_mac'             => 'nullable|string|max:17',
-            'ip_address'           => 'nullable|ip',
-            'branch_id'            => 'nullable|exists:branches,id',
-            'floor_id'             => 'nullable|exists:network_floors,id',
-            'office_id'            => 'nullable|exists:network_offices,id',
-            'department_id'        => 'nullable|exists:departments,id',
+            'type' => 'required|in:'.implode(',', \App\Models\AssetType::allSlugs()),
+            'name' => 'required|string|max:255',
+            'device_model_id' => 'nullable|exists:device_models,id',
+            'serial_number' => 'nullable|string|max:100',
+            'mac_address' => 'nullable|string|max:20',
+            'wifi_mac' => 'nullable|string|max:17',
+            'ip_address' => 'nullable|ip',
+            'branch_id' => 'nullable|exists:branches,id',
+            'floor_id' => 'nullable|exists:network_floors,id',
+            'office_id' => 'nullable|exists:network_offices,id',
+            'department_id' => 'nullable|exists:departments,id',
             'location_description' => 'nullable|string|max:255',
-            'notes'                => 'nullable|string',
-            'status'               => 'required|in:active,available,assigned,maintenance,retired',
-            'purchase_date'        => 'nullable|date',
-            'warranty_expiry'      => 'nullable|date',
+            'notes' => 'nullable|string',
+            'status' => 'required|in:active,available,assigned,maintenance,retired',
+            'purchase_date' => 'nullable|date',
+            'warranty_expiry' => 'nullable|date',
             // ITAM fields
-            'asset_code'           => 'nullable|string|max:50|unique:devices,asset_code',
-            'purchase_cost'        => 'nullable|numeric|min:0',
-            'currency'             => 'required|in:' . implode(',', Currency::CODES),
-            'supplier_id'          => 'nullable|exists:suppliers,id',
-            'condition'            => 'nullable|in:new,used,refurbished,damaged',
-            'depreciation_method'  => 'nullable|in:straight_line,none',
-            'depreciation_years'   => 'nullable|integer|min:1|max:30',
+            'asset_code' => 'nullable|string|max:50|unique:devices,asset_code',
+            'purchase_cost' => 'nullable|numeric|min:0',
+            'currency' => 'required|in:'.implode(',', Currency::CODES),
+            'supplier_id' => 'nullable|exists:suppliers,id',
+            'condition' => 'nullable|in:new,used,refurbished,damaged',
+            'depreciation_method' => 'nullable|in:straight_line,none',
+            'depreciation_years' => 'nullable|integer|min:1|max:30',
         ]);
 
         // Auto-generate asset_code if blank
         if (empty($data['asset_code'])) {
             try {
-                $data['asset_code'] = (new AssetCodeService())->generate($data['type']);
+                $data['asset_code'] = (new AssetCodeService)->generate($data['type']);
             } catch (\Throwable) {
                 // Non-fatal — leave null if service fails (e.g. settings not yet configured)
             }
         }
 
         // Auto-calculate WiFi MAC for IP phones (LAN MAC last byte + 1)
-        if ($data['type'] === 'phone' && !empty($data['mac_address']) && empty($data['wifi_mac'])) {
+        if ($data['type'] === 'phone' && ! empty($data['mac_address']) && empty($data['wifi_mac'])) {
             $data['wifi_mac'] = Device::calculatePhoneWifiMac($data['mac_address']);
         }
 
         // Sync manufacturer/model strings from DeviceModel for backward compatibility
-        if (!empty($data['device_model_id'])) {
+        if (! empty($data['device_model_id'])) {
             $dm = DeviceModel::find($data['device_model_id']);
             if ($dm) {
                 $data['manufacturer'] = $dm->manufacturer;
-                $data['model']        = $dm->name;
+                $data['model'] = $dm->name;
             }
         }
 
         $device = Device::create(array_merge($data, [
-            'source'    => 'manual',
-            'source_id' => ($data['serial_number'] ?? null) ?: ('manual-' . \Illuminate\Support\Str::random(12)),
+            'source' => 'manual',
+            'source_id' => ($data['serial_number'] ?? null) ?: ('manual-'.\Illuminate\Support\Str::random(12)),
         ]));
 
         // Calculate initial depreciation value
         if ($device->purchase_cost && $device->depreciation_method === 'straight_line') {
-            $device->update(['current_value' => (new DepreciationService())->currentValue($device)]);
+            $device->update(['current_value' => (new DepreciationService)->currentValue($device)]);
         }
 
         // Register phone MACs in the central device_macs registry for RADIUS
@@ -288,18 +412,18 @@ class DeviceController extends Controller
                 \App\Models\DeviceMac::upsertMac($device->mac_address, [
                     'adapter_type' => 'ethernet',
                     'adapter_name' => 'LAN',
-                    'device_id'    => $device->id,
-                    'source'       => 'manual',
-                    'is_primary'   => true,
+                    'device_id' => $device->id,
+                    'source' => 'manual',
+                    'is_primary' => true,
                 ]);
             }
             if ($device->wifi_mac) {
                 \App\Models\DeviceMac::upsertMac($device->wifi_mac, [
                     'adapter_type' => 'wifi',
                     'adapter_name' => 'WiFi',
-                    'device_id'    => $device->id,
-                    'source'       => 'manual',
-                    'is_primary'   => false,
+                    'device_id' => $device->id,
+                    'source' => 'manual',
+                    'is_primary' => false,
                 ]);
             }
         }
@@ -309,78 +433,83 @@ class DeviceController extends Controller
         ActivityLog::log('created', $device, $data);
 
         return redirect()->route('admin.devices.show', $device)
-                         ->with('success', "Device \"{$device->name}\" created.");
+            ->with('success', "Device \"{$device->name}\" created.");
     }
 
     public function batchCreate()
     {
-        $branches     = Branch::orderBy('name')->get(['id', 'name']);
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
         $deviceModels = DeviceModel::orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
-        $suppliers    = Supplier::orderBy('name')->get(['id', 'name']);
+        $suppliers = Supplier::orderBy('name')->get(['id', 'name']);
+
         return view('admin.devices.batch', compact('branches', 'deviceModels', 'suppliers'));
     }
 
     public function batchStore(Request $request)
     {
         $request->validate([
-            'type'            => 'required|string',
-            'prefix'          => 'required|string|max:50',
+            'type' => 'required|string',
+            'prefix' => 'required|string|max:50',
             'device_model_id' => 'nullable|exists:device_models,id',
-            'branch_id'       => 'nullable|exists:branches,id',
-            'status'          => 'required|string',
-            'serials'         => 'required|string', // newline separated
-            'purchase_date'   => 'nullable|date',
-            'purchase_cost'   => 'nullable|numeric',
-            'currency'        => 'required|in:' . implode(',', Currency::CODES),
-            'supplier_id'     => 'nullable|exists:suppliers,id',
-            'condition'       => 'required|string',
+            'branch_id' => 'nullable|exists:branches,id',
+            'status' => 'required|string',
+            'serials' => 'required|string', // newline separated
+            'purchase_date' => 'nullable|date',
+            'purchase_cost' => 'nullable|numeric',
+            'currency' => 'required|in:'.implode(',', Currency::CODES),
+            'supplier_id' => 'nullable|exists:suppliers,id',
+            'condition' => 'required|string',
         ]);
 
         $serials = array_filter(array_map('trim', explode("\n", $request->serials)));
-        $count   = 0;
-        $errors  = [];
+        $count = 0;
+        $errors = [];
 
         foreach ($serials as $index => $sn) {
-            if (empty($sn)) continue;
+            if (empty($sn)) {
+                continue;
+            }
 
             // Check if SN already exists
             if (Device::where('serial_number', $sn)->exists()) {
                 $errors[] = "Serial number \"{$sn}\" already exists. Skipped.";
+
                 continue;
             }
 
-            $name = $request->prefix . ' ' . ($index + 1);
+            $name = $request->prefix.' '.($index + 1);
             $type = $request->type;
 
             $data = [
-                'type'            => $type,
-                'name'            => $name,
+                'type' => $type,
+                'name' => $name,
                 'device_model_id' => $request->device_model_id,
-                'serial_number'   => $sn,
-                'branch_id'       => $request->branch_id,
-                'status'          => $request->status,
-                'purchase_date'   => $request->purchase_date,
-                'purchase_cost'   => $request->purchase_cost,
-                'currency'        => $request->currency,
-                'supplier_id'     => $request->supplier_id,
-                'condition'       => $request->condition,
-                'source'          => 'manual',
-                'source_id'       => $sn,
+                'serial_number' => $sn,
+                'branch_id' => $request->branch_id,
+                'status' => $request->status,
+                'purchase_date' => $request->purchase_date,
+                'purchase_cost' => $request->purchase_cost,
+                'currency' => $request->currency,
+                'supplier_id' => $request->supplier_id,
+                'condition' => $request->condition,
+                'source' => 'manual',
+                'source_id' => $sn,
             ];
 
             // Sync manufacturer/model strings from DeviceModel
-            if (!empty($data['device_model_id'])) {
+            if (! empty($data['device_model_id'])) {
                 $dm = DeviceModel::find($data['device_model_id']);
                 if ($dm) {
                     $data['manufacturer'] = $dm->manufacturer;
-                    $data['model']        = $dm->name;
+                    $data['model'] = $dm->name;
                 }
             }
 
             // Auto-generate asset_code
             try {
-                $data['asset_code'] = (new AssetCodeService())->generate($type);
-            } catch (\Throwable) {}
+                $data['asset_code'] = (new AssetCodeService)->generate($type);
+            } catch (\Throwable) {
+            }
 
             $device = Device::create($data);
             AssetHistory::record($device, 'created', "Batch created device: {$device->name}");
@@ -388,8 +517,8 @@ class DeviceController extends Controller
         }
 
         $msg = "Successfully added {$count} devices.";
-        if (!empty($errors)) {
-            $msg .= " " . implode(" ", $errors);
+        if (! empty($errors)) {
+            $msg .= ' '.implode(' ', $errors);
         }
 
         return redirect()->route('admin.devices.index')->with($count > 0 ? 'success' : 'error', $msg);
@@ -397,54 +526,55 @@ class DeviceController extends Controller
 
     public function edit(Device $device)
     {
-        $branches     = Branch::orderBy('name')->get(['id', 'name']);
-        $departments  = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $departments = Department::orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
         $deviceModels = DeviceModel::orderBy('name')->get(['id', 'name', 'manufacturer', 'device_type']);
-        $suppliers    = Supplier::orderBy('name')->get(['id', 'name']);
+        $suppliers = Supplier::orderBy('name')->get(['id', 'name']);
         $device->load(['floor', 'office']);
+
         return view('admin.devices.form', compact('device', 'branches', 'departments', 'deviceModels', 'suppliers'));
     }
 
     public function update(Request $request, Device $device)
     {
         $data = $request->validate([
-            'type'                 => 'required|in:' . implode(',', \App\Models\AssetType::allSlugs()),
-            'name'                 => 'required|string|max:255',
-            'device_model_id'      => 'nullable|exists:device_models,id',
-            'serial_number'        => 'nullable|string|max:100',
-            'mac_address'          => 'nullable|string|max:20',
-            'wifi_mac'             => 'nullable|string|max:17',
-            'ip_address'           => 'nullable|ip',
-            'branch_id'            => 'nullable|exists:branches,id',
-            'floor_id'             => 'nullable|exists:network_floors,id',
-            'office_id'            => 'nullable|exists:network_offices,id',
-            'department_id'        => 'nullable|exists:departments,id',
+            'type' => 'required|in:'.implode(',', \App\Models\AssetType::allSlugs()),
+            'name' => 'required|string|max:255',
+            'device_model_id' => 'nullable|exists:device_models,id',
+            'serial_number' => 'nullable|string|max:100',
+            'mac_address' => 'nullable|string|max:20',
+            'wifi_mac' => 'nullable|string|max:17',
+            'ip_address' => 'nullable|ip',
+            'branch_id' => 'nullable|exists:branches,id',
+            'floor_id' => 'nullable|exists:network_floors,id',
+            'office_id' => 'nullable|exists:network_offices,id',
+            'department_id' => 'nullable|exists:departments,id',
             'location_description' => 'nullable|string|max:255',
-            'notes'                => 'nullable|string',
-            'status'               => 'required|in:active,available,assigned,maintenance,retired',
-            'purchase_date'        => 'nullable|date',
-            'warranty_expiry'      => 'nullable|date',
+            'notes' => 'nullable|string',
+            'status' => 'required|in:active,available,assigned,maintenance,retired',
+            'purchase_date' => 'nullable|date',
+            'warranty_expiry' => 'nullable|date',
             // ITAM fields
-            'asset_code'           => 'nullable|string|max:50|unique:devices,asset_code,' . $device->id,
-            'purchase_cost'        => 'nullable|numeric|min:0',
-            'currency'             => 'required|in:' . implode(',', Currency::CODES),
-            'supplier_id'          => 'nullable|exists:suppliers,id',
-            'condition'            => 'nullable|in:new,used,refurbished,damaged',
-            'depreciation_method'  => 'nullable|in:straight_line,none',
-            'depreciation_years'   => 'nullable|integer|min:1|max:30',
+            'asset_code' => 'nullable|string|max:50|unique:devices,asset_code,'.$device->id,
+            'purchase_cost' => 'nullable|numeric|min:0',
+            'currency' => 'required|in:'.implode(',', Currency::CODES),
+            'supplier_id' => 'nullable|exists:suppliers,id',
+            'condition' => 'nullable|in:new,used,refurbished,damaged',
+            'depreciation_method' => 'nullable|in:straight_line,none',
+            'depreciation_years' => 'nullable|integer|min:1|max:30',
         ]);
 
         // Auto-calculate WiFi MAC for IP phones when LAN MAC changes
-        if ($data['type'] === 'phone' && !empty($data['mac_address']) && empty($data['wifi_mac'])) {
+        if ($data['type'] === 'phone' && ! empty($data['mac_address']) && empty($data['wifi_mac'])) {
             $data['wifi_mac'] = Device::calculatePhoneWifiMac($data['mac_address']);
         }
 
         // Sync manufacturer/model strings from DeviceModel
-        if (!empty($data['device_model_id'])) {
+        if (! empty($data['device_model_id'])) {
             $dm = DeviceModel::find($data['device_model_id']);
             if ($dm) {
                 $data['manufacturer'] = $dm->manufacturer;
-                $data['model']        = $dm->name;
+                $data['model'] = $dm->name;
             }
         }
 
@@ -456,25 +586,25 @@ class DeviceController extends Controller
                 \App\Models\DeviceMac::upsertMac($device->mac_address, [
                     'adapter_type' => 'ethernet',
                     'adapter_name' => 'LAN',
-                    'device_id'    => $device->id,
-                    'source'       => 'manual',
-                    'is_primary'   => true,
+                    'device_id' => $device->id,
+                    'source' => 'manual',
+                    'is_primary' => true,
                 ]);
             }
             if ($device->wifi_mac) {
                 \App\Models\DeviceMac::upsertMac($device->wifi_mac, [
                     'adapter_type' => 'wifi',
                     'adapter_name' => 'WiFi',
-                    'device_id'    => $device->id,
-                    'source'       => 'manual',
-                    'is_primary'   => false,
+                    'device_id' => $device->id,
+                    'source' => 'manual',
+                    'is_primary' => false,
                 ]);
             }
         }
 
         // Recalculate depreciation if cost or method changed
         if ($device->purchase_cost && $device->depreciation_method === 'straight_line') {
-            $device->update(['current_value' => (new DepreciationService())->currentValue($device)]);
+            $device->update(['current_value' => (new DepreciationService)->currentValue($device)]);
         }
 
         ActivityLog::log('updated', $device, $data);
@@ -492,6 +622,7 @@ class DeviceController extends Controller
 
         if ($activeAssignment) {
             $assigneeName = $activeAssignment->employee?->name ?? 'an employee';
+
             return back()->with('error',
                 "Cannot delete \"{$device->name}\" — it is currently assigned to {$assigneeName}. Return the device first."
             );
@@ -520,11 +651,11 @@ class DeviceController extends Controller
         }
 
         $name = $device->name;
-        ActivityLog::log('deleted device: ' . $name, $device);
+        ActivityLog::log('deleted device: '.$name, $device);
         $device->delete();
 
         return redirect()->route('admin.devices.index')
-                         ->with('success', "Device \"{$name}\" deleted.");
+            ->with('success', "Device \"{$name}\" deleted.");
     }
 
     public function label(Device $device)
@@ -540,10 +671,10 @@ class DeviceController extends Controller
     public function quickAssign(Request $request, Device $device)
     {
         $data = $request->validate([
-            'employee_id'   => 'required|exists:employees,id',
+            'employee_id' => 'required|exists:employees,id',
             'assigned_date' => 'required|date',
-            'condition'     => 'required|in:good,fair,poor',
-            'notes'         => 'nullable|string|max:500',
+            'condition' => 'required|in:good,fair,poor',
+            'notes' => 'nullable|string|max:500',
         ]);
 
         $existing = EmployeeAsset::where('asset_id', $device->id)->whereNull('returned_date')->first();
@@ -552,11 +683,11 @@ class DeviceController extends Controller
         }
 
         EmployeeAsset::create([
-            'employee_id'   => $data['employee_id'],
-            'asset_id'      => $device->id,
+            'employee_id' => $data['employee_id'],
+            'asset_id' => $device->id,
             'assigned_date' => $data['assigned_date'],
-            'condition'     => $data['condition'],
-            'notes'         => $data['notes'] ?? null,
+            'condition' => $data['condition'],
+            'notes' => $data['notes'] ?? null,
         ]);
         $device->update(['status' => 'assigned']);
         AssetHistory::record($device, 'assigned', "Assigned to employee ID {$data['employee_id']}");
@@ -568,15 +699,15 @@ class DeviceController extends Controller
     {
         $data = $request->validate([
             'returned_date' => 'required|date',
-            'condition'     => 'required|in:good,fair,poor',
-            'notes'         => 'nullable|string|max:500',
+            'condition' => 'required|in:good,fair,poor',
+            'notes' => 'nullable|string|max:500',
         ]);
 
         $assignment = EmployeeAsset::where('asset_id', $device->id)->whereNull('returned_date')->firstOrFail();
         $assignment->update([
             'returned_date' => $data['returned_date'],
-            'condition'     => $data['condition'],
-            'notes'         => $data['notes'] ?? null,
+            'condition' => $data['condition'],
+            'notes' => $data['notes'] ?? null,
         ]);
         $device->update(['status' => 'available']);
         AssetHistory::record($device, 'returned', "Returned from employee {$assignment->employee?->name}");
@@ -588,7 +719,8 @@ class DeviceController extends Controller
     {
         $type = $request->query('type', 'other');
         try {
-            $code = (new AssetCodeService())->generate($type);
+            $code = (new AssetCodeService)->generate($type);
+
             return response()->json(['code' => $code]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);

@@ -14,6 +14,9 @@
         <a href="{{ route('admin.devices.import') }}" class="btn btn-outline-info btn-sm">
             <i class="bi bi-file-earmark-spreadsheet me-1"></i>Import MAC/Serial
         </a>
+        <a href="{{ route('admin.devices.mac-backfill') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-ethernet me-1"></i>Backfill MACs from DHCP
+        </a>
         <a href="{{ route('admin.devices.batch-create') }}" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-boxes me-1"></i>Batch Add
         </a>
