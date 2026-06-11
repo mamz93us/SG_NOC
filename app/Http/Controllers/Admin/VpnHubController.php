@@ -47,6 +47,7 @@ class VpnHubController extends Controller
             'remote_id' => 'nullable|string|max:255',
             'remote_subnet' => 'required|string', // Comma separated allowed
             'local_subnet' => 'required|string',  // Comma separated allowed
+            'ping_target_ip' => 'nullable|ip',
             'pre_shared_key' => 'required|string',
             'ike_version' => 'required|in:IKEv2,IKEv1',
             'encryption' => 'required|string',
@@ -115,6 +116,7 @@ class VpnHubController extends Controller
             'remote_id' => 'nullable|string|max:255',
             'remote_subnet' => 'required|string', // Comma separated allowed
             'local_subnet' => 'required|string',  // Comma separated allowed
+            'ping_target_ip' => 'nullable|ip',
             'pre_shared_key' => 'nullable|string',
             'ike_version' => 'required|in:IKEv2,IKEv1',
             'encryption' => 'required|string',
@@ -333,6 +335,7 @@ class VpnHubController extends Controller
                 'children' => $children,
                 'uptime_seconds' => $uptime,
                 'uptime_human' => $uptime !== null ? $this->vpnService->humanDuration($uptime) : null,
+                'ping' => $this->pingInfo($tunnel),
                 'sophosVpn' => $this->getSophosVpnInfo($tunnel),
                 'raw_output' => $this->sanitizeLog($result['output'] ?? 'No status output available.'),
             ]);
@@ -375,6 +378,20 @@ class VpnHubController extends Controller
                 'logs' => 'Error retrieving logs: '.$e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Latest tunnel-internal ping result (written by vpn:ping-tunnels) for
+     * the Connectivity column.
+     */
+    protected function pingInfo(VpnTunnel $tunnel): array
+    {
+        return [
+            'target' => $tunnel->pingTarget(),
+            'status' => $tunnel->ping_status,
+            'latency_ms' => $tunnel->ping_latency_ms,
+            'checked' => $tunnel->last_ping_at?->diffForHumans(short: true),
+        ];
     }
 
     /**

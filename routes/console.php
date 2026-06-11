@@ -124,6 +124,15 @@ Schedule::call(function () {
     }
 })->name('check-vpn-status')->withoutOverlapping(5)->everyMinute();
 
+// VPN Hub connectivity double-check — pings each tunnel's branch firewall
+// through the tunnel (IKE can be ESTABLISHED while traffic is blackholed).
+// Results land on vpn_tunnels.ping_* and show as the Connectivity column.
+Schedule::command('vpn:ping-tunnels')
+    ->everyTenMinutes()
+    ->withoutOverlapping(8)
+    ->runInBackground()
+    ->name('vpn-ping-tunnels');
+
 Schedule::call(function () {
     $service = app(\App\Services\PingService::class);
     $hosts = \App\Models\MonitoredHost::where('ping_enabled', true)->get();

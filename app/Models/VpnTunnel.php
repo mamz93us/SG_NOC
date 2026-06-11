@@ -25,14 +25,45 @@ class VpnTunnel extends Model
         'lifetime',
         'status',
         'last_checked_at',
+        'ping_target_ip',
+        'ping_status',
+        'ping_latency_ms',
+        'last_ping_at',
     ];
 
     protected $casts = [
         // 'pre_shared_key' => 'encrypted', // handled manually with error catching
         'last_checked_at' => 'datetime',
+        'last_ping_at' => 'datetime',
         'dh_group' => 'integer',
         'dpd_delay' => 'integer',
+        'ping_latency_ms' => 'integer',
     ];
+
+    /**
+     * IP pinged through the tunnel as a connectivity double-check. Explicit
+     * ping_target_ip wins; otherwise the first host of the first remote
+     * subnet (the branch Sophos answers on 10.x.0.1 at every site).
+     */
+    public function pingTarget(): ?string
+    {
+        if (! empty($this->ping_target_ip)) {
+            return $this->ping_target_ip;
+        }
+
+        $first = trim(explode(',', (string) $this->remote_subnet)[0] ?? '');
+        if (! str_contains($first, '/')) {
+            return filter_var($first, FILTER_VALIDATE_IP) ? $first : null;
+        }
+
+        [$network, $bits] = explode('/', $first, 2);
+        $long = ip2long(trim($network));
+        if ($long === false || (int) $bits >= 31) {
+            return null;
+        }
+
+        return long2ip($long + 1);
+    }
 
     /**
      * The CHILD_SAs this tunnel is configured for — the cross-product of local

@@ -71,10 +71,18 @@
 
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Local Subnet(s)</label>
-                            <input type="text" name="local_subnet" class="form-control @error('local_subnet') is-invalid @enderror" 
+                            <input type="text" name="local_subnet" class="form-control @error('local_subnet') is-invalid @enderror"
                                    value="{{ old('local_subnet', $tunnel->local_subnet) }}" placeholder="e.g. 192.168.1.0/24" required>
                             <div class="form-text small">Multiple subnets: <code>10.0.0.0/16, 172.16.0.0/12</code></div>
                             @error('local_subnet') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Ping Target IP (Optional)</label>
+                            <input type="text" name="ping_target_ip" class="form-control @error('ping_target_ip') is-invalid @enderror"
+                                   value="{{ old('ping_target_ip', $tunnel->ping_target_ip) }}" placeholder="e.g. {{ $tunnel->pingTarget() ?? '10.4.0.1' }}">
+                            <div class="form-text small">Connectivity check pings this host through the tunnel every 10 min. Empty = first host of the first remote subnet.</div>
+                            @error('ping_target_ip') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
 
                         <div class="col-md-12">

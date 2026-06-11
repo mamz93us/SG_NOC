@@ -31,6 +31,7 @@
                         <th>Subnets (Remote / Local)</th>
                         <th>Status</th>
                         <th>Uptime</th>
+                        <th>Connectivity</th>
                         <th>Last Checked</th>
                         <th class="text-end pe-4">Actions</th>
                     </tr>
@@ -64,6 +65,22 @@
                             </td>
                             <td>
                                 <span id="uptime-{{ $tunnel->id }}" class="text-muted small">—</span>
+                            </td>
+                            <td>
+                                <div id="ping-{{ $tunnel->id }}">
+                                    @if($tunnel->ping_status === 'up')
+                                        <span class="badge bg-success">{{ $tunnel->ping_latency_ms !== null ? $tunnel->ping_latency_ms.' ms' : 'Reachable' }}</span>
+                                    @elseif($tunnel->ping_status === 'down')
+                                        <span class="badge bg-danger">No reply</span>
+                                    @else
+                                        <span class="text-muted small">—</span>
+                                    @endif
+                                    @if($tunnel->pingTarget())
+                                        <div class="text-muted font-monospace" style="font-size:.72rem">
+                                            {{ $tunnel->pingTarget() }}@if($tunnel->last_ping_at) · {{ $tunnel->last_ping_at->diffForHumans(short: true) }}@endif
+                                        </div>
+                                    @endif
+                                </div>
                             </td>
                             <td>
                                 <span class="text-muted small">
@@ -104,7 +121,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center py-5">
+                            <td colspan="9" class="text-center py-5">
                                 <div class="text-muted mb-3">
                                     <i class="bi bi-diagram-3 fs-1 d-block mb-3 opacity-25"></i>
                                     No VPN tunnels configured yet.
@@ -253,6 +270,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (uptimeEl) {
                     uptimeEl.textContent = data.uptime_human || '—';
                     uptimeEl.title = data.uptime_seconds != null ? `${data.uptime_seconds.toLocaleString()} seconds since IKE_SA established` : '';
+                }
+                const pingEl = document.getElementById(`ping-${id}`);
+                if (pingEl && data.ping) {
+                    const p = data.ping;
+                    let badge;
+                    if (p.status === 'up') {
+                        badge = `<span class="badge bg-success">${p.latency_ms != null ? p.latency_ms + ' ms' : 'Reachable'}</span>`;
+                    } else if (p.status === 'down') {
+                        badge = '<span class="badge bg-danger">No reply</span>';
+                    } else {
+                        badge = '<span class="text-muted small">—</span>';
+                    }
+                    const detail = p.target
+                        ? `<div class="text-muted font-monospace" style="font-size:.72rem">${p.target}${p.checked ? ' · ' + p.checked : ''}</div>`
+                        : '';
+                    pingEl.innerHTML = badge + detail;
                 }
                 if (data.swanctl_available === false) {
                     // swanctl not responding — show last known status with warning
