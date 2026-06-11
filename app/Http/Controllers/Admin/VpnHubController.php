@@ -323,10 +323,16 @@ class VpnHubController extends Controller
                 ];
             })->values();
 
+            $uptime = $isEstablished
+                ? $this->vpnService->parseIkeUptime($result['output'] ?? '', $tunnel->name)
+                : null;
+
             return response()->json([
                 'is_up' => $isEstablished,
                 'swanctl_available' => true,
                 'children' => $children,
+                'uptime_seconds' => $uptime,
+                'uptime_human' => $uptime !== null ? $this->vpnService->humanDuration($uptime) : null,
                 'sophosVpn' => $this->getSophosVpnInfo($tunnel),
                 'raw_output' => $this->sanitizeLog($result['output'] ?? 'No status output available.'),
             ]);

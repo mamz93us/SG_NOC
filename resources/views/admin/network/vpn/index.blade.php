@@ -30,6 +30,7 @@
                         <th>Remote IP</th>
                         <th>Subnets (Remote / Local)</th>
                         <th>Status</th>
+                        <th>Uptime</th>
                         <th>Last Checked</th>
                         <th class="text-end pe-4">Actions</th>
                     </tr>
@@ -60,6 +61,9 @@
                                     <span class="spinner-border spinner-border-sm text-muted me-2" role="status"></span>
                                     <span class="text-muted small">Checking...</span>
                                 </div>
+                            </td>
+                            <td>
+                                <span id="uptime-{{ $tunnel->id }}" class="text-muted small">—</span>
                             </td>
                             <td>
                                 <span class="text-muted small">
@@ -100,7 +104,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center py-5">
+                            <td colspan="8" class="text-center py-5">
                                 <div class="text-muted mb-3">
                                     <i class="bi bi-diagram-3 fs-1 d-block mb-3 opacity-25"></i>
                                     No VPN tunnels configured yet.
@@ -245,6 +249,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 return response.json();
             })
             .then(data => {
+                const uptimeEl = document.getElementById(`uptime-${id}`);
+                if (uptimeEl) {
+                    uptimeEl.textContent = data.uptime_human || '—';
+                    uptimeEl.title = data.uptime_seconds != null ? `${data.uptime_seconds.toLocaleString()} seconds since IKE_SA established` : '';
+                }
                 if (data.swanctl_available === false) {
                     // swanctl not responding — show last known status with warning
                     const lastStatus = (data.last_known_status || 'unknown').toUpperCase();

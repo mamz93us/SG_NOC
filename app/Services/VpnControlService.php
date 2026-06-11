@@ -262,6 +262,56 @@ class VpnControlService
     }
 
     /**
+     * Parse how long a tunnel's IKE_SA has been up out of `swanctl --list-sas`
+     * output. The IKE_SA block carries "established Ns ago, ..." (CHILD_SAs say
+     * "installed", so they never false-match). A tunnel can briefly hold
+     * several ESTABLISHED IKE_SAs (reauth/rekey leftovers) — the oldest one is
+     * the real uptime.
+     */
+    public function parseIkeUptime(string $output, string $tunnelName): ?int
+    {
+        $uptime = null;
+        $inTarget = false;
+
+        foreach (preg_split('/\r?\n/', $output) as $line) {
+            // IKE_SA header (column 0): "NAME: #12, ESTABLISHED, IKEv2, ..."
+            if (preg_match('/^(\S+):\s+#\d+,\s+(\w+),\s+IKE/', $line, $m)) {
+                $inTarget = $m[1] === $tunnelName && $m[2] === 'ESTABLISHED';
+
+                continue;
+            }
+            if ($inTarget && preg_match('/^\s+established\s+(\d+)s\s+ago/', $line, $m)) {
+                $uptime = max($uptime ?? 0, (int) $m[1]);
+                $inTarget = false; // one uptime line per IKE_SA block
+            }
+        }
+
+        return $uptime;
+    }
+
+    /** "93784" → "1d 2h 3m" (seconds-only below one minute). */
+    public function humanDuration(int $seconds): string
+    {
+        if ($seconds < 60) {
+            return "{$seconds}s";
+        }
+        $days = intdiv($seconds, 86400);
+        $hours = intdiv($seconds % 86400, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days}d";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours}h";
+        }
+        $parts[] = "{$minutes}m";
+
+        return implode(' ', $parts);
+    }
+
+    /**
      * Execute the wrapper script asynchronously (fire-and-forget).
      * Used for `up` and `down` which can take 30+ seconds to negotiate IKE.
      * Waits up to 5 seconds for an immediate error, then returns success so

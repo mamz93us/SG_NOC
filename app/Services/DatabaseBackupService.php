@@ -123,24 +123,42 @@ class DatabaseBackupService
 
     private function dump(string $cnfPath, string $database, string $sqlPath): void
     {
-        $process = new Process([
-            (string) config('db_backup.mysqldump_path', 'mysqldump'),
-            '--defaults-extra-file='.$cnfPath,
-            '--single-transaction',
-            '--quick',
-            '--routines',
-            '--triggers',
-            '--events',
-            '--no-tablespaces',
-            '--result-file='.$sqlPath,
-            $database,
-        ]);
-        $process->setTimeout((float) config('db_backup.timeout', 1800));
-        $process->run();
+        // Error 1412 = a concurrent TRUNCATE/ALTER broke the consistent
+        // snapshot (TRUNCATE is DDL in MySQL). Scheduled jobs and admin
+        // "clear log" buttons can fire one mid-dump, so retry a few times —
+        // each attempt opens a fresh snapshot.
+        $maxAttempts = 3;
 
-        if (! $process->isSuccessful()) {
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $process = new Process([
+                (string) config('db_backup.mysqldump_path', 'mysqldump'),
+                '--defaults-extra-file='.$cnfPath,
+                '--single-transaction',
+                '--quick',
+                '--routines',
+                '--triggers',
+                '--events',
+                '--no-tablespaces',
+                '--result-file='.$sqlPath,
+                $database,
+            ]);
+            $process->setTimeout((float) config('db_backup.timeout', 1800));
+            $process->run();
+
+            if ($process->isSuccessful()) {
+                break;
+            }
+
+            $error = trim($process->getErrorOutput()) ?: trim($process->getOutput()) ?: 'exit code '.$process->getExitCode();
+            if (str_contains($error, 'Error 1412') && $attempt < $maxAttempts) {
+                Log::warning("db-backup: snapshot broken by concurrent DDL (attempt {$attempt}/{$maxAttempts}), retrying — {$error}");
+                sleep(3);
+
+                continue;
+            }
+
             throw new \RuntimeException(
-                'mysqldump failed: '.(trim($process->getErrorOutput()) ?: trim($process->getOutput()) ?: 'exit code '.$process->getExitCode())
+                'mysqldump failed'.($attempt > 1 ? " after {$attempt} attempts" : '').': '.$error
             );
         }
 
