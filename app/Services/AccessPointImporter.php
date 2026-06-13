@@ -136,7 +136,9 @@ class AccessPointImporter
                 'ip_address' => $ap->ip_address,
                 'branch_id' => $ap->branch_id,
                 'status' => 'active',
-                'source' => 'access_point_import',
+                'source' => 'access_point',
+                // satisfies the unique(source, source_id) constraint on devices
+                'source_id' => $ap->serial_number ?: ($ap->mac_address ?: 'ap-'.$ap->id),
                 'firmware_version' => $ap->firmware,
                 'asset_code' => $this->safeAssetCode('access_point'),
             ]);
