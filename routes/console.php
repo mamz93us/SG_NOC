@@ -723,3 +723,11 @@ Schedule::command('access-points:ping')
     ->withoutOverlapping(10)
     ->runInBackground()
     ->name('access-points-ping');
+
+// NOC overview uptime snapshots — hourly up/down capture for APs, VPN tunnels
+// and hosts so the overview dashboard can chart uptime over time.
+Schedule::command('noc:snapshot-availability')
+    ->hourly()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('noc-snapshot-availability');

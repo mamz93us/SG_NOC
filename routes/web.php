@@ -1306,6 +1306,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── NOC Dashboard ────────────────────────────────────────
     Route::middleware('permission:view-noc')->prefix('noc')->name('noc.')->group(function () {
         Route::get('/', [NocController::class, 'dashboard'])->name('dashboard');
+        Route::get('/overview', [\App\Http\Controllers\Admin\NocOverviewController::class, 'index'])->name('overview.index');
+        Route::get('/overview/chart', [\App\Http\Controllers\Admin\NocOverviewController::class, 'chart'])->name('overview.chart');
         Route::get('/branch/{id}', [NocController::class, 'branch'])->name('branch');
         Route::get('/events', [NocController::class, 'events'])->name('events');
         Route::get('/alerts', [\App\Http\Controllers\Admin\AlertFeedController::class, 'index'])->name('alerts');
