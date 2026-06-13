@@ -23,6 +23,15 @@ class Setting extends Model
         // Sophos Firewall
         'sophos_sync_enabled',
         'sophos_sync_interval',
+        // Sophos Central (cloud API — APs, firewall fleet, alerts)
+        'sophos_central_enabled',
+        'sophos_central_client_id',
+        'sophos_central_client_secret',
+        'sophos_central_tenant_id',
+        'sophos_central_data_region',
+        'sophos_central_sync_interval',
+        'sophos_central_alerts_enabled',
+        'sophos_central_last_sync_at',
         // Microsoft Graph / Identity
         'graph_tenant_id',
         'graph_client_id',
@@ -146,6 +155,10 @@ class Setting extends Model
         'meraki_polling_interval' => 'integer',
         'sophos_sync_enabled' => 'boolean',
         'sophos_sync_interval' => 'integer',
+        'sophos_central_enabled' => 'boolean',
+        'sophos_central_sync_interval' => 'integer',
+        'sophos_central_alerts_enabled' => 'boolean',
+        'sophos_central_last_sync_at' => 'datetime',
         'identity_sync_enabled' => 'boolean',
         'identity_sync_interval' => 'integer',
         'gdms_sync_interval' => 'integer',
@@ -221,6 +234,25 @@ class Setting extends Model
     }
 
     public function getMerakiApiKeyAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── Sophos Central client secret — encrypted at rest ─────────
+
+    public function setSophosCentralClientSecretAttribute(?string $value): void
+    {
+        $this->attributes['sophos_central_client_secret'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getSophosCentralClientSecretAttribute(?string $value): ?string
     {
         if (! $value) {
             return null;

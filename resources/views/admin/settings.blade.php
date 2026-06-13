@@ -1248,6 +1248,90 @@
 </div>
 
 {{-- ─────────────────────────────────────────────────────── --}}
+{{-- Sophos Central API (APs, firewall fleet, alerts)        --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="sophos-central">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-cloud-fill text-primary fs-5"></i>
+        <h5 class="mb-0">Sophos Central API</h5>
+        @if($settings->sophos_central_enabled && $settings->sophos_central_client_id)
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @elseif($settings->sophos_central_client_id)
+            <span class="badge bg-warning text-dark ms-auto">Configured (Disabled)</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Not Configured</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Cloud API for the Sophos Central tenant — syncs the access-point fleet, the firewall
+            fleet (Central view, firmware status), and open Central alerts into
+            <a href="{{ \Illuminate\Support\Facades\Route::has('admin.network.sophos-central.index') ? route('admin.network.sophos-central.index') : '#' }}">Network → Sophos Central</a>.
+            Create credentials in Sophos Central under
+            <strong>Global Settings → API Credentials</strong> (Service Principal ReadOnly is enough).
+            This is separate from the per-firewall XML API configured on each Sophos Firewall record.
+        </p>
+
+        <form method="POST" action="{{ route('admin.settings.sophos-central') }}">
+            @csrf
+            <div class="row g-3 mb-3">
+                <div class="col-12 d-flex align-items-center gap-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="sophos_central_enabled"
+                               id="sophos_central_enabled" value="1" {{ $settings->sophos_central_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="sophos_central_enabled">Enable scheduled sync</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="sophos_central_alerts_enabled"
+                               id="sophos_central_alerts_enabled" value="1" {{ $settings->sophos_central_alerts_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label" for="sophos_central_alerts_enabled">Ingest Central alerts as NOC events</label>
+                    </div>
+                </div>
+
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold">Client ID</label>
+                    <input type="text" name="sophos_central_client_id" class="form-control font-monospace"
+                           value="{{ old('sophos_central_client_id', $settings->sophos_central_client_id) }}"
+                           autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Client Secret</label>
+                    <input type="password" name="sophos_central_client_secret" class="form-control" autocomplete="new-password"
+                           placeholder="{{ $settings->sophos_central_client_secret ? '•••••• (leave blank to keep current)' : 'Paste client secret here' }}">
+                    <div class="form-text">Encrypted at rest.</div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Sync interval (min)</label>
+                    <input type="number" min="5" max="1440" name="sophos_central_sync_interval" class="form-control"
+                           value="{{ old('sophos_central_sync_interval', $settings->sophos_central_sync_interval ?: 15) }}">
+                </div>
+
+                @if($settings->sophos_central_tenant_id)
+                <div class="col-12">
+                    <div class="small text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Discovered tenant: <code>{{ $settings->sophos_central_tenant_id }}</code>
+                        &nbsp;·&nbsp; Data region: <code>{{ $settings->sophos_central_data_region }}</code>
+                        &nbsp;·&nbsp; Last sync: {{ $settings->sophos_central_last_sync_at?->diffForHumans() ?? 'never' }}
+                    </div>
+                </div>
+                @endif
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="sophos-central-test-btn">
+                    <i class="bi bi-plug me-1"></i>Test Connection
+                </button>
+            </div>
+            <div id="sophos-central-test-result" class="small mt-2"></div>
+        </form>
+    </div>
+</div>
+
+{{-- ─────────────────────────────────────────────────────── --}}
 {{-- AvePoint Graph API (Cloud Backup for M365)              --}}
 {{-- ─────────────────────────────────────────────────────── --}}
 <div class="card mt-4" id="avepoint">
@@ -1570,8 +1654,8 @@
 
 @push('scripts')
 <script>
-// Generic test-connection wiring for AvePoint + Azure Blob + SFTPGo.
-['avepoint', 'azure-blob', 'sftpgo'].forEach(prefix => {
+// Generic test-connection wiring for AvePoint + Azure Blob + SFTPGo + Sophos Central.
+['avepoint', 'azure-blob', 'sftpgo', 'sophos-central'].forEach(prefix => {
     const btn    = document.getElementById(prefix + '-test-btn');
     const result = document.getElementById(prefix + '-test-result');
     if (! btn) return;

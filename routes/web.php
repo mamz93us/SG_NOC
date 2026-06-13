@@ -549,6 +549,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/azure-blob/test', [SettingsController::class, 'testAzureBlob'])->name('settings.azure-blob.test');
         Route::post('settings/sftpgo', [SettingsController::class, 'updateSftpgo'])->name('settings.sftpgo');
         Route::post('settings/sftpgo/test', [SettingsController::class, 'testSftpgo'])->name('settings.sftpgo.test');
+        Route::post('settings/sophos-central', [SettingsController::class, 'updateSophosCentral'])->name('settings.sophos-central');
+        Route::post('settings/sophos-central/test', [SettingsController::class, 'testSophosCentral'])->name('settings.sophos-central.test');
 
         // ── Sync Status Dashboard ────────────────────────────────────
         Route::get('sync-status', [\App\Http\Controllers\Admin\SyncStatusController::class, 'index'])->name('sync-status');
@@ -1159,6 +1161,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/{firewall}', [SophosFirewallController::class, 'destroy'])->name('destroy')->middleware('permission:manage-sophos');
         Route::post('/{firewall}/sync', [SophosFirewallController::class, 'sync'])->name('sync')->middleware('permission:manage-sophos');
         Route::post('/{firewall}/test', [SophosFirewallController::class, 'testConnection'])->name('test')->middleware('permission:manage-sophos');
+    });
+
+    // ─── Sophos Central (cloud — APs, firewall fleet, alerts) ───
+    Route::prefix('network/sophos-central')->name('network.sophos-central.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\SophosCentralController::class, 'index'])->name('index')->middleware('permission:view-sophos');
+        Route::post('/sync', [\App\Http\Controllers\Admin\SophosCentralController::class, 'sync'])->name('sync')->middleware('permission:manage-sophos');
     });
 
     // ─── DNS Management ──────────────────────────────────────

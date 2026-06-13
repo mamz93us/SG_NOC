@@ -12,6 +12,7 @@ use App\Services\AvePoint\AvePointApiService;
 use App\Services\Backup\SftpgoApiService;
 use App\Services\Identity\GraphService;
 use App\Services\SmtpConfigService;
+use App\Services\Sophos\SophosCentralService;
 use App\Services\Teamtailor\TeamtailorApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -337,6 +338,78 @@ class SettingsController extends Controller
             ->route('admin.settings.index')
             ->with('success', 'GDMS API settings updated.')
             ->withFragment('gdms');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Sophos Central (cloud API — APs, firewall fleet, alerts)
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateSophosCentral(Request $request)
+    {
+        $request->validate([
+            'sophos_central_client_id' => 'nullable|string|max:255',
+            'sophos_central_client_secret' => 'nullable|string|max:500',
+            'sophos_central_sync_interval' => 'nullable|integer|min:5|max:1440',
+        ]);
+
+        $settings = Setting::get();
+        $before = [
+            'sophos_central_enabled' => (bool) $settings->sophos_central_enabled,
+            'sophos_central_client_id' => $settings->sophos_central_client_id,
+            'sophos_central_sync_interval' => $settings->sophos_central_sync_interval,
+            'sophos_central_alerts_enabled' => (bool) $settings->sophos_central_alerts_enabled,
+        ];
+
+        $clientIdChanged = $request->sophos_central_client_id !== $settings->sophos_central_client_id;
+
+        $settings->sophos_central_enabled = $request->boolean('sophos_central_enabled');
+        $settings->sophos_central_alerts_enabled = $request->boolean('sophos_central_alerts_enabled');
+        $settings->sophos_central_client_id = $request->sophos_central_client_id;
+        $settings->sophos_central_sync_interval = (int) ($request->sophos_central_sync_interval ?: 15);
+
+        if ($request->filled('sophos_central_client_secret')) {
+            $settings->sophos_central_client_secret = $request->sophos_central_client_secret;
+        }
+
+        // New credentials → stale tenant/data-region cache must be re-discovered
+        if ($clientIdChanged || $request->filled('sophos_central_client_secret')) {
+            $settings->sophos_central_tenant_id = null;
+            $settings->sophos_central_data_region = null;
+            \Illuminate\Support\Facades\Cache::forget('sophos_central_access_token');
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id' => 1,
+            'action' => 'sophos_central_updated',
+            'changes' => [
+                'before' => $before,
+                'after' => [
+                    'sophos_central_enabled' => (bool) $settings->sophos_central_enabled,
+                    'sophos_central_client_id' => $settings->sophos_central_client_id,
+                    'sophos_central_sync_interval' => $settings->sophos_central_sync_interval,
+                    'sophos_central_alerts_enabled' => (bool) $settings->sophos_central_alerts_enabled,
+                ],
+                'secret_changed' => $request->filled('sophos_central_client_secret'),
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'Sophos Central settings updated.')
+            ->withFragment('sophos-central');
+    }
+
+    public function testSophosCentral()
+    {
+        try {
+            return response()->json((new SophosCentralService)->testConnection());
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'detail' => $e->getMessage()]);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
