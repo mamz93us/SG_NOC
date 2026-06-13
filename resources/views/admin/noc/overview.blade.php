@@ -79,7 +79,9 @@
                     @if(empty($g['data']))
                         <div class="text-muted small py-4">No data</div>
                     @else
-                        <canvas id="{{ $g['id'] }}" height="140" data-donut='@json($g['data'])'></canvas>
+                        <div style="position:relative;height:150px">
+                            <canvas id="{{ $g['id'] }}" data-donut='@json($g['data'])'></canvas>
+                        </div>
                     @endif
                 </div>
             </div>
@@ -114,8 +116,10 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header bg-transparent fw-semibold small">{{ $chart['title'] }}</div>
                 <div class="card-body">
-                    <canvas id="{{ $chart['id'] }}" height="110"
-                            data-metric="{{ $chart['metric'] }}" data-type="{{ $chart['type'] }}"></canvas>
+                    <div style="position:relative;height:240px">
+                        <canvas id="{{ $chart['id'] }}"
+                                data-metric="{{ $chart['metric'] }}" data-type="{{ $chart['type'] }}"></canvas>
+                    </div>
                     <div class="text-muted small text-center chart-empty d-none">No data for this range.</div>
                 </div>
             </div>
@@ -175,6 +179,122 @@
                             </tr>
                         @empty
                             <tr><td class="text-center text-muted py-3 small">Nothing expiring</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- VoIP / Telephony --}}
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent fw-semibold small"><i class="bi bi-telephone-fill me-1"></i>VoIP / Telephony</div>
+                <div class="card-body">
+                    <div class="row g-2 text-center">
+                        <div class="col-4">
+                            <div class="fs-4 fw-bold">{{ $voip['ext_registered'] ?? 0 }}<span class="text-muted fs-6">/{{ $voip['ext_total'] ?? 0 }}</span></div>
+                            <div class="text-muted small">Extensions registered</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="fs-4 fw-bold {{ ($voip['trunks_down'] ?? 0) ? 'text-danger' : 'text-success' }}">{{ $voip['trunks_up'] ?? 0 }}<span class="text-muted fs-6">/{{ $voip['trunks_total'] ?? 0 }}</span></div>
+                            <div class="text-muted small">Trunks up</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="fs-4 fw-bold text-primary">{{ $voip['active_calls'] ?? 0 }}</div>
+                            <div class="text-muted small">Active calls</div>
+                        </div>
+                        <div class="col-6 mt-2">
+                            <div class="fs-5 fw-semibold">{{ $voip['calls_today'] ?? 0 }}</div>
+                            <div class="text-muted small">Calls today</div>
+                        </div>
+                        <div class="col-6 mt-2">
+                            <div class="fs-5 fw-semibold">{{ $voip['avg_mos_today'] !== null ? $voip['avg_mos_today'] : '—' }}</div>
+                            <div class="text-muted small">Avg MOS today</div>
+                        </div>
+                    </div>
+                    @if(!empty($voip['quality']))
+                    <hr class="my-2">
+                    <div class="d-flex flex-wrap gap-2 justify-content-center small">
+                        @foreach($voip['quality'] as $label => $count)
+                            <span class="badge {{ in_array(strtolower((string)$label), ['poor','bad']) ? 'bg-danger' : (strtolower((string)$label) === 'fair' ? 'bg-warning text-dark' : 'bg-success') }}">{{ ucfirst((string)$label) }}: {{ $count }}</span>
+                        @endforeach
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent fw-semibold small"><i class="bi bi-hdd-network me-1"></i>SIP Trunks</div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0 align-middle">
+                        <thead class="table-light"><tr><th>Trunk</th><th>Host</th><th>Status</th><th>Last Check</th></tr></thead>
+                        <tbody>
+                        @forelse($voip['trunks'] ?? [] as $t)
+                            <tr>
+                                <td class="small fw-semibold">{{ $t->trunk_name }}</td>
+                                <td class="small"><code>{{ $t->host }}</code></td>
+                                <td><span class="badge {{ $t->status === 'unreachable' ? 'bg-danger' : 'bg-success' }}">{{ ucfirst((string)$t->status) }}</span></td>
+                                <td class="small text-muted text-nowrap">{{ $t->last_checked_at ? \Illuminate\Support\Carbon::parse($t->last_checked_at)->diffForHumans(short: true) : '—' }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" class="text-center text-muted py-3 small">No SIP trunks cached.</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Site-to-Site VPN — per firewall + hub --}}
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent fw-semibold small"><i class="bi bi-shield-lock-fill me-1"></i>Sophos Site-to-Site Tunnels (per firewall)</div>
+                <div class="table-responsive" style="max-height:360px;overflow:auto">
+                    <table class="table table-sm table-hover mb-0 align-middle">
+                        <thead class="table-light"><tr><th>Firewall</th><th>Tunnel</th><th>Remote Gateway</th><th>Remote Subnet</th><th>Status</th></tr></thead>
+                        <tbody>
+                        @forelse($s2s['sophos'] ?? [] as $t)
+                            <tr>
+                                <td class="small fw-semibold">{{ $t->firewall }}</td>
+                                <td class="small">{{ $t->name }}</td>
+                                <td class="small"><code>{{ $t->remote_gateway ?? '—' }}</code></td>
+                                <td class="small"><code>{{ $t->remote_subnet ?? '—' }}</code></td>
+                                <td><span class="badge {{ $t->status === 'up' ? 'bg-success' : ($t->status === 'down' ? 'bg-danger' : 'bg-secondary') }}">{{ strtoupper((string)$t->status) }}</span></td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="text-center text-muted py-3 small">No Sophos VPN tunnels synced. (Add firewalls under Network → Sophos Firewalls and sync.)</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent fw-semibold small"><i class="bi bi-diagram-3-fill me-1"></i>VPN Hub Tunnels (VPS)</div>
+                <div class="table-responsive" style="max-height:360px;overflow:auto">
+                    <table class="table table-sm table-hover mb-0 align-middle">
+                        <thead class="table-light"><tr><th>Tunnel</th><th>Remote IP</th><th>Status</th><th>Ping</th></tr></thead>
+                        <tbody>
+                        @forelse($s2s['hub'] ?? [] as $t)
+                            <tr>
+                                <td class="small fw-semibold">{{ $t->name }}</td>
+                                <td class="small"><code>{{ $t->remote_public_ip ?? '—' }}</code></td>
+                                <td><span class="badge {{ $t->status === 'up' ? 'bg-success' : ($t->status === 'down' ? 'bg-danger' : 'bg-secondary') }}">{{ strtoupper((string)$t->status) }}</span></td>
+                                <td class="small">
+                                    @if($t->ping_status)
+                                        <span class="badge {{ $t->ping_status === 'up' ? 'bg-success' : 'bg-danger' }}">{{ $t->ping_latency_ms !== null ? $t->ping_latency_ms.'ms' : strtoupper($t->ping_status) }}</span>
+                                    @else <span class="text-muted">—</span> @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" class="text-center text-muted py-3 small">No hub tunnels.</td></tr>
                         @endforelse
                         </tbody>
                     </table>

@@ -30,6 +30,8 @@ class NocOverviewController extends Controller
             'gauges' => $this->gauges($branchId),
             'tables' => $this->tables($branchId),
             'matrix' => $this->branchMatrix(),
+            's2s' => $this->siteToSite($branchId),
+            'voip' => $this->voip($branchId),
         ]);
 
         return view('admin.noc.overview', array_merge($data, [
@@ -116,6 +118,78 @@ class NocOverviewController extends Controller
                 'vpn_total' => $vpnTot[$b->id] ?? 0,
             ])->all();
         }, []);
+    }
+
+    // ─── Site-to-Site VPN (per firewall + hub) ────────────────────
+
+    protected function siteToSite(?int $branchId): array
+    {
+        return [
+            'sophos' => $this->safe(function () use ($branchId) {
+                if (! Schema::hasTable('sophos_vpn_tunnels') || ! Schema::hasTable('sophos_firewalls')) {
+                    return collect();
+                }
+                $q = DB::table('sophos_vpn_tunnels as t')
+                    ->join('sophos_firewalls as f', 'f.id', '=', 't.firewall_id')
+                    ->select('f.name as firewall', 'f.branch_id', 't.name', 't.status', 't.connection_type',
+                        't.remote_gateway', 't.local_subnet', 't.remote_subnet', 't.last_checked_at');
+                if ($branchId) {
+                    $q->where('f.branch_id', $branchId);
+                }
+
+                return $q->orderBy('f.name')->orderBy('t.name')->get();
+            }, collect()),
+            'hub' => $this->safe(function () use ($branchId) {
+                if (! Schema::hasTable('vpn_tunnels')) {
+                    return collect();
+                }
+                $q = DB::table('vpn_tunnels')->select('name', 'branch_id', 'status', 'ping_status',
+                    'ping_latency_ms', 'remote_public_ip', 'remote_subnet', 'last_checked_at');
+                if ($branchId) {
+                    $q->where('branch_id', $branchId);
+                }
+
+                return $q->orderBy('name')->get();
+            }, collect()),
+        ];
+    }
+
+    // ─── VoIP / Telephony details ─────────────────────────────────
+
+    protected function voip(?int $branchId): array
+    {
+        $extTotal = $this->safe(fn () => DB::table('ucm_extensions_cache')->count());
+        $extReg = $this->safe(fn () => DB::table('ucm_extensions_cache')->where('status', '!=', 'unavailable')->count());
+        $trunkTotal = $this->safe(fn () => DB::table('ucm_trunks_cache')->count());
+        $trunkDown = $this->safe(fn () => DB::table('ucm_trunks_cache')->where('status', 'unreachable')->count());
+
+        return [
+            'ext_total' => $extTotal,
+            'ext_registered' => $extReg,
+            'trunks_total' => $trunkTotal,
+            'trunks_up' => max(0, $trunkTotal - $trunkDown),
+            'trunks_down' => $trunkDown,
+            'active_calls' => $this->safe(fn () => DB::table('ucm_active_calls')->count()),
+            'calls_today' => $this->safe(fn () => DB::table('ucm_active_calls')->where('start_time', '>=', now()->startOfDay())->count()),
+            'avg_mos_today' => $this->safe(function () use ($branchId) {
+                $q = DB::table('voice_quality_reports')->whereNotNull('mos_lq')->where('call_start', '>=', now()->startOfDay());
+                if ($branchId) {
+                    $q->where('branch_id', $branchId);
+                }
+                $v = $q->avg('mos_lq');
+
+                return $v ? round((float) $v, 2) : null;
+            }, null),
+            'quality' => $this->safe(function () use ($branchId) {
+                $q = DB::table('voice_quality_reports')->where('call_start', '>=', now()->startOfDay());
+                if ($branchId) {
+                    $q->where('branch_id', $branchId);
+                }
+
+                return $q->select('quality_label', DB::raw('COUNT(*) as c'))->groupBy('quality_label')->pluck('c', 'quality_label')->all();
+            }, []),
+            'trunks' => $this->safe(fn () => DB::table('ucm_trunks_cache')->orderBy('trunk_name')->limit(20)->get(['trunk_name', 'host', 'status', 'last_checked_at']), collect()),
+        ];
     }
 
     // ─── Time-series charts (Row C) — lazy JSON ───────────────────
