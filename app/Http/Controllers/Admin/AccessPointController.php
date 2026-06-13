@@ -79,6 +79,21 @@ class AccessPointController extends Controller
         return back()->with('success', $msg);
     }
 
+    public function pingAll()
+    {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('access-points:ping');
+            $out = trim(\Illuminate\Support\Facades\Artisan::output());
+            // Surface the command's summary line (last non-empty line)
+            $lines = array_filter(array_map('trim', preg_split('/\r?\n/', $out)));
+            $summary = end($lines) ?: 'Done.';
+
+            return back()->with('success', "Checked all access points — {$summary}");
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Check-all failed: '.$e->getMessage());
+        }
+    }
+
     public function pingNow(AccessPoint $accessPoint, PingService $ping)
     {
         $result = $ping->ping($accessPoint->ip_address, 2);

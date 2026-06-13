@@ -6,6 +6,7 @@ use App\Models\AccessPoint;
 use App\Models\NocEvent;
 use App\Services\PingService;
 use Illuminate\Console\Command;
+use Symfony\Component\Process\Process;
 
 /**
  * Ping every monitored access point and record reachability + latency.
@@ -35,10 +36,20 @@ class PingAccessPoints extends Command
 
         $up = $down = 0;
 
+        // Ping all IPs in parallel with fping (seconds for the whole fleet);
+        // fall back to per-host PingService when fping isn't available or
+        // didn't return a result for a given IP.
+        $batch = $this->fpingBatch($aps->pluck('ip_address')->unique()->all());
+
         foreach ($aps as $ap) {
-            $result = $ping->ping($ap->ip_address, 2);
-            $alive = (bool) ($result['success'] ?? false);
-            $latency = $alive && isset($result['latency']) ? (int) round((float) $result['latency']) : null;
+            if (array_key_exists($ap->ip_address, $batch)) {
+                $alive = $batch[$ap->ip_address]['alive'];
+                $latency = $batch[$ap->ip_address]['latency'];
+            } else {
+                $result = $ping->ping($ap->ip_address, 2);
+                $alive = (bool) ($result['success'] ?? false);
+                $latency = $alive && isset($result['latency']) ? (int) round((float) $result['latency']) : null;
+            }
 
             $previous = $ap->status;
             $ap->forceFill([
@@ -70,6 +81,52 @@ class PingAccessPoints extends Command
         $this->info("Access points pinged: {$aps->count()} ({$up} up, {$down} down).");
 
         return 0;
+    }
+
+    /**
+     * Ping many IPs at once with fping (parallel). Returns
+     * [ip => ['alive' => bool, 'latency' => ?int]]. Empty when fping is
+     * unavailable, so callers fall back to per-host pinging.
+     *
+     * @param  array<int,string>  $ips
+     * @return array<string,array{alive:bool,latency:?int}>
+     */
+    protected function fpingBatch(array $ips): array
+    {
+        $ips = array_values(array_filter($ips));
+        if ($ips === []) {
+            return [];
+        }
+
+        try {
+            // -e: show round-trip time, -r 1: one retry, -t 1000: 1s per-try timeout
+            $proc = new Process(array_merge(['fping', '-e', '-r', '1', '-t', '1000'], $ips));
+            $proc->setTimeout(120);
+            $proc->run();
+        } catch (\Throwable) {
+            return []; // fping not installed → caller falls back
+        }
+
+        // fping prints per-host results across stdout+stderr depending on build
+        $output = $proc->getOutput()."\n".$proc->getErrorOutput();
+        $results = [];
+
+        foreach (preg_split('/\r?\n/', $output) as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            if (preg_match('/^(\S+)\s+is alive(?:\s+\(([\d.]+)\s*ms\))?/i', $line, $m)) {
+                $results[$m[1]] = [
+                    'alive' => true,
+                    'latency' => isset($m[2]) ? (int) round((float) $m[2]) : null,
+                ];
+            } elseif (preg_match('/^(\S+)\s+is unreachable/i', $line, $m)) {
+                $results[$m[1]] = ['alive' => false, 'latency' => null];
+            }
+        }
+
+        return $results;
     }
 
     protected function raiseDownEvent(AccessPoint $ap): void

@@ -7,6 +7,12 @@
         <h4 class="mb-0"><i class="bi bi-router me-2"></i>Access Points</h4>
         @can('manage-access-points')
         <div class="d-flex gap-2">
+            <form method="POST" action="{{ route('admin.network.access-points.ping-all') }}">
+                @csrf
+                <button class="btn btn-primary btn-sm" id="checkAllBtn">
+                    <i class="bi bi-reception-4 me-1"></i>Check All Now
+                </button>
+            </form>
             <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importModal">
                 <i class="bi bi-upload me-1"></i>Import CSV
             </button>
@@ -157,9 +163,21 @@
     <p class="text-muted small mt-2">
         <i class="bi bi-info-circle me-1"></i>
         APX-series APs have no SNMP, so status is by ICMP ping over the branch VPN tunnels.
-        TP-Link/Omada APs can be added here too once the Omada controller is online.
+        <strong>Monitored APs are auto-checked every 5 minutes</strong> by the scheduler; use
+        <em>Check All Now</em> for an immediate sweep. TP-Link/Omada APs can be added here too
+        once the Omada controller is online.
     </p>
 </div>
+
+@push('scripts')
+<script>
+    document.getElementById('checkAllBtn')?.closest('form')?.addEventListener('submit', e => {
+        const btn = document.getElementById('checkAllBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Checking…';
+    });
+</script>
+@endpush
 
 @can('manage-access-points')
 {{-- Import modal --}}
