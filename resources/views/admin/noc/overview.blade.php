@@ -66,6 +66,43 @@
         @endforeach
     </div>
 
+    {{-- Branch Health Matrix (moved to top) --}}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-transparent fw-semibold small"><i class="bi bi-grid-3x3-gap me-1"></i>Branch Health Matrix</div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr><th>Branch</th><th>Access Points</th><th>Hosts</th><th>VPN Tunnels</th><th>Voice Quality (MOS · 24h)</th></tr>
+                </thead>
+                <tbody>
+                @php
+                    $cell = function ($up, $total) {
+                        if ($total === 0) return '<span class="text-muted">—</span>';
+                        $cls = $up === $total ? 'success' : ($up === 0 ? 'danger' : 'warning');
+                        return "<span class=\"badge bg-{$cls}" . ($cls === 'warning' ? ' text-dark' : '') . "\">{$up}/{$total}</span>";
+                    };
+                    $mosCell = function ($mos, $calls) {
+                        if ($mos === null) return '<span class="text-muted">—</span>';
+                        $cls = $mos >= 4.0 ? 'success' : ($mos >= 3.6 ? 'warning' : 'danger');
+                        return "<span class=\"badge bg-{$cls}" . ($cls === 'warning' ? ' text-dark' : '') . "\">{$mos}</span> <span class=\"text-muted small\">({$calls} calls)</span>";
+                    };
+                @endphp
+                @forelse($matrix as $row)
+                    <tr>
+                        <td class="fw-semibold">{{ $row['name'] }}</td>
+                        <td>{!! $cell($row['aps_up'], $row['aps_total']) !!}</td>
+                        <td>{!! $cell($row['hosts_up'], $row['hosts_total']) !!}</td>
+                        <td>{!! $cell($row['vpn_up'], $row['vpn_total']) !!}</td>
+                        <td>{!! $mosCell($row['mos'], $row['calls']) !!}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" class="text-center text-muted py-3 small">No branches.</td></tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     {{-- Row B — gauges / donuts --}}
     <div class="row g-3 mb-4">
         @foreach([
@@ -260,21 +297,30 @@
     <div class="row g-3 mb-4">
         <div class="col-12 col-lg-7">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-transparent fw-semibold small"><i class="bi bi-shield-lock-fill me-1"></i>Sophos Site-to-Site Tunnels (per firewall)</div>
+                @php $ss = $s2s['sophos_summary'] ?? ['up'=>0,'down'=>0,'total'=>0]; @endphp
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold small"><i class="bi bi-shield-lock-fill me-1"></i>Sophos Site-to-Site Tunnels (per firewall)</span>
+                    <span class="small">
+                        <span class="badge bg-success">{{ $ss['up'] }} up</span>
+                        <span class="badge bg-danger">{{ $ss['down'] }} down</span>
+                        <span class="badge bg-secondary">{{ $ss['total'] }} total</span>
+                    </span>
+                </div>
                 <div class="table-responsive" style="max-height:360px;overflow:auto">
                     <table class="table table-sm table-hover mb-0 align-middle">
-                        <thead class="table-light"><tr><th>Firewall</th><th>Tunnel</th><th>Remote Gateway</th><th>Remote Subnet</th><th>Status</th></tr></thead>
+                        <thead class="table-light"><tr><th>Status</th><th>Tunnel</th><th>Firewall</th><th>Firewall IP</th><th>Branch</th><th>Last Polled</th></tr></thead>
                         <tbody>
                         @forelse($s2s['sophos'] ?? [] as $t)
                             <tr>
-                                <td class="small fw-semibold">{{ $t->firewall }}</td>
-                                <td class="small">{{ $t->name }}</td>
-                                <td class="small"><code>{{ $t->remote_gateway ?? '—' }}</code></td>
-                                <td class="small"><code>{{ $t->remote_subnet ?? '—' }}</code></td>
                                 <td><span class="badge {{ $t->status === 'up' ? 'bg-success' : ($t->status === 'down' ? 'bg-danger' : 'bg-secondary') }}">{{ strtoupper((string)$t->status) }}</span></td>
+                                <td class="small fw-semibold">{{ $t->name }}</td>
+                                <td class="small">{{ $t->firewall }}</td>
+                                <td class="small"><code>{{ $t->firewall_ip }}</code></td>
+                                <td class="small">{{ $t->branch }}</td>
+                                <td class="small text-muted text-nowrap">{{ $t->last_checked }}</td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="text-center text-muted py-3 small">No Sophos VPN tunnels synced. (Add firewalls under Network → Sophos Firewalls and sync.)</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted py-3 small">No Sophos VPN tunnels found. (Needs SNMP VPN sensors on the firewalls — same source as the Command Center.)</td></tr>
                         @endforelse
                         </tbody>
                     </table>
@@ -306,37 +352,6 @@
                     </table>
                 </div>
             </div>
-        </div>
-    </div>
-
-    {{-- Row E — branch matrix --}}
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-transparent fw-semibold small"><i class="bi bi-grid-3x3-gap me-1"></i>Branch Health Matrix</div>
-        <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0 align-middle">
-                <thead class="table-light">
-                    <tr><th>Branch</th><th>Access Points</th><th>Hosts</th><th>VPN Tunnels</th></tr>
-                </thead>
-                <tbody>
-                @php
-                    $cell = function ($up, $total) {
-                        if ($total === 0) return '<span class="text-muted">—</span>';
-                        $cls = $up === $total ? 'success' : ($up === 0 ? 'danger' : 'warning');
-                        return "<span class=\"badge bg-{$cls}" . ($cls === 'warning' ? ' text-dark' : '') . "\">{$up}/{$total}</span>";
-                    };
-                @endphp
-                @forelse($matrix as $row)
-                    <tr>
-                        <td class="fw-semibold">{{ $row['name'] }}</td>
-                        <td>{!! $cell($row['aps_up'], $row['aps_total']) !!}</td>
-                        <td>{!! $cell($row['hosts_up'], $row['hosts_total']) !!}</td>
-                        <td>{!! $cell($row['vpn_up'], $row['vpn_total']) !!}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="4" class="text-center text-muted py-3 small">No branches.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
         </div>
     </div>
 

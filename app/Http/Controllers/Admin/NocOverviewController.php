@@ -110,6 +110,7 @@ class NocOverviewController extends Controller
             $hostTot = $this->countByBranch('monitored_hosts');
             $vpnUp = $this->countByBranch('vpn_tunnels', "status = 'up'");
             $vpnTot = $this->countByBranch('vpn_tunnels');
+            $vq = $this->mosByBranch();
 
             return $branches->map(fn ($b) => [
                 'id' => $b->id,
@@ -120,6 +121,8 @@ class NocOverviewController extends Controller
                 'hosts_total' => $hostTot[$b->id] ?? 0,
                 'vpn_up' => $vpnUp[$b->id] ?? 0,
                 'vpn_total' => $vpnTot[$b->id] ?? 0,
+                'mos' => isset($vq[$b->id]) ? round((float) $vq[$b->id]->m, 2) : null,
+                'calls' => $vq[$b->id]->c ?? 0,
             ])->all();
         }, []);
     }
@@ -128,21 +131,15 @@ class NocOverviewController extends Controller
 
     protected function siteToSite(?int $branchId): array
     {
-        return [
-            'sophos' => $this->safe(function () use ($branchId) {
-                if (! Schema::hasTable('sophos_vpn_tunnels') || ! Schema::hasTable('sophos_firewalls')) {
-                    return collect();
-                }
-                $q = DB::table('sophos_vpn_tunnels as t')
-                    ->join('sophos_firewalls as f', 'f.id', '=', 't.firewall_id')
-                    ->select('f.name as firewall', 'f.branch_id', 't.name', 't.status', 't.connection_type',
-                        't.remote_gateway', 't.local_subnet', 't.remote_subnet', 't.last_checked_at');
-                if ($branchId) {
-                    $q->where('f.branch_id', $branchId);
-                }
+        $sophos = $this->safe(fn () => $this->sophosVpnFromSensors($branchId), collect());
 
-                return $q->orderBy('f.name')->orderBy('t.name')->get();
-            }, collect()),
+        return [
+            'sophos' => $sophos,
+            'sophos_summary' => [
+                'up' => $sophos->where('status', 'up')->count(),
+                'down' => $sophos->where('status', 'down')->count(),
+                'total' => $sophos->count(),
+            ],
             'hub' => $this->safe(function () use ($branchId) {
                 if (! Schema::hasTable('vpn_tunnels')) {
                     return collect();
@@ -156,6 +153,53 @@ class NocOverviewController extends Controller
                 return $q->orderBy('name')->get();
             }, collect()),
         ];
+    }
+
+    /**
+     * Sophos site-to-site tunnels derived from SNMP sensors
+     * (sensor_group='VPN', name 'VPN: <tunnel> - Connection', value 1.0 = up),
+     * mirroring the NOC Command Center source.
+     */
+    protected function sophosVpnFromSensors(?int $branchId): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('snmp_sensors')) {
+            return collect();
+        }
+
+        $sensors = \App\Models\SnmpSensor::with(['host.branch'])
+            ->where('sensor_group', 'VPN')
+            ->where('name', 'like', 'VPN:%- Connection')
+            ->get();
+
+        if ($branchId) {
+            $sensors = $sensors->filter(fn ($s) => (int) ($s->host?->branch_id) === $branchId)->values();
+        }
+
+        $ids = $sensors->pluck('id')->all();
+        $latest = collect();
+        if ($ids) {
+            $latest = DB::table('sensor_metrics as m')
+                ->whereIn('m.sensor_id', $ids)
+                ->whereRaw('m.recorded_at = (select max(m2.recorded_at) from sensor_metrics m2 where m2.sensor_id = m.sensor_id)')
+                ->select('m.sensor_id', 'm.value', 'm.recorded_at')
+                ->get()->keyBy('sensor_id');
+        }
+
+        return $sensors->map(function ($s) use ($latest) {
+            $m = $latest->get($s->id);
+            $up = $m && (float) $m->value >= 1.0;
+
+            return (object) [
+                'name' => trim(str_replace(['VPN:', '- Connection'], '', $s->name)),
+                'status' => $up ? 'up' : 'down',
+                'firewall' => $s->host?->name ?: '-',
+                'firewall_ip' => $s->host?->ip ?: '-',
+                'branch' => $s->host?->branch?->name ?: 'No branch',
+                'last_checked' => $m && $m->recorded_at
+                    ? Carbon::parse($m->recorded_at)->diffForHumans()
+                    : ($s->last_recorded_at?->diffForHumans() ?? '-'),
+            ];
+        })->sortBy('status')->values();
     }
 
     // ─── VoIP / Telephony details ─────────────────────────────────
@@ -392,6 +436,20 @@ class NocOverviewController extends Controller
             ->pluck('c', $col)
             ->map(fn ($c) => (int) $c)
             ->all();
+    }
+
+    /** Avg MOS + call count per branch over the last 24h. */
+    protected function mosByBranch(): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('voice_quality_reports')) {
+            return collect();
+        }
+
+        return DB::table('voice_quality_reports')
+            ->whereNotNull('branch_id')->whereNotNull('mos_lq')
+            ->where('call_start', '>=', now()->subDay())
+            ->select('branch_id', DB::raw('AVG(mos_lq) as m'), DB::raw('COUNT(*) as c'))
+            ->groupBy('branch_id')->get()->keyBy('branch_id');
     }
 
     /** @return array<int,int> branch_id => count */
