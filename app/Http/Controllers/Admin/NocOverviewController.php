@@ -57,6 +57,10 @@ class NocOverviewController extends Controller
             'backups_overdue' => $this->safe(fn () => DB::table('backup_accounts')->where('last_status', 'overdue')->count()),
             'expiring_30d' => $this->safe(fn () => $this->expiringCount(30)),
             'pending_approval' => $this->safe(fn () => DB::table('workflow_requests')->whereIn('status', ['pending', 'manager_input_pending', 'awaiting_manager_form'])->count()),
+            // VoIP counters (shown in the headline row)
+            'voip_ext_registered' => $this->safe(fn () => DB::table('ucm_extensions_cache')->where('status', '!=', 'unavailable')->count()),
+            'voip_trunks_up' => $this->safe(fn () => max(0, DB::table('ucm_trunks_cache')->count() - DB::table('ucm_trunks_cache')->where('status', 'unreachable')->count())),
+            'voip_active_calls' => $this->safe(fn () => DB::table('ucm_active_calls')->count()),
         ];
     }
 
@@ -220,7 +224,10 @@ class NocOverviewController extends Controller
             'events' => $this->safe(fn () => $this->seriesBySeverity('noc_events', 'first_seen', 'severity', $since, $unit), $this->emptyChart()),
             'syslog' => $this->safe(fn () => $this->syslogSeries($since, $unit), $this->emptyChart()),
             'isp_latency' => $this->safe(fn () => $this->ispLatencySeries($since, $unit), $this->emptyChart()),
-            'calls' => $this->safe(fn () => $this->countSeries('ucm_active_calls', 'start_time', $since, $unit, 'Calls'), $this->emptyChart()),
+            'calls' => $this->safe(fn () => $this->countSeries('voice_quality_reports', 'call_start', $since, $unit, 'Calls'), $this->emptyChart()),
+            'voip_mos' => $this->safe(fn () => $this->avgSeries('voice_quality_reports', 'call_start', 'mos_lq', $since, $unit, 'Avg MOS'), $this->emptyChart()),
+            'voip_extensions' => $this->safe(fn () => $this->metricSnapshotSeries('voip_ext_registered', $since, $unit, 'Registered'), $this->emptyChart()),
+            'voip_trunks' => $this->safe(fn () => $this->metricSnapshotSeries('voip_trunks_up', $since, $unit, 'Trunks up'), $this->emptyChart()),
             'backups' => $this->safe(fn () => $this->backupSeries($since), $this->emptyChart()),
             'ap_uptime' => $this->safe(fn () => $this->uptimeSeries('access_point', $since, $unit, $branchId), $this->emptyChart()),
             'host_uptime' => $this->safe(fn () => $this->uptimeSeries('monitored_host', $since, $unit, $branchId), $this->emptyChart()),
@@ -300,6 +307,29 @@ class NocOverviewController extends Controller
             ->groupBy('bucket')->orderBy('bucket')->get();
 
         return ['labels' => $rows->pluck('bucket')->all(), 'series' => [$label => $rows->pluck('c')->map(fn ($c) => (int) $c)->all()]];
+    }
+
+    protected function avgSeries(string $table, string $tsCol, string $valCol, Carbon $since, string $unit, string $label): array
+    {
+        $bucket = $this->bucketExpr($tsCol, $unit);
+        $rows = DB::table($table)->whereNotNull($valCol)->where($tsCol, '>=', $since)
+            ->select(DB::raw("$bucket as bucket"), DB::raw("AVG($valCol) as v"))
+            ->groupBy('bucket')->orderBy('bucket')->get();
+
+        return ['labels' => $rows->pluck('bucket')->all(), 'series' => [$label => $rows->map(fn ($r) => round((float) $r->v, 2))->all()]];
+    }
+
+    protected function metricSnapshotSeries(string $metric, Carbon $since, string $unit, string $label): array
+    {
+        if (! Schema::hasTable('noc_metric_snapshots')) {
+            return $this->emptyChart();
+        }
+        $bucket = $this->bucketExpr('captured_at', $unit);
+        $rows = DB::table('noc_metric_snapshots')->where('metric', $metric)->where('captured_at', '>=', $since)
+            ->select(DB::raw("$bucket as bucket"), DB::raw('AVG(value) as v'))
+            ->groupBy('bucket')->orderBy('bucket')->get();
+
+        return ['labels' => $rows->pluck('bucket')->all(), 'series' => [$label => $rows->map(fn ($r) => round((float) $r->v, 1))->all()]];
     }
 
     protected function backupSeries(Carbon $since): array

@@ -13,6 +13,9 @@
         ['key' => 'backups_overdue', 'label' => 'Backups Overdue', 'icon' => 'bi-shield-exclamation', 'tone' => 'warning'],
         ['key' => 'expiring_30d', 'label' => 'Expiring ≤30d', 'icon' => 'bi-calendar-x', 'tone' => 'warning'],
         ['key' => 'pending_approval', 'label' => 'Pending Approvals', 'icon' => 'bi-hourglass-split', 'tone' => 'info'],
+        ['key' => 'voip_ext_registered', 'label' => 'Extensions Reg.', 'icon' => 'bi-telephone-fill', 'tone' => 'success'],
+        ['key' => 'voip_trunks_up', 'label' => 'Trunks Up', 'icon' => 'bi-hdd-network-fill', 'tone' => 'success'],
+        ['key' => 'voip_active_calls', 'label' => 'Active Calls', 'icon' => 'bi-telephone-outbound-fill', 'tone' => 'info'],
     ];
     $toneClass = ['danger' => 'text-danger', 'warning' => 'text-warning', 'info' => 'text-info', 'success' => 'text-success'];
 @endphp
@@ -106,7 +109,10 @@
             ['id' => 'c_events', 'metric' => 'events', 'title' => 'NOC Events by Severity', 'type' => 'area'],
             ['id' => 'c_syslog', 'metric' => 'syslog', 'title' => 'Syslog Volume by Severity', 'type' => 'area'],
             ['id' => 'c_isp', 'metric' => 'isp_latency', 'title' => 'ISP Latency & Packet Loss', 'type' => 'line'],
-            ['id' => 'c_calls', 'metric' => 'calls', 'title' => 'UCM Call Volume', 'type' => 'bar'],
+            ['id' => 'c_calls', 'metric' => 'calls', 'title' => 'Call Volume (voice-quality reports)', 'type' => 'bar'],
+            ['id' => 'c_voip_mos', 'metric' => 'voip_mos', 'title' => 'Avg Voice Quality (MOS)', 'type' => 'line'],
+            ['id' => 'c_voip_ext', 'metric' => 'voip_extensions', 'title' => 'Extensions Registered', 'type' => 'line'],
+            ['id' => 'c_voip_trunks', 'metric' => 'voip_trunks', 'title' => 'Trunks Up', 'type' => 'line'],
             ['id' => 'c_backups', 'metric' => 'backups', 'title' => 'Backups (Uploaded vs Failed)', 'type' => 'bar'],
             ['id' => 'c_ap_uptime', 'metric' => 'ap_uptime', 'title' => 'Access Point Uptime %', 'type' => 'line'],
             ['id' => 'c_host_uptime', 'metric' => 'host_uptime', 'title' => 'Host Uptime %', 'type' => 'line'],

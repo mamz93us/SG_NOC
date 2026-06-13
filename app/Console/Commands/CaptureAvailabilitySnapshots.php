@@ -5,8 +5,10 @@ namespace App\Console\Commands;
 use App\Models\AccessPoint;
 use App\Models\AvailabilitySnapshot;
 use App\Models\MonitoredHost;
+use App\Models\NocMetricSnapshot;
 use App\Models\VpnTunnel;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -52,12 +54,52 @@ class CaptureAvailabilitySnapshots extends Command
             AvailabilitySnapshot::insert($chunk);
         }
 
-        $retain = max(7, (int) $this->option('retain'));
-        $deleted = AvailabilitySnapshot::where('captured_at', '<', $now->copy()->subDays($retain))->delete();
+        // Counter metrics that have no native history (VoIP) → metric snapshots
+        $metrics = $this->voipMetrics($now);
+        if ($metrics) {
+            NocMetricSnapshot::insert($metrics);
+        }
 
-        $this->info('Captured '.count($rows)." availability snapshots; pruned {$deleted} old rows.");
+        $retain = max(7, (int) $this->option('retain'));
+        $cutoff = $now->copy()->subDays($retain);
+        $deleted = AvailabilitySnapshot::where('captured_at', '<', $cutoff)->delete();
+        $deleted += NocMetricSnapshot::where('captured_at', '<', $cutoff)->delete();
+
+        $this->info('Captured '.count($rows).' availability + '.count($metrics)." metric snapshots; pruned {$deleted} old rows.");
 
         return 0;
+    }
+
+    /** VoIP counters captured as point-in-time metric snapshots. */
+    protected function voipMetrics($now): array
+    {
+        $rows = [];
+        $put = function (string $metric, $value) use (&$rows, $now) {
+            $rows[] = [
+                'metric' => $metric, 'value' => (float) $value, 'branch_id' => null,
+                'captured_at' => $now, 'created_at' => $now, 'updated_at' => $now,
+            ];
+        };
+
+        try {
+            if (Schema::hasTable('ucm_extensions_cache')) {
+                $put('voip_ext_total', DB::table('ucm_extensions_cache')->count());
+                $put('voip_ext_registered', DB::table('ucm_extensions_cache')->where('status', '!=', 'unavailable')->count());
+            }
+            if (Schema::hasTable('ucm_trunks_cache')) {
+                $total = DB::table('ucm_trunks_cache')->count();
+                $down = DB::table('ucm_trunks_cache')->where('status', 'unreachable')->count();
+                $put('voip_trunks_total', $total);
+                $put('voip_trunks_up', max(0, $total - $down));
+            }
+            if (Schema::hasTable('ucm_active_calls')) {
+                $put('voip_active_calls', DB::table('ucm_active_calls')->count());
+            }
+        } catch (\Throwable) {
+            // best-effort
+        }
+
+        return $rows;
     }
 
     protected function row(string $type, int $id, ?int $branchId, bool $up, ?int $latency, $now): array
