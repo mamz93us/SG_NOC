@@ -489,6 +489,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('view-access-points')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.access-points.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.access-points.index') }}">
+                                    <i class="bi bi-router me-2"></i>Access Points
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-backups')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.backups.*') ? 'active' : '' }}"

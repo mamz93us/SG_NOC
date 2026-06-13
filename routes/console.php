@@ -714,3 +714,12 @@ Schedule::command('branch-agents:check-stale')
     ->withoutOverlapping(10)
     ->runInBackground()
     ->name('branch-agents-check-stale');
+
+// Access-point ICMP health — APX-series APs have no SNMP, so ping is the
+// only direct signal. Pings monitored APs over the branch VPN tunnels and
+// opens/resolves a NocEvent on state change. Every 5 minutes.
+Schedule::command('access-points:ping')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('access-points-ping');
