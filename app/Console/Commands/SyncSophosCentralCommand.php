@@ -59,6 +59,16 @@ class SyncSophosCentralCommand extends Command
         try {
             $aps = $service->accessPoints();
         } catch (\Throwable $e) {
+            // Sophos Central's public API has no AP-inventory listing endpoint
+            // (the Wi-Fi Management API only exposes settings/mac-filtering + tasks).
+            // Treat "not available" as a soft skip rather than a hard sync failure —
+            // AP health still flows in via the wireless alerts ingested below.
+            if ($this->isEndpointUnavailable($e)) {
+                $this->warn('  · Access point inventory not available via Central API — skipping (AP issues still arrive as alerts).');
+
+                return true;
+            }
+
             $this->error('Access point sync failed: '.$e->getMessage());
 
             return false;
@@ -273,6 +283,19 @@ class SyncSophosCentralCommand extends Command
         }
 
         return is_string($status) && $status !== '' ? strtolower($status) : null;
+    }
+
+    /**
+     * Detect the Sophos APIGW "route/application not found" responses so a
+     * missing product endpoint is a soft skip, not a hard sync failure.
+     */
+    protected function isEndpointUnavailable(\Throwable $e): bool
+    {
+        $msg = $e->getMessage();
+
+        return str_contains($msg, 'HTTP 404')
+            || str_contains($msg, 'ApplicationNotFound')
+            || str_contains($msg, 'Unable to identify proxy');
     }
 
     protected function parseTime(?string $value): ?Carbon

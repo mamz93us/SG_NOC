@@ -160,7 +160,14 @@
                     </tr>
                 @empty
                     <tr><td colspan="9" class="text-center text-muted py-4">
-                        No access points synced yet{{ $settings->sophos_central_client_id ? ' — run a sync.' : '.' }}
+                        No access-point inventory available.
+                        <div class="small mt-1">
+                            Sophos Central's public API does not expose an AP inventory list
+                            (the Wi-Fi API only covers MAC-filtering &amp; policy tasks).
+                            AP health still arrives via the wireless alerts above. For a full AP
+                            list, link each firewall's local XML API under
+                            <a href="{{ route('admin.network.sophos.index') }}">Sophos Firewalls</a>.
+                        </div>
                     </td></tr>
                 @endforelse
                 </tbody>
