@@ -92,6 +92,7 @@
                 <button class="btn btn-outline-secondary active" data-type="all">All</button>
                 <button class="btn btn-outline-primary"   data-type="printer"><i class="bi bi-printer me-1"></i>Printers</button>
                 <button class="btn btn-outline-info"      data-type="switch"><i class="bi bi-diagram-3 me-1"></i>Switches</button>
+                <button class="btn btn-outline-success"   data-type="access_point"><i class="bi bi-router me-1"></i>Access Points</button>
                 <button class="btn btn-outline-secondary" data-type="device"><i class="bi bi-cpu me-1"></i>Devices</button>
                 <button class="btn btn-outline-light text-muted" data-type="unknown"><i class="bi bi-question-circle me-1"></i>Unknown</button>
             </div>
@@ -141,7 +142,7 @@
                     </td>
                     <td>
                         <span class="badge bg-{{ $r->deviceTypeBadgeClass() }}">
-                            <i class="{{ $r->deviceTypeIcon() }} me-1"></i>{{ ucfirst($r->device_type) }}
+                            <i class="{{ $r->deviceTypeIcon() }} me-1"></i>{{ ucfirst(str_replace('_', ' ', $r->device_type)) }}
                         </span>
                     </td>
                     <td>

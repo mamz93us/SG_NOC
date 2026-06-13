@@ -15,10 +15,10 @@ class DiscoveryResult extends Model
     ];
 
     protected $casts = [
-        'is_reachable'    => 'boolean',
+        'is_reachable' => 'boolean',
         'snmp_accessible' => 'boolean',
-        'already_imported'=> 'boolean',
-        'raw_data'        => 'array',
+        'already_imported' => 'boolean',
+        'raw_data' => 'array',
     ];
 
     public function scan(): BelongsTo
@@ -30,9 +30,10 @@ class DiscoveryResult extends Model
     {
         return match ($this->device_type) {
             'printer' => 'primary',
-            'switch'  => 'info',
-            'device'  => 'secondary',
-            default   => 'light text-muted border',
+            'switch' => 'info',
+            'access_point' => 'success',
+            'device' => 'secondary',
+            default => 'light text-muted border',
         };
     }
 
@@ -40,9 +41,10 @@ class DiscoveryResult extends Model
     {
         return match ($this->device_type) {
             'printer' => 'bi-printer',
-            'switch'  => 'bi-diagram-3',
-            'device'  => 'bi-cpu',
-            default   => 'bi-question-circle',
+            'switch' => 'bi-diagram-3',
+            'access_point' => 'bi-router',
+            'device' => 'bi-cpu',
+            default => 'bi-question-circle',
         };
     }
 }
