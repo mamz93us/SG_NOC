@@ -238,6 +238,12 @@ Schedule::call(function () {
     }
 })->name('sync-sophos-data')->withoutOverlapping(10)->cron($everyN($sophosInterval));
 
+// Sophos Central Sync (cloud — APs, firewall fleet, alerts) — configurable interval.
+// The command no-ops when the integration is disabled in Settings.
+$sophosCentralInterval = max(5, (int) ($settings?->sophos_central_sync_interval ?: 15));
+Schedule::command('sophos-central:sync')
+    ->name('sync-sophos-central')->withoutOverlapping(10)->cron($everyN($sophosCentralInterval));
+
 // ARP Table Collection (Sophos hosts) — every 10 minutes
 Schedule::call(function () {
     $hosts = \App\Models\MonitoredHost::where('snmp_enabled', true)

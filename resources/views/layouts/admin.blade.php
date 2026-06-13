@@ -482,6 +482,12 @@
                                     <i class="bi bi-shield-fill me-2"></i>Sophos Firewalls
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.sophos-central.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.sophos-central.index') }}">
+                                    <i class="bi bi-cloud-fill me-2"></i>Sophos Central
+                                </a>
+                            </li>
                             @endcan
                             @can('view-backups')
                             <li>

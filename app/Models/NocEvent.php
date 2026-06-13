@@ -28,9 +28,9 @@ class NocEvent extends Model
     ];
 
     protected $casts = [
-        'first_seen'    => 'datetime',
-        'last_seen'     => 'datetime',
-        'resolved_at'   => 'datetime',
+        'first_seen' => 'datetime',
+        'last_seen' => 'datetime',
+        'resolved_at' => 'datetime',
         'email_sent_at' => 'datetime',
     ];
 
@@ -84,10 +84,10 @@ class NocEvent extends Model
     public function statusBadgeClass(): string
     {
         return match ($this->status) {
-            'open'         => 'bg-danger',
+            'open' => 'bg-danger',
             'acknowledged' => 'bg-warning text-dark',
-            'resolved'     => 'bg-success',
-            default        => 'bg-secondary',
+            'resolved' => 'bg-success',
+            default => 'bg-secondary',
         };
     }
 
@@ -95,9 +95,9 @@ class NocEvent extends Model
     {
         return match ($this->severity) {
             'critical' => 'bg-danger',
-            'warning'  => 'bg-warning text-dark',
-            'info'     => 'bg-info text-dark',
-            default    => 'bg-secondary',
+            'warning' => 'bg-warning text-dark',
+            'info' => 'bg-info text-dark',
+            default => 'bg-secondary',
         };
     }
 
@@ -105,43 +105,45 @@ class NocEvent extends Model
     {
         return match ($this->severity) {
             'critical' => 'bi-exclamation-octagon-fill',
-            'warning'  => 'bi-exclamation-triangle-fill',
-            'info'     => 'bi-info-circle-fill',
-            default    => 'bi-circle-fill',
+            'warning' => 'bi-exclamation-triangle-fill',
+            'info' => 'bi-info-circle-fill',
+            default => 'bi-circle-fill',
         };
     }
 
     public function moduleIcon(): string
     {
         return match ($this->module) {
-            'network'    => 'bi-diagram-3-fill',
-            'identity'   => 'bi-people-fill',
-            'voip'       => 'bi-telephone-fill',
-            'assets'     => 'bi-cpu-fill',
-            'vpn'        => 'bi-shield-lock-fill',
-            'snmp'       => 'bi-broadcast',
-            'ping'       => 'bi-wifi',
-            'meraki'     => 'bi-hdd-network-fill',
-            'ucm'        => 'bi-server',
-            'microsoft'  => 'bi-microsoft',
-            default      => 'bi-exclamation-circle',
+            'network' => 'bi-diagram-3-fill',
+            'identity' => 'bi-people-fill',
+            'voip' => 'bi-telephone-fill',
+            'assets' => 'bi-cpu-fill',
+            'vpn' => 'bi-shield-lock-fill',
+            'snmp' => 'bi-broadcast',
+            'ping' => 'bi-wifi',
+            'meraki' => 'bi-hdd-network-fill',
+            'sophos' => 'bi-shield-fill',
+            'ucm' => 'bi-server',
+            'microsoft' => 'bi-microsoft',
+            default => 'bi-exclamation-circle',
         };
     }
 
     public function moduleLabel(): string
     {
         return match ($this->module) {
-            'network'    => 'Network',
-            'identity'   => 'Identity',
-            'voip'       => 'VoIP',
-            'assets'     => 'Assets',
-            'vpn'        => 'VPN',
-            'snmp'       => 'SNMP',
-            'ping'       => 'Ping',
-            'meraki'     => 'Meraki',
-            'ucm'        => 'UCM',
-            'microsoft'  => 'Microsoft',
-            default      => ucfirst($this->module ?? 'System'),
+            'network' => 'Network',
+            'identity' => 'Identity',
+            'voip' => 'VoIP',
+            'assets' => 'Assets',
+            'vpn' => 'VPN',
+            'snmp' => 'SNMP',
+            'ping' => 'Ping',
+            'meraki' => 'Meraki',
+            'sophos' => 'Sophos',
+            'ucm' => 'UCM',
+            'microsoft' => 'Microsoft',
+            default => ucfirst($this->module ?? 'System'),
         };
     }
 
