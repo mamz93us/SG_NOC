@@ -123,6 +123,12 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.noc.overview.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.noc.overview.index') }}">
+                                    <i class="bi bi-grid-1x2-fill me-2"></i>Overview
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.noc.alerts') ? 'active' : '' }}"
                                    href="{{ route('admin.noc.alerts') }}">
                                     <i class="bi bi-bell-fill me-2"></i>Alert Feed
