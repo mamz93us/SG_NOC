@@ -1867,6 +1867,18 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/{intuneGroup}/policies/{intuneGroupPolicy}', [\App\Http\Controllers\Admin\IntuneGroupController::class, 'removePolicy'])->name('policies.remove');
     });
 
+    // ── Managed Wallpapers (Intune desktop + lock screen, per domain) ──
+    Route::middleware('permission:view-wallpapers')->group(function () {
+        Route::get('wallpapers', [\App\Http\Controllers\Admin\WallpaperController::class, 'index'])->name('wallpapers.index');
+    });
+    Route::middleware('permission:manage-wallpapers')->group(function () {
+        Route::post('wallpapers', [\App\Http\Controllers\Admin\WallpaperController::class, 'store'])->name('wallpapers.store');
+        Route::put('wallpapers/{wallpaper}', [\App\Http\Controllers\Admin\WallpaperController::class, 'update'])->name('wallpapers.update');
+        Route::post('wallpapers/{wallpaper}/image', [\App\Http\Controllers\Admin\WallpaperController::class, 'uploadImage'])->name('wallpapers.image');
+        Route::delete('wallpapers/{wallpaper}/image', [\App\Http\Controllers\Admin\WallpaperController::class, 'deleteImage'])->name('wallpapers.image.delete');
+        Route::delete('wallpapers/{wallpaper}', [\App\Http\Controllers\Admin\WallpaperController::class, 'destroy'])->name('wallpapers.destroy');
+    });
+
     // ── My Printers (SSO auto-assign — any authenticated user) ───────
     Route::get('my-printers', [\App\Http\Controllers\Admin\MyPrintersController::class, 'index'])
         ->name('admin.my-printers');
@@ -2102,6 +2114,16 @@ Route::get('/d/{token}/file', [\App\Http\Controllers\Public\DownloadShareControl
     ->name('downloads.share.download')
     ->middleware('throttle:30,1')
     ->where('token', '[A-Za-z0-9]{40}');
+
+// Managed-wallpaper deployment — consumed by Intune devices, unauthenticated.
+// Manifest = per-domain image URLs + hashes; script = the PowerShell agent with
+// the manifest URL baked in. See WallpaperDeploymentController for the rationale.
+Route::get('/api/wallpapers/manifest', [\App\Http\Controllers\Public\WallpaperDeploymentController::class, 'manifest'])
+    ->name('wallpapers.manifest')
+    ->middleware('throttle:120,1');
+Route::get('/api/wallpapers/script.ps1', [\App\Http\Controllers\Public\WallpaperDeploymentController::class, 'script'])
+    ->name('wallpapers.script')
+    ->middleware('throttle:120,1');
 
 // Onboarding manager setup form (token-based, public)
 Route::get('/onboarding/form/{token}', [OnboardingFormController::class, 'show'])->name('onboarding.form');

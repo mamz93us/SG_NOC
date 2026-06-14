@@ -844,6 +844,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('view-wallpapers')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/wallpapers*') ? 'active' : '' }}"
+                                   href="{{ route('admin.wallpapers.index') }}">
+                                    <i class="bi bi-image me-2 text-primary"></i>Managed Wallpapers
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-print-manager')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-cloud-arrow-up me-1"></i>CUPS / IPP Proxy</h6></li>
