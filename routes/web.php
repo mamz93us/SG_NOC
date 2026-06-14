@@ -742,6 +742,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:manage-downloads')->group(function () {
         Route::post('downloads', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'storeUpload'])->name('downloads.store');
         Route::post('downloads/url', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'storeUrl'])->name('downloads.store-url');
+        Route::post('downloads/{download}/retry', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'retry'])->name('downloads.retry');
         Route::post('downloads/{download}/public', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'togglePublic'])->name('downloads.public');
         Route::post('downloads/{download}/rotate', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'rotateToken'])->name('downloads.rotate');
         Route::delete('downloads/{download}', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'destroy'])->name('downloads.destroy');

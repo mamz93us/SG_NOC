@@ -25,19 +25,18 @@ class FetchDownloadCenterUrls extends Command
 
     protected $description = 'Fetch pending Download Center URLs and stream them to Azure Blob.';
 
-    /** Hard cap on a fetched file (4 GB) to protect the VM temp disk. */
-    private const MAX_BYTES = 4 * 1024 * 1024 * 1024;
-
     public function handle(): int
     {
         @set_time_limit(0);
 
-        $query = DownloadFile::where('source', DownloadFile::SOURCE_URL)
-            ->where('status', DownloadFile::STATUS_PENDING)
-            ->orderBy('id');
+        $query = DownloadFile::where('source', DownloadFile::SOURCE_URL)->orderBy('id');
 
         if ($id = $this->option('id')) {
+            // Targeted run (e.g. a UI "Retry") re-fetches regardless of status.
             $query->where('id', (int) $id);
+        } else {
+            // Scheduled sweep only picks up new, never-fetched rows.
+            $query->where('status', DownloadFile::STATUS_PENDING);
         }
 
         $rows = $query->limit(max(1, (int) $this->option('max')))->get();
@@ -77,7 +76,7 @@ class FetchDownloadCenterUrls extends Command
         }
 
         try {
-            $response = Http::timeout(900)
+            $response = Http::timeout((int) config('download_center.fetch_timeout', 3600))
                 ->withOptions(['stream' => false, 'sink' => $tmp])
                 ->get($row->source_url);
 
@@ -86,11 +85,12 @@ class FetchDownloadCenterUrls extends Command
             }
 
             $size = filesize($tmp) ?: 0;
+            $maxBytes = (int) config('download_center.max_fetch_bytes', 20 * 1024 * 1024 * 1024);
             if ($size <= 0) {
                 throw new \RuntimeException('Fetched file is empty.');
             }
-            if ($size > self::MAX_BYTES) {
-                throw new \RuntimeException('Fetched file exceeds the size limit.');
+            if ($size > $maxBytes) {
+                throw new \RuntimeException('Fetched file ('.round($size / 1073741824, 1).' GB) exceeds the limit.');
             }
 
             $blobPath = $row->id.'/'.$row->original_filename;

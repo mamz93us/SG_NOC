@@ -125,6 +125,16 @@ class DownloadCenterController extends Controller
      * Lightweight JSON status for the index page's poller (ingest progress + the
      * share state) so rows update without a reload.
      */
+    /** Requeue a failed (or stuck) URL fetch so the next worker tick retries it. */
+    public function retry(DownloadFile $download)
+    {
+        abort_unless($download->source === DownloadFile::SOURCE_URL, 422, 'Only URL fetches can be retried.');
+
+        $download->update(['status' => DownloadFile::STATUS_PENDING, 'error' => null]);
+
+        return back()->with('success', "Requeued “{$download->title}” for fetch.");
+    }
+
     public function status(DownloadFile $download): JsonResponse
     {
         return response()->json([
