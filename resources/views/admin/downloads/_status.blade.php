@@ -1,10 +1,9 @@
-@php($s = $f->status)
-@if($s === \App\Models\DownloadFile::STATUS_STORED)
+@if($f->status === \App\Models\DownloadFile::STATUS_STORED)
     <span class="badge bg-success-subtle text-success-emphasis">Stored</span>
-@elseif($s === \App\Models\DownloadFile::STATUS_FETCHING)
+@elseif($f->status === \App\Models\DownloadFile::STATUS_FETCHING)
     @php
-        $total = $f->download_total_bytes;
-        $recv = $f->download_received_bytes;
+        $total = (int) $f->download_total_bytes;
+        $recv = (int) $f->download_received_bytes;
         $pct = $total > 0 ? min(100, (int) floor($recv / $total * 100)) : null;
         $uploading = $total > 0 && $recv >= $total;
     @endphp
@@ -21,7 +20,7 @@
             starting…
         @endif
     </div>
-@elseif($s === \App\Models\DownloadFile::STATUS_PENDING)
+@elseif($f->status === \App\Models\DownloadFile::STATUS_PENDING)
     <span class="badge bg-warning-subtle text-warning-emphasis">Pending</span>
 @else
     <span class="badge bg-danger-subtle text-danger-emphasis" title="{{ $f->error }}">Failed</span>
