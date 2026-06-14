@@ -733,6 +733,20 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('backups/{backupAccount}/purge', [\App\Http\Controllers\Admin\BackupAccountController::class, 'purge'])->name('backups.purge');
     });
 
+    // ─── Download Center (ad-hoc files → Azure Blob) ──────────
+    Route::middleware('permission:view-downloads')->group(function () {
+        Route::get('downloads', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'index'])->name('downloads.index');
+        Route::get('downloads/{download}/status', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'status'])->name('downloads.status');
+        Route::get('downloads/{download}/file', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'downloadFile'])->name('downloads.download');
+    });
+    Route::middleware('permission:manage-downloads')->group(function () {
+        Route::post('downloads', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'storeUpload'])->name('downloads.store');
+        Route::post('downloads/url', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'storeUrl'])->name('downloads.store-url');
+        Route::post('downloads/{download}/public', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'togglePublic'])->name('downloads.public');
+        Route::post('downloads/{download}/rotate', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'rotateToken'])->name('downloads.rotate');
+        Route::delete('downloads/{download}', [\App\Http\Controllers\Admin\DownloadCenterController::class, 'destroy'])->name('downloads.destroy');
+    });
+
     // ─── Device Web Proxy & SSH ───────────────────────────────────────────
     Route::middleware(['permission:manage-devices', 'throttle:60,1'])->group(function () {
         // Web proxy — browse device management UI through the NOC server
@@ -2077,6 +2091,16 @@ Route::get('/avepoint/download/{token}', [\App\Http\Controllers\Public\AvepointD
     ->name('avepoint.download')
     ->middleware('throttle:5,1')
     ->where('token', '[A-Za-z0-9]{64}');
+
+// Download Center public share links (token-based, NOC-proxied stream from Azure)
+Route::get('/d/{token}', [\App\Http\Controllers\Public\DownloadShareController::class, 'show'])
+    ->name('downloads.share')
+    ->middleware('throttle:30,1')
+    ->where('token', '[A-Za-z0-9]{40}');
+Route::get('/d/{token}/file', [\App\Http\Controllers\Public\DownloadShareController::class, 'stream'])
+    ->name('downloads.share.download')
+    ->middleware('throttle:30,1')
+    ->where('token', '[A-Za-z0-9]{40}');
 
 // Onboarding manager setup form (token-based, public)
 Route::get('/onboarding/form/{token}', [OnboardingFormController::class, 'show'])->name('onboarding.form');

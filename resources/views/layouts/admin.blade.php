@@ -511,6 +511,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('view-downloads')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.downloads.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.downloads.index') }}">
+                                    <i class="bi bi-cloud-arrow-up-fill me-2"></i>Download Center
+                                </a>
+                            </li>
+                            @endcan
                             @can('manage-radius')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-shield-lock me-1"></i>RADIUS / 802.1X</h6></li>

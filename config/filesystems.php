@@ -146,6 +146,21 @@ return [
             'throw' => false,
         ],
 
+        // Azure Blob storage for the Download Center — ad-hoc files an admin puts
+        // into the NOC (direct upload or fetched from a URL) to keep in cloud
+        // storage and hand out via auth-gated NOC downloads or tokenised public
+        // links. Same container as the other azure_* disks by default, separated
+        // by the 'downloads/' prefix.
+        'azure_downloads' => [
+            'driver' => 'azure',
+            'account' => env('AZURE_BLOB_ACCOUNT'),
+            'key' => env('AZURE_BLOB_KEY'),
+            'container' => env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups'),
+            'endpoint' => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'prefix' => 'downloads/',
+            'throw' => false,
+        ],
+
         // Azure Blob storage for the NOC's own MySQL dumps (config/db_backup.php).
         // The db-backups:run command (daily + "Backup Now" on Admin → Server
         // Status) gzips a mysqldump and streams it here. Same container as the

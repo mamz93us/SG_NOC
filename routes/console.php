@@ -671,6 +671,14 @@ Schedule::command('sftp-backups:prune')
     ->runInBackground()
     ->name('sftp-backups-prune');
 
+// Download Center URL fetches — admins paste a URL and the NOC pulls the file
+// into Azure here (async, so a big artifact can't time out the web request).
+Schedule::command('downloads:fetch-remote')
+    ->everyMinute()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('downloads-fetch-remote');
+
 // ──────────────────────────────────────────────────────────────────────
 // NOC database → Azure Blob backups. Daily mysqldump | gzip streamed to
 // the azure_db_backups disk and recorded in database_backups (history +
