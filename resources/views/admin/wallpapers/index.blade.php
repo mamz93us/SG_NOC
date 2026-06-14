@@ -143,7 +143,13 @@
 
         <div class="row g-4">
             @foreach(['desktop' => 'Desktop wallpaper', 'lockscreen' => 'Lock-screen wallpaper'] as $kind => $title)
-            @php $url = $kind === 'desktop' ? $set->desktopUrl() : $set->lockscreenUrl(); @endphp
+            @php
+                $url = $kind === 'desktop' ? $set->desktopUrl() : $set->lockscreenUrl();
+                // Cache-bust the preview with the image hash so re-uploads / the other
+                // kind's upload never leave a stale thumbnail (same stable filename URL).
+                $hash = $kind === 'desktop' ? $set->desktop_hash : $set->lockscreen_hash;
+                $preview = $url ? $url.'?v='.($hash ?? $set->updated_at?->timestamp) : null;
+            @endphp
             <div class="col-md-6">
                 <div class="fw-semibold small mb-2">
                     <i class="bi bi-{{ $kind === 'desktop' ? 'display' : 'lock' }} me-1"></i>{{ $title }}
@@ -151,7 +157,7 @@
                 <div class="border rounded bg-light d-flex align-items-center justify-content-center mb-2"
                      style="height:160px; overflow:hidden;">
                     @if($url)
-                        <img src="{{ $url }}" alt="{{ $title }}" style="max-width:100%; max-height:160px; object-fit:contain;">
+                        <img src="{{ $preview }}" alt="{{ $title }}" style="max-width:100%; max-height:160px; object-fit:contain;">
                     @else
                         <span class="text-muted small"><i class="bi bi-image me-1"></i>No image yet</span>
                     @endif

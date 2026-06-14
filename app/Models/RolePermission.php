@@ -66,6 +66,10 @@ class RolePermission extends Model
                 'view-printers' => 'View Printer Inventory',
                 'manage-printers' => 'Create / Edit / Delete Printers',
             ],
+            'Wallpapers' => [
+                'view-wallpapers' => 'View Managed Wallpapers + deployment links',
+                'manage-wallpapers' => 'Add domains / Upload / Delete wallpapers',
+            ],
             'Identity' => [
                 'view-identity' => 'View Identity (Users, Licenses, Groups)',
                 'manage-identity' => 'Manage Identity (Reset PW, Toggle, Assign)',

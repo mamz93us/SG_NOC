@@ -5,10 +5,11 @@
 .DESCRIPTION
     Pulls the per-domain wallpaper manifest from the NOC, downloads the desktop
     and lock-screen images for THIS machine's domain, applies and LOCKS them via
-    the PersonalizationCSP (users can no longer change either), and installs a
-    daily scheduled task so the policy is re-checked every day. Because it always
-    re-reads the manifest and compares sha256 hashes, replacing a wallpaper in the
-    NOC automatically rolls out to every device on its next run — no re-deploy.
+    the PersonalizationCSP (users can no longer change either), mirrors the desktop
+    into each loaded user hive (so an in-session repaint cannot revert it), and
+    installs a daily scheduled task so the policy is re-checked every day. Because
+    it always re-reads the manifest and compares sha256 hashes, replacing a
+    wallpaper in the NOC automatically rolls out to every device on its next run.
 
     Runs as SYSTEM (Intune platform script / scheduled task). Edition-agnostic
     (Win10 1703+ / Win11, Pro or Enterprise).
@@ -19,13 +20,15 @@
 
 .NOTES
     Manifest URL is injected by the NOC when the script is downloaded.
+    ASCII-only on purpose: a .ps1 with non-ASCII chars and no BOM is misparsed by
+    Windows PowerShell 5.1.
 #>
 
-# ── Injected by the NOC ───────────────────────────────────────────────
+# -- Injected by the NOC -----------------------------------------------
 $ManifestUrl = '{{MANIFEST_URL}}'
 $SelfUrl     = '{{SELF_URL}}'
 
-# ── Constants ─────────────────────────────────────────────────────────
+# -- Constants ---------------------------------------------------------
 $Root      = Join-Path $env:ProgramData 'SamirGroup\Wallpaper'
 $LogFile   = Join-Path $Root 'apply.log'
 $LocalCopy = Join-Path $Root 'Apply-SamirWallpaper.ps1'
@@ -35,7 +38,7 @@ $OverrideKey = 'HKLM:\SOFTWARE\SamirGroup\Wallpaper'   # optional manual pin
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# ── Helpers ───────────────────────────────────────────────────────────
+# -- Helpers -----------------------------------------------------------
 function Write-Log {
     param([string]$Message, [string]$Level = 'INFO')
     $line = "{0} [{1}] {2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
@@ -51,7 +54,7 @@ function Get-DomainHaystack {
 
     try {
         $ov = (Get-ItemProperty -Path $OverrideKey -Name 'DomainOverride' -ErrorAction Stop).DomainOverride
-        if ($ov) { return $ov.ToLower() }   # explicit pin — use it verbatim
+        if ($ov) { return $ov.ToLower() }   # explicit pin - use it verbatim
     } catch {}
 
     try {
@@ -88,7 +91,8 @@ function Save-IfChanged {
 
     try {
         # cache-bust any proxy by appending the hash
-        $bust = if ($ExpectedHash) { ($(if ($Url -match '\?') {'&'} else {'?'}) + 'v=' + $ExpectedHash) } else { '' }
+        $sep = if ($Url -match '\?') { '&' } else { '?' }
+        $bust = if ($ExpectedHash) { $sep + 'v=' + $ExpectedHash } else { '' }
         Invoke-WebRequest -Uri ($Url + $bust) -OutFile $Dest -UseBasicParsing -TimeoutSec 120
         Write-Log "Downloaded $Url -> $Dest"
         return $true
@@ -104,7 +108,38 @@ function Set-CspImage {
     New-ItemProperty -Path $CspPath -Name "${Kind}ImageStatus" -Value 1     -PropertyType DWord  -Force | Out-Null
     New-ItemProperty -Path $CspPath -Name "${Kind}ImagePath"   -Value $Path -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $CspPath -Name "${Kind}ImageUrl"    -Value $Path -PropertyType String -Force | Out-Null
-    Write-Log "$Kind locked to $Path"
+    Write-Log "$Kind locked via CSP -> $Path"
+}
+
+function Set-DesktopForLoadedUsers {
+    # PersonalizationCSP enforces the desktop only at LOGON; the in-session desktop
+    # is painted from each user's own HKCU\Control Panel\Desktop. If we set only the
+    # CSP, a mid-session repaint (lock/unlock, theme refresh) reverts to the user's
+    # OLD wallpaper. So mirror the image into every loaded user hive and lock it
+    # there too - this is what stops the desktop from snapping back.
+    param([string]$Path)
+
+    $sids = @(Get-ChildItem 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+        Where-Object { $_.PSChildName -match '^S-1-5-21-\d' -and $_.PSChildName -notmatch '_Classes$' } |
+        Select-Object -ExpandProperty PSChildName)
+    $sids += '.DEFAULT'   # logon / welcome screen profile
+
+    foreach ($sid in $sids) {
+        try {
+            $desk = "Registry::HKEY_USERS\$sid\Control Panel\Desktop"
+            if (-not (Test-Path $desk)) { New-Item -Path $desk -Force | Out-Null }
+            Set-ItemProperty -Path $desk -Name 'WallPaper'      -Value $Path -Type String
+            Set-ItemProperty -Path $desk -Name 'WallpaperStyle' -Value '10'  -Type String   # 10 = Fill
+            Set-ItemProperty -Path $desk -Name 'TileWallpaper'  -Value '0'   -Type String
+
+            $lock = "Registry::HKEY_USERS\$sid\Software\Microsoft\Windows\CurrentVersion\Policies\ActiveDesktop"
+            if (-not (Test-Path $lock)) { New-Item -Path $lock -Force | Out-Null }
+            New-ItemProperty -Path $lock -Name 'NoChangingWallPaper' -Value 1 -PropertyType DWord -Force | Out-Null
+        } catch {
+            Write-Log "Per-user desktop set failed for $sid : $($_.Exception.Message)" 'WARN'
+        }
+    }
+    Write-Log "Desktop mirrored into $($sids.Count) user hive(s)"
 }
 
 function Install-DailyTask {
@@ -113,14 +148,14 @@ function Install-DailyTask {
         # Keep a local, self-contained copy for the task to run.
         if ($PSCommandPath -and (Test-Path $PSCommandPath) -and ($PSCommandPath -ne $LocalCopy)) {
             Copy-Item -Path $PSCommandPath -Destination $LocalCopy -Force
-        } elseif (-not (Test-Path $LocalCopy) -and $SelfUrl -and $SelfUrl -notmatch '{{') {
+        } elseif (-not (Test-Path $LocalCopy) -and $SelfUrl -and $SelfUrl -notmatch '\{\{') {
             Invoke-WebRequest -Uri $SelfUrl -OutFile $LocalCopy -UseBasicParsing -TimeoutSec 60
         }
         if (-not (Test-Path $LocalCopy)) { Write-Log 'No local script copy; skipping task install' 'WARN'; return }
 
         $action  = New-ScheduledTaskAction -Execute 'powershell.exe' `
                     -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$LocalCopy`""
-        $trigDay = New-ScheduledTaskTrigger -Daily -At 9am
+        $trigDay = New-ScheduledTaskTrigger -Daily -At ([datetime]'09:00')
         $trigLog = New-ScheduledTaskTrigger -AtLogOn
         $princ   = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
         $set     = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries `
@@ -134,12 +169,12 @@ function Install-DailyTask {
     }
 }
 
-# ── Main ──────────────────────────────────────────────────────────────
+# -- Main --------------------------------------------------------------
 New-Item -Path $Root -ItemType Directory -Force | Out-Null
-Write-Log '──── run start ────'
+Write-Log '==== run start ===='
 
-if ($ManifestUrl -match '{{') {
-    Write-Log 'Manifest URL was not injected — download the script from the NOC, do not edit it.' 'ERROR'
+if ($ManifestUrl -match '\{\{') {
+    Write-Log 'Manifest URL was not injected - download the script from the NOC, do not edit it.' 'ERROR'
     exit 1
 }
 
@@ -159,17 +194,20 @@ Write-Log "Domain signals: $haystack"
 $set = $manifest.sets | Where-Object { $_.domain_match -and ($haystack -like "*$($_.domain_match.ToLower())*") } | Select-Object -First 1
 if (-not $set) {
     $set = $manifest.sets | Where-Object { $_.is_default } | Select-Object -First 1
-    if ($set) { Write-Log "No domain match — using default set '$($set.label)'" }
+    if ($set) { Write-Log "No domain match - using default set '$($set.label)'" }
 }
 if (-not $set) { Write-Log 'No matching or default wallpaper set in manifest.' 'WARN'; Install-DailyTask; exit 0 }
 
 Write-Log "Selected set: $($set.label) [$($set.domain_match)]"
 
-# Desktop
+# Desktop - CSP (enforce at logon + lock) AND per-user hive (stop in-session revert)
 if ($set.desktop_url) {
     $ext  = [IO.Path]::GetExtension(([Uri]$set.desktop_url).AbsolutePath); if (-not $ext) { $ext = '.jpg' }
     $dest = Join-Path $Root "desktop$ext"
-    if (Save-IfChanged -Url $set.desktop_url -Dest $dest -ExpectedHash $set.desktop_hash) { Set-CspImage 'Desktop' $dest }
+    if (Save-IfChanged -Url $set.desktop_url -Dest $dest -ExpectedHash $set.desktop_hash) {
+        Set-CspImage 'Desktop' $dest
+        Set-DesktopForLoadedUsers $dest
+    }
 }
 
 # Lock screen
@@ -183,5 +221,5 @@ if ($set.lockscreen_url) {
 try { rundll32.exe user32.dll, UpdatePerUserSystemParameters 1, True } catch {}
 
 Install-DailyTask
-Write-Log '──── run done ────'
+Write-Log '==== run done ===='
 exit 0
