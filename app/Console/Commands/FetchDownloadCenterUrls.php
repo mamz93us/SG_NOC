@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\DownloadFile;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -66,7 +67,12 @@ class FetchDownloadCenterUrls extends Command
 
     private function fetchOne(DownloadFile $row): void
     {
-        $row->update(['status' => DownloadFile::STATUS_FETCHING, 'error' => null]);
+        $row->update([
+            'status' => DownloadFile::STATUS_FETCHING,
+            'error' => null,
+            'download_total_bytes' => null,
+            'download_received_bytes' => 0,
+        ]);
 
         $tmp = tempnam(sys_get_temp_dir(), 'dlc_');
         if ($tmp === false) {
@@ -75,9 +81,29 @@ class FetchDownloadCenterUrls extends Command
             return;
         }
 
+        // Throttled progress writer — Guzzle fires the callback constantly, so we
+        // only touch the DB every ~2s (a raw update, no model events) to feed the
+        // index page's live bar without hammering MySQL.
+        $lastWrite = 0.0;
+        $progress = function ($downloadTotal, $downloadedBytes) use ($row, &$lastWrite) {
+            if ($downloadedBytes <= 0) {
+                return;
+            }
+            $now = microtime(true);
+            if (($now - $lastWrite) < 2.0) {
+                return;
+            }
+            $lastWrite = $now;
+            DB::table('download_files')->where('id', $row->id)->update([
+                'download_total_bytes' => $downloadTotal > 0 ? $downloadTotal : null,
+                'download_received_bytes' => $downloadedBytes,
+                'updated_at' => now(),
+            ]);
+        };
+
         try {
             $response = Http::timeout((int) config('download_center.fetch_timeout', 3600))
-                ->withOptions(['stream' => false, 'sink' => $tmp])
+                ->withOptions(['stream' => false, 'sink' => $tmp, 'progress' => $progress])
                 ->get($row->source_url);
 
             if (! $response->successful()) {
@@ -92,6 +118,14 @@ class FetchDownloadCenterUrls extends Command
             if ($size > $maxBytes) {
                 throw new \RuntimeException('Fetched file ('.round($size / 1073741824, 1).' GB) exceeds the limit.');
             }
+
+            // Download done — mark 100%, so the bar reads as "uploading to Azure"
+            // while writeStream (which can't report progress) pushes the blob.
+            DB::table('download_files')->where('id', $row->id)->update([
+                'download_total_bytes' => $size,
+                'download_received_bytes' => $size,
+                'updated_at' => now(),
+            ]);
 
             $blobPath = $row->id.'/'.$row->original_filename;
 

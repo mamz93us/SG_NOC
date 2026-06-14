@@ -174,38 +174,82 @@
         });
     }
 
-    // ── Poll status for any row still ingesting (pending/fetching) ──
+    // ── Live status polling for rows still ingesting (pending/fetching) ──
+    function fmtBytes(n) {
+        if (!n) return '0 B';
+        const u = ['B','KB','MB','GB','TB']; let i = 0; n = Number(n);
+        while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+        return n.toFixed(1) + ' ' + u[i];
+    }
+    function fmtDuration(secs) {
+        if (!isFinite(secs) || secs < 0) return '—';
+        secs = Math.round(secs);
+        const m = Math.floor(secs / 60), s = secs % 60;
+        return m > 0 ? (m + 'm ' + s + 's') : (s + 's');
+    }
+    const samples = {}; // id -> {t, received} for speed/ETA
+
+    function renderStatus(tr, d) {
+        const cell = tr.querySelector('.js-status-badge');
+        if (!cell) return;
+
+        if (d.status === 'pending') {
+            cell.innerHTML = '<span class="badge bg-warning-subtle text-warning-emphasis">Pending</span>';
+            return;
+        }
+        if (d.status === 'fetching') {
+            const pct = d.percent;
+            const uploading = d.uploading;
+            // speed + ETA from successive samples
+            let extra = '';
+            const now = Date.now() / 1000;
+            const prev = samples[d.id];
+            if (!uploading && prev && d.received_bytes > prev.received) {
+                const dt = now - prev.t;
+                const speed = (d.received_bytes - prev.received) / dt; // B/s
+                if (speed > 0) {
+                    const remaining = d.total_bytes ? (d.total_bytes - d.received_bytes) : 0;
+                    const eta = d.total_bytes ? remaining / speed : NaN;
+                    extra = ' · ' + fmtBytes(speed) + '/s' + (d.total_bytes ? ' · ETA ' + fmtDuration(eta) : '');
+                }
+            }
+            samples[d.id] = { t: now, received: d.received_bytes };
+
+            const label = uploading ? 'Uploading to Azure…' : 'Fetching…';
+            const animated = (pct === null || uploading) ? 'progress-bar-striped progress-bar-animated' : '';
+            const width = (pct === null) ? 100 : pct;
+            let text;
+            if (d.total_bytes) {
+                text = fmtBytes(d.received_bytes) + ' / ' + fmtBytes(d.total_bytes)
+                     + (pct !== null ? ' (' + pct + '%)' : '') + extra;
+            } else {
+                text = fmtBytes(d.received_bytes) + ' downloaded' + extra;
+            }
+            cell.innerHTML =
+                '<span class="badge bg-primary-subtle text-primary-emphasis">' + label + '</span>' +
+                '<div class="progress mt-1" style="height:6px; min-width:160px;">' +
+                  '<div class="progress-bar ' + animated + '" role="progressbar" style="width:' + width + '%;"></div>' +
+                '</div>' +
+                '<div class="small text-muted">' + text + '</div>';
+            return;
+        }
+        // stored / failed → reload once to pick up the download button + share controls.
+        window.location.reload();
+    }
+
     function pollRow(tr) {
         fetch(tr.dataset.statusUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(r => r.json())
-            .then(d => {
-                const badge = tr.querySelector('.js-status-badge');
-                if (badge) badge.innerHTML = renderBadge(d.status, d.error);
-                const size = tr.querySelector('.js-size');
-                if (size && d.human_size) size.textContent = d.human_size;
-                if (d.status === 'stored' || d.status === 'failed') {
-                    // Reload once to pick up the download button / share controls.
-                    window.location.reload();
-                }
-            })
+            .then(d => renderStatus(tr, d))
             .catch(() => {});
     }
-    function renderBadge(status, error) {
-        const map = {
-            pending:  '<span class="badge bg-warning-subtle text-warning-emphasis">Pending</span>',
-            fetching: '<span class="badge bg-primary-subtle text-primary-emphasis">Fetching…</span>',
-            stored:   '<span class="badge bg-success-subtle text-success-emphasis">Stored</span>',
-            failed:   '<span class="badge bg-danger-subtle text-danger-emphasis" title="' + (error || '') + '">Failed</span>',
-        };
-        return map[status] || status;
-    }
-    const pending = Array.from(document.querySelectorAll('tr[data-status-url]'))
+    const active = Array.from(document.querySelectorAll('tr[data-status-url]'))
         .filter(tr => {
             const t = (tr.querySelector('.js-status-badge')||{}).textContent || '';
-            return /Pending|Fetching/i.test(t);
+            return /Pending|Fetching|Uploading/i.test(t);
         });
-    if (pending.length) {
-        setInterval(() => pending.forEach(pollRow), 3000);
+    if (active.length) {
+        setInterval(() => active.forEach(pollRow), 2000);
     }
 })();
 </script>

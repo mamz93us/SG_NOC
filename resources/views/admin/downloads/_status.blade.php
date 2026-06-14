@@ -2,7 +2,25 @@
 @if($s === \App\Models\DownloadFile::STATUS_STORED)
     <span class="badge bg-success-subtle text-success-emphasis">Stored</span>
 @elseif($s === \App\Models\DownloadFile::STATUS_FETCHING)
-    <span class="badge bg-primary-subtle text-primary-emphasis">Fetching…</span>
+    @php
+        $total = $f->download_total_bytes;
+        $recv = $f->download_received_bytes;
+        $pct = $total > 0 ? min(100, (int) floor($recv / $total * 100)) : null;
+        $uploading = $total > 0 && $recv >= $total;
+    @endphp
+    <span class="badge bg-primary-subtle text-primary-emphasis">{{ $uploading ? 'Uploading to Azure…' : 'Fetching…' }}</span>
+    <div class="progress mt-1" style="height:6px; min-width:160px;">
+        <div class="progress-bar {{ $pct === null || $uploading ? 'progress-bar-striped progress-bar-animated' : '' }}"
+             role="progressbar" style="width:{{ $pct ?? 100 }}%;"></div>
+    </div>
+    <div class="small text-muted js-progress-text">
+        @if($total > 0)
+            {{ \App\Models\DownloadFile::formatBytes($recv) }} / {{ \App\Models\DownloadFile::formatBytes($total) }}
+            @if($pct !== null) ({{ $pct }}%) @endif
+        @else
+            starting…
+        @endif
+    </div>
 @elseif($s === \App\Models\DownloadFile::STATUS_PENDING)
     <span class="badge bg-warning-subtle text-warning-emphasis">Pending</span>
 @else

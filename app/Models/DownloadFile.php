@@ -45,6 +45,8 @@ class DownloadFile extends Model
         'source_url',
         'status',
         'error',
+        'download_total_bytes',
+        'download_received_bytes',
         'public_enabled',
         'public_token',
         'public_expires_at',
@@ -55,6 +57,8 @@ class DownloadFile extends Model
 
     protected $casts = [
         'size' => 'integer',
+        'download_total_bytes' => 'integer',
+        'download_received_bytes' => 'integer',
         'public_enabled' => 'boolean',
         'public_expires_at' => 'datetime',
         'download_count' => 'integer',
@@ -120,11 +124,16 @@ class DownloadFile extends Model
 
     public function humanSize(): string
     {
-        if (! $this->size) {
+        return self::formatBytes($this->size);
+    }
+
+    public static function formatBytes(?int $bytes): string
+    {
+        if (! $bytes) {
             return '—';
         }
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $size = (float) $this->size;
+        $size = (float) $bytes;
         $i = 0;
         while ($size >= 1024 && $i < count($units) - 1) {
             $size /= 1024;

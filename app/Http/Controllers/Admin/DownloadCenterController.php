@@ -137,6 +137,11 @@ class DownloadCenterController extends Controller
 
     public function status(DownloadFile $download): JsonResponse
     {
+        $total = $download->download_total_bytes;
+        $received = $download->download_received_bytes;
+        $uploading = $download->status === DownloadFile::STATUS_FETCHING
+            && $total > 0 && $received >= $total;
+
         return response()->json([
             'id' => $download->id,
             'status' => $download->status,
@@ -145,6 +150,11 @@ class DownloadCenterController extends Controller
             'error' => $download->error,
             'download_count' => $download->download_count,
             'public_state' => $download->publicState(),
+            // Live ingest progress (URL fetches).
+            'received_bytes' => $received,
+            'total_bytes' => $total,
+            'percent' => $total > 0 ? min(100, (int) floor($received / $total * 100)) : null,
+            'uploading' => $uploading,
         ]);
     }
 
