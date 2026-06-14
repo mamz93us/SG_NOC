@@ -189,6 +189,56 @@
 <div class="alert alert-info">No domains yet — add one above.</div>
 @endforelse
 
+{{-- ── Devices that applied the wallpaper ───────────────────────── --}}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center fw-semibold">
+        <span><i class="bi bi-pc-display me-2"></i>Devices ({{ $checkins->count() }})</span>
+        <span class="text-muted small">Reported by the script after it applies</span>
+    </div>
+    <div class="card-body p-0">
+        @if($checkins->isEmpty())
+            <div class="p-3 text-muted small">
+                No devices have checked in yet. Once a device runs the script, it reports here within a minute.
+            </div>
+        @else
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Device</th>
+                        <th>Domain detected</th>
+                        <th>Wallpaper set</th>
+                        <th>OS</th>
+                        <th>Runs</th>
+                        <th>Last applied</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($checkins as $c)
+                    <tr>
+                        <td class="font-monospace">{{ $c->hostname }}</td>
+                        <td class="small text-muted">{{ $c->domain_detected ?: '—' }}</td>
+                        <td>
+                            @if($c->set_label)
+                                <span class="badge bg-primary">{{ $c->set_label }}</span>
+                            @else
+                                <span class="badge bg-secondary">none</span>
+                            @endif
+                        </td>
+                        <td class="small text-muted">{{ $c->os_version ?: '—' }}</td>
+                        <td class="small">{{ $c->checkin_count }}</td>
+                        <td class="small" title="{{ $c->last_applied_at }}">
+                            {{ $c->last_applied_at?->diffForHumans() ?? '—' }}
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
+    </div>
+</div>
+
 <p class="text-muted small">
     <i class="bi bi-lightbulb me-1"></i>
     Tip: use a high-resolution image (1920×1080 or larger). The desktop and lock screen can use the same or different images.

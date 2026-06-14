@@ -27,6 +27,7 @@
 # -- Injected by the NOC -----------------------------------------------
 $ManifestUrl = '{{MANIFEST_URL}}'
 $SelfUrl     = '{{SELF_URL}}'
+$CheckinUrl  = '{{CHECKIN_URL}}'
 
 # -- Constants ---------------------------------------------------------
 $Root      = Join-Path $env:ProgramData 'SamirGroup\Wallpaper'
@@ -142,6 +143,29 @@ function Set-DesktopForLoadedUsers {
     Write-Log "Desktop mirrored into $($sids.Count) user hive(s)"
 }
 
+function Send-Checkin {
+    # Report what we applied so the NOC can list this device. Best-effort: a
+    # failure here must never stop the wallpaper from being applied.
+    param($Set, [string]$Haystack)
+    if (-not $CheckinUrl -or $CheckinUrl -match '\{\{') { return }
+    try {
+        $os = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue)
+        $body = @{
+            hostname        = $env:COMPUTERNAME
+            domain_detected = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).Domain
+            set_label       = $Set.label
+            domain_match    = $Set.domain_match
+            desktop_hash    = $Set.desktop_hash
+            lockscreen_hash = $Set.lockscreen_hash
+            os_version      = if ($os) { "$($os.Caption) $($os.Version)" } else { '' }
+        } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Uri $CheckinUrl -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 30 | Out-Null
+        Write-Log 'Check-in sent to NOC'
+    } catch {
+        Write-Log "Check-in FAILED: $($_.Exception.Message)" 'WARN'
+    }
+}
+
 function Install-DailyTask {
     # Re-run this agent every day at 09:00 and at every user logon, as SYSTEM.
     try {
@@ -220,6 +244,7 @@ if ($set.lockscreen_url) {
 # Nudge the current session to repaint (full effect on next sign-in).
 try { rundll32.exe user32.dll, UpdatePerUserSystemParameters 1, True } catch {}
 
+Send-Checkin -Set $set -Haystack $haystack
 Install-DailyTask
 Write-Log '==== run done ===='
 exit 0

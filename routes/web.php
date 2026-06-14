@@ -2124,6 +2124,9 @@ Route::get('/api/wallpapers/manifest', [\App\Http\Controllers\Public\WallpaperDe
 Route::get('/api/wallpapers/script.ps1', [\App\Http\Controllers\Public\WallpaperDeploymentController::class, 'script'])
     ->name('wallpapers.script')
     ->middleware('throttle:120,1');
+Route::post('/api/wallpapers/checkin', [\App\Http\Controllers\Public\WallpaperDeploymentController::class, 'checkin'])
+    ->name('wallpapers.checkin')
+    ->middleware('throttle:120,1');
 
 // Onboarding manager setup form (token-based, public)
 Route::get('/onboarding/form/{token}', [OnboardingFormController::class, 'show'])->name('onboarding.form');

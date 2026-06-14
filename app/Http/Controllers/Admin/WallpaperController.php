@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\WallpaperCheckin;
 use App\Models\WallpaperSet;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,8 +29,11 @@ class WallpaperController extends Controller
     {
         $sets = WallpaperSet::with('updater')->orderByDesc('is_default')->orderBy('label')->get();
 
+        $checkins = WallpaperCheckin::orderByDesc('last_applied_at')->limit(500)->get();
+
         return view('admin.wallpapers.index', [
             'sets' => $sets,
+            'checkins' => $checkins,
             'manifestUrl' => route('wallpapers.manifest'),
             'scriptUrl' => route('wallpapers.script'),
         ]);
