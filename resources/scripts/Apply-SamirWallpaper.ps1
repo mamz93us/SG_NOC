@@ -47,21 +47,63 @@ function Write-Log {
     Write-Output $line
 }
 
-function Get-DomainHaystack {
-    # Build one lowercase string from every signal that might carry the org's
-    # domain, so a manifest entry like "sssegypt.com" matches whether the device
-    # is on-prem AD-joined, Entra-joined, or hybrid. A manual override wins.
+function Get-PrimaryUpn {
+    # The reliable SSS-vs-SamirGroup discriminator on Entra-joined / Intune devices
+    # is the user's UPN suffix (the AD domain is "WORKGROUP" there). Read it as
+    # SYSTEM from the most dependable sources, in order of preference.
+
+    # 1) Intune enrollment record - the enrolling user's UPN. Best for managed devices.
+    try {
+        foreach ($k in (Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Enrollments' -ErrorAction SilentlyContinue)) {
+            $upn = (Get-ItemProperty $k.PSPath -Name 'UPN' -ErrorAction SilentlyContinue).UPN
+            if ($upn -and $upn -match '@') { return $upn }
+        }
+    } catch {}
+
+    # 2) Entra IdentityStore cache - the primary signed-in user.
+    try {
+        $base = 'HKLM:\SOFTWARE\Microsoft\IdentityStore\Cache'
+        foreach ($sidk in (Get-ChildItem $base -ErrorAction SilentlyContinue)) {
+            $sid = $sidk.PSChildName
+            $u = (Get-ItemProperty "$base\$sid\IdentityCache\$sid" -Name 'UserName' -ErrorAction SilentlyContinue).UserName
+            if ($u -and $u -match '@') { return $u }
+        }
+    } catch {}
+
+    # 3) LogonUI's last Entra user (format AzureAD\\user@domain).
+    try {
+        $last = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI' -Name 'LastLoggedOnUser' -ErrorAction SilentlyContinue).LastLoggedOnUser
+        if ($last -and $last -match '@') { return ($last -replace '^.*\\', '') }
+    } catch {}
+
+    return $null
+}
+
+function Get-DomainInfo {
+    # Returns: Haystack (everything we know, for substring matching) and Detected
+    # (the single best human-readable domain to display / report). Manual override wins.
     $parts = New-Object System.Collections.Generic.List[string]
+    $detected = $null
 
     try {
         $ov = (Get-ItemProperty -Path $OverrideKey -Name 'DomainOverride' -ErrorAction Stop).DomainOverride
-        if ($ov) { return $ov.ToLower() }   # explicit pin - use it verbatim
+        if ($ov) { return [pscustomobject]@{ Haystack = $ov.ToLower(); Detected = $ov.ToLower() } }
     } catch {}
+
+    # User UPN first - the strongest signal for Entra tenants with multiple domains.
+    $upn = Get-PrimaryUpn
+    if ($upn) {
+        $parts.Add($upn)
+        $detected = ($upn -split '@')[-1].ToLower()
+    }
 
     try {
         $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
-        if ($cs.Domain)   { $parts.Add($cs.Domain) }
-        if ($cs.UserName) { $parts.Add($cs.UserName) }   # DOMAIN\user of console session
+        if ($cs.Domain) {
+            $parts.Add($cs.Domain)
+            if (-not $detected -and $cs.PartOfDomain) { $detected = $cs.Domain.ToLower() }   # on-prem AD
+        }
+        if ($cs.UserName) { $parts.Add($cs.UserName) }
     } catch {}
 
     try {
@@ -69,13 +111,14 @@ function Get-DomainHaystack {
         if ($dns) { $parts.Add($dns) }
     } catch {}
 
-    # dsregcmd carries the Entra tenant's verified domain / user UPN for AAD devices.
+    # dsregcmd carries the Entra tenant's verified domain for AAD devices.
     try {
         $ds = & dsregcmd /status 2>$null
         if ($ds) { $parts.Add(($ds -join ' ')) }
     } catch {}
 
-    return ($parts -join ' ').ToLower()
+    if (-not $detected) { $detected = 'workgroup' }
+    return [pscustomobject]@{ Haystack = (($parts -join ' ').ToLower()); Detected = $detected }
 }
 
 function Save-IfChanged {
@@ -146,13 +189,13 @@ function Set-DesktopForLoadedUsers {
 function Send-Checkin {
     # Report what we applied so the NOC can list this device. Best-effort: a
     # failure here must never stop the wallpaper from being applied.
-    param($Set, [string]$Haystack)
+    param($Set, [string]$Detected)
     if (-not $CheckinUrl -or $CheckinUrl -match '\{\{') { return }
     try {
         $os = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue)
         $body = @{
             hostname        = $env:COMPUTERNAME
-            domain_detected = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).Domain
+            domain_detected = $Detected
             set_label       = $Set.label
             domain_match    = $Set.domain_match
             desktop_hash    = $Set.desktop_hash
@@ -211,11 +254,18 @@ try {
     exit 1
 }
 
-$haystack = Get-DomainHaystack
-Write-Log "Domain signals: $haystack"
+$dom = Get-DomainInfo
+$haystack = $dom.Haystack
+$detected = $dom.Detected
+Write-Log "Detected domain: $detected"
 
-# Pick the set whose domain_match appears in our signals; else the default.
-$set = $manifest.sets | Where-Object { $_.domain_match -and ($haystack -like "*$($_.domain_match.ToLower())*") } | Select-Object -First 1
+# Match in order of confidence: the precise detected domain first (the Entra
+# tenant domain leaks into the broad haystack on every device, so trust the UPN
+# suffix), then the broad haystack, then the default fallback.
+$set = $manifest.sets | Where-Object { $_.domain_match -and ($detected -like "*$($_.domain_match.ToLower())*") } | Select-Object -First 1
+if (-not $set) {
+    $set = $manifest.sets | Where-Object { $_.domain_match -and ($haystack -like "*$($_.domain_match.ToLower())*") } | Select-Object -First 1
+}
 if (-not $set) {
     $set = $manifest.sets | Where-Object { $_.is_default } | Select-Object -First 1
     if ($set) { Write-Log "No domain match - using default set '$($set.label)'" }
@@ -244,7 +294,7 @@ if ($set.lockscreen_url) {
 # Nudge the current session to repaint (full effect on next sign-in).
 try { rundll32.exe user32.dll, UpdatePerUserSystemParameters 1, True } catch {}
 
-Send-Checkin -Set $set -Haystack $haystack
+Send-Checkin -Set $set -Detected $detected
 Install-DailyTask
 Write-Log '==== run done ===='
 exit 0
