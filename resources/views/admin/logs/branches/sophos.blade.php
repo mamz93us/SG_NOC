@@ -110,6 +110,22 @@
                            class="form-control form-control-sm font-monospace">
                 </div>
 
+                <div class="col-md-1">
+                    <label class="form-label small text-muted mb-1">Src Port</label>
+                    <input type="text" name="sophos_src_port"
+                           value="{{ $filters['sophos_src_port'] }}"
+                           placeholder="51514"
+                           class="form-control form-control-sm font-monospace">
+                </div>
+
+                <div class="col-md-1">
+                    <label class="form-label small text-muted mb-1">Dst Port</label>
+                    <input type="text" name="sophos_dst_port"
+                           value="{{ $filters['sophos_dst_port'] }}"
+                           placeholder="443"
+                           class="form-control form-control-sm font-monospace">
+                </div>
+
                 <div class="col-md-3 mt-2">
                     <label class="form-label small text-muted mb-1">Free-text in message</label>
                     <input type="text" name="q"
@@ -122,7 +138,7 @@
                 <div class="col-md-1 mt-2">
                     <label class="form-label small text-muted mb-1">Rows</label>
                     <select name="rows" class="form-select form-select-sm">
-                        @foreach([200, 500, 1000] as $opt)
+                        @foreach([200, 500, 1000, 2000, 5000] as $opt)
                             <option value="{{ $opt }}" @if($rowsSelected === $opt) selected @endif>{{ $opt }}</option>
                         @endforeach
                     </select>

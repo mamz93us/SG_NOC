@@ -43,7 +43,7 @@ type AggregateResult struct {
 // first, stopping once limit rows are collected. params are the same keys the
 // NOC forwards: from, to, q, source, source_ip, program, severity.
 func (m *Manager) Search(params map[string]string, limit int) SearchResult {
-	if limit <= 0 || limit > 1000 {
+	if limit <= 0 || limit > 5000 {
 		limit = 200
 	}
 	where, args := buildWhere(params)
@@ -193,6 +193,14 @@ func buildWhere(p map[string]string) (string, []any) {
 	if v := strings.TrimSpace(p["sophos_dst_ip"]); v != "" {
 		clauses = append(clauses, "message LIKE ?")
 		args = append(args, `%dst_ip="`+v+`"%`)
+	}
+	if v := strings.TrimSpace(p["sophos_src_port"]); v != "" {
+		clauses = append(clauses, "message LIKE ?")
+		args = append(args, `%src_port="`+v+`"%`)
+	}
+	if v := strings.TrimSpace(p["sophos_dst_port"]); v != "" {
+		clauses = append(clauses, "message LIKE ?")
+		args = append(args, `%dst_port="`+v+`"%`)
 	}
 
 	if len(clauses) == 0 {

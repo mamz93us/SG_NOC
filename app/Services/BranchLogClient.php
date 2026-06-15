@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\BranchLogCollector;
-use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -35,9 +34,9 @@ class BranchLogClient
             ->get()
             ->mapWithKeys(fn (BranchLogCollector $c) => [
                 $c->code => [
-                    'name'  => $c->name,
-                    'host'  => $c->host,
-                    'port'  => $c->port,
+                    'name' => $c->name,
+                    'host' => $c->host,
+                    'port' => $c->port,
                     'token' => $c->api_token,
                 ],
             ])
@@ -48,30 +47,30 @@ class BranchLogClient
      * Run /api/logs/search on each requested branch in parallel, merge
      * results, sort newest-first, return up to $limit globally.
      *
-     * @param  array  $branchIds   subset of branch IDs to query, [] = all enabled
-     * @param  array  $params      query params forwarded to each branch
-     * @param  int    $limit       global cap on merged result count
+     * @param  array  $branchIds  subset of branch IDs to query, [] = all enabled
+     * @param  array  $params  query params forwarded to each branch
+     * @param  int  $limit  global cap on merged result count
      */
     public function search(array $branchIds, array $params, int $limit = 200): array
     {
         $branches = $this->resolveBranches($branchIds);
-        if (!$branches) {
+        if (! $branches) {
             return ['ok' => true, 'results' => [], 'errors' => [], 'branches' => [], 'total' => 0];
         }
 
         // Tell each branch how many rows it should return — otherwise the
         // branch API defaults to 200 regardless of our global merge cap.
-        // Capped at 1000 by SearchService::boundedInt() on the branch side.
-        if (!isset($params['limit'])) {
-            $params['limit'] = min($limit, 1000);
+        // Capped at 5000 by the branch agent's Search() on the branch side.
+        if (! isset($params['limit'])) {
+            $params['limit'] = min($limit, 5000);
         }
 
-        $started   = microtime(true);
+        $started = microtime(true);
         $responses = $this->fanOut($branches, '/api/logs/search', $params);
 
-        $merged  = [];
-        $errors  = [];
-        $totals  = [];
+        $merged = [];
+        $errors = [];
+        $totals = [];
         foreach ($responses as $branchId => $resp) {
             if ($resp['ok']) {
                 $totals[$branchId] = $resp['total'] ?? count($resp['results'] ?? []);
@@ -88,12 +87,12 @@ class BranchLogClient
         $merged = array_slice($merged, 0, $limit);
 
         return [
-            'ok'       => true,
-            'results'  => $merged,
-            'errors'   => $errors,
-            'totals'   => $totals,
-            'total'    => array_sum($totals),
-            'took_ms'  => (int) ((microtime(true) - $started) * 1000),
+            'ok' => true,
+            'results' => $merged,
+            'errors' => $errors,
+            'totals' => $totals,
+            'total' => array_sum($totals),
+            'took_ms' => (int) ((microtime(true) - $started) * 1000),
             'branches' => array_keys($branches),
         ];
     }
@@ -105,15 +104,15 @@ class BranchLogClient
     public function aggregate(array $branchIds, array $params, int $limit = 30): array
     {
         $branches = $this->resolveBranches($branchIds);
-        if (!$branches) {
+        if (! $branches) {
             return ['ok' => true, 'buckets' => [], 'errors' => [], 'branches' => []];
         }
 
-        $started   = microtime(true);
+        $started = microtime(true);
         $responses = $this->fanOut($branches, '/api/logs/aggregate', $params);
 
         $bucketMap = [];
-        $errors    = [];
+        $errors = [];
         foreach ($responses as $branchId => $resp) {
             if ($resp['ok']) {
                 foreach ($resp['buckets'] ?? [] as $b) {
@@ -132,10 +131,10 @@ class BranchLogClient
         }
 
         return [
-            'ok'       => true,
-            'buckets'  => $buckets,
-            'errors'   => $errors,
-            'took_ms'  => (int) ((microtime(true) - $started) * 1000),
+            'ok' => true,
+            'buckets' => $buckets,
+            'errors' => $errors,
+            'took_ms' => (int) ((microtime(true) - $started) * 1000),
             'branches' => array_keys($branches),
         ];
     }
@@ -143,7 +142,10 @@ class BranchLogClient
     private function resolveBranches(array $branchIds): array
     {
         $enabled = $this->enabledBranches();
-        if (!$branchIds) return $enabled;
+        if (! $branchIds) {
+            return $enabled;
+        }
+
         return array_intersect_key($enabled, array_flip($branchIds));
     }
 
@@ -155,9 +157,9 @@ class BranchLogClient
     private function fanOut(array $branches, string $path, array $params): array
     {
         $ids = array_keys($branches);
-        $timeout       = (int) config('branches.http.timeout', 10);
+        $timeout = (int) config('branches.http.timeout', 10);
         $connectTimeout = (int) config('branches.http.connect_timeout', 3);
-        $verifyTls     = (bool) config('branches.http.verify_tls', false);
+        $verifyTls = (bool) config('branches.http.verify_tls', false);
 
         $responses = Http::pool(function ($pool) use ($branches, $path, $params, $timeout, $connectTimeout, $verifyTls) {
             $jobs = [];
@@ -170,6 +172,7 @@ class BranchLogClient
                     ->withOptions(['verify' => $verifyTls])
                     ->get($url, $params);
             }
+
             return $jobs;
         });
 
@@ -178,23 +181,27 @@ class BranchLogClient
             $r = $responses[$id] ?? null;
             if ($r === null) {
                 $out[$id] = ['ok' => false, 'error' => 'no response (pool error)'];
+
                 continue;
             }
             if ($r instanceof \Throwable) {
                 Log::warning('BranchLogClient transport error', [
                     'branch' => $id,
-                    'error'  => $r->getMessage(),
+                    'error' => $r->getMessage(),
                 ]);
-                $out[$id] = ['ok' => false, 'error' => 'unreachable: ' . $r->getMessage()];
+                $out[$id] = ['ok' => false, 'error' => 'unreachable: '.$r->getMessage()];
+
                 continue;
             }
-            if (!$r->ok()) {
+            if (! $r->ok()) {
                 $body = $r->json() ?? [];
                 $out[$id] = ['ok' => false, 'error' => $body['error'] ?? "HTTP {$r->status()}"];
+
                 continue;
             }
             $out[$id] = $r->json() ?? ['ok' => false, 'error' => 'invalid json'];
         }
+
         return $out;
     }
 }

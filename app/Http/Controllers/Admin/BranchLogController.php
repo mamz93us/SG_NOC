@@ -136,10 +136,10 @@ class BranchLogController extends Controller
 
         $results = null;
         if ($request->boolean('search')) {
-            // Per-branch row cap (max 1000 by SearchService::boundedInt).
-            // Default 500; user can pick 200 / 500 / 1000 in the form.
+            // Per-branch row cap. Default 500; user can pick up to 5000 in the form
+            // (the branch agent's Search() honours up to 5000).
             $rows = (int) $request->get('rows', 500);
-            $rows = max(50, min(1000, $rows));
+            $rows = max(50, min(5000, $rows));
 
             $results = $this->client->search($selected, $apiParams, limit: $rows);
 
@@ -324,6 +324,8 @@ class BranchLogController extends Controller
             'sophos_subtype' => trim((string) $request->get('sophos_subtype', '')),
             'sophos_dst_ip' => trim((string) $request->get('sophos_dst_ip', '')),
             'sophos_src_ip' => trim((string) $request->get('sophos_src_ip', '')),
+            'sophos_src_port' => trim((string) $request->get('sophos_src_port', '')),
+            'sophos_dst_port' => trim((string) $request->get('sophos_dst_port', '')),
         ];
     }
 
