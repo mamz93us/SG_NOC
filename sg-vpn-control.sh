@@ -13,8 +13,9 @@ if [[ ! " ${VALID_ACTIONS[@]} " =~ " ${ACTION} " ]]; then
     exit 1
 fi
 
-# Security: Validate tunnel name format if provided (alphanumeric and underscores)
-if [[ -n "$TUNNEL" && ! "$TUNNEL" =~ ^[a-zA-Z0-9_]+$ ]]; then
+# Security: Validate tunnel/child name format if provided. Allows hyphens so
+# per-subnet child SA names (e.g. RYD-2, RYD-3) can be initiated/terminated.
+if [[ -n "$TUNNEL" && ! "$TUNNEL" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     echo "{\"status\":\"error\",\"message\":\"Invalid tunnel name format\"}"
     exit 1
 fi

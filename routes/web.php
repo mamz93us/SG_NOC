@@ -997,6 +997,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/{tunnel}', [VpnHubController::class, 'destroy'])->name('destroy');
         Route::post('/{tunnel}/up', [VpnHubController::class, 'initiate'])->name('up');
         Route::post('/{tunnel}/down', [VpnHubController::class, 'terminate'])->name('down');
+        Route::post('/{tunnel}/child/{action}', [VpnHubController::class, 'childAction'])
+            ->whereIn('action', ['up', 'down'])->name('child');
         Route::post('/reload', [VpnHubController::class, 'reload'])->name('reload');
         Route::get('/logs', [VpnHubController::class, 'showLogs'])->name('logs');
         Route::get('/{tunnel}/status', [VpnHubController::class, 'checkStatus'])->name('status');

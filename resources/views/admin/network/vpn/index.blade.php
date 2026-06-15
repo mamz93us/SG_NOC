@@ -175,6 +175,29 @@ function showTroubleshoot(tunnelId) {
     refreshTroubleshoot();
 }
 
+// Initiate / terminate a single child SA (one subnet pair) from the SA modal.
+function vpnChildAction(tunnelId, child, action, btn) {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+    fetch(`{{ url('admin/network/vpn') }}/${tunnelId}/child/${action}`, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify({ child: child }),
+    })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+        if (!ok || d.status !== 'success') {
+            alert('Failed: ' + (d.message || 'Unknown error'));
+        }
+        // Give swanctl a moment to negotiate, then refresh the SA table.
+        setTimeout(refreshTroubleshoot, 2500);
+    })
+    .catch(err => { alert('Request failed: ' + err.message); refreshTroubleshoot(); });
+}
+
 function refreshTroubleshoot() {
     const logContainer = document.getElementById('ipsecLogs');
     const saContainer = document.getElementById('saDetails');
@@ -228,15 +251,20 @@ function refreshTroubleshoot() {
                 if (Array.isArray(data.children) && data.children.length) {
                     html += '<div class="small text-muted mb-1">Child SAs (per subnet pair):</div>';
                     html += '<table class="table table-sm table-bordered mb-2 small align-middle">'
-                          + '<thead><tr><th>Local (NOC)</th><th>Remote (branch)</th><th>Status</th><th class="text-end">In / Out</th></tr></thead><tbody>';
+                          + '<thead><tr><th>Local (NOC)</th><th>Remote (branch)</th><th>Status</th><th class="text-end">In / Out</th><th class="text-center">Action</th></tr></thead><tbody>';
                     data.children.forEach(c => {
                         const dot = c.up
                             ? '<span class="badge rounded-circle bg-success p-1 me-1" style="width:9px;height:9px;"></span><span class="text-success fw-bold">UP</span>'
                             : '<span class="badge rounded-circle bg-danger p-1 me-1" style="width:9px;height:9px;"></span><span class="text-danger fw-bold">DOWN</span>';
+                        const cn = esc(c.name);
+                        const action = c.up
+                            ? `<button class="btn btn-outline-danger btn-sm py-0" title="Terminate this child SA" onclick="vpnChildAction(${currentTunnelId}, '${cn}', 'down', this)"><i class="bi bi-stop-fill"></i> Down</button>`
+                            : `<button class="btn btn-success btn-sm py-0" title="Initiate this child SA" onclick="vpnChildAction(${currentTunnelId}, '${cn}', 'up', this)"><i class="bi bi-play-fill"></i> Initiate</button>`;
                         html += `<tr><td class="font-monospace">${esc(c.local_ts)}</td>`
                               + `<td class="font-monospace">${esc(c.remote_ts)}</td>`
                               + `<td>${dot}</td>`
-                              + `<td class="text-end text-muted">${kb(c.bytes_in)} / ${kb(c.bytes_out)}</td></tr>`;
+                              + `<td class="text-end text-muted">${kb(c.bytes_in)} / ${kb(c.bytes_out)}</td>`
+                              + `<td class="text-center">${action}</td></tr>`;
                     });
                     html += '</tbody></table>';
                 }

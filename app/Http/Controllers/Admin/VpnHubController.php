@@ -209,6 +209,43 @@ class VpnHubController extends Controller
         return back()->with('error', 'Failed to initiate tunnel: '.($result['message'] ?? 'Unknown error'));
     }
 
+    /**
+     * Initiate or terminate a single child SA (one subnet pair) without touching
+     * the rest of the tunnel. The child name must be one this tunnel actually
+     * defines (RYD, RYD-2, ...) — validated against expectedChildren() so we never
+     * pass an arbitrary name to swanctl. Returns JSON for the SA-details modal.
+     */
+    public function childAction(Request $request, VpnTunnel $tunnel, string $action)
+    {
+        $child = (string) $request->input('child');
+
+        $valid = collect($tunnel->expectedChildren())->pluck('name')->all();
+        if (! in_array($child, $valid, true)) {
+            return response()->json(['status' => 'error', 'message' => 'Unknown child SA for this tunnel.'], 422);
+        }
+
+        $result = $action === 'down'
+            ? $this->vpnService->down($child)
+            : $this->vpnService->up($child);
+
+        if (($result['status'] ?? '') === 'success') {
+            $verb = $action === 'down' ? 'down' : 'up';
+            VpnLog::create([
+                'vpn_id' => $tunnel->id,
+                'event_type' => "child_{$verb}",
+                'message' => "Manual child SA {$verb}: '{$child}' on tunnel '{$tunnel->name}'.",
+            ]);
+            \App\Models\ActivityLog::log('VPN', "Child SA '{$child}' {$verb} on tunnel '{$tunnel->name}'", 'info', $tunnel->id);
+
+            return response()->json(['status' => 'success', 'message' => "Child '{$child}' {$verb} requested."]);
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => $result['message'] ?? "Failed to bring {$action} child '{$child}'.",
+        ], 500);
+    }
+
     public function terminate(VpnTunnel $tunnel)
     {
         $result = $this->vpnService->down($tunnel->name);

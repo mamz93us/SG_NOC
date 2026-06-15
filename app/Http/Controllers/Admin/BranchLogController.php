@@ -33,7 +33,7 @@ class BranchLogController extends Controller
         // CSV export bypasses HTML rendering
         if ($request->get('export') === 'csv') {
             $rows = max(50, min(10000, (int) $request->get('rows', 5000)));
-            $results = $this->client->search($selected, $this->toApiParams($filters), limit: $rows);
+            $results = $this->client->search($selected, $this->toApiParams($filters, $this->displayTz($request)), limit: $rows);
 
             return $this->streamCsv(
                 'branch-logs-'.date('Ymd-His').'.csv',
@@ -58,7 +58,7 @@ class BranchLogController extends Controller
         if ($request->boolean('search')) {
             $results = $this->client->search(
                 $selected,
-                $this->toApiParams($filters),
+                $this->toApiParams($filters, $this->displayTz($request)),
                 limit: 500
             );
         }
@@ -86,7 +86,7 @@ class BranchLogController extends Controller
         $selected = $this->parseSelectedBranches($request, $branches);
         $filters = $this->extractFilters($request);
 
-        $apiParams = $this->toApiParams($filters) + ['is_sophos' => 1];
+        $apiParams = $this->toApiParams($filters, $this->displayTz($request)) + ['is_sophos' => 1];
         foreach (['sophos_dst_ip', 'sophos_src_ip'] as $f) {
             if (! empty($filters[$f])) {
                 $apiParams[$f] = $filters[$f];
@@ -175,7 +175,7 @@ class BranchLogController extends Controller
         $filters = $this->extractFilters($request);
         $sourceIp = trim((string) $request->get('source_ip', ''));
 
-        $apiParams = $this->toApiParams($filters);
+        $apiParams = $this->toApiParams($filters, $this->displayTz($request));
         if ($sourceIp !== '') {
             $apiParams['source_ip'] = $sourceIp;
         }
@@ -304,7 +304,7 @@ class BranchLogController extends Controller
         $field = (string) $request->get('field', 'source');
         $resp = $this->client->aggregate(
             $selected,
-            $this->toApiParams($filters) + ['field' => $field, 'limit' => 25],
+            $this->toApiParams($filters, $this->displayTz($request)) + ['field' => $field, 'limit' => 25],
             limit: 25
         );
 
@@ -376,10 +376,35 @@ class BranchLogController extends Controller
         ];
     }
 
-    /** Drop empties so the branch API uses its defaults for missing keys. */
-    private function toApiParams(array $filters): array
+    /**
+     * Drop empties so the branch API uses its defaults for missing keys, and
+     * convert the from/to window from the display timezone (what the user typed
+     * in the datetime-local fields) to UTC — branch agents store received_at in
+     * UTC, so sending local time would shift the window by the TZ offset and
+     * return nothing.
+     */
+    private function toApiParams(array $filters, string $tz = 'UTC'): array
     {
-        return array_filter($filters, static fn ($v) => $v !== '' && $v !== null);
+        $params = array_filter($filters, static fn ($v) => $v !== '' && $v !== null);
+
+        foreach (['from', 'to'] as $k) {
+            if (! empty($params[$k]) && $tz !== 'UTC') {
+                try {
+                    $params[$k] = \Carbon\CarbonImmutable::parse($params[$k], $tz)
+                        ->utc()->format('Y-m-d\TH:i:s');
+                } catch (\Throwable) {
+                    // Leave the raw value; the agent will parse what it can.
+                }
+            }
+        }
+
+        return $params;
+    }
+
+    /** Timezone the user's from/to inputs are expressed in (matches the view). */
+    private function displayTz(Request $request): string
+    {
+        return $request->get('tz') ?: config('app.timezone', 'UTC');
     }
 
     /** Parse comma-separated branch list, default to all enabled. */
