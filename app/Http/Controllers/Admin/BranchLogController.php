@@ -93,10 +93,14 @@ class BranchLogController extends Controller
             }
         }
 
-        // CSV export
+        // CSV export — streamed download, sized for big pulls (up to 50k/branch).
+        // Bigger limit, longer branch timeout, and raised PHP limits so a large
+        // export doesn't OOM or time out the way the rendered table would.
         if ($request->get('export') === 'csv') {
-            $rows = max(50, min(10000, (int) $request->get('rows', 5000)));
-            $results = $this->client->search($selected, $apiParams, limit: $rows);
+            $rows = max(50, min(50000, (int) $request->get('rows', 5000)));
+            @set_time_limit(300);
+            @ini_set('memory_limit', '1024M');
+            $results = $this->client->search($selected, $apiParams, limit: $rows, timeoutSec: 120);
             $results['results'] = array_map(
                 fn ($row) => $row + $this->extraSophosFields($row['message'] ?? ''),
                 $results['results']
@@ -180,10 +184,14 @@ class BranchLogController extends Controller
             $apiParams['source_ip'] = $sourceIp;
         }
 
-        // CSV export
+        // CSV export — streamed download, sized for big pulls (up to 50k/branch).
+        // Bigger limit, longer branch timeout, and raised PHP limits so a large
+        // export doesn't OOM or time out the way the rendered table would.
         if ($request->get('export') === 'csv') {
-            $rows = max(50, min(10000, (int) $request->get('rows', 5000)));
-            $results = $this->client->search($selected, $apiParams, limit: $rows);
+            $rows = max(50, min(50000, (int) $request->get('rows', 5000)));
+            @set_time_limit(300);
+            @ini_set('memory_limit', '1024M');
+            $results = $this->client->search($selected, $apiParams, limit: $rows, timeoutSec: 120);
             $results['results'] = array_map(
                 fn ($row) => $row + $this->extraAsteriskFields($row['message'] ?? ''),
                 $results['results']

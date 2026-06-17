@@ -43,7 +43,8 @@ type AggregateResult struct {
 // first, stopping once limit rows are collected. params are the same keys the
 // NOC forwards: from, to, q, source, source_ip, program, severity.
 func (m *Manager) Search(params map[string]string, limit int) SearchResult {
-	if limit <= 0 || limit > 5000 {
+	// Interactive views ask for <= 5000; CSV export asks for more (up to 50000).
+	if limit <= 0 || limit > 50000 {
 		limit = 200
 	}
 	where, args := buildWhere(params)

@@ -51,7 +51,7 @@ class BranchLogClient
      * @param  array  $params  query params forwarded to each branch
      * @param  int  $limit  global cap on merged result count
      */
-    public function search(array $branchIds, array $params, int $limit = 200): array
+    public function search(array $branchIds, array $params, int $limit = 200, ?int $timeoutSec = null): array
     {
         $branches = $this->resolveBranches($branchIds);
         if (! $branches) {
@@ -60,13 +60,14 @@ class BranchLogClient
 
         // Tell each branch how many rows it should return — otherwise the
         // branch API defaults to 200 regardless of our global merge cap.
-        // Capped at 5000 by the branch agent's Search() on the branch side.
+        // Capped at 50000 by the branch agent's Search() on the branch side
+        // (interactive views ask for <= 5000; CSV export asks for more).
         if (! isset($params['limit'])) {
-            $params['limit'] = min($limit, 5000);
+            $params['limit'] = min($limit, 50000);
         }
 
         $started = microtime(true);
-        $responses = $this->fanOut($branches, '/api/logs/search', $params);
+        $responses = $this->fanOut($branches, '/api/logs/search', $params, $timeoutSec);
 
         $merged = [];
         $errors = [];
@@ -154,10 +155,10 @@ class BranchLogClient
      * Http::pool. Returns ['branchId' => ['ok'=>true, ...payload]] or
      * ['branchId' => ['ok'=>false, 'error'=>'message']].
      */
-    private function fanOut(array $branches, string $path, array $params): array
+    private function fanOut(array $branches, string $path, array $params, ?int $timeoutSec = null): array
     {
         $ids = array_keys($branches);
-        $timeout = (int) config('branches.http.timeout', 10);
+        $timeout = $timeoutSec ?? (int) config('branches.http.timeout', 10);
         $connectTimeout = (int) config('branches.http.connect_timeout', 3);
         $verifyTls = (bool) config('branches.http.verify_tls', false);
 

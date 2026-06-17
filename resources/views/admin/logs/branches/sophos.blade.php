@@ -179,11 +179,28 @@
                                 @endforeach
                             </span>
                         @endif
-                        <a href="?{{ http_build_query(array_merge(request()->query(), ['export' => 'csv', 'rows' => 5000])) }}"
-                           class="btn btn-sm btn-outline-success"
-                           title="Up to 5,000 rows per branch (Excel-friendly UTF-8)">
-                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
-                        </a>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-sm btn-outline-success dropdown-toggle"
+                                    data-bs-toggle="dropdown" aria-expanded="false"
+                                    title="Streamed CSV download with the current filters — for big pulls, no page rendering">
+                                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><h6 class="dropdown-header">Rows per branch</h6></li>
+                                @foreach([5000, 10000, 25000, 50000] as $n)
+                                <li>
+                                    <a class="dropdown-item"
+                                       href="?{{ http_build_query(array_merge(request()->query(), ['export' => 'csv', 'rows' => $n])) }}">
+                                        {{ number_format($n) }} rows
+                                    </a>
+                                </li>
+                                @endforeach
+                                <li><hr class="dropdown-divider"></li>
+                                <li><span class="dropdown-item-text text-muted small" style="max-width:240px;">
+                                    Uses your current filters. Large exports (25k+) can take a while and are heavy on the branch — narrow the time range if you can.
+                                </span></li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
 
