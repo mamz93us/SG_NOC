@@ -71,9 +71,9 @@
             </div>
 
             <div class="alert alert-light border small">
-                <i class="bi bi-info-circle me-1"></i>Employees sign in with their work account, so each guess is tied to a
-                named person and the festive World Cup page (both flags + score boxes) is generated automatically.
-                After saving you'll get a link to drop into an email campaign.
+                <i class="bi bi-info-circle me-1"></i>After saving you'll get a <strong>merge tag</strong> to paste into your
+                email campaign. Each employee receives their own one-time link (no login), so every guess is tied to a
+                named person and nobody can enter twice. The festive World Cup page (both flags + score boxes) is generated automatically.
             </div>
 
             <button type="submit" class="btn btn-primary"><i class="bi bi-trophy me-1"></i>Create contest</button>

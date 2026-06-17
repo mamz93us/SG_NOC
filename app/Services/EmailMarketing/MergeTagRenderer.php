@@ -6,10 +6,13 @@ use App\Models\EmailMarketing\EmailCampaign;
 use App\Models\EmailMarketing\EmailCampaignSend;
 use App\Models\EmailMarketing\EmailList;
 use App\Models\EmailMarketing\EmailSubscriber;
+use App\Models\FormTemplate;
+use App\Models\FormToken;
 use App\Models\Setting;
 use App\Models\Training\CourseCertificate;
 use App\Support\Marketing;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 
 /**
  * Resolves merge tags ({{first_name}}, {{unsubscribe_url}}, etc.) in
@@ -21,6 +24,12 @@ class MergeTagRenderer
 {
     public function render(string $html, EmailSubscriber $subscriber, ?EmailCampaignSend $send = null, ?EmailList $list = null, ?EmailCampaign $campaign = null): string
     {
+        // Per-recipient World Cup contest links: {{guess_link:slug}} → a unique,
+        // one-use tokenised URL on the marketing host for THIS subscriber. Handled
+        // before the generic tag pass because the slug contains characters (`:`,`-`)
+        // the generic matcher does not allow.
+        $html = $this->renderGuessLinks($html, $subscriber);
+
         $tags = $this->buildTagMap($subscriber, $send, $list, $campaign);
 
         return preg_replace_callback(
@@ -113,6 +122,41 @@ class MergeTagRenderer
         } finally {
             URL::forceRootUrl($original);
         }
+    }
+
+    /**
+     * Replace every {{guess_link:slug}} with a per-recipient one-use contest link.
+     * The token is keyed by (form, email) via firstOrCreate, so re-renders/retries
+     * reuse the same link for the same person.
+     */
+    private function renderGuessLinks(string $html, EmailSubscriber $subscriber): string
+    {
+        return preg_replace_callback(
+            '/\{\{\s*guess_link:([a-z0-9\-]+)\s*\}\}/i',
+            fn ($m) => $this->guessLinkUrl($subscriber, strtolower($m[1])),
+            $html
+        ) ?? $html;
+    }
+
+    /** Per-recipient one-use contest URL on the marketing host (empty if no such form). */
+    public function guessLinkUrl(EmailSubscriber $subscriber, string $slug): string
+    {
+        $form = FormTemplate::where('slug', $slug)->first();
+        if (! $form) {
+            return '';
+        }
+
+        $token = FormToken::firstOrCreate(
+            ['form_id' => $form->id, 'email' => $subscriber->email],
+            [
+                'token'      => Str::random(48),
+                'label'      => trim((string) $subscriber->fullName()) ?: (string) $subscriber->email,
+                'uses_limit' => 1,
+                'expires_at' => $form->expires_at,
+            ]
+        );
+
+        return rtrim(Marketing::url('/'), '/').'/forms/'.$form->slug.'?token='.$token->token;
     }
 
     private function buildToken(EmailSubscriber $subscriber, ?EmailList $list): string

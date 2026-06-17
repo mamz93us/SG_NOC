@@ -229,6 +229,14 @@ Route::domain(Marketing::domain())->group(function () {
     Route::middleware('auth')->get('/no-access', function () {
         return view('auth.marketing-no-access');
     })->name('portal.marketing.no-access');
+
+    // Public contest forms on the marketing host (no auth — access is gated by the
+    // per-recipient token in the link). Lets employees open em.samirgroup.net/forms/{slug}
+    // without a NOC login. Declared on the marketing domain so it resolves on `em`.
+    Route::get('/forms/{slug}', [\App\Http\Controllers\Public\PublicFormController::class, 'show'])
+        ->name('portal.marketing.form.show');
+    Route::post('/forms/{slug}', [\App\Http\Controllers\Public\PublicFormController::class, 'submit'])
+        ->middleware('throttle:20,1')->name('portal.marketing.form.submit');
 });
 
 // ──────────────────────────────────────────────────────────────────

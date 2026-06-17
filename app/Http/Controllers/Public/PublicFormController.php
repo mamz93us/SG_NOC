@@ -104,7 +104,7 @@ class PublicFormController extends Controller
             'form_id' => $form->id,
             'token_id' => $token?->id,
             'submitted_by' => Auth::id(),
-            'submitter_email' => $data['_email'] ?? ($form->settings['collect_email'] ? $request->input('_email') : null),
+            'submitter_email' => $data['_email'] ?? $token?->email ?? ($form->settings['collect_email'] ? $request->input('_email') : null),
             'ip_address' => $request->ip(),
             'data' => $data,
             'status' => 'new',

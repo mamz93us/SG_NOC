@@ -78,7 +78,9 @@ class ContestService
             'slug'        => FormTemplate::generateSlug($input['name']),
             'description' => trim(($home['name'] ?? 'Home').' vs '.($away['name'] ?? 'Away')),
             'type'        => 'survey',
-            'visibility'  => 'private', // employee signs in via SSO → guess tied to them
+            // token_only: each employee gets a unique one-use link via the
+            // {{guess_link:slug}} campaign merge tag — no login, identity from the token.
+            'visibility'  => 'token_only',
             'is_active'   => true,
             'expires_at'  => $input['expires_at'] ?? null,
             'created_by'  => $input['created_by'] ?? null,

@@ -88,7 +88,9 @@ body { background:#0b1f17; background-image:linear-gradient(160deg,#0b1f17,#0a15
         </div>
         @endif
 
-        <form method="POST" action="{{ route('forms.submit', $form->slug) }}"
+        {{-- Post back to the same host/path that served this page (works on the
+             marketing host and the NOC host alike); the token rides in a hidden field. --}}
+        <form method="POST" action="{{ url()->current() }}"
               enctype="multipart/form-data" @submit="submitting = true" novalidate>
             @csrf
             @if($token)<input type="hidden" name="_form_token" value="{{ $token->token }}">@endif

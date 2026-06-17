@@ -28,15 +28,21 @@
                 </h6>
                 @if(!empty($wc['kickoff']))<div class="text-muted small mb-3"><i class="bi bi-clock me-1"></i>{{ $wc['kickoff'] }}</div>@endif
 
-                <label class="form-label fw-semibold small">Link to share in your email campaign</label>
-                <div class="input-group input-group-sm mb-2">
-                    <input type="text" class="form-control font-monospace" readonly value="{{ $url }}" id="contestUrl">
+                <label class="form-label fw-semibold small">Paste this into your email campaign</label>
+                <div class="input-group input-group-sm mb-1">
+                    <input type="text" class="form-control font-monospace" readonly value="{{ $mergeTag }}" id="contestTag">
                     <button class="btn btn-outline-secondary" type="button"
-                            onclick="navigator.clipboard.writeText(document.getElementById('contestUrl').value)">
-                        <i class="bi bi-clipboard"></i>
+                            onclick="navigator.clipboard.writeText(document.getElementById('contestTag').value)">
+                        <i class="bi bi-clipboard"></i> Copy
                     </button>
-                    <a href="{{ $url }}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i></a>
                 </div>
+                <div class="form-text mb-2">
+                    At send time this becomes a <strong>unique, one-time link for each employee</strong> on
+                    {{ \App\Support\Marketing::domain() }} — no login, and one entry per person.
+                </div>
+                <a href="{{ $previewUrl }}" target="_blank" class="btn btn-sm btn-outline-primary mb-2">
+                    <i class="bi bi-eye me-1"></i>Preview the form
+                </a>
                 <div class="small mb-3">
                     Status:
                     @if($form->isOpen())<span class="badge bg-success">Open</span>
@@ -81,7 +87,7 @@
                     <tbody>
                         @foreach($submissions as $s)
                         <tr>
-                            <td>{{ $s->submittedBy?->name ?? ($s->submitter_email ?? 'Anonymous') }}</td>
+                            <td>{{ $s->submittedBy?->name ?? $s->submitter_email ?? $s->token?->label ?? 'Anonymous' }}</td>
                             <td class="text-center fw-bold">{{ $s->data['home_score'] ?? '—' }}</td>
                             <td class="text-center fw-bold">{{ $s->data['away_score'] ?? '—' }}</td>
                             <td class="small text-muted">{{ $s->created_at?->format('d M H:i') }}</td>

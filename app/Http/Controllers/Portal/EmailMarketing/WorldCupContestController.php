@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Portal\EmailMarketing;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\FormTemplate;
+use App\Models\FormToken;
 use App\Services\WorldCup\ContestService;
+use App\Support\Marketing;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -71,7 +74,7 @@ class WorldCupContestController extends Controller
         ]);
 
         return redirect()->route('portal.marketing.contests.show', $form)
-            ->with('success', 'Contest "'.$form->name.'" created. Copy the link below into an email campaign.');
+            ->with('success', 'Contest "'.$form->name.'" created. Copy the merge tag below into your email campaign.');
     }
 
     /** GET /contests/{form} — share link + responses */
@@ -79,12 +82,19 @@ class WorldCupContestController extends Controller
     {
         abort_unless(($form->settings['theme'] ?? null) === 'worldcup', 404);
 
-        $submissions = $form->submissions()->with('submittedBy')->paginate(50);
-        // The public form is served on the NOC site (with employee SSO), NOT on the
-        // marketing host, so build the share link against the app base URL.
-        $url = rtrim((string) config('app.url'), '/').'/forms/'.$form->slug;
+        $submissions = $form->submissions()->with(['submittedBy', 'token'])->paginate(50);
 
-        return view('portal.marketing.contests.show', compact('form', 'submissions', 'url'));
+        // Each employee gets their own one-use link via this merge tag in the campaign.
+        $mergeTag = '{{guess_link:'.$form->slug.'}}';
+
+        // A reusable preview token so staff can open the form themselves to check it.
+        $previewToken = FormToken::firstOrCreate(
+            ['form_id' => $form->id, 'email' => '__preview__'],
+            ['token' => Str::random(48), 'label' => 'Preview', 'uses_limit' => null, 'expires_at' => null]
+        );
+        $previewUrl = rtrim(Marketing::url('/'), '/').'/forms/'.$form->slug.'?token='.$previewToken->token;
+
+        return view('portal.marketing.contests.show', compact('form', 'submissions', 'mergeTag', 'previewUrl'));
     }
 
     /** POST /contests/{form}/toggle — open/close submissions */
@@ -102,7 +112,7 @@ class WorldCupContestController extends Controller
     {
         abort_unless(($form->settings['theme'] ?? null) === 'worldcup', 404);
 
-        $submissions = $form->submissions()->with('submittedBy')->get();
+        $submissions = $form->submissions()->with(['submittedBy', 'token'])->get();
 
         ActivityLog::create([
             'model_type' => FormTemplate::class,
@@ -124,10 +134,11 @@ class WorldCupContestController extends Controller
             $fh = fopen('php://output', 'w');
             fputcsv($fh, ['#', 'Employee', 'Email', 'Submitted At', $home.' goals', $away.' goals']);
             foreach ($submissions as $i => $s) {
+                $who = $s->submittedBy?->name ?? $s->token?->label ?? 'Anonymous';
                 fputcsv($fh, [
                     $i + 1,
-                    $s->submittedBy?->name ?? 'Anonymous',
-                    $s->submitter_email ?? '—',
+                    $who,
+                    $s->submitter_email ?? $s->token?->email ?? '—',
                     $s->created_at?->toDateTimeString(),
                     $s->data['home_score'] ?? '',
                     $s->data['away_score'] ?? '',
