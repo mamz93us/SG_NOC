@@ -313,6 +313,16 @@ Route::domain(Marketing::domain())
 
         // Wildcard show MUST be last — it would otherwise swallow `create` etc.
         Route::get('courses/{course}', [EmCoursesController::class, 'show'])->middleware($view)->name('courses.show');
+
+        // World Cup "Guess the Score" contests — self-service, no NOC/admin access needed.
+        // Concrete `create` and `export`/`toggle` declared around the {form} wildcard.
+        $wc = \App\Http\Controllers\Portal\EmailMarketing\WorldCupContestController::class;
+        Route::get('contests', [$wc, 'index'])->name('contests.index');
+        Route::get('contests/create', [$wc, 'create'])->name('contests.create');
+        Route::post('contests', [$wc, 'store'])->name('contests.store');
+        Route::get('contests/{form}/export', [$wc, 'export'])->name('contests.export');
+        Route::post('contests/{form}/toggle', [$wc, 'toggle'])->name('contests.toggle');
+        Route::get('contests/{form}', [$wc, 'show'])->name('contests.show');
     });
 
 // NOC public root. Declared AFTER the marketing domain group so a request to

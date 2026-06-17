@@ -38,12 +38,10 @@
 
         @auth
             <div class="d-flex align-items-center gap-2">
-            @can('manage-forms')
             <a class="btn btn-outline-light btn-sm d-flex align-items-center gap-1"
-               href="{{ rtrim(config('app.url'), '/') }}/admin/forms" title="Build & view contest forms">
-                <i class="bi bi-trophy"></i><span class="d-none d-sm-inline">Contests / Forms</span>
+               href="{{ route('portal.marketing.contests.index') }}" title="World Cup “Guess the Score” contests">
+                <i class="bi bi-trophy"></i><span class="d-none d-sm-inline">Contests</span>
             </a>
-            @endcan
             <div class="dropdown">
                 <button class="btn btn-outline-light btn-sm dropdown-toggle d-flex align-items-center gap-2"
                         data-bs-toggle="dropdown">

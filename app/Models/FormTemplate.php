@@ -55,6 +55,14 @@ class FormTemplate extends Model
         return $this->hasMany(FormSubmission::class, 'form_id')->orderByDesc('created_at');
     }
 
+    // ─── Scopes ───────────────────────────────────────────────────
+
+    /** World Cup "Guess the Score" contest forms. */
+    public function scopeWorldCup($query)
+    {
+        return $query->where('settings->theme', 'worldcup');
+    }
+
     public function tokens(): HasMany
     {
         return $this->hasMany(FormToken::class, 'form_id')->orderByDesc('created_at');
