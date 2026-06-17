@@ -38,7 +38,13 @@ class ListsController extends Controller
         $list->loadCount('subscribers');
         $subscribers = $list->subscribers()->paginate(50);
 
-        return view('portal.email-marketing.lists.show', compact('list', 'subscribers'));
+        // Existing subscribers not already on this list — for the "add existing" picker.
+        $candidates = $list->isDynamic()
+            ? collect()
+            : EmailSubscriber::whereNotIn('id', $list->subscribers()->pluck('email_subscribers.id'))
+                ->orderBy('email')->limit(1000)->get(['id', 'email', 'first_name', 'last_name']);
+
+        return view('portal.email-marketing.lists.show', compact('list', 'subscribers', 'candidates'));
     }
 
     public function edit(EmailList $list): View
@@ -104,6 +110,32 @@ class ListsController extends Controller
         ]);
 
         return back()->with('status', 'Added '.$email.' to “'.$list->name.'”.');
+    }
+
+    /**
+     * Attach one or more EXISTING subscribers to a list (no new records created).
+     */
+    public function attachExisting(Request $request, EmailList $list)
+    {
+        if ($list->isDynamic()) {
+            return back()->with('error', 'This is a dynamic list (auto-synced from employees); manual additions would be overwritten.');
+        }
+
+        $data = $request->validate([
+            'subscriber_ids'   => ['required', 'array'],
+            'subscriber_ids.*' => ['integer', 'exists:email_subscribers,id'],
+        ]);
+
+        $payload = [];
+        foreach ($data['subscriber_ids'] as $id) {
+            $payload[$id] = [
+                'subscribed_at' => $list->double_opt_in ? null : now(),
+                'opt_in_token'  => $list->double_opt_in ? Str::random(40) : null,
+            ];
+        }
+        $list->subscribers()->syncWithoutDetaching($payload);
+
+        return back()->with('status', count($data['subscriber_ids']).' subscriber(s) added to “'.$list->name.'”.');
     }
 
     /**

@@ -62,26 +62,62 @@
     @unless ($list->isDynamic())
     <div class="collapse mb-3 {{ $errors->any() ? 'show' : '' }}" id="addSubscriber">
         <div class="card card-body shadow-sm">
-            <form method="POST" action="{{ route('portal.marketing.lists.add-subscriber', $list) }}" class="row g-2 align-items-end">
-                @csrf
-                <div class="col-md-3">
-                    <label class="form-label small fw-semibold mb-1">First name</label>
-                    <input type="text" name="first_name" class="form-control form-control-sm" value="{{ old('first_name') }}">
+            <ul class="nav nav-pills nav-sm mb-3" role="tablist">
+                <li class="nav-item"><button class="nav-link active py-1 px-3" data-bs-toggle="tab" data-bs-target="#tab-new" type="button"><i class="bi bi-person-plus me-1"></i>New</button></li>
+                <li class="nav-item"><button class="nav-link py-1 px-3" data-bs-toggle="tab" data-bs-target="#tab-existing" type="button"><i class="bi bi-people me-1"></i>From existing</button></li>
+            </ul>
+            <div class="tab-content">
+                {{-- New subscriber --}}
+                <div class="tab-pane fade show active" id="tab-new">
+                    <form method="POST" action="{{ route('portal.marketing.lists.add-subscriber', $list) }}" class="row g-2 align-items-end">
+                        @csrf
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold mb-1">First name</label>
+                            <input type="text" name="first_name" class="form-control form-control-sm" value="{{ old('first_name') }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold mb-1">Last name</label>
+                            <input type="text" name="last_name" class="form-control form-control-sm" value="{{ old('last_name') }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold mb-1">Email <span class="text-danger">*</span></label>
+                            <input type="email" name="email" class="form-control form-control-sm @error('email') is-invalid @enderror"
+                                   value="{{ old('email') }}" required>
+                            @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-success btn-sm w-100"><i class="bi bi-plus-lg me-1"></i>Add</button>
+                        </div>
+                    </form>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-semibold mb-1">Last name</label>
-                    <input type="text" name="last_name" class="form-control form-control-sm" value="{{ old('last_name') }}">
+
+                {{-- Existing subscribers --}}
+                <div class="tab-pane fade" id="tab-existing">
+                    @if($candidates->isEmpty())
+                        <p class="text-muted small mb-0">All existing subscribers are already on this list (or none exist yet).</p>
+                    @else
+                    <form method="POST" action="{{ route('portal.marketing.lists.attach-existing', $list) }}">
+                        @csrf
+                        <label class="form-label small fw-semibold mb-1">Pick existing subscribers <small class="text-muted">(Ctrl/Cmd-click for multiple)</small></label>
+                        <input type="text" class="form-control form-control-sm mb-2" placeholder="Filter by name or email…"
+                               onkeyup="filterSubs(this.value)">
+                        <select name="subscriber_ids[]" id="subCandidates" class="form-select" multiple size="8">
+                            @foreach($candidates as $c)
+                            @php $nm = trim(($c->first_name ?? '').' '.($c->last_name ?? '')); @endphp
+                            <option value="{{ $c->id }}" data-search="{{ strtolower($nm.' '.$c->email) }}">
+                                {{ $c->email }}{{ $nm ? ' — '.$nm : '' }}
+                            </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text mb-2">Showing up to {{ $candidates->count() }} subscriber(s) not on this list.</div>
+                        <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-plus-lg me-1"></i>Add selected</button>
+                    </form>
+                    <script>
+                      function filterSubs(q){ q=q.toLowerCase(); document.querySelectorAll('#subCandidates option').forEach(function(o){ o.hidden = q && o.dataset.search.indexOf(q)===-1; }); }
+                    </script>
+                    @endif
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label small fw-semibold mb-1">Email <span class="text-danger">*</span></label>
-                    <input type="email" name="email" class="form-control form-control-sm @error('email') is-invalid @enderror"
-                           value="{{ old('email') }}" required>
-                    @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-success btn-sm w-100"><i class="bi bi-plus-lg me-1"></i>Add</button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
     @endunless
