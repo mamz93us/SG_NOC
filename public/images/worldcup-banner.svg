@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 180" width="800" height="180" role="img" aria-label="World Cup 2026 — Guess the Score">
+  <defs>
+    <linearGradient id="wcBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a7d3c"/>
+      <stop offset="0.55" stop-color="#0d6efd"/>
+      <stop offset="1" stop-color="#6c47ff"/>
+    </linearGradient>
+    <linearGradient id="wcGold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe082"/>
+      <stop offset="1" stop-color="#f6a700"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="180" fill="url(#wcBg)"/>
+
+  <!-- subtle pitch lines -->
+  <g stroke="#ffffff" stroke-opacity="0.12" stroke-width="2" fill="none">
+    <circle cx="400" cy="90" r="55"/>
+    <line x1="400" y1="0" x2="400" y2="180"/>
+    <rect x="0" y="50" width="60" height="80"/>
+    <rect x="740" y="50" width="60" height="80"/>
+  </g>
+
+  <!-- Trophy -->
+  <g transform="translate(86,38)" fill="url(#wcGold)" stroke="#b97e00" stroke-width="1.5">
+    <path d="M16 0 h48 v10 c14 0 22 8 22 22 0 18-14 28-28 30 -3 9-9 15-18 17 v12 h14 v9 h-44 v-9 h14 v-12 c-9-2-15-8-18-17 -14-2-28-12-28-30 0-14 8-22 22-22 z"/>
+    <path d="M2 14 c-9 0-9 28 12 32 z" fill="url(#wcGold)"/>
+    <path d="M78 14 c9 0 9 28-12 32 z" fill="url(#wcGold)"/>
+    <rect x="20" y="98" width="40" height="10" rx="2"/>
+  </g>
+
+  <!-- Soccer ball -->
+  <g transform="translate(690,52)">
+    <circle cx="38" cy="38" r="38" fill="#ffffff"/>
+    <path d="M38 12 l16 12 -6 19 -20 0 -6-19 z" fill="#111"/>
+    <g fill="none" stroke="#111" stroke-width="3">
+      <path d="M38 12 l0-10 M54 24 l9-6 M48 43 l14 6 M28 43 l-14 6 M22 24 l-9-6"/>
+    </g>
+    <circle cx="38" cy="38" r="38" fill="none" stroke="#cfd6e4" stroke-width="2"/>
+  </g>
+
+  <!-- Text -->
+  <text x="170" y="78" font-family="Segoe UI, Arial, sans-serif" font-size="40" font-weight="800" fill="#ffffff">World Cup 2026</text>
+  <text x="172" y="116" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="600" fill="#ffe082">⚽ Guess the Score</text>
+</svg>

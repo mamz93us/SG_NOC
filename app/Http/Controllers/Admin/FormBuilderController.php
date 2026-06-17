@@ -40,6 +40,7 @@ class FormBuilderController extends Controller
             'form'              => null,
             'workflowTemplates' => $workflowTemplates,
             'users'             => $users,
+            'worldCupTeams'     => config('worldcup.teams', []),
         ]);
     }
 
@@ -50,9 +51,10 @@ class FormBuilderController extends Controller
     {
         $data = $this->validateFormRequest($request);
 
+        $data['settings']   = array_merge(FormTemplate::defaultSettings(), $data['settings'] ?? []);
+        $data               = $this->applyWorldCupContest($data);
         $data['slug']       = FormTemplate::generateSlug($data['name']);
         $data['created_by'] = Auth::id();
-        $data['settings']   = array_merge(FormTemplate::defaultSettings(), $data['settings'] ?? []);
 
         $form = FormTemplate::create($data);
 
@@ -75,7 +77,8 @@ class FormBuilderController extends Controller
     {
         $workflowTemplates = WorkflowTemplate::where('is_active', true)->orderBy('display_name')->get();
         $users             = User::orderBy('name')->get(['id', 'name']);
-        return view('admin.forms.builder', compact('form', 'workflowTemplates', 'users'));
+        $worldCupTeams     = config('worldcup.teams', []);
+        return view('admin.forms.builder', compact('form', 'workflowTemplates', 'users', 'worldCupTeams'));
     }
 
     /**
@@ -83,8 +86,10 @@ class FormBuilderController extends Controller
      */
     public function update(Request $request, FormTemplate $form): RedirectResponse
     {
-        $data   = $this->validateFormRequest($request);
-        $before = $form->only(array_keys($data));
+        $data             = $this->validateFormRequest($request);
+        $data['settings'] = array_merge(FormTemplate::defaultSettings(), $data['settings'] ?? []);
+        $data             = $this->applyWorldCupContest($data);
+        $before           = $form->only(array_keys($data));
         $form->update($data);
 
         ActivityLog::create([
@@ -255,6 +260,12 @@ class FormBuilderController extends Controller
             'settings.max_submissions' => 'nullable|integer|min:1',
             'settings.notify_user_ids' => 'nullable|array',
             'settings.submit_label'  => 'nullable|string|max:80',
+            'settings.theme'            => 'nullable|string|max:40',
+            'settings.worldcup'         => 'nullable|array',
+            'settings.worldcup.enabled' => 'nullable|boolean',
+            'settings.worldcup.home'    => 'nullable|string|max:10',
+            'settings.worldcup.away'    => 'nullable|string|max:10',
+            'settings.worldcup.kickoff' => 'nullable|string|max:40',
             'workflow_template_id'   => 'nullable|exists:workflow_templates,id',
             'workflow_payload_map'   => 'nullable|json',
         ]);
@@ -270,5 +281,85 @@ class FormBuilderController extends Controller
         }
 
         return $validated;
+    }
+
+    /**
+     * When the "World Cup contest" box is ticked, theme the form, resolve the two
+     * selected teams (code → code+name) and inject the two score fields into the
+     * schema so the generic validator / submission storage / CSV export handle them
+     * with no special-casing. When unticked, clear the contest theme.
+     */
+    private function applyWorldCupContest(array $data): array
+    {
+        $settings = $data['settings'] ?? [];
+        $wc       = $settings['worldcup'] ?? null;
+        $enabled  = is_array($wc) && filter_var($wc['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if (! $enabled) {
+            unset($settings['theme']);
+            $settings['worldcup'] = ['enabled' => false];
+            $data['settings']     = $settings;
+
+            return $data;
+        }
+
+        $teams = collect(config('worldcup.teams', []))->keyBy('code');
+        $home  = $teams->get($wc['home'] ?? null);
+        $away  = $teams->get($wc['away'] ?? null);
+
+        $settings['theme']    = 'worldcup';
+        $settings['worldcup'] = [
+            'enabled' => true,
+            'home'    => $home ? ['code' => $home['code'], 'name' => $home['name']] : null,
+            'away'    => $away ? ['code' => $away['code'], 'name' => $away['name']] : null,
+            'kickoff' => $wc['kickoff'] ?? null,
+        ];
+        $data['settings'] = $settings;
+
+        // Sync the two score fields with the selected teams.
+        $homeLabel = ($home['name'] ?? 'Home').' — goals';
+        $awayLabel = ($away['name'] ?? 'Away').' — goals';
+
+        $schema = $data['schema'] ?? [];
+        $found  = ['home_score' => false, 'away_score' => false];
+
+        foreach ($schema as &$field) {
+            $name = $field['name'] ?? null;
+            if ($name === 'home_score') {
+                $field         = $this->scoreField('home_score', $homeLabel);
+                $found['home_score'] = true;
+            } elseif ($name === 'away_score') {
+                $field         = $this->scoreField('away_score', $awayLabel);
+                $found['away_score'] = true;
+            }
+        }
+        unset($field);
+
+        if (! $found['home_score']) {
+            $schema[] = $this->scoreField('home_score', $homeLabel);
+        }
+        if (! $found['away_score']) {
+            $schema[] = $this->scoreField('away_score', $awayLabel);
+        }
+
+        $data['schema'] = $schema;
+
+        return $data;
+    }
+
+    private function scoreField(string $name, string $label): array
+    {
+        return [
+            'id'          => $name,
+            'type'        => 'number',
+            'name'        => $name,
+            'label'       => $label,
+            'required'    => true,
+            'width'       => 'half',
+            'min'         => 0,
+            'max'         => 20,
+            'help_text'   => '',
+            'conditional' => null,
+        ];
     }
 }

@@ -46,7 +46,9 @@ class PublicFormController extends Controller
             }
         }
 
-        return view('public.form', compact('form', 'token'));
+        $view = (($form->settings['theme'] ?? null) === 'worldcup') ? 'public.form-worldcup' : 'public.form';
+
+        return view($view, compact('form', 'token'));
     }
 
     /**

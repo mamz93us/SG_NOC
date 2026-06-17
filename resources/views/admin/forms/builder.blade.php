@@ -292,6 +292,68 @@
                     </div>
 
                     <hr>
+                    <h6 class="fw-semibold mb-3"><i class="bi bi-trophy-fill me-1 text-warning"></i>World Cup Contest</h6>
+                    @php
+                        $wcSettings = $form?->settings['worldcup'] ?? [];
+                        $wcEnabled  = (bool) ($wcSettings['enabled'] ?? false);
+                        $wcHome     = $wcSettings['home']['code'] ?? '';
+                        $wcAway     = $wcSettings['away']['code'] ?? '';
+                        $wcKickoff  = $wcSettings['kickoff'] ?? '';
+                        $wcFlagBase = asset(trim((string) config('worldcup.flag_path', 'images/flags'), '/'));
+                    @endphp
+                    <div class="mb-3"
+                         x-data="{ enabled: {{ $wcEnabled ? 'true' : 'false' }}, home: @js($wcHome), away: @js($wcAway), flag(c){ return c ? '{{ $wcFlagBase }}/'+c+'.png' : '' } }">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" name="settings[worldcup][enabled]" value="1" id="wcEnabled" x-model="enabled">
+                            <label class="form-check-label fw-semibold" for="wcEnabled">This is a “Guess the Score” World Cup contest</label>
+                        </div>
+                        <div x-show="enabled" x-cloak>
+                            <div class="row g-3 mb-2">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Home Team</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text p-1 justify-content-center" style="width:46px;">
+                                            <img :src="flag(home)" x-show="home" style="height:22px;width:auto;" alt="">
+                                        </span>
+                                        <select name="settings[worldcup][home]" class="form-select" x-model="home">
+                                            <option value="">— select —</option>
+                                            @foreach($worldCupTeams as $t)
+                                            <option value="{{ $t['code'] }}">{{ $t['name'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Away Team</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text p-1 justify-content-center" style="width:46px;">
+                                            <img :src="flag(away)" x-show="away" style="height:22px;width:auto;" alt="">
+                                        </span>
+                                        <select name="settings[worldcup][away]" class="form-select" x-model="away">
+                                            <option value="">— select —</option>
+                                            @foreach($worldCupTeams as $t)
+                                            <option value="{{ $t['code'] }}">{{ $t['name'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label fw-semibold">Kick-off <small class="text-muted fw-normal">(optional, shown on the form)</small></label>
+                                <input type="text" name="settings[worldcup][kickoff]" class="form-control"
+                                       value="{{ old('settings.worldcup.kickoff', $wcKickoff) }}"
+                                       placeholder="e.g. 19 Jun 2026, 9:00 PM">
+                            </div>
+                            <div class="alert alert-light border small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>The public form uses a festive World Cup layout with both team flags, and the
+                                <strong>two score boxes are added automatically</strong> — you don't need to add them in the Fields tab.
+                                Set <strong>Visibility = Private</strong> above so each guess is tied to the logged-in employee,
+                                and use <strong>Expires At</strong> as your submission deadline.
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
                     <h6 class="fw-semibold mb-3">Response Settings</h6>
 
                     <div class="mb-3">
