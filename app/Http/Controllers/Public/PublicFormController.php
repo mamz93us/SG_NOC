@@ -29,13 +29,18 @@ class PublicFormController extends Controller
             ]);
         }
 
-        if ($form->visibility === 'private') {
+        // World Cup contests are always token-gated (unique link per employee, no
+        // login) regardless of the stored visibility — covers contests created
+        // before the token model was introduced.
+        $visibility = ($form->settings['theme'] ?? null) === 'worldcup' ? 'token_only' : $form->visibility;
+
+        if ($visibility === 'private') {
             if (! Auth::check()) {
                 return redirect()->route('login')->with('intended', $request->fullUrl());
             }
         }
 
-        if ($form->visibility === 'token_only') {
+        if ($visibility === 'token_only') {
             $token = $this->resolveToken($form, $request->query('token'));
             if (! $token) {
                 return view('public.form_submitted', [
@@ -64,11 +69,13 @@ class PublicFormController extends Controller
             abort(422, 'This form is closed.');
         }
 
-        if ($form->visibility === 'private' && ! Auth::check()) {
+        $visibility = ($form->settings['theme'] ?? null) === 'worldcup' ? 'token_only' : $form->visibility;
+
+        if ($visibility === 'private' && ! Auth::check()) {
             abort(403);
         }
 
-        if ($form->visibility === 'token_only') {
+        if ($visibility === 'token_only') {
             $token = $this->resolveToken($form, $request->input('_form_token'));
             if (! $token) {
                 return view('public.form_submitted', [
