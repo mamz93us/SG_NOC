@@ -28,13 +28,15 @@ class ContestService
     }
 
     /** The `settings.worldcup` block. */
-    public function worldcupSettings(?array $home, ?array $away, ?string $kickoff): array
+    public function worldcupSettings(?array $home, ?array $away, ?string $kickoff, ?string $stage = null, ?string $matchDate = null): array
     {
         return [
-            'enabled' => true,
-            'home'    => $home,
-            'away'    => $away,
-            'kickoff' => $kickoff,
+            'enabled'    => true,
+            'home'       => $home,
+            'away'       => $away,
+            'kickoff'    => $kickoff,
+            'stage'      => $stage,
+            'match_date' => $matchDate,
         ];
     }
 
@@ -87,8 +89,14 @@ class ContestService
             'schema'      => $this->scoreFields($home, $away),
             'settings'    => array_merge(FormTemplate::defaultSettings(), [
                 'theme'        => 'worldcup',
-                'submit_label' => 'Submit my guess',
-                'worldcup'     => $this->worldcupSettings($home, $away, $input['kickoff'] ?? null),
+                'submit_label' => 'Submit prediction',
+                'worldcup'     => $this->worldcupSettings(
+                    $home,
+                    $away,
+                    $input['kickoff'] ?? null,
+                    $input['stage'] ?? null,
+                    $input['match_date'] ?? null,
+                ),
             ]),
         ]);
     }

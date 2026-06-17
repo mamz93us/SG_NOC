@@ -19,7 +19,7 @@ class WorldCupDemoSeeder extends Seeder
     public function run(): void
     {
         // Replace any earlier demo so visibility/schema match the current code path.
-        FormTemplate::where('slug', 'worldcup-demo')->delete();
+        FormTemplate::where('name', 'World Cup Final — Guess the Score')->delete();
 
         $form = app(ContestService::class)->createForm([
             'name'       => 'World Cup Final — Guess the Score',

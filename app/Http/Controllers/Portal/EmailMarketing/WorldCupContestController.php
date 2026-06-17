@@ -50,6 +50,8 @@ class WorldCupContestController extends Controller
             'name'       => 'required|string|max:150',
             'home'       => ['required', 'string', 'in:'.implode(',', $codes)],
             'away'       => ['required', 'string', 'different:home', 'in:'.implode(',', $codes)],
+            'stage'      => 'nullable|string|max:40',
+            'match_date' => 'nullable|string|max:40',
             'kickoff'    => 'nullable|string|max:60',
             'expires_at' => 'nullable|date',
         ], [
@@ -60,6 +62,8 @@ class WorldCupContestController extends Controller
             'name'       => $data['name'],
             'home'       => $data['home'],
             'away'       => $data['away'],
+            'stage'      => $data['stage'] ?? null,
+            'match_date' => $data['match_date'] ?? null,
             'kickoff'    => $data['kickoff'] ?? null,
             'expires_at' => $data['expires_at'] ?? null,
             'created_by' => Auth::id(),

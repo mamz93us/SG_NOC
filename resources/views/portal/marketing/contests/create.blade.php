@@ -59,10 +59,23 @@
             </div>
 
             <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Stage <small class="text-muted fw-normal">(shown on the card)</small></label>
+                    <input type="text" name="stage" class="form-control" maxlength="40"
+                           value="{{ old('stage') }}" placeholder="e.g. Group Stage">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Match date <small class="text-muted fw-normal">(shown on the card)</small></label>
+                    <input type="text" name="match_date" class="form-control" maxlength="40"
+                           value="{{ old('match_date') }}" placeholder="e.g. June 21, 2026">
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
                 <div class="col-md-7">
-                    <label class="form-label fw-semibold">Kick-off <small class="text-muted fw-normal">(shown on the form)</small></label>
+                    <label class="form-label fw-semibold">Kick-off <small class="text-muted fw-normal">(optional)</small></label>
                     <input type="text" name="kickoff" class="form-control" maxlength="60"
-                           value="{{ old('kickoff') }}" placeholder="e.g. 19 Jul 2026, 6:00 PM">
+                           value="{{ old('kickoff') }}" placeholder="e.g. 6:00 PM (Cairo)">
                 </div>
                 <div class="col-md-5">
                     <label class="form-label fw-semibold">Close guesses on <small class="text-muted fw-normal">(optional)</small></label>

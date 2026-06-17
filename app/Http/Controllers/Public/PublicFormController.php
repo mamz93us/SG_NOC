@@ -121,6 +121,20 @@ class PublicFormController extends Controller
         $confirmMessage = $form->settings['confirmation_message'] ?? 'Thank you! Your response has been recorded.';
         $redirectUrl = $form->settings['redirect_url'] ?? null;
 
+        // World Cup contests get their own branded success screen.
+        if (($form->settings['theme'] ?? null) === 'worldcup') {
+            return view('public.form-worldcup', [
+                'form'      => $form,
+                'token'     => $token,
+                'submitted' => true,
+                'result'    => [
+                    'home' => $data['home_score'] ?? '',
+                    'away' => $data['away_score'] ?? '',
+                    'name' => $token?->label ?? $submission->submitter_email ?? 'You',
+                ],
+            ]);
+        }
+
         if ($redirectUrl) {
             return redirect($redirectUrl)->with('success', $confirmMessage);
         }
