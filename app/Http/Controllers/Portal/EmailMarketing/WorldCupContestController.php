@@ -80,7 +80,9 @@ class WorldCupContestController extends Controller
         abort_unless(($form->settings['theme'] ?? null) === 'worldcup', 404);
 
         $submissions = $form->submissions()->with('submittedBy')->paginate(50);
-        $url         = url('/forms/'.$form->slug);
+        // The public form is served on the NOC site (with employee SSO), NOT on the
+        // marketing host, so build the share link against the app base URL.
+        $url = rtrim((string) config('app.url'), '/').'/forms/'.$form->slug;
 
         return view('portal.marketing.contests.show', compact('form', 'submissions', 'url'));
     }
