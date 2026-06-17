@@ -67,6 +67,34 @@
             <i class="bi bi-info-circle me-1"></i>To pick winners, export the CSV and sort by <strong>Submitted At</strong>
             (for the first entries) or filter by the exact score once the real result is known.
         </div>
+
+        {{-- Test the form as a fake employee --}}
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="fw-semibold mb-2"><i class="bi bi-bug me-1"></i>Test the form</h6>
+                <p class="text-muted small mb-2">Enter a name + email to generate a test link. Opening it shows that
+                    identity on the form (so you can confirm the “Verified” name/email), and lets you submit a test entry.</p>
+                <form method="POST" action="{{ route('portal.marketing.contests.test-link', $form) }}" class="row g-2">
+                    @csrf
+                    <div class="col-md-6"><input type="text" name="name" class="form-control form-control-sm" placeholder="Name" required></div>
+                    <div class="col-md-6"><input type="email" name="email" class="form-control form-control-sm" placeholder="email@example.com" required></div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-sm btn-outline-dark"><i class="bi bi-link-45deg me-1"></i>Generate test link</button>
+                    </div>
+                </form>
+                @if(session('test_link'))
+                <div class="mt-2">
+                    <div class="form-text mb-1">Test link for <strong>{{ session('test_for') }}</strong>:</div>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control font-monospace" readonly value="{{ session('test_link') }}" id="testLink">
+                        <button class="btn btn-outline-secondary" type="button"
+                                onclick="navigator.clipboard.writeText(document.getElementById('testLink').value)"><i class="bi bi-clipboard"></i></button>
+                        <a href="{{ session('test_link') }}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i></a>
+                    </div>
+                </div>
+                @endif
+            </div>
+        </div>
     </div>
 
     {{-- Responses --}}

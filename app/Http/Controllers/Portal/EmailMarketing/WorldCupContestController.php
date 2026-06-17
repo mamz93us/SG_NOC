@@ -111,6 +111,31 @@ class WorldCupContestController extends Controller
         return back()->with('success', $form->is_active ? 'Contest re-opened.' : 'Contest closed — no longer accepting guesses.');
     }
 
+    /** POST /contests/{form}/test-link — generate a tokenised test link for a given name+email */
+    public function testLink(Request $request, FormTemplate $form): RedirectResponse
+    {
+        abort_unless(($form->settings['theme'] ?? null) === 'worldcup', 404);
+
+        $data = $request->validate([
+            'name'  => 'required|string|max:100',
+            'email' => 'required|email|max:150',
+        ]);
+
+        // Reusable token (no uses_limit) so the tester can open it repeatedly.
+        $token = FormToken::create([
+            'form_id'    => $form->id,
+            'token'      => Str::random(48),
+            'label'      => $data['name'],
+            'email'      => $data['email'],
+            'uses_limit' => null,
+            'expires_at' => null,
+        ]);
+
+        $url = rtrim(Marketing::url('/'), '/').'/forms/'.$form->slug.'?token='.$token->token;
+
+        return back()->with('test_link', $url)->with('test_for', $data['name'].' <'.$data['email'].'>');
+    }
+
     /** GET /contests/{form}/export — CSV of all guesses */
     public function export(FormTemplate $form): StreamedResponse
     {

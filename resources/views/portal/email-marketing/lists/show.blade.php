@@ -36,6 +36,9 @@
         <h4 class="mb-0">{{ $list->name }} <small class="text-muted">({{ $list->subscribers_count }} subscribers)</small></h4>
         <div>
             @unless ($list->isDynamic())
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#addSubscriber">
+                    <i class="bi bi-person-plus me-1"></i>Add subscriber
+                </button>
                 <a href="{{ route('portal.marketing.subscribers.import.form') }}" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-upload me-1"></i>Import CSV
                 </a>
@@ -55,6 +58,33 @@
             @endunless
         </div>
     </div>
+
+    @unless ($list->isDynamic())
+    <div class="collapse mb-3 {{ $errors->any() ? 'show' : '' }}" id="addSubscriber">
+        <div class="card card-body shadow-sm">
+            <form method="POST" action="{{ route('portal.marketing.lists.add-subscriber', $list) }}" class="row g-2 align-items-end">
+                @csrf
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold mb-1">First name</label>
+                    <input type="text" name="first_name" class="form-control form-control-sm" value="{{ old('first_name') }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold mb-1">Last name</label>
+                    <input type="text" name="last_name" class="form-control form-control-sm" value="{{ old('last_name') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold mb-1">Email <span class="text-danger">*</span></label>
+                    <input type="email" name="email" class="form-control form-control-sm @error('email') is-invalid @enderror"
+                           value="{{ old('email') }}" required>
+                    @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-success btn-sm w-100"><i class="bi bi-plus-lg me-1"></i>Add</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endunless
 
     <div class="card shadow-sm">
         <div class="table-responsive">

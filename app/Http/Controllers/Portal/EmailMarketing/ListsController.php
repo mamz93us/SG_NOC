@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Portal\EmailMarketing;
 
 use App\Http\Controllers\Controller;
 use App\Models\EmailMarketing\EmailList;
+use App\Models\EmailMarketing\EmailSubscriber;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class ListsController extends Controller
@@ -63,6 +65,45 @@ class ListsController extends Controller
 
         return redirect()->route('portal.marketing.lists.index')
             ->with('status', 'List deleted.');
+    }
+
+    /**
+     * Manually add a single subscriber (name + email) to a list. Reuses an
+     * existing subscriber row if the email already exists. Disabled for dynamic
+     * lists (those are reconciled from employees and would overwrite manual adds).
+     */
+    public function addSubscriber(Request $request, EmailList $list)
+    {
+        if ($list->isDynamic()) {
+            return back()->with('error', 'This is a dynamic list (auto-synced from employees); manual additions would be overwritten. Use a manual list.');
+        }
+
+        $data = $request->validate([
+            'email'      => ['required', 'email', 'max:191'],
+            'first_name' => ['nullable', 'string', 'max:100'],
+            'last_name'  => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $email = strtolower(trim($data['email']));
+
+        $attrs = ['source' => 'manual', 'status' => 'subscribed', 'confirmed_at' => now()];
+        if (! empty($data['first_name'])) {
+            $attrs['first_name'] = $data['first_name'];
+        }
+        if (! empty($data['last_name'])) {
+            $attrs['last_name'] = $data['last_name'];
+        }
+
+        $subscriber = EmailSubscriber::updateOrCreate(['email' => $email], $attrs);
+
+        $list->subscribers()->syncWithoutDetaching([
+            $subscriber->id => [
+                'subscribed_at' => $list->double_opt_in ? null : now(),
+                'opt_in_token'  => $list->double_opt_in ? Str::random(40) : null,
+            ],
+        ]);
+
+        return back()->with('status', 'Added '.$email.' to “'.$list->name.'”.');
     }
 
     /**

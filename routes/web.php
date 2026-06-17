@@ -288,9 +288,10 @@ Route::domain(Marketing::domain())
         Route::resource('icons', EmIconsController::class)->except(['show']);
         Route::resource('fonts', EmFontsController::class)->except(['show']);
 
-        // List export
+        // List export + manual add-subscriber
         Route::get('lists/{list}/export', [EmListsController::class, 'export'])->name('lists.export');
         Route::post('lists/{list}/sync', [EmListsController::class, 'sync'])->name('lists.sync');
+        Route::post('lists/{list}/subscribers', [EmListsController::class, 'addSubscriber'])->name('lists.add-subscriber');
 
         // Courses + per-employee completion certificates.
         // Concrete paths come before wildcards so `/create` and
@@ -330,6 +331,7 @@ Route::domain(Marketing::domain())
         Route::post('contests', [$wc, 'store'])->name('contests.store');
         Route::get('contests/{form}/export', [$wc, 'export'])->name('contests.export');
         Route::post('contests/{form}/toggle', [$wc, 'toggle'])->name('contests.toggle');
+        Route::post('contests/{form}/test-link', [$wc, 'testLink'])->name('contests.test-link');
         Route::get('contests/{form}', [$wc, 'show'])->name('contests.show');
     });
 

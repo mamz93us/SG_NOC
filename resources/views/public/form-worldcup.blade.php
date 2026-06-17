@@ -195,6 +195,7 @@
                         <div class="user-bar">
                             <div class="avatar">{{ $initials }}</div>
                             <div class="user-details">
+                                <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#bbb;">Submitting as</div>
                                 <div class="user-name-txt">{{ $who }}</div>
                                 @if($token?->email)<div class="user-email-txt">{{ $token->email }}</div>@endif
                             </div>
