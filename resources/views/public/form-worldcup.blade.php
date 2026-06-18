@@ -135,7 +135,7 @@
 
 <div class="app">
     <header class="header">
-        <img src="{{ asset('images/worldcup/samir_group_logo.png') }}" alt="{{ $settings->company_name ?? 'Samir Group' }}">
+        <img src="{{ asset('images/worldcup/samir_wave.png') }}" alt="{{ $settings->company_name ?? 'Samir Group' }}">
     </header>
 
     <div class="content">
