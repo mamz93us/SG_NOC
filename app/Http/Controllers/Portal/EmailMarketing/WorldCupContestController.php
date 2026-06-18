@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Portal\EmailMarketing;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\FormSubmission;
 use App\Models\FormTemplate;
 use App\Models\FormToken;
 use App\Services\WorldCup\ContestService;
@@ -134,6 +135,22 @@ class WorldCupContestController extends Controller
         $url = rtrim(Marketing::url('/'), '/').'/forms/'.$form->slug.'?token='.$token->token;
 
         return back()->with('test_link', $url)->with('test_for', $data['name'].' <'.$data['email'].'>');
+    }
+
+    /** DELETE /contests/{form}/submissions/{submission} — remove one response */
+    public function destroySubmission(FormTemplate $form, FormSubmission $submission): RedirectResponse
+    {
+        abort_unless(($form->settings['theme'] ?? null) === 'worldcup', 404);
+        abort_unless($submission->form_id === $form->id, 404);
+
+        // Free the one-use link so that person can enter again.
+        if ($submission->token && $submission->token->uses_count > 0) {
+            $submission->token->decrement('uses_count');
+        }
+
+        $submission->delete();
+
+        return back()->with('success', 'Response deleted.');
     }
 
     /** GET /contests/{form}/export — CSV of all guesses */

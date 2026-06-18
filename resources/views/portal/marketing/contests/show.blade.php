@@ -110,7 +110,7 @@
                 <table class="table table-sm align-middle mb-0">
                     <thead class="table-light">
                         <tr><th>Employee</th><th class="text-center">{{ $home['name'] ?? 'Home' }}</th>
-                            <th class="text-center">{{ $away['name'] ?? 'Away' }}</th><th>Submitted</th></tr>
+                            <th class="text-center">{{ $away['name'] ?? 'Away' }}</th><th>Submitted</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach($submissions as $s)
@@ -119,6 +119,15 @@
                             <td class="text-center fw-bold">{{ $s->data['home_score'] ?? '—' }}</td>
                             <td class="text-center fw-bold">{{ $s->data['away_score'] ?? '—' }}</td>
                             <td class="small text-muted">{{ $s->created_at?->format('d M H:i') }}</td>
+                            <td class="text-end">
+                                <form method="POST" action="{{ route('portal.marketing.contests.submissions.destroy', [$form, $s]) }}"
+                                      onsubmit="return confirm('Delete this response? This cannot be undone.')">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete response">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                         @endforeach
                     </tbody>

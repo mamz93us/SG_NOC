@@ -333,6 +333,7 @@ Route::domain(Marketing::domain())
         Route::get('contests/{form}/export', [$wc, 'export'])->name('contests.export');
         Route::post('contests/{form}/toggle', [$wc, 'toggle'])->name('contests.toggle');
         Route::post('contests/{form}/test-link', [$wc, 'testLink'])->name('contests.test-link');
+        Route::delete('contests/{form}/submissions/{submission}', [$wc, 'destroySubmission'])->name('contests.submissions.destroy');
         Route::get('contests/{form}', [$wc, 'show'])->name('contests.show');
     });
 
