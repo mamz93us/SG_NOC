@@ -78,8 +78,8 @@
                            value="{{ old('kickoff') }}" placeholder="e.g. 6:00 PM (Cairo)">
                 </div>
                 <div class="col-md-5">
-                    <label class="form-label fw-semibold">Close guesses on <small class="text-muted fw-normal">(optional)</small></label>
-                    <input type="date" name="expires_at" class="form-control" value="{{ old('expires_at') }}">
+                    <label class="form-label fw-semibold">Close guesses at <small class="text-muted fw-normal">(date &amp; time, GMT+3)</small></label>
+                    <input type="datetime-local" name="expires_at" class="form-control" value="{{ old('expires_at') }}">
                 </div>
             </div>
 

@@ -47,7 +47,7 @@
                     Status:
                     @if($form->isOpen())<span class="badge bg-success">Open</span>
                     @else<span class="badge bg-secondary">Closed</span>@endif
-                    @if($form->expires_at)<span class="text-muted ms-1">· closes {{ $form->expires_at->format('d M Y') }}</span>@endif
+                    @if($form->expires_at)<span class="text-muted ms-1">· closes {{ $form->expires_at->format('d M Y, H:i') }} (GMT+3)</span>@endif
                 </div>
 
                 <div class="d-flex gap-2">

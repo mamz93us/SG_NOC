@@ -38,6 +38,10 @@
 
         @auth
             <div class="d-flex align-items-center gap-2">
+            <span class="navbar-text text-light small d-none d-md-flex align-items-center gap-1 me-1"
+                  title="Server time — GMT+3 (Riyadh)">
+                <i class="bi bi-clock"></i><span id="srvClockText">…</span>
+            </span>
             <a class="btn btn-outline-light btn-sm d-flex align-items-center gap-1"
                href="{{ route('portal.marketing.contests.index') }}" title="World Cup “Guess the Score” contests">
                 <i class="bi bi-trophy"></i><span class="d-none d-sm-inline">Contests</span>
@@ -104,6 +108,22 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function () {
+    // Anchored to the absolute server instant at render, displayed in Riyadh (GMT+3).
+    var baseEpoch = {{ now()->timestamp }} * 1000;
+    var loaded = Date.now();
+    var el = document.getElementById('srvClockText');
+    if (!el) return;
+    var fmt = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Riyadh', weekday: 'short', day: '2-digit', month: 'short',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    });
+    function tick() { el.textContent = fmt.format(new Date(baseEpoch + (Date.now() - loaded))) + ' GMT+3'; }
+    tick();
+    setInterval(tick, 1000);
+})();
+</script>
 @stack('scripts')
 </body>
 </html>
