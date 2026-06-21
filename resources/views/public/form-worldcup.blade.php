@@ -30,7 +30,7 @@
     padding: 10px 24px; background: rgba(0,0,0,.7); backdrop-filter: blur(14px);
     border-bottom: 1px solid rgba(255,215,0,.2);
   }
-  .header img { height: 64px; object-fit: contain; }
+  .header img { height: 96px; object-fit: contain; }
 
   .content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 20px 40px; }
 
@@ -99,7 +99,7 @@
   .spinner { width: 17px; height: 17px; border: 2px solid rgba(0,0,0,0.25); border-top-color: #000; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; }
 
   @media (max-width: 480px) {
-    .header img { height: 52px; }
+    .header img { height: 68px; }
     .card-body { padding: 24px 20px 28px; }
     .header-team-name { font-size: 15px; }
     .score-select { font-size: 20px; }
