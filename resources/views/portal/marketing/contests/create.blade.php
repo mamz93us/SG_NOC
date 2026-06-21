@@ -17,7 +17,7 @@
 
 <div class="card shadow-sm" style="max-width:640px;">
     <div class="card-body">
-        <form method="POST" action="{{ route('portal.marketing.contests.store') }}"
+        <form method="POST" action="{{ route('portal.marketing.contests.store') }}" enctype="multipart/form-data"
               x-data="{ home: @js(old('home','')), away: @js(old('away','')), flag(c){ return c ? '{{ $flagBase }}/'+c+'.png' : '' } }">
             @csrf
 
@@ -80,6 +80,20 @@
                 <div class="col-md-5">
                     <label class="form-label fw-semibold">Close guesses at <small class="text-muted fw-normal">(date &amp; time, GMT+3)</small></label>
                     <input type="datetime-local" name="expires_at" class="form-control" value="{{ old('expires_at') }}">
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold">Header logo</label>
+                    <select name="logo" class="form-select">
+                        <option value="samir" {{ old('logo','samir')==='samir' ? 'selected' : '' }}>Samir Group</option>
+                        <option value="sss" {{ old('logo')==='sss' ? 'selected' : '' }}>SSS — Specialized Seamless Services</option>
+                    </select>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label fw-semibold">Wallpaper <small class="text-muted fw-normal">(optional image; defaults to team flags)</small></label>
+                    <input type="file" name="wallpaper" accept="image/*" class="form-control">
                 </div>
             </div>
 

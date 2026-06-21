@@ -95,6 +95,36 @@
                 @endif
             </div>
         </div>
+
+        {{-- Appearance (logo + wallpaper) --}}
+        <div class="card shadow-sm mt-3">
+            <div class="card-body">
+                <h6 class="fw-semibold mb-2"><i class="bi bi-image me-1"></i>Appearance</h6>
+                <form method="POST" action="{{ route('portal.marketing.contests.appearance', $form) }}" enctype="multipart/form-data" class="row g-2">
+                    @csrf
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold mb-1">Header logo</label>
+                        <select name="logo" class="form-select form-select-sm">
+                            <option value="samir" {{ ($wc['logo'] ?? 'samir') === 'samir' ? 'selected' : '' }}>Samir Group</option>
+                            <option value="sss" {{ ($wc['logo'] ?? '') === 'sss' ? 'selected' : '' }}>SSS</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold mb-1">Wallpaper <small class="text-muted">(optional)</small></label>
+                        <input type="file" name="wallpaper" accept="image/*" class="form-control form-control-sm">
+                    </div>
+                    @if(!empty($wc['wallpaper']))
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="remove_wallpaper" value="1" id="rmWall">
+                            <label class="form-check-label small" for="rmWall">Remove current wallpaper (revert to team flags)</label>
+                        </div>
+                    </div>
+                    @endif
+                    <div class="col-12"><button class="btn btn-sm btn-dark"><i class="bi bi-save me-1"></i>Save appearance</button></div>
+                </form>
+            </div>
+        </div>
     </div>
 
     {{-- Responses --}}

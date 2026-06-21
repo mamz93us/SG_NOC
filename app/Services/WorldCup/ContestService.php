@@ -28,7 +28,7 @@ class ContestService
     }
 
     /** The `settings.worldcup` block. */
-    public function worldcupSettings(?array $home, ?array $away, ?string $kickoff, ?string $stage = null, ?string $matchDate = null): array
+    public function worldcupSettings(?array $home, ?array $away, ?string $kickoff, ?string $stage = null, ?string $matchDate = null, string $logo = 'samir', ?string $wallpaper = null): array
     {
         return [
             'enabled'    => true,
@@ -37,6 +37,8 @@ class ContestService
             'kickoff'    => $kickoff,
             'stage'      => $stage,
             'match_date' => $matchDate,
+            'logo'       => $logo,        // 'samir' | 'sss'
+            'wallpaper'  => $wallpaper,   // public-disk path, or null = team-flags backdrop
         ];
     }
 
@@ -96,6 +98,8 @@ class ContestService
                     $input['kickoff'] ?? null,
                     $input['stage'] ?? null,
                     $input['match_date'] ?? null,
+                    $input['logo'] ?? 'samir',
+                    $input['wallpaper'] ?? null,
                 ),
             ]),
         ]);

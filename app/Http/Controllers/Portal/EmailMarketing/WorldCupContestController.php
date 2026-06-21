@@ -12,6 +12,7 @@ use App\Support\Marketing;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -55,9 +56,15 @@ class WorldCupContestController extends Controller
             'match_date' => 'nullable|string|max:40',
             'kickoff'    => 'nullable|string|max:60',
             'expires_at' => 'nullable|date',
+            'logo'       => 'nullable|in:samir,sss',
+            'wallpaper'  => 'nullable|image|max:6144',
         ], [
             'away.different' => 'The two teams must be different.',
         ]);
+
+        $wallpaper = $request->hasFile('wallpaper')
+            ? $request->file('wallpaper')->store('contest-wallpapers', 'public')
+            : null;
 
         $form = $this->contests->createForm([
             'name'       => $data['name'],
@@ -67,6 +74,8 @@ class WorldCupContestController extends Controller
             'match_date' => $data['match_date'] ?? null,
             'kickoff'    => $data['kickoff'] ?? null,
             'expires_at' => $data['expires_at'] ?? null,
+            'logo'       => $data['logo'] ?? 'samir',
+            'wallpaper'  => $wallpaper,
             'created_by' => Auth::id(),
         ]);
 
@@ -151,6 +160,39 @@ class WorldCupContestController extends Controller
         $submission->delete();
 
         return back()->with('success', 'Response deleted.');
+    }
+
+    /** POST /contests/{form}/appearance — change logo + wallpaper on an existing contest */
+    public function updateAppearance(Request $request, FormTemplate $form): RedirectResponse
+    {
+        abort_unless(($form->settings['theme'] ?? null) === 'worldcup', 404);
+
+        $request->validate([
+            'logo'             => 'nullable|in:samir,sss',
+            'wallpaper'        => 'nullable|image|max:6144',
+            'remove_wallpaper' => 'nullable|boolean',
+        ]);
+
+        $settings = $form->settings;
+        $wc       = $settings['worldcup'] ?? [];
+        $wc['logo'] = $request->input('logo', $wc['logo'] ?? 'samir');
+
+        if ($request->boolean('remove_wallpaper')) {
+            if (! empty($wc['wallpaper'])) {
+                Storage::disk('public')->delete($wc['wallpaper']);
+            }
+            $wc['wallpaper'] = null;
+        } elseif ($request->hasFile('wallpaper')) {
+            if (! empty($wc['wallpaper'])) {
+                Storage::disk('public')->delete($wc['wallpaper']);
+            }
+            $wc['wallpaper'] = $request->file('wallpaper')->store('contest-wallpapers', 'public');
+        }
+
+        $settings['worldcup'] = $wc;
+        $form->update(['settings' => $settings]);
+
+        return back()->with('success', 'Contest appearance updated.');
     }
 
     /** GET /contests/{form}/export — CSV of all guesses */

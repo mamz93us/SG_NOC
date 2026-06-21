@@ -119,6 +119,10 @@
                     ->map(fn ($v) => trim((string) $v))->filter()->implode(' · ');
     $submitted = $submitted ?? false;
     $maxGoals  = 10;
+    $logoFile  = ($wc['logo'] ?? 'samir') === 'sss'
+                    ? asset('images/worldcup/sss_logo.png')
+                    : asset('images/worldcup/samir_wave.png');
+    $wallpaper = ! empty($wc['wallpaper']) ? \Illuminate\Support\Facades\Storage::url($wc['wallpaper']) : null;
     // Identity comes from the per-recipient token (no login).
     $who       = $token?->label ?: ($token?->email ?? '');
     $initials  = collect(preg_split('/\s+/', trim((string) $who)))->filter()
@@ -127,15 +131,21 @@
 @endphp
 <body>
 
+@if($wallpaper)
+<div class="flag-bg">
+    <div class="flag-half" style="flex:1;background-image:url('{{ $wallpaper }}')"></div>
+</div>
+@else
 <div class="flag-bg">
     <div class="flag-half" @if($home) style="background-image:url('{{ $flag($home['code']) }}')" @else style="background:#004d22" @endif></div>
     <div class="flag-half" @if($away) style="background-image:url('{{ $flag($away['code']) }}')" @else style="background:#7a1020" @endif></div>
     <div class="divider-line"></div>
 </div>
+@endif
 
 <div class="app">
     <header class="header">
-        <img src="{{ asset('images/worldcup/samir_wave.png') }}" alt="{{ $settings->company_name ?? 'Samir Group' }}">
+        <img src="{{ $logoFile }}" alt="{{ $settings->company_name ?? 'Samir Group' }}">
     </header>
 
     <div class="content">
