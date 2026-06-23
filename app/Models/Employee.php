@@ -10,6 +10,12 @@ class Employee extends Model
 {
     protected $fillable = [
         'azure_id',
+        'oracle_emp_no',
+        'oracle_dept_no',
+        'oracle_department',
+        'oracle_location',
+        'mobile_phone',
+        'oracle_synced_at',
         'name',
         'email',
         'branch_id',
@@ -28,11 +34,12 @@ class Employee extends Model
     ];
 
     protected $casts = [
-        'hired_date'        => 'date',
-        'terminated_date'   => 'date',
+        'hired_date' => 'date',
+        'terminated_date' => 'date',
         'azure_disabled_at' => 'datetime',
-        'azure_removed_at'  => 'datetime',
-        'ucm_server_id'     => 'integer',
+        'azure_removed_at' => 'datetime',
+        'oracle_synced_at' => 'datetime',
+        'ucm_server_id' => 'integer',
     ];
 
     // ─────────────────────────────────────────────────────────────
@@ -117,10 +124,10 @@ class Employee extends Model
     public function statusBadgeClass(): string
     {
         return match ($this->status) {
-            'active'     => 'bg-success',
-            'on_leave'   => 'bg-warning text-dark',
+            'active' => 'bg-success',
+            'on_leave' => 'bg-warning text-dark',
             'terminated' => 'bg-danger',
-            default      => 'bg-secondary',
+            default => 'bg-secondary',
         };
     }
 
@@ -128,8 +135,9 @@ class Employee extends Model
     {
         $parts = explode(' ', trim($this->name));
         if (count($parts) >= 2) {
-            return strtoupper(substr($parts[0], 0, 1) . substr(end($parts), 0, 1));
+            return strtoupper(substr($parts[0], 0, 1).substr(end($parts), 0, 1));
         }
+
         return strtoupper(substr($this->name, 0, 2));
     }
 
@@ -158,7 +166,7 @@ class Employee extends Model
     public function assignedPrinters(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->belongsToMany(Printer::class, 'employee_printer')
-                    ->withPivot(['assigned_by', 'notes'])
-                    ->withTimestamps();
+            ->withPivot(['assigned_by', 'notes'])
+            ->withTimestamps();
     }
 }

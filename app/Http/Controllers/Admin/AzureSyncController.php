@@ -1,13 +1,14 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AzureDevice;
-use App\Models\Device;
-use App\Models\AssetHistory;
 use App\Models\ActivityLog;
-use App\Models\Branch;
+use App\Models\AssetHistory;
 use App\Models\AzureBranchMapping;
+use App\Models\AzureDevice;
+use App\Models\Branch;
+use App\Models\Device;
 use App\Services\AzureDeviceService;
 use Illuminate\Http\Request;
 
@@ -27,8 +28,8 @@ class AzureSyncController extends Controller
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('display_name', 'like', "%{$s}%")
-                  ->orWhere('serial_number', 'like', "%{$s}%")
-                  ->orWhere('upn', 'like', "%{$s}%");
+                    ->orWhere('serial_number', 'like', "%{$s}%")
+                    ->orWhere('upn', 'like', "%{$s}%");
             });
         }
 
@@ -41,10 +42,10 @@ class AzureSyncController extends Controller
         }
 
         // Sorting
-        $sort      = $request->get('sort', 'display_name');
+        $sort = $request->get('sort', 'display_name');
         $direction = $request->get('direction', 'asc');
-        $allowed   = ['display_name', 'os', 'serial_number', 'upn', 'link_status', 'last_activity_at', 'last_sync_at', 'net_data_synced_at'];
-        
+        $allowed = ['display_name', 'os', 'serial_number', 'upn', 'link_status', 'last_activity_at', 'last_sync_at', 'net_data_synced_at'];
+
         if (in_array($sort, $allowed)) {
             $query->orderBy($sort, $direction === 'desc' ? 'desc' : 'asc');
         } else {
@@ -52,8 +53,8 @@ class AzureSyncController extends Controller
         }
 
         $azureDevices = $query->paginate(50)->withQueryString();
-        $lastSync     = AzureDevice::max('last_sync_at');
-        $statuses     = AzureDevice::LINK_STATUSES;
+        $lastSync = AzureDevice::max('last_sync_at');
+        $statuses = AzureDevice::LINK_STATUSES;
 
         return view('admin.itam.azure.index', compact('pending', 'azureDevices', 'lastSync', 'statuses'));
     }
@@ -64,22 +65,24 @@ class AzureSyncController extends Controller
         // set_time_limit to prevent 504 on large tenants.
         try {
             set_time_limit(300);
-            $service = new AzureDeviceService();
-            $result  = $service->syncDevices();
+            $service = new AzureDeviceService;
+            $result = $service->syncDevices();
             $autoAssigned = $result['auto_assigned'] ?? 0;
-            $skipped      = $result['skipped'] ?? 0;
+            $skipped = $result['skipped'] ?? 0;
             $skippedSuffix = $skipped > 0 ? ", {$skipped} skipped" : '';
             ActivityLog::log("Azure device sync completed: {$result['synced']} synced, {$result['new']} new, {$result['auto_linked']} auto-linked, {$autoAssigned} auto-assigned{$skippedSuffix}.");
 
             $msg = "Sync complete — {$result['synced']} devices synced, {$result['new']} new, {$result['auto_linked']} auto-linked, {$autoAssigned} auto-assigned to employees{$skippedSuffix}.";
+
             return back()->with($skipped > 0 ? 'warning' : 'success', $msg);
         } catch (\Throwable $e) {
             ActivityLog::log('Azure device sync failed', [
                 'error' => $e->getMessage(),
                 'class' => get_class($e),
-                'file'  => $e->getFile() . ':' . $e->getLine(),
+                'file' => $e->getFile().':'.$e->getLine(),
             ]);
-            return back()->with('error', 'Sync failed: ' . $e->getMessage());
+
+            return back()->with('error', 'Sync failed: '.$e->getMessage());
         }
     }
 
@@ -103,7 +106,7 @@ class AzureSyncController extends Controller
 
     public function approve(Request $request, AzureDevice $azureDevice)
     {
-        if (!$azureDevice->device_id) {
+        if (! $azureDevice->device_id) {
             return back()->with('error', 'No device linked to approve.');
         }
 
@@ -125,14 +128,14 @@ class AzureSyncController extends Controller
         $azureDevice->update(['link_status' => 'rejected', 'device_id' => null]);
         ActivityLog::log("Rejected Azure device link: {$azureDevice->display_name}");
 
-        return back()->with('success', "Device link rejected.");
+        return back()->with('success', 'Device link rejected.');
     }
 
     public function linkDevice(Request $request, AzureDevice $azureDevice)
     {
         $request->validate(['device_id' => 'required|exists:devices,id']);
         $azureDevice->update([
-            'device_id'   => $request->device_id,
+            'device_id' => $request->device_id,
             'link_status' => 'pending',
         ]);
         $device = Device::find($request->device_id);
@@ -140,6 +143,7 @@ class AzureSyncController extends Controller
             AssetHistory::record($device, 'note_added', "Azure device linked (pending approval): {$azureDevice->display_name}");
         }
         ActivityLog::log("Linked Azure device {$azureDevice->display_name} to device ID {$request->device_id} (pending)");
+
         return response()->json(['ok' => true, 'message' => 'Linked — pending approval.']);
     }
 
@@ -153,7 +157,7 @@ class AzureSyncController extends Controller
         // contradictory "Linked / Not Linked" combo and Quick Import is allowed.
         if ($azureDevice->device_id && ! Device::whereKey($azureDevice->device_id)->exists()) {
             $azureDevice->update([
-                'device_id'   => null,
+                'device_id' => null,
                 'link_status' => 'unlinked',
             ]);
             ActivityLog::log("Auto-healed stale Azure link for {$azureDevice->display_name} (linked device was deleted).");
@@ -162,39 +166,45 @@ class AzureSyncController extends Controller
         $azureDevice->load(['device.branch', 'macs']);
 
         $monitoredHost = \App\Models\MonitoredHost::where('name', $azureDevice->display_name)->first()
-            ?? \App\Models\MonitoredHost::where('name', 'like', '%' . $azureDevice->display_name . '%')->first();
+            ?? \App\Models\MonitoredHost::where('name', 'like', '%'.$azureDevice->display_name.'%')->first();
 
         // Build per-adapter IP map: normalised_mac → ip (skip 169.x.x.x APIPA)
         $rawMacs = $azureDevice->macs->pluck('mac_address')->toArray();
-        if ($azureDevice->ethernet_mac) $rawMacs[] = $azureDevice->ethernet_mac;
-        if ($azureDevice->wifi_mac)     $rawMacs[] = $azureDevice->wifi_mac;
+        if ($azureDevice->ethernet_mac) {
+            $rawMacs[] = $azureDevice->ethernet_mac;
+        }
+        if ($azureDevice->wifi_mac) {
+            $rawMacs[] = $azureDevice->wifi_mac;
+        }
         foreach ($azureDevice->usb_eth_decoded() as $usb) {
-            if (!empty($usb['mac'])) $rawMacs[] = $usb['mac'];
+            if (! empty($usb['mac'])) {
+                $rawMacs[] = $usb['mac'];
+            }
         }
         $normalised = array_values(array_unique(array_filter(
-            array_map(fn($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), $rawMacs)
+            array_map(fn ($m) => strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)), $rawMacs)
         )));
 
         $dhcpByMac = [];
-        if (!empty($normalised)) {
+        if (! empty($normalised)) {
             \App\Models\DhcpLease::whereRaw(
-                'UPPER(REPLACE(REPLACE(mac_address,\':\',\'\'),\'-\',\'\')) IN (' .
-                implode(',', array_fill(0, count($normalised), '?')) . ')',
+                'UPPER(REPLACE(REPLACE(mac_address,\':\',\'\'),\'-\',\'\')) IN ('.
+                implode(',', array_fill(0, count($normalised), '?')).')',
                 $normalised
             )
-            ->where('ip_address', 'not like', '169.%')
-            ->orderByDesc('last_seen')
-            ->get(['mac_address', 'ip_address'])
-            ->each(function ($lease) use (&$dhcpByMac) {
-                $norm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lease->mac_address));
-                if (!isset($dhcpByMac[$norm])) {
-                    $dhcpByMac[$norm] = $lease->ip_address;
-                }
-            });
+                ->where('ip_address', 'not like', '169.%')
+                ->orderByDesc('last_seen')
+                ->get(['mac_address', 'ip_address'])
+                ->each(function ($lease) use (&$dhcpByMac) {
+                    $norm = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $lease->mac_address));
+                    if (! isset($dhcpByMac[$norm])) {
+                        $dhcpByMac[$norm] = $lease->ip_address;
+                    }
+                });
         }
 
         // Resolve primary IP: ITAM device → ethernet DHCP → wifi DHCP → SNMP host
-        $normMac = fn(?string $m) => $m ? strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)) : null;
+        $normMac = fn (?string $m) => $m ? strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $m)) : null;
         $ipAddress = $azureDevice->device?->ip_address
             ?? $dhcpByMac[$normMac($azureDevice->ethernet_mac)] ?? null
             ?? $dhcpByMac[$normMac($azureDevice->wifi_mac)] ?? null
@@ -202,7 +212,7 @@ class AzureSyncController extends Controller
 
         // Auto-detect matching employee from UPN for user-link confirmation
         $suggestedEmployee = $this->findEmployeeByUpn($azureDevice->upn);
-        $employees         = \App\Models\Employee::orderBy('name')->get(['id', 'name', 'email']);
+        $employees = \App\Models\Employee::orderBy('name')->get(['id', 'name', 'email']);
 
         return view('admin.itam.azure.show', compact(
             'azureDevice', 'monitoredHost', 'ipAddress', 'dhcpByMac', 'suggestedEmployee', 'employees'
@@ -220,7 +230,7 @@ class AzureSyncController extends Controller
             return back()->with('error', 'Device must be linked to an ITAM asset first.');
         }
 
-        $device   = Device::find($azureDevice->device_id);
+        $device = Device::find($azureDevice->device_id);
         $employee = \App\Models\Employee::findOrFail($request->employee_id);
 
         if ($device) {
@@ -233,6 +243,7 @@ class AzureSyncController extends Controller
         }
 
         ActivityLog::log("User link confirmed for {$azureDevice->display_name} → {$employee->name}");
+
         return back()->with('success', "Device assigned to {$employee->name}.");
     }
 
@@ -248,7 +259,7 @@ class AzureSyncController extends Controller
         // Filters
         if ($request->filled('search')) {
             $s = $request->search;
-            $query->where(fn($q) => $q->where('display_name', 'like', "%{$s}%")->orWhere('upn', 'like', "%{$s}%"));
+            $query->where(fn ($q) => $q->where('display_name', 'like', "%{$s}%")->orWhere('upn', 'like', "%{$s}%"));
         }
         if ($request->boolean('missing_tv')) {
             $query->whereNull('teamviewer_id');
@@ -264,11 +275,11 @@ class AzureSyncController extends Controller
         $devices = $query->paginate(100)->withQueryString();
 
         $stats = [
-            'total'        => AzureDevice::whereNotNull('net_data_synced_at')->count(),
-            'has_tv'       => AzureDevice::whereNotNull('net_data_synced_at')->whereNotNull('teamviewer_id')->count(),
-            'missing_tv'   => AzureDevice::whereNotNull('net_data_synced_at')->whereNull('teamviewer_id')->count(),
+            'total' => AzureDevice::whereNotNull('net_data_synced_at')->count(),
+            'has_tv' => AzureDevice::whereNotNull('net_data_synced_at')->whereNotNull('teamviewer_id')->count(),
+            'missing_tv' => AzureDevice::whereNotNull('net_data_synced_at')->whereNull('teamviewer_id')->count(),
             'linked_asset' => AzureDevice::whereNotNull('net_data_synced_at')->whereNotNull('device_id')->count(),
-            'linked_user'  => AzureDevice::whereNotNull('net_data_synced_at')->whereNotNull('upn')->count(),
+            'linked_user' => AzureDevice::whereNotNull('net_data_synced_at')->whereNotNull('upn')->count(),
         ];
 
         if ($request->boolean('export')) {
@@ -282,13 +293,13 @@ class AzureSyncController extends Controller
     {
         ActivityLog::create([
             'model_type' => AzureDevice::class,
-            'model_id'   => 0,
-            'action'     => 'intune_overview_exported',
-            'changes'    => ['count' => $devices->count()],
-            'user_id'    => auth()->id(),
+            'model_id' => 0,
+            'action' => 'intune_overview_exported',
+            'changes' => ['count' => $devices->count()],
+            'user_id' => auth()->id(),
         ]);
 
-        $rows   = [];
+        $rows = [];
         $rows[] = ['Device Name', 'Asset Code', 'UPN', 'Assigned Employee', 'Branch', 'CPU', 'TeamViewer ID', 'TV Version', 'Ethernet MAC', 'WiFi MAC', 'HW Synced At', 'Has TV', 'Linked Asset', 'Linked User'];
 
         foreach ($devices as $az) {
@@ -311,11 +322,11 @@ class AzureSyncController extends Controller
             ];
         }
 
-        $csv = collect($rows)->map(fn($r) => implode(',', array_map(fn($v) => '"' . str_replace('"', '""', $v) . '"', $r)))->implode("\n");
+        $csv = collect($rows)->map(fn ($r) => implode(',', array_map(fn ($v) => '"'.str_replace('"', '""', $v).'"', $r)))->implode("\n");
 
         return response($csv, 200, [
-            'Content-Type'        => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="intune-overview-' . now()->format('Y-m-d') . '.csv"',
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="intune-overview-'.now()->format('Y-m-d').'.csv"',
         ]);
     }
 
@@ -325,31 +336,32 @@ class AzureSyncController extends Controller
     public function showJson(AzureDevice $azureDevice)
     {
         $azureDevice->load('device.branch');
+
         return response()->json([
-            'id'           => $azureDevice->id,
+            'id' => $azureDevice->id,
             'display_name' => $azureDevice->display_name,
-            'azure_id'     => $azureDevice->azure_device_id,
-            'device_type'  => $azureDevice->device_type,
-            'os'           => $azureDevice->os,
-            'os_version'   => $azureDevice->os_version,
-            'serial'       => $azureDevice->serial_number,
+            'azure_id' => $azureDevice->azure_device_id,
+            'device_type' => $azureDevice->device_type,
+            'os' => $azureDevice->os,
+            'os_version' => $azureDevice->os_version,
+            'serial' => $azureDevice->serial_number,
             'manufacturer' => $azureDevice->manufacturer,
-            'model'        => $azureDevice->model,
-            'upn'          => $azureDevice->upn,
-            'enrolled_at'    => $azureDevice->enrolled_date?->format('d M Y'),
-            'last_activity'  => $azureDevice->last_activity_at?->format('d M Y H:i'),
-            'last_sync'      => $azureDevice->last_sync_at?->format('d M Y H:i'),
-            'link_status'  => $azureDevice->link_status,
-            'raw_data'     => $azureDevice->raw_data,
+            'model' => $azureDevice->model,
+            'upn' => $azureDevice->upn,
+            'enrolled_at' => $azureDevice->enrolled_date?->format('d M Y'),
+            'last_activity' => $azureDevice->last_activity_at?->format('d M Y H:i'),
+            'last_sync' => $azureDevice->last_sync_at?->format('d M Y H:i'),
+            'link_status' => $azureDevice->link_status,
+            'raw_data' => $azureDevice->raw_data,
             'linked_device' => $azureDevice->device ? [
-                'id'         => $azureDevice->device->id,
-                'name'       => $azureDevice->device->name,
-                'type'       => $azureDevice->device->type,
-                'serial'     => $azureDevice->device->serial_number,
-                'model'      => $azureDevice->device->deviceModel?->name,
-                'branch'     => $azureDevice->device->branch?->name,
+                'id' => $azureDevice->device->id,
+                'name' => $azureDevice->device->name,
+                'type' => $azureDevice->device->type,
+                'serial' => $azureDevice->device->serial_number,
+                'model' => $azureDevice->device->deviceModel?->name,
+                'branch' => $azureDevice->device->branch?->name,
                 'asset_code' => $azureDevice->device->asset_code,
-                'url'        => route('admin.devices.show', $azureDevice->device),
+                'url' => route('admin.devices.show', $azureDevice->device),
             ] : null,
         ]);
     }
@@ -359,35 +371,35 @@ class AzureSyncController extends Controller
         $raw = $azureDevice->raw_data ?? [];
 
         return redirect()->route('admin.devices.create', [
-            'name'            => $azureDevice->display_name,
-            'serial_number'   => $azureDevice->serial_number,
-            'type'            => $this->guessDeviceType($azureDevice),
+            'name' => $azureDevice->display_name,
+            'serial_number' => $azureDevice->serial_number,
+            'type' => $this->guessDeviceType($azureDevice),
             'az_manufacturer' => $azureDevice->manufacturer,
-            'az_model'        => $azureDevice->model,
-            'az_upn'          => $azureDevice->upn,
-            'azure_sync_id'   => $azureDevice->id,
+            'az_model' => $azureDevice->model,
+            'az_upn' => $azureDevice->upn,
+            'azure_sync_id' => $azureDevice->id,
         ]);
     }
 
     public function previewImport(AzureDevice $azureDevice)
     {
-        $codeService = new \App\Services\AssetCodeService();
-        $type        = $this->guessDeviceType($azureDevice);
-        $code        = $codeService->generate($type); // Use global sequence (SG-LAP-XXXX)
-        $employee    = $this->findEmployeeByUpn($azureDevice->upn);
+        $codeService = new \App\Services\AssetCodeService;
+        $type = $this->guessDeviceType($azureDevice);
+        $code = $codeService->generate($type); // Use global sequence (SG-LAP-XXXX)
+        $employee = $this->findEmployeeByUpn($azureDevice->upn);
 
         // Detect Branch
         $branchId = $this->detectBranchId($azureDevice);
-        $branch   = $branchId ? \App\Models\Branch::find($branchId) : null;
+        $branch = $branchId ? \App\Models\Branch::find($branchId) : null;
 
         return response()->json([
-            'proposed_code'   => $code,
-            'proposed_user'   => $employee ? [
-                'id'    => $employee->id,
-                'name'  => $employee->name,
+            'proposed_code' => $code,
+            'proposed_user' => $employee ? [
+                'id' => $employee->id,
+                'name' => $employee->name,
                 'email' => $employee->email,
             ] : null,
-            'device_type'     => $type,
+            'device_type' => $type,
             'proposed_branch' => $branch ? $branch->name : null,
             'proposed_branch_id' => $branchId,
         ]);
@@ -414,7 +426,7 @@ class AzureSyncController extends Controller
         }
 
         $request->validate([
-            'type'       => 'required|string',
+            'type' => 'required|string',
             'asset_code' => 'required|string|unique:devices,asset_code',
         ]);
 
@@ -425,50 +437,50 @@ class AzureSyncController extends Controller
 
                 // 1. Check if an asset with this Azure ID already exists (maybe created manually)
                 $device = Device::where('source', 'azure')
-                                ->where('source_id', $azureDevice->azure_device_id)
-                                ->first();
+                    ->where('source_id', $azureDevice->azure_device_id)
+                    ->first();
 
                 if ($device) {
                     // Just link it and we're done
                     $azureDevice->update([
-                        'device_id'   => $device->id,
+                        'device_id' => $device->id,
                         'link_status' => 'linked',
                     ]);
                 } else {
                     // 2. Create or Find the Device Model
                     $deviceModel = \App\Models\DeviceModel::firstOrCreate(
                         [
-                            'manufacturer' => $azureDevice->manufacturer ?? 'Unknown', 
-                            'name'         => $azureDevice->model ?? 'Common Model'
+                            'manufacturer' => $azureDevice->manufacturer ?? 'Unknown',
+                            'name' => $azureDevice->model ?? 'Common Model',
                         ],
                         [
-                            'device_type'  => $request->type
+                            'device_type' => $request->type,
                         ]
                     );
 
                     // 3. Create the Device
                     $device = Device::create([
-                        'type'                => $request->type,
-                        'name'                => $azureDevice->display_name,
-                        'manufacturer'        => $azureDevice->manufacturer,
-                        'model'               => $azureDevice->model,
-                        'device_model_id'     => $deviceModel->id,
-                        'serial_number'       => $azureDevice->serial_number,
-                        'asset_code'          => $request->asset_code,
-                        'status'              => 'active',
-                        'source'              => 'azure',
-                        'source_id'           => $azureDevice->azure_device_id,
-                        'branch_id'           => $this->detectBranchId($azureDevice),
-                        'purchase_date'       => $enrollDate,
-                        'warranty_expiry'     => (clone $enrollDate)->addYear(),
-                        'depreciation_years'  => 3,
+                        'type' => $request->type,
+                        'name' => $azureDevice->display_name,
+                        'manufacturer' => $azureDevice->manufacturer,
+                        'model' => $azureDevice->model,
+                        'device_model_id' => $deviceModel->id,
+                        'serial_number' => $azureDevice->serial_number,
+                        'asset_code' => $request->asset_code,
+                        'status' => 'active',
+                        'source' => 'azure',
+                        'source_id' => $azureDevice->azure_device_id,
+                        'branch_id' => $this->detectBranchId($azureDevice),
+                        'purchase_date' => $enrollDate,
+                        'warranty_expiry' => (clone $enrollDate)->addYear(),
+                        'depreciation_years' => 3,
                         'depreciation_method' => 'straight_line',
-                        'notes'               => "Imported from Azure/Intune sync on " . now()->toDateTimeString(),
+                        'notes' => 'Imported from Azure/Intune sync on '.now()->toDateTimeString(),
                     ]);
 
                     // 4. Link AzureDevice
                     $azureDevice->update([
-                        'device_id'   => $device->id,
+                        'device_id' => $device->id,
                         'link_status' => 'linked',
                     ]);
                 }
@@ -480,23 +492,23 @@ class AzureSyncController extends Controller
                         ['employee_id' => $employee->id, 'asset_id' => $device->id],
                         [
                             'assigned_date' => now(),
-                            'condition'     => 'used',
-                            'notes'         => 'Assigned during Azure import.',
+                            'condition' => 'used',
+                            'notes' => 'Assigned during Azure import.',
                         ]
                     );
 
                     $device->update(['status' => 'assigned']);
                 }
 
-                AssetHistory::record($device, 'assigned', "Imported from Azure Sync. Assigned to user: " . ($employee->name ?? 'None'));
+                AssetHistory::record($device, 'assigned', 'Imported from Azure Sync. Assigned to user: '.($employee->name ?? 'None'));
                 if (class_exists('App\Models\ActivityLog')) {
                     \App\Models\ActivityLog::log("Imported Azure device {$azureDevice->display_name} as asset {$device->asset_code}");
                 }
             });
 
-            return back()->with('success', "Device successfully imported/linked.");
+            return back()->with('success', 'Device successfully imported/linked.');
         } catch (\Throwable $e) {
-            return back()->with('error', 'Import failed: ' . $e->getMessage());
+            return back()->with('error', 'Import failed: '.$e->getMessage());
         }
     }
 
@@ -506,41 +518,45 @@ class AzureSyncController extends Controller
     public function batchImport(Request $request)
     {
         $ids = $request->input('ids');
-        if (empty($ids) || !is_array($ids)) {
+        if (empty($ids) || ! is_array($ids)) {
             return back()->with('error', 'No devices selected for batch import.');
         }
 
         $successCount = 0;
-        $errorCount   = 0;
-        $codeService  = new \App\Services\AssetCodeService();
+        $errorCount = 0;
+        $codeService = new \App\Services\AssetCodeService;
 
         foreach ($ids as $id) {
             try {
                 $azureDevice = AzureDevice::find($id);
-                if (!$azureDevice) continue;
+                if (! $azureDevice) {
+                    continue;
+                }
 
                 // Treat a "linked" marker pointing at a deleted device as stale.
                 if ($azureDevice->link_status === 'linked') {
                     $hasLive = $azureDevice->device_id
                         && Device::whereKey($azureDevice->device_id)->exists();
-                    if ($hasLive) continue;
+                    if ($hasLive) {
+                        continue;
+                    }
                     $azureDevice->update(['device_id' => null, 'link_status' => 'unlinked']);
                 }
 
                 \Illuminate\Support\Facades\DB::transaction(function () use ($azureDevice, $codeService, &$successCount) {
                     $type = $this->guessDeviceType($azureDevice);
-                    
+
                     // Enrollment date is treated as purchase date
                     $enrollDate = $azureDevice->enrolled_date ? \Carbon\Carbon::parse($azureDevice->enrolled_date) : now();
 
                     // 1. Check if already exists in devices table
                     $device = Device::where('source', 'azure')
-                                    ->where('source_id', $azureDevice->azure_device_id)
-                                    ->first();
+                        ->where('source_id', $azureDevice->azure_device_id)
+                        ->first();
 
                     if ($device) {
                         $azureDevice->update([
-                            'device_id'   => $device->id,
+                            'device_id' => $device->id,
                             'link_status' => 'linked',
                         ]);
                     } else {
@@ -549,37 +565,37 @@ class AzureSyncController extends Controller
                         // 2. Create or Find the Device Model
                         $deviceModel = \App\Models\DeviceModel::firstOrCreate(
                             [
-                                'manufacturer' => $azureDevice->manufacturer ?? 'Unknown', 
-                                'name'         => $azureDevice->model ?? 'Common Model'
+                                'manufacturer' => $azureDevice->manufacturer ?? 'Unknown',
+                                'name' => $azureDevice->model ?? 'Common Model',
                             ],
                             [
-                                'device_type'  => $type
+                                'device_type' => $type,
                             ]
                         );
 
                         // 3. Create the Device
                         $device = Device::create([
-                            'type'                => $type,
-                            'name'                => $azureDevice->display_name,
-                            'manufacturer'        => $azureDevice->manufacturer,
-                            'model'               => $azureDevice->model,
-                            'device_model_id'     => $deviceModel->id,
-                            'serial_number'       => $azureDevice->serial_number,
-                            'asset_code'          => $code,
-                            'status'              => 'active',
-                            'source'              => 'azure',
-                            'source_id'           => $azureDevice->azure_device_id,
-                            'branch_id'           => $this->detectBranchId($azureDevice),
-                            'purchase_date'       => $enrollDate,
-                            'warranty_expiry'     => (clone $enrollDate)->addYear(),
-                            'depreciation_years'  => 3,
+                            'type' => $type,
+                            'name' => $azureDevice->display_name,
+                            'manufacturer' => $azureDevice->manufacturer,
+                            'model' => $azureDevice->model,
+                            'device_model_id' => $deviceModel->id,
+                            'serial_number' => $azureDevice->serial_number,
+                            'asset_code' => $code,
+                            'status' => 'active',
+                            'source' => 'azure',
+                            'source_id' => $azureDevice->azure_device_id,
+                            'branch_id' => $this->detectBranchId($azureDevice),
+                            'purchase_date' => $enrollDate,
+                            'warranty_expiry' => (clone $enrollDate)->addYear(),
+                            'depreciation_years' => 3,
                             'depreciation_method' => 'straight_line',
-                            'notes'               => "Batch imported from Azure/Intune sync on " . now()->toDateTimeString(),
+                            'notes' => 'Batch imported from Azure/Intune sync on '.now()->toDateTimeString(),
                         ]);
 
                         // 4. Link AzureDevice
                         $azureDevice->update([
-                            'device_id'   => $device->id,
+                            'device_id' => $device->id,
                             'link_status' => 'linked',
                         ]);
                     }
@@ -591,21 +607,21 @@ class AzureSyncController extends Controller
                             ['employee_id' => $employee->id, 'asset_id' => $device->id],
                             [
                                 'assigned_date' => now(),
-                                'condition'     => 'used',
-                                'notes'         => 'Assigned during batch import.',
+                                'condition' => 'used',
+                                'notes' => 'Assigned during batch import.',
                             ]
                         );
                         $device->update(['status' => 'assigned']);
                     }
 
-                    AssetHistory::record($device, 'assigned', "Imported from Azure Sync. Assigned to user: " . ($employee->name ?? 'None'));
+                    AssetHistory::record($device, 'assigned', 'Imported from Azure Sync. Assigned to user: '.($employee->name ?? 'None'));
                     if (class_exists('App\Models\ActivityLog')) {
                         \App\Models\ActivityLog::log("Imported Azure device {$azureDevice->display_name} as asset {$device->asset_code}");
                     }
                     $successCount++;
                 });
             } catch (\Throwable $e) {
-                \Log::error("Batch import failed for Azure Device ID {$id}: " . $e->getMessage());
+                \Log::error("Batch import failed for Azure Device ID {$id}: ".$e->getMessage());
                 $errorCount++;
             }
         }
@@ -613,7 +629,9 @@ class AzureSyncController extends Controller
         ActivityLog::log("Performed batch import of {$successCount} Azure devices to itam.");
 
         $msg = "Successfully imported {$successCount} devices.";
-        if ($errorCount > 0) $msg .= " Failed to import {$errorCount} devices. Check logs for details.";
+        if ($errorCount > 0) {
+            $msg .= " Failed to import {$errorCount} devices. Check logs for details.";
+        }
 
         return back()->with($errorCount > 0 ? 'warning' : 'success', $msg);
     }
@@ -651,14 +669,14 @@ class AzureSyncController extends Controller
         }
 
         try {
-            $graph    = new \App\Services\Identity\GraphService();
+            $graph = new \App\Services\Identity\GraphService;
 
             // Refresh basic Intune info (deviceName may have changed on the
             // endpoint since the last full Azure sync). Best-effort: failures
             // here shouldn't block the hardware sync below.
             $this->refreshIntuneDeviceName($azureDevice, $managedId);
 
-            $state    = $graph->getScriptRunState($scriptId, $managedId);
+            $state = $graph->getScriptRunState($scriptId, $managedId);
 
             if (! $state) {
                 return back()->with('error', 'No script run state found for this device. Device may not have run the script yet.');
@@ -670,65 +688,65 @@ class AzureSyncController extends Controller
             }
 
             // Parse JSON from script stdout
-            $raw  = trim(preg_replace('/^\xEF\xBB\xBF/', '', $state['resultMessage'] ?? ''));
+            $raw = trim(preg_replace('/^\xEF\xBB\xBF/', '', $state['resultMessage'] ?? ''));
             $data = json_decode($raw, true);
             if (! is_array($data)) {
                 return back()->with('error', 'Script result is not valid JSON.');
             }
 
             // Normalize MACs
-            $normMac = fn(?string $m) => $m
+            $normMac = fn (?string $m) => $m
                 ? strtoupper(implode(':', str_split(preg_replace('/[^a-fA-F0-9]/', '', $m), 2)))
                 : null;
 
-            $cpuName     = $data['cpu']          ?? $data['cpu_name']     ?? null;
-            $wifiMac     = $normMac($data['wifi_mac']     ?? null);
+            $cpuName = $data['cpu'] ?? $data['cpu_name'] ?? null;
+            $wifiMac = $normMac($data['wifi_mac'] ?? null);
             $ethernetMac = $normMac($data['ethernet_mac'] ?? null);
-            $usbEthRaw   = $data['usb_eth']       ?? $data['usb_eth_adapters'] ?? null;
-            $usbEthJson  = (!empty($usbEthRaw) && is_array($usbEthRaw)) ? json_encode($usbEthRaw) : null;
+            $usbEthRaw = $data['usb_eth'] ?? $data['usb_eth_adapters'] ?? null;
+            $usbEthJson = (! empty($usbEthRaw) && is_array($usbEthRaw)) ? json_encode($usbEthRaw) : null;
 
             $azureDevice->update([
-                'teamviewer_id'      => $data['teamviewer_id'] ?? $azureDevice->teamviewer_id,
-                'tv_version'         => $data['tv_version']    ?? $azureDevice->tv_version,
-                'cpu_name'           => $cpuName               ?? $azureDevice->cpu_name,
-                'wifi_mac'           => $wifiMac               ?? $azureDevice->wifi_mac,
-                'ethernet_mac'       => $ethernetMac           ?? $azureDevice->ethernet_mac,
-                'usb_eth_data'       => $usbEthJson            ?? $azureDevice->usb_eth_data,
+                'teamviewer_id' => $data['teamviewer_id'] ?? $azureDevice->teamviewer_id,
+                'tv_version' => $data['tv_version'] ?? $azureDevice->tv_version,
+                'cpu_name' => $cpuName ?? $azureDevice->cpu_name,
+                'wifi_mac' => $wifiMac ?? $azureDevice->wifi_mac,
+                'ethernet_mac' => $ethernetMac ?? $azureDevice->ethernet_mac,
+                'usb_eth_data' => $usbEthJson ?? $azureDevice->usb_eth_data,
                 'net_data_synced_at' => now(),
             ]);
 
             // Sync MACs to device_macs registry
             if ($ethernetMac) {
                 \App\Models\DeviceMac::upsertMac($ethernetMac, [
-                    'adapter_type'    => 'ethernet',
-                    'adapter_name'    => 'Ethernet',
+                    'adapter_type' => 'ethernet',
+                    'adapter_name' => 'Ethernet',
                     'azure_device_id' => $azureDevice->id,
-                    'device_id'       => $azureDevice->device_id,
-                    'source'          => 'intune',
-                    'is_primary'      => true,
+                    'device_id' => $azureDevice->device_id,
+                    'source' => 'intune',
+                    'is_primary' => true,
                 ]);
             }
             if ($wifiMac) {
                 \App\Models\DeviceMac::upsertMac($wifiMac, [
-                    'adapter_type'    => 'wifi',
-                    'adapter_name'    => 'Wi-Fi',
+                    'adapter_type' => 'wifi',
+                    'adapter_name' => 'Wi-Fi',
                     'azure_device_id' => $azureDevice->id,
-                    'device_id'       => $azureDevice->device_id,
-                    'source'          => 'intune',
-                    'is_primary'      => false,
+                    'device_id' => $azureDevice->device_id,
+                    'source' => 'intune',
+                    'is_primary' => false,
                 ]);
             }
             foreach (json_decode($usbEthJson ?? '[]', true) as $usb) {
                 $usbMac = $normMac($usb['mac'] ?? null);
                 if ($usbMac) {
                     \App\Models\DeviceMac::upsertMac($usbMac, [
-                        'adapter_type'        => 'usb_ethernet',
-                        'adapter_name'        => $usb['name'] ?? 'USB LAN',
+                        'adapter_type' => 'usb_ethernet',
+                        'adapter_name' => $usb['name'] ?? 'USB LAN',
                         'adapter_description' => $usb['desc'] ?? null,
-                        'azure_device_id'     => $azureDevice->id,
-                        'device_id'           => $azureDevice->device_id,
-                        'source'              => 'intune',
-                        'is_primary'          => false,
+                        'azure_device_id' => $azureDevice->id,
+                        'device_id' => $azureDevice->device_id,
+                        'source' => 'intune',
+                        'is_primary' => false,
                     ]);
                 }
             }
@@ -737,8 +755,12 @@ class AzureSyncController extends Controller
             // so the asset profile page shows them without loading azure_device relation
             if ($azureDevice->device_id && ($ethernetMac || $wifiMac)) {
                 $itamUpdate = [];
-                if ($ethernetMac) $itamUpdate['mac_address'] = $ethernetMac;
-                if ($wifiMac)     $itamUpdate['wifi_mac']    = $wifiMac;
+                if ($ethernetMac) {
+                    $itamUpdate['mac_address'] = $ethernetMac;
+                }
+                if ($wifiMac) {
+                    $itamUpdate['wifi_mac'] = $wifiMac;
+                }
                 \App\Models\Device::where('id', $azureDevice->device_id)->update($itamUpdate);
             }
 
@@ -747,7 +769,7 @@ class AzureSyncController extends Controller
             return back()->with('success', "Hardware data synced for {$azureDevice->display_name}.");
 
         } catch (\Throwable $e) {
-            return back()->with('error', 'Sync failed: ' . $e->getMessage());
+            return back()->with('error', 'Sync failed: '.$e->getMessage());
         }
     }
 
@@ -763,7 +785,7 @@ class AzureSyncController extends Controller
     private function refreshIntuneDeviceName(AzureDevice $azureDevice, string $managedId): void
     {
         try {
-            $graph = new \App\Services\Identity\GraphService();
+            $graph = new \App\Services\Identity\GraphService;
             $ref = new \ReflectionClass($graph);
             $method = $ref->getMethod('getAccessToken');
             $method->setAccessible(true);
@@ -800,7 +822,7 @@ class AzureSyncController extends Controller
             }
             $azureDevice->update($updates);
 
-            (new AzureDeviceService())->syncLinkedDeviceName($azureDevice->fresh());
+            (new AzureDeviceService)->syncLinkedDeviceName($azureDevice->fresh());
         } catch (\Throwable $e) {
             \Log::warning('refreshIntuneDeviceName failed for '.$azureDevice->display_name.': '.$e->getMessage());
         }
@@ -808,29 +830,39 @@ class AzureSyncController extends Controller
 
     private function findEmployeeByUpn(?string $upn): ?\App\Models\Employee
     {
-        if (empty($upn)) return null;
+        if (empty($upn)) {
+            return null;
+        }
 
         // 1. Direct email match
         $employee = \App\Models\Employee::where('email', $upn)->first();
-        if ($employee) return $employee;
+        if ($employee) {
+            return $employee;
+        }
 
         // 2 & 3. Via IdentityUser (handles UPN ≠ email, e.g. @tenant.onmicrosoft.com vs @company.com)
         $identityUser = \App\Models\IdentityUser::where('user_principal_name', $upn)
             ->orWhere('mail', $upn)
             ->first();
 
-        if (! $identityUser) return null;
+        if (! $identityUser) {
+            return null;
+        }
 
         // Try linking by shared azure_id first
         if ($identityUser->azure_id) {
             $employee = \App\Models\Employee::where('azure_id', $identityUser->azure_id)->first();
-            if ($employee) return $employee;
+            if ($employee) {
+                return $employee;
+            }
         }
 
         // Fall back to matching the synced mail address
         if ($identityUser->mail) {
             $employee = \App\Models\Employee::where('email', $identityUser->mail)->first();
-            if ($employee) return $employee;
+            if ($employee) {
+                return $employee;
+            }
         }
 
         return null;
@@ -842,13 +874,14 @@ class AzureSyncController extends Controller
     {
         $mappings = AzureBranchMapping::with('branch')->orderBy('keyword')->get();
         $branches = Branch::orderBy('name')->get();
+
         return view('admin.itam.azure.mappings', compact('mappings', 'branches'));
     }
 
     public function storeMapping(Request $request)
     {
         $request->validate([
-            'keyword'   => 'required|string|max:100',
+            'keyword' => 'required|string|max:100',
             'branch_id' => 'required|exists:branches,id',
         ]);
 
@@ -863,6 +896,7 @@ class AzureSyncController extends Controller
     public function deleteMapping(AzureBranchMapping $mapping)
     {
         $mapping->delete();
+
         return back()->with('success', 'Mapping removed.');
     }
 
@@ -872,9 +906,15 @@ class AzureSyncController extends Controller
         $searchStrings = [];
 
         // From Device Data
-        if ($az->display_name) $searchStrings[] = $az->display_name;
-        if (!empty($az->raw_data['officeLocation'])) $searchStrings[] = $az->raw_data['officeLocation'];
-        if (!empty($az->raw_data['location'])) $searchStrings[] = $az->raw_data['location'];
+        if ($az->display_name) {
+            $searchStrings[] = $az->display_name;
+        }
+        if (! empty($az->raw_data['officeLocation'])) {
+            $searchStrings[] = $az->raw_data['officeLocation'];
+        }
+        if (! empty($az->raw_data['location'])) {
+            $searchStrings[] = $az->raw_data['location'];
+        }
 
         // From Associated User Data (Most reliable for branch/office)
         if ($az->upn) {
@@ -883,9 +923,15 @@ class AzureSyncController extends Controller
                 ->first();
 
             if ($user) {
-                if ($user->office_location) $searchStrings[] = $user->office_location;
-                if ($user->city) $searchStrings[] = $user->city;
-                if ($user->department) $searchStrings[] = $user->department;
+                if ($user->office_location) {
+                    $searchStrings[] = $user->office_location;
+                }
+                if ($user->city) {
+                    $searchStrings[] = $user->city;
+                }
+                if ($user->department) {
+                    $searchStrings[] = $user->department;
+                }
             }
         }
 
@@ -898,19 +944,7 @@ class AzureSyncController extends Controller
      */
     private function matchBranchIdFromStrings(array $searchStrings, ?\Illuminate\Support\Collection $mappings = null): ?int
     {
-        $mappings ??= AzureBranchMapping::all();
-        if ($mappings->isEmpty()) return null;
-
-        foreach ($searchStrings as $str) {
-            if (!$str) continue;
-            foreach ($mappings as $m) {
-                if (stripos($str, $m->keyword) !== false) {
-                    return $m->branch_id;
-                }
-            }
-        }
-
-        return null;
+        return \App\Support\BranchKeywordMatcher::match($searchStrings, $mappings);
     }
 
     /**
@@ -920,7 +954,9 @@ class AzureSyncController extends Controller
     {
         if ($employee->azure_id) {
             $user = \App\Models\IdentityUser::where('azure_id', $employee->azure_id)->first();
-            if ($user) return $user;
+            if ($user) {
+                return $user;
+            }
         }
 
         if ($employee->email) {
@@ -959,14 +995,24 @@ class AzureSyncController extends Controller
 
                 $user = $this->identityUserForEmployee($employee);
                 if ($user) {
-                    if ($user->office_location) $strings[] = $user->office_location;
-                    if ($user->city)            $strings[] = $user->city;
-                    if ($user->department)      $strings[] = $user->department;
+                    if ($user->office_location) {
+                        $strings[] = $user->office_location;
+                    }
+                    if ($user->city) {
+                        $strings[] = $user->city;
+                    }
+                    if ($user->department) {
+                        $strings[] = $user->department;
+                    }
                 }
 
                 // Fall back to the employee's own fields when no identity match.
-                if ($employee->job_title) $strings[] = $employee->job_title;
-                if ($employee->name)      $strings[] = $employee->name;
+                if ($employee->job_title) {
+                    $strings[] = $employee->job_title;
+                }
+                if ($employee->name) {
+                    $strings[] = $employee->name;
+                }
 
                 $branchId = $this->matchBranchIdFromStrings($strings, $mappings);
 
@@ -987,11 +1033,11 @@ class AzureSyncController extends Controller
     public function reDetectBranch(AzureDevice $azureDevice)
     {
         $branchId = $this->detectBranchId($azureDevice);
-        if (!$branchId) {
+        if (! $branchId) {
             return back()->with('error', 'Could not detect a matching branch based on current keywords.');
         }
 
-        if (!$azureDevice->device_id) {
+        if (! $azureDevice->device_id) {
             return back()->with('error', 'This device is not linked to an ITAM asset yet.');
         }
 
@@ -999,7 +1045,8 @@ class AzureSyncController extends Controller
         if ($device) {
             $device->update(['branch_id' => $branchId]);
             $branch = Branch::find($branchId);
-            return back()->with('success', "Branch updated to: " . ($branch->name ?? 'Unknown'));
+
+            return back()->with('success', 'Branch updated to: '.($branch->name ?? 'Unknown'));
         }
 
         return back()->with('error', 'Linked ITAM asset not found.');
