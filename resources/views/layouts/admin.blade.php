@@ -1008,6 +1008,12 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.identity.hr-import*') ? 'active' : '' }}"
+                                   href="{{ route('admin.identity.hr-import') }}">
+                                    <i class="bi bi-file-earmark-spreadsheet me-2"></i>Oracle HR Import
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.identity.sync-logs') ? 'active' : '' }}"
                                    href="{{ route('admin.identity.sync-logs') }}">
                                     <i class="bi bi-clock-history me-2"></i>Sync Logs

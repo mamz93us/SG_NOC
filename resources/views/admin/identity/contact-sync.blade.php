@@ -123,6 +123,9 @@
                         <th>City</th>
                         <th>Street</th>
                         <th>Business Phone</th>
+                        <th>Job Title</th>
+                        <th>Department</th>
+                        <th>Mobile</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -149,7 +152,7 @@
                         <td>
                             <span class="badge bg-info text-dark">{{ $emp->branch?->name ?? '—' }}</span>
                         </td>
-                        @foreach(['officeLocation', 'city', 'streetAddress', 'businessPhones'] as $field)
+                        @foreach(['officeLocation', 'city', 'streetAddress', 'businessPhones', 'jobTitle', 'department', 'mobilePhone'] as $field)
                             @php $cell = $diffByField[$field] ?? null; @endphp
                             <td>
                                 @if($cell && $cell['changed'])

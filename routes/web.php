@@ -39,6 +39,7 @@ use App\Http\Controllers\Admin\IdentityController;
 use App\Http\Controllers\Admin\IpamController;
 use App\Http\Controllers\Admin\IpReservationController;
 use App\Http\Controllers\Admin\IpScannerController;
+use App\Http\Controllers\Admin\OracleHrImportController;
 use App\Http\Controllers\Admin\IspConnectionController;
 use App\Http\Controllers\Admin\IspProviderController;
 use App\Http\Controllers\Admin\IspReportController;
@@ -930,6 +931,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/groups/{azureId}/members', [IdentityController::class, 'groupMembers'])->name('group.members');
         Route::get('/sync-logs', [IdentityController::class, 'syncLogs'])->name('sync-logs');
         Route::get('/contact-sync', [IdentityController::class, 'contactSyncIndex'])->name('contact-sync');
+        Route::get('/hr-import', [OracleHrImportController::class, 'index'])->name('hr-import');
+        Route::get('/hr-import/{batch}', [OracleHrImportController::class, 'show'])->name('hr-import.show');
     });
     Route::middleware('permission:manage-identity')->prefix('identity')->name('identity.')->group(function () {
         Route::post('/sync', [IdentityController::class, 'sync'])->name('sync');
@@ -943,6 +946,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/users/{azureId}/delete', [IdentityController::class, 'destroyUser'])->name('user.destroy');
         Route::post('/contact-sync/apply', [IdentityController::class, 'contactSyncApply'])->name('contact-sync.apply');
         Route::post('/contact-sync/send-reminders', [IdentityController::class, 'contactSyncSendMobileReminders'])->name('contact-sync.send-reminders');
+        Route::post('/hr-import', [OracleHrImportController::class, 'upload'])->name('hr-import.upload');
+        Route::post('/hr-import/{batch}/apply', [OracleHrImportController::class, 'apply'])->name('hr-import.apply');
+        Route::post('/hr-import/rows/{row}/resolve', [OracleHrImportController::class, 'resolveRow'])->name('hr-import.resolve-row');
     });
     Route::middleware('permission:manage-identity-settings')->prefix('identity')->name('identity.')->group(function () {
         Route::post('/test-connection', [IdentityController::class, 'testConnection'])->name('test-connection');
