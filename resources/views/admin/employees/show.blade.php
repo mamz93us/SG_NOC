@@ -78,11 +78,31 @@
                     <dt class="col-5 text-muted">Email</dt>
                     <dd class="col-7">{{ $employee->email ?? '—' }}</dd>
 
+                    @if($employee->job_title)
+                    <dt class="col-5 text-muted">Job Title</dt>
+                    <dd class="col-7">{{ $employee->job_title }}</dd>
+                    @endif
+
+                    @if($employee->oracle_emp_no)
+                    <dt class="col-5 text-muted">Employee No</dt>
+                    <dd class="col-7"><span class="badge bg-light text-dark border">{{ $employee->oracle_emp_no }}</span></dd>
+                    @endif
+
+                    @if($employee->mobile_phone)
+                    <dt class="col-5 text-muted">Mobile</dt>
+                    <dd class="col-7">{{ $employee->mobile_phone }}</dd>
+                    @endif
+
                     <dt class="col-5 text-muted">Branch</dt>
                     <dd class="col-7">{{ $employee->branch?->name ?? '—' }}</dd>
 
                     <dt class="col-5 text-muted">Department</dt>
                     <dd class="col-7">{{ $employee->department?->name ?? '—' }}</dd>
+
+                    @if($employee->oracle_synced_at)
+                    <dt class="col-5 text-muted">HR Synced</dt>
+                    <dd class="col-7"><span title="Last synced from Oracle HRMS import">{{ $employee->oracle_synced_at->format('d M Y') }}</span></dd>
+                    @endif
 
                     <dt class="col-5 text-muted">Manager</dt>
                     <dd class="col-7">
@@ -131,8 +151,8 @@
                     <dd class="col-7">{{ $employee->identityUser->phone_number }}</dd>
                     @endif
 
-                    @if($employee->identityUser?->mobile_phone)
-                    <dt class="col-5 text-muted">Mobile</dt>
+                    @if($employee->identityUser?->mobile_phone && $employee->identityUser->mobile_phone !== $employee->mobile_phone)
+                    <dt class="col-5 text-muted">Mobile (Azure)</dt>
                     <dd class="col-7">{{ $employee->identityUser->mobile_phone }}</dd>
                     @endif
 
