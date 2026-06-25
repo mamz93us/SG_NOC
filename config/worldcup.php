@@ -37,7 +37,7 @@ return [
         ['code' => 'be',     'name' => 'Belgium'],
         ['code' => 'ba',     'name' => 'Bosnia and Herzegovina'],
         ['code' => 'br',     'name' => 'Brazil'],
-        ['code' => 'cv',     'name' => 'Cabo Verde'],
+        ['code' => 'cv',     'name' => 'Cape Verde'],
         ['code' => 'ca',     'name' => 'Canada'],
         ['code' => 'co',     'name' => 'Colombia'],
         ['code' => 'cd',     'name' => 'Congo DR'],
