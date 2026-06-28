@@ -67,6 +67,7 @@ use App\Http\Controllers\Admin\SophosFirewallController;
 use App\Http\Controllers\Admin\SslCertificateController;
 use App\Http\Controllers\Admin\SubdomainController;
 use App\Http\Controllers\Admin\SupplierController;
+use App\Http\Controllers\Admin\TicketStatsController;
 use App\Http\Controllers\Admin\TopologyController;
 use App\Http\Controllers\Admin\TrunkController;
 use App\Http\Controllers\Admin\TwoFactorController;
@@ -86,6 +87,7 @@ use App\Http\Controllers\Api\HrOnboardingController;
 use App\Http\Controllers\Api\SnsEmailEventsController;
 use App\Http\Controllers\Auth\MicrosoftController;
 use App\Http\Controllers\PhonebookController;
+use App\Http\Controllers\TicketForwardController;
 use App\Http\Controllers\PhoneRequestLogController;
 use App\Http\Controllers\Portal\EmailMarketing\CampaignAnalyticsController as EmCampaignAnalyticsController;
 use App\Http\Controllers\Portal\EmailMarketing\CampaignsController as EmCampaignsController;
@@ -338,6 +340,33 @@ Route::domain(Marketing::domain())
         Route::delete('contests/{form}/submissions/{submission}', [$wc, 'destroySubmission'])->name('contests.submissions.destroy');
         Route::get('contests/{form}', [$wc, 'show'])->name('contests.show');
     });
+
+// ──────────────────────────────────────────────────────────────────
+// IT Ticket Portal tracking proxy (it.samirgroup.net)
+// Logs every visit, then forwards to the ticketing app. The destination and
+// host both come from config/ticket_tracking.php — never the request. The
+// host-bound '/' MUST be declared before the unconstrained NOC root below so
+// it.samirgroup.net/ resolves here instead of the welcome page. A
+// host-independent '/go' is also exposed as a stable, testable entry point.
+// ──────────────────────────────────────────────────────────────────
+if ($ticketHost = config('ticket_tracking.host')) {
+    Route::domain($ticketHost)->group(function () {
+        Route::get('/', TicketForwardController::class)->name('ticket.forward');
+    });
+}
+Route::get('/go', TicketForwardController::class)->name('ticket.go');
+
+// IT Ticket Portal analytics — dashboard + CSV export (Admin menu, manage-settings).
+Route::middleware(['auth', 'permission:manage-settings'])
+    ->prefix('admin')->name('admin.')
+    ->group(function () {
+        Route::get('ticket-stats', [TicketStatsController::class, 'index'])->name('ticket-stats.index');
+        Route::get('ticket-stats/export', [TicketStatsController::class, 'export'])->name('ticket-stats.export');
+    });
+
+// JSON summary for reuse by other NOC widgets (auth-gated, path per spec).
+Route::middleware(['auth', 'permission:manage-settings'])
+    ->get('api/ticket-stats', [TicketStatsController::class, 'data'])->name('api.ticket-stats');
 
 // NOC public root. Declared AFTER the marketing domain group so a request to
 // em.samirgroup.net/ matches the domain-constrained marketing dashboard first;

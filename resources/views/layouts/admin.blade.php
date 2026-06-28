@@ -1042,6 +1042,12 @@
                                     <i class="bi bi-sliders me-2"></i>General Settings
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ticket-stats.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.ticket-stats.index') }}">
+                                    <i class="bi bi-ticket-detailed me-2"></i>Ticket Portal Stats
+                                </a>
+                            </li>
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-building me-1"></i>Organisation</h6></li>
                             <li>
