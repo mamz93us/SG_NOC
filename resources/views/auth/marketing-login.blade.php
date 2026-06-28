@@ -10,7 +10,8 @@
         html, body { height: 100%; }
         body {
             margin: 0;
-            background: linear-gradient(135deg,#1a56db 0%,#6c47ff 100%);
+            background: #fff url('{{ \App\Models\Setting::wallpaperUrl() }}') no-repeat center center;
+            background-size: cover;
             display: flex; align-items: center; justify-content: center;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }

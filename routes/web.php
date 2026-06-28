@@ -596,6 +596,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('settings.update');
         Route::delete('settings/logo', [SettingsController::class, 'deleteLogo'])
             ->name('settings.delete-logo');
+        Route::delete('settings/login-wallpaper', [SettingsController::class, 'deleteWallpaper'])
+            ->name('settings.delete-wallpaper');
         Route::post('settings/sso', [SettingsController::class, 'updateSso'])
             ->name('settings.sso');
         Route::post('settings/meraki', [SettingsController::class, 'updateMeraki'])

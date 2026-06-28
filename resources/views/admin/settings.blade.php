@@ -65,6 +65,45 @@
                 @enderror
             </div>
 
+            <!-- Login & 2FA Wallpaper -->
+            <div class="mb-4">
+                <label class="form-label">Login &amp; 2FA Wallpaper</label>
+
+                <div class="mb-3">
+                    <img
+                        src="{{ \App\Models\Setting::wallpaperUrl() }}"
+                        alt="Login wallpaper preview"
+                        class="img-thumbnail"
+                        style="max-width: 360px;"
+                    >
+                    @if($settings->login_wallpaper)
+                        <div class="mt-2">
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-danger"
+                                onclick="if(confirm('Reset the login wallpaper to the default?')) document.getElementById('delete-wallpaper-form').submit();"
+                            >
+                                Reset to default
+                            </button>
+                        </div>
+                    @else
+                        <div class="form-text mt-1">Currently using the bundled default wallpaper.</div>
+                    @endif
+                </div>
+
+                <input
+                    type="file"
+                    name="login_wallpaper"
+                    id="login_wallpaper"
+                    accept="image/*"
+                    class="form-control @error('login_wallpaper') is-invalid @enderror"
+                >
+                <div class="form-text">Background for the login &amp; two-factor screens (NOC, EM &amp; portal). PNG, JPG or WEBP, max 6MB. Recommended ~1920&times;1080.</div>
+                @error('login_wallpaper')
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                @enderror
+            </div>
+
             {{-- ── Data Retention ─────────────────────────────────────────────── --}}
             <hr class="my-4">
             <h5 class="mb-3"><i class="bi bi-clock-history me-2"></i>Data Retention</h5>
@@ -123,6 +162,14 @@
 {{-- Delete Logo: standalone form OUTSIDE the main form (nested forms are invalid HTML) --}}
 @if($settings->company_logo)
 <form id="delete-logo-form" method="POST" action="{{ route('admin.settings.delete-logo') }}" class="d-none">
+    @csrf
+    @method('DELETE')
+</form>
+@endif
+
+{{-- Reset Wallpaper: standalone form (same reason as above) --}}
+@if($settings->login_wallpaper)
+<form id="delete-wallpaper-form" method="POST" action="{{ route('admin.settings.delete-wallpaper') }}" class="d-none">
     @csrf
     @method('DELETE')
 </form>

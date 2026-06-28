@@ -8,7 +8,8 @@
     <style>
         body {
             min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #fff url('{{ \App\Models\Setting::wallpaperUrl() }}') no-repeat center center;
+            background-size: cover;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -282,7 +283,7 @@
         
         <!-- Footer -->
         <div class="text-center mt-3">
-            <small style="color: rgba(255,255,255,0.8);">
+            <small style="color: #64748b;">
                 &copy; {{ date('Y') }} Samir Group. All rights reserved.
             </small>
         </div>

@@ -10,7 +10,8 @@
     <style>
         body {
             min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #fff url('{{ \App\Models\Setting::wallpaperUrl() }}') no-repeat center center;
+            background-size: cover;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -98,12 +99,12 @@
         }
 
         .back-link {
-            color: rgba(255, 255, 255, 0.85);
+            color: #475569;
             text-decoration: none;
             transition: color 0.3s;
         }
 
-        .back-link:hover { color: white; }
+        .back-link:hover { color: #1e293b; }
 
         .step-badge {
             display: inline-flex; align-items: center; justify-content: center;
@@ -265,7 +266,7 @@
         </div>
 
         <div class="text-center mt-2">
-            <small style="color: rgba(255,255,255,0.7);">
+            <small style="color: #94a3b8;">
                 &copy; {{ date('Y') }} Samir Group. All rights reserved.
             </small>
         </div>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <rect width="1920" height="1080" fill="#ffffff"/>
+  <defs>
+    <path id="w" fill="none" d="M -80 880 C 360 820, 700 970, 1000 840 C 1270 720, 1460 530, 1630 445 C 1755 385, 1875 395, 2020 450"/>
+  </defs>
+
+  <g fill="none" stroke="#eaebee" stroke-width="1.1">
+    <use href="#w" y="0"/>
+    <use href="#w" y="9"/>
+    <use href="#w" y="18"/>
+    <use href="#w" y="27"/>
+    <use href="#w" y="36"/>
+    <use href="#w" y="45"/>
+    <use href="#w" y="54"/>
+    <use href="#w" y="63"/>
+    <use href="#w" y="72"/>
+    <use href="#w" y="81"/>
+    <use href="#w" y="90"/>
+    <use href="#w" y="99"/>
+    <use href="#w" y="108"/>
+    <use href="#w" y="117"/>
+    <use href="#w" y="126"/>
+    <use href="#w" y="135"/>
+    <use href="#w" y="144"/>
+    <use href="#w" y="153"/>
+    <use href="#w" y="162"/>
+    <use href="#w" y="171"/>
+    <use href="#w" y="180"/>
+    <use href="#w" y="189"/>
+    <use href="#w" y="198"/>
+  </g>
+
+  <path fill="none" stroke="#f3cdd3" stroke-width="1.1" opacity="0.85" d="M 690 952 C 950 882, 1180 732, 1420 532 C 1590 407, 1760 410, 2020 464"/>
+  <path fill="none" stroke="#f6dde1" stroke-width="1.1" opacity="0.8" d="M 690 962 C 950 892, 1180 742, 1420 542 C 1590 417, 1760 420, 2020 474"/>
+
+  <path fill="none" stroke="#e0102b" stroke-width="30" stroke-linecap="round" d="M 690 940 C 950 870, 1180 720, 1420 520 C 1590 395, 1760 398, 2020 452"/>
+  <path fill="none" stroke="#c8102e" stroke-width="18" stroke-linecap="round" d="M 700 936 C 955 868, 1185 716, 1424 516 C 1592 392, 1762 395, 2020 448"/>
+
+  <path fill="none" stroke="#ededee" stroke-width="1" d="M 1040 250 C 1400 295, 1660 350, 2020 305"/>
+</svg>

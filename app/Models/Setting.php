@@ -10,6 +10,7 @@ class Setting extends Model
     protected $fillable = [
         'company_name',
         'company_logo',
+        'login_wallpaper',
         'sso_enabled',
         'sso_tenant_id',
         'sso_client_id',
@@ -205,6 +206,25 @@ class Setting extends Model
             'sso_enabled' => false,
             'sso_default_role' => 'viewer',
         ]);
+    }
+
+    /**
+     * Background image URL for the login / 2FA screens. Returns the uploaded
+     * wallpaper when set, otherwise the bundled default. Guarded so the public
+     * auth pages never break if settings are unavailable.
+     */
+    public static function wallpaperUrl(): string
+    {
+        try {
+            $path = static::get()->login_wallpaper;
+            if ($path) {
+                return \Illuminate\Support\Facades\Storage::url($path);
+            }
+        } catch (\Throwable) {
+            // fall through to the default
+        }
+
+        return '/images/login-bg.svg';
     }
 
     // ─── SSO client secret — encrypted at rest ────────────────────

@@ -39,6 +39,7 @@ class SettingsController extends Controller
         $request->validate([
             'company_name' => 'required|string|max:255',
             'company_logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'login_wallpaper' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:6144',
             'metrics_retention_days' => 'nullable|integer|min:1|max:3650',
             'vq_retention_days' => 'nullable|integer|min:1|max:3650',
             'switch_drop_retention_days' => 'nullable|integer|min:1|max:3650',
@@ -64,6 +65,14 @@ class SettingsController extends Controller
             }
             $path = $request->file('company_logo')->store('logos', 'public');
             $settings->company_logo = $path;
+        }
+
+        // Handle login wallpaper upload (background for login / 2FA screens)
+        if ($request->hasFile('login_wallpaper')) {
+            if ($settings->login_wallpaper && Storage::disk('public')->exists($settings->login_wallpaper)) {
+                Storage::disk('public')->delete($settings->login_wallpaper);
+            }
+            $settings->login_wallpaper = $request->file('login_wallpaper')->store('wallpapers', 'public');
         }
 
         $settings->save();
@@ -113,6 +122,34 @@ class SettingsController extends Controller
         return redirect()
             ->route('admin.settings.index')
             ->with('success', 'Logo deleted successfully.');
+    }
+
+    /**
+     * Delete the login wallpaper (reverts the login / 2FA screens to the
+     * bundled default background).
+     */
+    public function deleteWallpaper()
+    {
+        $settings = Setting::get();
+
+        if ($settings->login_wallpaper && Storage::disk('public')->exists($settings->login_wallpaper)) {
+            Storage::disk('public')->delete($settings->login_wallpaper);
+        }
+
+        $settings->login_wallpaper = null;
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id' => 1,
+            'action' => 'deleted',
+            'changes' => ['login_wallpaper' => 'removed'],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'Login wallpaper reset to default.');
     }
 
     /**
