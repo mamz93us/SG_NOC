@@ -101,8 +101,8 @@
             <div class="apps">
                 @php
                     $regions = [
-                        'egypt' => ['en' => 'Egypt', 'ar' => 'مصر', 'flag' => '🇪🇬'],
                         'ksa'   => ['en' => 'Saudi Arabia', 'ar' => 'السعودية', 'flag' => '🇸🇦'],
+                        'egypt' => ['en' => 'Egypt', 'ar' => 'مصر', 'flag' => '🇪🇬'],
                     ];
                 @endphp
                 @foreach($regions as $key => $r)
