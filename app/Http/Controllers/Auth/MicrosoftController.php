@@ -68,6 +68,29 @@ class MicrosoftController extends Controller
 
         Auth::login($user, true);
 
+        // Record the sign-in for the Access Analytics dashboard. Best-effort —
+        // never let access logging interrupt the login flow.
+        try {
+            $loginApp = match (true) {
+                $request->getHost() === \App\Support\Marketing::domain() => 'em',
+                $user->usesPortal() => 'portal',
+                default => 'noc',
+            };
+            app(\App\Services\Access\AccessVisitRecorder::class)->record([
+                'user_id' => $user->getKey(),
+                'user_name' => $user->name,
+                'user_email' => $user->email,
+                'app' => $loginApp,
+                'event' => 'login',
+                'path' => '/'.ltrim($request->path(), '/'),
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'session_id' => $request->hasSession() ? $request->session()->getId() : null,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[MicrosoftController] access login log failed: '.$e->getMessage());
+        }
+
         // Fresh auth session — 2FA gate applies.
         session()->forget('2fa_verified');
 

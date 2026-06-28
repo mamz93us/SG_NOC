@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AccessoryController;
+use App\Http\Controllers\Admin\AccessStatsController;
 use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\AdminLinkController;
 use App\Http\Controllers\Admin\AlertRuleController;
@@ -39,7 +40,6 @@ use App\Http\Controllers\Admin\IdentityController;
 use App\Http\Controllers\Admin\IpamController;
 use App\Http\Controllers\Admin\IpReservationController;
 use App\Http\Controllers\Admin\IpScannerController;
-use App\Http\Controllers\Admin\OracleHrImportController;
 use App\Http\Controllers\Admin\IspConnectionController;
 use App\Http\Controllers\Admin\IspProviderController;
 use App\Http\Controllers\Admin\IspReportController;
@@ -53,6 +53,7 @@ use App\Http\Controllers\Admin\NetworkDiscoveryController;
 use App\Http\Controllers\Admin\NocController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\NotificationRuleController;
+use App\Http\Controllers\Admin\OracleHrImportController;
 use App\Http\Controllers\Admin\PermissionsController;
 use App\Http\Controllers\Admin\PhoneAutoAssignController;
 use App\Http\Controllers\Admin\PhoneManagementController;
@@ -87,7 +88,6 @@ use App\Http\Controllers\Api\HrOnboardingController;
 use App\Http\Controllers\Api\SnsEmailEventsController;
 use App\Http\Controllers\Auth\MicrosoftController;
 use App\Http\Controllers\PhonebookController;
-use App\Http\Controllers\TicketForwardController;
 use App\Http\Controllers\PhoneRequestLogController;
 use App\Http\Controllers\Portal\EmailMarketing\CampaignAnalyticsController as EmCampaignAnalyticsController;
 use App\Http\Controllers\Portal\EmailMarketing\CampaignsController as EmCampaignsController;
@@ -105,6 +105,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Public\OptInConfirmController;
 use App\Http\Controllers\Public\UnsubscribeController;
 use App\Http\Controllers\PublicContactController;
+use App\Http\Controllers\TicketForwardController;
 use App\Http\Controllers\Training\PublicCertificateController;
 use App\Support\Marketing;
 use Illuminate\Support\Facades\Route;
@@ -367,6 +368,17 @@ Route::middleware(['auth', 'permission:manage-settings'])
 // JSON summary for reuse by other NOC widgets (auth-gated, path per spec).
 Route::middleware(['auth', 'permission:manage-settings'])
     ->get('api/ticket-stats', [TicketStatsController::class, 'data'])->name('api.ticket-stats');
+
+// Access Analytics — who's signing in to / using NOC, EM and the Portal.
+// Gated by view-activity-logs (access-audit data, alongside the Audit Log).
+Route::middleware(['auth', 'permission:view-activity-logs'])
+    ->prefix('admin')->name('admin.')
+    ->group(function () {
+        Route::get('access-stats', [AccessStatsController::class, 'index'])->name('access-stats.index');
+        Route::get('access-stats/export', [AccessStatsController::class, 'export'])->name('access-stats.export');
+    });
+Route::middleware(['auth', 'permission:view-activity-logs'])
+    ->get('api/access-stats', [AccessStatsController::class, 'data'])->name('api.access-stats');
 
 // NOC public root. Declared AFTER the marketing domain group so a request to
 // em.samirgroup.net/ matches the domain-constrained marketing dashboard first;

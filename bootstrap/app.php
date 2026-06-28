@@ -21,6 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);
         $middleware->appendToGroup('web', \App\Http\Middleware\SecurityHeaders::class);
+        // Records a deduplicated presence heartbeat for authenticated users on
+        // the NOC / EM / Portal apps. No-op for guests, so public routes
+        // (it.samirgroup.net forward, login pages) are unaffected.
+        $middleware->appendToGroup('web', \App\Http\Middleware\LogAccessVisit::class);
         // The marketing subdomain serves ONLY the marketing portal (+ sign-in / 2FA /
         // recipient-facing email endpoints); everything else NOC 404s. Run this BEFORE
         // the auth middleware (via the priority list) so a NOC route on em 404s for

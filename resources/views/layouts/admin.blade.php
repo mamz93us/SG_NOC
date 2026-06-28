@@ -1189,6 +1189,12 @@
                                     <i class="bi bi-shield-check me-2"></i>Audit Log
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.access-stats.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.access-stats.index') }}">
+                                    <i class="bi bi-people me-2"></i>Access Analytics
+                                </a>
+                            </li>
                             @endcan
                             @endcanany
                             {{-- ── Documentation (folded into Admin) ── --}}
