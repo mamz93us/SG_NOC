@@ -3,16 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\Ticketing\LogTicketVisitJob;
+use App\Models\Setting;
 use App\Services\Ticketing\TicketVisitRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * The tracked landing for it.samirgroup.net. Records one analytics event per
- * visit, then forwards to the IT ticketing app.
+ * it.samirgroup.net. Two entry points:
+ *  - landing()  : the branded landing page (web + mobile app links). Renders
+ *                 only — it does NOT log, so bots/CT-scanners that load the page
+ *                 aren't counted. The "Open Web App" button points at /go.
+ *  - forward()  : /go — records one analytics event, then forwards to the
+ *                 ticketing app. This is the tracked click-through.
  *
- * Hard rules:
+ * Hard rules for forward():
  *  - Logging must NEVER block or break the forward. Any failure is swallowed
  *    (logged to laravel.log) and the visitor is still sent on.
  *  - The destination comes only from config (env), never the request, so this
@@ -22,7 +28,49 @@ class TicketForwardController extends Controller
 {
     public function __construct(private TicketVisitRecorder $recorder) {}
 
-    public function __invoke(Request $request)
+    /** Branded landing page. No logging here — only /go is tracked. */
+    public function landing(Request $request)
+    {
+        // If the landing is disabled, fall straight through to the forward so
+        // it.samirgroup.net/ still reaches the ticketing app.
+        if (! config('ticket_tracking.landing_enabled', true)) {
+            return $this->forward($request);
+        }
+
+        $config = config('ticket_tracking');
+
+        // Resolve the logo to a usable src, or null (→ inline SVG fallback in the
+        // view). Priority: explicit config override → the NOC company logo from
+        // Settings → SVG fallback. The config override accepts a full URL or a
+        // path under public/ that actually exists (so a missing file doesn't
+        // render a broken image).
+        $logo = $config['logo_url'] ?? null;
+        $logoSrc = null;
+        if ($logo) {
+            if (Str::startsWith($logo, ['http://', 'https://'])) {
+                $logoSrc = $logo;
+            } elseif (is_file(public_path($logo))) {
+                $logoSrc = asset($logo);
+            }
+        }
+        if (! $logoSrc) {
+            try {
+                if ($companyLogo = Setting::get()->company_logo ?? null) {
+                    $logoSrc = Storage::url($companyLogo);
+                }
+            } catch (\Throwable $e) {
+                // Settings unavailable — fall back to the inline SVG wordmark.
+            }
+        }
+
+        return view('ticket.landing', [
+            'webAppUrl' => url('/go'),
+            'apps' => $config['apps'] ?? [],
+            'logoSrc' => $logoSrc,
+        ]);
+    }
+
+    public function forward(Request $request)
     {
         $config = config('ticket_tracking');
         $destination = (string) $config['destination_url'];

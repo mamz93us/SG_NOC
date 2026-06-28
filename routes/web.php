@@ -343,19 +343,21 @@ Route::domain(Marketing::domain())
     });
 
 // ──────────────────────────────────────────────────────────────────
-// IT Ticket Portal tracking proxy (it.samirgroup.net)
-// Logs every visit, then forwards to the ticketing app. The destination and
-// host both come from config/ticket_tracking.php — never the request. The
-// host-bound '/' MUST be declared before the unconstrained NOC root below so
-// it.samirgroup.net/ resolves here instead of the welcome page. A
-// host-independent '/go' is also exposed as a stable, testable entry point.
+// IT Ticket Portal (it.samirgroup.net)
+//   /     → branded landing page (web + mobile app links). Render only — the
+//           landing is NOT logged, so bots/CT-scanners aren't counted.
+//   /go   → logs the click-through, then forwards to the ticketing app.
+// Destination + host come from config/ticket_tracking.php, never the request.
+// The host-bound '/' MUST be declared before the unconstrained NOC root below
+// so it.samirgroup.net/ resolves here instead of the welcome page. '/go' is
+// host-independent so it also serves as a stable, testable entry point.
 // ──────────────────────────────────────────────────────────────────
 if ($ticketHost = config('ticket_tracking.host')) {
     Route::domain($ticketHost)->group(function () {
-        Route::get('/', TicketForwardController::class)->name('ticket.forward');
+        Route::get('/', [TicketForwardController::class, 'landing'])->name('ticket.landing');
     });
 }
-Route::get('/go', TicketForwardController::class)->name('ticket.go');
+Route::get('/go', [TicketForwardController::class, 'forward'])->name('ticket.go');
 
 // IT Ticket Portal analytics — dashboard + CSV export (Admin menu, manage-settings).
 Route::middleware(['auth', 'permission:manage-settings'])

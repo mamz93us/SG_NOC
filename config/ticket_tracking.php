@@ -31,6 +31,30 @@ return [
     //            EXPERIMENTAL: ADF/JSF is stateful — see TicketForwardController.
     'forward_mode' => env('TICKET_FORWARD_MODE', 'redirect'),
 
+    // Landing page (it.samirgroup.net root). When true, the root shows a branded
+    // landing page with the web + mobile app links; the "Open Web App" button
+    // routes through /go (which logs the click, then redirects). When false, the
+    // root just does the log+redirect directly. Only /go logs — never the
+    // landing render — so bots/CT-scanners that load the page aren't counted.
+    'landing_enabled' => (bool) env('TICKET_LANDING_ENABLED', true),
+
+    // Optional logo override for the landing page (a full URL or a path under
+    // public/). Leave unset to use the NOC company logo from Settings; if that's
+    // also unset, the landing falls back to an inline SVG re-creation.
+    'logo_url' => env('TICKET_LANDING_LOGO'),
+
+    // Mobile app store links, by region. Edit here — surfaced on the landing page.
+    'apps' => [
+        'egypt' => [
+            'android' => 'https://play.google.com/store/apps/details?id=io.samirgroup.ticketingapp.egypt',
+            'ios' => 'https://apps.apple.com/eg/app/samir-assistant-egypt/id6761456415',
+        ],
+        'ksa' => [
+            'android' => 'https://play.google.com/store/apps/details?id=io.samirgroup.ticketingapp',
+            'ios' => 'https://apps.apple.com/us/app/samir-assistant/id6760613750',
+        ],
+    ],
+
     // Write the visit via a queued job instead of inline. NOTE: production runs
     // no dedicated queue worker (scheduler-as-worker), so a queued visit is only
     // persisted on the next queue drain. The inline insert is a single indexed
