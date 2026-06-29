@@ -159,6 +159,9 @@ class RolePermission extends Model
                 'view-candidates' => 'View & filter Teamtailor candidates',
                 'reject-candidates' => 'Reject Teamtailor job applications',
             ],
+            'Email Signatures' => [
+                'manage-signatures' => 'Create / Edit / Delete Email Signature Templates',
+            ],
         ];
     }
 
