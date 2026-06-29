@@ -2099,7 +2099,31 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/{filename}', [DocumentationController::class, 'destroy'])->name('destroy');
     });
 
+    // ─── Email Signature Templates ─────────────────────────────────
+    Route::prefix('signatures')->name('signatures.')->group(function () {
+        // Preview endpoints are accessible to anyone who can view-admin-links (editors need them)
+        Route::post('/preview',       [\App\Http\Controllers\Admin\SignatureController::class, 'preview'])      ->name('preview');
+        Route::post('/preview-saved', [\App\Http\Controllers\Admin\SignatureController::class, 'previewSaved'])->name('preview-saved');
+
+        Route::middleware('permission:manage-signatures')->group(function () {
+            Route::get('/',                    [\App\Http\Controllers\Admin\SignatureController::class, 'index'])    ->name('index');
+            Route::get('/create',              [\App\Http\Controllers\Admin\SignatureController::class, 'create'])   ->name('create');
+            Route::post('/',                   [\App\Http\Controllers\Admin\SignatureController::class, 'store'])    ->name('store');
+            Route::get('/{signature}/edit',    [\App\Http\Controllers\Admin\SignatureController::class, 'edit'])     ->name('edit');
+            Route::put('/{signature}',         [\App\Http\Controllers\Admin\SignatureController::class, 'update'])   ->name('update');
+            Route::delete('/{signature}',      [\App\Http\Controllers\Admin\SignatureController::class, 'destroy'])  ->name('destroy');
+            Route::post('/{signature}/duplicate', [\App\Http\Controllers\Admin\SignatureController::class, 'duplicate'])->name('duplicate');
+        });
+    });
+
 });
+
+// Email signature API — called by Intune device scripts and the Graph nightly job.
+// GET /api/signature?upn=user@domain.com&type=new_email&api_key=…
+// Auth: SIGNATURE_API_KEY in .env (skip key check if env var is not set)
+Route::get('/api/signature', [\App\Http\Controllers\Admin\SignatureController::class, 'apiRender'])
+    ->middleware('throttle:120,1')
+    ->name('api.signature');
 
 // Internal VQ report endpoint
 Route::post('/api/internal/vq-report', [\App\Http\Controllers\Admin\VoiceQualityController::class, 'receive'])

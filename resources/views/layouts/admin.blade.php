@@ -18,6 +18,7 @@
          tailwind.config.js so this can coexist with Bootstrap). Required for the
          welcome screen's Tailwind classes to render correctly. --}}
     @vite(['resources/css/app.css'])
+    @stack('head')
 
     {{-- Defensive override: force Bootstrap's .navbar-collapse to display even if
          a stale Tailwind build still ships .collapse/.visible utilities that would
@@ -1028,9 +1029,9 @@
                     {{-- Documentation, Marketing, Teamtailor & Admin Tools folded into the Admin menu below --}}
 
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
-                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates'])
+                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-gear-fill me-1"></i>Admin
                         </a>
@@ -1267,6 +1268,16 @@
                             </li>
                             @endcan
                             @endcanany
+                            {{-- ── Email Signatures ── --}}
+                            @can('manage-signatures')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/signatures*') ? 'active' : '' }}"
+                                   href="{{ route('admin.signatures.index') }}">
+                                    <i class="bi bi-envelope-paper-fill me-2"></i>Email Signatures
+                                </a>
+                            </li>
+                            @endcan
                             {{-- ── Admin Tools (folded into Admin) ── --}}
                             @can('view-admin-links')
                             <li><hr class="dropdown-divider"></li>
