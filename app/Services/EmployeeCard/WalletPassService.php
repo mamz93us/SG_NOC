@@ -228,13 +228,19 @@ class WalletPassService
         $wwdrPath     = "$tmpDir/wwdr.pem";
 
         // Decode P12 → separate cert + key PEM
-        $p12Raw = base64_decode($setting->wallet_pass_cert);
-        $certs  = [];
-        if (! openssl_pkcs12_read($p12Raw, $certs, $setting->wallet_pass_cert_password ?? '')) {
-            throw new \RuntimeException('Failed to read P12 certificate: ' . openssl_error_string());
+        $p12Raw   = base64_decode($setting->wallet_pass_cert);
+        $password = $setting->wallet_pass_cert_password ?? '';
+        $certs    = [];
+
+        if (openssl_pkcs12_read($p12Raw, $certs, $password)) {
+            file_put_contents($certPemPath, $certs['cert']);
+            file_put_contents($keyPemPath,  $certs['pkey']);
+        } else {
+            // OpenSSL 3 rejects legacy-encrypted P12s (RC2/3DES PBE). macOS Keychain
+            // and older `openssl pkcs12 -export` produce these. Fall back to the CLI
+            // with the legacy provider to extract the cert + unencrypted key.
+            $this->extractP12ViaCli($p12Raw, $password, $certPemPath, $keyPemPath, $tmpDir);
         }
-        file_put_contents($certPemPath, $certs['cert']);
-        file_put_contents($keyPemPath,  $certs['pkey']);
 
         // WWDR cert
         $wwdrRaw = $setting->wallet_pass_wwdr_cert ? base64_decode($setting->wallet_pass_wwdr_cert) : $this->bundledWwdrCert();
@@ -260,6 +266,49 @@ class WalletPassService
 
         if ($exit !== 0 || ! file_exists($sigPath)) {
             throw new \RuntimeException('Pass signing failed (exit ' . $exit . '): ' . implode(' ', $output));
+        }
+    }
+
+    /**
+     * Extract cert + unencrypted key from a legacy-encrypted P12 using the OpenSSL CLI.
+     * Used when openssl_pkcs12_read() fails because OpenSSL 3 dropped legacy PBE by default.
+     */
+    private function extractP12ViaCli(string $p12Raw, string $password, string $certPemPath, string $keyPemPath, string $tmpDir): void
+    {
+        $p12Path = "$tmpDir/source.p12";
+        file_put_contents($p12Path, $p12Raw);
+
+        // Pass the password via env (avoids shell-escaping and exposure in `ps`).
+        putenv('PKPASS_PWD=' . $password);
+
+        $certOut = $keyOut = [];
+        $certExit = $keyExit = 1;
+
+        try {
+            exec(sprintf(
+                'openssl pkcs12 -legacy -in %s -clcerts -nokeys -passin env:PKPASS_PWD -out %s 2>&1',
+                escapeshellarg($p12Path),
+                escapeshellarg($certPemPath)
+            ), $certOut, $certExit);
+
+            exec(sprintf(
+                'openssl pkcs12 -legacy -in %s -nocerts -nodes -passin env:PKPASS_PWD -out %s 2>&1',
+                escapeshellarg($p12Path),
+                escapeshellarg($keyPemPath)
+            ), $keyOut, $keyExit);
+        } finally {
+            putenv('PKPASS_PWD');
+            @unlink($p12Path);
+        }
+
+        $ok = $certExit === 0 && $keyExit === 0
+            && file_exists($certPemPath) && filesize($certPemPath) > 0
+            && file_exists($keyPemPath)  && filesize($keyPemPath)  > 0;
+
+        if (! $ok) {
+            throw new \RuntimeException(
+                'Failed to read P12 certificate (legacy fallback): ' . trim(implode(' ', array_merge($certOut, $keyOut)))
+            );
         }
     }
 
