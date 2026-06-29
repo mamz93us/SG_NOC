@@ -75,7 +75,7 @@ class EmployeeCardController extends Controller
 
     // ─── Apple Wallet pass download ──────────────────────────────────────────
 
-    public function walletPass(string $token): Response
+    public function walletPass(string $token): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         $employee = Employee::where('card_token', $token)
             ->where('status', 'active')
@@ -94,9 +94,7 @@ class EmployeeCardController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
 
-        // Delete the temp file after response is sent
-        register_shutdown_function(fn () => is_file($pkpassPath) && @unlink(dirname($pkpassPath)) && true);
-        // Clean temp dir
+        // Clean up the temp dir (pass + extracted PEMs) after the response is sent
         $tmpDir = dirname($pkpassPath);
         register_shutdown_function(function () use ($tmpDir) {
             if (is_dir($tmpDir)) {
