@@ -28,6 +28,7 @@ class Employee extends Model
         'azure_disabled_at',
         'azure_removed_at',
         'notes',
+        'card_token',
         'extension_number',
         'ucm_server_id',
         'contact_id',

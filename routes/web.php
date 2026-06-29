@@ -135,6 +135,11 @@ Route::get('/contacts/print-compact', [PhonebookController::class, 'printCompact
 // Public documentation (only docs marked as public by admin)
 Route::get('/documentation', [\App\Http\Controllers\Admin\DocumentationController::class, 'publicIndex'])->name('public.documentation.index');
 Route::get('/documentation/{filename}', [\App\Http\Controllers\Admin\DocumentationController::class, 'publicShow'])->name('public.documentation.show');
+
+// Employee digital business cards (public — accessible without login via card_token)
+Route::get('/card/{token}',        [\App\Http\Controllers\EmployeeCardController::class, 'show'])       ->name('employee.card.show');
+Route::get('/card/{token}/vcard',  [\App\Http\Controllers\EmployeeCardController::class, 'vcard'])      ->name('employee.card.vcard');
+Route::get('/card/{token}/wallet', [\App\Http\Controllers\EmployeeCardController::class, 'walletPass']) ->name('employee.card.wallet');
 /*
 |--------------------------------------------------------------------------
 | Microsoft SSO
@@ -620,6 +625,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/sftpgo/test', [SettingsController::class, 'testSftpgo'])->name('settings.sftpgo.test');
         Route::post('settings/sophos-central', [SettingsController::class, 'updateSophosCentral'])->name('settings.sophos-central');
         Route::post('settings/sophos-central/test', [SettingsController::class, 'testSophosCentral'])->name('settings.sophos-central.test');
+        Route::post('settings/employee-cards', [SettingsController::class, 'updateEmployeeCards'])->name('settings.employee-cards');
 
         // ── Sync Status Dashboard ────────────────────────────────────
         Route::get('sync-status', [\App\Http\Controllers\Admin\SyncStatusController::class, 'index'])->name('sync-status');
@@ -1591,6 +1597,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:view-employees')->group(function () {
         Route::get('employees/{employee}', [EmployeeController::class, 'show'])->name('employees.show');
         Route::get('employees/{employee}/report', [EmployeeController::class, 'report'])->name('employees.report');
+        Route::get('employees/{employee}/card-data', [\App\Http\Controllers\EmployeeCardController::class, 'adminShareData'])->name('employees.card-data');
+        Route::post('employees/{employee}/card-token/regenerate', [\App\Http\Controllers\EmployeeCardController::class, 'regenerateToken'])->name('employees.card-token.regenerate');
     });
     Route::middleware('permission:manage-employees')->group(function () {
         Route::get('employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');

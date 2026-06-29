@@ -148,6 +148,15 @@ class Setting extends Model
         'sftpgo_webhook_secret',
         'sftpgo_default_quota_mb',
         'sftpgo_home_root',
+        // Apple Wallet pass
+        'wallet_pass_enabled',
+        'wallet_pass_org_name',
+        'wallet_pass_team_id',
+        'wallet_pass_type_id',
+        'wallet_pass_cert',
+        'wallet_pass_cert_password',
+        'wallet_pass_wwdr_cert',
+        'wallet_pass_bg_color',
     ];
 
     protected $casts = [
@@ -193,6 +202,8 @@ class Setting extends Model
         'sftpgo_sftp_enabled' => 'boolean',
         'sftpgo_ftp_enabled' => 'boolean',
         'sftpgo_default_quota_mb' => 'integer',
+        // Apple Wallet
+        'wallet_pass_enabled' => 'boolean',
     ];
 
     /**
@@ -482,6 +493,44 @@ class Setting extends Model
     }
 
     public function getSftpgoWebhookSecretAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── Apple Wallet P12 certificate — encrypted at rest ─────────
+
+    public function setWalletPassCertAttribute(?string $value): void
+    {
+        $this->attributes['wallet_pass_cert'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getWalletPassCertAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── Apple Wallet certificate password — encrypted at rest ────
+
+    public function setWalletPassCertPasswordAttribute(?string $value): void
+    {
+        $this->attributes['wallet_pass_cert_password'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getWalletPassCertPasswordAttribute(?string $value): ?string
     {
         if (! $value) {
             return null;

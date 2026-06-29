@@ -6,7 +6,10 @@
         <h4 class="mb-0 fw-bold"><i class="bi bi-person-badge-fill me-2 text-primary"></i>{{ $employee->name }}</h4>
         <small class="text-muted">Employee Profile</small>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-info btn-sm" onclick="openShareCard()" title="Share Digital Business Card">
+            <i class="bi bi-person-vcard me-1"></i>Share Card
+        </button>
         <a href="{{ route('admin.employees.report', $employee) }}" class="btn btn-outline-success btn-sm" target="_blank" title="Print Asset Report">
             <i class="bi bi-printer me-1"></i>Print Report
         </a>
@@ -1033,5 +1036,119 @@
 @endpush
 @endif
 @endcan
+
+{{-- ── Share Card Modal ─────────────────────────────────────────────────────── --}}
+<div class="modal fade" id="shareCardModal" tabindex="-1" aria-labelledby="shareCardModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="shareCardModalLabel">
+                    <i class="bi bi-person-vcard me-2 text-info"></i>Digital Business Card
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2" id="shareCardBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                    <p class="text-muted small mt-2 mb-0">Loading…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+(function () {
+    const cardDataUrl    = @json(route('admin.employees.card-data', $employee));
+    const regenUrl       = @json(route('admin.employees.card-token.regenerate', $employee));
+    const csrfToken      = document.querySelector('meta[name="csrf-token"]').content;
+    let   cardData       = null;
+
+    window.openShareCard = function () {
+        const modal = new bootstrap.Modal(document.getElementById('shareCardModal'));
+        modal.show();
+
+        if (cardData) {
+            renderShareCard(cardData);
+            return;
+        }
+
+        fetch(cardDataUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.json())
+            .then(d => { cardData = d; renderShareCard(d); })
+            .catch(() => {
+                document.getElementById('shareCardBody').innerHTML =
+                    '<div class="alert alert-danger">Failed to load card data.</div>';
+            });
+    };
+
+    function renderShareCard(d) {
+        document.getElementById('shareCardBody').innerHTML = `
+            <p class="text-muted small mb-3">
+                Share this link so anyone can view {{ $employee->name }}'s digital business card, download their contact, or add it to Apple Wallet.
+            </p>
+
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <input type="text" id="cardLinkInput" class="form-control form-control-sm font-monospace"
+                       value="${d.card_url}" readonly>
+                <button class="btn btn-sm btn-outline-secondary flex-shrink-0" onclick="copyCardLink()">
+                    <i class="bi bi-clipboard"></i>
+                </button>
+                <a href="${d.card_url}" target="_blank" class="btn btn-sm btn-outline-info flex-shrink-0">
+                    <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+            </div>
+
+            <div class="d-flex align-items-start gap-3 mb-3">
+                <div id="qrContainer" style="width:120px;flex-shrink:0;">${d.qr_svg}</div>
+                <div class="d-flex flex-column gap-2 w-100">
+                    <a href="${d.vcard_url}" download class="btn btn-sm btn-outline-primary w-100">
+                        <i class="bi bi-person-plus me-1"></i>Download vCard (.vcf)
+                    </a>
+                    ${d.wallet_ready
+                        ? `<a href="${d.wallet_url}" class="btn btn-sm btn-dark w-100"><i class="bi bi-wallet2 me-1"></i>Add to Apple Wallet</a>`
+                        : `<button class="btn btn-sm btn-outline-secondary w-100" disabled title="Configure Apple Wallet in Settings to enable"><i class="bi bi-wallet2 me-1"></i>Apple Wallet (not configured)</button>`
+                    }
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                <small class="text-muted">Regenerating the link invalidates all previous shares.</small>
+                <button class="btn btn-sm btn-outline-danger" id="regenBtn" onclick="regenerateToken()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Regenerate
+                </button>
+            </div>
+        `;
+    }
+
+    window.copyCardLink = function () {
+        const input = document.getElementById('cardLinkInput');
+        navigator.clipboard.writeText(input.value).catch(() => {
+            input.select(); document.execCommand('copy');
+        });
+        const btn = input.nextElementSibling;
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check"></i>';
+        setTimeout(() => btn.innerHTML = orig, 1500);
+    };
+
+    window.regenerateToken = function () {
+        if (!confirm('Regenerate the card link? Anyone with the old link will no longer be able to access it.')) return;
+        const btn = document.getElementById('regenBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        fetch(regenUrl, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(d => { cardData = d; renderShareCard(d); })
+        .catch(() => alert('Failed to regenerate token.'));
+    };
+})();
+</script>
+@endpush
 
 @endsection

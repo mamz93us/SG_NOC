@@ -1697,6 +1697,96 @@
     </div>
 </div>
 
+{{-- ── Employee Cards / Apple Wallet ─────────────────────────────────────── --}}
+<div class="card mt-4" id="employee-cards">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-person-vcard text-info fs-5"></i>
+        <h5 class="mb-0">Employee Cards &amp; Apple Wallet</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Each active employee gets a permanent digital business card at <code>/card/{token}</code> — shareable, mobile-friendly, includes vCard download.
+            Apple Wallet pass generation requires an <a href="https://developer.apple.com/account/" target="_blank">Apple Developer</a> Pass Type ID and signing certificate.
+        </p>
+        <form method="POST" action="{{ route('settings.employee-cards') }}">
+            @csrf
+
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" name="wallet_pass_enabled"
+                       id="walletEnabled" value="1"
+                       {{ $settings->wallet_pass_enabled ? 'checked' : '' }}>
+                <label class="form-check-label" for="walletEnabled">
+                    Enable Apple Wallet pass generation (<code>GET /card/{token}/wallet</code>)
+                </label>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Organization Name</label>
+                    <input type="text" name="wallet_pass_org_name" class="form-control form-control-sm"
+                           value="{{ $settings->wallet_pass_org_name ?: $settings->company_name }}"
+                           placeholder="{{ $settings->company_name ?: 'Samir Group' }}">
+                    <div class="form-text">Shown in the pass header on iPhone.</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Pass Background Color</label>
+                    <input type="color" name="wallet_pass_bg_color" class="form-control form-control-color form-control-sm"
+                           value="{{ $settings->wallet_pass_bg_color ?: '#1a1a2e' }}">
+                </div>
+            </div>
+
+            <div class="card bg-light border mb-3">
+                <div class="card-body py-3">
+                    <h6 class="mb-3 text-secondary"><i class="bi bi-apple me-1"></i>Apple Developer Credentials</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Team ID <span class="text-danger">*</span></label>
+                            <input type="text" name="wallet_pass_team_id" class="form-control form-control-sm font-monospace"
+                                   value="{{ $settings->wallet_pass_team_id }}"
+                                   placeholder="ABCDE12345" maxlength="20">
+                            <div class="form-text">10-char alphanumeric, from developer.apple.com → Membership.</div>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Pass Type Identifier <span class="text-danger">*</span></label>
+                            <input type="text" name="wallet_pass_type_id" class="form-control form-control-sm font-monospace"
+                                   value="{{ $settings->wallet_pass_type_id }}"
+                                   placeholder="pass.net.samirgroup.employee">
+                            <div class="form-text">Register in Certificates, Identifiers &amp; Profiles → Identifiers → Pass Type IDs.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">P12 Certificate <small class="text-muted">(base64)</small></label>
+                            <textarea name="wallet_pass_cert" class="form-control form-control-sm font-monospace"
+                                      rows="3" placeholder="Leave blank to keep existing"
+                                      style="font-size:11px;"></textarea>
+                            <div class="form-text">
+                                Base64-encode your .p12: <code>base64 -w0 pass.p12</code> on Linux.
+                                {{ $settings->wallet_pass_cert ? '✓ Certificate stored.' : 'No certificate stored.' }}
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">P12 Password</label>
+                            <input type="password" name="wallet_pass_cert_password" class="form-control form-control-sm"
+                                   placeholder="Leave blank to keep">
+                            <div class="form-text">{{ $settings->wallet_pass_cert_password ? '✓ Password stored.' : 'Not set.' }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">WWDR Cert <small class="text-muted">(optional)</small></label>
+                            <textarea name="wallet_pass_wwdr_cert" class="form-control form-control-sm font-monospace"
+                                      rows="3" placeholder="Auto-uses bundled G4 cert"
+                                      style="font-size:11px;">{{ $settings->wallet_pass_wwdr_cert }}</textarea>
+                            <div class="form-text">Bundled G4 cert expires 2030 — leave blank unless you need a different cert.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-floppy me-1"></i>Save Employee Card Settings
+            </button>
+        </form>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
