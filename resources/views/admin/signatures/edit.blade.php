@@ -351,7 +351,7 @@ function switchTab(tab, btn) {
 // ── Variable inserter ───────────────────────────────────────────────────
 function insertVarBtn(btn) {
     const varName = btn.getAttribute('data-var');
-    const text = '{{' + varName + '}}';
+    const text = '@{{' + varName + '}}';
     const cursor = cmEditor.getCursor();
     cmEditor.replaceRange(text, cursor);
     cmEditor.focus();
@@ -359,7 +359,7 @@ function insertVarBtn(btn) {
 
 function insertIfBlock() {
     const cursor = cmEditor.getCursor();
-    const snippet = '{{#if variable}}\n  \n{{/if}}';
+    const snippet = '@{{#if variable}}\n  \n@{{/if}}';
     cmEditor.replaceRange(snippet, cursor);
     // Position cursor on the variable name
     cmEditor.setCursor({ line: cursor.line, ch: cursor.ch + 6 });
@@ -370,7 +370,7 @@ function insertIfBlock() {
 function formatHtml() {
     try {
         const raw = cmEditor.getValue();
-        // Preserve {{...}} placeholders through a round-trip via innerHTML
+        // Preserve template variable placeholders through an innerHTML round-trip
         const result = raw
             .replace(/><(?!\/)/g, '>\n<')
             .split('\n')
