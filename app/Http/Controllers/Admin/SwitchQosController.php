@@ -32,10 +32,12 @@ class SwitchQosController extends Controller
      */
     public function dashboard()
     {
-        $today = today();
+        $today      = today();
+        $todayStart = $today->copy()->startOfDay();
+        $todayEnd   = $today->copy()->endOfDay();
 
         $latestIds = SwitchQosStat::selectRaw('MAX(id) as id')
-            ->whereDate('polled_at', $today)
+            ->whereBetween('polled_at', [$todayStart, $todayEnd])
             ->groupBy('device_ip', 'interface_name')
             ->pluck('id');
 
@@ -90,6 +92,7 @@ class SwitchQosController extends Controller
                 DB::raw('MAX(polled_at) as last_polled_at'),
                 DB::raw('COUNT(DISTINCT interface_name) as interface_count')
             )
+            ->where('polled_at', '>=', now()->subDays(30))
             ->groupBy('device_ip')
             ->get()
             ->keyBy('device_ip');
