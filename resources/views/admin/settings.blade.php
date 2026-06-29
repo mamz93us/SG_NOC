@@ -1708,7 +1708,7 @@
             Each active employee gets a permanent digital business card at <code>/card/{token}</code> — shareable, mobile-friendly, includes vCard download.
             Apple Wallet pass generation requires an <a href="https://developer.apple.com/account/" target="_blank">Apple Developer</a> Pass Type ID and signing certificate.
         </p>
-        <form method="POST" action="{{ route('admin.settings.employee-cards') }}">
+        <form method="POST" action="{{ route('admin.settings.employee-cards') }}" enctype="multipart/form-data">
             @csrf
 
             <div class="form-check form-switch mb-3">
@@ -1753,28 +1753,38 @@
                                    placeholder="pass.net.samirgroup.employee">
                             <div class="form-text">Register in Certificates, Identifiers &amp; Profiles → Identifiers → Pass Type IDs.</div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">P12 Certificate <small class="text-muted">(base64)</small></label>
-                            <textarea name="wallet_pass_cert" class="form-control form-control-sm font-monospace"
-                                      rows="3" placeholder="Leave blank to keep existing"
-                                      style="font-size:11px;"></textarea>
+                        <div class="col-md-5">
+                            <label class="form-label">P12 Certificate <span class="text-danger">*</span></label>
+                            <input type="file" name="wallet_pass_cert_file" class="form-control form-control-sm"
+                                   accept=".p12">
                             <div class="form-text">
-                                Base64-encode your .p12: <code>base64 -w0 pass.p12</code> on Linux.
-                                {{ $settings->wallet_pass_cert ? '✓ Certificate stored.' : 'No certificate stored.' }}
+                                @if($settings->wallet_pass_cert)
+                                    <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Certificate stored.</span>
+                                    Upload a new file to replace it.
+                                @else
+                                    <span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>No certificate stored.</span>
+                                    Upload your <code>.p12</code> file (export from Keychain on Mac, or build with OpenSSL).
+                                @endif
                             </div>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">P12 Password</label>
                             <input type="password" name="wallet_pass_cert_password" class="form-control form-control-sm"
-                                   placeholder="Leave blank to keep">
+                                   placeholder="{{ $settings->wallet_pass_cert_password ? 'Leave blank to keep' : 'Set password' }}">
                             <div class="form-text">{{ $settings->wallet_pass_cert_password ? '✓ Password stored.' : 'Not set.' }}</div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">WWDR Cert <small class="text-muted">(optional)</small></label>
-                            <textarea name="wallet_pass_wwdr_cert" class="form-control form-control-sm font-monospace"
-                                      rows="3" placeholder="Auto-uses bundled G4 cert"
-                                      style="font-size:11px;">{{ $settings->wallet_pass_wwdr_cert }}</textarea>
-                            <div class="form-text">Bundled G4 cert expires 2030 — leave blank unless you need a different cert.</div>
+                        <div class="col-md-4">
+                            <label class="form-label">WWDR Certificate <small class="text-muted">(optional)</small></label>
+                            <input type="file" name="wallet_pass_wwdr_cert_file" class="form-control form-control-sm"
+                                   accept=".cer,.pem,.crt">
+                            <div class="form-text">
+                                @if($settings->wallet_pass_wwdr_cert)
+                                    <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Custom WWDR stored.</span>
+                                @else
+                                    <span class="text-info"><i class="bi bi-info-circle me-1"></i>Using bundled Apple WWDR G4 (expires 2030).</span>
+                                @endif
+                                Upload <code>applewwdrcag4.cer</code> only if needed.
+                            </div>
                         </div>
                     </div>
                 </div>
