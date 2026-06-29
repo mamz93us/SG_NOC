@@ -1708,7 +1708,7 @@
             Each active employee gets a permanent digital business card at <code>/card/{token}</code> — shareable, mobile-friendly, includes vCard download.
             Apple Wallet pass generation requires an <a href="https://developer.apple.com/account/" target="_blank">Apple Developer</a> Pass Type ID and signing certificate.
         </p>
-        <form method="POST" action="{{ route('settings.employee-cards') }}">
+        <form method="POST" action="{{ route('admin.settings.employee-cards') }}">
             @csrf
 
             <div class="form-check form-switch mb-3">
