@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AllowedDomain;
 use App\Models\EmailSignatureTemplate;
+use App\Models\HrApiKey;
 use App\Models\IdentityUser;
 use App\Services\Signature\SignatureRenderService;
 use Illuminate\Http\JsonResponse;
@@ -141,11 +142,16 @@ class SignatureController extends Controller
      */
     public function apiRender(Request $request): Response|JsonResponse
     {
-        // Key check — simple, device-script friendly
-        $expectedKey = config('app.signature_api_key', env('SIGNATURE_API_KEY'));
-        if ($expectedKey && $request->query('api_key') !== $expectedKey) {
-            abort(401, 'Invalid API key');
+        // Auth: accept key via ?api_key= (Intune scripts) or Authorization: Bearer (Graph job)
+        $raw = $request->query('api_key') ?? $request->bearerToken();
+        if (empty($raw)) {
+            return response()->json(['error' => 'API key required. Pass ?api_key= or Authorization: Bearer.'], 401);
         }
+        $apiKey = HrApiKey::findByRawKey($raw, 'signature');
+        if (! $apiKey) {
+            return response()->json(['error' => 'Invalid or revoked API key.'], 401);
+        }
+        try { $apiKey->recordUsage($request->ip()); } catch (\Throwable) {}
 
         $upn    = $request->query('upn');
         $type   = in_array($request->query('type'), ['new_email', 'reply']) ? $request->query('type') : 'new_email';

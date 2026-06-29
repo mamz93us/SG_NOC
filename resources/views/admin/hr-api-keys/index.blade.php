@@ -47,6 +47,7 @@
                     <tr>
                         <th>Name</th>
                         <th>Description</th>
+                        <th>Scope</th>
                         <th>Prefix</th>
                         <th>Status</th>
                         <th>Last Used</th>
@@ -61,6 +62,7 @@
                     <tr>
                         <td class="fw-semibold">{{ $key->name }}</td>
                         <td class="text-muted">{{ $key->description ?: '—' }}</td>
+                        <td><span class="badge {{ $key->scopeBadgeClass() }}">{{ $key->scopeLabel() }}</span></td>
                         <td><code class="badge bg-secondary font-monospace">{{ $key->key_prefix }}</code></td>
                         <td>
                             @if($key->is_active)
@@ -111,6 +113,18 @@
             <div class="mb-3">
                 <label class="form-label">Description</label>
                 <input type="text" name="description" class="form-control" placeholder="Optional — what uses this key?" maxlength="500">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Scope</label>
+                <select name="scope" class="form-select" style="max-width:260px;">
+                    <option value="">General (no restriction)</option>
+                    <option value="hr">HR Integration</option>
+                    <option value="signature">Signature API</option>
+                </select>
+                <div class="form-text">
+                    <strong>Signature API</strong> keys authenticate <code>GET /api/signature</code> calls from Intune scripts and the Graph nightly job.<br>
+                    <strong>General</strong> keys work on all scoped APIs (legacy behaviour).
+                </div>
             </div>
             <button type="submit" class="btn btn-primary"><i class="bi bi-key me-1"></i>Generate Key</button>
         </form>
