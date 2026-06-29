@@ -136,10 +136,14 @@ Route::get('/contacts/print-compact', [PhonebookController::class, 'printCompact
 Route::get('/documentation', [\App\Http\Controllers\Admin\DocumentationController::class, 'publicIndex'])->name('public.documentation.index');
 Route::get('/documentation/{filename}', [\App\Http\Controllers\Admin\DocumentationController::class, 'publicShow'])->name('public.documentation.show');
 
-// Employee digital business cards (public — accessible without login via card_token)
-Route::get('/card/{token}',        [\App\Http\Controllers\EmployeeCardController::class, 'show'])       ->name('employee.card.show');
-Route::get('/card/{token}/vcard',  [\App\Http\Controllers\EmployeeCardController::class, 'vcard'])      ->name('employee.card.vcard');
-Route::get('/card/{token}/wallet', [\App\Http\Controllers\EmployeeCardController::class, 'walletPass']) ->name('employee.card.wallet');
+// Employee digital business cards
+// View + vCard are public (shareable via card_token). The Apple Wallet pass download
+// requires a logged-in session (any authenticated NOC/portal user).
+Route::get('/card/{token}',        [\App\Http\Controllers\EmployeeCardController::class, 'show'])  ->name('employee.card.show');
+Route::get('/card/{token}/vcard',  [\App\Http\Controllers\EmployeeCardController::class, 'vcard']) ->name('employee.card.vcard');
+Route::get('/card/{token}/wallet', [\App\Http\Controllers\EmployeeCardController::class, 'walletPass'])
+    ->middleware('auth')
+    ->name('employee.card.wallet');
 /*
 |--------------------------------------------------------------------------
 | Microsoft SSO

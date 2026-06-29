@@ -151,9 +151,12 @@ class EmployeeCardController extends Controller
 
     private function makeQr(string $url): string
     {
-        // v6 API: outputInterface defaults to QRMarkupSVG; eccLevel accepts string 'M'
+        // v6 API: outputInterface defaults to QRMarkupSVG; eccLevel accepts string 'M'.
+        // outputBase64 defaults to true (returns a data: URI) — disable it so render()
+        // returns raw inline <svg> markup we can drop straight into the DOM.
         $options = new QROptions;
-        $options->eccLevel = 'M';
+        $options->eccLevel     = 'M';
+        $options->outputBase64 = false;
 
         return (new QRCode($options))->render($url);
     }

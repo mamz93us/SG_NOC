@@ -306,11 +306,14 @@
             <a href="{{ $vcard_url }}" class="btn-action btn-secondary-action" download>
                 <i class="bi bi-person-plus"></i> Save Contact
             </a>
-            @if($wallet_ready)
-            <a href="{{ $wallet_url }}" class="btn-action btn-wallet">
-                <i class="bi bi-wallet2"></i> Add to Apple Wallet
-            </a>
-            @endif
+            {{-- Wallet download requires a logged-in session; hide it from public viewers --}}
+            @auth
+                @if($wallet_ready)
+                <a href="{{ $wallet_url }}" class="btn-action btn-wallet">
+                    <i class="bi bi-wallet2"></i> Add to Apple Wallet
+                </a>
+                @endif
+            @endauth
         </div>
 
         {{-- QR Code --}}
@@ -319,7 +322,8 @@
                 use chillerlan\QRCode\QRCode;
                 use chillerlan\QRCode\QROptions;
                 $qrOpts = new QROptions;
-                $qrOpts->eccLevel = 'M';
+                $qrOpts->eccLevel     = 'M';
+                $qrOpts->outputBase64 = false; // inline <svg>, not a data: URI
                 $qrSvg  = (new QRCode($qrOpts))->render($card_url);
             @endphp
             <div class="qr-svg-wrap">{!! $qrSvg !!}</div>
