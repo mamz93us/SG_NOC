@@ -318,7 +318,8 @@
             @php
                 use chillerlan\QRCode\QRCode;
                 use chillerlan\QRCode\QROptions;
-                $qrOpts = new QROptions(['outputType' => QRCode::OUTPUT_MARKUP_SVG, 'eccLevel' => QRCode::ECC_M, 'imageBase64' => false]);
+                $qrOpts = new QROptions;
+                $qrOpts->eccLevel = 'M';
                 $qrSvg  = (new QRCode($qrOpts))->render($card_url);
             @endphp
             <div class="qr-svg-wrap">{!! $qrSvg !!}</div>
