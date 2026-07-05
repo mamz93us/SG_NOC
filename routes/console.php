@@ -723,6 +723,14 @@ Schedule::command('branch-agents:check-stale')
     ->runInBackground()
     ->name('branch-agents-check-stale');
 
+// Access-Gateway allowlist — reflect current branch WAN IPs into agw_allowlist
+// so the noc-agw gateway lets each branch through. Every 5 minutes.
+Schedule::command('agw:sync-allowlist')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('agw-sync-allowlist');
+
 // Access-point ICMP health — APX-series APs have no SNMP, so ping is the
 // only direct signal. Pings monitored APs over the branch VPN tunnels and
 // opens/resolves a NocEvent on state change. Every 5 minutes.

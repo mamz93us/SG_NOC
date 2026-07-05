@@ -162,6 +162,11 @@ class RolePermission extends Model
             'Email Signatures' => [
                 'manage-signatures' => 'Create / Edit / Delete Email Signature Templates',
             ],
+            'Access Gateway' => [
+                'view-agw-audit' => 'View Access Gateway Audit Log',
+                'manage-agw-allowlist' => 'Manage Access Gateway IP Allowlist',
+                'manage-agw-settings' => 'Edit Access Gateway Settings (app URL, ACL toggle)',
+            ],
         ];
     }
 
@@ -193,7 +198,7 @@ class RolePermission extends Model
             'view-network', 'view-assets', 'view-printers',
             'view-workflows', 'view-employees', 'view-noc',
             'view-dhcp-leases', 'view-sophos', 'view-access-points', 'view-dns', 'view-admin-links',
-            'view-syslog',
+            'view-syslog', 'view-agw-audit',
         ];
         $hrPerms = [
             'submit-hr-onboarding',
