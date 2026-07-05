@@ -32,7 +32,7 @@ Do **not** point it at the IIS box. nginx separates the two hostnames by
 
 ---
 
-## 2. Database migrations + least-privilege gateway user
+## 2. Database migrations
 
 On the NOC VM (schema is owned by Laravel — run the migrations, don't hand-edit):
 
@@ -41,36 +41,32 @@ cd /home/azureuser/phonebook2
 php artisan migrate            # creates agw_* tables + settings.agw_* columns + permissions
 ```
 
-Create a DB user the gateway uses (reads config, writes audit only):
-
-```sql
-CREATE USER 'agw_gateway'@'127.0.0.1' IDENTIFIED BY '<strong-password>';
-GRANT SELECT ON phonebook2.agw_allowlist TO 'agw_gateway'@'127.0.0.1';
-GRANT SELECT (id, agw_backend_url, agw_enforce_ip_acl) ON phonebook2.settings TO 'agw_gateway'@'127.0.0.1';
-GRANT INSERT ON phonebook2.agw_audit TO 'agw_gateway'@'127.0.0.1';
-FLUSH PRIVILEGES;
-```
+No separate DB user or gateway `.env` is needed: the gateway reads its MySQL
+credentials straight from the Laravel app's `.env` (`LARAVEL_ENV`, default
+`/home/azureuser/phonebook2/.env`). Everything operational (App URL, IP-ACL
+toggle, allowlist) is managed from the NOC settings page.
 
 ---
 
 ## 3. Install the gateway (systemd)
 
 ```sh
-# Clone/copy the noc-agw/ directory to /home/azureuser/noc-agw
+# Copy the noc-agw/ directory out of the repo to /home/azureuser/noc-agw
+cp -r /home/azureuser/phonebook2/noc-agw /home/azureuser/noc-agw
 cd /home/azureuser/noc-agw
+sudo apt install -y python3-venv       # if not already present
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-cp .env.example .env
-#   set BACKEND_URL=http://<IIS-LAN-IP>:8891   (fallback; the Settings page value wins)
-#   set DB_USER=agw_gateway  DB_PASSWORD=...
-#   PUBLIC_HOST=arcmate.samirgroup.net
-
+# No .env to create. The unit sets LARAVEL_ENV to the Laravel .env for DB creds.
 sudo cp deploy/systemd/noc-agw.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now noc-agw
 curl -s http://127.0.0.1:8443/_agw/health      # -> {"status":"ok"}
 ```
+
+> Set the upstream **App URL** (`http://<IIS-LAN-IP>:8891`) from the NOC
+> Access Gateway page once the service is up — that's the value the proxy uses.
 
 ---
 

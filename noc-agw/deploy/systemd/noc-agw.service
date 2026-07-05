@@ -8,7 +8,9 @@ Type=simple
 User=azureuser
 Group=azureuser
 WorkingDirectory=/home/azureuser/noc-agw
-EnvironmentFile=/home/azureuser/noc-agw/.env
+# No gateway .env: DB creds are read from the Laravel app's .env, everything
+# else is managed from the NOC "Access Gateway" settings page.
+Environment=LARAVEL_ENV=/home/azureuser/phonebook2/.env
 # Binds localhost only; nginx (arcmate vhost) terminates TLS and proxies here.
 ExecStart=/home/azureuser/noc-agw/.venv/bin/uvicorn gateway.main:create_app --factory --host 127.0.0.1 --port 8443
 Restart=on-failure
