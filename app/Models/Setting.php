@@ -157,6 +157,9 @@ class Setting extends Model
         'wallet_pass_cert_password',
         'wallet_pass_wwdr_cert',
         'wallet_pass_bg_color',
+        // NOC-AGW Access Gateway (read by the noc-agw FastAPI service)
+        'agw_backend_url',
+        'agw_enforce_ip_acl',
     ];
 
     protected $casts = [
@@ -204,6 +207,8 @@ class Setting extends Model
         'sftpgo_default_quota_mb' => 'integer',
         // Apple Wallet
         'wallet_pass_enabled' => 'boolean',
+        // NOC-AGW Access Gateway
+        'agw_enforce_ip_acl' => 'boolean',
     ];
 
     /**

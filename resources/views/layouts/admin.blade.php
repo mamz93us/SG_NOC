@@ -1029,9 +1029,9 @@
                     {{-- Documentation, Marketing, Teamtailor & Admin Tools folded into the Admin menu below --}}
 
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
-                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures'])
+                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-gear-fill me-1"></i>Admin
                         </a>
@@ -1114,6 +1114,14 @@
                             @endcan
                             <li><hr class="dropdown-divider"></li>
                             @endcan
+                            @canany(['manage-agw-allowlist','view-agw-audit'])
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/access-gateway*') ? 'active' : '' }}"
+                                   href="{{ route(auth()->user()->can('manage-agw-allowlist') ? 'admin.access-gateway.index' : 'admin.access-gateway.audit') }}">
+                                    <i class="bi bi-shield-lock me-2"></i>Access Gateway
+                                </a>
+                            </li>
+                            @endcanany
                             @can('manage-users')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/users*') ? 'active' : '' }}"

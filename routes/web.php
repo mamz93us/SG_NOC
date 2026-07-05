@@ -686,6 +686,28 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::patch('settings/domains/{allowedDomain}/set-primary', [\App\Http\Controllers\Admin\AllowedDomainController::class, 'setPrimary'])->name('settings.domains.set-primary');
     });
 
+    // ─── Access Gateway (NOC-AGW: fronts the legacy IIS app) ──
+    Route::middleware('permission:manage-agw-allowlist')->group(function () {
+        Route::get('access-gateway', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'index'])
+            ->name('access-gateway.index');
+        Route::post('access-gateway/allowlist', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'storeManual'])
+            ->name('access-gateway.allowlist.store');
+        Route::patch('access-gateway/allowlist/{entry}/toggle', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'toggle'])
+            ->name('access-gateway.allowlist.toggle');
+        Route::delete('access-gateway/allowlist/{entry}', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'destroyManual'])
+            ->name('access-gateway.allowlist.destroy');
+        Route::post('access-gateway/sync', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'syncNow'])
+            ->name('access-gateway.sync');
+    });
+    Route::middleware('permission:manage-agw-settings')->group(function () {
+        Route::post('access-gateway/settings', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'updateSettings'])
+            ->name('access-gateway.settings');
+    });
+    Route::middleware('permission:view-agw-audit')->group(function () {
+        Route::get('access-gateway/audit', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'audit'])
+            ->name('access-gateway.audit');
+    });
+
     // ─── Server Status (host health + database backups) ──────
     Route::middleware('permission:view-server-status')->group(function () {
         Route::get('server-status', [\App\Http\Controllers\Admin\ServerStatusController::class, 'index'])

@@ -1,0 +1,22 @@
+[Unit]
+Description=NOC-AGW Access Gateway (fronts the legacy IIS app on arcmate.samirgroup.net)
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=azureuser
+Group=azureuser
+WorkingDirectory=/home/azureuser/noc-agw
+EnvironmentFile=/home/azureuser/noc-agw/.env
+# Binds localhost only; nginx (arcmate vhost) terminates TLS and proxies here.
+ExecStart=/home/azureuser/noc-agw/.venv/bin/uvicorn gateway.main:create_app --factory --host 127.0.0.1 --port 8443
+Restart=on-failure
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
