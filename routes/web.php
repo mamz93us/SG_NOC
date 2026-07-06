@@ -1112,12 +1112,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     // ─── Branch Tunnel Health ─────────────────────────────────
-    // Read-only ping view. Works over the Azure VPN gateway (or strongSwan) —
-    // it just reads the ICMP results vpn:ping-tunnels writes each minute.
-    Route::middleware(['auth', 'permission:view-network'])->prefix('network/tunnel-health')->name('network.tunnel-health.')->group(function () {
-        Route::get('/', [TunnelHealthController::class, 'index'])->name('index');
-        Route::get('/data', [TunnelHealthController::class, 'data'])->name('data');
-        Route::post('/ping', [TunnelHealthController::class, 'pingNow'])->name('ping');
+    // Self-contained per-branch firewall ping board. Not tied to the VPN Hub —
+    // tunnels are created on the Azure VPN gateway now. Viewing needs
+    // view-network; adding/editing/removing branches needs manage-network-settings.
+    Route::middleware('auth')->prefix('network/tunnel-health')->name('network.tunnel-health.')->group(function () {
+        Route::get('/', [TunnelHealthController::class, 'index'])->middleware('permission:view-network')->name('index');
+        Route::get('/data', [TunnelHealthController::class, 'data'])->middleware('permission:view-network')->name('data');
+        Route::post('/ping', [TunnelHealthController::class, 'pingNow'])->middleware('permission:view-network')->name('ping');
+        Route::post('/', [TunnelHealthController::class, 'store'])->middleware('permission:manage-network-settings')->name('store');
+        Route::put('/{tunnel}', [TunnelHealthController::class, 'update'])->middleware('permission:manage-network-settings')->name('update');
+        Route::delete('/{tunnel}', [TunnelHealthController::class, 'destroy'])->middleware('permission:manage-network-settings')->name('destroy');
     });
 
     // ─── Diagnostics ──────────────────────────────────────────

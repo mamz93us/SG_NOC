@@ -133,6 +133,15 @@ Schedule::command('vpn:ping-tunnels')
     ->runInBackground()
     ->name('vpn-ping-tunnels');
 
+// Branch Tunnel Health — pings each branch firewall added on the
+// /admin/network/tunnel-health page. Independent of the VPN Hub; results land
+// on branch_tunnels.ping_* and surface as the status board.
+Schedule::command('tunnel-health:ping')
+    ->everyMinute()
+    ->withoutOverlapping(5)
+    ->runInBackground()
+    ->name('tunnel-health-ping');
+
 Schedule::call(function () {
     $service = app(\App\Services\PingService::class);
     $hosts = \App\Models\MonitoredHost::where('ping_enabled', true)->get();
