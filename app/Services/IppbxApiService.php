@@ -12,11 +12,17 @@ use Illuminate\Support\Facades\Log;
 class IppbxApiService
 {
     protected UcmServer $server;
+
     protected string $baseUrl;
+
     protected string $originUrl;   // base URL without /api — used for headers
+
     protected string $username;
+
     protected string $password;
-    protected ?string $cookie      = null;
+
+    protected ?string $cookie = null;
+
     protected ?string $cloudDomain = null;  // GDMS cloud relay override for Wave QR
 
     // Grandstream UCM idle cookie timeout is ~5 min. Cache slightly under that
@@ -25,11 +31,11 @@ class IppbxApiService
 
     public function __construct(UcmServer $server)
     {
-        $this->server      = $server;
-        $this->originUrl   = rtrim($server->url, '/');
-        $this->baseUrl     = $this->originUrl . '/api';
-        $this->username    = $server->api_username;
-        $this->password    = $server->api_password;
+        $this->server = $server;
+        $this->originUrl = rtrim($server->url, '/');
+        $this->baseUrl = $this->originUrl.'/api';
+        $this->username = $server->api_username;
+        $this->password = $server->api_password;
         $this->cloudDomain = $server->cloud_domain ?: null;
     }
 
@@ -38,23 +44,23 @@ class IppbxApiService
      */
     public static function getCachedStats(UcmServer $server): array
     {
-        if (!$server->is_active) {
+        if (! $server->is_active) {
             return [
                 'online' => false,
-                'error'  => 'Server is disabled',
+                'error' => 'Server is disabled',
             ];
         }
 
-        $cacheKey = "ucm_stats_{$server->id}_" . md5($server->url . $server->api_username);
+        $cacheKey = "ucm_stats_{$server->id}_".md5($server->url.$server->api_username);
 
         return \Illuminate\Support\Facades\Cache::remember($cacheKey, 60, function () use ($server) {
             try {
                 $api = new self($server);
                 $api->login();
 
-                $system     = $api->getSystemStatus();
-                $general    = $api->getSystemGeneralStatus();
-                $network    = $api->getNetworkStatus();
+                $system = $api->getSystemStatus();
+                $general = $api->getSystemGeneralStatus();
+                $network = $api->getNetworkStatus();
                 $extensions = $api->listExtensions(1, 2000);
 
                 // Trunk listing can fail on some firmware — don't let it break the whole status
@@ -74,30 +80,35 @@ class IppbxApiService
                 $resources = self::collectSnmpResources($server);
 
                 // Format the uptime with days
-                if (!empty($system['up-time'])) {
+                if (! empty($system['up-time'])) {
                     $system['up-time-formatted'] = self::formatUptime($system['up-time']);
                 }
 
                 // Extension counts
                 $extCounts = [
-                    'total'       => count($extensions),
-                    'idle'        => 0,
-                    'inuse'       => 0,
+                    'total' => count($extensions),
+                    'idle' => 0,
+                    'inuse' => 0,
                     'unavailable' => 0,
-                    'other'       => 0,
+                    'other' => 0,
                 ];
                 foreach ($extensions as $ext) {
                     $s = strtolower($ext['status'] ?? '');
-                    if ($s === 'idle')                                  $extCounts['idle']++;
-                    elseif (in_array($s, ['inuse', 'busy', 'ringing'])) $extCounts['inuse']++;
-                    elseif ($s === 'unavailable')                       $extCounts['unavailable']++;
-                    else                                                $extCounts['other']++;
+                    if ($s === 'idle') {
+                        $extCounts['idle']++;
+                    } elseif (in_array($s, ['inuse', 'busy', 'ringing'])) {
+                        $extCounts['inuse']++;
+                    } elseif ($s === 'unavailable') {
+                        $extCounts['unavailable']++;
+                    } else {
+                        $extCounts['other']++;
+                    }
                 }
 
                 // Trunk counts
                 $trunkCounts = [
-                    'total'       => count($trunks),
-                    'reachable'   => 0,
+                    'total' => count($trunks),
+                    'reachable' => 0,
                     'unreachable' => 0,
                 ];
                 foreach ($trunks as $trunk) {
@@ -110,25 +121,25 @@ class IppbxApiService
                 }
 
                 return [
-                    'online'      => true,
-                    'model'       => $general['product-model'] ?? 'UCM',
-                    'firmware'    => $general['prog-version']  ?? '-',
-                    'serial'      => $system['serial-number']  ?? '-',
-                    'uptime_raw'  => $system['up-time']        ?? '',
-                    'uptime'      => $system['up-time-formatted'] ?? '',
-                    'mac'         => self::extractMac($network),
-                    'system'      => $system,
-                    'general'     => $general,
-                    'extensions'  => $extCounts,
-                    'trunk_counts'=> $trunkCounts,
+                    'online' => true,
+                    'model' => $general['product-model'] ?? 'UCM',
+                    'firmware' => $general['prog-version'] ?? '-',
+                    'serial' => $system['serial-number'] ?? '-',
+                    'uptime_raw' => $system['up-time'] ?? '',
+                    'uptime' => $system['up-time-formatted'] ?? '',
+                    'mac' => self::extractMac($network),
+                    'system' => $system,
+                    'general' => $general,
+                    'extensions' => $extCounts,
+                    'trunk_counts' => $trunkCounts,
                     'extensions_list' => $extensions,
                     'trunks_list' => $trunks,
-                    'resources'   => $resources,
+                    'resources' => $resources,
                 ];
             } catch (\Exception $e) {
                 return [
                     'online' => false,
-                    'error'  => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ];
             }
         });
@@ -156,6 +167,7 @@ class IppbxApiService
         $cached = Cache::get($cacheKey);
         if (is_string($cached) && $cached !== '') {
             $this->cookie = $cached;
+
             return $this->cookie;
         }
 
@@ -170,6 +182,7 @@ class IppbxApiService
             $cached = Cache::get($cacheKey);
             if (is_string($cached) && $cached !== '') {
                 $this->cookie = $cached;
+
                 return $this->cookie;
             }
 
@@ -177,6 +190,7 @@ class IppbxApiService
             Cache::put($cacheKey, $cookie, self::COOKIE_TTL_SECONDS);
 
             $this->cookie = $cookie;
+
             return $this->cookie;
         } finally {
             optional($lock)->release();
@@ -191,29 +205,29 @@ class IppbxApiService
     {
         // Step 1: get challenge
         $challengeResp = $this->post([
-            'action'  => 'challenge',
-            'user'    => $this->username,
+            'action' => 'challenge',
+            'user' => $this->username,
             'version' => '1.0',
         ]);
 
-        if (!isset($challengeResp['response']['challenge'])) {
-            throw new \RuntimeException('UCM challenge failed: ' . json_encode($challengeResp));
+        if (! isset($challengeResp['response']['challenge'])) {
+            throw new \RuntimeException('UCM challenge failed: '.json_encode($challengeResp));
         }
 
         $challenge = $challengeResp['response']['challenge'];
 
         // Step 2: MD5(challenge + password)
-        $token = md5($challenge . $this->password);
+        $token = md5($challenge.$this->password);
 
         // Step 3: login
         $loginResp = $this->post([
             'action' => 'login',
-            'user'   => $this->username,
-            'token'  => $token,
+            'user' => $this->username,
+            'token' => $token,
         ]);
 
-        if (!isset($loginResp['response']['cookie'])) {
-            throw new \RuntimeException('UCM login failed: ' . json_encode($loginResp));
+        if (! isset($loginResp['response']['cookie'])) {
+            throw new \RuntimeException('UCM login failed: '.json_encode($loginResp));
         }
 
         return $loginResp['response']['cookie'];
@@ -260,10 +274,11 @@ class IppbxApiService
 
         if (($resp['status'] ?? -1) !== 0) {
             Log::error('IppbxApiService: applyChanges failed', ['response' => $resp]);
-            throw new \RuntimeException('applyChanges failed: ' . json_encode($resp));
+            throw new \RuntimeException('applyChanges failed: '.json_encode($resp));
         }
 
         Log::info('IppbxApiService: applyChanges OK');
+
         return $resp;
     }
 
@@ -280,36 +295,36 @@ class IppbxApiService
 
         // 1. Fetch SIP accounts
         $resp = $this->post([
-            'action'   => 'listAccount',
-            'cookie'   => $this->cookie,
-            'options'  => 'extension,account_type,fullname,status,addr',
-            'page'     => (string) $page,
+            'action' => 'listAccount',
+            'cookie' => $this->cookie,
+            'options' => 'extension,account_type,fullname,status,addr',
+            'page' => (string) $page,
             'item_num' => (string) $itemNum,
-            'sidx'     => 'extension',
-            'sord'     => 'asc',
+            'sidx' => 'extension',
+            'sord' => 'asc',
         ]);
 
         if (($resp['status'] ?? -1) !== 0) {
-            throw new \RuntimeException('listAccount failed: ' . json_encode($resp));
+            throw new \RuntimeException('listAccount failed: '.json_encode($resp));
         }
 
         $accounts = $resp['response']['account'] ?? [];
 
         // 2. Fetch Users to get email, first_name, last_name
         $usersResp = $this->post([
-            'action'   => 'listUser',
-            'cookie'   => $this->cookie,
-            'options'  => 'user_name,first_name,last_name,email',
-            'page'     => (string) $page,
+            'action' => 'listUser',
+            'cookie' => $this->cookie,
+            'options' => 'user_name,first_name,last_name,email',
+            'page' => (string) $page,
             'item_num' => (string) $itemNum,
-            'sidx'     => 'user_name',
-            'sord'     => 'asc',
+            'sidx' => 'user_name',
+            'sord' => 'asc',
         ]);
 
         $users = [];
         if (($usersResp['status'] ?? -1) === 0) {
             foreach ($usersResp['response']['user_id'] ?? [] as $u) {
-                if (!empty($u['user_name'])) {
+                if (! empty($u['user_name'])) {
                     $users[$u['user_name']] = $u;
                 }
             }
@@ -319,16 +334,16 @@ class IppbxApiService
         foreach ($accounts as &$acc) {
             $ext = $acc['extension'] ?? '';
             $acc['email'] = '';
-            
+
             if (isset($users[$ext])) {
                 $u = $users[$ext];
-                $acc['email']      = $u['email'] ?? '';
+                $acc['email'] = $u['email'] ?? '';
                 $acc['first_name'] = $u['first_name'] ?? '';
-                $acc['last_name']  = $u['last_name'] ?? '';
-                
+                $acc['last_name'] = $u['last_name'] ?? '';
+
                 // If fullname is missing, construct from user profile
                 if (empty($acc['fullname'])) {
-                    $acc['fullname'] = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
+                    $acc['fullname'] = trim(($u['first_name'] ?? '').' '.($u['last_name'] ?? ''));
                 }
             }
         }
@@ -345,32 +360,32 @@ class IppbxApiService
 
         // 1. Get SIP Account
         $resp = $this->post([
-            'action'    => 'getSIPAccount',
-            'cookie'    => $this->cookie,
+            'action' => 'getSIPAccount',
+            'cookie' => $this->cookie,
             'extension' => $extension,
         ]);
 
         if (($resp['status'] ?? -1) !== 0) {
-            throw new \RuntimeException('getSIPAccount failed: ' . json_encode($resp));
+            throw new \RuntimeException('getSIPAccount failed: '.json_encode($resp));
         }
 
         $sipData = $resp['response']['extension'] ?? [];
 
         // 2. Get User
         $userResp = $this->post([
-            'action'    => 'getUser',
-            'cookie'    => $this->cookie,
+            'action' => 'getUser',
+            'cookie' => $this->cookie,
             'user_name' => $extension,
         ]);
 
-        if (($userResp['status'] ?? -1) === 0 && !empty($userResp['response']['user_name'])) {
+        if (($userResp['status'] ?? -1) === 0 && ! empty($userResp['response']['user_name'])) {
             $u = $userResp['response']['user_name'];
-            $sipData['email']      = $u['email'] ?? '';
+            $sipData['email'] = $u['email'] ?? '';
             $sipData['first_name'] = $u['first_name'] ?? '';
-            $sipData['last_name']  = $u['last_name'] ?? '';
-            
+            $sipData['last_name'] = $u['last_name'] ?? '';
+
             if (empty($sipData['fullname'])) {
-                $sipData['fullname'] = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
+                $sipData['fullname'] = trim(($u['first_name'] ?? '').' '.($u['last_name'] ?? ''));
             }
         } else {
             $sipData['email'] = '';
@@ -392,12 +407,12 @@ class IppbxApiService
             ?? (parse_url($this->originUrl, PHP_URL_HOST) ?? $this->originUrl);
 
         return [
-            'extension'    => $details['extension'] ?? $extension,
-            'fullname'     => $details['fullname']  ?? '',
-            'secret'       => $details['secret']    ?? '',
-            'email'        => $details['email']     ?? '',
-            'server'       => $host,
-            'sip_uri'      => 'sip:' . ($details['extension'] ?? $extension) . '@' . $host,
+            'extension' => $details['extension'] ?? $extension,
+            'fullname' => $details['fullname'] ?? '',
+            'secret' => $details['secret'] ?? '',
+            'email' => $details['email'] ?? '',
+            'server' => $host,
+            'sip_uri' => 'sip:'.($details['extension'] ?? $extension).'@'.$host,
             'cloud_domain' => $this->cloudDomain !== null,
         ];
     }
@@ -416,16 +431,20 @@ class IppbxApiService
 
         if (($resp['status'] ?? -1) !== 0) {
             $status = $resp['status'] ?? 'unknown';
-            $hint   = match($status) {
-                -25    => ' — a field value was rejected by the UCM (check permission format: must be internal / internal-local / internal-local-national / internal-local-national-international)',
-                -8     => ' — Extension number already exists on this UCM',
+            $hint = match ($status) {
+                -25 => ' — a field value was rejected by the UCM (check permission format: must be internal / internal-local / internal-local-national / internal-local-national-international)',
+                -8 => ' — Extension number already exists on this UCM',
                 default => '',
             };
 
             // Log the full payload (masking passwords) so we can debug -25 errors
             $debugPayload = $data;
-            if (isset($debugPayload['secret']))        $debugPayload['secret']        = str_repeat('*', strlen($debugPayload['secret']))        . ' [len=' . strlen($data['secret']) . ', alnum=' . (ctype_alnum($data['secret']) ? 'yes' : 'NO') . ']';
-            if (isset($debugPayload['user_password'])) $debugPayload['user_password'] = str_repeat('*', strlen($debugPayload['user_password'])) . ' [len=' . strlen($data['user_password']) . ', alnum=' . (ctype_alnum($data['user_password']) ? 'yes' : 'NO') . ']';
+            if (isset($debugPayload['secret'])) {
+                $debugPayload['secret'] = str_repeat('*', strlen($debugPayload['secret'])).' [len='.strlen($data['secret']).', alnum='.(ctype_alnum($data['secret']) ? 'yes' : 'NO').']';
+            }
+            if (isset($debugPayload['user_password'])) {
+                $debugPayload['user_password'] = str_repeat('*', strlen($debugPayload['user_password'])).' [len='.strlen($data['user_password']).', alnum='.(ctype_alnum($data['user_password']) ? 'yes' : 'NO').']';
+            }
             Log::error('IppbxApiService: createExtension failed', ['status' => $status, 'payload' => $debugPayload, 'response' => $resp]);
 
             // ALSO log the FULL unmasked request JSON for deep debugging (TEMPORARY)
@@ -436,10 +455,11 @@ class IppbxApiService
                 ], $data)]),
             ]);
 
-            throw new \RuntimeException('addSIPAccountAndUser failed: ' . json_encode($resp) . $hint);
+            throw new \RuntimeException('addSIPAccountAndUser failed: '.json_encode($resp).$hint);
         }
 
         $this->applyChanges();
+
         return $resp;
     }
 
@@ -453,7 +473,7 @@ class IppbxApiService
         // 1. Separate user profile fields from SIP fields
         $userFields = ['email', 'fullname', 'first_name', 'last_name', 'department', 'phone_number'];
         $userData = array_intersect_key($data, array_flip($userFields));
-        
+
         $sipData = array_diff_key($data, array_flip($userFields));
         if (isset($data['fullname'])) {
             $sipData['fullname'] = $data['fullname']; // UCM SIP caller ID accepts fullname too
@@ -462,61 +482,61 @@ class IppbxApiService
         $resp = ['status' => 0];
 
         // 2. Update SIP Account
-        if (!empty($sipData)) {
+        if (! empty($sipData)) {
             $resp = $this->post(array_merge([
-                'action'    => 'updateSIPAccount',
-                'cookie'    => $this->cookie,
+                'action' => 'updateSIPAccount',
+                'cookie' => $this->cookie,
                 'extension' => $extension,
             ], $sipData));
 
             if (($resp['status'] ?? -1) !== 0) {
-                throw new \RuntimeException('updateSIPAccount failed: ' . json_encode($resp));
+                throw new \RuntimeException('updateSIPAccount failed: '.json_encode($resp));
             }
         }
 
         // 3. Update User Profile (requires getUser to fetch user_id & privilege first)
         // SIP fields are already applied above — failures here only affect the
         // user record (name/email/department/phone), not the dialable extension.
-        if (!empty($userData)) {
+        if (! empty($userData)) {
             $userResp = $this->post([
-                'action'    => 'getUser',
-                'cookie'    => $this->cookie,
+                'action' => 'getUser',
+                'cookie' => $this->cookie,
                 'user_name' => $extension,
             ]);
 
             if (($userResp['status'] ?? -1) !== 0 || empty($userResp['response']['user_name'])) {
                 \Illuminate\Support\Facades\Log::error('updateExtension: getUser returned no user record', [
                     'extension' => $extension,
-                    'response'  => $userResp,
+                    'response' => $userResp,
                 ]);
                 throw new \RuntimeException(
-                    "Cannot update user profile for extension {$extension} — no user record found in UCM. " .
-                    "getUser response: " . json_encode($userResp)
+                    "Cannot update user profile for extension {$extension} — no user record found in UCM. ".
+                    'getUser response: '.json_encode($userResp)
                 );
             }
 
             $compUser = $userResp['response']['user_name'];
 
             $firstName = $userData['first_name'] ?? $compUser['first_name'] ?? '';
-            $lastName  = $userData['last_name']  ?? $compUser['last_name']  ?? '';
+            $lastName = $userData['last_name'] ?? $compUser['last_name'] ?? '';
 
             // Fallback: split fullname into first_name and last_name if necessary
-            if (isset($userData['fullname']) && !isset($userData['first_name'])) {
+            if (isset($userData['fullname']) && ! isset($userData['first_name'])) {
                 $parts = explode(' ', trim($userData['fullname']), 2);
                 $firstName = $parts[0] ?? '';
-                $lastName  = $parts[1] ?? '';
+                $lastName = $parts[1] ?? '';
             }
 
             $updateUserPayload = [
-                'action'       => 'updateUser',
-                'cookie'       => $this->cookie,
-                'user_id'      => (string) ($compUser['user_id'] ?? ''),
-                'user_name'    => $extension,
-                'privilege'    => (string) ($compUser['privilege'] ?? '3'), // default privilege
-                'first_name'   => $firstName,
-                'last_name'    => $lastName,
-                'email'        => $userData['email']        ?? $compUser['email']        ?? '',
-                'department'   => $userData['department']   ?? $compUser['department']   ?? '',
+                'action' => 'updateUser',
+                'cookie' => $this->cookie,
+                'user_id' => (string) ($compUser['user_id'] ?? ''),
+                'user_name' => $extension,
+                'privilege' => (string) ($compUser['privilege'] ?? '3'), // default privilege
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'email' => $userData['email'] ?? $compUser['email'] ?? '',
+                'department' => $userData['department'] ?? $compUser['department'] ?? '',
                 'phone_number' => $userData['phone_number'] ?? $compUser['phone_number'] ?? '',
             ];
 
@@ -524,12 +544,12 @@ class IppbxApiService
             if (($uResp['status'] ?? -1) !== 0) {
                 \Illuminate\Support\Facades\Log::error('updateExtension: updateUser failed', [
                     'extension' => $extension,
-                    'payload'   => $updateUserPayload,
-                    'response'  => $uResp,
+                    'payload' => $updateUserPayload,
+                    'response' => $uResp,
                 ]);
                 throw new \RuntimeException(
-                    "Failed to update user profile for extension {$extension}. " .
-                    "updateUser response: " . json_encode($uResp)
+                    "Failed to update user profile for extension {$extension}. ".
+                    'updateUser response: '.json_encode($uResp)
                 );
             }
         }
@@ -557,46 +577,46 @@ class IppbxApiService
 
         // 1. Delete the SIP account (the dialable extension number).
         $sipResp = $this->post([
-            'action'    => 'deleteSIPAccount',
-            'cookie'    => $this->cookie,
+            'action' => 'deleteSIPAccount',
+            'cookie' => $this->cookie,
             'extension' => $extension,
         ]);
         $sipDeleted = ($sipResp['status'] ?? -1) === 0;
 
         // 2. Delete the user record (web account / softphone login).
         $userResp = $this->post([
-            'action'    => 'deleteUser',
-            'cookie'    => $this->cookie,
+            'action' => 'deleteUser',
+            'cookie' => $this->cookie,
             'user_name' => $extension,
         ]);
         $userDeleted = ($userResp['status'] ?? -1) === 0;
 
-        if (!$sipDeleted && !$userDeleted) {
+        if (! $sipDeleted && ! $userDeleted) {
             throw new \RuntimeException(
-                "Failed to delete extension {$extension}. " .
-                "deleteSIPAccount: " . json_encode($sipResp) . ' | ' .
-                "deleteUser: "       . json_encode($userResp)
+                "Failed to delete extension {$extension}. ".
+                'deleteSIPAccount: '.json_encode($sipResp).' | '.
+                'deleteUser: '.json_encode($userResp)
             );
         }
 
-        if (!$sipDeleted) {
+        if (! $sipDeleted) {
             \Illuminate\Support\Facades\Log::warning('deleteExtension: SIP delete failed but user delete succeeded', [
                 'extension' => $extension,
-                'response'  => $sipResp,
+                'response' => $sipResp,
             ]);
         }
-        if (!$userDeleted) {
+        if (! $userDeleted) {
             \Illuminate\Support\Facades\Log::warning('deleteExtension: user delete failed but SIP delete succeeded', [
                 'extension' => $extension,
-                'response'  => $userResp,
+                'response' => $userResp,
             ]);
         }
 
         $this->applyChanges();
 
         return [
-            'status'       => 0,
-            'sip_deleted'  => $sipDeleted,
+            'status' => 0,
+            'sip_deleted' => $sipDeleted,
             'user_deleted' => $userDeleted,
         ];
     }
@@ -618,7 +638,7 @@ class IppbxApiService
         ]);
 
         if (($resp['status'] ?? -1) !== 0) {
-            throw new \RuntimeException('getSystemStatus failed: ' . json_encode($resp));
+            throw new \RuntimeException('getSystemStatus failed: '.json_encode($resp));
         }
 
         return $resp['response'] ?? [];
@@ -637,7 +657,7 @@ class IppbxApiService
         ]);
 
         if (($resp['status'] ?? -1) !== 0) {
-            throw new \RuntimeException('getSystemGeneralStatus failed: ' . json_encode($resp));
+            throw new \RuntimeException('getSystemGeneralStatus failed: '.json_encode($resp));
         }
 
         return $resp['response'] ?? [];
@@ -676,7 +696,7 @@ class IppbxApiService
             }
 
             $devices = $this->extractStorageDevices($resp['response'] ?? []);
-            if (!empty($devices)) {
+            if (! empty($devices)) {
                 return $devices;
             }
         }
@@ -701,32 +721,32 @@ class IppbxApiService
         if ($list === null) {
             // Fallback: first array-of-objects we find.
             foreach ($response as $value) {
-                if (is_array($value) && !empty($value) && is_array(reset($value))) {
+                if (is_array($value) && ! empty($value) && is_array(reset($value))) {
                     $list = $value;
                     break;
                 }
             }
         }
 
-        if (!is_array($list)) {
+        if (! is_array($list)) {
             return [];
         }
 
         // Single device returned as an associative array — wrap it.
-        if (!empty($list) && (isset($list['total']) || isset($list['used']) || isset($list['media']))) {
+        if (! empty($list) && (isset($list['total']) || isset($list['used']) || isset($list['media']))) {
             $list = [$list];
         }
 
         $out = [];
         foreach ($list as $dev) {
-            if (!is_array($dev)) {
+            if (! is_array($dev)) {
                 continue;
             }
 
-            $total     = $dev['total']     ?? $dev['size']      ?? $dev['capacity']  ?? null;
-            $used      = $dev['used']      ?? $dev['used_size'] ?? null;
-            $available = $dev['available'] ?? $dev['free']      ?? $dev['free_size'] ?? null;
-            $percent   = $dev['percent']   ?? $dev['usage']     ?? null;
+            $total = $dev['total'] ?? $dev['size'] ?? $dev['capacity'] ?? null;
+            $used = $dev['used'] ?? $dev['used_size'] ?? null;
+            $available = $dev['available'] ?? $dev['free'] ?? $dev['free_size'] ?? null;
+            $percent = $dev['percent'] ?? $dev['usage'] ?? null;
 
             if ($percent === null) {
                 $percent = self::computeStoragePercent($total, $used, $available);
@@ -737,13 +757,13 @@ class IppbxApiService
             }
 
             $out[] = [
-                'name'      => $dev['name']  ?? $dev['label']  ?? $dev['media'] ?? 'Storage',
-                'media'     => $dev['media'] ?? $dev['type']   ?? '',
-                'path'      => $dev['path']  ?? $dev['mount']  ?? '',
-                'total'     => $total,
-                'used'      => $used,
+                'name' => $dev['name'] ?? $dev['label'] ?? $dev['media'] ?? 'Storage',
+                'media' => $dev['media'] ?? $dev['type'] ?? '',
+                'path' => $dev['path'] ?? $dev['mount'] ?? '',
+                'total' => $total,
+                'used' => $used,
                 'available' => $available,
-                'percent'   => $percent,
+                'percent' => $percent,
             ];
         }
 
@@ -757,7 +777,7 @@ class IppbxApiService
     protected static function computeStoragePercent($total, $used, $available): ?int
     {
         $totalB = self::parseSize($total);
-        $usedB  = self::parseSize($used);
+        $usedB = self::parseSize($used);
         $availB = self::parseSize($available);
 
         if ($totalB > 0 && $usedB !== null) {
@@ -766,6 +786,7 @@ class IppbxApiService
         if ($totalB > 0 && $availB !== null) {
             return max(0, min(100, (int) round(($totalB - $availB) / $totalB * 100)));
         }
+
         return null;
     }
 
@@ -782,18 +803,18 @@ class IppbxApiService
             return (float) $value;
         }
 
-        if (!preg_match('/^\s*([\d.]+)\s*([KMGTP]?)B?\s*$/i', (string) $value, $m)) {
+        if (! preg_match('/^\s*([\d.]+)\s*([KMGTP]?)B?\s*$/i', (string) $value, $m)) {
             return null;
         }
 
-        $num    = (float) $m[1];
-        $unit   = strtoupper($m[2] ?? '');
+        $num = (float) $m[1];
+        $unit = strtoupper($m[2] ?? '');
         $factor = match ($unit) {
-            'K'     => 1024,
-            'M'     => 1024 ** 2,
-            'G'     => 1024 ** 3,
-            'T'     => 1024 ** 4,
-            'P'     => 1024 ** 5,
+            'K' => 1024,
+            'M' => 1024 ** 2,
+            'G' => 1024 ** 3,
+            'T' => 1024 ** 4,
+            'P' => 1024 ** 5,
             default => 1,
         };
 
@@ -831,9 +852,11 @@ class IppbxApiService
 
     // Grandstream UCM63xx SNMP MIB — gsObject.IppbxMib.sSysinfo.*
     // See GS-UCM63XX-SNMP-MIB published by Grandstream.
-    private const SNMP_OID_DISK_USAGE   = '1.3.6.1.4.1.12581.2.2.6';
+    private const SNMP_OID_DISK_USAGE = '1.3.6.1.4.1.12581.2.2.6';
+
     private const SNMP_OID_MEMORY_USAGE = '1.3.6.1.4.1.12581.2.2.7';
-    private const SNMP_OID_CPU_USAGE    = '1.3.6.1.4.1.12581.2.2.8';
+
+    private const SNMP_OID_CPU_USAGE = '1.3.6.1.4.1.12581.2.2.8';
 
     /**
      * Collect disk / memory / CPU usage via SNMP for a given UCM.
@@ -849,7 +872,7 @@ class IppbxApiService
     public static function collectSnmpResources(UcmServer $server): array
     {
         $host = self::matchSnmpHost($server);
-        if (!$host) {
+        if (! $host) {
             return [];
         }
 
@@ -862,7 +885,8 @@ class IppbxApiService
             ]);
             $client->close();
         } catch (\Throwable $e) {
-            Log::debug("UCM {$server->name}: SNMP resources query failed — " . $e->getMessage());
+            Log::debug("UCM {$server->name}: SNMP resources query failed — ".$e->getMessage());
+
             return [];
         }
 
@@ -870,14 +894,20 @@ class IppbxApiService
             return [];
         }
 
-        $disk   = self::pickSnmpValue($raw, self::SNMP_OID_DISK_USAGE);
+        $disk = self::pickSnmpValue($raw, self::SNMP_OID_DISK_USAGE);
         $memory = self::pickSnmpValue($raw, self::SNMP_OID_MEMORY_USAGE);
-        $cpu    = self::pickSnmpValue($raw, self::SNMP_OID_CPU_USAGE);
+        $cpu = self::pickSnmpValue($raw, self::SNMP_OID_CPU_USAGE);
 
         $out = [];
-        if ($disk   !== null) $out['disk']   = self::parseSnmpUsage($disk);
-        if ($memory !== null) $out['memory'] = self::parseSnmpUsage($memory);
-        if ($cpu    !== null) $out['cpu']    = self::parseSnmpUsage($cpu);
+        if ($disk !== null) {
+            $out['disk'] = self::parseSnmpUsage($disk);
+        }
+        if ($memory !== null) {
+            $out['memory'] = self::parseSnmpUsage($memory);
+        }
+        if ($cpu !== null) {
+            $out['cpu'] = self::parseSnmpUsage($cpu);
+        }
 
         return $out;
     }
@@ -889,11 +919,12 @@ class IppbxApiService
     protected static function matchSnmpHost(UcmServer $server): ?MonitoredHost
     {
         $host = parse_url($server->url, PHP_URL_HOST);
-        if (!$host) {
+        if (! $host) {
             return null;
         }
 
         $mh = MonitoredHost::where('ip', $host)->where('snmp_enabled', true)->first();
+
         return $mh ?: null;
     }
 
@@ -904,8 +935,12 @@ class IppbxApiService
      */
     protected static function pickSnmpValue(array $raw, string $oid): ?string
     {
-        if (array_key_exists($oid, $raw))         return is_string($raw[$oid]) ? $raw[$oid] : (string) $raw[$oid];
-        if (array_key_exists(".{$oid}", $raw))    return (string) $raw[".{$oid}"];
+        if (array_key_exists($oid, $raw)) {
+            return is_string($raw[$oid]) ? $raw[$oid] : (string) $raw[$oid];
+        }
+        if (array_key_exists(".{$oid}", $raw)) {
+            return (string) $raw[".{$oid}"];
+        }
 
         // Fallback: a key that ends with the OID's last segments.
         $tail = implode('.', array_slice(explode('.', $oid), -3));
@@ -914,6 +949,7 @@ class IppbxApiService
                 return is_scalar($v) ? (string) $v : null;
             }
         }
+
         return null;
     }
 
@@ -936,7 +972,7 @@ class IppbxApiService
 
         return [
             'percent' => $percent,
-            'raw'     => $clean,
+            'raw' => $clean,
         ];
     }
 
@@ -952,14 +988,14 @@ class IppbxApiService
 
         // Try common interface names in priority order
         foreach (['eth0', 'eth1', 'br0', 'lan'] as $iface) {
-            if (!empty($networkStatus[$iface]['mac'])) {
+            if (! empty($networkStatus[$iface]['mac'])) {
                 return strtoupper($networkStatus[$iface]['mac']);
             }
         }
 
         // Fall back: first key that has a 'mac' field
         foreach ($networkStatus as $iface => $data) {
-            if (!empty($data['mac'])) {
+            if (! empty($data['mac'])) {
                 return strtoupper($data['mac']);
             }
         }
@@ -979,17 +1015,17 @@ class IppbxApiService
         $this->ensureCookie();
 
         $resp = $this->post([
-            'action'   => 'listVoIPTrunk',
-            'cookie'   => $this->cookie,
-            'options'  => 'trunk_index,trunk_name,host,trunk_type,username,trunks.out_of_service,status',
-            'page'     => (string) $page,
+            'action' => 'listVoIPTrunk',
+            'cookie' => $this->cookie,
+            'options' => 'trunk_index,trunk_name,host,trunk_type,username,trunks.out_of_service,status',
+            'page' => (string) $page,
             'item_num' => (string) $itemNum,
-            'sidx'     => 'trunk_index',
-            'sord'     => 'asc',
+            'sidx' => 'trunk_index',
+            'sord' => 'asc',
         ]);
 
         if (($resp['status'] ?? -1) !== 0) {
-            throw new \RuntimeException('listVoIPTrunk failed: ' . json_encode($resp));
+            throw new \RuntimeException('listVoIPTrunk failed: '.json_encode($resp));
         }
 
         return $resp['response']['voip_trunk'] ?? [];
@@ -1008,12 +1044,12 @@ class IppbxApiService
         $this->ensureCookie();
 
         $resp = $this->post([
-            'action'   => 'listActiveCalls',
-            'cookie'   => $this->cookie,
+            'action' => 'listActiveCalls',
+            'cookie' => $this->cookie,
             'item_num' => '200',
-            'page'     => '1',
-            'sidx'     => 'caller_id',
-            'sord'     => 'asc',
+            'page' => '1',
+            'sidx' => 'caller_id',
+            'sord' => 'asc',
         ]);
 
         if (($resp['status'] ?? -1) !== 0) {
@@ -1027,6 +1063,7 @@ class IppbxApiService
             } else {
                 Log::debug("IppbxApiService: listActiveCalls returned status {$code} on {$this->server->name}");
             }
+
             return [];
         }
 
@@ -1044,24 +1081,26 @@ class IppbxApiService
         // Defensive fallback — pick the first array of associative rows we find.
         if ($calls === null) {
             foreach ($response as $key => $value) {
-                if (is_array($value) && !empty($value) && is_array(reset($value))) {
+                if (is_array($value) && ! empty($value) && is_array(reset($value))) {
                     Log::debug("IppbxApiService: listActiveCalls used fallback key '{$key}'");
+
                     return $value;
                 }
             }
             Log::debug('IppbxApiService: listActiveCalls returned no recognizable calls array', [
                 'keys' => array_keys($response),
             ]);
+
             return [];
         }
 
-        if (!is_array($calls)) {
+        if (! is_array($calls)) {
             return [];
         }
 
         // UCM may return a single call as an associative array instead of a list of calls.
         // Wrap it so the caller can always foreach over a list.
-        if (!empty($calls) && (isset($calls['caller_id']) || isset($calls['caller']) || isset($calls['src']))) {
+        if (! empty($calls) && (isset($calls['caller_id']) || isset($calls['caller']) || isset($calls['src']))) {
             return [$calls];
         }
 
@@ -1083,26 +1122,36 @@ class IppbxApiService
 
         // Format: "X day(s) HH:MM:SS"  or  "X days, HH:MM:SS"
         if (preg_match('/(\d+)\s*days?\s*,?\s*(\d+):(\d+):(\d+)/i', $uptime, $m)) {
-            $days  = (int)$m[1];
-            $hours = (int)$m[2];
-            $mins  = (int)$m[3];
+            $days = (int) $m[1];
+            $hours = (int) $m[2];
+            $mins = (int) $m[3];
             $parts = [];
-            if ($days  > 0) $parts[] = "{$days}d";
-            if ($hours > 0) $parts[] = "{$hours}h";
+            if ($days > 0) {
+                $parts[] = "{$days}d";
+            }
+            if ($hours > 0) {
+                $parts[] = "{$hours}h";
+            }
             $parts[] = "{$mins}m";
+
             return implode(' ', $parts) ?: '0m';
         }
 
         // Format: "HH:MM:SS" where HH can be > 24
         if (preg_match('/^(\d+):(\d{2}):(\d{2})$/', $uptime, $m)) {
-            $totalHours = (int)$m[1];
-            $days  = intdiv($totalHours, 24);
+            $totalHours = (int) $m[1];
+            $days = intdiv($totalHours, 24);
             $hours = $totalHours % 24;
-            $mins  = (int)$m[2];
+            $mins = (int) $m[2];
             $parts = [];
-            if ($days  > 0) $parts[] = "{$days}d";
-            if ($hours > 0) $parts[] = "{$hours}h";
+            if ($days > 0) {
+                $parts[] = "{$days}d";
+            }
+            if ($hours > 0) {
+                $parts[] = "{$hours}h";
+            }
             $parts[] = "{$mins}m";
+
             return implode(' ', $parts) ?: '0m';
         }
 
@@ -1112,7 +1161,7 @@ class IppbxApiService
 
     protected function ensureCookie(): void
     {
-        if (!$this->cookie) {
+        if (! $this->cookie) {
             $this->login();
         }
     }
@@ -1148,12 +1197,17 @@ class IppbxApiService
 
             $response = Http::withoutVerifying()
                 ->timeout($timeout)
+                // Fail fast when a branch is unreachable (e.g. VPN path down) so a
+                // dead UCM returns in ~3s instead of blocking a PHP-FPM worker for
+                // the full read timeout. Once TCP connects, $timeout still governs
+                // the response (applyChanges etc. keep their longer budget).
+                ->connectTimeout(3)
                 ->withHeaders([
-                    'Content-Type'     => 'application/json;charset=UTF-8',
-                    'Accept'           => 'application/json',
-                    'Connection'       => 'close',
-                    'Origin'           => $this->originUrl,
-                    'Referer'          => $this->originUrl . '/',
+                    'Content-Type' => 'application/json;charset=UTF-8',
+                    'Accept' => 'application/json',
+                    'Connection' => 'close',
+                    'Origin' => $this->originUrl,
+                    'Referer' => $this->originUrl.'/',
                     'X-Requested-With' => 'XMLHttpRequest',
                 ])
                 ->withBody($body, 'application/json')
@@ -1165,13 +1219,13 @@ class IppbxApiService
                 $httpStatus = $response->status();
                 $bodyPreview = substr($response->body(), 0, 400);
                 Log::error('IppbxApiService: non-JSON response', [
-                    'url'    => $this->baseUrl,
+                    'url' => $this->baseUrl,
                     'status' => $httpStatus,
-                    'body'   => $bodyPreview,
+                    'body' => $bodyPreview,
                 ]);
                 throw new \RuntimeException(
-                    "UCM returned HTTP {$httpStatus} (non-JSON). " .
-                    "Response: " . ($bodyPreview ?: '(empty)')
+                    "UCM returned HTTP {$httpStatus} (non-JSON). ".
+                    'Response: '.($bodyPreview ?: '(empty)')
                 );
             }
 
@@ -1180,9 +1234,9 @@ class IppbxApiService
         } catch (\RuntimeException $e) {
             throw $e;
         } catch (\Exception $e) {
-            Log::error('IppbxApiService error: ' . $e->getMessage(), ['url' => $this->baseUrl]);
+            Log::error('IppbxApiService error: '.$e->getMessage(), ['url' => $this->baseUrl]);
             throw new \RuntimeException(
-                'UCM connection failed: ' . $e->getMessage()
+                'UCM connection failed: '.$e->getMessage()
             );
         }
     }
