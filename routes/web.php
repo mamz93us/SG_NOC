@@ -71,6 +71,7 @@ use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\TicketStatsController;
 use App\Http\Controllers\Admin\TopologyController;
 use App\Http\Controllers\Admin\TrunkController;
+use App\Http\Controllers\Admin\TunnelHealthController;
 use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\UcmServerController;
 use App\Http\Controllers\Admin\UserController;
@@ -139,8 +140,8 @@ Route::get('/documentation/{filename}', [\App\Http\Controllers\Admin\Documentati
 // Employee digital business cards
 // View + vCard are public (shareable via card_token). The Apple Wallet pass download
 // requires a logged-in session (any authenticated NOC/portal user).
-Route::get('/card/{token}',        [\App\Http\Controllers\EmployeeCardController::class, 'show'])  ->name('employee.card.show');
-Route::get('/card/{token}/vcard',  [\App\Http\Controllers\EmployeeCardController::class, 'vcard']) ->name('employee.card.vcard');
+Route::get('/card/{token}', [\App\Http\Controllers\EmployeeCardController::class, 'show'])->name('employee.card.show');
+Route::get('/card/{token}/vcard', [\App\Http\Controllers\EmployeeCardController::class, 'vcard'])->name('employee.card.vcard');
 Route::get('/card/{token}/wallet', [\App\Http\Controllers\EmployeeCardController::class, 'walletPass'])
     ->middleware('auth')
     ->name('employee.card.wallet');
@@ -1108,6 +1109,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/reload', [VpnHubController::class, 'reload'])->name('reload');
         Route::get('/logs', [VpnHubController::class, 'showLogs'])->name('logs');
         Route::get('/{tunnel}/status', [VpnHubController::class, 'checkStatus'])->name('status');
+    });
+
+    // ─── Branch Tunnel Health ─────────────────────────────────
+    // Read-only ping view. Works over the Azure VPN gateway (or strongSwan) —
+    // it just reads the ICMP results vpn:ping-tunnels writes each minute.
+    Route::middleware(['auth', 'permission:view-network'])->prefix('network/tunnel-health')->name('network.tunnel-health.')->group(function () {
+        Route::get('/', [TunnelHealthController::class, 'index'])->name('index');
+        Route::get('/data', [TunnelHealthController::class, 'data'])->name('data');
+        Route::post('/ping', [TunnelHealthController::class, 'pingNow'])->name('ping');
     });
 
     // ─── Diagnostics ──────────────────────────────────────────
@@ -2136,16 +2146,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── Email Signature Templates ─────────────────────────────────
     Route::prefix('signatures')->name('signatures.')->group(function () {
         // Preview endpoints are accessible to anyone who can view-admin-links (editors need them)
-        Route::post('/preview',       [\App\Http\Controllers\Admin\SignatureController::class, 'preview'])      ->name('preview');
+        Route::post('/preview', [\App\Http\Controllers\Admin\SignatureController::class, 'preview'])->name('preview');
         Route::post('/preview-saved', [\App\Http\Controllers\Admin\SignatureController::class, 'previewSaved'])->name('preview-saved');
 
         Route::middleware('permission:manage-signatures')->group(function () {
-            Route::get('/',                    [\App\Http\Controllers\Admin\SignatureController::class, 'index'])    ->name('index');
-            Route::get('/create',              [\App\Http\Controllers\Admin\SignatureController::class, 'create'])   ->name('create');
-            Route::post('/',                   [\App\Http\Controllers\Admin\SignatureController::class, 'store'])    ->name('store');
-            Route::get('/{signature}/edit',    [\App\Http\Controllers\Admin\SignatureController::class, 'edit'])     ->name('edit');
-            Route::put('/{signature}',         [\App\Http\Controllers\Admin\SignatureController::class, 'update'])   ->name('update');
-            Route::delete('/{signature}',      [\App\Http\Controllers\Admin\SignatureController::class, 'destroy'])  ->name('destroy');
+            Route::get('/', [\App\Http\Controllers\Admin\SignatureController::class, 'index'])->name('index');
+            Route::get('/create', [\App\Http\Controllers\Admin\SignatureController::class, 'create'])->name('create');
+            Route::post('/', [\App\Http\Controllers\Admin\SignatureController::class, 'store'])->name('store');
+            Route::get('/{signature}/edit', [\App\Http\Controllers\Admin\SignatureController::class, 'edit'])->name('edit');
+            Route::put('/{signature}', [\App\Http\Controllers\Admin\SignatureController::class, 'update'])->name('update');
+            Route::delete('/{signature}', [\App\Http\Controllers\Admin\SignatureController::class, 'destroy'])->name('destroy');
             Route::post('/{signature}/duplicate', [\App\Http\Controllers\Admin\SignatureController::class, 'duplicate'])->name('duplicate');
         });
     });

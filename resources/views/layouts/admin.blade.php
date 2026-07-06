@@ -385,6 +385,12 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.tunnel-health.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.tunnel-health.index') }}">
+                                    <i class="bi bi-activity me-2"></i>Branch Tunnel Health
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.isp.*') && ! request()->routeIs('admin.network.isp-report.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.isp.index') }}">
                                     <i class="bi bi-globe2 me-2"></i>ISP Connections
