@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\AgwAllowlist;
 use App\Models\AgwAudit;
+use App\Models\AgwBlocklist;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -31,8 +32,9 @@ class AccessGatewayController extends Controller
         $settings = Setting::get();
         $dynamic = AgwAllowlist::dynamic()->orderBy('branch')->get();
         $manual = AgwAllowlist::manual()->orderBy('cidr')->get();
+        $blocked = AgwBlocklist::orderBy('cidr')->get();
 
-        return view('admin.agw.allowlist', compact('settings', 'dynamic', 'manual'));
+        return view('admin.agw.allowlist', compact('settings', 'dynamic', 'manual', 'blocked'));
     }
 
     /** Persist the upstream URL + ACL toggle the gateway reads. */
@@ -161,6 +163,81 @@ class AccessGatewayController extends Controller
         $output = trim(Artisan::output());
 
         return back()->with('success', 'Allowlist synced from branch WAN IPs. '.$output);
+    }
+
+    /** Add a CIDR to the blocklist (always denied). Also the target of the
+     *  "Block" button on the audit page, which posts a bare client IP. */
+    public function blocklistStore(Request $request)
+    {
+        $this->authorize('manage-agw-allowlist');
+
+        $validated = $request->validate([
+            'cidr' => ['required', 'string', 'max:43'],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $cidr = $this->normalizeCidr($validated['cidr']);
+        if ($cidr === null) {
+            return back()->withErrors(['blocklist_cidr' => 'Enter a valid IPv4/IPv6 address or CIDR.'])->withInput();
+        }
+
+        if (AgwBlocklist::where('cidr', $cidr)->exists()) {
+            return back()->with('success', "\"{$cidr}\" is already blocked.");
+        }
+
+        $created = AgwBlocklist::create([
+            'cidr' => $cidr,
+            'active' => true,
+            'note' => $validated['note'] ?? null,
+        ]);
+
+        ActivityLog::create([
+            'model_type' => AgwBlocklist::class,
+            'model_id' => $created->id,
+            'action' => 'agw_blocklist_created',
+            'changes' => $created->toArray(),
+            'user_id' => Auth::id(),
+        ]);
+
+        return back()->with('success', "\"{$cidr}\" added to the blocklist.");
+    }
+
+    /** Toggle a blocklist entry active/inactive. */
+    public function blocklistToggle(AgwBlocklist $entry)
+    {
+        $this->authorize('manage-agw-allowlist');
+
+        $entry->update(['active' => ! $entry->active]);
+
+        ActivityLog::create([
+            'model_type' => AgwBlocklist::class,
+            'model_id' => $entry->id,
+            'action' => 'agw_blocklist_toggled',
+            'changes' => ['cidr' => $entry->cidr, 'active' => $entry->active],
+            'user_id' => Auth::id(),
+        ]);
+
+        return back()->with('success', "\"{$entry->cidr}\" is now ".($entry->active ? 'blocked' : 'unblocked').'.');
+    }
+
+    /** Remove a blocklist entry. */
+    public function blocklistDestroy(AgwBlocklist $entry)
+    {
+        $this->authorize('manage-agw-allowlist');
+
+        $cidr = $entry->cidr;
+        $snapshot = $entry->toArray();
+        $entry->delete();
+
+        ActivityLog::create([
+            'model_type' => AgwBlocklist::class,
+            'model_id' => $entry->id,
+            'action' => 'agw_blocklist_deleted',
+            'changes' => $snapshot,
+            'user_id' => Auth::id(),
+        ]);
+
+        return back()->with('success', "\"{$cidr}\" removed from the blocklist.");
     }
 
     /** Read-only audit trail with filters. */

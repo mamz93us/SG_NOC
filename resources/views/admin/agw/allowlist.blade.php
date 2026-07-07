@@ -185,4 +185,75 @@
     </div>
 </div>
 
+{{-- ── Blocklist ────────────────────────────────────────────────────── --}}
+<div class="card shadow-sm border-0 mb-4 border-danger-subtle">
+    <div class="card-header bg-transparent d-flex align-items-center justify-content-between">
+        <strong class="text-danger"><i class="bi bi-shield-fill-x me-1"></i>Blocklist <span class="badge bg-danger ms-1">{{ $blocked->count() }}</span></strong>
+    </div>
+    <div class="card-body p-0">
+        @if($blocked->isEmpty())
+            <div class="text-center text-muted py-4">Nothing blocked. Blocked IPs are denied even when the allowlist is off.</div>
+        @else
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">CIDR</th>
+                        <th class="text-center">Status</th>
+                        <th>Note</th>
+                        <th class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($blocked as $row)
+                    <tr>
+                        <td class="ps-3"><code>{{ $row->cidr }}</code></td>
+                        <td class="text-center">
+                            @if($row->active)
+                                <span class="badge bg-danger">Blocked</span>
+                            @else
+                                <span class="badge bg-secondary">Inactive</span>
+                            @endif
+                        </td>
+                        <td class="text-muted">{{ $row->note ?: '—' }}</td>
+                        <td class="text-end pe-3">
+                            <form method="POST" action="{{ route('admin.access-gateway.blocklist.toggle', $row->id) }}" class="d-inline">
+                                @csrf @method('PATCH')
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">{{ $row->active ? 'Unblock' : 'Re-block' }}</button>
+                            </form>
+                            <form method="POST" action="{{ route('admin.access-gateway.blocklist.destroy', $row->id) }}" class="d-inline"
+                                  onsubmit="return confirm('Remove {{ $row->cidr }} from the blocklist?')">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
+    </div>
+    <div class="card-footer bg-transparent">
+        <form method="POST" action="{{ route('admin.access-gateway.blocklist.store') }}">
+            @csrf
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">IP / CIDR to block <span class="text-danger">*</span></label>
+                    <input type="text" name="cidr" class="form-control @error('blocklist_cidr') is-invalid @enderror"
+                           value="{{ old('cidr') }}" placeholder="203.0.113.7 or 203.0.113.0/24" required>
+                    @error('blocklist_cidr') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Note</label>
+                    <input type="text" name="note" class="form-control" placeholder="e.g. abusive scanner">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-danger w-100"><i class="bi bi-shield-x me-1"></i>Block</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 @endsection

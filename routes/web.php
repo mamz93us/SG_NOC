@@ -699,6 +699,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('access-gateway.allowlist.destroy');
         Route::post('access-gateway/sync', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'syncNow'])
             ->name('access-gateway.sync');
+        Route::post('access-gateway/blocklist', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'blocklistStore'])
+            ->name('access-gateway.blocklist.store');
+        Route::patch('access-gateway/blocklist/{entry}/toggle', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'blocklistToggle'])
+            ->name('access-gateway.blocklist.toggle');
+        Route::delete('access-gateway/blocklist/{entry}', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'blocklistDestroy'])
+            ->name('access-gateway.blocklist.destroy');
     });
     Route::middleware('permission:manage-agw-settings')->group(function () {
         Route::post('access-gateway/settings', [\App\Http\Controllers\Admin\AccessGatewayController::class, 'updateSettings'])

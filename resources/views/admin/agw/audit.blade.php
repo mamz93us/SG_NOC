@@ -62,7 +62,8 @@
                         <th>Path</th>
                         <th class="text-center">Status</th>
                         <th class="text-center">Decision</th>
-                        <th class="text-end pe-3">Latency</th>
+                        <th class="text-end">Latency</th>
+                        @can('manage-agw-allowlist')<th class="text-end pe-3">Action</th>@endcan
                     </tr>
                 </thead>
                 <tbody>
@@ -83,7 +84,20 @@
                                 <span class="badge bg-warning text-dark">{{ $e->decision }}</span>
                             @endif
                         </td>
-                        <td class="text-end pe-3">{{ $e->latency_ms !== null ? $e->latency_ms.' ms' : '—' }}</td>
+                        <td class="text-end">{{ $e->latency_ms !== null ? $e->latency_ms.' ms' : '—' }}</td>
+                        @can('manage-agw-allowlist')
+                        <td class="text-end pe-3">
+                            <form method="POST" action="{{ route('admin.access-gateway.blocklist.store') }}" class="d-inline"
+                                  onsubmit="return confirm('Block {{ $e->client_ip }} ?')">
+                                @csrf
+                                <input type="hidden" name="cidr" value="{{ $e->client_ip }}">
+                                <input type="hidden" name="note" value="Blocked from audit">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Add to blocklist">
+                                    <i class="bi bi-shield-x"></i> Block
+                                </button>
+                            </form>
+                        </td>
+                        @endcan
                     </tr>
                     @endforeach
                 </tbody>

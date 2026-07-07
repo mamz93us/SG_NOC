@@ -50,21 +50,25 @@ class Gateway:
         http_client: httpx.AsyncClient,
         runtime: Runtime,
         db: Database | None = None,
+        blocklist: Acl | None = None,
     ) -> None:
         self.settings = settings
         self.acl = acl
+        self.blocklist = blocklist if blocklist is not None else Acl()
         self.audit = audit
         self.http_client = http_client
         self.runtime = runtime
         self.db = db
 
     async def refresh(self) -> None:
-        """Pull allowlist + runtime config from the DB, atomically swap in."""
+        """Pull allowlist + blocklist + runtime config from the DB, swap in."""
         if self.db is None:
             return
         cidrs = await self.db.fetch_active_cidrs()
+        blocked = await self.db.fetch_active_blocklist()
         backend_url, enforce_ip_acl = await self.db.fetch_runtime_config()
         self.acl.load(cidrs)
+        self.blocklist.load(blocked)
         if backend_url:
             self.runtime.backend_url = backend_url
         if enforce_ip_acl is not None:
@@ -102,6 +106,11 @@ async def _handle(request: Request) -> Response:
         )
 
     try:
+        # ── Blocklist (hard deny, always — beats the allowlist + toggle) ─
+        if gw.blocklist.is_allowed(client_ip):
+            audit("deny_ip", 403, "source IP blocklisted")
+            return PlainTextResponse("Forbidden", status_code=403)
+
         # ── IP ACL ──────────────────────────────────────────────────────
         if gw.runtime.enforce_ip_acl and not gw.acl.is_allowed(client_ip):
             audit("deny_ip", 403, "source IP not in allowlist")

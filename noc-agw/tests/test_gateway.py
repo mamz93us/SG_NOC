@@ -84,11 +84,13 @@ async def redirect_upstream(scope, receive, send):
     await send({"type": "http.response.body", "body": b""})
 
 
-def make_gateway(*, enforce_ip_acl=True, allow=("203.0.113.5/32",), upstream=None):
+def make_gateway(*, enforce_ip_acl=True, allow=("203.0.113.5/32",), block=(), upstream=None):
     upstream = upstream or HelloUpstream()
     settings = Settings(_env_file=None)  # defaults only; ignore any local .env
     acl = Acl()
     acl.load(list(allow))
+    blocklist = Acl()
+    blocklist.load(list(block))
     audit = FakeAudit()
     client = cookieless_client(transport=httpx.ASGITransport(app=upstream))
     runtime = Runtime(
@@ -96,7 +98,7 @@ def make_gateway(*, enforce_ip_acl=True, allow=("203.0.113.5/32",), upstream=Non
         enforce_ip_acl=enforce_ip_acl,
         enforce_sso=False,
     )
-    gw = Gateway(settings, acl, audit, client, runtime, db=None)
+    gw = Gateway(settings, acl, audit, client, runtime, db=None, blocklist=blocklist)
     return gw, upstream
 
 
@@ -172,6 +174,28 @@ def test_gateway_is_cookie_transparent():
 
     # The gateway did NOT inject a stored cookie on either upstream request.
     assert up.seen_cookies == [None, None]
+
+
+def test_blocklist_denies_even_when_acl_disabled():
+    gw, up = make_gateway(enforce_ip_acl=False, block=("198.51.100.9/32",))
+    app = build_app(gateway=gw)
+    with TestClient(app, client=("198.51.100.9", 1)) as c:
+        r = c.get("/x")
+    assert r.status_code == 403
+    assert up.count == 0
+    assert gw.audit.rows[-1]["decision"] == "deny_ip"
+    assert "blocklist" in gw.audit.rows[-1]["reason"]
+
+
+def test_blocklist_beats_allowlist():
+    gw, up = make_gateway(
+        enforce_ip_acl=True, allow=("203.0.113.5/32",), block=("203.0.113.5/32",)
+    )
+    app = build_app(gateway=gw)
+    with TestClient(app, client=("203.0.113.5", 1)) as c:
+        r = c.get("/x")
+    assert r.status_code == 403
+    assert up.count == 0
 
 
 def test_health_endpoint_not_proxied():

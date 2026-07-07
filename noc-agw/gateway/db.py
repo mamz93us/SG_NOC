@@ -45,6 +45,16 @@ class Database:
                 rows = await cur.fetchall()
         return [r[0] for r in rows]
 
+    async def fetch_active_blocklist(self) -> list[str]:
+        """Active blocklist entries — always denied, regardless of the ACL."""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT cidr FROM agw_blocklist WHERE active = 1"
+                )
+                rows = await cur.fetchall()
+        return [r[0] for r in rows]
+
     async def fetch_runtime_config(self) -> tuple[str | None, bool | None]:
         """(agw_backend_url, agw_enforce_ip_acl) from the settings singleton."""
         async with self._pool.acquire() as conn:
