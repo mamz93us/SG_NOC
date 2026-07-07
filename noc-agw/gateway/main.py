@@ -23,7 +23,7 @@ from .audit import AuditWriter
 from .config import Settings, load_settings
 from .db import Database
 from .identity import check_sso, extract_identity
-from .proxy import proxy_request
+from .proxy import cookieless_client, proxy_request
 
 log = logging.getLogger("noc-agw")
 
@@ -157,8 +157,11 @@ def create_app() -> FastAPI:
 
         acl = Acl()
         audit = AuditWriter(db, flush_sec=settings.audit_flush_sec)
-        http_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(30.0, connect=10.0), follow_redirects=False
+        # Cookie-transparent client: never stores/replays cookies, so users
+        # can't share one upstream session.
+        http_client = cookieless_client(
+            timeout=httpx.Timeout(30.0, connect=10.0),
+            follow_redirects=False,
         )
         runtime = Runtime(
             backend_url=settings.backend_url,

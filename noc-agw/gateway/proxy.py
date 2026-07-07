@@ -12,6 +12,36 @@ from starlette.background import BackgroundTask
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
+
+class NullCookies(httpx.Cookies):
+    """A cookie jar that stores and sends nothing.
+
+    The default httpx client keeps ONE cookie jar shared across every request,
+    so it would store an upstream Set-Cookie and replay it to other clients —
+    making all users share a single upstream session. The gateway must instead
+    be cookie-transparent: forward the client's Cookie header up and the
+    upstream Set-Cookie headers back, and keep no state of its own.
+    """
+
+    def extract_cookies(self, response) -> None:  # noqa: D401 - httpx hook
+        pass
+
+    def set_cookie_header(self, request) -> None:  # noqa: D401 - httpx hook
+        pass
+
+
+def cookieless_client(**kwargs) -> httpx.AsyncClient:
+    """An httpx client that never stores or replays cookies.
+
+    Note: passing `cookies=NullCookies()` to the constructor does NOT work —
+    httpx re-wraps it into a plain Cookies jar. We must assign the private
+    `_cookies` after construction for the override to take effect.
+    """
+    client = httpx.AsyncClient(**kwargs)
+    client._cookies = NullCookies()
+    return client
+
+
 # Connection-specific headers that must never be forwarded end-to-end.
 HOP_BY_HOP = {
     "connection",
@@ -80,9 +110,13 @@ def filter_response_headers(
     backend_url: str,
     public_host: str,
 ) -> list[tuple[str, str]]:
-    """Strip hop-by-hop headers and rewrite Location for the client."""
+    """Strip hop-by-hop headers and rewrite Location for the client.
+
+    Uses multi_items() so repeated headers — notably multiple Set-Cookie — are
+    preserved as separate entries rather than comma-joined.
+    """
     out: list[tuple[str, str]] = []
-    for key, value in response_headers.items():
+    for key, value in response_headers.multi_items():
         lk = key.lower()
         if lk in HOP_BY_HOP:
             continue
@@ -121,9 +155,14 @@ async def proxy_request(
 
     resp_headers = filter_response_headers(upstream_resp.headers, backend_url, public_host)
 
-    return StreamingResponse(
+    response = StreamingResponse(
         upstream_resp.aiter_raw(),
         status_code=upstream_resp.status_code,
-        headers=dict(resp_headers),
         background=BackgroundTask(upstream_resp.aclose),
     )
+    # Set raw_headers directly so duplicate headers (multiple Set-Cookie) are
+    # preserved — a dict would collapse them.
+    response.raw_headers = [
+        (key.lower().encode("latin-1"), value.encode("latin-1")) for key, value in resp_headers
+    ]
+    return response

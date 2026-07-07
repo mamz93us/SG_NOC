@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from gateway.acl import Acl
 from gateway.config import Settings
 from gateway.main import Gateway, Runtime, build_app
+from gateway.proxy import NullCookies, cookieless_client
 
 
 class FakeAudit:
@@ -46,6 +47,31 @@ class HelloUpstream:
         await send({"type": "http.response.body", "body": b"hello"})
 
 
+class CookieUpstream:
+    """Records the Cookie header it receives and always sets two cookies —
+    mimics ASP.NET issuing a session cookie."""
+
+    def __init__(self):
+        self.seen_cookies = []
+
+    async def __call__(self, scope, receive, send):
+        headers = {k.decode(): v.decode() for k, v in scope["headers"]}
+        self.seen_cookies.append(headers.get("cookie"))
+        await _drain_body(receive)
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    (b"content-type", b"text/plain"),
+                    (b"set-cookie", b"ASP.NET_SessionId=abc123; path=/; HttpOnly"),
+                    (b"set-cookie", b"AuthToken=xyz; path=/"),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": b"ok"})
+
+
 async def redirect_upstream(scope, receive, send):
     await _drain_body(receive)
     await send(
@@ -64,7 +90,7 @@ def make_gateway(*, enforce_ip_acl=True, allow=("203.0.113.5/32",), upstream=Non
     acl = Acl()
     acl.load(list(allow))
     audit = FakeAudit()
-    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=upstream))
+    client = cookieless_client(transport=httpx.ASGITransport(app=upstream))
     runtime = Runtime(
         backend_url="http://upstream.local:8891",
         enforce_ip_acl=enforce_ip_acl,
@@ -124,6 +150,28 @@ def test_redirect_location_is_rewritten():
         r = c.get("/go", follow_redirects=False)
     assert r.status_code == 302
     assert r.headers["location"] == "https://arcmate.samirgroup.net/next"
+
+
+def test_gateway_is_cookie_transparent():
+    """Set-Cookie flows to the client (all of them), and the gateway never
+    stores/replays a cookie of its own across requests."""
+    up = CookieUpstream()
+    gw, _ = make_gateway(upstream=up)
+    app = build_app(gateway=gw)
+    # NullCookies on the test client too, so IT never stores/replays r1's
+    # Set-Cookie — this isolates the gateway's own (non-)replay behavior.
+    with TestClient(app, client=("203.0.113.5", 1)) as c:
+        c._cookies = NullCookies()  # test client never stores/replays either
+        r1 = c.get("/arcmate72/frmmain.aspx")   # client sends no cookie
+        r2 = c.get("/arcmate72/frmmain.aspx")   # still no cookie from the client
+
+    # Both upstream Set-Cookie headers reach the client (not collapsed).
+    set_cookies = r1.headers.get_list("set-cookie")
+    assert len(set_cookies) == 2
+    assert any("ASP.NET_SessionId=abc123" in c for c in set_cookies)
+
+    # The gateway did NOT inject a stored cookie on either upstream request.
+    assert up.seen_cookies == [None, None]
 
 
 def test_health_endpoint_not_proxied():
