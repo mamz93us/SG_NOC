@@ -183,11 +183,20 @@
                 <div class="card-body pt-0 pb-0">
                     {{-- Tab bar --}}
                     <div class="cm-tab-bar">
-                        <button type="button" class="cm-tab-btn active" onclick="switchTab('html', this)">HTML</button>
+                        <button type="button" class="cm-tab-btn active" onclick="switchTab('visual', this)">
+                            <i class="bi bi-brush me-1"></i>Visual
+                        </button>
+                        <button type="button" class="cm-tab-btn" onclick="switchTab('html', this)">
+                            <i class="bi bi-code-slash me-1"></i>HTML
+                        </button>
                         <button type="button" class="cm-tab-btn" onclick="switchTab('plain', this)">Plain Text</button>
                     </div>
 
-                    <div id="cmHtmlPane">
+                    {{-- Visual (WYSIWYG) — seeded from the same HTML, kept in sync with the HTML tab --}}
+                    <div id="cmVisualPane">
+                        <textarea id="visualEditor">{{ old('html_body', $template?->html_body ?? $default) }}</textarea>
+                    </div>
+                    <div id="cmHtmlPane" style="display:none;">
                         <textarea id="htmlEditor" name="html_body">{{ old('html_body', $template?->html_body ?? $default) }}</textarea>
                     </div>
                     <div id="cmPlainPane" style="display:none;">
@@ -301,6 +310,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/addon/edit/closetag.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/addon/selection/active-line.min.js"></script>
 
+{{-- TinyMCE community build (GPL, no API key) for the Visual editor --}}
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js"></script>
+
 <script>
 // ── Colour picker sync ──────────────────────────────────────────────────
 const colPicker = document.getElementById('primaryColor');
@@ -331,39 +343,108 @@ const cmPlain = CodeMirror.fromTextArea(document.getElementById('plainEditor'), 
     lineWrapping: true,
 });
 
-cmEditor.on('change', () => scheduleAutoPreview());
+// ── Visual editor (TinyMCE) ─────────────────────────────────────────────
+// The canonical HTML source is cmEditor (textarea name="html_body"). The Visual
+// editor mirrors it; we sync on every tab switch, on preview, and on submit.
+let currentTab = 'visual';
+let tinyReady  = false;
+
+tinymce.init({
+    selector: '#visualEditor',
+    license_key: 'gpl',
+    promotion: false,
+    branding: false,
+    height: 400,
+    menubar: false,
+    statusbar: false,
+    skin: isDark ? 'oxide-dark' : 'oxide',
+    content_css: isDark ? 'dark' : 'default',
+    plugins: 'link image table lists code autolink',
+    toolbar: 'undo redo | blocks fontsizeinput | bold italic underline forecolor backcolor | '
+           + 'alignleft aligncenter alignright | bullist numlist | link image table | code',
+    toolbar_mode: 'wrap',
+    // Preserve email-safe inline styles, tables, and {{placeholders}} verbatim
+    entity_encoding: 'raw',
+    valid_elements: '*[*]',
+    extended_valid_elements: '*[*]',
+    verify_html: false,
+    content_style: 'body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#333;}',
+    setup(editor) {
+        editor.on('init', () => { tinyReady = true; });
+        editor.on('input change keyup SetContent ExecCommand', () => {
+            if (currentTab === 'visual') scheduleAutoPreview();
+        });
+    },
+});
+
+// Returns the current HTML from whichever editor is active.
+function currentHtml() {
+    if (currentTab === 'visual' && tinyReady) {
+        return tinymce.get('visualEditor').getContent();
+    }
+    return cmEditor.getValue();
+}
+
+// Push the active editor's content into the canonical html_body textarea.
+function syncToSource() {
+    if (currentTab === 'visual' && tinyReady) {
+        cmEditor.setValue(tinymce.get('visualEditor').getContent());
+    }
+    cmEditor.save();
+}
+
+cmEditor.on('change', () => { if (currentTab === 'html') scheduleAutoPreview(); });
+
 document.getElementById('sigForm').addEventListener('submit', () => {
+    syncToSource();   // ensure html_body reflects visual edits
     cmEditor.save();
     cmPlain.save();
 });
 
 // ── Tab switching ───────────────────────────────────────────────────────
 function switchTab(tab, btn) {
+    // Copy the outgoing editor's content into the incoming one before showing it.
+    if (currentTab === 'visual' && tab !== 'visual' && tinyReady) {
+        cmEditor.setValue(tinymce.get('visualEditor').getContent());
+    } else if (currentTab === 'html' && tab === 'visual' && tinyReady) {
+        tinymce.get('visualEditor').setContent(cmEditor.getValue());
+    }
+
+    currentTab = tab;
     document.querySelectorAll('.cm-tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    const htmlPane  = document.getElementById('cmHtmlPane');
-    const plainPane = document.getElementById('cmPlainPane');
-    htmlPane.style.display  = tab === 'html'  ? '' : 'none';
-    plainPane.style.display = tab === 'plain' ? '' : 'none';
-    (tab === 'html' ? cmEditor : cmPlain).refresh();
+
+    document.getElementById('cmVisualPane').style.display = tab === 'visual' ? '' : 'none';
+    document.getElementById('cmHtmlPane').style.display   = tab === 'html'   ? '' : 'none';
+    document.getElementById('cmPlainPane').style.display  = tab === 'plain'  ? '' : 'none';
+
+    if (tab === 'html')  cmEditor.refresh();
+    if (tab === 'plain') cmPlain.refresh();
 }
 
-// ── Variable inserter ───────────────────────────────────────────────────
+// ── Variable inserter (targets the active editor) ───────────────────────
 function insertVarBtn(btn) {
     const varName = btn.getAttribute('data-var');
     const text = '@{{' + varName + '}}';
-    const cursor = cmEditor.getCursor();
-    cmEditor.replaceRange(text, cursor);
-    cmEditor.focus();
+    if (currentTab === 'visual' && tinyReady) {
+        tinymce.get('visualEditor').insertContent(text);
+    } else {
+        const cursor = cmEditor.getCursor();
+        cmEditor.replaceRange(text, cursor);
+        cmEditor.focus();
+    }
 }
 
 function insertIfBlock() {
-    const cursor = cmEditor.getCursor();
     const snippet = '@{{#if variable}}\n  \n@{{/if}}';
-    cmEditor.replaceRange(snippet, cursor);
-    // Position cursor on the variable name
-    cmEditor.setCursor({ line: cursor.line, ch: cursor.ch + 6 });
-    cmEditor.focus();
+    if (currentTab === 'visual' && tinyReady) {
+        tinymce.get('visualEditor').insertContent(snippet);
+    } else {
+        const cursor = cmEditor.getCursor();
+        cmEditor.replaceRange(snippet, cursor);
+        cmEditor.setCursor({ line: cursor.line, ch: cursor.ch + 6 });
+        cmEditor.focus();
+    }
 }
 
 // ── HTML auto-format ────────────────────────────────────────────────────
@@ -402,7 +483,7 @@ function runPreview() {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
         },
         body: JSON.stringify({
-            html_body:     cmEditor.getValue(),
+            html_body:     currentHtml(),
             primary_color: colPicker.value,
             logo_url:      document.getElementById('logoUrl').value.trim(),
             upn:           upn || null,
