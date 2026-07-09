@@ -7,6 +7,7 @@ use App\Mail\CupsPrinterSetupMail;
 use App\Models\Branch;
 use App\Models\CupsPrinter;
 use App\Models\CupsPrintJob;
+use App\Models\Printer;
 use App\Services\CupsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -22,13 +23,13 @@ class CupsPrinterController extends Controller
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('queue_name', 'like', "%{$search}%")
-                  ->orWhere('ip_address', 'like', "%{$search}%");
+                    ->orWhere('queue_name', 'like', "%{$search}%")
+                    ->orWhere('ip_address', 'like', "%{$search}%");
             });
         }
 
         $cupsPrinters = $query->orderBy('name')->paginate(10)->withQueryString();
-        $cupsRunning  = $this->cups->isCupsRunning();
+        $cupsRunning = $this->cups->isCupsRunning();
 
         return view('admin.print-manager.index', compact('cupsPrinters', 'cupsRunning'));
     }
@@ -37,23 +38,36 @@ class CupsPrinterController extends Controller
     {
         $branches = Branch::orderBy('name')->get();
 
-        return view('admin.print-manager.create', compact('branches'));
+        // Only offer printers already registered in the system that have a
+        // reachable IP and aren't already published as a CUPS queue.
+        $printers = Printer::whereNotNull('ip_address')
+            ->where('ip_address', '!=', '')
+            ->whereDoesntHave('cupsPrinter')
+            ->with('branch')
+            ->orderBy('printer_name')
+            ->get();
+
+        return view('admin.print-manager.create', compact('branches', 'printers'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'       => 'required|string|max:255',
+            'printer_id' => ['required', 'exists:printers,id', 'unique:cups_printers,printer_id'],
+            'name' => 'required|string|max:255',
             'queue_name' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z0-9_-]+$/', 'unique:cups_printers'],
             'ip_address' => 'required|ip',
-            'port'       => 'integer|between:1,65535',
-            'protocol'   => 'required|in:ipp,ipps,socket,lpd',
-            'ipp_path'   => 'nullable|string|max:255',
-            'branch_id'  => 'nullable|exists:branches,id',
-            'driver'     => 'nullable|string|max:255',
-            'location'   => 'nullable|string|max:255',
-            'is_shared'  => 'boolean',
-            'is_active'  => 'boolean',
+            'port' => 'integer|between:1,65535',
+            'protocol' => 'required|in:ipp,ipps,socket,lpd',
+            'ipp_path' => 'nullable|string|max:255',
+            'branch_id' => 'nullable|exists:branches,id',
+            'driver' => 'nullable|string|max:255',
+            'location' => 'nullable|string|max:255',
+            'is_shared' => 'boolean',
+            'is_active' => 'boolean',
+        ], [
+            'printer_id.required' => 'Select a printer from the system. Add the device under Printers first if it is missing.',
+            'printer_id.unique' => 'This system printer already has a CUPS queue.',
         ]);
 
         $validated['is_shared'] = $request->boolean('is_shared');
@@ -80,7 +94,7 @@ class CupsPrinterController extends Controller
     public function show(CupsPrinter $cupsPrinter)
     {
         $cupsPrinter->load('branch');
-        $jobs     = $cupsPrinter->printJobs()->with('user')->latest()->paginate(20);
+        $jobs = $cupsPrinter->printJobs()->with('user')->latest()->paginate(20);
         $cupsJobs = $this->cups->getJobs($cupsPrinter->queue_name);
 
         return view('admin.print-manager.show', compact('cupsPrinter', 'jobs', 'cupsJobs'));
@@ -96,17 +110,17 @@ class CupsPrinterController extends Controller
     public function update(Request $request, CupsPrinter $cupsPrinter)
     {
         $validated = $request->validate([
-            'name'       => 'required|string|max:255',
-            'queue_name' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z0-9_-]+$/', 'unique:cups_printers,queue_name,' . $cupsPrinter->id],
+            'name' => 'required|string|max:255',
+            'queue_name' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z0-9_-]+$/', 'unique:cups_printers,queue_name,'.$cupsPrinter->id],
             'ip_address' => 'required|ip',
-            'port'       => 'integer|between:1,65535',
-            'protocol'   => 'required|in:ipp,ipps,socket,lpd',
-            'ipp_path'   => 'nullable|string|max:255',
-            'branch_id'  => 'nullable|exists:branches,id',
-            'driver'     => 'nullable|string|max:255',
-            'location'   => 'nullable|string|max:255',
-            'is_shared'  => 'boolean',
-            'is_active'  => 'boolean',
+            'port' => 'integer|between:1,65535',
+            'protocol' => 'required|in:ipp,ipps,socket,lpd',
+            'ipp_path' => 'nullable|string|max:255',
+            'branch_id' => 'nullable|exists:branches,id',
+            'driver' => 'nullable|string|max:255',
+            'location' => 'nullable|string|max:255',
+            'is_shared' => 'boolean',
+            'is_active' => 'boolean',
         ]);
 
         $validated['is_shared'] = $request->boolean('is_shared');
@@ -133,7 +147,7 @@ class CupsPrinterController extends Controller
         }
 
         // Toggle active/disabled in CUPS
-        if (!$connectionChanged) {
+        if (! $connectionChanged) {
             $validated['is_active']
                 ? $this->cups->enablePrinter($cupsPrinter->queue_name)
                 : $this->cups->disablePrinter($cupsPrinter->queue_name);
@@ -167,22 +181,22 @@ class CupsPrinterController extends Controller
 
         CupsPrintJob::create([
             'cups_printer_id' => $cupsPrinter->id,
-            'user_id'         => auth()->id(),
-            'title'           => 'CUPS Test Page',
-            'status'          => $result['success'] ? 'processing' : 'error',
-            'cups_metadata'   => ['output' => $result['output']],
+            'user_id' => auth()->id(),
+            'title' => 'CUPS Test Page',
+            'status' => $result['success'] ? 'processing' : 'error',
+            'cups_metadata' => ['output' => $result['output']],
         ]);
 
         return back()->with(
             $result['success'] ? 'success' : 'error',
-            $result['success'] ? 'Test page sent to printer.' : 'Test print failed: ' . $result['output']
+            $result['success'] ? 'Test page sent to printer.' : 'Test print failed: '.$result['output']
         );
     }
 
     public function cancelJob(CupsPrinter $cupsPrinter, CupsPrintJob $cupsPrintJob)
     {
         $jobId = $cupsPrintJob->cups_job_id
-            ? $cupsPrinter->queue_name . '-' . $cupsPrintJob->cups_job_id
+            ? $cupsPrinter->queue_name.'-'.$cupsPrintJob->cups_job_id
             : null;
 
         if ($jobId) {
@@ -216,10 +230,10 @@ class CupsPrinterController extends Controller
             } else {
                 CupsPrintJob::create([
                     'cups_printer_id' => $cupsPrinter->id,
-                    'cups_job_id'     => $job['job_id'],
-                    'title'           => $job['user'] . ' - Job #' . $job['job_id'],
-                    'status'          => $job['status'],
-                    'cups_metadata'   => $job,
+                    'cups_job_id' => $job['job_id'],
+                    'title' => $job['user'].' - Job #'.$job['job_id'],
+                    'status' => $job['status'],
+                    'cups_metadata' => $job,
                 ]);
                 $synced++;
             }
@@ -235,7 +249,7 @@ class CupsPrinterController extends Controller
     {
         $validated = $request->validate([
             'email' => 'required|email',
-            'name'  => 'required|string|max:255',
+            'name' => 'required|string|max:255',
         ]);
 
         $airprintUrl = route('admin.print-manager.airprint', $cupsPrinter);
@@ -252,74 +266,74 @@ class CupsPrinterController extends Controller
      */
     public function airprintProfile(CupsPrinter $cupsPrinter)
     {
-        $domain  = \App\Models\Setting::get()->cups_ipp_domain ?? request()->getHost();
-        $uuid    = strtoupper(md5('cups-printer-' . $cupsPrinter->id . '-' . $cupsPrinter->queue_name));
-        $payloadUuid = strtoupper(md5('airprint-payload-' . $cupsPrinter->id));
+        $domain = \App\Models\Setting::get()->cups_ipp_domain ?? request()->getHost();
+        $uuid = strtoupper(md5('cups-printer-'.$cupsPrinter->id.'-'.$cupsPrinter->queue_name));
+        $payloadUuid = strtoupper(md5('airprint-payload-'.$cupsPrinter->id));
 
         // Format UUIDs properly
         $formatUuid = function (string $hex): string {
-            return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-' .
-                   substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' .
+            return substr($hex, 0, 8).'-'.substr($hex, 8, 4).'-'.
+                   substr($hex, 12, 4).'-'.substr($hex, 16, 4).'-'.
                    substr($hex, 20, 12);
         };
 
         $profileUuid = $formatUuid($uuid);
         $payloadUuid = $formatUuid($payloadUuid);
 
-        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
-            . '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' . "\n"
-            . '<plist version="1.0">' . "\n"
-            . '<dict>' . "\n"
-            . '    <key>PayloadContent</key>' . "\n"
-            . '    <array>' . "\n"
-            . '        <dict>' . "\n"
-            . '            <key>AirPrint</key>' . "\n"
-            . '            <array>' . "\n"
-            . '                <dict>' . "\n"
-            . '                    <key>IPAddress</key>' . "\n"
-            . '                    <string>' . e($domain) . '</string>' . "\n"
-            . '                    <key>ResourcePath</key>' . "\n"
-            . '                    <string>printers/' . e($cupsPrinter->queue_name) . '</string>' . "\n"
-            . '                    <key>Port</key>' . "\n"
-            . '                    <integer>631</integer>' . "\n"
-            . '                    <key>ForceTLS</key>' . "\n"
-            . '                    <false/>' . "\n"
-            . '                </dict>' . "\n"
-            . '            </array>' . "\n"
-            . '            <key>PayloadDisplayName</key>' . "\n"
-            . '            <string>AirPrint - ' . e($cupsPrinter->name) . '</string>' . "\n"
-            . '            <key>PayloadIdentifier</key>' . "\n"
-            . '            <string>com.samirgroup.noc.airprint.' . e($cupsPrinter->queue_name) . '</string>' . "\n"
-            . '            <key>PayloadType</key>' . "\n"
-            . '            <string>com.apple.airprint</string>' . "\n"
-            . '            <key>PayloadUUID</key>' . "\n"
-            . '            <string>' . $payloadUuid . '</string>' . "\n"
-            . '            <key>PayloadVersion</key>' . "\n"
-            . '            <integer>1</integer>' . "\n"
-            . '        </dict>' . "\n"
-            . '    </array>' . "\n"
-            . '    <key>PayloadDisplayName</key>' . "\n"
-            . '    <string>' . e($cupsPrinter->name) . ' — SG NOC</string>' . "\n"
-            . '    <key>PayloadIdentifier</key>' . "\n"
-            . '    <string>com.samirgroup.noc.print.' . e($cupsPrinter->queue_name) . '</string>' . "\n"
-            . '    <key>PayloadOrganization</key>' . "\n"
-            . '    <string>Samir Group IT</string>' . "\n"
-            . '    <key>PayloadType</key>' . "\n"
-            . '    <string>Configuration</string>' . "\n"
-            . '    <key>PayloadUUID</key>' . "\n"
-            . '    <string>' . $profileUuid . '</string>' . "\n"
-            . '    <key>PayloadVersion</key>' . "\n"
-            . '    <integer>1</integer>' . "\n"
-            . '    <key>PayloadRemovalDisallowed</key>' . "\n"
-            . '    <false/>' . "\n"
-            . '</dict>' . "\n"
-            . '</plist>';
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n"
+            .'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'."\n"
+            .'<plist version="1.0">'."\n"
+            .'<dict>'."\n"
+            .'    <key>PayloadContent</key>'."\n"
+            .'    <array>'."\n"
+            .'        <dict>'."\n"
+            .'            <key>AirPrint</key>'."\n"
+            .'            <array>'."\n"
+            .'                <dict>'."\n"
+            .'                    <key>IPAddress</key>'."\n"
+            .'                    <string>'.e($domain).'</string>'."\n"
+            .'                    <key>ResourcePath</key>'."\n"
+            .'                    <string>printers/'.e($cupsPrinter->queue_name).'</string>'."\n"
+            .'                    <key>Port</key>'."\n"
+            .'                    <integer>631</integer>'."\n"
+            .'                    <key>ForceTLS</key>'."\n"
+            .'                    <false/>'."\n"
+            .'                </dict>'."\n"
+            .'            </array>'."\n"
+            .'            <key>PayloadDisplayName</key>'."\n"
+            .'            <string>AirPrint - '.e($cupsPrinter->name).'</string>'."\n"
+            .'            <key>PayloadIdentifier</key>'."\n"
+            .'            <string>com.samirgroup.noc.airprint.'.e($cupsPrinter->queue_name).'</string>'."\n"
+            .'            <key>PayloadType</key>'."\n"
+            .'            <string>com.apple.airprint</string>'."\n"
+            .'            <key>PayloadUUID</key>'."\n"
+            .'            <string>'.$payloadUuid.'</string>'."\n"
+            .'            <key>PayloadVersion</key>'."\n"
+            .'            <integer>1</integer>'."\n"
+            .'        </dict>'."\n"
+            .'    </array>'."\n"
+            .'    <key>PayloadDisplayName</key>'."\n"
+            .'    <string>'.e($cupsPrinter->name).' — SG NOC</string>'."\n"
+            .'    <key>PayloadIdentifier</key>'."\n"
+            .'    <string>com.samirgroup.noc.print.'.e($cupsPrinter->queue_name).'</string>'."\n"
+            .'    <key>PayloadOrganization</key>'."\n"
+            .'    <string>Samir Group IT</string>'."\n"
+            .'    <key>PayloadType</key>'."\n"
+            .'    <string>Configuration</string>'."\n"
+            .'    <key>PayloadUUID</key>'."\n"
+            .'    <string>'.$profileUuid.'</string>'."\n"
+            .'    <key>PayloadVersion</key>'."\n"
+            .'    <integer>1</integer>'."\n"
+            .'    <key>PayloadRemovalDisallowed</key>'."\n"
+            .'    <false/>'."\n"
+            .'</dict>'."\n"
+            .'</plist>';
 
-        $filename = $cupsPrinter->queue_name . '-airprint.mobileconfig';
+        $filename = $cupsPrinter->queue_name.'-airprint.mobileconfig';
 
         return response($xml, 200, [
-            'Content-Type'        => 'application/x-apple-aspen-config',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Type' => 'application/x-apple-aspen-config',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ]);
     }
 }

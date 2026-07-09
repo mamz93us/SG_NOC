@@ -1,16 +1,68 @@
-@php $editing = isset($cupsPrinter); @endphp
+@php
+    $editing = isset($cupsPrinter);
+
+    // Map of system printers → prefill data for the Alpine auto-fill on create.
+    $printerMap = ($printers ?? collect())->mapWithKeys(fn ($p) => [$p->id => [
+        'name'      => $p->printer_name,
+        'ip'        => $p->ip_address,
+        'branch_id' => $p->branch_id,
+        'location'  => $p->locationLabel() !== '—' ? $p->locationLabel() : '',
+        'queue'     => \Illuminate\Support\Str::slug((string) $p->printer_name) ?: ('printer-' . $p->id),
+    ]])->toArray();
+@endphp
 
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-transparent">
         <strong>{{ $editing ? 'Edit' : 'Add' }} CUPS Printer</strong>
     </div>
-    <div class="card-body" x-data="{ protocol: '{{ old('protocol', $editing ? $cupsPrinter->protocol : 'ipp') }}' }">
+    <div class="card-body" x-data="{
+            protocol: '{{ old('protocol', $editing ? $cupsPrinter->protocol : 'ipp') }}',
+            printers: {{ \Illuminate\Support\Js::from($printerMap) }},
+            selected: '{{ old('printer_id', $editing ? $cupsPrinter->printer_id : '') }}',
+            applyPrinter() {
+                const p = this.printers[this.selected];
+                if (!p) return;
+                if (this.$refs.name)     this.$refs.name.value     = p.name ?? '';
+                if (this.$refs.queue)    this.$refs.queue.value    = p.queue ?? '';
+                if (this.$refs.ip)       this.$refs.ip.value       = p.ip ?? '';
+                if (this.$refs.location && p.location) this.$refs.location.value = p.location;
+                if (this.$refs.branch && p.branch_id)  this.$refs.branch.value   = p.branch_id;
+            }
+        }">
         <div class="row g-3">
+
+            @unless($editing)
+            {{-- System Printer (source of truth — add only from printers already in the system) --}}
+            <div class="col-12">
+                <label class="form-label fw-semibold">System Printer <span class="text-danger">*</span></label>
+                <select name="printer_id" class="form-select" required x-model="selected" @change="applyPrinter()">
+                    <option value="">— Select a printer already in the system —</option>
+                    @foreach($printers as $p)
+                        <option value="{{ $p->id }}" {{ old('printer_id') == $p->id ? 'selected' : '' }}>
+                            {{ $p->printer_name }}@if($p->ip_address) — {{ $p->ip_address }}@endif@if($p->branch) ({{ $p->branch->name }})@endif
+                        </option>
+                    @endforeach
+                </select>
+                <div class="form-text">
+                    Only printers registered under <a href="{{ route('admin.printers.index') }}">Printers</a> are listed.
+                    Selecting one fills the fields below — add the device there first if it's missing.
+                </div>
+                @error('printer_id') <span class="text-danger small">{{ $message }}</span> @enderror
+            </div>
+            @else
+            <input type="hidden" name="printer_id" value="{{ $cupsPrinter->printer_id }}">
+            @if($cupsPrinter->printer)
+            <div class="col-12">
+                <label class="form-label fw-semibold">System Printer</label>
+                <input type="text" class="form-control" value="{{ $cupsPrinter->printer->printer_name }}" disabled>
+            </div>
+            @endif
+            @endunless
 
             {{-- Name --}}
             <div class="col-md-6">
                 <label class="form-label fw-semibold">Display Name <span class="text-danger">*</span></label>
-                <input type="text" name="name" class="form-control"
+                <input type="text" name="name" x-ref="name" class="form-control"
                        value="{{ old('name', $editing ? $cupsPrinter->name : '') }}" required>
                 @error('name') <span class="text-danger small">{{ $message }}</span> @enderror
             </div>
@@ -18,7 +70,7 @@
             {{-- Queue Name --}}
             <div class="col-md-6">
                 <label class="form-label fw-semibold">Queue Name <span class="text-danger">*</span></label>
-                <input type="text" name="queue_name" class="form-control font-monospace"
+                <input type="text" name="queue_name" x-ref="queue" class="form-control font-monospace"
                        value="{{ old('queue_name', $editing ? $cupsPrinter->queue_name : '') }}"
                        pattern="[a-zA-Z0-9_-]+" required
                        placeholder="e.g. branch1-hp-lj">
@@ -29,7 +81,7 @@
             {{-- IP Address --}}
             <div class="col-md-4">
                 <label class="form-label fw-semibold">Printer IP Address <span class="text-danger">*</span></label>
-                <input type="text" name="ip_address" class="form-control"
+                <input type="text" name="ip_address" x-ref="ip" class="form-control"
                        value="{{ old('ip_address', $editing ? $cupsPrinter->ip_address : '') }}" required
                        placeholder="e.g. 10.0.1.100">
                 @error('ip_address') <span class="text-danger small">{{ $message }}</span> @enderror
@@ -68,7 +120,7 @@
             {{-- Branch --}}
             <div class="col-md-4">
                 <label class="form-label fw-semibold">Branch</label>
-                <select name="branch_id" class="form-select">
+                <select name="branch_id" x-ref="branch" class="form-select">
                     <option value="">— None —</option>
                     @foreach($branches as $branch)
                         <option value="{{ $branch->id }}"
@@ -93,7 +145,7 @@
             {{-- Location --}}
             <div class="col-md-4">
                 <label class="form-label fw-semibold">Location</label>
-                <input type="text" name="location" class="form-control"
+                <input type="text" name="location" x-ref="location" class="form-control"
                        value="{{ old('location', $editing ? $cupsPrinter->location : '') }}"
                        placeholder="e.g. 2nd Floor, Room 204">
                 @error('location') <span class="text-danger small">{{ $message }}</span> @enderror
