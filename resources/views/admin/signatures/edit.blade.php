@@ -62,16 +62,19 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label fw-semibold">Domain</label>
-                    <select name="domain" class="form-select @error('domain') is-invalid @enderror">
-                        <option value="">All domains</option>
+                    <input type="text" name="domain" list="domainList" autocomplete="off"
+                           class="form-control @error('domain') is-invalid @enderror"
+                           value="{{ old('domain', $template?->domain) }}"
+                           placeholder="All domains (catch-all)">
+                    <datalist id="domainList">
                         @foreach($domains as $d)
-                            <option value="{{ $d->domain }}"
-                                {{ old('domain', $template?->domain) === $d->domain ? 'selected' : '' }}>
-                                {{ $d->domain }}{{ $d->is_primary ? ' (primary)' : '' }}
-                            </option>
+                            <option value="{{ $d->domain }}">{{ $d->is_primary ? '(primary)' : '' }}</option>
                         @endforeach
-                    </select>
+                    </datalist>
                     @error('domain') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                    <div class="form-text">
+                        Sender domain, e.g. <code>samirgroup.com</code> or <code>sssegypt.com</code>. Blank = all domains.
+                    </div>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">Email Type <span class="text-danger">*</span></label>
