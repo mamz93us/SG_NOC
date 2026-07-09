@@ -31,7 +31,7 @@
         }">
         <div class="row g-3">
 
-            @unless($editing)
+            @if(! $editing)
             {{-- System Printer (source of truth — add only from printers already in the system) --}}
             <div class="col-12">
                 <label class="form-label fw-semibold">System Printer <span class="text-danger">*</span></label>
@@ -39,7 +39,7 @@
                     <option value="">— Select a printer already in the system —</option>
                     @foreach($printers as $p)
                         <option value="{{ $p->id }}" {{ old('printer_id') == $p->id ? 'selected' : '' }}>
-                            {{ $p->printer_name }}@if($p->ip_address) — {{ $p->ip_address }}@endif@if($p->branch) ({{ $p->branch->name }})@endif
+                            {{ $p->printer_name }}{{ $p->ip_address ? ' — '.$p->ip_address : '' }}{{ $p->branch ? ' ('.$p->branch->name.')' : '' }}
                         </option>
                     @endforeach
                 </select>
@@ -57,7 +57,7 @@
                 <input type="text" class="form-control" value="{{ $cupsPrinter->printer->printer_name }}" disabled>
             </div>
             @endif
-            @endunless
+            @endif
 
             {{-- Name --}}
             <div class="col-md-6">
