@@ -77,14 +77,14 @@
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label fw-semibold">Email Type <span class="text-danger">*</span></label>
+                    <label class="form-label fw-semibold">Signature Slot <span class="text-danger">*</span></label>
                     <select name="type" class="form-select @error('type') is-invalid @enderror" required>
-                        <option value="all"       {{ old('type', $template?->type ?? 'all') === 'all'       ? 'selected' : '' }}>All</option>
-                        <option value="new_email" {{ old('type', $template?->type) === 'new_email' ? 'selected' : '' }}>New Email</option>
-                        <option value="reply"     {{ old('type', $template?->type) === 'reply'     ? 'selected' : '' }}>Reply</option>
+                        <option value="new_email" {{ old('type', $template?->type) === 'new_email' ? 'selected' : '' }}>New email (main)</option>
+                        <option value="reply"     {{ old('type', $template?->type) === 'reply'     ? 'selected' : '' }}>Reply / forward</option>
+                        <option value="all"       {{ old('type', $template?->type ?? 'all') === 'all' ? 'selected' : '' }}>Both slots</option>
                     </select>
                     @error('type') <span class="invalid-feedback">{{ $message }}</span> @enderror
-                    <div class="form-text">Which client slot this fills</div>
+                    <div class="form-text">Which Outlook slot this fills</div>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">Sort Order</label>
@@ -219,9 +219,18 @@
         {{-- Right: live preview --}}
         <div class="col-xl-6">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-transparent border-0 d-flex align-items-center justify-content-between">
+                <div class="card-header bg-transparent border-0 d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <span class="fw-semibold">Live Preview</span>
                     <div class="d-flex gap-2 align-items-center">
+                        {{-- Which Outlook slot to preview --}}
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Preview slot">
+                            <input type="radio" class="btn-check" name="previewSlot" id="slotNew" value="new_email" checked
+                                   onchange="setPreviewSlot('new_email')">
+                            <label class="btn btn-outline-primary" for="slotNew">New email</label>
+                            <input type="radio" class="btn-check" name="previewSlot" id="slotReply" value="reply"
+                                   onchange="setPreviewSlot('reply')">
+                            <label class="btn btn-outline-primary" for="slotReply">Reply</label>
+                        </div>
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" id="autoPreview" checked>
                             <label class="form-check-label small" for="autoPreview">Auto-refresh</label>
@@ -467,6 +476,13 @@ function formatHtml() {
 
 // ── Live preview ────────────────────────────────────────────────────────
 let _previewTimer = null;
+let previewSlot   = 'new_email';                 // which Outlook slot to preview
+const editingId   = @json($template?->id);       // exclude self when resolving counterpart
+
+function setPreviewSlot(slot) {
+    previewSlot = slot;
+    runPreview();
+}
 
 function scheduleAutoPreview() {
     if (!document.getElementById('autoPreview').checked) return;
@@ -490,6 +506,8 @@ function runPreview() {
             primary_color: colPicker.value,
             logo_url:      document.getElementById('logoUrl').value.trim(),
             upn:           upn || null,
+            type:          previewSlot,
+            editing_id:    editingId,
         }),
     })
     .then(r => r.json())
@@ -498,12 +516,18 @@ function runPreview() {
             d.html || '<span class="text-muted small">Empty output.</span>';
         const badge    = document.getElementById('previewBadge');
         const badgeCtr = document.getElementById('previewBadges');
-        if (upn) {
+
+        const slotLabel = previewSlot === 'reply' ? 'Reply' : 'New email';
+        if (d.source === 'saved') {
+            // Showing a different saved template for the other slot
+            badge.className = 'badge bg-info text-dark';
+            badge.textContent = `${slotLabel} slot → saved template “${d.name}”`;
+        } else if (upn) {
             badge.className = 'badge bg-success';
-            badge.textContent = 'Rendered for: ' + upn;
+            badge.textContent = `${slotLabel} · rendered for ${upn}`;
         } else {
             badge.className = 'badge bg-secondary';
-            badge.textContent = 'Sample data';
+            badge.textContent = `${slotLabel} · sample data`;
         }
         badgeCtr.classList.remove('d-none');
     })

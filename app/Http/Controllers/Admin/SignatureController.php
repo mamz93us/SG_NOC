@@ -107,28 +107,46 @@ class SignatureController extends Controller
         $color     = $request->input('primary_color', '#d81f2a');
         $logoUrl   = $request->input('logo_url', '');
         $upn       = $request->input('upn');
+        $slot      = $request->input('type');        // 'new_email' | 'reply' | null
+        $editingId = $request->input('editing_id');  // template being edited (exclude from counterpart lookup)
 
+        // Resolve the variable map (real employee when a UPN is given, else sample data)
+        $domain = ($upn && str_contains($upn, '@')) ? explode('@', $upn)[1] : null;
+
+        if ($upn) {
+            $user = IdentityUser::where('user_principal_name', $upn)
+                ->orWhere('mail', $upn)
+                ->first();
+            $vars = $user ? $this->renderer->varsForUser($user) : $this->renderer->sampleVars();
+        } else {
+            $vars = $this->renderer->sampleVars();
+        }
+
+        // When previewing a specific slot (New email / Reply): if the best SAVED template
+        // for that slot is a *different* template than the one being edited, show that
+        // saved counterpart — so the editor can compare the main vs reply a user gets.
+        if (in_array($slot, ['new_email', 'reply'], true)) {
+            $best = EmailSignatureTemplate::findBest($slot, $domain);
+            if ($best && (string) $best->id !== (string) $editingId) {
+                return response()->json([
+                    'html'   => $this->renderer->render($best, $vars),
+                    'source' => 'saved',
+                    'name'   => $best->name,
+                ]);
+            }
+        }
+
+        // Otherwise render the live editor content (the slot you're editing)
         $fake = new EmailSignatureTemplate([
             'html_body'     => $html,
             'primary_color' => $color,
             'logo_url'      => $logoUrl,
         ]);
 
-        if ($upn) {
-            $user = IdentityUser::where('user_principal_name', $upn)
-                ->orWhere('mail', $upn)
-                ->first();
-
-            $vars = $user
-                ? $this->renderer->varsForUser($user)
-                : $this->renderer->sampleVars();
-        } else {
-            $vars = $this->renderer->sampleVars();
-        }
-
-        $rendered = $this->renderer->render($fake, $vars);
-
-        return response()->json(['html' => $rendered]);
+        return response()->json([
+            'html'   => $this->renderer->render($fake, $vars),
+            'source' => 'live',
+        ]);
     }
 
     // ─── Public API (called by Intune scripts + Graph job) ────────

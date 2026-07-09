@@ -26,8 +26,10 @@
 param(
     [string] $BaseUrl        = 'https://noc.samirgroup.net',
     [string] $ApiKey         = 'REPLACE_WITH_SIGNATURE_SCOPED_API_KEY',   # hrk_... (scope: signature)
-    [string] $SignatureName  = 'SamirGroup',                              # name shown in Outlook
-    [string] $Upn            = ''                                          # optional override; auto-detected if blank
+    [string] $SignatureName  = 'SamirGroup',                              # main (new-mail) name in Outlook
+    [string] $ReplyName      = 'SamirGroup Reply',                        # reply/forward name in Outlook
+    [string] $Upn            = '',                                        # optional override; auto-detected if blank
+    [switch] $NoLock                                                      # pass to skip the read-only/policy lock
 )
 
 $ErrorActionPreference = 'Stop'
@@ -97,6 +99,22 @@ function ConvertTo-PlainText {
     ($t -split "`r`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join "`r`n"
 }
 
+# ─── Write one signature (.htm + .txt), clearing any prior read-only flag ─────
+function Write-SignatureFiles {
+    param([string]$Dir, [string]$Name, [string]$Html, [bool]$ReadOnly)
+    $enc  = [System.Text.UTF8Encoding]::new($false)
+    $htm  = Join-Path $Dir "$Name.htm"
+    $txt  = Join-Path $Dir "$Name.txt"
+    foreach ($f in @($htm, $txt)) {
+        if (Test-Path $f) { try { (Get-Item $f).IsReadOnly = $false } catch {} }
+    }
+    [System.IO.File]::WriteAllText($htm, "<!DOCTYPE html><html><head><meta charset=""utf-8""></head><body>$Html</body></html>", $enc)
+    [System.IO.File]::WriteAllText($txt, (ConvertTo-PlainText $Html), $enc)
+    if ($ReadOnly) {
+        foreach ($f in @($htm, $txt)) { try { (Get-Item $f).IsReadOnly = $true } catch {} }
+    }
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
@@ -110,6 +128,8 @@ try {
     }
     Write-Log "Resolved UPN: $userUpn"
 
+    $lock = -not $NoLock.IsPresent
+
     # Pull both slots. Reply falls back to the 'all' template server-side if none set.
     $newHtml   = Get-SignatureHtml -UserPrincipalName $userUpn -Type 'new_email'
     try   { $replyHtml = Get-SignatureHtml -UserPrincipalName $userUpn -Type 'reply' }
@@ -119,43 +139,40 @@ try {
     $sigDir = Join-Path $env:APPDATA 'Microsoft\Signatures'
     New-Item -ItemType Directory -Path $sigDir -Force | Out-Null
 
-    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-    $wrap = { param($body) "<!DOCTYPE html><html><head><meta charset=""utf-8""></head><body>$body</body></html>" }
-
-    # New-mail signature files
-    [System.IO.File]::WriteAllText((Join-Path $sigDir "$SignatureName.htm"), (& $wrap $newHtml),  $utf8NoBom)
-    [System.IO.File]::WriteAllText((Join-Path $sigDir "$SignatureName.txt"), (ConvertTo-PlainText $newHtml), $utf8NoBom)
-    Write-Log "Wrote signature files: $SignatureName.htm / .txt"
-
-    # Optional separate reply signature (only if it actually differs)
-    $replyName = $SignatureName
-    if ($replyHtml -ne $newHtml) {
-        $replyName = "$SignatureName Reply"
-        [System.IO.File]::WriteAllText((Join-Path $sigDir "$replyName.htm"), (& $wrap $replyHtml), $utf8NoBom)
-        [System.IO.File]::WriteAllText((Join-Path $sigDir "$replyName.txt"), (ConvertTo-PlainText $replyHtml), $utf8NoBom)
-        Write-Log "Wrote separate reply signature: $replyName.htm / .txt"
-    }
+    # Always install BOTH slots as distinct, named signatures.
+    Write-SignatureFiles -Dir $sigDir -Name $SignatureName -Html $newHtml   -ReadOnly:$lock
+    Write-SignatureFiles -Dir $sigDir -Name $ReplyName     -Html $replyHtml -ReadOnly:$lock
+    Write-Log "Wrote signatures: '$SignatureName' (new) + '$ReplyName' (reply). ReadOnly=$lock"
 
     # Detect installed Outlook version key (16.0 = 2016/2019/2021/365, 15.0 = 2013)
     $verKey = @('16.0','15.0') | Where-Object { Test-Path "HKCU:\Software\Microsoft\Office\$_\Outlook" } | Select-Object -First 1
     if (-not $verKey) { $verKey = '16.0' }
     Write-Log "Using Office version key: $verKey"
 
-    # Set as the default signature for New + Reply/Forward
+    # Set as the default signature for New + Reply/Forward (user hive).
     $ms = "HKCU:\Software\Microsoft\Office\$verKey\Common\MailSettings"
     New-Item -Path $ms -Force | Out-Null
     Set-ItemProperty -Path $ms -Name 'NewSignature'   -Value $SignatureName -Type String
-    Set-ItemProperty -Path $ms -Name 'ReplySignature' -Value $replyName     -Type String
-    Write-Log "Set default signatures (New='$SignatureName', Reply='$replyName')."
+    Set-ItemProperty -Path $ms -Name 'ReplySignature' -Value $ReplyName     -Type String
 
-    # Make local files win over M365 cloud/roaming signatures (which otherwise override them)
+    # Make local files win over M365 cloud/roaming signatures.
     $setup = "HKCU:\Software\Microsoft\Office\$verKey\Outlook\Setup"
     New-Item -Path $setup -Force | Out-Null
     Set-ItemProperty -Path $setup -Name 'DisableRoamingSignaturesTemporaryToggle' -Value 1 -Type DWord
-    Write-Log "Disabled roaming signatures so local files apply."
 
-    # Store a hash so a detection script can tell when the template changed
-    $hash = (Get-FileHash -Algorithm SHA256 -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($newHtml)))).Hash
+    # ── Lock: force the selection via the POLICY hive (takes precedence over any
+    #    change a user makes in the Outlook UI, and reasserts on every Outlook read).
+    if ($lock) {
+        $pol = "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings"
+        New-Item -Path $pol -Force | Out-Null
+        Set-ItemProperty -Path $pol -Name 'NewSignature'   -Value $SignatureName -Type String
+        Set-ItemProperty -Path $pol -Name 'ReplySignature' -Value $ReplyName     -Type String
+        Write-Log "Locked default signatures via Policies hive; files set read-only."
+    }
+    Write-Log "Set default signatures (New='$SignatureName', Reply='$ReplyName')."
+
+    # Store a hash so the detection script can tell when the template changed
+    $hash = (Get-FileHash -Algorithm SHA256 -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($newHtml + $replyHtml)))).Hash
     Set-Content -Path (Join-Path $LogDir 'last.hash') -Value $hash -Encoding ASCII
 
     Write-Log "=== Signature deploy completed OK ==="

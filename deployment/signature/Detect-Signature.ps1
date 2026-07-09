@@ -29,13 +29,14 @@ try {
     $upn = (& whoami /upn) 2>$null
     if (-not ($upn -match '@')) { Write-Output 'No UPN'; exit 1 }
 
-    $uri  = "{0}/api/signature?upn={1}&type=new_email&format=json&api_key={2}" -f `
-        $BaseUrl, [uri]::EscapeDataString($upn.Trim()), [uri]::EscapeDataString($ApiKey)
-    $resp = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 30
-    if (-not $resp.html) { Write-Output 'API returned no HTML'; exit 1 }
+    $u = [uri]::EscapeDataString($upn.Trim()); $k = [uri]::EscapeDataString($ApiKey)
+    $new   = (Invoke-RestMethod -Uri "$BaseUrl/api/signature?upn=$u&type=new_email&format=json&api_key=$k" -TimeoutSec 30).html
+    try   { $reply = (Invoke-RestMethod -Uri "$BaseUrl/api/signature?upn=$u&type=reply&format=json&api_key=$k" -TimeoutSec 30).html }
+    catch { $reply = $new }
+    if (-not $new) { Write-Output 'API returned no HTML'; exit 1 }
 
     $serverHash = (Get-FileHash -Algorithm SHA256 -InputStream `
-        ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes([string]$resp.html)))).Hash
+        ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes([string]$new + [string]$reply)))).Hash
 
     $storedHash = Get-Content -Path (Join-Path $env:LOCALAPPDATA 'SamirGroup\SignatureDeploy\last.hash') -ErrorAction SilentlyContinue
 

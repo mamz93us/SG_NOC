@@ -34,8 +34,20 @@ Proactive Remediations, **`Detect-Signature.ps1`**):
 ```powershell
 $ApiKey        = 'hrk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'   # the key from step 1
 $BaseUrl       = 'https://noc.samirgroup.net'
-$SignatureName = 'SamirGroup'                                    # label shown in Outlook
+$SignatureName = 'SamirGroup'                                    # main (new-mail) name in Outlook
+$ReplyName     = 'SamirGroup Reply'                              # reply/forward name in Outlook
 ```
+
+The script installs **both** signatures: the **New email (main)** slot from the
+`new_email` template and the **Reply/forward** slot from the `reply` template
+(falls back to the main one if you haven't made a reply template). It sets each as
+the Outlook default for its slot.
+
+**Lock (default on):** signature files are written **read-only** and the default
+selection is forced through the **Policy** registry hive, which Outlook honours over
+anything a user picks in the UI. Combined with the daily Proactive Remediation
+re-apply (3b), users effectively cannot change or delete the signature. Pass
+`-NoLock` to install without locking (e.g. for your own testing).
 
 You can leave `$Upn` blank — it is auto-detected (`whoami /upn`, then the Office
 identity cache, then `dsregcmd`).
@@ -94,6 +106,13 @@ powershell -ExecutionPolicy Bypass -File .\Deploy-Signature.ps1 `
   win over M365 cloud signatures.
 - **Restart required once.** Outlook loads signatures at startup; a running Outlook
   won't pick up the change until restarted.
+- **About the lock.** Classic Outlook has no single "grey out signatures" switch. The
+  lock here is the practical combination that works: read-only files + the Policy hive
+  forcing the selection (Outlook honours policy over user choice) + the daily re-apply.
+  A determined local admin can still remove it; for a *hard* guarantee use a server-side
+  Exchange transport rule or Exclaimer/CodeTwo. To remove the lock, run with `-NoLock`
+  (or clear the read-only flag and delete `HKCU\Software\Policies\Microsoft\Office\16.0\Common\MailSettings`).
+
 - **Per-account overrides.** If a mailbox already has a *manually chosen* per-account
   signature, that can override the global default. A clean deployment (or clearing the
   user's existing selection once) resolves it.
