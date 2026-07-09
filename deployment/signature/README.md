@@ -17,6 +17,17 @@ whoami /upn  ──►  GET https://noc.samirgroup.net/api/signature?upn=…&typ
 Outlook shows the signature on New mail & Reply/Forward
 ```
 
+## Two clients, two mechanisms
+
+| Client | Reads signature from | Deploy with |
+|---|---|---|
+| **Classic Outlook** (desktop) | local files `%APPDATA%\Microsoft\Signatures` + HKCU | `Deploy-Signature.ps1` (Intune, per-PC, user context) |
+| **New Outlook** / **Outlook on the web** / **mobile** | the **cloud roaming signature** in the Exchange Online mailbox | `Deploy-NewOutlook-Signatures.ps1` (Exchange Online, server-side, per-mailbox) |
+
+New Outlook ignores local files entirely, so it needs the cloud script — see
+[**New Outlook deployment**](#new-outlook--owa--mobile-cloud-signatures) below. Run
+**both** if your fleet has a mix of classic and new Outlook.
+
 ## 1. Create a Signature API key
 
 1. NOC → **Admin → HR API Keys** (`/admin/hr-api-keys`).
@@ -101,6 +112,61 @@ powershell -ExecutionPolicy Bypass -File .\Deploy-Signature.ps1 `
 - Files: `%APPDATA%\Microsoft\Signatures\SamirGroup.htm`
 - Restart Outlook → **File → Options → Mail → Signatures** shows `SamirGroup`, set as
   default for New messages and Replies/forwards. Open a new mail to confirm.
+
+## New Outlook / OWA / mobile (cloud signatures)
+
+New Outlook, Outlook on the web, and Outlook mobile read a **roaming signature stored in
+the mailbox**, not local files. You set it server-side with Exchange Online PowerShell —
+run `Deploy-NewOutlook-Signatures.ps1` on the NOC VM or an admin box (not on each PC).
+
+```
+NOC VM / admin box (scheduled daily)
+   │  Connect-ExchangeOnline (app-only cert auth)
+   ▼  for each mailbox in samirgroup.com / sssegypt.com:
+GET /api/signature?upn=…&type=new_email   ──►   Set-MailboxMessageConfiguration
+   ▼                                              -SignatureHtml … -AutoAddSignature $true
+New Outlook / OWA / mobile show the signature (roaming)
+```
+
+### One-time setup (app-only auth)
+
+1. **Install the module** on the runner: `Install-Module ExchangeOnlineManagement -Scope AllUsers`.
+2. **Entra app registration** (you can reuse the identity-sync app):
+   - API permission **Office 365 Exchange Online → `Exchange.ManageAsApp`** (Application) → **Grant admin consent**.
+   - Upload a **certificate** (public key) to the app; keep the matching cert in the runner's
+     certificate store (note its **thumbprint**).
+   - Assign the app the **Exchange Administrator** Entra role (lets it write mailbox config).
+
+### Run it
+
+```powershell
+# Preview (no changes) for the whole org:
+.\Deploy-NewOutlook-Signatures.ps1 -AppId <app-guid> -Organization samirgroup.onmicrosoft.com `
+    -CertThumbprint <thumbprint> -ApiKey hrk_… -WhatIf
+
+# Apply to all user mailboxes in the two domains:
+.\Deploy-NewOutlook-Signatures.ps1 -AppId <app-guid> -Organization samirgroup.onmicrosoft.com `
+    -CertThumbprint <thumbprint> -ApiKey hrk_…
+
+# Just a few users:
+.\Deploy-NewOutlook-Signatures.ps1 -AppId … -Organization … -CertThumbprint … -ApiKey hrk_… `
+    -Upns 'ahmed.mohsen@sssegypt.com','someone@samirgroup.com'
+```
+
+Schedule it **daily** (Task Scheduler on the NOC VM) so cloud signatures refresh when a
+template changes and any user edit is overwritten. Log: `%LOCALAPPDATA%\SamirGroup\SignatureDeploy\newoutlook-deploy.log`.
+
+### New-Outlook caveats
+
+- **One signature per mailbox.** `Set-MailboxMessageConfiguration` applies a single
+  signature; `-AutoAddSignatureOnReply` makes replies use it too, but a *separate* reply
+  template is not supported in the cloud (classic Outlook still gets the distinct reply one).
+- **Enforcement.** Users can still edit their OWA signature; the daily re-run overwrites it.
+  A truly tamper-proof result (any client, no re-run) needs an **Exchange transport-rule
+  disclaimer** — the only server-stamped option, at the cost of stacking on long threads.
+- **Roaming signatures must be enabled** for the org (default on in most tenants). If your
+  tenant disabled them (`Set-OrganizationConfig -PostponeRoamingSignaturesUntilLater $false`),
+  new Outlook will pick up the mailbox signature.
 
 ## Notes & limitations
 
