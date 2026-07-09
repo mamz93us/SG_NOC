@@ -363,7 +363,7 @@ tinymce.init({
     toolbar: 'undo redo | blocks fontsizeinput | bold italic underline forecolor backcolor | '
            + 'alignleft aligncenter alignright | bullist numlist | link image table | code',
     toolbar_mode: 'wrap',
-    // Preserve email-safe inline styles, tables, and {{placeholders}} verbatim
+    // Preserve email-safe inline styles, tables, and template placeholder tokens verbatim
     entity_encoding: 'raw',
     valid_elements: '*[*]',
     extended_valid_elements: '*[*]',
