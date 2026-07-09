@@ -43,11 +43,15 @@ The script installs **both** signatures: the **New email (main)** slot from the
 (falls back to the main one if you haven't made a reply template). It sets each as
 the Outlook default for its slot.
 
-**Lock (default on):** signature files are written **read-only** and the default
-selection is forced through the **Policy** registry hive, which Outlook honours over
-anything a user picks in the UI. Combined with the daily Proactive Remediation
-re-apply (3b), users effectively cannot change or delete the signature. Pass
-`-NoLock` to install without locking (e.g. for your own testing).
+**Old signatures removed:** by default the script deletes every *other* signature in
+the user's `%APPDATA%\Microsoft\Signatures` (files and `_files` folders), leaving only
+`$SignatureName` and `$ReplyName`. Pass `-KeepOtherSignatures` to leave existing ones.
+
+**Lock (default on):** signature files are written **read-only**; the default selection
+is forced through the **Policy** registry hive (Outlook honours it over any UI change);
+and the compose-window **Signature button is disabled** (control ID 5608). Combined with
+the daily Proactive Remediation re-apply (3b), users cannot change, delete, or add a
+signature that actually gets used. Pass `-NoLock` to install without locking (testing).
 
 You can leave `$Upn` blank — it is auto-detected (`whoami /upn`, then the Office
 identity cache, then `dsregcmd`).
@@ -107,11 +111,18 @@ powershell -ExecutionPolicy Bypass -File .\Deploy-Signature.ps1 `
 - **Restart required once.** Outlook loads signatures at startup; a running Outlook
   won't pick up the change until restarted.
 - **About the lock.** Classic Outlook has no single "grey out signatures" switch. The
-  lock here is the practical combination that works: read-only files + the Policy hive
-  forcing the selection (Outlook honours policy over user choice) + the daily re-apply.
-  A determined local admin can still remove it; for a *hard* guarantee use a server-side
-  Exchange transport rule or Exclaimer/CodeTwo. To remove the lock, run with `-NoLock`
-  (or clear the read-only flag and delete `HKCU\Software\Policies\Microsoft\Office\16.0\Common\MailSettings`).
+  lock here is the practical combination that works: old signatures removed + read-only
+  files + the Policy hive forcing the selection (Outlook honours policy over user choice)
+  + the compose Signature button disabled + the daily re-apply. A determined local admin
+  can still remove it; for a *hard* guarantee use a server-side Exchange transport rule
+  or Exclaimer/CodeTwo. To unlock a machine:
+
+  ```powershell
+  $ver = '16.0'
+  Get-ChildItem "$env:APPDATA\Microsoft\Signatures\SamirGroup*" | ForEach-Object { $_.IsReadOnly = $false }
+  Remove-Item "HKCU:\Software\Policies\Microsoft\Office\$ver\Common\MailSettings" -Recurse -Force -EA SilentlyContinue
+  Remove-Item "HKCU:\Software\Policies\Microsoft\Office\$ver\Outlook\DisabledCmdBarItemsList" -Recurse -Force -EA SilentlyContinue
+  ```
 
 - **Per-account overrides.** If a mailbox already has a *manually chosen* per-account
   signature, that can override the global default. A clean deployment (or clearing the

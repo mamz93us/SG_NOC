@@ -29,7 +29,8 @@ param(
     [string] $SignatureName  = 'SamirGroup',                              # main (new-mail) name in Outlook
     [string] $ReplyName      = 'SamirGroup Reply',                        # reply/forward name in Outlook
     [string] $Upn            = '',                                        # optional override; auto-detected if blank
-    [switch] $NoLock                                                      # pass to skip the read-only/policy lock
+    [switch] $NoLock,                                                     # pass to skip the read-only/policy lock
+    [switch] $KeepOtherSignatures                                         # pass to NOT delete pre-existing signatures
 )
 
 $ErrorActionPreference = 'Stop'
@@ -139,6 +140,18 @@ try {
     $sigDir = Join-Path $env:APPDATA 'Microsoft\Signatures'
     New-Item -ItemType Directory -Path $sigDir -Force | Out-Null
 
+    # Remove any OTHER (old / personal) signatures so only the corporate ones remain.
+    if (-not $KeepOtherSignatures.IsPresent) {
+        $keep = @($SignatureName, $ReplyName)
+        Get-ChildItem $sigDir -File -ErrorAction SilentlyContinue | Where-Object {
+            $keep -notcontains [IO.Path]::GetFileNameWithoutExtension($_.Name)
+        } | ForEach-Object { try { $_.IsReadOnly = $false } catch {}; Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+        Get-ChildItem $sigDir -Directory -ErrorAction SilentlyContinue | Where-Object {
+            $keep -notcontains ($_.Name -replace '_files$','')
+        } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Log "Removed other/old signatures (kept: $($keep -join ', '))."
+    }
+
     # Always install BOTH slots as distinct, named signatures.
     Write-SignatureFiles -Dir $sigDir -Name $SignatureName -Html $newHtml   -ReadOnly:$lock
     Write-SignatureFiles -Dir $sigDir -Name $ReplyName     -Html $replyHtml -ReadOnly:$lock
@@ -167,7 +180,15 @@ try {
         New-Item -Path $pol -Force | Out-Null
         Set-ItemProperty -Path $pol -Name 'NewSignature'   -Value $SignatureName -Type String
         Set-ItemProperty -Path $pol -Name 'ReplySignature' -Value $ReplyName     -Type String
-        Write-Log "Locked default signatures via Policies hive; files set read-only."
+
+        # Best-effort: grey out the "Signature" button in the compose window so users
+        # can't add/edit signatures there (control ID 5608). The policy-hive selection
+        # above is the real guarantee — even a user-added signature is never applied.
+        $dis = "HKCU:\Software\Policies\Microsoft\Office\$verKey\Outlook\DisabledCmdBarItemsList"
+        New-Item -Path $dis -Force | Out-Null
+        Set-ItemProperty -Path $dis -Name 'TCID1' -Value '5608' -Type String
+
+        Write-Log "Locked: files read-only, selection forced via policy, Signature button disabled."
     }
     Write-Log "Set default signatures (New='$SignatureName', Reply='$ReplyName')."
 
