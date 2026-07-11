@@ -10,9 +10,11 @@ use App\Models\Employee;
 use App\Models\EmployeeAsset;
 use App\Models\AllowedDomain;
 use App\Models\IdentityUser;
+use App\Services\Identity\AzureContactSyncService;
 use App\Services\PhoneDeviceLookup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class EmployeeController extends Controller
 {
@@ -170,13 +172,59 @@ class EmployeeController extends Controller
             'status'        => 'required|in:active,terminated,on_leave',
             'hired_date'    => 'nullable|date',
             'notes'         => 'nullable|string|max:2000',
-        ]);
+        ] + $this->contactRules());
 
         $employee = Employee::create($validated);
 
+        [$msg, $level] = $this->pushToAzure($employee);
+
         return redirect()
             ->route('admin.employees.show', $employee->id)
-            ->with('success', 'Employee created successfully.');
+            ->with($level, 'Employee created successfully.'.$msg);
+    }
+
+    /** Validation rules for the per-employee contact fields (NOC = source of truth). */
+    private function contactRules(): array
+    {
+        return [
+            'mobile_phone'    => 'nullable|string|max:50',
+            'work_phone'      => 'nullable|string|max:50',
+            'office_location' => 'nullable|string|max:120',
+            'city'            => 'nullable|string|max:120',
+            'street_address'  => 'nullable|string|max:255',
+            'company'         => 'nullable|string|max:150',
+        ];
+    }
+
+    /**
+     * Push the employee's contact fields to Azure AD (auto-sync on save).
+     * Never blocks the save — returns a message + flash level to append.
+     *
+     * @return array{0: string, 1: string}  [message, flashLevel]
+     */
+    private function pushToAzure(Employee $employee): array
+    {
+        if (empty($employee->azure_id)) {
+            return ['', 'success'];
+        }
+
+        try {
+            $service  = app(AzureContactSyncService::class);
+            $proposed = $service->computeFromEmployee($employee);
+            if ($proposed === []) {
+                return ['', 'success'];
+            }
+            $service->applyToEmployee($employee, $proposed);
+
+            return [' Synced '.count($proposed).' field(s) to Azure AD.', 'success'];
+        } catch (\Throwable $e) {
+            Log::warning('EmployeeController: Azure push failed', [
+                'employee_id' => $employee->id,
+                'error'       => $e->getMessage(),
+            ]);
+
+            return [' (Saved locally, but Azure sync failed: '.$e->getMessage().')', 'warning'];
+        }
     }
 
     public function edit(Employee $employee)
@@ -202,13 +250,15 @@ class EmployeeController extends Controller
             'hired_date'       => 'nullable|date',
             'terminated_date'  => 'nullable|date|after_or_equal:hired_date',
             'notes'            => 'nullable|string|max:2000',
-        ]);
+        ] + $this->contactRules());
 
         $employee->update($validated);
 
+        [$msg, $level] = $this->pushToAzure($employee);
+
         return redirect()
             ->route('admin.employees.show', $employee->id)
-            ->with('success', 'Employee updated successfully.');
+            ->with($level, 'Employee updated successfully.'.$msg);
     }
 
     public function assignAsset(Request $request, Employee $employee)

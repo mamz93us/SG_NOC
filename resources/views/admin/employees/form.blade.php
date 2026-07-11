@@ -93,6 +93,52 @@
                                    value="{{ old('terminated_date', isset($employee) && $employee->terminated_date ? $employee->terminated_date->format('Y-m-d') : '') }}">
                         </div>
                         @endif
+
+                        {{-- ── Contact information (NOC = source of truth, auto-synced to Azure AD) ── --}}
+                        <div class="col-12">
+                            <hr class="my-2">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <i class="bi bi-person-vcard text-primary"></i>
+                                <span class="fw-semibold">Contact Information</span>
+                                <small class="text-muted">— edited here, pushed to Azure AD on save</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Mobile Phone</label>
+                            <input type="text" name="mobile_phone" class="form-control"
+                                   value="{{ old('mobile_phone', $employee->mobile_phone ?? '') }}" placeholder="+20 …">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Business Phone</label>
+                            <input type="text" name="work_phone" class="form-control"
+                                   value="{{ old('work_phone', $employee->work_phone ?? '') }}" placeholder="+20 2 …">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Extension <small class="text-muted">(from phone system)</small></label>
+                            <input type="text" class="form-control bg-body-secondary" disabled
+                                   value="{{ $employee->extension_number ?? '—' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Company</label>
+                            <input type="text" name="company" class="form-control"
+                                   value="{{ old('company', $employee->company ?? '') }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Office Location</label>
+                            <input type="text" name="office_location" class="form-control"
+                                   value="{{ old('office_location', $employee->office_location ?? '') }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">City</label>
+                            <input type="text" name="city" class="form-control"
+                                   value="{{ old('city', $employee->city ?? '') }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Street Address</label>
+                            <input type="text" name="street_address" class="form-control"
+                                   value="{{ old('street_address', $employee->street_address ?? '') }}">
+                        </div>
+
                         <div class="col-12">
                             <label class="form-label small fw-semibold">Notes</label>
                             <textarea name="notes" class="form-control" rows="3">{{ old('notes', $employee->notes ?? '') }}</textarea>

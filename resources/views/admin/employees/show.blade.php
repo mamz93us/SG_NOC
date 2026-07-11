@@ -144,19 +144,24 @@
                     </dd>
                     @endif
 
-                    @if($employee->identityUser?->office_location)
-                    <dt class="col-5 text-muted">Office</dt>
-                    <dd class="col-7">{{ $employee->identityUser->office_location }}</dd>
-                    @endif
-
-                    @if($employee->identityUser?->phone_number)
+                    @if($employee->work_phone ?: $employee->identityUser?->phone_number)
                     <dt class="col-5 text-muted">Business Ph.</dt>
-                    <dd class="col-7">{{ $employee->identityUser->phone_number }}</dd>
+                    <dd class="col-7">{{ $employee->work_phone ?: $employee->identityUser->phone_number }}</dd>
                     @endif
 
-                    @if($employee->identityUser?->mobile_phone && $employee->identityUser->mobile_phone !== $employee->mobile_phone)
-                    <dt class="col-5 text-muted">Mobile (Azure)</dt>
-                    <dd class="col-7">{{ $employee->identityUser->mobile_phone }}</dd>
+                    @if($employee->company)
+                    <dt class="col-5 text-muted">Company</dt>
+                    <dd class="col-7">{{ $employee->company }}</dd>
+                    @endif
+
+                    @if($employee->office_location ?: $employee->identityUser?->office_location)
+                    <dt class="col-5 text-muted">Office</dt>
+                    <dd class="col-7">{{ $employee->office_location ?: $employee->identityUser->office_location }}</dd>
+                    @endif
+
+                    @if($employee->city ?: $employee->street_address)
+                    <dt class="col-5 text-muted">Address</dt>
+                    <dd class="col-7">{{ collect([$employee->street_address, $employee->city])->filter()->implode(', ') }}</dd>
                     @endif
 
                     @if($employee->azure_id)

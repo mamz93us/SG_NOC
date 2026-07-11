@@ -113,6 +113,30 @@ class AzureContactSyncService
     }
 
     /**
+     * Build the Graph PATCH payload from the employee's OWN profile fields.
+     * Used when the NOC employee profile is the source of truth (per-employee
+     * contact data), rather than deriving location from branch templates.
+     *
+     * @return array<string, mixed>
+     */
+    public function computeFromEmployee(Employee $employee): array
+    {
+        $data = [];
+
+        if (! empty($employee->job_title))       { $data['jobTitle']       = $employee->job_title; }
+        $department = $employee->oracle_department ?: $employee->department?->name;
+        if (! empty($department))                { $data['department']     = $department; }
+        if (! empty($employee->company))         { $data['companyName']    = $employee->company; }
+        if (! empty($employee->mobile_phone))    { $data['mobilePhone']    = $employee->mobile_phone; }
+        if (! empty($employee->work_phone))      { $data['businessPhones'] = [$employee->work_phone]; }
+        if (! empty($employee->office_location)) { $data['officeLocation'] = $employee->office_location; }
+        if (! empty($employee->city))            { $data['city']           = $employee->city; }
+        if (! empty($employee->street_address))  { $data['streetAddress']  = $employee->street_address; }
+
+        return $data;
+    }
+
+    /**
      * Per-field comparison between proposed Graph payload and the current
      * cached IdentityUser row.
      *
@@ -201,6 +225,9 @@ class AzureContactSyncService
                     }
                     if (array_key_exists('mobilePhone', $proposed)) {
                         $update['mobile_phone'] = $proposed['mobilePhone'];
+                    }
+                    if (array_key_exists('companyName', $proposed)) {
+                        $update['company_name'] = $proposed['companyName'];
                     }
                     if ($update !== []) {
                         $user->update($update);

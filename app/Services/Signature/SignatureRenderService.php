@@ -48,24 +48,25 @@ class SignatureRenderService
      */
     public function varsForUser(IdentityUser $user): array
     {
-        $employee = Employee::where('azure_id', $user->azure_id)->with('branch')->first();
+        $employee = Employee::where('azure_id', $user->azure_id)->with(['branch', 'department'])->first();
         $branch   = $employee?->branch;
 
-        $email = $user->mail ?: $user->user_principal_name;
+        // NOC employee profile is the source of truth; fall back to the Azure cache.
+        $name = $employee?->name ?: $user->display_name ?? '';
 
         return [
-            'name'           => $user->display_name ?? '',
-            'first_name'     => explode(' ', $user->display_name ?? '')[0],
-            'job_title'      => $user->job_title ?? $employee?->job_title ?? '',
-            'department'     => $user->department ?? '',
-            'company'        => $user->company_name ?? '',
-            'email'          => $email,
-            'phone'          => $user->phone_number ?? '',
-            'mobile'         => $user->mobile_phone ?? $employee?->mobile_phone ?? '',
+            'name'           => $name,
+            'first_name'     => explode(' ', trim($name))[0] ?? '',
+            'job_title'      => $employee?->job_title ?: $user->job_title ?? '',
+            'department'     => $employee?->department?->name ?: $employee?->oracle_department ?: $user->department ?? '',
+            'company'        => $employee?->company ?: $user->company_name ?? '',
+            'email'          => $employee?->email ?: $user->mail ?: $user->user_principal_name,
+            'phone'          => $employee?->work_phone ?: $user->phone_number ?? '',
+            'mobile'         => $employee?->mobile_phone ?: $user->mobile_phone ?? '',
             'extension'      => $employee?->extension_number ?? '',
-            'branch_name'    => $branch?->name ?? $user->office_location ?? '',
-            'branch_city'    => $branch?->city ?? $user->city ?? '',
-            'branch_address' => $branch?->street ?? $user->street_address ?? '',
+            'branch_name'    => $employee?->office_location ?: $branch?->name ?: $user->office_location ?? '',
+            'branch_city'    => $employee?->city ?: $branch?->city ?: $user->city ?? '',
+            'branch_address' => $employee?->street_address ?: $branch?->street ?: $user->street_address ?? '',
             'branch_phone'   => $branch?->phone_number ?? '',
         ];
     }
