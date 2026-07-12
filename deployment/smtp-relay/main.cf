@@ -35,17 +35,20 @@ alias_database =
 
 # --- Who is allowed to relay through us --------------------------------------
 # THIS IS THE OPEN-RELAY GUARD. Only these subnets may hand us mail for onward
-# delivery. Replace with the real printer VLAN CIDRs (narrow them to the printer
-# VLANs rather than whole branch LANs where possible).
-#   Jeddah 10.10.0.0/16 | Riyadh 10.20.0.0/16 | Al-Khobar 10.30.0.0/16
-#   Abha   10.40.0.0/16 | Cairo  10.50.0.0/16
+# delivery. Each branch LAN is 10.X.0.0/22 for X = 1..10 (branches 1-10). Narrow
+# to a specific printer VLAN instead if one exists.
 mynetworks =
     127.0.0.0/8
-    10.10.0.0/16
-    10.20.0.0/16
-    10.30.0.0/16
-    10.40.0.0/16
-    10.50.0.0/16
+    10.1.0.0/22
+    10.2.0.0/22
+    10.3.0.0/22
+    10.4.0.0/22
+    10.5.0.0/22
+    10.6.0.0/22
+    10.7.0.0/22
+    10.8.0.0/22
+    10.9.0.0/22
+    10.10.0.0/22
 
 smtpd_relay_restrictions = permit_mynetworks, reject_unauth_destination
 smtpd_recipient_restrictions = permit_mynetworks, reject_unauth_destination

@@ -64,8 +64,8 @@ settings and derives the SMTP password), writes/`postmap`s
 
 **Set the relay-able subnets.** Edit `mynetworks` in
 `deployment/smtp-relay/main.cf` to the real printer VLAN CIDRs (defaults ship as
-the branch LANs `10.10–10.50.0.0/16` — narrow to printer VLANs where possible),
-then:
+the branch LANs `10.1.0.0/22` … `10.10.0.0/22` for branches 1–10 — narrow to a
+printer VLAN where one exists), then:
 
 ```sh
 sudo cp main.cf /etc/postfix/main.cf
@@ -75,7 +75,7 @@ sudo postfix reload
 Open the firewall for printer subnets (example with ufw; also mirror in the NSG):
 
 ```sh
-sudo ufw allow from 10.10.0.0/16 to any port 25 proto tcp
+sudo ufw allow from 10.1.0.0/22 to any port 25 proto tcp   # repeat per branch (10.1..10.10.0.0/22)
 # ...repeat per printer subnet
 ```
 
