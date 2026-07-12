@@ -1,0 +1,8 @@
+# Rewrite every non-empty sender (envelope MAIL FROM + From: header) to the
+# single SES-verified identity. Installed to /etc/postfix/sender_canonical.regexp
+# by setup.sh; referenced from main.cf via sender_canonical_maps.
+#
+# /.+/ deliberately does NOT match the null sender <>, so bounce / NDR messages
+# keep their empty return-path and cannot loop into a backscatter storm (which a
+# `static:` map would cause by rewriting <> to a deliverable address).
+/.+/    scanner@samirgroup.com

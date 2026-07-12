@@ -38,11 +38,16 @@ derives the SMTP password), writes and `postmap`s `/etc/postfix/sasl_passwd`
 (mode 600), and starts Postfix. Override with explicit
 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars if you prefer.
 
-Then edit `mynetworks` in `main.cf` to the real **printer VLAN** CIDRs, and:
+Then edit `mynetworks` in `main.cf` to the real **printer VLAN** CIDRs, and
+re-apply with `setup.sh` (idempotent — it re-installs main.cf, then re-sets the
+region-specific `relayhost` + `sasl_passwd`):
 
 ```sh
-sudo cp main.cf /etc/postfix/main.cf && sudo postfix reload
+sudo bash setup.sh
 ```
+
+> Do **not** just `cp main.cf /etc/postfix/main.cf` — that resets `relayhost` to
+> the file's default region and breaks SES auth (530). Always re-run `setup.sh`.
 
 ## Ricoh scan-to-email settings (per printer)
 
@@ -78,5 +83,9 @@ Common SES rejections in `mail.log`:
   request production access.
 - `535 Authentication Credentials Invalid` → wrong region, or the IAM key lacks
   `ses:SendRawEmail`, or the SMTP password wasn't re-derived after a key rotation.
+- `530 Authentication required` on **every** message → `relayhost` region no
+  longer matches the `sasl_passwd` entry (usually because `main.cf` was `cp`'d
+  over, resetting the region). Fix: `sudo bash setup.sh`. If a bounce storm has
+  built up, clear it first with `sudo postsuper -d ALL`.
 
 Full runbook: [../../SMTP_RELAY_SETUP.md](../../SMTP_RELAY_SETUP.md).

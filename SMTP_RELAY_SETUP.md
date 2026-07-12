@@ -65,12 +65,16 @@ settings and derives the SMTP password), writes/`postmap`s
 **Set the relay-able subnets.** Edit `mynetworks` in
 `deployment/smtp-relay/main.cf` to the real printer VLAN CIDRs (defaults ship as
 the branch LANs `10.1.0.0/22` … `10.10.0.0/22` for branches 1–10 — narrow to a
-printer VLAN where one exists), then:
+printer VLAN where one exists), then re-apply with `setup.sh` (idempotent):
 
 ```sh
-sudo cp main.cf /etc/postfix/main.cf
-sudo postfix reload
+cd deployment/smtp-relay && sudo bash setup.sh
 ```
+
+> Do **not** just `cp main.cf /etc/postfix/main.cf` — the file carries a default
+> `relayhost` region, and copying it over resets the region so it no longer
+> matches the `sasl_passwd` entry, causing `530 Authentication required` bounces.
+> `setup.sh` re-installs main.cf **and** re-sets the correct region + credentials.
 
 Open the firewall for printer subnets (example with ufw; also mirror in the NSG):
 

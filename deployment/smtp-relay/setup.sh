@@ -67,6 +67,7 @@ if [[ -f /etc/postfix/main.cf ]]; then
     cp -a /etc/postfix/main.cf "/etc/postfix/main.cf.bak.$(date +%Y%m%d%H%M%S)"
 fi
 install -m 0644 "$HERE/main.cf" /etc/postfix/main.cf
+install -m 0644 "$HERE/sender_canonical.regexp" /etc/postfix/sender_canonical.regexp
 # Pin myhostname to this box's FQDN so SES/EHLO look sane.
 postconf -e "myhostname=$(hostname -f 2>/dev/null || hostname)"
 

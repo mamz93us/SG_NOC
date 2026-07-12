@@ -55,12 +55,18 @@ smtpd_recipient_restrictions = permit_mynetworks, reject_unauth_destination
 
 # --- Rewrite every sender to the one SES-verified identity -------------------
 # SES requires the From header AND envelope sender to be a verified identity.
-# static: rewrites all of them to scanner@samirgroup.com. Replies land there.
-sender_canonical_maps = static:scanner@samirgroup.com
+# Use a regexp map (NOT static:) so the null sender <> is left untouched — a
+# static: map rewrites <> too, turning bounce/NDR messages into real mail from
+# scanner@ that re-bounce forever (backscatter storm). /.+/ can't match "".
+sender_canonical_maps = regexp:/etc/postfix/sender_canonical.regexp
 sender_canonical_classes = envelope_sender, header_sender
 
-# --- Upstream: Amazon SES smarthost (region must match verified identity) ----
-relayhost = [email-smtp.us-east-1.amazonaws.com]:587
+# --- Upstream: Amazon SES smarthost ------------------------------------------
+# Region MUST match the verified identity AND the sasl_passwd entry. setup.sh
+# sets this authoritatively from the stored SES region — do NOT `cp` this file
+# over /etc/postfix/main.cf on its own, as that resets the region and breaks
+# auth. Re-run `sudo bash setup.sh` after any edit instead.
+relayhost = [email-smtp.eu-north-1.amazonaws.com]:587
 
 # --- SASL auth to SES (username/password in /etc/postfix/sasl_passwd) ---------
 # Username = AWS_ACCESS_KEY_ID; password = SES SMTP password derived from
