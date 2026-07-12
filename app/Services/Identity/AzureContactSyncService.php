@@ -29,6 +29,20 @@ class AzureContactSyncService
     ) {}
 
     /**
+     * True when a Graph failure is Entra refusing an app-only write to a
+     * PROTECTED user — i.e. an account holding a privileged admin role. Even
+     * with User.ReadWrite.All + Directory.ReadWrite.All, app-only principals
+     * cannot modify admin users by design; this is not a missing-consent bug.
+     */
+    public static function isProtectedAdminError(\Throwable $e): bool
+    {
+        $m = $e->getMessage();
+
+        return str_contains($m, 'Authorization_RequestDenied')
+            || str_contains($m, 'Insufficient privileges');
+    }
+
+    /**
      * Build the Graph PATCH payload for one employee, using their branch
      * settings + extension. Only includes keys for which we have data — the
      * caller can decide whether to send empty values to clear fields.

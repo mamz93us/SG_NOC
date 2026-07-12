@@ -575,8 +575,9 @@ class IdentityController extends Controller
         // TODO: when org grows beyond ~100 employees, dispatch a queued
         // batch job here instead of looping inline (Graph PATCH /users
         // is throttled at ~600/min and inline loops can hit timeouts).
-        $applied  = 0;
-        $failures = [];
+        $applied   = 0;
+        $failures  = [];
+        $protected = [];
 
         foreach ($employees as $employee) {
             try {
@@ -587,11 +588,22 @@ class IdentityController extends Controller
                 $service->applyToEmployee($employee, $proposed);
                 $applied++;
             } catch (\Throwable $e) {
-                $failures[] = $employee->name . ': ' . $e->getMessage();
+                // Protected admin accounts are refused by Entra by design — not a
+                // real failure. Set them aside so they don't look like errors.
+                if (AzureContactSyncService::isProtectedAdminError($e)) {
+                    $protected[] = $employee->name;
+                } else {
+                    $failures[] = $employee->name . ': ' . $this->graphFriendlyError($e);
+                }
             }
         }
 
         $msg = "Applied to {$applied} employee(s).";
+        if ($protected) {
+            $msg .= ' ' . count($protected) . ' protected admin account(s) skipped (update these directly in Entra): '
+                  . implode(', ', $protected) . '.';
+        }
+
         if ($failures) {
             $msg .= ' ' . count($failures) . ' failed.';
             return redirect()->route('admin.identity.contact-sync')
@@ -600,7 +612,7 @@ class IdentityController extends Controller
         }
 
         return redirect()->route('admin.identity.contact-sync')
-            ->with('success', $msg);
+            ->with($protected ? 'warning' : 'success', $msg);
     }
 
     /**
@@ -645,7 +657,7 @@ class IdentityController extends Controller
      * Return a human-friendly error string for Graph API failures.
      * Detects 403 "Authorization_RequestDenied" and explains the fix.
      */
-    private function graphFriendlyError(\Exception $e): string
+    private function graphFriendlyError(\Throwable $e): string
     {
         $msg = $e->getMessage();
 
@@ -666,9 +678,11 @@ class IdentityController extends Controller
         }
 
         if (str_contains($msg, 'Authorization_RequestDenied') || str_contains($msg, 'Insufficient privileges')) {
-            return 'Azure AD permission denied. The app registration is missing write permissions. '
-                 . 'Please add the User.ReadWrite.All (Application) permission in Azure AD portal '
-                 . '→ App registrations → API permissions, then grant admin consent.';
+            return 'Azure declined the update (Authorization_RequestDenied). If this affects only '
+                 . 'specific accounts, those are protected admins holding privileged Entra roles — '
+                 . 'app-only sync cannot modify them by design; update those directly in Entra. '
+                 . 'If it affects every account, verify the app registration has User.ReadWrite.All '
+                 . '(Application) with admin consent granted.';
         }
 
         return $msg;

@@ -224,6 +224,11 @@ class EmployeeController extends Controller
                 'error'       => $e->getMessage(),
             ]);
 
+            if (AzureContactSyncService::isProtectedAdminError($e)) {
+                return [' (Saved locally. This is a protected admin account in Entra — app-only sync '
+                    .'cannot modify it; update it directly in Entra if needed.)', 'warning'];
+            }
+
             return [' (Saved locally, but Azure sync failed: '.$e->getMessage().')', 'warning'];
         }
     }
