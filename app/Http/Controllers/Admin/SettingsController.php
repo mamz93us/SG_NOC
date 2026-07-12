@@ -611,6 +611,7 @@ class SettingsController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:100|unique:departments,name',
+            'oracle_dept_no' => 'nullable|string|max:50',
             'description' => 'nullable|string|max:255',
             'sort_order' => 'nullable|integer|min:0',
         ]);
@@ -636,18 +637,19 @@ class SettingsController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:100|unique:departments,name,'.$department->id,
+            'oracle_dept_no' => 'nullable|string|max:50',
             'description' => 'nullable|string|max:255',
             'sort_order' => 'nullable|integer|min:0',
         ]);
 
-        $before = $department->only(['name', 'description', 'sort_order']);
+        $before = $department->only(['name', 'oracle_dept_no', 'description', 'sort_order']);
         $department->update($data);
 
         ActivityLog::create([
             'model_type' => Department::class,
             'model_id' => $department->id,
             'action' => 'updated',
-            'changes' => ['before' => $before, 'after' => $department->only(['name', 'description', 'sort_order'])],
+            'changes' => ['before' => $before, 'after' => $department->only(['name', 'oracle_dept_no', 'description', 'sort_order'])],
             'user_id' => Auth::id(),
         ]);
 

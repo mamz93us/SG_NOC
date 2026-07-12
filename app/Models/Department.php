@@ -9,6 +9,7 @@ class Department extends Model
 {
     protected $fillable = [
         'name',
+        'oracle_dept_no',
         'description',
         'sort_order',
     ];

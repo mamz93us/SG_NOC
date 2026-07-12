@@ -27,6 +27,7 @@
             <thead class="table-light">
                 <tr>
                     <th>Name</th>
+                    <th class="text-center" style="width:110px">Oracle No</th>
                     <th>Description</th>
                     <th class="text-center" style="width:80px">Sort</th>
                     @can('manage-settings')
@@ -38,12 +39,19 @@
                 @foreach($departments as $dept)
                 <tr>
                     <td class="fw-semibold">{{ $dept->name }}</td>
+                    <td class="text-center">
+                        @if($dept->oracle_dept_no)
+                        <span class="badge bg-light text-dark border" title="Oracle HRMS department number">#{{ $dept->oracle_dept_no }}</span>
+                        @else
+                        <span class="text-muted small">—</span>
+                        @endif
+                    </td>
                     <td class="text-muted small">{{ $dept->description ?: '—' }}</td>
                     <td class="text-center text-muted small">{{ $dept->sort_order ?: '—' }}</td>
                     @can('manage-settings')
                     <td class="text-end">
                         <button class="btn btn-sm btn-outline-secondary"
-                                onclick="openEditDeptModal({{ $dept->id }}, '{{ addslashes($dept->name) }}', '{{ addslashes($dept->description ?? '') }}', {{ $dept->sort_order ?? 0 }})">
+                                onclick="openEditDeptModal({{ $dept->id }}, '{{ addslashes($dept->name) }}', '{{ addslashes($dept->oracle_dept_no ?? '') }}', '{{ addslashes($dept->description ?? '') }}', {{ $dept->sort_order ?? 0 }})">
                             <i class="bi bi-pencil"></i>
                         </button>
                         <form method="POST"
@@ -84,6 +92,10 @@
                            autofocus>
                 </div>
                 <div class="mb-2">
+                    <label class="form-label small">Oracle Dept No</label>
+                    <input type="text" name="oracle_dept_no" class="form-control form-control-sm" maxlength="50" placeholder="e.g. 93">
+                </div>
+                <div class="mb-2">
                     <label class="form-label small">Description</label>
                     <input type="text" name="description" class="form-control form-control-sm" maxlength="255">
                 </div>
@@ -116,6 +128,10 @@
                            required maxlength="100">
                 </div>
                 <div class="mb-2">
+                    <label class="form-label small">Oracle Dept No</label>
+                    <input type="text" name="oracle_dept_no" id="editDeptOracleNo" class="form-control form-control-sm" maxlength="50">
+                </div>
+                <div class="mb-2">
                     <label class="form-label small">Description</label>
                     <input type="text" name="description" id="editDeptDesc" class="form-control form-control-sm" maxlength="255">
                 </div>
@@ -136,11 +152,12 @@
 
 @push('scripts')
 <script>
-function openEditDeptModal(id, name, description, sortOrder) {
-    document.getElementById('editDeptForm').action = `/admin/settings/departments/${id}`;
-    document.getElementById('editDeptName').value   = name;
-    document.getElementById('editDeptDesc').value   = description;
-    document.getElementById('editDeptSort').value   = sortOrder;
+function openEditDeptModal(id, name, oracleNo, description, sortOrder) {
+    document.getElementById('editDeptForm').action     = `/admin/settings/departments/${id}`;
+    document.getElementById('editDeptName').value       = name;
+    document.getElementById('editDeptOracleNo').value   = oracleNo;
+    document.getElementById('editDeptDesc').value       = description;
+    document.getElementById('editDeptSort').value       = sortOrder;
     new bootstrap.Modal(document.getElementById('editDeptModal')).show();
 }
 </script>
