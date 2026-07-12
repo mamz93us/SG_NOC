@@ -1,0 +1,80 @@
+# =============================================================================
+# SG-NOC local SMTP relay for legacy Ricoh MFPs  ->  Amazon SES
+# -----------------------------------------------------------------------------
+# Postfix "smarthost" config. Old Ricoh MP C3001/C3003 printers submit plain,
+# unauthenticated mail to this host on port 25 (which they can do); Postfix
+# rewrites the sender to a single SES-verified identity and relays it to Amazon
+# SES over authenticated TLS on 587.
+#
+# Deploy: copied to /etc/postfix/main.cf by setup.sh. Edit `mynetworks` below to
+# match the printer subnets, then `postfix reload`.
+#
+# See ../../SMTP_RELAY_SETUP.md for the full runbook.
+# =============================================================================
+
+# --- Identity ----------------------------------------------------------------
+# myhostname is set by setup.sh to the NOC VM hostname if left as-is at deploy.
+myhostname = noc-smtp.samirgroup.net
+mydomain = samirgroup.com
+myorigin = $mydomain
+
+compatibility_level = 3.6
+
+# --- Listening ---------------------------------------------------------------
+# Listen on all interfaces; inbound port 25 is restricted to printer subnets by
+# the Azure NSG + host firewall (ufw), NOT exposed publicly.
+inet_interfaces = all
+inet_protocols = ipv4
+
+# --- Pure relay: never accept mail for local delivery ------------------------
+mydestination =
+local_transport = error:local delivery disabled
+local_recipient_maps =
+alias_maps =
+alias_database =
+
+# --- Who is allowed to relay through us --------------------------------------
+# THIS IS THE OPEN-RELAY GUARD. Only these subnets may hand us mail for onward
+# delivery. Replace with the real printer VLAN CIDRs (narrow them to the printer
+# VLANs rather than whole branch LANs where possible).
+#   Jeddah 10.10.0.0/16 | Riyadh 10.20.0.0/16 | Al-Khobar 10.30.0.0/16
+#   Abha   10.40.0.0/16 | Cairo  10.50.0.0/16
+mynetworks =
+    127.0.0.0/8
+    10.10.0.0/16
+    10.20.0.0/16
+    10.30.0.0/16
+    10.40.0.0/16
+    10.50.0.0/16
+
+smtpd_relay_restrictions = permit_mynetworks, reject_unauth_destination
+smtpd_recipient_restrictions = permit_mynetworks, reject_unauth_destination
+
+# --- Rewrite every sender to the one SES-verified identity -------------------
+# SES requires the From header AND envelope sender to be a verified identity.
+# static: rewrites all of them to scanner@samirgroup.com. Replies land there.
+sender_canonical_maps = static:scanner@samirgroup.com
+sender_canonical_classes = envelope_sender, header_sender
+
+# --- Upstream: Amazon SES smarthost (region must match verified identity) ----
+relayhost = [email-smtp.us-east-1.amazonaws.com]:587
+
+# --- SASL auth to SES (username/password in /etc/postfix/sasl_passwd) ---------
+# Username = AWS_ACCESS_KEY_ID; password = SES SMTP password derived from
+# AWS_SECRET_ACCESS_KEY by ses-smtp-password.sh (run by setup.sh).
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+
+# --- Mandatory TLS to SES ----------------------------------------------------
+smtp_use_tls = yes
+smtp_tls_security_level = encrypt
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+
+# SES rejects oversized headers; raise the limit for scanned-doc mail.
+header_size_limit = 4096000
+message_size_limit = 52428800
+
+# Keep the queue moving for transient SES throttling.
+maximal_queue_lifetime = 1d
+bounce_queue_lifetime = 1d

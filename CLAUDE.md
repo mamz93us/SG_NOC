@@ -84,6 +84,7 @@ The Laravel app does not run alone — these run alongside it in production:
 - **`deployment/graylog/`** — Graylog Open + OpenSearch + MongoDB (Docker Compose). See [SYSLOG_GRAYLOG_SETUP.md](SYSLOG_GRAYLOG_SETUP.md).
 - **`deployment/freeradius/`** — FreeRADIUS for MAC-auth (MAB) with VLAN policy from MySQL. See [RADIUS_SETUP.md](RADIUS_SETUP.md).
 - **`deployment/rsyslog/`** — rsyslog receives UDP/514 and writes directly to MySQL `syslog_messages`. See [SYSLOG_SETUP.md](SYSLOG_SETUP.md).
+- **`deployment/smtp-relay/`** — native Postfix smarthost so legacy Ricoh MP C3001/C3003 MFPs can scan-to-email: printers submit plain SMTP to the NOC internal IP on port 25, Postfix rewrites the sender to the SES-verified `scanner@samirgroup.com` and relays to Amazon SES over TLS/587. Reuses the app's existing AWS creds — the SES **SMTP** password is *derived* from `AWS_SECRET_ACCESS_KEY` (not the raw key) by `ses-smtp-password.sh`. `mynetworks` is the open-relay guard. See [SMTP_RELAY_SETUP.md](SMTP_RELAY_SETUP.md).
 - **`deployment/branch-vm/`** — Ansible playbooks for branch VM provisioning.
 - **`deployment/browser-portal/`** — nginx snippet template + Chromium/Neko supervisor.
 - **`deployment/supervisor/`** — `switch-poll.conf` keeps `php artisan schedule:run` alive.
