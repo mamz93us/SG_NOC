@@ -21,6 +21,7 @@ class Employee extends Model
         'branch_id',
         'department_id',
         'manager_id',
+        'supervisor_id',
         'job_title',
         'status',
         'hired_date',
@@ -70,6 +71,16 @@ class Employee extends Model
     public function subordinates(): HasMany
     {
         return $this->hasMany(Employee::class, 'manager_id');
+    }
+
+    public function supervisor(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'supervisor_id');
+    }
+
+    public function supervisees(): HasMany
+    {
+        return $this->hasMany(Employee::class, 'supervisor_id');
     }
 
     public function assetAssignments(): HasMany
