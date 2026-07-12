@@ -142,6 +142,22 @@ class GraphService
             $response = Http::timeout($timeout)->withToken($token)->patch($url, $data);
         }
 
+        // Retry on 429 Too Many Requests — honour Retry-After (max 6 attempts).
+        // Bulk contact-sync PATCHes hundreds of /users inline; Graph throttles
+        // after a burst and without this every throttled call fails outright.
+        $attempts = 0;
+        while ($response->status() === 429 && $attempts < 6) {
+            $retryAfter = (int) ($response->header('Retry-After') ?: 0);
+            if ($retryAfter <= 0) {
+                $retryAfter = min(10 * (2 ** $attempts), 90);
+            }
+            $retryAfter = max(5, min($retryAfter, 90));
+            \Illuminate\Support\Facades\Log::warning("Graph 429 on PATCH {$url} — waiting {$retryAfter}s (attempt " . ($attempts + 1) . '/6)');
+            sleep($retryAfter);
+            $response = Http::timeout($timeout)->withToken($token)->patch($url, $data);
+            $attempts++;
+        }
+
         if (! $response->successful()) {
             throw new \RuntimeException("Graph PATCH {$endpoint} failed ({$response->status()}): " . $response->body());
         }

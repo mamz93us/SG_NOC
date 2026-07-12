@@ -578,8 +578,17 @@ class IdentityController extends Controller
         $applied   = 0;
         $failures  = [];
         $protected = [];
+        $missing   = [];
 
         foreach ($employees as $employee) {
+            // Skip accounts that no longer exist in Entra (removed/terminated) —
+            // their azure_id would only 404. identityUser is null once
+            // IdentitySync stops seeing them.
+            if (! $employee->identityUser) {
+                $missing[] = $employee->name;
+                continue;
+            }
+
             try {
                 $proposed = $service->computeProposedFields($employee, $settings);
                 if ($proposed === []) {
@@ -588,10 +597,12 @@ class IdentityController extends Controller
                 $service->applyToEmployee($employee, $proposed);
                 $applied++;
             } catch (\Throwable $e) {
-                // Protected admin accounts are refused by Entra by design — not a
-                // real failure. Set them aside so they don't look like errors.
+                // Categorise the two "expected" Entra refusals so they don't read
+                // as real failures: protected admins (403) and deleted accounts (404).
                 if (AzureContactSyncService::isProtectedAdminError($e)) {
                     $protected[] = $employee->name;
+                } elseif (AzureContactSyncService::isMissingUserError($e)) {
+                    $missing[] = $employee->name;
                 } else {
                     $failures[] = $employee->name . ': ' . $this->graphFriendlyError($e);
                 }
@@ -600,8 +611,11 @@ class IdentityController extends Controller
 
         $msg = "Applied to {$applied} employee(s).";
         if ($protected) {
-            $msg .= ' ' . count($protected) . ' protected admin account(s) skipped (update these directly in Entra): '
+            $msg .= ' ' . count($protected) . ' protected admin account(s) skipped (update in Entra): '
                   . implode(', ', $protected) . '.';
+        }
+        if ($missing) {
+            $msg .= ' ' . count($missing) . ' account(s) skipped — no longer in Entra (removed/terminated).';
         }
 
         if ($failures) {
@@ -612,7 +626,7 @@ class IdentityController extends Controller
         }
 
         return redirect()->route('admin.identity.contact-sync')
-            ->with($protected ? 'warning' : 'success', $msg);
+            ->with(($protected || $missing) ? 'warning' : 'success', $msg);
     }
 
     /**

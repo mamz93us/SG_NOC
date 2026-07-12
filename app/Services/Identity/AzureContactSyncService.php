@@ -43,6 +43,20 @@ class AzureContactSyncService
     }
 
     /**
+     * True when Graph 404s because the target user no longer exists in Entra —
+     * a stale azure_id link (e.g. the employee was removed/terminated and their
+     * Entra account deleted). Not a real sync failure; the account should be
+     * skipped and the link reconciled.
+     */
+    public static function isMissingUserError(\Throwable $e): bool
+    {
+        $m = $e->getMessage();
+
+        return str_contains($m, 'Request_ResourceNotFound')
+            || str_contains($m, 'failed (404)');
+    }
+
+    /**
      * Build the Graph PATCH payload for one employee, using their branch
      * settings + extension. Only includes keys for which we have data — the
      * caller can decide whether to send empty values to clear fields.
