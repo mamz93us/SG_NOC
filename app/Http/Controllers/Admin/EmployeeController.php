@@ -97,6 +97,7 @@ class EmployeeController extends Controller
             'branch.ucmServer',
             'department',
             'manager',
+            'supervisor',
             'activeAssets.device',
             'assetAssignments.device',
             'activeItems',

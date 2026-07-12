@@ -102,6 +102,21 @@
                     <dt class="col-5 text-muted">Department</dt>
                     <dd class="col-7">{{ $employee->department?->name ?? '—' }}</dd>
 
+                    @if($employee->oracle_department || $employee->oracle_dept_no)
+                    <dt class="col-5 text-muted">Oracle Dept</dt>
+                    <dd class="col-7">
+                        {{ $employee->oracle_department ?? '—' }}
+                        @if($employee->oracle_dept_no)
+                        <span class="badge bg-light text-dark border ms-1" title="Oracle department number">#{{ $employee->oracle_dept_no }}</span>
+                        @endif
+                    </dd>
+                    @endif
+
+                    @if($employee->oracle_location)
+                    <dt class="col-5 text-muted">Oracle Location</dt>
+                    <dd class="col-7">{{ $employee->oracle_location }}</dd>
+                    @endif
+
                     @if($employee->oracle_synced_at)
                     <dt class="col-5 text-muted">HR Synced</dt>
                     <dd class="col-7"><span title="Last synced from Oracle HRMS import">{{ $employee->oracle_synced_at->format('d M Y') }}</span></dd>
@@ -112,6 +127,17 @@
                         @if($employee->manager)
                         <a href="{{ route('admin.employees.show', $employee->manager_id) }}" class="text-decoration-none">
                             <i class="bi bi-person me-1"></i>{{ $employee->manager->name }}
+                        </a>
+                        @else
+                        —
+                        @endif
+                    </dd>
+
+                    <dt class="col-5 text-muted">Supervisor</dt>
+                    <dd class="col-7">
+                        @if($employee->supervisor)
+                        <a href="{{ route('admin.employees.show', $employee->supervisor_id) }}" class="text-decoration-none">
+                            <i class="bi bi-person me-1"></i>{{ $employee->supervisor->name }}
                         </a>
                         @else
                         —
