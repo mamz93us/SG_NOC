@@ -28,12 +28,15 @@ on the NOC VM: printers submit plain, unauthenticated mail on port 25 (which the
 
 ```sh
 cd /home/azureuser/phonebook2/deployment/smtp-relay
-sudo bash setup.sh     # reuses AWS creds from the app .env
+sudo bash setup.sh     # reuses the SES creds stored in Email Marketing settings
 ```
 
-`setup.sh` installs Postfix (no local mail config), deploys `main.cf`, derives
-the SES SMTP password from the app's existing AWS credentials, writes and
-`postmap`s `/etc/postfix/sasl_passwd` (mode 600), and starts Postfix.
+`setup.sh` installs Postfix (no local mail config), deploys `main.cf`, obtains the
+SES SMTP line via `php artisan smtp-relay:sasl-line` (which reads the SES
+credentials stored — encrypted — in **Admin → Email Marketing settings** and
+derives the SMTP password), writes and `postmap`s `/etc/postfix/sasl_passwd`
+(mode 600), and starts Postfix. Override with explicit
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars if you prefer.
 
 Then edit `mynetworks` in `main.cf` to the real **printer VLAN** CIDRs, and:
 

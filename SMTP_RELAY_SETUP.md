@@ -20,9 +20,11 @@ Design decisions:
 - **Sender rewrite** — every printer's envelope sender **and** `From` header are
   rewritten to `scanner@samirgroup.com`. Only that one identity needs SES
   verification. Replies go to `scanner@samirgroup.com`.
-- **Reuse existing AWS credentials** — the app already sends via the SES API with
-  AWS keys (`config/services.php` → `ses`). The relay's SES **SMTP** password is
-  *derived* from the same `AWS_SECRET_ACCESS_KEY`; no new credential is created.
+- **Reuse existing SES credentials** — the app already stores SES creds (encrypted)
+  in **Admin → Email Marketing settings** (`ses_access_key_id` /
+  `ses_secret_access_key` / `ses_region`). The relay's SES **SMTP** password is
+  *derived* from that secret via `php artisan smtp-relay:sasl-line`; no new
+  credential is created, and no AWS keys need to be in `.env`.
 - **Native Postfix**, deployed from version-controlled config.
 
 ---
@@ -34,7 +36,9 @@ Design decisions:
    not enough. Check: SES console → *Account dashboard*.
 2. **`scanner@samirgroup.com` verified** in SES `us-east-1` (verify the address,
    or the whole `samirgroup.com` domain with DKIM).
-3. **IAM key has `ses:SendRawEmail`** — the same key already in the app's settings.
+3. **SES creds configured** in Admin → Email Marketing settings, and the IAM key
+   has `ses:SendRawEmail`. (If they aren't there, either configure them, or pass
+   `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars to `setup.sh`.)
 4. **Network reachability** — branch **printer VLANs** must route to the NOC
    internal IP (`172.16.8.x`). Per the NOC2 migration, confirm the NOC subnet is
    in each branch's Azure VPN scope (this has caused breakage before).
@@ -53,9 +57,10 @@ cd deployment/smtp-relay
 sudo bash setup.sh
 ```
 
-This installs Postfix, deploys `main.cf`, derives the SES SMTP password from the
-app's AWS credentials, writes/`postmap`s `/etc/postfix/sasl_passwd` (mode 600),
-and starts Postfix.
+This installs Postfix, deploys `main.cf`, obtains the SES SMTP line via
+`php artisan smtp-relay:sasl-line` (reads the SES creds from Email Marketing
+settings and derives the SMTP password), writes/`postmap`s
+`/etc/postfix/sasl_passwd` (mode 600), and starts Postfix.
 
 **Set the relay-able subnets.** Edit `mynetworks` in
 `deployment/smtp-relay/main.cf` to the real printer VLAN CIDRs (defaults ship as
