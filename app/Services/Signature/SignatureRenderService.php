@@ -9,6 +9,19 @@ use App\Models\IdentityUser;
 class SignatureRenderService
 {
     /**
+     * Hidden marker embedded in every rendered signature so a server-side Exchange
+     * transport rule can detect an already-signed message and skip it (dedup — stops
+     * classic-Outlook mail, which carries the client signature, being double-signed).
+     */
+    public const SIG_MARKER = 'SGSIGMARKER';
+
+    private function markerHtml(): string
+    {
+        return '<span style="display:none;mso-hide:all;font-size:1px;line-height:0;color:#ffffff;">'
+            . self::SIG_MARKER . '</span>';
+    }
+
+    /**
      * Render a template with the given variable map.
      * Supports:
      *   {{variable}}           — replaced with the value (empty string if missing)
@@ -40,7 +53,53 @@ class SignatureRenderService
         // 3. Remove any leftover unfilled placeholders
         $html = preg_replace('/\{\{\w+\}\}/', '', $html);
 
-        return $html;
+        return $html . $this->markerHtml();
+    }
+
+    /**
+     * Render a template for an Exchange transport-rule disclaimer (New Outlook / OWA /
+     * mobile): NOC variables mapped to Exchange %%AD-attribute%% tokens, {{#if}} blocks
+     * flattened (no per-message logic server-side), static template meta baked in, and
+     * the dedup marker appended. Per-user values are filled by Exchange at send time
+     * from Azure AD — which NOC already populates via AzureContactSyncService.
+     */
+    public function renderForTransportRule(EmailSignatureTemplate $template): string
+    {
+        $html = $template->html_body;
+
+        // Extension has no AD token (it is folded into the business phone) — drop its block.
+        $html = preg_replace('/\{\{#if\s+extension\}\}.*?\{\{\/if\}\}/s', '', $html);
+
+        // Flatten remaining {{#if x}}...{{/if}} — keep inner content unconditionally.
+        $html = preg_replace('/\{\{#if\s+\w+\}\}(.*?)\{\{\/if\}\}/s', '$1', $html);
+
+        // Bake in static, template-level meta (same for every sender on this template).
+        $html = str_replace('{{logo_url}}',      (string) ($template->logo_url ?? ''), $html);
+        $html = str_replace('{{primary_color}}', (string) ($template->primary_color ?? '#d81f2a'), $html);
+        $html = str_replace('{{year}}',          date('Y'), $html);
+
+        // Map per-user NOC variables → Exchange AD-attribute tokens.
+        $map = [
+            'name'           => '%%DisplayName%%',
+            'first_name'     => '%%FirstName%%',
+            'job_title'      => '%%Title%%',
+            'department'     => '%%Department%%',
+            'company'        => '%%Company%%',
+            'email'          => '%%Email%%',
+            'phone'          => '%%PhoneNumber%%',
+            'mobile'         => '%%MobileNumber%%',
+            'branch_name'    => '%%Office%%',
+            'branch_city'    => '%%City%%',
+            'branch_address' => '%%StreetAddress%%',
+        ];
+        foreach ($map as $var => $token) {
+            $html = str_replace('{{' . $var . '}}', $token, $html);
+        }
+
+        // Drop any leftover placeholders with no AD token (extension, branch_phone, stray tags).
+        $html = preg_replace('/\{\{[#\/]?\w+\}\}/', '', $html);
+
+        return $html . $this->markerHtml();
     }
 
     /**

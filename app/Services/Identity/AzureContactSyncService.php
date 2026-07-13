@@ -68,6 +68,9 @@ class AzureContactSyncService
         $data = [];
 
         // Oracle-sourced HR fields — NOC is the system of record for these.
+        if (! empty($employee->name)) {
+            $data['displayName'] = $employee->name;
+        }
         if (! empty($employee->job_title)) {
             $data['jobTitle'] = $employee->job_title;
         }
@@ -151,6 +154,7 @@ class AzureContactSyncService
     {
         $data = [];
 
+        if (! empty($employee->name))            { $data['displayName']    = $employee->name; }
         if (! empty($employee->job_title))       { $data['jobTitle']       = $employee->job_title; }
         $department = $employee->oracle_department ?: $employee->department?->name;
         if (! empty($department))                { $data['department']     = $department; }
@@ -256,6 +260,9 @@ class AzureContactSyncService
                     }
                     if (array_key_exists('companyName', $proposed)) {
                         $update['company_name'] = $proposed['companyName'];
+                    }
+                    if (array_key_exists('displayName', $proposed)) {
+                        $update['display_name'] = $proposed['displayName'];
                     }
                     if ($update !== []) {
                         $user->update($update);

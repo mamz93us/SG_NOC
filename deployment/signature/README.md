@@ -17,16 +17,27 @@ whoami /upn  ──►  GET https://noc.samirgroup.net/api/signature?upn=…&typ
 Outlook shows the signature on New mail & Reply/Forward
 ```
 
-## Two clients, two mechanisms
+## Two clients, two mechanisms (the hybrid — recommended)
 
 | Client | Reads signature from | Deploy with |
 |---|---|---|
-| **Classic Outlook** (desktop) | local files `%APPDATA%\Microsoft\Signatures` + HKCU | `Deploy-Signature.ps1` (Intune, per-PC, user context) |
-| **New Outlook** / **Outlook on the web** / **mobile** | the **cloud roaming signature** in the Exchange Online mailbox | `Deploy-NewOutlook-Signatures.ps1` (Exchange Online, server-side, per-mailbox) |
+| **Classic Outlook** (desktop) | local files `%APPDATA%\Microsoft\Signatures` + HKCU | **`Deploy-Signature.ps1`** (Intune, per-PC, user context) |
+| **New Outlook** / **Outlook on the web** / **mobile** | server-stamped at send time by an **Exchange transport rule** | **`Deploy-TransportRules.ps1`** (admin-run, per-domain rule) |
 
-New Outlook ignores local files entirely, so it needs the cloud script — see
-[**New Outlook deployment**](#new-outlook--owa--mobile-cloud-signatures) below. Run
-**both** if your fleet has a mix of classic and new Outlook.
+Both are driven by the **same NOC signature** (design once in the NOC editor). New Outlook
+ignores local files, and with roaming signatures ON there is no supported API to write the
+per-mailbox cloud signature — so the reliable server path is a **transport rule** that stamps
+the signature in mail flow.
+
+**No double-signing:** every rendered signature carries a hidden marker (`SGSIGMARKER`). The
+transport rule stamps **except** when the body already contains that marker — so classic
+Outlook mail (already client-signed) is skipped, while new Outlook / OWA / mobile mail is
+stamped server-side. Roll out with a **pilot group** used by *both* the Intune assignment and
+the transport rules — add a user to the group and they're covered on every client; remove them
+and they're fully removed. No org-wide switch.
+
+> The older `Deploy-NewOutlook-Signatures.ps1` (per-mailbox `Set-MailboxMessageConfiguration`)
+> only surfaces when roaming signatures are **disabled** org-wide. Prefer the transport rule.
 
 ## 1. Create a Signature API key
 
@@ -113,11 +124,46 @@ powershell -ExecutionPolicy Bypass -File .\Deploy-Signature.ps1 `
 - Restart Outlook → **File → Options → Mail → Signatures** shows `SamirGroup`, set as
   default for New messages and Replies/forwards. Open a new mail to confirm.
 
-## New Outlook / OWA / mobile (cloud signatures)
+## New Outlook / OWA / mobile — transport rule (recommended)
+
+Because roaming signatures are ON, the reliable way to cover new Outlook / OWA / mobile is a
+per-domain **Exchange transport rule** that stamps the NOC signature in mail flow. NOC
+generates the rule HTML (its variables mapped to `%%AD-attribute%%` tokens); an admin runs
+`Deploy-TransportRules.ps1` to push it into Exchange, scoped to the pilot group.
+
+```
+Admin box
+   │  Connect-ExchangeOnline (interactive)
+   ▼  for each domain:
+GET /api/signature/transport-rule?domain=…  ──►  New-/Set-TransportRule
+   │   (NOC vars → %%DisplayName%% %%Title%% …)      -ApplyHtmlDisclaimerText …
+   ▼                                                  -FromMemberOf <PilotGroup>
+Exchange fills %% tokens per sender from Azure AD (which NOC populates) and appends the
+signature at send time — EXCEPT when the body already carries the SGSIGMARKER (classic
+Outlook already signed it), so no double signature.
+```
+
+**Run it** (as an Exchange admin):
+```powershell
+# Preview (no changes):
+.\Deploy-TransportRules.ps1 -ApiKey hrk_… -PilotGroup 'SG-Signature-Pilot@samirgroup.com' -WhatIf
+
+# Apply (scoped to the pilot group):
+.\Deploy-TransportRules.ps1 -ApiKey hrk_… -PilotGroup 'SG-Signature-Pilot@samirgroup.com'
+```
+Prereqs: `Install-Module ExchangeOnlineManagement`; a **mail-enabled group** for the pilot;
+keep the template logo **hosted by URL** (not embedded) so the disclaimer stays within
+Exchange's size limit. Re-run whenever you change the NOC template.
+
+---
+
+## (Legacy) New Outlook via per-mailbox roaming signature
 
 New Outlook, Outlook on the web, and Outlook mobile read a **roaming signature stored in
-the mailbox**, not local files. You set it server-side with Exchange Online PowerShell —
-run `Deploy-NewOutlook-Signatures.ps1` on the NOC VM or an admin box (not on each PC).
+the mailbox**, not local files. `Deploy-NewOutlook-Signatures.ps1` sets it with
+`Set-MailboxMessageConfiguration` — **but this only surfaces when roaming signatures are
+disabled org-wide** (`Set-OrganizationConfig -PostponeRoamingSignaturesUntilLater $true`).
+Prefer the transport rule above unless you've deliberately disabled roaming.
 
 ```
 NOC VM / admin box (scheduled daily)

@@ -2179,6 +2179,12 @@ Route::get('/api/signature', [\App\Http\Controllers\Admin\SignatureController::c
     ->middleware('throttle:120,1')
     ->name('api.signature');
 
+// Transport-rule HTML (New Outlook / OWA / mobile) — consumed by Deploy-TransportRules.ps1.
+// GET /api/signature/transport-rule?domain=sssegypt.com&type=new_email&api_key=…
+Route::get('/api/signature/transport-rule', [\App\Http\Controllers\Admin\SignatureController::class, 'transportRuleHtml'])
+    ->middleware('throttle:120,1')
+    ->name('api.signature.transport-rule');
+
 // Internal VQ report endpoint
 Route::post('/api/internal/vq-report', [\App\Http\Controllers\Admin\VoiceQualityController::class, 'receive'])
     ->middleware('internal.ip')

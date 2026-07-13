@@ -192,6 +192,47 @@ class SignatureController extends Controller
         return response($html, 200)->header('Content-Type', 'text/html; charset=utf-8');
     }
 
+    /**
+     * GET /api/signature/transport-rule?domain=sssegypt.com&type=new_email&api_key=...
+     *
+     * Returns the domain's signature as Exchange transport-rule HTML: NOC variables
+     * mapped to %%AD-attribute%% tokens, {{#if}} flattened, dedup marker appended.
+     * Consumed by Deploy-TransportRules.ps1 to set the per-domain mail-flow rule for
+     * New Outlook / OWA / mobile. Same signature-scoped API-key auth as apiRender.
+     */
+    public function transportRuleHtml(Request $request): Response|JsonResponse
+    {
+        $raw = $request->query('api_key') ?? $request->bearerToken();
+        if (empty($raw)) {
+            return response()->json(['error' => 'API key required. Pass ?api_key= or Authorization: Bearer.'], 401);
+        }
+        $apiKey = HrApiKey::findByRawKey($raw, 'signature');
+        if (! $apiKey) {
+            return response()->json(['error' => 'Invalid or revoked API key.'], 401);
+        }
+        try { $apiKey->recordUsage($request->ip()); } catch (\Throwable) {}
+
+        $domain = $request->query('domain');
+        $type   = in_array($request->query('type'), ['new_email', 'reply']) ? $request->query('type') : 'new_email';
+
+        if (! $domain) {
+            return response()->json(['error' => 'domain parameter required'], 400);
+        }
+
+        $template = EmailSignatureTemplate::findBest($type, $domain);
+        if (! $template) {
+            return response()->json(['error' => 'No active template for this domain'], 404);
+        }
+
+        $html = $this->renderer->renderForTransportRule($template);
+
+        if ($request->query('format') === 'json') {
+            return response()->json(['html' => $html, 'domain' => $domain, 'type' => $type]);
+        }
+
+        return response($html, 200)->header('Content-Type', 'text/html; charset=utf-8');
+    }
+
     // ─── Private helpers ──────────────────────────────────────────
 
     private function validated(Request $request): array

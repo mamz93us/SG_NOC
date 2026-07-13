@@ -30,7 +30,8 @@ param(
     [string] $ReplyName      = 'SamirGroup Reply',                        # reply/forward name in Outlook
     [string] $Upn            = '',                                        # optional override; auto-detected if blank
     [switch] $NoLock,                                                     # pass to skip the read-only/policy lock
-    [switch] $KeepOtherSignatures                                         # pass to NOT delete pre-existing signatures
+    [switch] $KeepOtherSignatures,                                        # pass to NOT delete pre-existing signatures
+    [switch] $NoPreview                                                   # pass to suppress the branded preview window
 )
 
 $ErrorActionPreference = 'Stop'
@@ -116,6 +117,38 @@ function Write-SignatureFiles {
     }
 }
 
+# ─── Branded preview page shown to the user after install ────────────────────
+function Show-SignaturePreview {
+    param([string]$NewHtml, [string]$ReplyHtml, [string]$Dir)
+    $page = @"
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Your Email Signature</title>
+<style>
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#f3f4f6;margin:0;padding:32px;color:#1f2937;}
+  .wrap{max-width:720px;margin:0 auto;}
+  .banner{background:#d81f2a;color:#fff;border-radius:12px;padding:20px 24px;display:flex;align-items:center;gap:16px;}
+  .banner .tick{font-size:30px;line-height:1;}
+  .banner h1{font-size:18px;margin:0;font-weight:600;}
+  .banner p{margin:3px 0 0;font-size:13px;opacity:.92;}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-top:20px;overflow:hidden;}
+  .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;margin:0;padding:13px 20px;border-bottom:1px solid #f0f0f0;background:#fafafa;}
+  .card .sig{padding:22px 24px;}
+  .note{margin-top:18px;font-size:12px;color:#6b7280;text-align:center;line-height:1.7;}
+</style></head><body><div class="wrap">
+  <div class="banner"><div class="tick">&#10003;</div>
+    <div><h1>Your Samir Group email signature is ready</h1>
+    <p>It has been set up in Outlook automatically and is managed by IT.</p></div></div>
+  <div class="card"><h2>New email</h2><div class="sig">__NEW__</div></div>
+  <div class="card"><h2>Reply &amp; forward</h2><div class="sig">__REPLY__</div></div>
+  <p class="note">This signature is set and maintained by Samir Group IT.<br>Please do not edit or delete it &mdash; any changes are reset automatically. Questions? Contact the IT Service Desk.</p>
+</div></body></html>
+"@
+    $page = $page.Replace('__NEW__', $NewHtml).Replace('__REPLY__', $ReplyHtml)
+    $path = Join-Path $Dir 'preview.html'
+    [System.IO.File]::WriteAllText($path, $page, [System.Text.UTF8Encoding]::new($false))
+    Start-Process $path | Out-Null
+    return $path
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
@@ -195,6 +228,16 @@ try {
     # Store a hash so the detection script can tell when the template changed
     $hash = (Get-FileHash -Algorithm SHA256 -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($newHtml + $replyHtml)))).Hash
     Set-Content -Path (Join-Path $LogDir 'last.hash') -Value $hash -Encoding ASCII
+
+    # Show the user a friendly preview of their new signature (unless suppressed).
+    if (-not $NoPreview.IsPresent) {
+        try {
+            $p = Show-SignaturePreview -NewHtml $newHtml -ReplyHtml $replyHtml -Dir $LogDir
+            Write-Log "Opened signature preview: $p"
+        } catch {
+            Write-Log ("Preview failed (non-fatal): " + $_.Exception.Message) 'WARN'
+        }
+    }
 
     Write-Log "=== Signature deploy completed OK ==="
     exit 0
