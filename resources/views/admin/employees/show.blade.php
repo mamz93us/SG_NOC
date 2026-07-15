@@ -86,6 +86,11 @@
                     <dd class="col-7">{{ $employee->job_title }}</dd>
                     @endif
 
+                    @if($employee->gender)
+                    <dt class="col-5 text-muted">Gender</dt>
+                    <dd class="col-7">{{ ucfirst($employee->gender) }}</dd>
+                    @endif
+
                     @if($employee->oracle_emp_no)
                     <dt class="col-5 text-muted">Employee No</dt>
                     <dd class="col-7"><span class="badge bg-light text-dark border">{{ $employee->oracle_emp_no }}</span></dd>

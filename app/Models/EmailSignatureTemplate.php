@@ -11,6 +11,7 @@ class EmailSignatureTemplate extends Model
         'name',
         'domain',
         'type',
+        'gender',
         'logo_url',
         'primary_color',
         'html_body',
@@ -61,9 +62,17 @@ class EmailSignatureTemplate extends Model
      *   3. domain IS NULL + type match
      *   4. domain IS NULL + type = 'all'
      */
-    public static function findBest(string $type, ?string $domain = null): ?self
+    public static function findBest(string $type, ?string $domain = null, ?string $gender = null): ?self
     {
         return static::active()
+            // Only gender-neutral templates, or ones matching this employee's gender.
+            ->where(function ($q) use ($gender) {
+                $q->where('gender', 'all')->orWhereNull('gender');
+                if ($gender) {
+                    $q->orWhere('gender', $gender);
+                }
+            })
+            // Primary: right domain + slot.
             ->orderByRaw("
                 CASE
                     WHEN domain = ? AND `type` = ? THEN 1
@@ -73,6 +82,8 @@ class EmailSignatureTemplate extends Model
                     ELSE 5
                 END
             ", [$domain, $type, $domain, $type])
+            // Tiebreak: prefer a gender-specific template over the gender-neutral one.
+            ->orderByRaw('CASE WHEN gender = ? THEN 0 ELSE 1 END', [$gender ?? '__none__'])
             ->orderBy('sort_order')
             ->first();
     }

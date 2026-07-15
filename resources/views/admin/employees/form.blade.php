@@ -42,6 +42,16 @@
                                    value="{{ old('job_title', $employee->job_title ?? '') }}">
                         </div>
                         <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Gender</label>
+                            <select name="gender" class="form-select @error('gender') is-invalid @enderror">
+                                <option value="">— Unspecified —</option>
+                                @foreach(['male'=>'Male','female'=>'Female'] as $val => $label)
+                                <option value="{{ $val }}" {{ old('gender', $employee->gender ?? '') === $val ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Used to pick the male/female signature template.</div>
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label small fw-semibold">Status <span class="text-danger">*</span></label>
                             <select name="status" class="form-select @error('status') is-invalid @enderror" required>
                                 @foreach(['active'=>'Active','on_leave'=>'On Leave','terminated'=>'Terminated'] as $val => $label)

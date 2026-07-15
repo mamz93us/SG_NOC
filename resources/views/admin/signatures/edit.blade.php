@@ -54,7 +54,7 @@
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
             <div class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label fw-semibold">Template Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
                            value="{{ old('name', $template?->name) }}" placeholder="e.g. SamirGroup — New Email" required>
@@ -87,7 +87,17 @@
                     <div class="form-text">Which Outlook slot this fills</div>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label fw-semibold">Sort Order</label>
+                    <label class="form-label fw-semibold">Gender</label>
+                    <select name="gender" class="form-select @error('gender') is-invalid @enderror" required>
+                        <option value="all"    {{ old('gender', $template?->gender ?? 'all') === 'all'    ? 'selected' : '' }}>All / any</option>
+                        <option value="male"   {{ old('gender', $template?->gender) === 'male'   ? 'selected' : '' }}>Male</option>
+                        <option value="female" {{ old('gender', $template?->gender) === 'female' ? 'selected' : '' }}>Female</option>
+                    </select>
+                    @error('gender') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                    <div class="form-text">Applies to this gender</div>
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label fw-semibold">Sort</label>
                     <input type="number" name="sort_order" class="form-control"
                            value="{{ old('sort_order', $template?->sort_order ?? 0) }}" min="0" max="9999">
                 </div>

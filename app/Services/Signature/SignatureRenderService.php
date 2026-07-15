@@ -150,7 +150,9 @@ class SignatureRenderService
             $domain = count($parts) === 2 ? $parts[1] : null;
         }
 
-        $template = EmailSignatureTemplate::findBest($type, $domain);
+        // Pick the gendered template variant based on the employee's profile.
+        $gender   = Employee::where('azure_id', $user->azure_id)->value('gender');
+        $template = EmailSignatureTemplate::findBest($type, $domain, $gender);
 
         if (! $template) {
             return null;

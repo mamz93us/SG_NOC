@@ -197,12 +197,13 @@ class SignatureController extends Controller
 
         $domain = $request->query('domain');
         $type   = in_array($request->query('type'), ['new_email', 'reply']) ? $request->query('type') : 'new_email';
+        $gender = in_array($request->query('gender'), ['male', 'female']) ? $request->query('gender') : null;
 
         if (! $domain) {
             return response()->json(['error' => 'domain parameter required'], 400);
         }
 
-        $template = EmailSignatureTemplate::findBest($type, $domain);
+        $template = EmailSignatureTemplate::findBest($type, $domain, $gender);
         if (! $template) {
             return response()->json(['error' => 'No active template for this domain'], 404);
         }
@@ -224,6 +225,7 @@ class SignatureController extends Controller
             'name'            => 'required|string|max:200',
             'domain'          => 'nullable|string|max:100',
             'type'            => 'required|in:new_email,reply,all',
+            'gender'          => 'required|in:all,male,female',
             'logo_url'        => 'nullable|url|max:500',
             'primary_color'   => 'nullable|regex:/^#[0-9a-fA-F]{3,8}$/',
             'html_body'       => 'required|string',

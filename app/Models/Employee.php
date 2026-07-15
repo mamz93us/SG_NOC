@@ -17,6 +17,7 @@ class Employee extends Model
         'mobile_phone',
         'oracle_synced_at',
         'name',
+        'gender',
         'email',
         'branch_id',
         'department_id',
