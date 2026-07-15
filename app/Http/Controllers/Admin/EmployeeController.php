@@ -131,6 +131,14 @@ class EmployeeController extends Controller
             ->where('assignable_id', $employee->id)
             ->get();
 
+        // Intune-managed devices (laptops etc.) owned by this employee, matched by UPN.
+        $upn = $employee->identityUser?->user_principal_name ?: $employee->email;
+        $azureDevices = $upn
+            ? \App\Models\AzureDevice::where('upn', $upn)
+                ->orderByDesc('last_sync_at')
+                ->get()
+            : collect();
+
         // Resolve linked phone device from extension or linked contact's phone
         $phoneInfo = null;
         $extensionToLookup = $employee->extension_number
@@ -146,7 +154,7 @@ class EmployeeController extends Controller
 
         return view('admin.employees.show', compact(
             'employee', 'availableDevices', 'availableAccessories',
-            'availableLicenses', 'licenseAssignments', 'phoneInfo'
+            'availableLicenses', 'licenseAssignments', 'phoneInfo', 'azureDevices'
         ));
     }
 

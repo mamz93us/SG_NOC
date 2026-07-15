@@ -334,6 +334,76 @@
         </div>
         @endif
 
+        {{-- Intune-managed devices (laptops) owned by this employee --}}
+        @foreach($azureDevices as $dev)
+        <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #0d6efd!important">
+            <div class="card-header bg-transparent py-2 d-flex align-items-center">
+                <strong><i class="bi bi-laptop me-1 text-primary"></i>Managed Device</strong>
+                <span class="badge bg-light text-muted ms-auto small">Intune</span>
+            </div>
+            <div class="card-body small">
+                <div class="fw-semibold mb-1">{{ $dev->display_name ?: ($dev->model ?: 'Device') }}</div>
+                @if($dev->link_status)
+                <div class="mb-2"><span class="badge bg-{{ $dev->linkStatusBadgeClass() }}">{{ $dev->linkStatusLabel() }}</span></div>
+                @endif
+                <dl class="row mb-0">
+                    @if($dev->model)
+                    <dt class="col-5 text-muted">Model</dt>
+                    <dd class="col-7">{{ trim(($dev->manufacturer ? $dev->manufacturer.' ' : '').$dev->model) }}</dd>
+                    @endif
+
+                    @if($dev->os)
+                    <dt class="col-5 text-muted">OS</dt>
+                    <dd class="col-7">{{ $dev->os }}{{ $dev->os_version ? ' '.$dev->os_version : '' }}</dd>
+                    @endif
+
+                    @if($dev->serial_number)
+                    <dt class="col-5 text-muted">Serial</dt>
+                    <dd class="col-7 font-monospace">{{ $dev->serial_number }}</dd>
+                    @endif
+
+                    @if($dev->cpu_name)
+                    <dt class="col-5 text-muted">CPU</dt>
+                    <dd class="col-7">{{ $dev->cpu_name }}</dd>
+                    @endif
+
+                    @if($dev->teamviewer_id)
+                    <dt class="col-5 text-muted"><i class="bi bi-headset me-1 text-info"></i>TeamViewer</dt>
+                    <dd class="col-7">
+                        <span class="font-monospace fw-semibold">{{ $dev->teamviewer_id }}</span>
+                        @if($dev->tv_version)<span class="text-muted"> (v{{ $dev->tv_version }})</span>@endif
+                    </dd>
+                    @endif
+
+                    @if($dev->wifi_mac)
+                    <dt class="col-5 text-muted">Wi-Fi MAC</dt>
+                    <dd class="col-7 font-monospace">{{ strtoupper($dev->wifi_mac) }}</dd>
+                    @endif
+
+                    @if($dev->ethernet_mac)
+                    <dt class="col-5 text-muted">Ethernet MAC</dt>
+                    <dd class="col-7 font-monospace">{{ strtoupper($dev->ethernet_mac) }}</dd>
+                    @endif
+
+                    @if($dev->enrolled_date)
+                    <dt class="col-5 text-muted">Enrolled</dt>
+                    <dd class="col-7">{{ $dev->enrolled_date->format('d M Y') }}</dd>
+                    @endif
+
+                    @if($dev->last_sync_at)
+                    <dt class="col-5 text-muted">Last Sync</dt>
+                    <dd class="col-7">{{ $dev->last_sync_at->diffForHumans() }}</dd>
+                    @endif
+                </dl>
+                @if($dev->device_id)
+                <a href="{{ route('admin.devices.show', $dev->device_id) }}" class="btn btn-sm btn-outline-primary w-100 mt-3">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>View device record
+                </a>
+                @endif
+            </div>
+        </div>
+        @endforeach
+
         @if($employee->identityUser)
         <div class="card shadow-sm border-0"
              style="{{ $employee->azure_removed_at ? 'border-left:4px solid #dc3545!important' : (($employee->azure_disabled_at || $azureCurrentlyDisabled) ? 'border-left:4px solid #ffc107!important' : '') }}">
