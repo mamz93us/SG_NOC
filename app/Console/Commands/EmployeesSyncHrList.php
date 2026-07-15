@@ -70,19 +70,14 @@ class EmployeesSyncHrList extends Command
             $stats['rows']++;
             $seenEmpNos[] = $empNo;
 
-            // Match: prefer the file's company email (unambiguous). Fall back to EMP_NO,
-            // but never onto an SSS Egypt employee — SSS runs its own emp_no series that
-            // collides with the SamirGroup/Saudi numbers used in this file.
-            $emp       = null;
-            $fileEmail = strtolower($get($r, 'EMP_EMAIL_ADDRESS'));
-            if ($fileEmail !== '' && str_ends_with($fileEmail, '@samirgroup.com')) {
-                $emp = Employee::whereRaw('lower(email) = ?', [$fileEmail])->first();
-            }
-            if (! $emp) {
-                $emp = Employee::where('oracle_emp_no', $empNo)
-                    ->where(fn ($q) => $q->whereNull('email')->orWhere('email', 'not like', '%@sssegypt.com'))
-                    ->first();
-            }
+            // Match on EMP_NO only — the authoritative HR key (unique in the file).
+            // Deliberately NOT on the file's email: staff without a mailbox (drivers,
+            // guards, labourers) are listed with a colleague's address, so email would
+            // match the wrong person. Exclude SSS Egypt: it runs its own emp_no series
+            // that collides with the SamirGroup/Saudi numbers used in this file.
+            $emp = Employee::where('oracle_emp_no', $empNo)
+                ->where(fn ($q) => $q->whereNull('email')->orWhere('email', 'not like', '%@sssegypt.com'))
+                ->first();
 
             if (! $emp) {
                 $stats['unmatched']++;
