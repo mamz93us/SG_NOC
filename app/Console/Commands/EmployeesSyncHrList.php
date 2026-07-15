@@ -70,7 +70,20 @@ class EmployeesSyncHrList extends Command
             $stats['rows']++;
             $seenEmpNos[] = $empNo;
 
-            $emp = Employee::where('oracle_emp_no', $empNo)->first();
+            // Match: prefer the file's company email (unambiguous). Fall back to EMP_NO,
+            // but never onto an SSS Egypt employee — SSS runs its own emp_no series that
+            // collides with the SamirGroup/Saudi numbers used in this file.
+            $emp       = null;
+            $fileEmail = strtolower($get($r, 'EMP_EMAIL_ADDRESS'));
+            if ($fileEmail !== '' && str_ends_with($fileEmail, '@samirgroup.com')) {
+                $emp = Employee::whereRaw('lower(email) = ?', [$fileEmail])->first();
+            }
+            if (! $emp) {
+                $emp = Employee::where('oracle_emp_no', $empNo)
+                    ->where(fn ($q) => $q->whereNull('email')->orWhere('email', 'not like', '%@sssegypt.com'))
+                    ->first();
+            }
+
             if (! $emp) {
                 $stats['unmatched']++;
                 $unmatched[] = sprintf('%-8s %-28s %s', $empNo, $get($r, 'EMP_NAME'), $get($r, 'EMP_EMAIL_ADDRESS') ?: '(no email)');
