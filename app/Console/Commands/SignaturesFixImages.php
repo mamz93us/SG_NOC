@@ -37,8 +37,13 @@ class SignaturesFixImages extends Command
             $orig = $t->html_body;
             $html = $orig;
 
-            // 1. Drop Word VML conditional-comment blocks (these carry the file:// refs).
+            // 1. Drop Word junk that carries file:// refs and only renders in ancient Outlook:
+            //    conditional-comment blocks, raw VML <v:shape> blocks, and stray
+            //    v:/o:/w:/m: namespaced tags + downlevel <![if]> markers.
             $html = preg_replace('/<!--\[if[^\]]*\]>.*?<!\[endif\]-->/is', '', $html);
+            $html = preg_replace('/<v:shape\b[^>]*>.*?<\/v:shape>/is', '', $html);
+            $html = preg_replace('/<\/?(?:v|o|w|m):[a-z0-9]+\b[^>]*>/i', '', $html);
+            $html = preg_replace('/<!\[if[^\]]*\]>|<!\[endif\]>/i', '', $html);
 
             // 2. Repoint every <img> whose src is NOT an absolute http(s) URL to the
             //    hosted logo for this domain (fixes junk GIFs, file://, and relative paths).

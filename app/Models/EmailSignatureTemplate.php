@@ -65,12 +65,14 @@ class EmailSignatureTemplate extends Model
     public static function findBest(string $type, ?string $domain = null, ?string $gender = null): ?self
     {
         return static::active()
-            // Only gender-neutral templates, or ones matching this employee's gender.
-            ->where(function ($q) use ($gender) {
-                $q->where('gender', 'all')->orWhereNull('gender');
-                if ($gender) {
-                    $q->orWhere('gender', $gender);
-                }
+            // When a gender is known, exclude the OPPOSITE gender (keep this gender +
+            // gender-neutral). When gender is unknown (e.g. the server transport-rule
+            // render), apply no gender filter so domain still wins — never cross domains
+            // to a gender-neutral template of the wrong company.
+            ->when($gender !== null, function ($q) use ($gender) {
+                $q->where(fn ($w) => $w->where('gender', $gender)
+                    ->orWhere('gender', 'all')
+                    ->orWhereNull('gender'));
             })
             // Primary: right domain + slot.
             ->orderByRaw("
