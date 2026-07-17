@@ -43,7 +43,10 @@ class SignaturesFixImages extends Command
             $html = preg_replace('/<!--\[if[^\]]*\]>.*?<!\[endif\]-->/is', '', $html);
             $html = preg_replace('/<v:shape\b[^>]*>.*?<\/v:shape>/is', '', $html);
             $html = preg_replace('/<\/?(?:v|o|w|m):[a-z0-9]+\b[^>]*>/i', '', $html);
-            $html = preg_replace('/<!\[if[^\]]*\]>|<!\[endif\]>/i', '', $html);
+            // Orphaned conditional markers (both comment and downlevel forms).
+            $html = preg_replace('/<!--\[if[^\]]*\]>|<!\[endif\]-->|<!\[if[^\]]*\]>|<!\[endif\]>/i', '', $html);
+            // Namespaced attributes left on real tags (v:shapes, o:spid, …).
+            $html = preg_replace('/\s+(?:v|o|w|m):[a-z0-9]+\s*=\s*"[^"]*"/i', '', $html);
 
             // 2. Repoint every <img> whose src is NOT an absolute http(s) URL to the
             //    hosted logo for this domain (fixes junk GIFs, file://, and relative paths).
