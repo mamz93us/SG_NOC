@@ -2185,6 +2185,11 @@ Route::get('/api/signature/transport-rule', [\App\Http\Controllers\Admin\Signatu
     ->middleware('throttle:120,1')
     ->name('api.signature.transport-rule');
 
+// Gendered UPN list for populating the per-gender Exchange groups (Deploy-TransportRules.ps1).
+Route::get('/api/signature/gender-members', [\App\Http\Controllers\Admin\SignatureController::class, 'genderMembers'])
+    ->middleware('throttle:120,1')
+    ->name('api.signature.gender-members');
+
 // Internal VQ report endpoint
 Route::post('/api/internal/vq-report', [\App\Http\Controllers\Admin\VoiceQualityController::class, 'receive'])
     ->middleware('internal.ip')

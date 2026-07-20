@@ -217,6 +217,51 @@ class SignatureController extends Controller
         return response($html, 200)->header('Content-Type', 'text/html; charset=utf-8');
     }
 
+    /**
+     * GET /api/signature/gender-members?domain=samirgroup.com&gender=male&api_key=...
+     *
+     * Returns the active UPNs for a domain + gender, so the per-gender Exchange mail
+     * groups (that scope the gendered transport rules) can be populated from NOC data.
+     * Same signature-scoped API-key auth.
+     */
+    public function genderMembers(Request $request): JsonResponse
+    {
+        $raw = $request->query('api_key') ?? $request->bearerToken();
+        if (empty($raw)) {
+            return response()->json(['error' => 'API key required.'], 401);
+        }
+        $apiKey = HrApiKey::findByRawKey($raw, 'signature');
+        if (! $apiKey) {
+            return response()->json(['error' => 'Invalid or revoked API key.'], 401);
+        }
+        try { $apiKey->recordUsage($request->ip()); } catch (\Throwable) {}
+
+        $domain = strtolower((string) $request->query('domain'));
+        $gender = in_array($request->query('gender'), ['male', 'female'], true) ? $request->query('gender') : null;
+
+        if (! $domain || ! $gender) {
+            return response()->json(['error' => 'domain and gender (male|female) required'], 400);
+        }
+
+        $upns = \App\Models\Employee::where('gender', $gender)
+            ->where('status', 'active')
+            ->whereNotNull('azure_id')
+            ->with('identityUser')
+            ->get()
+            ->map(fn ($e) => strtolower((string) ($e->identityUser?->user_principal_name ?: $e->email)))
+            ->filter(fn ($u) => $u !== '' && str_ends_with($u, '@'.$domain))
+            ->unique()
+            ->sort()
+            ->values();
+
+        return response()->json([
+            'domain' => $domain,
+            'gender' => $gender,
+            'count'  => $upns->count(),
+            'upns'   => $upns,
+        ]);
+    }
+
     // ─── Private helpers ──────────────────────────────────────────
 
     private function validated(Request $request): array

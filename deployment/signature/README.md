@@ -143,17 +143,48 @@ signature at send time — EXCEPT when the body already carries the SGSIGMARKER 
 Outlook already signed it), so no double signature.
 ```
 
-**Run it** (as an Exchange admin):
+### Groups (per gender)
+
+A transport rule can't read a sender's gender per message, so gendered templates need one
+rule per (domain, gender), each scoped to a mail-enabled group whose **membership is the
+audience**. Create three mail-enabled security groups:
+
+| Group | Who | Rule it scopes |
+|---|---|---|
+| `SG-Signature-Male`   | samirgroup.com **males**   | `SG Signature - samirgroup.com Male` |
+| `SG-Signature-Female` | samirgroup.com **females** | `SG Signature - samirgroup.com Female` |
+| `SG-Signature-Pilot`  | sssegypt.com (gender-neutral) | `SG Signature - sssegypt.com` |
+
+Populate the gender groups from NOC data (gender lives in NOC). This one-liner pulls the
+UPNs from the NOC endpoint and adds them — re-run any time to keep in sync:
+
+```powershell
+$K='hrk_…'
+foreach ($g in 'male','female') {
+    $grp = if ($g -eq 'male') {'SG-Signature-Male'} else {'SG-Signature-Female'}
+    $r = Invoke-RestMethod "https://noc.samirgroup.net/api/signature/gender-members?domain=samirgroup.com&gender=$g&api_key=$K"
+    Write-Host "$g -> $($r.count) users into $grp"
+    $r.upns | ForEach-Object { Add-DistributionGroupMember -Identity $grp -Member $_ -ErrorAction SilentlyContinue }
+}
+```
+For a **pilot**, skip the bulk populate and just add a couple of test users (one male, one
+female, one SSS) to the three groups by hand.
+
+### Run it (as an Exchange admin)
 ```powershell
 # Preview (no changes):
-.\Deploy-TransportRules.ps1 -ApiKey hrk_… -PilotGroup 'SG-Signature-Pilot@samirgroup.com' -WhatIf
+.\Deploy-TransportRules.ps1 -ApiKey hrk_… -MaleGroup 'SG-Signature-Male' `
+    -FemaleGroup 'SG-Signature-Female' -PilotGroup 'SG-Signature-Pilot' -WhatIf
 
-# Apply (scoped to the pilot group):
-.\Deploy-TransportRules.ps1 -ApiKey hrk_… -PilotGroup 'SG-Signature-Pilot@samirgroup.com'
+# Apply:
+.\Deploy-TransportRules.ps1 -ApiKey hrk_… -MaleGroup 'SG-Signature-Male' `
+    -FemaleGroup 'SG-Signature-Female' -PilotGroup 'SG-Signature-Pilot'
 ```
-Prereqs: `Install-Module ExchangeOnlineManagement`; a **mail-enabled group** for the pilot;
-keep the template logo **hosted by URL** (not embedded) so the disclaimer stays within
-Exchange's size limit. Re-run whenever you change the NOC template.
+This creates/updates three rules: SSS (neutral) + Samirgroup Male + Samirgroup Female.
+Prereqs: `Install-Module ExchangeOnlineManagement`; keep the template logo **hosted by URL**
+(not embedded) so the disclaimer stays within Exchange's size limit. Re-run whenever you
+change a NOC template. **Membership = audience:** a female in `SG-Signature-Male` gets the
+male signature, so keep the groups gender-correct (the one-liner above does this from NOC).
 
 ---
 

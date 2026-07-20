@@ -1,42 +1,60 @@
 <#
 .SYNOPSIS
-    Deploys per-domain Exchange transport rules that stamp the NOC email signature onto
-    outbound mail for NEW Outlook / OWA / mobile (the clients that ignore local files).
+    Deploys Exchange transport rules that stamp the NOC email signature onto outbound mail
+    for NEW Outlook / OWA / mobile (the clients that ignore local files), per domain and
+    per gender.
 
 .DESCRIPTION
-    Pulls the transport-rule HTML from the NOC endpoint (/api/signature/transport-rule)
-    for each domain and creates/updates a mail-flow rule, scoped to a pilot group, with a
-    dedup-marker exception so classic-Outlook mail (already client-signed by
-    Deploy-Signature.ps1) is NOT double-stamped.
+    A transport rule is static per audience — it can't read a sender's gender per message —
+    so gender-specific templates need one rule per (domain, gender), each scoped to a
+    mail-enabled group whose membership IS the audience:
 
-    The signature is DESIGNED in NOC; this pushes NOC's generated HTML into Exchange.
-    Exchange fills the %%AD-attribute%% tokens per sender from Azure AD, which NOC
-    already populates (AzureContactSyncService). Re-run whenever the NOC template changes.
+        SG Signature - sssegypt.com          -> PilotGroup   (SSS is gender-neutral)
+        SG Signature - samirgroup.com Male    -> MaleGroup
+        SG Signature - samirgroup.com Female  -> FemaleGroup
+
+    Each rule fetches its HTML from the NOC endpoint (with &gender=), appends it as a
+    disclaimer, and skips messages already carrying the dedup marker (classic-Outlook mail
+    that Deploy-Signature.ps1 already signed) so nobody is double-signed. Exchange fills the
+    %%AD-attribute%% tokens per sender from Azure AD, which NOC populates.
+
+    GROUP MEMBERSHIP is the scope: put males in MaleGroup and females in FemaleGroup (a
+    female in MaleGroup would get the male signature). Populate from NOC gender — see the
+    README for the one-liner that lists male/female UPNs.
 
 .NOTES
-    - Run by an admin; interactive Exchange Online sign-in (no app registration needed).
-    - Scope is a mail-enabled group -> add users to pilot, remove to exclude. No org-wide switch.
-    - Keep the logo hosted by URL (not embedded base64) so the disclaimer stays small.
+    - Run by an admin; interactive Exchange Online sign-in.
+    - Re-run whenever the NOC template changes.
+    - Keep logos hosted by URL (not embedded) so the disclaimer stays within the size limit.
 #>
 param(
-    [string]   $BaseUrl    = 'https://noc.samirgroup.net',
-    [Parameter(Mandatory)] [string] $ApiKey,                 # hrk_... (scope: signature)
-    [Parameter(Mandatory)] [string] $PilotGroup,             # mail-enabled group (email or name) that scopes the rule
-    [string[]] $Domains    = @('sssegypt.com','samirgroup.com'),
-    [string]   $Marker     = 'SGSIGMARKER',                  # must match SignatureRenderService::SIG_MARKER
-    [string]   $AdminUpn   = '',                             # optional: pre-fill the EXO sign-in
-    [switch]   $WhatIf
+    [string] $BaseUrl = 'https://noc.samirgroup.net',
+    [Parameter(Mandatory)] [string] $ApiKey,               # hrk_... (scope: signature)
+    [Parameter(Mandatory)] [string] $MaleGroup,            # mail-enabled group: samirgroup MALE users
+    [Parameter(Mandatory)] [string] $FemaleGroup,          # mail-enabled group: samirgroup FEMALE users
+    [Parameter(Mandatory)] [string] $PilotGroup,           # mail-enabled group: SSS (gender-neutral) users
+    [string] $Marker   = 'SGSIGMARKER',                    # must match SignatureRenderService::SIG_MARKER
+    [string] $AdminUpn = '',                               # optional: pre-fill the EXO sign-in
+    [switch] $WhatIf
 )
 
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+# Rule set: one entry per (domain, gender). Gender $null = gender-neutral (no &gender=).
+$Rules = @(
+    [pscustomobject]@{ Name = 'SG Signature - sssegypt.com';         Domain = 'sssegypt.com';   Gender = $null;     Group = $PilotGroup  }
+    [pscustomobject]@{ Name = 'SG Signature - samirgroup.com Male';   Domain = 'samirgroup.com'; Gender = 'male';    Group = $MaleGroup   }
+    [pscustomobject]@{ Name = 'SG Signature - samirgroup.com Female'; Domain = 'samirgroup.com'; Gender = 'female';  Group = $FemaleGroup }
+)
+
 function Get-RuleHtml {
-    param([string]$Domain)
+    param([string]$Domain, [string]$Gender)
     $uri = "{0}/api/signature/transport-rule?domain={1}&type=new_email&format=json&api_key={2}" -f `
         $BaseUrl, [uri]::EscapeDataString($Domain), [uri]::EscapeDataString($ApiKey)
+    if ($Gender) { $uri += '&gender=' + [uri]::EscapeDataString($Gender) }
     $resp = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 30
-    if (-not $resp.html) { throw "NOC returned no HTML for $Domain" }
+    if (-not $resp.html) { throw "NOC returned no HTML for $Domain ($Gender)" }
     return [string]$resp.html
 }
 
@@ -50,21 +68,20 @@ if ($AdminUpn) { Connect-ExchangeOnline -UserPrincipalName $AdminUpn -ShowBanner
 else           { Connect-ExchangeOnline -ShowBanner:$false }
 
 try {
-    foreach ($domain in $Domains) {
-        $ruleName = "SG Signature - $domain"
+    foreach ($rule in $Rules) {
+        $g = if ($rule.Gender) { $rule.Gender } else { 'neutral' }
         Write-Host ""
-        Write-Host "=== $domain -> '$ruleName' ===" -ForegroundColor Cyan
+        Write-Host "=== $($rule.Domain) [$g] -> '$($rule.Name)'  (group: $($rule.Group)) ===" -ForegroundColor Cyan
 
-        $html = Get-RuleHtml -Domain $domain
+        $html = Get-RuleHtml -Domain $rule.Domain -Gender $rule.Gender
         Write-Host "Fetched HTML from NOC ($($html.Length) chars)." -ForegroundColor Green
 
-        # Conditions (AND): internal sender, in this domain, member of the pilot group.
-        # Action: append the disclaimer. Exception: body already contains the dedup marker
-        # (i.e. classic Outlook already signed it) -> skip, so no double signature.
+        # Conditions (AND): internal sender, in this domain, member of the audience group.
+        # Exception: body already carries the dedup marker (classic Outlook already signed).
         $params = @{
             FromScope                          = 'InOrganization'
-            SenderDomainIs                     = $domain
-            FromMemberOf                       = $PilotGroup
+            SenderDomainIs                     = $rule.Domain
+            FromMemberOf                       = $rule.Group
             ApplyHtmlDisclaimerLocation        = 'Append'
             ApplyHtmlDisclaimerText            = $html
             ApplyHtmlDisclaimerFallbackAction  = 'Wrap'
@@ -72,24 +89,24 @@ try {
         }
 
         if ($WhatIf) {
-            Write-Host "WHATIF: would set rule '$ruleName' scoped to group '$PilotGroup'." -ForegroundColor Yellow
+            Write-Host "WHATIF: would set '$($rule.Name)' scoped to '$($rule.Group)'." -ForegroundColor Yellow
             continue
         }
 
-        $existing = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
+        $existing = Get-TransportRule -Identity $rule.Name -ErrorAction SilentlyContinue
         if ($existing) {
-            Set-TransportRule -Identity $ruleName @params
-            Enable-TransportRule -Identity $ruleName -Confirm:$false
-            Write-Host "Updated rule '$ruleName'." -ForegroundColor Green
+            Set-TransportRule -Identity $rule.Name @params
+            Enable-TransportRule -Identity $rule.Name -Confirm:$false
+            Write-Host "Updated rule '$($rule.Name)'." -ForegroundColor Green
         } else {
-            New-TransportRule -Name $ruleName -Enabled $true @params
-            Write-Host "Created rule '$ruleName'." -ForegroundColor Green
+            New-TransportRule -Name $rule.Name -Enabled $true @params
+            Write-Host "Created rule '$($rule.Name)'." -ForegroundColor Green
         }
     }
 
     Write-Host ""
-    Write-Host "Done. Test as a pilot user: send from OWA/new Outlook (signature appears)," -ForegroundColor Green
-    Write-Host "then from classic Outlook (should NOT double-sign - the marker skips it)."   -ForegroundColor Green
+    Write-Host "Done. Test per group: send from OWA/new Outlook as a male, a female, and an SSS" -ForegroundColor Green
+    Write-Host "pilot user; then from classic Outlook (must NOT double-sign - the marker skips it)." -ForegroundColor Green
 }
 finally {
     Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
