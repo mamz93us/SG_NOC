@@ -33,6 +33,7 @@ param(
     [string] $Marker   = 'SGSIGMARKER',
     [string] $AdminUpn = '',
     [switch] $Pilot,        # create groups + rules but SKIP bulk populate (hand-add testers)
+    [switch] $RefreshOnly,  # ONLY re-push the rule HTML (fast) - skip groups + populate. Use after a template/logo edit.
     [switch] $WhatIf
 )
 
@@ -71,32 +72,36 @@ if ($AdminUpn) { Connect-ExchangeOnline -UserPrincipalName $AdminUpn -ShowBanner
 else           { Connect-ExchangeOnline -ShowBanner:$false }
 
 try {
-    # 1) Groups
-    Write-Host "`n== 1. Groups ==" -ForegroundColor Cyan
-    $created = $false
-    foreach ($p in $Plan) {
-        if (Get-DistributionGroup -Identity $p.Smtp -ErrorAction SilentlyContinue) {
-            Write-Host "  exists : $($p.Group)"
-        } elseif ($WhatIf) {
-            Write-Host "  WHATIF : would create $($p.Group)" -ForegroundColor Yellow
-        } else {
-            New-DistributionGroup -Name $p.Group -Type Security -PrimarySmtpAddress $p.Smtp | Out-Null
-            Write-Host "  created: $($p.Group)" -ForegroundColor Green
-            $created = $true
-        }
-    }
-    if ($created) { Write-Host "  (waiting 20s for new groups to provision...)"; Start-Sleep -Seconds 20 }
-
-    # 2) Populate
-    Write-Host "`n== 2. Populate ==" -ForegroundColor Cyan
-    if ($Pilot) {
-        Write-Host "  SKIPPED (-Pilot): hand-add a few testers to the three groups." -ForegroundColor Yellow
+    if ($RefreshOnly) {
+        Write-Host "`n== RefreshOnly: skipping groups + populate, re-pushing rule HTML only ==" -ForegroundColor Yellow
     } else {
+        # 1) Groups
+        Write-Host "`n== 1. Groups ==" -ForegroundColor Cyan
+        $created = $false
         foreach ($p in $Plan) {
-            $upns = Get-NocUpns -Domain $p.Domain -Gender $p.Gender
-            Write-Host "  $($p.Group): $($upns.Count) users from NOC"
-            if (-not $WhatIf) {
-                foreach ($upn in $upns) { Add-DistributionGroupMember -Identity $p.Smtp -Member $upn -ErrorAction SilentlyContinue }
+            if (Get-DistributionGroup -Identity $p.Smtp -ErrorAction SilentlyContinue) {
+                Write-Host "  exists : $($p.Group)"
+            } elseif ($WhatIf) {
+                Write-Host "  WHATIF : would create $($p.Group)" -ForegroundColor Yellow
+            } else {
+                New-DistributionGroup -Name $p.Group -Type Security -PrimarySmtpAddress $p.Smtp | Out-Null
+                Write-Host "  created: $($p.Group)" -ForegroundColor Green
+                $created = $true
+            }
+        }
+        if ($created) { Write-Host "  (waiting 20s for new groups to provision...)"; Start-Sleep -Seconds 20 }
+
+        # 2) Populate
+        Write-Host "`n== 2. Populate ==" -ForegroundColor Cyan
+        if ($Pilot) {
+            Write-Host "  SKIPPED (-Pilot): hand-add a few testers to the three groups." -ForegroundColor Yellow
+        } else {
+            foreach ($p in $Plan) {
+                $upns = Get-NocUpns -Domain $p.Domain -Gender $p.Gender
+                Write-Host "  $($p.Group): $($upns.Count) users from NOC"
+                if (-not $WhatIf) {
+                    foreach ($upn in $upns) { Add-DistributionGroupMember -Identity $p.Smtp -Member $upn -ErrorAction SilentlyContinue }
+                }
             }
         }
     }
