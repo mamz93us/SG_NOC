@@ -220,9 +220,10 @@ class SignatureController extends Controller
     /**
      * GET /api/signature/gender-members?domain=samirgroup.com&gender=male&api_key=...
      *
-     * Returns the active UPNs for a domain + gender, so the per-gender Exchange mail
-     * groups (that scope the gendered transport rules) can be populated from NOC data.
-     * Same signature-scoped API-key auth.
+     * Returns the active UPNs for a domain, optionally filtered by gender, so the
+     * Exchange mail groups that scope the transport rules can be populated from NOC data.
+     * Omit gender (or gender=all) to list every active user of the domain — used for the
+     * gender-neutral SSS group. Same signature-scoped API-key auth.
      */
     public function genderMembers(Request $request): JsonResponse
     {
@@ -239,11 +240,11 @@ class SignatureController extends Controller
         $domain = strtolower((string) $request->query('domain'));
         $gender = in_array($request->query('gender'), ['male', 'female'], true) ? $request->query('gender') : null;
 
-        if (! $domain || ! $gender) {
-            return response()->json(['error' => 'domain and gender (male|female) required'], 400);
+        if (! $domain) {
+            return response()->json(['error' => 'domain required'], 400);
         }
 
-        $upns = \App\Models\Employee::where('gender', $gender)
+        $upns = \App\Models\Employee::when($gender, fn ($q) => $q->where('gender', $gender))
             ->where('status', 'active')
             ->whereNotNull('azure_id')
             ->with('identityUser')
@@ -256,7 +257,7 @@ class SignatureController extends Controller
 
         return response()->json([
             'domain' => $domain,
-            'gender' => $gender,
+            'gender' => $gender ?? 'all',
             'count'  => $upns->count(),
             'upns'   => $upns,
         ]);
