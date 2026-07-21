@@ -136,12 +136,11 @@ class AzureContactSyncService
             $data['officeLocation'] = $branch->name;
         }
 
-        if (! empty($rendered['phone'])) {
-            $data['businessPhones'] = [$rendered['phone']];
-        } elseif (! empty($branch->phone_number) && $extension !== '') {
-            $data['businessPhones'] = [trim($branch->phone_number).' EXT '.$extension];
-        } elseif (! empty($branch->phone_number)) {
+        // Business phone = clean office landline (no embedded extension — that goes to fax).
+        if (! empty($branch->phone_number)) {
             $data['businessPhones'] = [trim($branch->phone_number)];
+        } elseif (! empty($rendered['phone'])) {
+            $data['businessPhones'] = [trim(preg_replace('/\s*(?:ext\.?|x)\s*\d+\s*$/i', '', $rendered['phone']))];
         }
 
         return $data;
@@ -164,7 +163,12 @@ class AzureContactSyncService
         if (! empty($department))                { $data['department']     = $department; }
         if (! empty($employee->company))         { $data['companyName']    = $employee->company; }
         if (! empty($employee->mobile_phone))    { $data['mobilePhone']    = $employee->mobile_phone; }
-        if (! empty($employee->work_phone))      { $data['businessPhones'] = [$employee->work_phone]; }
+        // Business phone = the office landline (employee work_phone, else branch phone),
+        // with any embedded "EXT ###" stripped — the extension is carried separately in fax.
+        $officePhone = $employee->work_phone ?: $employee->branch?->phone_number;
+        if (! empty($officePhone)) {
+            $data['businessPhones'] = [trim(preg_replace('/\s*(?:ext\.?|x)\s*\d+\s*$/i', '', $officePhone))];
+        }
         // Extension has no native Azure field, so we carry it in the (unused) fax field —
         // the signature transport rule reads it via %%FaxNumber%%.
         if (! empty($employee->extension_number)) { $data['faxNumber']     = (string) $employee->extension_number; }
