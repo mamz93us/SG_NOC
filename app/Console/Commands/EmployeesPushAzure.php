@@ -22,6 +22,8 @@ class EmployeesPushAzure extends Command
     protected $signature = 'employees:push-azure
                             {--emp-no=* : Match by oracle_emp_no (repeatable)}
                             {--id=* : Match by employee id (repeatable)}
+                            {--all : All active employees with an azure_id}
+                            {--domain= : Limit --all to employees whose email is on this domain}
                             {--dry : Print what would be pushed; write nothing}';
 
     protected $description = 'Push NOC employee contact fields (name, title, dept, phones, office) to Azure AD';
@@ -35,22 +37,27 @@ class EmployeesPushAzure extends Command
     {
         $empNos = (array) $this->option('emp-no');
         $ids    = (array) $this->option('id');
+        $all    = (bool) $this->option('all');
+        $domain = strtolower((string) $this->option('domain'));
 
-        if (! $empNos && ! $ids) {
-            $this->error('Pass at least one --emp-no= or --id=');
+        if (! $empNos && ! $ids && ! $all) {
+            $this->error('Pass --emp-no=, --id=, or --all');
 
             return self::FAILURE;
         }
 
         $employees = Employee::with(['branch', 'department', 'identityUser'])
-            ->where(function ($w) use ($empNos, $ids) {
+            ->whereNotNull('azure_id')
+            ->when($all, fn ($q) => $q->where('status', 'active'))
+            ->when($all && $domain, fn ($q) => $q->where('email', 'like', '%@'.$domain))
+            ->when(! $all, fn ($q) => $q->where(function ($w) use ($empNos, $ids) {
                 if ($empNos) {
                     $w->orWhereIn('oracle_emp_no', $empNos);
                 }
                 if ($ids) {
                     $w->orWhereIn('id', $ids);
                 }
-            })
+            }))
             ->orderBy('oracle_emp_no')
             ->get();
 
