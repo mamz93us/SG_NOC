@@ -225,12 +225,16 @@ try {
     }
     Write-Log "Set default signatures (New='$SignatureName', Reply='$ReplyName')."
 
-    # Store a hash so the detection script can tell when the template changed
-    $hash = (Get-FileHash -Algorithm SHA256 -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($newHtml + $replyHtml)))).Hash
-    Set-Content -Path (Join-Path $LogDir 'last.hash') -Value $hash -Encoding ASCII
+    # Hash the content so we (a) let the detection script know when the template changed
+    # and (b) only pop the preview when it actually changed — not on every scheduled run.
+    $hashFile = Join-Path $LogDir 'last.hash'
+    $oldHash  = (Get-Content -Path $hashFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $hash     = (Get-FileHash -Algorithm SHA256 -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($newHtml + $replyHtml)))).Hash
+    Set-Content -Path $hashFile -Value $hash -Encoding ASCII
+    $changed  = ($oldHash -ne $hash)
 
-    # Show the user a friendly preview of their new signature (unless suppressed).
-    if (-not $NoPreview.IsPresent) {
+    # Show the branded preview only on first install / when the signature changed.
+    if (-not $NoPreview.IsPresent -and $changed) {
         try {
             $p = Show-SignaturePreview -NewHtml $newHtml -ReplyHtml $replyHtml -Dir $LogDir
             Write-Log "Opened signature preview: $p"
