@@ -81,6 +81,10 @@ class AzureContactSyncService
         if (! empty($employee->mobile_phone)) {
             $data['mobilePhone'] = $employee->mobile_phone;
         }
+        // Extension carried in the fax field (read by the signature via %%FaxNumber%%).
+        if (! empty($employee->extension_number)) {
+            $data['faxNumber'] = (string) $employee->extension_number;
+        }
 
         $branch = $employee->branch;
         if (! $branch) {
@@ -161,6 +165,9 @@ class AzureContactSyncService
         if (! empty($employee->company))         { $data['companyName']    = $employee->company; }
         if (! empty($employee->mobile_phone))    { $data['mobilePhone']    = $employee->mobile_phone; }
         if (! empty($employee->work_phone))      { $data['businessPhones'] = [$employee->work_phone]; }
+        // Extension has no native Azure field, so we carry it in the (unused) fax field —
+        // the signature transport rule reads it via %%FaxNumber%%.
+        if (! empty($employee->extension_number)) { $data['faxNumber']     = (string) $employee->extension_number; }
         if (! empty($employee->office_location)) { $data['officeLocation'] = $employee->office_location; }
         if (! empty($employee->city))            { $data['city']           = $employee->city; }
         if (! empty($employee->street_address))  { $data['streetAddress']  = $employee->street_address; }

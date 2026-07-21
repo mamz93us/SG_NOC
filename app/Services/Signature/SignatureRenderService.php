@@ -73,11 +73,6 @@ class SignatureRenderService
         // Flatten remaining {{#if x}}...{{/if}} — keep inner content unconditionally.
         $html = preg_replace('/\{\{#if\s+\w+\}\}(.*?)\{\{\/if\}\}/s', '$1', $html);
 
-        // Extension has NO Azure AD token, so it can never fill server-side. Remove the
-        // whole "Ext. {{extension}}" segment (with any leading separator) so it doesn't
-        // leave an orphaned label. Also handle a bare {{extension}} later.
-        $html = preg_replace('/\s*[|·•\-–]?\s*Ext\.?\s*:?\s*\{\{extension\}\}/iu', '', $html);
-
         // Bake in static, template-level meta (same for every sender on this template).
         $html = str_replace('{{logo_url}}',      (string) ($template->logo_url ?? ''), $html);
         $html = str_replace('{{primary_color}}', (string) ($template->primary_color ?? '#d81f2a'), $html);
@@ -95,6 +90,7 @@ class SignatureRenderService
             'phone'          => '%%PhoneNumber%%',
             'branch_phone'   => '%%PhoneNumber%%',
             'mobile'         => '%%MobileNumber%%',
+            'extension'      => '%%FaxNumber%%',   // extension carried in the Azure fax field
             'branch_name'    => '%%Office%%',
             'branch_city'    => '%%City%%',
             'branch_address' => '%%StreetAddress%%',
