@@ -73,12 +73,18 @@ class SignatureRenderService
         // Flatten remaining {{#if x}}...{{/if}} — keep inner content unconditionally.
         $html = preg_replace('/\{\{#if\s+\w+\}\}(.*?)\{\{\/if\}\}/s', '$1', $html);
 
+        // Extension has NO Azure AD token, so it can never fill server-side. Remove the
+        // whole "Ext. {{extension}}" segment (with any leading separator) so it doesn't
+        // leave an orphaned label. Also handle a bare {{extension}} later.
+        $html = preg_replace('/\s*[|·•\-–]?\s*Ext\.?\s*:?\s*\{\{extension\}\}/iu', '', $html);
+
         // Bake in static, template-level meta (same for every sender on this template).
         $html = str_replace('{{logo_url}}',      (string) ($template->logo_url ?? ''), $html);
         $html = str_replace('{{primary_color}}', (string) ($template->primary_color ?? '#d81f2a'), $html);
         $html = str_replace('{{year}}',          date('Y'), $html);
 
         // Map per-user NOC variables → Exchange AD-attribute tokens.
+        // branch_phone maps to the business phone too — SSS templates use it for the office line.
         $map = [
             'name'           => '%%DisplayName%%',
             'first_name'     => '%%FirstName%%',
@@ -87,6 +93,7 @@ class SignatureRenderService
             'company'        => '%%Company%%',
             'email'          => '%%Email%%',
             'phone'          => '%%PhoneNumber%%',
+            'branch_phone'   => '%%PhoneNumber%%',
             'mobile'         => '%%MobileNumber%%',
             'branch_name'    => '%%Office%%',
             'branch_city'    => '%%City%%',
@@ -96,7 +103,7 @@ class SignatureRenderService
             $html = str_replace('{{' . $var . '}}', $token, $html);
         }
 
-        // Drop any leftover placeholders with no AD token (extension, branch_phone, stray tags).
+        // Drop any leftover placeholders with no AD token (extension, stray tags).
         $html = preg_replace('/\{\{[#\/]?\w+\}\}/', '', $html);
 
         return $html . $this->markerHtml();
