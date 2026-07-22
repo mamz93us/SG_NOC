@@ -25,7 +25,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 param(
     [string] $BaseUrl        = 'https://noc.samirgroup.net',
-    [string] $ApiKey         = 'REPLACE_WITH_SIGNATURE_SCOPED_API_KEY',   # hrk_... (scope: signature)
+    [string] $ApiKey         = 'hrk_YJupI2XaM1td7JKKQmrFdeYfqYjzQgsiapZBk8TS',   # hrk_... (scope: signature)
     [string] $SignatureName  = 'SamirGroup',                              # main (new-mail) name in Outlook
     [string] $ReplyName      = 'SamirGroup Reply',                        # reply/forward name in Outlook
     [string] $Upn            = '',                                        # optional override; auto-detected if blank

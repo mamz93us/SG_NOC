@@ -1346,6 +1346,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         // DNS Records
         Route::get('/{account}/domains/{domain}/records', [DnsRecordsController::class, 'index'])->name('records.index')->middleware('permission:view-dns');
         Route::post('/{account}/domains/{domain}/records', [DnsRecordsController::class, 'store'])->name('records.store')->middleware('permission:manage-dns');
+        Route::post('/{account}/domains/{domain}/records/import/preview', [DnsRecordsController::class, 'importPreview'])->name('records.import.preview')->middleware('permission:manage-dns');
+        Route::post('/{account}/domains/{domain}/records/import', [DnsRecordsController::class, 'import'])->name('records.import')->middleware('permission:manage-dns');
         Route::put('/{account}/domains/{domain}/records', [DnsRecordsController::class, 'update'])->name('records.update')->middleware('permission:manage-dns');
         Route::delete('/{account}/domains/{domain}/records', [DnsRecordsController::class, 'destroy'])->name('records.destroy')->middleware('permission:manage-dns');
 

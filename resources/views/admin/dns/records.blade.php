@@ -16,6 +16,9 @@
         </div>
         <div class="d-flex gap-2">
             @can('manage-dns')
+            <button class="btn btn-outline-primary btn-sm" @click="openImportModal()">
+                <i class="bi bi-upload"></i> Import Zone
+            </button>
             <button class="btn btn-primary btn-sm" @click="openAddModal()">
                 <i class="bi bi-plus-lg"></i> Add Record
             </button>
@@ -197,6 +200,107 @@
             </div>
         </div>
     </div>
+
+    {{-- Import Zone File Modal --}}
+    <div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Import Zone File — {{ $domain }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger small" x-show="importError" x-text="importError"></div>
+
+                    {{-- Step 1: paste --}}
+                    <div x-show="importStep === 'paste'">
+                        <label class="form-label">Paste BIND zone file</label>
+                        <textarea class="form-control font-monospace" style="font-size:.8rem" x-model="importZone" rows="12"
+                            placeholder="$ORIGIN example.com.&#10;@   600  IN  A   192.0.2.1&#10;www 600  IN  CNAME  @"></textarea>
+                        <div class="form-text">
+                            The SOA record and the domain's apex nameservers are managed by GoDaddy and will be skipped automatically.
+                        </div>
+                    </div>
+
+                    {{-- Step 2: preview --}}
+                    <div x-show="importStep === 'preview'">
+                        <div class="d-flex gap-3 mb-3 small">
+                            <span class="badge text-bg-success" x-text="preview.records.length + ' to import'"></span>
+                            <span class="badge text-bg-secondary" x-text="preview.skipped.length + ' skipped'"></span>
+                            <span class="badge text-bg-danger" x-show="preview.errors.length" x-text="preview.errors.length + ' errors'"></span>
+                        </div>
+
+                        <div class="alert alert-warning small" x-show="preview.errors.length">
+                            <strong>Parse warnings:</strong>
+                            <ul class="mb-0">
+                                <template x-for="err in preview.errors" :key="err"><li x-text="err"></li></template>
+                            </ul>
+                        </div>
+
+                        <div class="alert alert-info small py-2 mb-3">
+                            Importing replaces each <em>type + name</em> group shown below with these values (idempotent). Other existing records are left untouched.
+                        </div>
+
+                        <div class="table-responsive border rounded mb-3" style="max-height:280px">
+                            <table class="table table-sm table-hover mb-0 align-middle">
+                                <thead class="table-light sticky-top"><tr><th>Type</th><th>Name</th><th>Value</th><th>TTL</th><th>Prio</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(rec, idx) in preview.records" :key="idx">
+                                        <tr>
+                                            <td><span class="badge" :class="typeBadge(rec.type)" x-text="rec.type"></span></td>
+                                            <td class="fw-semibold" x-text="rec.name"></td>
+                                            <td style="max-width:260px;word-break:break-all"><small x-text="rec.data" :title="rec.data"></small></td>
+                                            <td><small class="text-muted" x-text="formatTTL(rec.ttl)"></small></td>
+                                            <td x-text="rec.priority !== undefined ? rec.priority : '-'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <template x-if="preview.skipped.length">
+                            <details class="small">
+                                <summary class="text-muted">Skipped records (<span x-text="preview.skipped.length"></span>)</summary>
+                                <ul class="mt-2 mb-0">
+                                    <template x-for="(s, idx) in preview.skipped" :key="idx">
+                                        <li><code x-text="s.record.type + ' ' + (s.record.name || '')"></code> — <span x-text="s.reason"></span></li>
+                                    </template>
+                                </ul>
+                            </details>
+                        </template>
+                    </div>
+
+                    {{-- Step 3: result --}}
+                    <div x-show="importStep === 'result'">
+                        <div class="alert" :class="(importResult.failed && importResult.failed.length) ? 'alert-warning' : 'alert-success'">
+                            <span x-text="importResult.message"></span>
+                        </div>
+                        <template x-if="importResult.failed && importResult.failed.length">
+                            <ul class="small mb-0">
+                                <template x-for="(f, idx) in importResult.failed" :key="idx">
+                                    <li><code x-text="f.type + ' ' + f.name"></code> — <span x-text="f.message"></span></li>
+                                </template>
+                            </ul>
+                        </template>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" x-text="importStep === 'result' ? 'Close' : 'Cancel'"></button>
+                    <button type="button" class="btn btn-outline-primary" x-show="importStep === 'preview'" @click="importStep = 'paste'">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </button>
+                    <button type="button" class="btn btn-primary" x-show="importStep === 'paste'" @click="doImportPreview()" :disabled="importBusy || !importZone.trim()">
+                        <span x-show="importBusy" class="spinner-border spinner-border-sm me-1"></span>
+                        Preview
+                    </button>
+                    <button type="button" class="btn btn-success" x-show="importStep === 'preview'" @click="doImport()" :disabled="importBusy || preview.records.length === 0">
+                        <span x-show="importBusy" class="spinner-border spinner-border-sm me-1"></span>
+                        <span x-text="'Import ' + preview.records.length + ' record(s)'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @push('scripts')
@@ -213,6 +317,14 @@ function dnsRecords() {
         deleteTarget: { type: '', name: '' },
         recordTypes: ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV', 'CAA', 'PTR'],
         form: { type: 'A', name: '', data: '', ttl: '3600', priority: 0 },
+
+        // Zone import
+        importStep: 'paste',
+        importZone: '',
+        importError: '',
+        importBusy: false,
+        preview: { records: [], skipped: [], errors: [] },
+        importResult: { message: '', failed: [] },
 
         get availableTypes() {
             return [...new Set(this.allRecords.map(r => r.type))].sort();
@@ -297,6 +409,67 @@ function dnsRecords() {
         confirmDelete(rec) {
             this.deleteTarget = { type: rec.type, name: rec.name };
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        },
+
+        openImportModal() {
+            this.importStep = 'paste';
+            this.importZone = '';
+            this.importError = '';
+            this.preview = { records: [], skipped: [], errors: [] };
+            this.importResult = { message: '', failed: [] };
+            new bootstrap.Modal(document.getElementById('importModal')).show();
+        },
+
+        async doImportPreview() {
+            this.importBusy = true;
+            this.importError = '';
+            try {
+                const res = await fetch("{{ route('admin.network.dns.records.import.preview', [$account, $domain]) }}", {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ zone: this.importZone })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    this.importError = data.message || 'Failed to parse zone file.';
+                    return;
+                }
+                this.preview = { records: data.records, skipped: data.skipped, errors: data.errors };
+                if (this.preview.records.length === 0) {
+                    this.importError = 'No importable records were found in the zone file.';
+                }
+                this.importStep = 'preview';
+            } catch (e) {
+                this.importError = 'Network error. Please try again.';
+            } finally {
+                this.importBusy = false;
+            }
+        },
+
+        async doImport() {
+            this.importBusy = true;
+            this.importError = '';
+            try {
+                const res = await fetch("{{ route('admin.network.dns.records.import', [$account, $domain]) }}", {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ zone: this.importZone })
+                });
+                const data = await res.json();
+                if (res.status === 422 && !data.imported) {
+                    this.importError = data.message || 'Import failed.';
+                    return;
+                }
+                this.importResult = { message: data.message, failed: data.failed || [] };
+                this.importStep = 'result';
+                this.showToast(data.message, data.success ? 'success' : 'error');
+                // Refresh the underlying table so imported records appear.
+                setTimeout(() => location.reload(), 1200);
+            } catch (e) {
+                this.importError = 'Network error. Please try again.';
+            } finally {
+                this.importBusy = false;
+            }
         },
 
         async doDelete() {
