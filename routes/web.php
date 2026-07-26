@@ -2194,6 +2194,12 @@ Route::get('/api/signature/gender-members', [\App\Http\Controllers\Admin\Signatu
     ->middleware('throttle:120,1')
     ->name('api.signature.gender-members');
 
+// Key-gated download of the classic-Outlook deploy script, so a device can fetch +
+// run it in one line: irm "…/signature/deploy.ps1?api_key=…" -OutFile … ; run it.
+Route::get('/signature/deploy.ps1', [\App\Http\Controllers\Admin\SignatureController::class, 'downloadScript'])
+    ->middleware('throttle:60,1')
+    ->name('signature.script');
+
 // Internal VQ report endpoint
 Route::post('/api/internal/vq-report', [\App\Http\Controllers\Admin\VoiceQualityController::class, 'receive'])
     ->middleware('internal.ip')

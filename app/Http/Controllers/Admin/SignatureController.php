@@ -366,6 +366,38 @@ class SignatureController extends Controller
         ]);
     }
 
+    /**
+     * GET /signature/deploy.ps1?api_key=...
+     *
+     * Serves the classic-Outlook per-account deploy script so it can be fetched and
+     * run on a device in one line. Gated by the signature API key (the script itself
+     * carries the same key baked in), so it is not a fully-public download.
+     */
+    public function downloadScript(Request $request): Response
+    {
+        $raw = $request->query('api_key') ?? $request->bearerToken();
+        $apiKey = $raw ? HrApiKey::findByRawKey($raw, 'signature') : null;
+        if (! $apiKey) {
+            return response("# Invalid or missing signature API key.\n", 401)
+                ->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+        try {
+            $apiKey->recordUsage($request->ip());
+        } catch (\Throwable) {
+        }
+
+        $path = base_path('deployment/signature/Deploy-Signature.ps1');
+        if (! is_file($path)) {
+            return response("# Deploy-Signature.ps1 not found on the server.\n", 404)
+                ->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+
+        return response(file_get_contents($path), 200, [
+            'Content-Type' => 'text/plain; charset=utf-8',
+            'Cache-Control' => 'no-cache',
+        ]);
+    }
+
     // ─── Private helpers ──────────────────────────────────────────
 
     private function validated(Request $request): array
