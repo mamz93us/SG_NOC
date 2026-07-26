@@ -31,7 +31,8 @@ param(
     [string] $Upn            = '',                                        # optional override; auto-detected if blank
     [switch] $NoLock,                                                     # pass to skip the read-only/policy lock
     [switch] $KeepOtherSignatures,                                        # pass to NOT delete pre-existing signatures
-    [switch] $NoPreview                                                   # pass to suppress the branded preview window
+    [switch] $NoPreview,                                                  # pass to suppress the branded preview window
+    [switch] $InstallDailyTask                                            # also register a daily Scheduled Task that re-runs this (auto-applies template edits, no Proactive Remediation needed)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -240,6 +241,29 @@ try {
             Write-Log "Opened signature preview: $p"
         } catch {
             Write-Log ("Preview failed (non-fatal): " + $_.Exception.Message) 'WARN'
+        }
+    }
+
+    # Register a daily Scheduled Task that re-runs this script, so template edits apply
+    # automatically without Intune Proactive Remediations. Copies the script to a stable
+    # path (the Intune temp copy is deleted after the run) and schedules it daily + at logon.
+    if ($InstallDailyTask.IsPresent) {
+        try {
+            $stableScript = Join-Path $LogDir 'Deploy-Signature.ps1'
+            Copy-Item -Path $PSCommandPath -Destination $stableScript -Force
+            $taskName = 'SG-Signature-Refresh'
+            $arg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$stableScript`""
+            $action   = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arg
+            $triggers = @(
+                (New-ScheduledTaskTrigger -Daily -At 9am),
+                (New-ScheduledTaskTrigger -AtLogOn)
+            )
+            $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+            Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $triggers `
+                -Settings $settings -Force -ErrorAction Stop | Out-Null
+            Write-Log "Registered daily refresh task '$taskName' -> $stableScript"
+        } catch {
+            Write-Log ("Could not register daily task (non-fatal): " + $_.Exception.Message) 'WARN'
         }
     }
 
