@@ -186,6 +186,30 @@ Prereqs: `Install-Module ExchangeOnlineManagement`; keep the template logo **hos
 change a NOC template. **Membership = audience:** a female in `SG-Signature-Male` gets the
 male signature, so keep the groups gender-correct (the one-liner above does this from NOC).
 
+### Daily auto-refresh — apply template edits automatically
+
+A deployed transport rule is a **snapshot**; editing a NOC template does not update it. To
+make edits apply within a day on **every** client:
+
+- **Classic Outlook** — set up the Intune **Proactive Remediation** (§3b): `Detect-Signature.ps1`
+  notices the template changed and re-runs `Deploy-Signature.ps1` daily. Nothing else needed.
+- **New Outlook / OWA / mobile** — schedule `Setup-ServerSignatures.ps1 -RefreshOnly` daily.
+  Unattended runs need **app-only auth** (interactive sign-in can't run in a scheduled task):
+  an Entra app with `Exchange.ManageAsApp` + a cert in the runner's store + the tenant.
+
+  Register the task (run once, as admin, on the NOC VM or an admin box):
+  ```powershell
+  $action  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument (
+    '-NoProfile -ExecutionPolicy Bypass -File "C:\sig\Setup-ServerSignatures.ps1" ' +
+    '-ApiKey hrk_… -AppId <app-guid> -CertThumbprint <thumb> ' +
+    '-Organization samirgroup.onmicrosoft.com -RefreshOnly')
+  $trigger = New-ScheduledTaskTrigger -Daily -At 6am
+  Register-ScheduledTask -TaskName 'SG-Signature-Refresh' -Action $action -Trigger $trigger `
+    -RunLevel Highest -User 'SYSTEM'
+  ```
+  `-RefreshOnly` re-pushes only the rule HTML (fast, skips group work). Edit a template →
+  next morning it's live on all clients.
+
 ---
 
 ## (Legacy) New Outlook via per-mailbox roaming signature
