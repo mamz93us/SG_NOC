@@ -347,11 +347,19 @@ try {
         Write-Log "Removed other/old signatures (kept: $($keepNames -join ', '))."
     }
 
-    # ---- Global default (fallback for any account without an explicit assignment) ----
+    # ---- Default signature slot ----------------------------------------------
+    # A global Common\MailSettings default OVERRIDES each account's per-account New/Reply
+    # signature for that slot (so every account would show the one global signature on new
+    # mail). When we've set per-account assignments we must CLEAR the global default and let
+    # each account use its own. Only the no-accounts fallback sets a global.
     $ms = "HKCU:\Software\Microsoft\Office\$verKey\Common\MailSettings"
     New-Item -Path $ms -Force | Out-Null
-    Set-ItemProperty -Path $ms -Name 'NewSignature'   -Value $primarySig.NewName   -Type String
-    Set-ItemProperty -Path $ms -Name 'ReplySignature' -Value $primarySig.ReplyName -Type String
+    if ($assigned -gt 0) {
+        Remove-ItemProperty -Path $ms -Name 'NewSignature', 'ReplySignature' -ErrorAction SilentlyContinue
+    } else {
+        Set-ItemProperty -Path $ms -Name 'NewSignature'   -Value $primarySig.NewName   -Type String
+        Set-ItemProperty -Path $ms -Name 'ReplySignature' -Value $primarySig.ReplyName -Type String
+    }
 
     # Make local files win over M365 cloud/roaming signatures.
     $setup = "HKCU:\Software\Microsoft\Office\$verKey\Outlook\Setup"
@@ -367,17 +375,19 @@ try {
         New-Item -Path $dis -Force | Out-Null
         Set-ItemProperty -Path $dis -Name 'TCID1' -Value '5608' -Type String   # compose-window Signature button
 
-        if ($keepNames.Count -le 2) {
+        if ($assigned -gt 0) {
+            # Per-account is in force. A policy-forced global default ALSO overrides per-account,
+            # so remove it; enforcement is read-only files + disabled button + daily re-assert.
+            Remove-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings" `
+                -Name 'NewSignature', 'ReplySignature' -ErrorAction SilentlyContinue
+            Write-Log "Locked (per-account): files read-only, Signature button disabled, per-account re-asserted daily."
+        } else {
+            # No per-account assignments (single global fallback) -> pin the selection via policy.
             $pol = "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings"
             New-Item -Path $pol -Force | Out-Null
             Set-ItemProperty -Path $pol -Name 'NewSignature'   -Value $primarySig.NewName   -Type String
             Set-ItemProperty -Path $pol -Name 'ReplySignature' -Value $primarySig.ReplyName -Type String
-            Write-Log "Locked (single account): files read-only, selection forced via policy, Signature button disabled."
-        } else {
-            # Remove any stale policy-forced single default so it doesn't override per-account.
-            Remove-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings" `
-                -Name 'NewSignature','ReplySignature' -ErrorAction SilentlyContinue
-            Write-Log "Locked (multi-account): files read-only, Signature button disabled, per-account re-asserted daily."
+            Write-Log "Locked (single global): files read-only, selection forced via policy, Signature button disabled."
         }
     }
 

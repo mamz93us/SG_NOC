@@ -141,11 +141,11 @@ foreach ($acct in $accounts) {
     }
 }
 
-# Global default fallback = first managed account's signature
-if ($firstName) {
-    New-Item "HKCU:\Software\Microsoft\Office\$verKey\Common\MailSettings" -Force | Out-Null
-    Set-ItemProperty "HKCU:\Software\Microsoft\Office\$verKey\Common\MailSettings" -Name 'NewSignature' -Value $firstName -Type String
-}
+# Do NOT set a global default. A global Common\MailSettings\NewSignature OVERRIDES the
+# per-account New Signature for new mail (every account shows it) -- which is exactly why
+# "both new emails showed Samir". Clearing it lets each account use its own signature for
+# new mail too, the same way replies already work (no global reply default is set).
+Remove-ItemProperty "HKCU:\Software\Microsoft\Office\$verKey\Common\MailSettings" -Name 'NewSignature', 'ReplySignature' -ErrorAction SilentlyContinue
 
 # 7. Report ------------------------------------------------------------------
 Write-Host "=== RESULT (written now, before Outlook opens) ===" -ForegroundColor Cyan
