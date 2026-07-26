@@ -32,10 +32,10 @@ class IdentityController extends Controller
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
-                $q->where('display_name',        'like', "%{$s}%")
-                  ->orWhere('user_principal_name','like', "%{$s}%")
-                  ->orWhere('mail',              'like', "%{$s}%")
-                  ->orWhere('department',        'like', "%{$s}%");
+                $q->where('display_name', 'like', "%{$s}%")
+                    ->orWhere('user_principal_name', 'like', "%{$s}%")
+                    ->orWhere('mail', 'like', "%{$s}%")
+                    ->orWhere('department', 'like', "%{$s}%");
             });
         }
         if ($request->filled('status')) {
@@ -57,21 +57,22 @@ class IdentityController extends Controller
             });
         }
 
-        $users    = $query->paginate(50)->withQueryString();
+        $users = $query->paginate(50)->withQueryString();
         $lastSync = IdentitySyncLog::where('status', 'completed')->latest()->first();
 
-        $showExternal   = $request->boolean('show_external');
+        $showExternal = $request->boolean('show_external');
         $allowedDomains = \App\Models\AllowedDomain::getList();
+
         return view('admin.identity.users', compact('users', 'lastSync', 'showExternal', 'allowedDomains'));
     }
 
     public function userDetail(string $azureId)
     {
-        $user        = IdentityUser::where('azure_id', $azureId)->firstOrFail();
-        $licenses    = IdentityLicense::whereIn('sku_id', $user->assigned_licenses ?? [])->get();
+        $user = IdentityUser::where('azure_id', $azureId)->firstOrFail();
+        $licenses = IdentityLicense::whereIn('sku_id', $user->assigned_licenses ?? [])->get();
         $allLicenses = IdentityLicense::orderBy('display_name')->get();
-        $groups      = IdentityGroup::whereIn('azure_id', $user->member_of ?? [])->get();
-        $allGroups   = IdentityGroup::orderBy('display_name')->get();
+        $groups = IdentityGroup::whereIn('azure_id', $user->member_of ?? [])->get();
+        $allGroups = IdentityGroup::orderBy('display_name')->get();
 
         return view('admin.identity.user-detail', compact('user', 'licenses', 'allLicenses', 'groups', 'allGroups'));
     }
@@ -84,6 +85,7 @@ class IdentityController extends Controller
     {
         $licenses = IdentityLicense::orderBy('display_name')->get();
         $lastSync = IdentitySyncLog::where('status', 'completed')->latest()->first();
+
         return view('admin.identity.licenses', compact('licenses', 'lastSync'));
     }
 
@@ -99,12 +101,13 @@ class IdentityController extends Controller
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('display_name', 'like', "%{$s}%")
-                  ->orWhere('description', 'like', "%{$s}%");
+                    ->orWhere('description', 'like', "%{$s}%");
             });
         }
 
-        $groups   = $query->paginate(50)->withQueryString();
+        $groups = $query->paginate(50)->withQueryString();
         $lastSync = IdentitySyncLog::where('status', 'completed')->latest()->first();
+
         return view('admin.identity.groups', compact('groups', 'lastSync'));
     }
 
@@ -113,13 +116,13 @@ class IdentityController extends Controller
      */
     public function groupMembers(string $azureId)
     {
-        $group   = IdentityGroup::where('azure_id', $azureId)->firstOrFail();
+        $group = IdentityGroup::where('azure_id', $azureId)->firstOrFail();
         $members = IdentityUser::whereJsonContains('member_of', $azureId)
-                        ->orderBy('display_name')
-                        ->get(['azure_id','display_name','user_principal_name','department','account_enabled']);
+            ->orderBy('display_name')
+            ->get(['azure_id', 'display_name', 'user_principal_name', 'department', 'account_enabled']);
 
         return response()->json([
-            'group'   => $group->display_name,
+            'group' => $group->display_name,
             'members' => $members,
         ]);
     }
@@ -131,6 +134,7 @@ class IdentityController extends Controller
     public function syncLogs()
     {
         $logs = IdentitySyncLog::orderByDesc('created_at')->paginate(30);
+
         return view('admin.identity.sync-logs', compact('logs'));
     }
 
@@ -157,9 +161,9 @@ class IdentityController extends Controller
             Cache::lock('sync_identity_running')->forceRelease();
             IdentitySyncLog::where('status', 'started')
                 ->update([
-                    'status'        => 'failed',
+                    'status' => 'failed',
                     'error_message' => 'Force-reset via admin UI.',
-                    'completed_at'  => now(),
+                    'completed_at' => now(),
                 ]);
         }
 
@@ -168,9 +172,9 @@ class IdentityController extends Controller
         IdentitySyncLog::where('status', 'started')
             ->where('started_at', '<', now()->subHours(2))
             ->update([
-                'status'        => 'failed',
+                'status' => 'failed',
                 'error_message' => 'Sync timed out — process exceeded 2-hour window.',
-                'completed_at'  => now(),
+                'completed_at' => now(),
             ]);
 
         // ── Prevent double-dispatch: check the real cache lock ─────────────
@@ -191,17 +195,17 @@ class IdentityController extends Controller
 
         ActivityLog::create([
             'model_type' => 'Identity',
-            'model_id'   => 0,
-            'action'     => 'synced',
-            'changes'    => ['type' => 'identity_sync_started', 'forced' => $force],
-            'user_id'    => Auth::id(),
+            'model_id' => 0,
+            'action' => 'synced',
+            'changes' => ['type' => 'identity_sync_started', 'forced' => $force],
+            'user_id' => Auth::id(),
         ]);
 
         // ── Spawn background CLI process ────────────────────────────────────
-        $phpCli  = (new PhpExecutableFinder)->find() ?: 'php';
+        $phpCli = (new PhpExecutableFinder)->find() ?: 'php';
         $artisan = base_path('artisan');
         $logFile = storage_path('logs/identity-sync.log');
-        $flags   = $force ? ' --force' : '';
+        $flags = $force ? ' --force' : '';
 
         $cmd = sprintf(
             'nohup %s %s identity:sync%s >> %s 2>&1 &',
@@ -212,9 +216,11 @@ class IdentityController extends Controller
         );
 
         $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $proc = proc_open('/bin/bash -c ' . escapeshellarg($cmd), $descriptors, $pipes);
+        $proc = proc_open('/bin/bash -c '.escapeshellarg($cmd), $descriptors, $pipes);
         if (is_resource($proc)) {
-            foreach ($pipes as $pipe) { @fclose($pipe); }
+            foreach ($pipes as $pipe) {
+                @fclose($pipe);
+            }
             proc_close($proc);
         }
 
@@ -229,26 +235,26 @@ class IdentityController extends Controller
     public function testConnection(Request $request)
     {
         $request->validate([
-            'tenant_id'     => 'required|string',
-            'client_id'     => 'required|string',
+            'tenant_id' => 'required|string',
+            'client_id' => 'required|string',
             'client_secret' => 'nullable|string',
         ]);
 
         try {
             // Use the form secret; fall back to the saved secret when the field is left blank
-            $secret  = $request->filled('client_secret')
+            $secret = $request->filled('client_secret')
                 ? $request->client_secret
                 : (Setting::get()->graph_client_secret ?? '');
 
-            $graph   = new GraphService($request->tenant_id, $request->client_id, $secret);
+            $graph = new GraphService($request->tenant_id, $request->client_id, $secret);
             $orgName = $graph->testConnection();
 
             ActivityLog::create([
                 'model_type' => 'Identity',
-                'model_id'   => 0,
-                'action'     => 'test_connection',
-                'changes'    => ['result' => 'success', 'org' => $orgName],
-                'user_id'    => Auth::id(),
+                'model_id' => 0,
+                'action' => 'test_connection',
+                'changes' => ['result' => 'success', 'org' => $orgName],
+                'user_id' => Auth::id(),
             ]);
 
             return response()->json(['success' => true, 'message' => "Connected to: {$orgName}"]);
@@ -263,8 +269,8 @@ class IdentityController extends Controller
 
     public function toggleUser(Request $request, string $azureId)
     {
-        $user  = IdentityUser::where('azure_id', $azureId)->firstOrFail();
-        $graph = new GraphService();
+        $user = IdentityUser::where('azure_id', $azureId)->firstOrFail();
+        $graph = new GraphService;
 
         try {
             if ($user->account_enabled) {
@@ -282,10 +288,10 @@ class IdentityController extends Controller
 
         ActivityLog::create([
             'model_type' => 'IdentityUser',
-            'model_id'   => $user->id,
-            'action'     => $action,
-            'changes'    => ['user' => $user->user_principal_name],
-            'user_id'    => Auth::id(),
+            'model_id' => $user->id,
+            'action' => $action,
+            'changes' => ['user' => $user->user_principal_name],
+            'user_id' => Auth::id(),
         ]);
 
         return back()->with('success', "User {$user->display_name} has been {$action}.");
@@ -294,14 +300,14 @@ class IdentityController extends Controller
     public function resetPassword(Request $request, string $azureId)
     {
         $request->validate([
-            'new_password'   => 'required|string|min:8',
-            'force_change'   => 'boolean',
+            'new_password' => 'required|string|min:8',
+            'force_change' => 'boolean',
         ]);
 
-        $user  = IdentityUser::where('azure_id', $azureId)->firstOrFail();
+        $user = IdentityUser::where('azure_id', $azureId)->firstOrFail();
 
         try {
-            $graph = new GraphService();
+            $graph = new GraphService;
             $graph->resetPassword($azureId, $request->new_password, (bool) $request->force_change);
         } catch (\Exception $e) {
             return back()->with('error', $this->graphFriendlyError($e));
@@ -309,10 +315,10 @@ class IdentityController extends Controller
 
         ActivityLog::create([
             'model_type' => 'IdentityUser',
-            'model_id'   => $user->id,
-            'action'     => 'password_reset',
-            'changes'    => ['user' => $user->user_principal_name],
-            'user_id'    => Auth::id(),
+            'model_id' => $user->id,
+            'action' => 'password_reset',
+            'changes' => ['user' => $user->user_principal_name],
+            'user_id' => Auth::id(),
         ]);
 
         return back()->with('success', "Password reset for {$user->display_name}.");
@@ -322,10 +328,10 @@ class IdentityController extends Controller
     {
         $request->validate(['sku_id' => 'required|string']);
 
-        $user  = IdentityUser::where('azure_id', $azureId)->firstOrFail();
+        $user = IdentityUser::where('azure_id', $azureId)->firstOrFail();
 
         try {
-            $graph = new GraphService();
+            $graph = new GraphService;
             $graph->assignLicense($azureId, $request->sku_id);
         } catch (\Exception $e) {
             return back()->with('error', $this->graphFriendlyError($e));
@@ -341,16 +347,16 @@ class IdentityController extends Controller
     {
         $request->validate(['sku_id' => 'required|string']);
 
-        $user  = IdentityUser::where('azure_id', $azureId)->firstOrFail();
+        $user = IdentityUser::where('azure_id', $azureId)->firstOrFail();
 
         try {
-            $graph = new GraphService();
+            $graph = new GraphService;
             $graph->removeLicense($azureId, $request->sku_id);
         } catch (\Exception $e) {
             return back()->with('error', $this->graphFriendlyError($e));
         }
 
-        $licenses = array_values(array_filter($user->assigned_licenses ?? [], fn($s) => $s !== $request->sku_id));
+        $licenses = array_values(array_filter($user->assigned_licenses ?? [], fn ($s) => $s !== $request->sku_id));
         $user->update(['assigned_licenses' => $licenses, 'licenses_count' => count($licenses)]);
 
         return back()->with('success', 'License removed.');
@@ -360,10 +366,10 @@ class IdentityController extends Controller
     {
         $request->validate(['group_id' => 'required|string']);
 
-        $user  = IdentityUser::where('azure_id', $azureId)->firstOrFail();
+        $user = IdentityUser::where('azure_id', $azureId)->firstOrFail();
 
         try {
-            $graph = new GraphService();
+            $graph = new GraphService;
             $graph->addUserToGroup($azureId, $request->group_id);
         } catch (\Exception $e) {
             return back()->with('error', $this->graphFriendlyError($e));
@@ -379,16 +385,16 @@ class IdentityController extends Controller
     {
         $request->validate(['group_id' => 'required|string']);
 
-        $user  = IdentityUser::where('azure_id', $azureId)->firstOrFail();
+        $user = IdentityUser::where('azure_id', $azureId)->firstOrFail();
 
         try {
-            $graph = new GraphService();
+            $graph = new GraphService;
             $graph->removeUserFromGroup($azureId, $request->group_id);
         } catch (\Exception $e) {
             return back()->with('error', $this->graphFriendlyError($e));
         }
 
-        $groups = array_values(array_filter($user->member_of ?? [], fn($g) => $g !== $request->group_id));
+        $groups = array_values(array_filter($user->member_of ?? [], fn ($g) => $g !== $request->group_id));
         $user->update(['member_of' => $groups, 'groups_count' => count($groups)]);
 
         return back()->with('success', 'User removed from group.');
@@ -400,17 +406,17 @@ class IdentityController extends Controller
     public function updateProfile(Request $request, string $azureId)
     {
         $validated = $request->validate([
-            'display_name'    => 'required|string|max:255',
-            'job_title'       => 'nullable|string|max:255',
-            'department'      => 'nullable|string|max:255',
-            'company_name'    => 'nullable|string|max:255',
-            'phone_number'    => 'nullable|string|max:50',
-            'mobile_phone'    => 'nullable|string|max:50',
+            'display_name' => 'required|string|max:255',
+            'job_title' => 'nullable|string|max:255',
+            'department' => 'nullable|string|max:255',
+            'company_name' => 'nullable|string|max:255',
+            'phone_number' => 'nullable|string|max:50',
+            'mobile_phone' => 'nullable|string|max:50',
             'office_location' => 'nullable|string|max:100',
-            'street_address'  => 'nullable|string|max:255',
-            'city'            => 'nullable|string|max:100',
-            'postal_code'     => 'nullable|string|max:20',
-            'country'         => 'nullable|string|max:100',
+            'street_address' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:100',
+            'postal_code' => 'nullable|string|max:20',
+            'country' => 'nullable|string|max:100',
         ]);
 
         $user = IdentityUser::where('azure_id', $azureId)->firstOrFail();
@@ -419,15 +425,15 @@ class IdentityController extends Controller
         $graphData = ['displayName' => $validated['display_name']];
 
         $fieldMap = [
-            'job_title'       => 'jobTitle',
-            'department'      => 'department',
-            'company_name'    => 'companyName',
-            'mobile_phone'    => 'mobilePhone',
+            'job_title' => 'jobTitle',
+            'department' => 'department',
+            'company_name' => 'companyName',
+            'mobile_phone' => 'mobilePhone',
             'office_location' => 'officeLocation',
-            'street_address'  => 'streetAddress',
-            'city'            => 'city',
-            'postal_code'     => 'postalCode',
-            'country'         => 'country',
+            'street_address' => 'streetAddress',
+            'city' => 'city',
+            'postal_code' => 'postalCode',
+            'country' => 'country',
         ];
 
         foreach ($fieldMap as $local => $graph) {
@@ -440,7 +446,7 @@ class IdentityController extends Controller
             : [];
 
         try {
-            $graph = new GraphService();
+            $graph = new GraphService;
             $graph->updateUser($azureId, $graphData);
         } catch (\Exception $e) {
             return back()->with('error', $this->graphFriendlyError($e));
@@ -448,25 +454,25 @@ class IdentityController extends Controller
 
         // Mirror changes in local DB
         $user->update([
-            'display_name'    => $validated['display_name'],
-            'job_title'       => $validated['job_title']       ?? null,
-            'department'      => $validated['department']       ?? null,
-            'company_name'    => $validated['company_name']     ?? null,
-            'phone_number'    => $validated['phone_number']     ?? null,
-            'mobile_phone'    => $validated['mobile_phone']     ?? null,
-            'office_location' => $validated['office_location']  ?? null,
-            'street_address'  => $validated['street_address']   ?? null,
-            'city'            => $validated['city']             ?? null,
-            'postal_code'     => $validated['postal_code']      ?? null,
-            'country'         => $validated['country']          ?? null,
+            'display_name' => $validated['display_name'],
+            'job_title' => $validated['job_title'] ?? null,
+            'department' => $validated['department'] ?? null,
+            'company_name' => $validated['company_name'] ?? null,
+            'phone_number' => $validated['phone_number'] ?? null,
+            'mobile_phone' => $validated['mobile_phone'] ?? null,
+            'office_location' => $validated['office_location'] ?? null,
+            'street_address' => $validated['street_address'] ?? null,
+            'city' => $validated['city'] ?? null,
+            'postal_code' => $validated['postal_code'] ?? null,
+            'country' => $validated['country'] ?? null,
         ]);
 
         ActivityLog::create([
             'model_type' => 'IdentityUser',
-            'model_id'   => $user->id,
-            'action'     => 'profile_updated',
-            'changes'    => ['user' => $user->user_principal_name],
-            'user_id'    => Auth::id(),
+            'model_id' => $user->id,
+            'action' => 'profile_updated',
+            'changes' => ['user' => $user->user_principal_name],
+            'user_id' => Auth::id(),
         ]);
 
         return back()->with('success', "Profile updated for {$user->display_name}.");
@@ -474,18 +480,18 @@ class IdentityController extends Controller
 
     public function destroyUser(string $azureId)
     {
-        $user  = IdentityUser::where('azure_id', $azureId)->firstOrFail();
-        $graph = new GraphService();
+        $user = IdentityUser::where('azure_id', $azureId)->firstOrFail();
+        $graph = new GraphService;
 
         try {
             $graph->deleteUser($azureId);
-            
+
             ActivityLog::create([
                 'model_type' => 'IdentityUser',
-                'model_id'   => $user->id,
-                'action'     => 'deleted',
-                'changes'    => ['user' => $user->user_principal_name],
-                'user_id'    => Auth::id(),
+                'model_id' => $user->id,
+                'action' => 'deleted',
+                'changes' => ['user' => $user->user_principal_name],
+                'user_id' => Auth::id(),
             ]);
 
             $user->delete();
@@ -510,27 +516,40 @@ class IdentityController extends Controller
     {
         $settings = Setting::get();
 
-        $employees = Employee::with('branch', 'identityUser')
+        $all = Employee::with('branch', 'identityUser')
             ->whereNotNull('azure_id')
             ->whereNotNull('branch_id')
             ->where('status', 'active')
             ->orderBy('name')
             ->get();
 
-        $withDiffs     = [];
-        $noChanges     = [];
+        // Domain of an employee = the domain of their email, falling back to their UPN.
+        $domainOf = function (Employee $e): ?string {
+            $addr = $e->email ?: $e->identityUser?->user_principal_name;
+
+            return $addr && str_contains($addr, '@') ? strtolower(explode('@', $addr)[1]) : null;
+        };
+
+        $domains = $all->map($domainOf)->filter()->unique()->sort()->values();
+        $domain = strtolower(trim((string) $request->query('domain')));
+        $employees = $domain !== ''
+            ? $all->filter(fn ($e) => $domainOf($e) === $domain)->values()
+            : $all;
+
+        $withDiffs = [];
+        $noChanges = [];
         $missingMobile = [];
 
         foreach ($employees as $employee) {
             $proposed = $service->computeProposedFields($employee, $settings);
-            $diff     = $service->diffAgainstIdentityUser($employee, $employee->identityUser, $proposed);
+            $diff = $service->diffAgainstIdentityUser($employee, $employee->identityUser, $proposed);
 
             $hasDiff = collect($diff)->contains(fn ($r) => $r['changed']);
 
             $row = [
                 'employee' => $employee,
                 'proposed' => $proposed,
-                'diff'     => $diff,
+                'diff' => $diff,
             ];
 
             if ($hasDiff) {
@@ -550,7 +569,9 @@ class IdentityController extends Controller
             'withDiffs',
             'noChanges',
             'missingMobile',
-            'lastSync'
+            'lastSync',
+            'domains',
+            'domain'
         ));
     }
 
@@ -561,7 +582,7 @@ class IdentityController extends Controller
     public function contactSyncApply(Request $request, AzureContactSyncService $service)
     {
         $validated = $request->validate([
-            'azure_ids'   => 'required|array|min:1',
+            'azure_ids' => 'required|array|min:1',
             'azure_ids.*' => 'string',
         ]);
 
@@ -575,10 +596,10 @@ class IdentityController extends Controller
         // TODO: when org grows beyond ~100 employees, dispatch a queued
         // batch job here instead of looping inline (Graph PATCH /users
         // is throttled at ~600/min and inline loops can hit timeouts).
-        $applied   = 0;
-        $failures  = [];
+        $applied = 0;
+        $failures = [];
         $protected = [];
-        $missing   = [];
+        $missing = [];
 
         foreach ($employees as $employee) {
             // Skip accounts that no longer exist in Entra (removed/terminated) —
@@ -586,6 +607,7 @@ class IdentityController extends Controller
             // IdentitySync stops seeing them.
             if (! $employee->identityUser) {
                 $missing[] = $employee->name;
+
                 continue;
             }
 
@@ -604,22 +626,23 @@ class IdentityController extends Controller
                 } elseif (AzureContactSyncService::isMissingUserError($e)) {
                     $missing[] = $employee->name;
                 } else {
-                    $failures[] = $employee->name . ': ' . $this->graphFriendlyError($e);
+                    $failures[] = $employee->name.': '.$this->graphFriendlyError($e);
                 }
             }
         }
 
         $msg = "Applied to {$applied} employee(s).";
         if ($protected) {
-            $msg .= ' ' . count($protected) . ' protected admin account(s) skipped (update in Entra): '
-                  . implode(', ', $protected) . '.';
+            $msg .= ' '.count($protected).' protected admin account(s) skipped (update in Entra): '
+                  .implode(', ', $protected).'.';
         }
         if ($missing) {
-            $msg .= ' ' . count($missing) . ' account(s) skipped — no longer in Entra (removed/terminated).';
+            $msg .= ' '.count($missing).' account(s) skipped — no longer in Entra (removed/terminated).';
         }
 
         if ($failures) {
-            $msg .= ' ' . count($failures) . ' failed.';
+            $msg .= ' '.count($failures).' failed.';
+
             return redirect()->route('admin.identity.contact-sync')
                 ->with('error', $msg)
                 ->with('contact_sync_failures', $failures);
@@ -678,12 +701,12 @@ class IdentityController extends Controller
         try {
             ActivityLog::create([
                 'model_type' => 'GraphApi',
-                'model_id'   => 0,
-                'action'     => 'api_failed',
-                'changes'    => [
+                'model_id' => 0,
+                'action' => 'api_failed',
+                'changes' => [
                     'service' => 'MicrosoftGraph',
                     'message' => mb_substr($msg, 0, 1000),
-                    'route'   => request()?->route()?->getName(),
+                    'route' => request()?->route()?->getName(),
                 ],
                 'user_id' => Auth::id(),
             ]);
@@ -693,10 +716,10 @@ class IdentityController extends Controller
 
         if (str_contains($msg, 'Authorization_RequestDenied') || str_contains($msg, 'Insufficient privileges')) {
             return 'Azure declined the update (Authorization_RequestDenied). If this affects only '
-                 . 'specific accounts, those are protected admins holding privileged Entra roles — '
-                 . 'app-only sync cannot modify them by design; update those directly in Entra. '
-                 . 'If it affects every account, verify the app registration has User.ReadWrite.All '
-                 . '(Application) with admin consent granted.';
+                 .'specific accounts, those are protected admins holding privileged Entra roles — '
+                 .'app-only sync cannot modify them by design; update those directly in Entra. '
+                 .'If it affects every account, verify the app registration has User.ReadWrite.All '
+                 .'(Application) with admin consent granted.';
         }
 
         return $msg;

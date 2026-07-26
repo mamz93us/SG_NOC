@@ -13,7 +13,19 @@
             @endif
         </small>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 align-items-center">
+        <form method="GET" class="d-flex align-items-center gap-1" title="Filter employees by email domain">
+            <i class="bi bi-funnel text-muted"></i>
+            <select name="domain" class="form-select form-select-sm" style="min-width:180px" onchange="this.form.submit()">
+                <option value="">All domains ({{ $domains->count() }})</option>
+                @foreach($domains as $d)
+                    <option value="{{ $d }}" @selected($domain === $d)>{{ $d }}</option>
+                @endforeach
+            </select>
+            @if($domain)
+                <a href="{{ route('admin.identity.contact-sync') }}" class="btn btn-outline-secondary btn-sm" title="Clear filter"><i class="bi bi-x-lg"></i></a>
+            @endif
+        </form>
         @can('manage-identity')
         <form method="POST" action="{{ route('admin.identity.sync') }}" class="d-inline">
             @csrf
