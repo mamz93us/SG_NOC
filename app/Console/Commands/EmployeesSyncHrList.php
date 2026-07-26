@@ -9,12 +9,16 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 /**
  * Reconciles an HR employee export (xlsx) against the NOC employee records.
  *
- * Matches on EMP_NO -> employees.oracle_emp_no (emails in the export are not
- * reliable: some are personal, some blank). Sets gender, and reports any other
- * field differences so IT/HR can decide whether to apply them.
+ * Matches each HR row on THREE signals — EMP_NO -> oracle_emp_no, email, and name —
+ * and scores candidates by how many agree (id=5, email=4, name=3). Two or more
+ * signals = a confident match; a single strong signal (id or email) is accepted only
+ * when it points to exactly one person. This resolves the two known traps safely:
+ *   - EMP_NO collides between the SSS-Egypt and SamirGroup/Saudi series, and
+ *   - shared emails (drivers/guards listed under a colleague's address),
+ * by flagging ties as AMBIGUOUS instead of guessing. Name-only hits are LOW-CONFIDENCE.
  *
- * Dry-run by default. --apply writes gender only; --apply-all also writes
- * job title / department / location.
+ * Sets gender and reports other field differences. Dry-run by default; --apply writes
+ * gender only; --apply-all also writes job title / department / location.
  */
 class EmployeesSyncHrList extends Command
 {
@@ -36,7 +40,7 @@ class EmployeesSyncHrList extends Command
 
         $rows = IOFactory::load($path)->getActiveSheet()->toArray(null, true, true, false);
         $head = array_map(fn ($h) => strtoupper(trim((string) $h)), array_shift($rows));
-        $idx  = array_flip($head);
+        $idx = array_flip($head);
 
         foreach (['EMP_NO', 'EMP_NAME', 'GENDER'] as $required) {
             if (! isset($idx[$required])) {
@@ -48,15 +52,28 @@ class EmployeesSyncHrList extends Command
 
         $get = fn (array $r, string $c) => isset($idx[$c]) ? trim((string) ($r[$idx[$c]] ?? '')) : '';
 
-        $apply    = (bool) $this->option('apply') || (bool) $this->option('apply-all');
+        $apply = (bool) $this->option('apply') || (bool) $this->option('apply-all');
         $applyAll = (bool) $this->option('apply-all');
 
+        // Name normalisers: lower + single-spaced (exact), and a word-sorted variant
+        // so "Abbas Alramini" and "Alramini Abbas" still count as the same name.
+        $norm = fn (string $s): string => preg_replace('/\s+/', ' ', mb_strtolower(trim($s)));
+        $sortName = function (string $s) use ($norm): string {
+            $t = explode(' ', $norm($s));
+            sort($t);
+
+            return implode(' ', $t);
+        };
+
         $stats = [
-            'rows' => 0, 'matched' => 0, 'unmatched' => 0,
+            'rows' => 0, 'matched' => 0, 'unmatched' => 0, 'ambiguous' => 0, 'lowconf' => 0,
             'gender_new' => 0, 'gender_changed' => 0, 'gender_same' => 0,
+            'method' => [],
         ];
-        $unmatched  = [];
-        $diffs      = [];
+        $unmatched = [];
+        $ambiguous = [];
+        $lowconf = [];
+        $diffs = [];
         $seenEmpNos = [];
 
         foreach ($rows as $r) {
@@ -70,25 +87,90 @@ class EmployeesSyncHrList extends Command
             $stats['rows']++;
             $seenEmpNos[] = $empNo;
 
-            // Match on EMP_NO only — the authoritative HR key (unique in the file).
-            // Deliberately NOT on the file's email: staff without a mailbox (drivers,
-            // guards, labourers) are listed with a colleague's address, so email would
-            // match the wrong person. Exclude SSS Egypt: it runs its own emp_no series
-            // that collides with the SamirGroup/Saudi numbers used in this file.
-            $emp = Employee::where('oracle_emp_no', $empNo)
-                ->where(fn ($q) => $q->whereNull('email')->orWhere('email', 'not like', '%@sssegypt.com'))
-                ->first();
+            $name = $get($r, 'EMP_NAME');
+            $email = mb_strtolower($get($r, 'EMP_EMAIL_ADDRESS'));
+
+            // Gather candidates by ANY of the three keys, then score each on how many
+            // agree (id=5, email=4, name=3). Combining signals resolves the SSS/Saudi
+            // emp_no collision and shared emails; a single signal that ties across people
+            // is treated as ambiguous rather than guessed.
+            $cands = collect();
+            if ($empNo !== '') {
+                $cands = $cands->merge(Employee::where('oracle_emp_no', $empNo)->get());
+            }
+            if ($email !== '') {
+                $cands = $cands->merge(Employee::whereRaw('LOWER(email) = ?', [$email])->get());
+            }
+            if ($name !== '') {
+                $cands = $cands->merge(Employee::whereRaw("REPLACE(LOWER(name), ' ', '') = ?", [str_replace(' ', '', $norm($name))])->get());
+            }
+            $cands = $cands->unique('id');
+
+            $best = null;
+            $bestScore = 0;
+            $bestSig = [];
+            $topCount = 0;
+            foreach ($cands as $c) {
+                $s = 0;
+                $sig = [];
+                if ($empNo !== '' && (string) $c->oracle_emp_no === $empNo) {
+                    $s += 5;
+                    $sig[] = 'id';
+                }
+                if ($email !== '' && mb_strtolower((string) $c->email) === $email) {
+                    $s += 4;
+                    $sig[] = 'email';
+                }
+                if ($name !== '' && ($norm((string) $c->name) === $norm($name) || $sortName((string) $c->name) === $sortName($name))) {
+                    $s += 3;
+                    $sig[] = 'name';
+                }
+                if ($s > $bestScore) {
+                    $bestScore = $s;
+                    $best = $c;
+                    $bestSig = $sig;
+                    $topCount = 1;
+                } elseif ($s === $bestScore && $s > 0) {
+                    $topCount++;
+                }
+            }
+
+            // Accept: 2+ signals (>=7) always; a lone strong signal (id=5 or email=4)
+            // only when it points to exactly one person. Ties = ambiguous; name-only = weak.
+            $emp = null;
+            $method = 'unmatched';
+            if ($best && $bestScore >= 7) {
+                $emp = $best;
+                $method = 'multi ('.implode('+', $bestSig).')';
+            } elseif ($best && $bestScore >= 4 && $topCount === 1) {
+                $emp = $best;
+                $method = implode('+', $bestSig);
+            } elseif ($best && $bestScore >= 4 && $topCount > 1) {
+                $method = 'ambiguous';
+            } elseif ($best && $bestScore === 3) {
+                $method = 'name-only';
+            }
 
             if (! $emp) {
-                $stats['unmatched']++;
-                $unmatched[] = sprintf('%-8s %-28s %s', $empNo, $get($r, 'EMP_NAME'), $get($r, 'EMP_EMAIL_ADDRESS') ?: '(no email)');
+                $line = sprintf('%-8s %-28s %s', $empNo, mb_substr($name, 0, 28), $email ?: '(no email)');
+                if ($method === 'ambiguous') {
+                    $stats['ambiguous']++;
+                    $ambiguous[] = $line;
+                } elseif ($method === 'name-only') {
+                    $stats['lowconf']++;
+                    $lowconf[] = $line;
+                } else {
+                    $stats['unmatched']++;
+                    $unmatched[] = $line;
+                }
 
                 continue;
             }
             $stats['matched']++;
+            $stats['method'][$method] = ($stats['method'][$method] ?? 0) + 1;
 
             // ── Gender ──────────────────────────────────────────────
-            $g      = strtoupper($get($r, 'GENDER'));
+            $g = strtoupper($get($r, 'GENDER'));
             $gender = $g === 'F' ? 'female' : ($g === 'M' ? 'male' : null);
 
             if ($gender) {
@@ -104,10 +186,10 @@ class EmployeesSyncHrList extends Command
 
             // ── Other fields: report always, write only with --apply-all ──
             $checks = [
-                'job_title'         => $get($r, 'JOB_NAME'),
+                'job_title' => $get($r, 'JOB_NAME'),
                 'oracle_department' => $get($r, 'DEPT_NAME'),
-                'oracle_dept_no'    => $get($r, 'DEPT_NO'),
-                'oracle_location'   => $get($r, 'LOCATION_NAME'),
+                'oracle_dept_no' => $get($r, 'DEPT_NO'),
+                'oracle_location' => $get($r, 'LOCATION_NAME'),
             ];
             foreach ($checks as $field => $new) {
                 if ($new === '') {
@@ -132,7 +214,13 @@ class EmployeesSyncHrList extends Command
         $this->info('=== HR list reconcile'.($apply ? '' : ' (DRY RUN — nothing written)').' ===');
         $this->line("Rows in file      : {$stats['rows']}");
         $this->line("Matched employees : {$stats['matched']}");
+        $this->line("Ambiguous (id/email tie — skipped) : {$stats['ambiguous']}");
+        $this->line("Low-confidence (name-only — skipped) : {$stats['lowconf']}");
         $this->line("Unmatched (in file, not in NOC) : {$stats['unmatched']}");
+        if ($stats['method']) {
+            ksort($stats['method']);
+            $this->line('Match method     : '.implode('  ', array_map(fn ($k, $v) => "{$k}={$v}", array_keys($stats['method']), array_values($stats['method']))));
+        }
         $this->newLine();
         $this->line('Gender  new: '.$stats['gender_new'].'  changed: '.$stats['gender_changed'].'  already correct: '.$stats['gender_same']);
 
@@ -147,16 +235,23 @@ class EmployeesSyncHrList extends Command
             }
         }
 
-        if ($unmatched) {
+        $report = function (string $title, array $list): void {
+            if (! $list) {
+                return;
+            }
             $this->newLine();
-            $this->warn('In file but NOT in NOC: '.count($unmatched));
-            foreach (array_slice($unmatched, 0, 15) as $line) {
+            $this->warn($title.': '.count($list));
+            foreach (array_slice($list, 0, 15) as $line) {
                 $this->line('  '.$line);
             }
-            if (count($unmatched) > 15) {
-                $this->line('  ... +'.(count($unmatched) - 15).' more');
+            if (count($list) > 15) {
+                $this->line('  ... +'.(count($list) - 15).' more');
             }
-        }
+        };
+
+        $report('AMBIGUOUS — id/email matched more than one person (skipped, resolve by hand)', $ambiguous);
+        $report('LOW-CONFIDENCE — name matched but no id/email confirm (skipped)', $lowconf);
+        $report('In file but NOT in NOC', $unmatched);
 
         // Active NOC employees absent from the HR list (possible leavers)
         $missing = Employee::where('status', 'active')
