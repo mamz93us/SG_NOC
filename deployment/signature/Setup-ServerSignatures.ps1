@@ -46,11 +46,15 @@ param(
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# domain/gender -> group + rule. Gender $null = gender-neutral (SSS).
+# domain/gender -> group + rule. Gender $null = gender-neutral (SSS, Oriana).
+# NOTE: oriana-sa.com must be an accepted domain in THIS Exchange tenant, and an
+# active signature template for domain=oriana-sa.com must exist in NOC (else the
+# transport-rule fetch 404s). Split the Oriana row into male/female if it goes gendered.
 $Plan = @(
     [pscustomobject]@{ Group='SG-Signature-Male';   Smtp='SG-Signature-Male@samirgroup.com';   Domain='samirgroup.com'; Gender='male';   Rule='SG Signature - samirgroup.com Male'   }
     [pscustomobject]@{ Group='SG-Signature-Female'; Smtp='SG-Signature-Female@samirgroup.com'; Domain='samirgroup.com'; Gender='female'; Rule='SG Signature - samirgroup.com Female' }
     [pscustomobject]@{ Group='SG-Signature-SSS';    Smtp='SG-Signature-SSS@samirgroup.com';    Domain='sssegypt.com';   Gender=$null;    Rule='SG Signature - sssegypt.com'          }
+    [pscustomobject]@{ Group='SG-Signature-Oriana'; Smtp='SG-Signature-Oriana@samirgroup.com'; Domain='oriana-sa.com';  Gender=$null;    Rule='SG Signature - oriana-sa.com'         }
 )
 
 function Get-NocUpns {
