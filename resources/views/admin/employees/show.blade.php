@@ -209,12 +209,18 @@
                 <strong><i class="bi bi-person-lines-fill me-1 text-purple"></i>Linked Contact</strong>
                 @can('manage-employees')
                 @if($employee->contact)
-                <form method="POST" action="{{ route('admin.employees.unlink-contact', $employee) }}" class="d-inline">
-                    @csrf @method('DELETE')
-                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="Unlink contact">
-                        <i class="bi bi-x-lg" style="font-size:.7rem"></i>
+                <div class="d-inline-flex gap-1">
+                    <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2"
+                            data-bs-toggle="modal" data-bs-target="#linkContactModal" title="Change linked contact / extension">
+                        <i class="bi bi-arrow-repeat" style="font-size:.7rem"></i> Change
                     </button>
-                </form>
+                    <form method="POST" action="{{ route('admin.employees.unlink-contact', $employee) }}" class="d-inline">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="Unlink contact">
+                            <i class="bi bi-x-lg" style="font-size:.7rem"></i>
+                        </button>
+                    </form>
+                </div>
                 @endif
                 @endcan
             </div>
@@ -1045,23 +1051,22 @@
 
 @endcan
 
-{{-- ── Link Contact Modal ── --}}
+{{-- ── Link / Change Contact Modal ── --}}
 @can('manage-employees')
-@if(!$employee->contact)
 <div class="modal fade" id="linkContactModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST" action="{{ route('admin.employees.link-contact', $employee) }}">
                 @csrf
                 <div class="modal-header py-2">
-                    <h6 class="modal-title fw-semibold"><i class="bi bi-link-45deg me-1"></i>Link Contact to {{ $employee->name }}</h6>
+                    <h6 class="modal-title fw-semibold"><i class="bi bi-link-45deg me-1"></i>{{ $employee->contact ? 'Change Contact / Extension for' : 'Link Contact to' }} {{ $employee->name }}</h6>
                     <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Search Contact</label>
                         <input type="text" id="contactSearch" class="form-control form-control-sm" placeholder="Type name, email, or phone to search..." autocomplete="off">
-                        <small class="text-muted">Results are fetched on demand (max 50 shown).</small>
+                        <small class="text-muted">The selected contact's phone becomes this employee's extension.</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Select Contact <span class="text-danger">*</span></label>
@@ -1073,7 +1078,7 @@
                 </div>
                 <div class="modal-footer py-2">
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Link Contact</button>
+                    <button type="submit" class="btn btn-primary btn-sm">{{ $employee->contact ? 'Update Contact & Extension' : 'Link Contact' }}</button>
                 </div>
             </form>
         </div>
@@ -1131,16 +1136,19 @@
         debounce = setTimeout(() => search(term), 250);
     });
 
-    // Pre-fill the search with the employee's email so the most relevant contact appears first.
+    // Seed the search: when a contact is already linked, prefer its name so the
+    // current pick surfaces first for re-selection; otherwise use the employee's
+    // email local-part to surface the most likely match.
+    const linkedContactName = @json($employee->contact ? trim(($employee->contact->first_name ?? '').' '.($employee->contact->last_name ?? '')) : null);
     const employeeEmail = @json($employee->email ?? null);
-    if (employeeEmail) {
-        input.value = employeeEmail.split('@')[0];
+    const seed = linkedContactName || (employeeEmail ? employeeEmail.split('@')[0] : null);
+    if (seed) {
+        input.value = seed;
         input.dispatchEvent(new Event('input'));
     }
 })();
 </script>
 @endpush
-@endif
 @endcan
 
 {{-- ── Share Card Modal ─────────────────────────────────────────────────────── --}}

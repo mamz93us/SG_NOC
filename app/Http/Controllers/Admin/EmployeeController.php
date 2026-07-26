@@ -346,21 +346,31 @@ class EmployeeController extends Controller
     // ─────────────────────────────────────────────────────────────
 
     /**
-     * Link an employee to a contact (by contact_id).
+     * Link an employee to a contact (by contact_id), or re-pick an already
+     * linked one. Choosing a contact here is how the employee's extension is
+     * set: the picked contact's phone becomes the employee's extension_number.
      */
     public function linkContact(Request $request, Employee $employee)
     {
         $request->validate(['contact_id' => 'required|exists:contacts,id']);
 
         $contact = \App\Models\Contact::findOrFail($request->contact_id);
-        $employee->update(['contact_id' => $contact->id]);
 
-        // Auto-fill extension_number from contact's phone if employee doesn't have one
-        if (!$employee->extension_number && $contact->phone) {
-            $employee->update(['extension_number' => $contact->phone]);
+        $attributes = ['contact_id' => $contact->id];
+
+        // Picking a contact chooses its extension too — overwrite so a re-pick
+        // moves the extension to the newly chosen contact. Only touch it when
+        // the contact actually has a phone, so we never blank an existing one.
+        if (filled($contact->phone)) {
+            $attributes['extension_number'] = $contact->phone;
         }
 
-        return back()->with('success', "Linked to contact: {$contact->first_name} {$contact->last_name}");
+        $employee->update($attributes);
+
+        $msg = "Linked to contact: {$contact->first_name} {$contact->last_name}";
+        $msg .= filled($contact->phone) ? " — extension set to {$contact->phone}." : '.';
+
+        return back()->with('success', $msg);
     }
 
     /**
