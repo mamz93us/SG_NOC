@@ -191,8 +191,13 @@ male signature, so keep the groups gender-correct (the one-liner above does this
 A deployed transport rule is a **snapshot**; editing a NOC template does not update it. To
 make edits apply within a day on **every** client:
 
-- **Classic Outlook** — set up the Intune **Proactive Remediation** (§3b): `Detect-Signature.ps1`
-  notices the template changed and re-runs `Deploy-Signature.ps1` daily. Nothing else needed.
+- **Classic Outlook — no Proactive Remediations / Intune Suite needed.** `Deploy-Signature.ps1`
+  **self-registers a per-user daily Scheduled Task** (`SG-Signature-Refresh`, daily + at logon)
+  on by default. Deploy the script once as an Intune **Platform Script** (Devices → Scripts →
+  Platform scripts; "Run using logged-on credentials = Yes"). Each day the task re-runs it,
+  reads `/api/signature` live, and applies any template edit (the branded preview pops only
+  when the signature actually changed). Pass `-NoDailyTask` to opt out. (Proactive Remediation
+  with `Detect-Signature.ps1` is an alternative if you *do* have the Intune Suite.)
 - **New Outlook / OWA / mobile** — schedule `Setup-ServerSignatures.ps1 -RefreshOnly` daily.
   Unattended runs need **app-only auth** (interactive sign-in can't run in a scheduled task):
   an Entra app with `Exchange.ManageAsApp` + a cert in the runner's store + the tenant.
