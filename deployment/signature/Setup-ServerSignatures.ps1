@@ -124,8 +124,22 @@ try {
 
     # 3) Transport rules
     Write-Host "`n== 3. Transport rules ==" -ForegroundColor Cyan
+    $failed = @()
     foreach ($p in $Plan) {
-        $html = Get-NocRuleHtml -Domain $p.Domain -Gender $p.Gender
+        try {
+            $html = Get-NocRuleHtml -Domain $p.Domain -Gender $p.Gender
+        } catch {
+            Write-Host "  FETCH FAILED: $($p.Rule) -- $($_.Exception.Message)" -ForegroundColor Red
+            $failed += $p.Rule; continue
+        }
+
+        # Exchange rejects an oversized disclaimer (a base64-embedded logo bloats it well past
+        # the limit). Catch it here with a clear fix instead of a cryptic binding error.
+        if ($html.Length -gt 15000 -or $html -match 'data:image') {
+            Write-Host ("  TOO BIG ({0} chars): {1} -- host the logo on the NOC server: php artisan signatures:host-logos, then re-run." -f $html.Length, $p.Rule) -ForegroundColor Red
+            $failed += $p.Rule; continue
+        }
+
         $params = @{
             FromScope                          = 'InOrganization'
             SenderDomainIs                     = $p.Domain
@@ -139,18 +153,38 @@ try {
             Write-Host "  WHATIF : '$($p.Rule)' ($($html.Length) chars) scoped to $($p.Group)" -ForegroundColor Yellow
             continue
         }
-        if (Get-TransportRule -Identity $p.Rule -ErrorAction SilentlyContinue) {
-            Set-TransportRule -Identity $p.Rule @params
-            Enable-TransportRule -Identity $p.Rule -Confirm:$false
-            Write-Host "  updated: $($p.Rule)" -ForegroundColor Green
-        } else {
-            New-TransportRule -Name $p.Rule -Enabled $true @params
-            Write-Host "  created: $($p.Rule)" -ForegroundColor Green
+
+        $exists = [bool](Get-TransportRule -Identity $p.Rule -ErrorAction SilentlyContinue)
+        $ok = $false
+        for ($try = 1; $try -le 3 -and -not $ok; $try++) {
+            try {
+                if ($exists) {
+                    Set-TransportRule -Identity $p.Rule @params -ErrorAction Stop
+                    Enable-TransportRule -Identity $p.Rule -Confirm:$false -ErrorAction SilentlyContinue
+                } else {
+                    New-TransportRule -Name $p.Rule -Enabled $true @params -ErrorAction Stop
+                }
+                $ok = $true
+            } catch {
+                if ($try -lt 3) {
+                    Write-Host "  retry $try/2 for $($p.Rule) ($($_.Exception.Message))" -ForegroundColor Yellow
+                    Start-Sleep -Seconds 10
+                } else {
+                    Write-Host "  FAILED: $($p.Rule) -- $($_.Exception.Message)" -ForegroundColor Red
+                    $failed += $p.Rule
+                }
+            }
         }
+        if ($ok) { Write-Host ("  {0}: {1} ({2} chars)" -f $(if ($exists) { 'updated' } else { 'created' }), $p.Rule, $html.Length) -ForegroundColor Green }
     }
 
-    Write-Host "`nDone. Test: send from OWA/new Outlook as a male, a female, and an SSS user;" -ForegroundColor Green
-    Write-Host "then from classic Outlook (must NOT double-sign). Re-run any time to refresh." -ForegroundColor Green
+    if ($failed.Count) {
+        Write-Host "`nRules NOT deployed: $($failed -join ', ')" -ForegroundColor Red
+        Write-Host "Fix the cause above and re-run (idempotent)." -ForegroundColor Yellow
+    } else {
+        Write-Host "`nAll rules deployed. Test: send from OWA/new Outlook per domain/gender;" -ForegroundColor Green
+        Write-Host "then from classic Outlook (must NOT double-sign). Re-run any time to refresh." -ForegroundColor Green
+    }
 }
 finally {
     Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
