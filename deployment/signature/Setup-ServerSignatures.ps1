@@ -32,6 +32,12 @@ param(
     [Parameter(Mandatory)] [string] $ApiKey,
     [string] $Marker   = 'SGSIGMARKER',
     [string] $AdminUpn = '',
+    # App-only auth (for UNATTENDED scheduled runs). Provide all three to skip the
+    # interactive sign-in: an Entra app with Exchange.ManageAsApp + a cert in the
+    # runner's store + the tenant. See README.
+    [string] $AppId          = '',
+    [string] $CertThumbprint = '',
+    [string] $Organization   = '',
     [switch] $Pilot,        # create groups + rules but SKIP bulk populate (hand-add testers)
     [switch] $RefreshOnly,  # ONLY re-push the rule HTML (fast) - skip groups + populate. Use after a template/logo edit.
     [switch] $WhatIf
@@ -68,8 +74,14 @@ if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
     Install-Module ExchangeOnlineManagement -Scope CurrentUser -Force -AllowClobber
 }
 Import-Module ExchangeOnlineManagement
-if ($AdminUpn) { Connect-ExchangeOnline -UserPrincipalName $AdminUpn -ShowBanner:$false }
-else           { Connect-ExchangeOnline -ShowBanner:$false }
+if ($AppId -and $CertThumbprint -and $Organization) {
+    # Unattended app-only auth (scheduled task)
+    Connect-ExchangeOnline -AppId $AppId -CertificateThumbprint $CertThumbprint -Organization $Organization -ShowBanner:$false
+} elseif ($AdminUpn) {
+    Connect-ExchangeOnline -UserPrincipalName $AdminUpn -ShowBanner:$false
+} else {
+    Connect-ExchangeOnline -ShowBanner:$false
+}
 
 try {
     if ($RefreshOnly) {
