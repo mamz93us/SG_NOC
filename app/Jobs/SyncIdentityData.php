@@ -47,7 +47,12 @@ class SyncIdentityData implements ShouldQueue
             return;
         }
 
-        $lock = Cache::lock('sync_identity_running', 7200);
+        // Lock TTL must be LONGER than the schedule interval, otherwise an overrunning
+        // run's lock expires and the next scheduled run starts on top of it — two
+        // concurrent syncs then throw DB serialization failures and durations balloon.
+        // 4h comfortably exceeds both a healthy run (~1h) and the 2h scheduler cadence;
+        // a genuinely dead process still frees the lock after 4h (or via Force Reset).
+        $lock = Cache::lock('sync_identity_running', 14400);
 
         if (!$lock->get()) {
             Log::warning('SyncIdentityData: Another sync process is already running; stopping this one.');
