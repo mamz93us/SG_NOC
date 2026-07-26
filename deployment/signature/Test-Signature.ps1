@@ -13,7 +13,7 @@
          the NOC API by that mailbox's address (correct domain + gender + contact).
       7. Reads everything back and prints a result table.
 
-    No lock, no daily task, no preview — this is for eyeballing the result. Once you
+    No lock, no daily task, no preview -- this is for eyeballing the result. Once you
     confirm each account keeps its own signature after opening Outlook, use the real
     Deploy-Signature.ps1 for rollout.
 
@@ -119,7 +119,7 @@ foreach ($acct in $accounts) {
         continue
     }
     try { $htmlNew = Get-Sig -Upn $smtp -Type 'new_email' }
-    catch { Write-Host "   - $smtp : no signature from API ($($_.Exception.Message)) — skipped" -ForegroundColor Yellow; continue }
+    catch { Write-Host "   - $smtp : no signature from API ($($_.Exception.Message)) -- skipped" -ForegroundColor Yellow; continue }
     try { $htmlReply = Get-Sig -Upn $smtp -Type 'reply' } catch { $htmlReply = $htmlNew }
 
     $sigNewName   = 'Samir Group ({0})' -f $smtp

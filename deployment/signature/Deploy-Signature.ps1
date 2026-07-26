@@ -235,7 +235,7 @@ try {
     # For cross-domain / multi-account users whose signatures are stamped server-side by the
     # Exchange transport rule. Removes local files, per-account assignments, the global default,
     # the policy lock, and the daily task. Does NOT touch the cloud/roaming signature (no admin
-    # API) — the user clears that once in OWA.
+    # API) -- the user clears that once in OWA.
     if ($RemoveClientSignature.IsPresent) {
         # Delete our managed signature files (both new "Samir Group*" and legacy "SamirGroup*").
         Get-ChildItem $sigDir -File -ErrorAction SilentlyContinue |

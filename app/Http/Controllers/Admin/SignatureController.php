@@ -396,7 +396,15 @@ class SignatureController extends Controller
                 ->header('Content-Type', 'text/plain; charset=utf-8');
         }
 
-        return response(file_get_contents($path), 200, [
+        // Prepend a UTF-8 BOM (if not already present) so Windows PowerShell 5.1 parses
+        // the script as UTF-8 rather than ANSI — otherwise any non-ASCII byte corrupts it.
+        $body = file_get_contents($path);
+        $bom = "\xEF\xBB\xBF";
+        if (! str_starts_with($body, $bom)) {
+            $body = $bom.$body;
+        }
+
+        return response($body, 200, [
             'Content-Type' => 'text/plain; charset=utf-8',
             'Cache-Control' => 'no-cache',
         ]);
