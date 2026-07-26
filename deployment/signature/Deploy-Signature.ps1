@@ -126,23 +126,16 @@ function Get-OutlookAccounts {
 }
 
 # --- Assign a signature to a single account key ------------------------------
+# Modern Outlook (16.0) stores these as REG_SZ. We drop any existing value first so
+# a stale type can't linger, write REG_SZ, then read back and return the stored values
+# so the caller can verify exactly what landed in THIS key.
 function Set-AccountSignature {
     param([string]$KeyPath, [string]$NewSigName, [string]$ReplySigName)
-    $item = Get-Item -LiteralPath $KeyPath
-    foreach ($pair in @(
-        @{ Name = 'New Signature';           Value = $NewSigName   },
-        @{ Name = 'Reply-Forward Signature'; Value = $ReplySigName })) {
-
-        $kind = $null
-        try { $kind = $item.GetValueKind($pair.Name) } catch {}
-        if ($kind -eq [Microsoft.Win32.RegistryValueKind]::Binary) {
-            # Legacy (Outlook 2010-era) binary format: null-terminated UTF-16LE name.
-            $bytes = [System.Text.Encoding]::Unicode.GetBytes($pair.Value + [char]0)
-            Set-ItemProperty -LiteralPath $KeyPath -Name $pair.Name -Value $bytes -Type Binary
-        } else {
-            Set-ItemProperty -LiteralPath $KeyPath -Name $pair.Name -Value $pair.Value -Type String
-        }
-    }
+    Remove-ItemProperty -LiteralPath $KeyPath -Name 'New Signature', 'Reply-Forward Signature' -ErrorAction SilentlyContinue
+    Set-ItemProperty -LiteralPath $KeyPath -Name 'New Signature'           -Value $NewSigName   -Type String
+    Set-ItemProperty -LiteralPath $KeyPath -Name 'Reply-Forward Signature' -Value $ReplySigName -Type String
+    $chk = Get-ItemProperty -LiteralPath $KeyPath -ErrorAction SilentlyContinue
+    return @([string]$chk.'New Signature', [string]$chk.'Reply-Forward Signature')
 }
 
 # --- Fetch rendered signature HTML from the NOC API --------------------------
@@ -249,40 +242,44 @@ try {
 
     if ($accounts.Count -gt 0) {
         # ---- PER-ACCOUNT: assign each account its own signature -------------
-        $fetchCache = @{}   # smtp -> @{ New; Reply; NewName; ReplyName }
+        # NOTE: PowerShell variable names are CASE-INSENSITIVE, so local names here must
+        # not collide with the $SignatureName / $ReplyName params (a $replyName local
+        # would silently mutate the $ReplyName param across iterations). Hence $sig*.
+        $sigBySmtp = @{}   # smtp -> @{ NewHtml; ReplyHtml; NewName; ReplyName }
         foreach ($acct in $accounts) {
+            $smtp = [string]$acct.Smtp
             if ($Domains -and ($Domains -notcontains $acct.Domain)) {
-                Write-Log "Skipping $($acct.Smtp) (domain '$($acct.Domain)' not in managed list)."
+                Write-Log "Skipping $smtp (domain '$($acct.Domain)' not in managed list)."
                 continue
             }
-            if (-not $fetchCache.ContainsKey($acct.Smtp)) {
+            if (-not $sigBySmtp.ContainsKey($smtp)) {
                 try {
-                    $new = Get-SignatureHtml -UserPrincipalName $acct.Smtp -Type 'new_email'
+                    $htmlNew = Get-SignatureHtml -UserPrincipalName $smtp -Type 'new_email'
                 } catch {
-                    Write-Log ("No signature for $($acct.Smtp): " + $_.Exception.Message + " -- leaving this account untouched.") 'WARN'
+                    Write-Log ("No signature for $smtp : " + $_.Exception.Message + " -- leaving this account untouched.") 'WARN'
                     continue
                 }
-                try   { $reply = Get-SignatureHtml -UserPrincipalName $acct.Smtp -Type 'reply' }
-                catch { $reply = $new; Write-Log "No reply-specific template for $($acct.Smtp); reusing new-mail signature." 'WARN' }
+                try   { $htmlReply = Get-SignatureHtml -UserPrincipalName $smtp -Type 'reply' }
+                catch { $htmlReply = $htmlNew; Write-Log "No reply-specific template for $smtp; reusing new-mail signature." 'WARN' }
 
-                $newName   = "$SignatureName ($($acct.Smtp))"
-                $replyName = "$ReplyName ($($acct.Smtp))"
-                Write-SignatureFiles -Dir $sigDir -Name $newName   -Html $new   -ReadOnly:$lock
-                Write-SignatureFiles -Dir $sigDir -Name $replyName -Html $reply -ReadOnly:$lock
-                $fetchCache[$acct.Smtp] = @{ New = $new; Reply = $reply; NewName = $newName; ReplyName = $replyName }
+                $sigNewName   = ('{0} ({1})' -f $SignatureName, $smtp)
+                $sigReplyName = ('{0} ({1})' -f $ReplyName, $smtp)
+                Write-SignatureFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew   -ReadOnly:$lock
+                Write-SignatureFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply -ReadOnly:$lock
+                $sigBySmtp[$smtp] = @{ NewHtml = $htmlNew; ReplyHtml = $htmlReply; NewName = $sigNewName; ReplyName = $sigReplyName }
 
-                $keepNames += $newName; $keepNames += $replyName
-                $hashParts += ($acct.Smtp + '|' + $new + '|' + $reply)
-                $cards     += @{ Smtp = $acct.Smtp; New = $new; Reply = $reply }
+                $keepNames += $sigNewName; $keepNames += $sigReplyName
+                $hashParts += ($smtp + '|' + $htmlNew + '|' + $htmlReply)
+                $cards     += @{ Smtp = $smtp; New = $htmlNew; Reply = $htmlReply }
             }
-            $c = $fetchCache[$acct.Smtp]
-            Set-AccountSignature -KeyPath $acct.KeyPath -NewSigName $c.NewName -ReplySigName $c.ReplyName
+            $sig    = $sigBySmtp[$smtp]
+            $stored = Set-AccountSignature -KeyPath $acct.KeyPath -NewSigName $sig.NewName -ReplySigName $sig.ReplyName
             $assigned++
-            Write-Log "Assigned $($acct.Smtp) -> '$($c.NewName)' / '$($c.ReplyName)'"
+            Write-Log ("Assigned {0}  [{1}]  want New='{2}'  stored New='{3}'" -f $smtp, ($acct.KeyPath -replace '.*\\', ''), $sig.NewName, $stored[0])
 
             # Pick the primary (matches the signed-in UPN) for the global default fallback.
-            if (-not $primarySig -or ($primaryUpn -and ($acct.Smtp -ieq $primaryUpn))) {
-                $primarySig = @{ NewName = $c.NewName; ReplyName = $c.ReplyName }
+            if (-not $primarySig -or ($primaryUpn -and ($smtp -ieq $primaryUpn))) {
+                $primarySig = @{ NewName = $sig.NewName; ReplyName = $sig.ReplyName }
             }
         }
         if ($assigned -eq 0) {
