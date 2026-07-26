@@ -264,6 +264,60 @@ class SignatureController extends Controller
     }
 
     /**
+     * GET /admin/signatures/transport-preview — shows exactly what each server-side
+     * transport rule will stamp (New Outlook / OWA / mobile), with %%AD tokens%% filled
+     * with sample data, plus each rule's HTML size so oversized (Exchange-rejected)
+     * templates are obvious before deploy.
+     */
+    public function transportPreview(): View
+    {
+        $plan = [
+            ['label' => 'Samir Group — Male',   'domain' => 'samirgroup.com', 'gender' => 'male'],
+            ['label' => 'Samir Group — Female', 'domain' => 'samirgroup.com', 'gender' => 'female'],
+            ['label' => 'SSS Egypt',            'domain' => 'sssegypt.com',   'gender' => null],
+            ['label' => 'Oriana',               'domain' => 'oriana-sa.com',  'gender' => null],
+        ];
+
+        // Fill the %%AD-attribute%% tokens with sample values for a realistic preview.
+        $sample = [
+            '%%DisplayName%%' => 'Ahmed Al-Rashidi',
+            '%%FirstName%%' => 'Ahmed',
+            '%%Title%%' => 'Senior IT Engineer',
+            '%%Department%%' => 'Information Technology',
+            '%%Company%%' => 'Samir Group',
+            '%%Email%%' => 'ahmed.alrashidi@samirgroup.com',
+            '%%PhoneNumber%%' => '+966 11 234 5678',
+            '%%MobileNumber%%' => '+966 50 123 4567',
+            '%%FaxNumber%%' => '2205',
+            '%%Office%%' => 'Riyadh Head Office',
+            '%%City%%' => 'Riyadh',
+            '%%StreetAddress%%' => 'King Fahd Road, Al Olaya',
+        ];
+
+        $limit = 5000; // practical Exchange disclaimer size limit (rules above this are rejected)
+        $rules = [];
+        foreach ($plan as $p) {
+            $template = EmailSignatureTemplate::findBest('new_email', $p['domain'], $p['gender']);
+            if (! $template) {
+                $rules[] = $p + ['exists' => false, 'template' => null, 'length' => 0, 'preview' => null, 'oversized' => false];
+
+                continue;
+            }
+            $raw = $this->renderer->renderForTransportRule($template);
+            $preview = str_replace(SignatureRenderService::SIG_MARKER, '', strtr($raw, $sample));
+            $rules[] = $p + [
+                'exists' => true,
+                'template' => $template->name,
+                'length' => strlen($raw),
+                'preview' => $preview,
+                'oversized' => strlen($raw) > $limit,
+            ];
+        }
+
+        return view('admin.signatures.transport-preview', compact('rules', 'limit'));
+    }
+
+    /**
      * GET /api/signature/transport-rule?domain=sssegypt.com&type=new_email&api_key=...
      *
      * Returns the domain's signature as Exchange transport-rule HTML: NOC variables

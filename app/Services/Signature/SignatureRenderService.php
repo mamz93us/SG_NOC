@@ -78,6 +78,17 @@ class SignatureRenderService
         $html = preg_replace('/<\/?(o|v|w|m|st1|x):[^>]*>/i', '', $html);       // namespaced tags: <o:p>, VML <v:*>, etc.
         $html = preg_replace('/\x{FEFF}/u', '', $html);                         // stray BOM/zero-width
 
+        // Remove empty inline/paragraph elements a Word paste leaves behind (many
+        // <p>&nbsp;</p> / <span>&nbsp;</span>), looping for nested ones. This is what
+        // actually shrinks a Word-pasted template enough to fit the disclaimer limit.
+        for ($i = 0; $i < 5; $i++) {
+            $html = preg_replace('/<(p|span|div)\b[^>]*>(?:\s|&nbsp;|&#160;|&#xA0;|<br\s*\/?>)*<\/\1>/i', '', $html, -1, $n);
+            if (! $n) {
+                break;
+            }
+        }
+        $html = preg_replace('/(?:<br\s*\/?>\s*){3,}/i', '<br><br>', $html);    // collapse long <br> runs
+
         // Extension has no AD token (it is folded into the business phone) — drop its block.
         $html = preg_replace('/\{\{#if\s+extension\}\}.*?\{\{\/if\}\}/s', '', $html);
 
