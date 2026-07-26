@@ -244,7 +244,11 @@ class SignatureController extends Controller
             return response()->json(['error' => 'domain required'], 400);
         }
 
-        $upns = \App\Models\Employee::when($gender, fn ($q) => $q->where('gender', $gender))
+        // Male group is the catch-all for male + unknown-gender (matches the signature's
+        // unknown->male default), so gender-less users still land in a transport-rule group.
+        // Female group is female only. No gender param = everyone in the domain.
+        $upns = \App\Models\Employee::when($gender === 'male', fn ($q) => $q->where(fn ($w) => $w->where('gender', 'male')->orWhereNull('gender')))
+            ->when($gender === 'female', fn ($q) => $q->where('gender', 'female'))
             ->where('status', 'active')
             ->whereNotNull('azure_id')
             ->with('identityUser')
