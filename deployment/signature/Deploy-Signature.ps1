@@ -45,7 +45,8 @@ param(
     [switch]   $NoLock,                                                  # pass to skip the read-only/policy lock
     [switch]   $KeepOtherSignatures,                                     # pass to NOT delete pre-existing (non-managed) signatures
     [switch]   $NoPreview,                                               # pass to suppress the branded preview window
-    [switch]   $NoDailyTask                                             # pass to SKIP the daily self-refresh Scheduled Task (registered by default)
+    [switch]   $NoDailyTask,                                            # pass to SKIP the daily self-refresh Scheduled Task (registered by default)
+    [switch]   $RemoveClientSignature                                   # UNINSTALL: remove our local signatures + per-account assignments + lock + daily task, then exit. Use for cross-domain users handled by the server-side transport rule.
 )
 
 $ErrorActionPreference = 'Stop'
@@ -229,6 +230,35 @@ try {
     $verKey = @('16.0','15.0') | Where-Object { Test-Path "HKCU:\Software\Microsoft\Office\$_\Outlook" } | Select-Object -First 1
     if (-not $verKey) { $verKey = '16.0' }
     Write-Log "Using Office version key: $verKey"
+
+    # ---- UNINSTALL MODE: strip our client footprint and hand the user to the server rule ----
+    # For cross-domain / multi-account users whose signatures are stamped server-side by the
+    # Exchange transport rule. Removes local files, per-account assignments, the global default,
+    # the policy lock, and the daily task. Does NOT touch the cloud/roaming signature (no admin
+    # API) — the user clears that once in OWA.
+    if ($RemoveClientSignature.IsPresent) {
+        # Delete our managed signature files (both new "Samir Group*" and legacy "SamirGroup*").
+        Get-ChildItem $sigDir -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like 'Samir Group*' -or $_.Name -like 'SamirGroup*' } |
+            ForEach-Object { try { $_.IsReadOnly = $false } catch {}; Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+
+        # Clear the per-account signature assignments on every account.
+        foreach ($acct in @(Get-OutlookAccounts -VerKey $verKey)) {
+            Remove-ItemProperty -LiteralPath $acct.KeyPath -Name 'New Signature', 'Reply-Forward Signature' -ErrorAction SilentlyContinue
+        }
+
+        # Clear the global default + the policy-forced lock + the disabled compose button.
+        Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Office\$verKey\Common\MailSettings" -Name 'NewSignature', 'ReplySignature' -ErrorAction SilentlyContinue
+        Remove-Item -Path "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "HKCU:\Software\Policies\Microsoft\Office\$verKey\Outlook\DisabledCmdBarItemsList" -Recurse -Force -ErrorAction SilentlyContinue
+
+        # Remove the daily self-refresh task.
+        Unregister-ScheduledTask -TaskName 'SG-Signature-Refresh' -Confirm:$false -ErrorAction SilentlyContinue
+
+        Write-Log "=== RemoveClientSignature done: local signatures, per-account assignments, lock and daily task removed. ==="
+        Write-Log "Reminder: the user must clear their cloud/roaming signatures once in OWA; the transport rule then stamps by sending domain."
+        exit 0
+    }
 
     $accounts = @(Get-OutlookAccounts -VerKey $verKey)
     Write-Log ("Outlook accounts found: {0}{1}" -f $accounts.Count, $(if ($accounts.Count) { ' -> ' + (($accounts.Smtp) -join ', ') } else { '' }))
