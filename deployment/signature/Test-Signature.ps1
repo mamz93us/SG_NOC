@@ -22,7 +22,7 @@
 param(
     [string]   $BaseUrl = 'https://noc.samirgroup.net',
     [string]   $ApiKey  = 'hrk_YJupI2XaM1td7JKKQmrFdeYfqYjzQgsiapZBk8TS',
-    [string[]] $Domains = @('samirgroup.com', 'sssegypt.com')
+    [string[]] $Domains = @('samirgroup.com', 'sssegypt.com', 'oriana-sa.com')
 )
 
 $ErrorActionPreference = 'Stop'

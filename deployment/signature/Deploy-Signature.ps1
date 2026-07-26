@@ -40,7 +40,7 @@ param(
     [string]   $ApiKey         = 'hrk_YJupI2XaM1td7JKKQmrFdeYfqYjzQgsiapZBk8TS',   # hrk_... (scope: signature)
     [string]   $SignatureName  = 'Samir Group',                          # base label; account SMTP is appended per account
     [string]   $ReplyName      = 'Samir Group Reply',                    # base label for the reply slot
-    [string[]] $Domains        = @('samirgroup.com', 'sssegypt.com'),    # only these mail domains get a managed signature; others left untouched
+    [string[]] $Domains        = @('samirgroup.com', 'sssegypt.com', 'oriana-sa.com'),   # only these mail domains get a managed signature; others left untouched
     [string]   $Upn            = '',                                     # optional override for the single-account fallback; auto-detected if blank
     [switch]   $NoLock,                                                  # pass to skip the read-only/policy lock
     [switch]   $KeepOtherSignatures,                                     # pass to NOT delete pre-existing (non-managed) signatures

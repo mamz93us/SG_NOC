@@ -43,7 +43,7 @@ param(
 
     # ─ Target selection ─
     [string[]] $Upns    = @(),                          # explicit UPNs; empty = all user mailboxes in $Domains
-    [string[]] $Domains = @('samirgroup.com','sssegypt.com'),
+    [string[]] $Domains = @('samirgroup.com','sssegypt.com','oriana-sa.com'),
 
     [int]      $ThrottleMs = 400,                       # delay between mailboxes
     [switch]   $WhatIf                                  # preview only; makes no changes
