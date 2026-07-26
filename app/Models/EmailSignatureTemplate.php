@@ -74,16 +74,20 @@ class EmailSignatureTemplate extends Model
                     ->orWhere('gender', 'all')
                     ->orWhereNull('gender'));
             })
-            // Primary: right domain + slot.
+            // Primary: right domain + slot. A SAME-domain template of any type (tier 3)
+            // always beats a different-domain one — so e.g. a samirgroup reply falls back
+            // to the samirgroup new-mail template, never to an SSS template.
             ->orderByRaw("
                 CASE
                     WHEN domain = ? AND `type` = ? THEN 1
                     WHEN domain = ? AND `type` = 'all' THEN 2
-                    WHEN domain IS NULL AND `type` = ? THEN 3
-                    WHEN domain IS NULL AND `type` = 'all' THEN 4
-                    ELSE 5
+                    WHEN domain = ? THEN 3
+                    WHEN domain IS NULL AND `type` = ? THEN 4
+                    WHEN domain IS NULL AND `type` = 'all' THEN 5
+                    WHEN domain IS NULL THEN 6
+                    ELSE 7
                 END
-            ", [$domain, $type, $domain, $type])
+            ", [$domain, $type, $domain, $domain, $type])
             // Tiebreak: prefer a gender-specific template over the gender-neutral one.
             ->orderByRaw('CASE WHEN gender = ? THEN 0 ELSE 1 END', [$gender ?? '__none__'])
             ->orderBy('sort_order')
