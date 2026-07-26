@@ -19,6 +19,7 @@ class HrImportRow extends Model
         'dept_no',
         'dept_name',
         'job_name',
+        'gender',
         'matched_employee_id',
         'match_method',
         'resolved_branch_id',

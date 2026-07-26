@@ -133,7 +133,7 @@
             <thead class="table-light">
                 <tr>
                     <th>Employee</th><th>Match</th><th>Emp No</th><th>Job Title</th>
-                    <th>Department</th><th>Branch</th><th>Mobile</th><th>Status</th>
+                    <th>Gender</th><th>Department</th><th>Branch</th><th>Mobile</th><th>Status</th>
                 </tr>
             </thead>
             <tbody>
@@ -152,6 +152,14 @@
                             <div class="text-warning fw-semibold">{{ $row->job_name ?? '∅' }}</div>
                         @else
                             {{ $row->job_name ?? '—' }}
+                        @endif
+                    </td>
+                    <td>
+                        @if($row->gender && $emp && $emp->gender !== $row->gender)
+                            <div class="text-muted text-decoration-line-through" style="font-size:.8em">{{ $emp->gender ?? '∅' }}</div>
+                            <div class="text-warning fw-semibold">{{ ucfirst($row->gender) }}</div>
+                        @else
+                            {{ $row->gender ? ucfirst($row->gender) : '—' }}
                         @endif
                     </td>
                     <td>{{ $row->dept_name ?? '—' }}</td>
@@ -174,7 +182,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8" class="text-center text-muted py-4">No matched rows.</td></tr>
+                <tr><td colspan="9" class="text-center text-muted py-4">No matched rows.</td></tr>
             @endforelse
             </tbody>
         </table>

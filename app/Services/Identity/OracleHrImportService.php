@@ -27,7 +27,10 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 class OracleHrImportService
 {
     /**
-     * Canonical header → internal key. Matched case-insensitively, trimmed.
+     * Canonical header → internal key. Headers are normalised before lookup
+     * (lowercased, trimmed, underscores → spaces, collapsed), so both the old
+     * space form ("Emp No") and the new underscore form ("EMP_NO",
+     * "EMP_EMAIL_ADDRESS") of the Oracle export are recognised.
      */
     private const HEADER_MAP = [
         'location name' => 'location_name',
@@ -36,9 +39,17 @@ class OracleHrImportService
         'emp no' => 'emp_no',
         'emp name' => 'emp_name',
         'email address' => 'email',
+        'emp email address' => 'email',
+        'gender' => 'gender',
         'mobile no' => 'mobile_no',
         'job name' => 'job_name',
     ];
+
+    /** Normalise a raw header cell to the HEADER_MAP key form. */
+    private function normalizeHeader(string $value): string
+    {
+        return preg_replace('/\s+/', ' ', str_replace('_', ' ', mb_strtolower(trim($value))));
+    }
 
     /**
      * Parse an uploaded spreadsheet into a staged batch. Each data row is
@@ -88,8 +99,12 @@ class OracleHrImportService
                 $mobileRaw = $get('mobile_no');
                 $mobile = $this->normalizeMobile($mobileRaw);
                 $location = $get('location_name');
+                $name = $get('emp_name');
+                $g = strtoupper($get('gender'));
+                $gender = $g === 'F' ? 'female' : ($g === 'M' ? 'male' : null);
 
-                [$employee, $method] = $this->matchEmployee($email);
+                // Match on emp_no + email + name (scored). May report ambiguous/name-only.
+                [$employee, $method] = $this->matchEmployee($empNo, $name, $email);
                 $branchId = BranchKeywordMatcher::match([$location], $mappings);
 
                 $errorNote = null;
@@ -100,17 +115,25 @@ class OracleHrImportService
                     $errorNote = trim(($errorNote ? $errorNote.'; ' : '').'No branch keyword matched location: '.$location);
                 }
 
+                // No confident match -> unmatched for manual resolution, with a reason
+                // for the two "close but unsafe" cases so the reviewer knows what to do.
                 $status = $employee ? 'matched' : 'unmatched';
-                if (! $employee && $email === '') {
-                    $status = 'error';
-                    $errorNote = trim(($errorNote ? $errorNote.'; ' : '').'Row has no email to match on.');
+                if (! $employee) {
+                    $reason = match ($method) {
+                        'ambiguous' => 'Ambiguous: emp_no/email matched more than one employee — link the correct one.',
+                        'name-only' => 'Name matched but no emp_no/email confirmation — verify before linking.',
+                        default => null,
+                    };
+                    if ($reason) {
+                        $errorNote = trim(($errorNote ? $errorNote.'; ' : '').$reason);
+                    }
                 }
 
                 HrImportRow::create([
                     'hr_import_batch_id' => $batch->id,
                     'row_number' => $i + 1,
                     'emp_no' => $empNo ?: null,
-                    'emp_name' => $get('emp_name') ?: null,
+                    'emp_name' => $name ?: null,
                     'email' => $email ?: null,
                     'mobile_raw' => $mobileRaw ?: null,
                     'mobile_normalized' => $mobile,
@@ -118,6 +141,7 @@ class OracleHrImportService
                     'dept_no' => $get('dept_no') ?: null,
                     'dept_name' => $get('dept_name') ?: null,
                     'job_name' => $get('job_name') ?: null,
+                    'gender' => $gender,
                     'matched_employee_id' => $employee?->id,
                     'match_method' => $method,
                     'resolved_branch_id' => $branchId,
@@ -133,40 +157,100 @@ class OracleHrImportService
     }
 
     /**
-     * Match an Oracle email to an existing Employee. Mirrors the lookup chain in
-     * AzureSyncController::findEmployeeByUpn but keyed on the Oracle email.
+     * Match an Oracle row to an existing Employee using THREE signals and a score:
+     * oracle_emp_no (5), email (4), name (3). Email also matches when the address
+     * lives on the employee's linked Azure identity (UPN/mail), not just employees.email.
      *
-     * @return array{0: ?Employee, 1: string} [employee, match_method]
+     * Two+ signals (>=7) is a confident match. A lone strong signal (id or email) is
+     * accepted only when it points to exactly one person; a tie returns 'ambiguous'
+     * (handles the SSS/Saudi emp_no collision and shared driver/guard emails safely).
+     * Name-only returns 'name-only'. Both are surfaced for manual resolution.
+     *
+     * @return array{0: ?Employee, 1: string} [employee|null, match_method]
      */
-    public function matchEmployee(string $email): array
+    public function matchEmployee(string $empNo, string $name, string $email): array
     {
-        $email = trim(strtolower($email));
-        if ($email === '') {
+        $empNo = trim($empNo);
+        $email = trim(mb_strtolower($email));
+        $norm = fn (string $s): string => preg_replace('/\s+/', ' ', mb_strtolower(trim($s)));
+        $sortName = function (string $s) use ($norm): string {
+            $t = explode(' ', $norm($s));
+            sort($t);
+
+            return implode(' ', $t);
+        };
+
+        // Employees whose linked Azure identity carries this email (UPN or mail).
+        $identityEmpIds = [];
+        if ($email !== '') {
+            $azureIds = IdentityUser::where(fn ($q) => $q
+                ->whereRaw('LOWER(user_principal_name) = ?', [$email])
+                ->orWhereRaw('LOWER(mail) = ?', [$email]))
+                ->pluck('azure_id')->filter()->all();
+            if ($azureIds !== []) {
+                $identityEmpIds = Employee::whereIn('azure_id', $azureIds)->pluck('id')->all();
+            }
+        }
+
+        // Build the candidate set from any matching key.
+        $cands = collect();
+        if ($empNo !== '') {
+            $cands = $cands->merge(Employee::where('oracle_emp_no', $empNo)->get());
+        }
+        if ($email !== '') {
+            $cands = $cands->merge(Employee::whereRaw('LOWER(email) = ?', [$email])->get());
+        }
+        if ($identityEmpIds !== []) {
+            $cands = $cands->merge(Employee::whereIn('id', $identityEmpIds)->get());
+        }
+        if ($name !== '') {
+            $cands = $cands->merge(Employee::whereRaw("REPLACE(LOWER(name), ' ', '') = ?", [str_replace(' ', '', $norm($name))])->get());
+        }
+        $cands = $cands->unique('id');
+        if ($cands->isEmpty()) {
             return [null, 'none'];
         }
 
-        $employee = Employee::whereRaw('LOWER(email) = ?', [$email])->first();
-        if ($employee) {
-            return [$employee, 'email'];
+        $best = null;
+        $bestScore = 0;
+        $bestSig = [];
+        $topCount = 0;
+        foreach ($cands as $c) {
+            $s = 0;
+            $sig = [];
+            if ($empNo !== '' && (string) $c->oracle_emp_no === $empNo) {
+                $s += 5;
+                $sig[] = 'id';
+            }
+            if (($email !== '' && mb_strtolower((string) $c->email) === $email) || in_array($c->id, $identityEmpIds, true)) {
+                $s += 4;
+                $sig[] = 'email';
+            }
+            if ($name !== '' && ($norm((string) $c->name) === $norm($name) || $sortName((string) $c->name) === $sortName($name))) {
+                $s += 3;
+                $sig[] = 'name';
+            }
+            if ($s > $bestScore) {
+                $bestScore = $s;
+                $best = $c;
+                $bestSig = $sig;
+                $topCount = 1;
+            } elseif ($s === $bestScore && $s > 0) {
+                $topCount++;
+            }
         }
 
-        $identity = IdentityUser::whereRaw('LOWER(user_principal_name) = ?', [$email])
-            ->orWhereRaw('LOWER(mail) = ?', [$email])
-            ->first();
-
-        if ($identity) {
-            if ($identity->azure_id) {
-                $employee = Employee::where('azure_id', $identity->azure_id)->first();
-                if ($employee) {
-                    return [$employee, 'upn'];
-                }
-            }
-            if ($identity->mail) {
-                $employee = Employee::whereRaw('LOWER(email) = ?', [strtolower($identity->mail)])->first();
-                if ($employee) {
-                    return [$employee, 'mail'];
-                }
-            }
+        if ($best && $bestScore >= 7) {
+            return [$best, 'multi:'.implode('+', $bestSig)];
+        }
+        if ($best && $bestScore >= 4 && $topCount === 1) {
+            return [$best, implode('+', $bestSig)];
+        }
+        if ($best && $bestScore >= 4 && $topCount > 1) {
+            return [null, 'ambiguous'];
+        }
+        if ($best && $bestScore === 3) {
+            return [null, 'name-only'];
         }
 
         return [null, 'none'];
@@ -353,6 +437,9 @@ class OracleHrImportService
         if ($row->job_name) {
             $attrs['job_title'] = $row->job_name;
         }
+        if ($row->gender) {
+            $attrs['gender'] = $row->gender;
+        }
         if ($row->resolved_branch_id) {
             $attrs['branch_id'] = $row->resolved_branch_id;
         }
@@ -376,7 +463,7 @@ class OracleHrImportService
         foreach ($rows as $index => $row) {
             $map = [];
             foreach ($row as $col => $value) {
-                $key = strtolower(trim((string) $value));
+                $key = $this->normalizeHeader((string) $value);
                 if (isset(self::HEADER_MAP[$key])) {
                     $map[self::HEADER_MAP[$key]] = $col;
                 }
