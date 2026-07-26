@@ -386,9 +386,13 @@ class SignatureController extends Controller
         } catch (\Throwable) {
         }
 
-        $path = base_path('deployment/signature/Deploy-Signature.ps1');
+        // Whitelist of scripts this endpoint may serve (no arbitrary file reads).
+        $files = ['deploy' => 'Deploy-Signature.ps1', 'test' => 'Test-Signature.ps1'];
+        $which = $files[$request->query('file', 'deploy')] ?? 'Deploy-Signature.ps1';
+
+        $path = base_path('deployment/signature/'.$which);
         if (! is_file($path)) {
-            return response("# Deploy-Signature.ps1 not found on the server.\n", 404)
+            return response("# {$which} not found on the server.\n", 404)
                 ->header('Content-Type', 'text/plain; charset=utf-8');
         }
 
