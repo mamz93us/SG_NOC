@@ -374,6 +374,24 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Set the employee's extension directly, independent of any linked
+     * contact. Used when the real extension differs from the contact's phone.
+     */
+    public function updateExtension(Request $request, Employee $employee)
+    {
+        $validated = $request->validate([
+            'extension_number' => 'nullable|string|max:50',
+        ]);
+
+        $extension = trim((string) ($validated['extension_number'] ?? '')) ?: null;
+        $employee->update(['extension_number' => $extension]);
+
+        return back()->with('success', $extension
+            ? "Extension set to {$extension}."
+            : 'Extension cleared.');
+    }
+
+    /**
      * Unlink the contact from an employee.
      */
     public function unlinkContact(Employee $employee)

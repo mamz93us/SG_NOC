@@ -253,10 +253,20 @@
             </div>
         </div>
 
-        @if($employee->extension_number || ($employee->contact && $employee->contact->phone))
+        @php $canManageEmp = auth()->user()?->can('manage-employees'); @endphp
+        @if($employee->extension_number || ($employee->contact && $employee->contact->phone) || $canManageEmp)
         <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #0d6efd!important">
-            <div class="card-header bg-transparent"><strong><i class="bi bi-telephone-fill me-1 text-primary"></i>Extension</strong></div>
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-telephone-fill me-1 text-primary"></i>Extension</strong>
+                @if($canManageEmp)
+                <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2"
+                        data-bs-toggle="modal" data-bs-target="#editExtensionModal" title="Edit extension">
+                    <i class="bi bi-pencil" style="font-size:.7rem"></i> Edit
+                </button>
+                @endif
+            </div>
             <div class="card-body small">
+                @if($employee->extension_number || $employee->contact?->phone)
                 <div class="d-flex align-items-center gap-3">
                     <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
                          style="width:44px;height:44px;flex-shrink:0">
@@ -274,6 +284,9 @@
                         @endif
                     </div>
                 </div>
+                @else
+                <p class="text-muted mb-0">No extension set. Use <strong>Edit</strong> to add one.</p>
+                @endif
             </div>
         </div>
         @endif
@@ -1049,6 +1062,40 @@
     </div>
 </div>
 
+@endcan
+
+{{-- ── Edit Extension Modal ── --}}
+@can('manage-employees')
+<div class="modal fade" id="editExtensionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ route('admin.employees.update-extension', $employee) }}">
+                @csrf @method('PATCH')
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-semibold"><i class="bi bi-telephone-fill me-1"></i>Edit Extension for {{ $employee->name }}</h6>
+                    <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label fw-semibold small">Extension number</label>
+                    <input type="text" name="extension_number" class="form-control"
+                           value="{{ $employee->extension_number }}" placeholder="e.g. 3253" autocomplete="off" autofocus>
+                    <small class="text-muted d-block mt-2">
+                        Set directly on this employee — this is what the phone-device lookup uses.
+                        @if($employee->contact?->phone)
+                        Linked contact's phone is <code>{{ $employee->contact->phone }}</code>. Leave blank to fall back to it.
+                        @else
+                        Leave blank to clear.
+                        @endif
+                    </small>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Save Extension</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endcan
 
 {{-- ── Link / Change Contact Modal ── --}}

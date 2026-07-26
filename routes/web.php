@@ -1653,6 +1653,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::put('employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
         Route::post('employees/{employee}/link-contact', [EmployeeController::class, 'linkContact'])->name('employees.link-contact');
         Route::delete('employees/{employee}/unlink-contact', [EmployeeController::class, 'unlinkContact'])->name('employees.unlink-contact');
+        Route::patch('employees/{employee}/extension', [EmployeeController::class, 'updateExtension'])->name('employees.update-extension');
         Route::post('employees/{employee}/assets', [EmployeeController::class, 'assignAsset'])->name('employees.assets.assign');
         Route::patch('employees/{employee}/assets/{asset}/return', [EmployeeController::class, 'returnAsset'])->name('employees.assets.return');
         // Employee items (standalone equipment)
