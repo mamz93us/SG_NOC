@@ -1,44 +1,57 @@
 <#
 .SYNOPSIS
-    Deploys the SamirGroup / SSS Egypt Outlook email signature to the signed-in user.
+    Deploys the SamirGroup / SSS Egypt Outlook email signature to EVERY account the
+    signed-in user has configured in classic Outlook (per-account signatures).
 
 .DESCRIPTION
     Runs in the USER context (Intune platform script or Proactive Remediation).
-    Resolves the logged-in user's UPN, pulls their personalised signature HTML from
-    the NOC signature API (which auto-selects the template by email domain and fills
-    in name / title / branch from the employee profile), writes the classic-Outlook
-    signature files, and sets them as the default for New mail and Reply/Forward.
+    Enumerates every mail account in the Outlook profile, and for EACH account pulls
+    that mailbox's personalised signature HTML from the NOC signature API (which selects
+    the template by the mailbox's email domain + the employee's gender, and fills in
+    name / title / branch / email from that mailbox's profile). It then assigns each
+    account its own New-mail and Reply/Forward signature.
 
-    The signature CONTENT differs per user (domain + branch driven) but the on-disk
-    signature NAME is constant, so one script serves everyone.
+    This is what makes multi-account / cross-domain users correct: a user with both a
+    @samirgroup.com and a @sssegypt.com mailbox gets the Samir Group signature when
+    sending from the Samir account and the SSS signature when sending from the SSS
+    account -- automatically, per account.
+
+    If no Outlook accounts are found yet (profile not built), it falls back to a single
+    global default resolved from the signed-in UPN.
 
 .NOTES
     - Targets CLASSIC Outlook for Windows (desktop). The "new Outlook" (Monarch) uses
-      cloud/roaming signatures and ignores these local files.
+      cloud/roaming signatures and ignores these local files -- those clients are covered
+      by the server-side transport rules instead.
     - Must run in user context: Intune > Scripts > "Run this script using the logged-on
       credentials = Yes". Do NOT run as SYSTEM (signatures live in HKCU + %APPDATA%).
     - Re-running is safe/idempotent; it overwrites the files and registry each time.
+    - Per-account assignment writes 'New Signature' / 'Reply-Forward Signature' in each
+      account key under ...\Outlook\Profiles\<p>\9375CFF0413111d3B88A00104B2A6676\<acct>.
+      Modern Outlook (16.0) stores these as REG_SZ; the script matches an existing value's
+      type when present, else writes REG_SZ.
 #>
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CONFIG — set these before packaging
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# CONFIG -- set these before packaging
+# -----------------------------------------------------------------------------
 param(
-    [string] $BaseUrl        = 'https://noc.samirgroup.net',
-    [string] $ApiKey         = 'hrk_YJupI2XaM1td7JKKQmrFdeYfqYjzQgsiapZBk8TS',   # hrk_... (scope: signature)
-    [string] $SignatureName  = 'SamirGroup',                              # main (new-mail) name in Outlook
-    [string] $ReplyName      = 'SamirGroup Reply',                        # reply/forward name in Outlook
-    [string] $Upn            = '',                                        # optional override; auto-detected if blank
-    [switch] $NoLock,                                                     # pass to skip the read-only/policy lock
-    [switch] $KeepOtherSignatures,                                        # pass to NOT delete pre-existing signatures
-    [switch] $NoPreview,                                                  # pass to suppress the branded preview window
-    [switch] $NoDailyTask                                                 # pass to SKIP the daily self-refresh Scheduled Task (registered by default; Intune platform scripts take no args, so on-by-default is what makes daily refresh work)
+    [string]   $BaseUrl        = 'https://noc.samirgroup.net',
+    [string]   $ApiKey         = 'hrk_YJupI2XaM1td7JKKQmrFdeYfqYjzQgsiapZBk8TS',   # hrk_... (scope: signature)
+    [string]   $SignatureName  = 'Samir Group',                          # base label; account SMTP is appended per account
+    [string]   $ReplyName      = 'Samir Group Reply',                    # base label for the reply slot
+    [string[]] $Domains        = @('samirgroup.com', 'sssegypt.com'),    # only these mail domains get a managed signature; others left untouched
+    [string]   $Upn            = '',                                     # optional override for the single-account fallback; auto-detected if blank
+    [switch]   $NoLock,                                                  # pass to skip the read-only/policy lock
+    [switch]   $KeepOtherSignatures,                                     # pass to NOT delete pre-existing (non-managed) signatures
+    [switch]   $NoPreview,                                               # pass to suppress the branded preview window
+    [switch]   $NoDailyTask                                             # pass to SKIP the daily self-refresh Scheduled Task (registered by default)
 )
 
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# ─── Logging ─────────────────────────────────────────────────────────────────
+# --- Logging -----------------------------------------------------------------
 $LogDir  = Join-Path $env:LOCALAPPDATA 'SamirGroup\SignatureDeploy'
 $LogFile = Join-Path $LogDir 'deploy.log'
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
@@ -50,11 +63,11 @@ function Write-Log {
     Write-Host $line
 }
 
-# ─── Resolve the signed-in user's UPN ────────────────────────────────────────
+# --- Resolve the signed-in user's UPN (single-account fallback only) ----------
 function Resolve-Upn {
     if ($Upn -and $Upn -match '@') { return $Upn.Trim() }
 
-    # 1) whoami /upn — reliable on Azure AD-joined / hybrid-joined machines
+    # 1) whoami /upn -- reliable on Azure AD-joined / hybrid-joined machines
     try {
         $u = (& whoami /upn) 2>$null
         if ($LASTEXITCODE -eq 0 -and $u -match '@') { return $u.Trim() }
@@ -80,18 +93,69 @@ function Resolve-Upn {
     return $null
 }
 
-# ─── Fetch rendered signature HTML from the NOC API ──────────────────────────
+# --- Enumerate every mail account in the Outlook profile(s) -------------------
+# Returns objects: KeyPath (registry path of the account), Smtp, Domain.
+function Get-OutlookAccounts {
+    param([string]$VerKey)
+    $found = @()
+    $profilesRoot = "HKCU:\Software\Microsoft\Office\$VerKey\Outlook\Profiles"
+    if (-not (Test-Path $profilesRoot)) { return $found }
+    $acctGuid = '9375CFF0413111d3B88A00104B2A6676'   # Outlook account container
+
+    foreach ($profile in Get-ChildItem $profilesRoot -ErrorAction SilentlyContinue) {
+        $acctRoot = Join-Path $profile.PSPath $acctGuid
+        if (-not (Test-Path $acctRoot)) { continue }
+        foreach ($acct in Get-ChildItem $acctRoot -ErrorAction SilentlyContinue) {
+            $p = Get-ItemProperty $acct.PSPath -ErrorAction SilentlyContinue
+            if (-not $p) { continue }
+            # SMTP address: prefer the 'Email' value, fall back to 'Account Name'.
+            $smtp = $null
+            foreach ($cand in @($p.'Email', $p.'Account Name')) {
+                if ($cand -and ($cand -match '^[^@\s]+@[^@\s]+\.[^@\s]+$')) { $smtp = ([string]$cand).Trim(); break }
+            }
+            if (-not $smtp) { continue }
+            $found += [pscustomobject]@{
+                KeyPath = $acct.PSPath
+                Smtp    = $smtp
+                Domain  = ($smtp -split '@')[1].ToLower()
+            }
+        }
+    }
+    # De-dupe: the same account can appear under multiple profiles.
+    $found | Sort-Object -Property @{Expression={$_.Smtp}}, @{Expression={$_.KeyPath}} -Unique
+}
+
+# --- Assign a signature to a single account key ------------------------------
+function Set-AccountSignature {
+    param([string]$KeyPath, [string]$NewSigName, [string]$ReplySigName)
+    $item = Get-Item -LiteralPath $KeyPath
+    foreach ($pair in @(
+        @{ Name = 'New Signature';           Value = $NewSigName   },
+        @{ Name = 'Reply-Forward Signature'; Value = $ReplySigName })) {
+
+        $kind = $null
+        try { $kind = $item.GetValueKind($pair.Name) } catch {}
+        if ($kind -eq [Microsoft.Win32.RegistryValueKind]::Binary) {
+            # Legacy (Outlook 2010-era) binary format: null-terminated UTF-16LE name.
+            $bytes = [System.Text.Encoding]::Unicode.GetBytes($pair.Value + [char]0)
+            Set-ItemProperty -LiteralPath $KeyPath -Name $pair.Name -Value $bytes -Type Binary
+        } else {
+            Set-ItemProperty -LiteralPath $KeyPath -Name $pair.Name -Value $pair.Value -Type String
+        }
+    }
+}
+
+# --- Fetch rendered signature HTML from the NOC API --------------------------
 function Get-SignatureHtml {
     param([string]$UserPrincipalName, [string]$Type)   # Type: new_email | reply
     $uri = "{0}/api/signature?upn={1}&type={2}&format=json&api_key={3}" -f `
         $BaseUrl, [uri]::EscapeDataString($UserPrincipalName), $Type, [uri]::EscapeDataString($ApiKey)
-
     $resp = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 30
     if (-not $resp.html) { throw "API returned no HTML for type '$Type'." }
     return [string]$resp.html
 }
 
-# ─── Derive a plain-text version for the .txt fallback ───────────────────────
+# --- Derive a plain-text version for the .txt fallback -----------------------
 function ConvertTo-PlainText {
     param([string]$Html)
     $t = $Html -replace '(?is)<style.*?</style>', ''
@@ -102,7 +166,7 @@ function ConvertTo-PlainText {
     ($t -split "`r`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join "`r`n"
 }
 
-# ─── Write one signature (.htm + .txt), clearing any prior read-only flag ─────
+# --- Write one signature (.htm + .txt), clearing any prior read-only flag -----
 function Write-SignatureFiles {
     param([string]$Dir, [string]$Name, [string]$Html, [bool]$ReadOnly)
     $enc  = [System.Text.UTF8Encoding]::new($false)
@@ -118,11 +182,19 @@ function Write-SignatureFiles {
     }
 }
 
-# ─── Branded preview page shown to the user after install ────────────────────
+# --- Branded preview page shown to the user after install --------------------
 function Show-SignaturePreview {
-    param([string]$NewHtml, [string]$ReplyHtml, [string]$Dir)
+    param([array]$Cards, [string]$Dir)   # each Card: @{ Smtp; New; Reply }
+    $body = ''
+    foreach ($c in $Cards) {
+        $body += @"
+  <div class="acct">$($c.Smtp)</div>
+  <div class="card"><h2>New email</h2><div class="sig">$($c.New)</div></div>
+  <div class="card"><h2>Reply &amp; forward</h2><div class="sig">$($c.Reply)</div></div>
+"@
+    }
     $page = @"
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Your Email Signature</title>
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Your Email Signatures</title>
 <style>
   body{font-family:'Segoe UI',Arial,sans-serif;background:#f3f4f6;margin:0;padding:32px;color:#1f2937;}
   .wrap{max-width:720px;margin:0 auto;}
@@ -130,123 +202,178 @@ function Show-SignaturePreview {
   .banner .tick{font-size:30px;line-height:1;}
   .banner h1{font-size:18px;margin:0;font-weight:600;}
   .banner p{margin:3px 0 0;font-size:13px;opacity:.92;}
-  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-top:20px;overflow:hidden;}
+  .acct{margin:22px 0 6px;font-size:12px;font-weight:600;color:#d81f2a;letter-spacing:.3px;}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;margin-top:8px;}
   .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;margin:0;padding:13px 20px;border-bottom:1px solid #f0f0f0;background:#fafafa;}
   .card .sig{padding:22px 24px;}
-  .note{margin-top:18px;font-size:12px;color:#6b7280;text-align:center;line-height:1.7;}
+  .note{margin-top:22px;font-size:12px;color:#6b7280;text-align:center;line-height:1.7;}
 </style></head><body><div class="wrap">
   <div class="banner"><div class="tick">&#10003;</div>
-    <div><h1>Your Samir Group email signature is ready</h1>
-    <p>It has been set up in Outlook automatically and is managed by IT.</p></div></div>
-  <div class="card"><h2>New email</h2><div class="sig">__NEW__</div></div>
-  <div class="card"><h2>Reply &amp; forward</h2><div class="sig">__REPLY__</div></div>
-  <p class="note">This signature is set and maintained by Samir Group IT.<br>Please do not edit or delete it &mdash; any changes are reset automatically. Questions? Contact the IT Service Desk.</p>
+    <div><h1>Your Samir Group email signatures are ready</h1>
+    <p>Each of your Outlook accounts has been set up automatically and is managed by IT.</p></div></div>
+$body
+  <p class="note">These signatures are set and maintained by Samir Group IT.<br>Please do not edit or delete them &mdash; any changes are reset automatically. Questions? Contact the IT Service Desk.</p>
 </div></body></html>
 "@
-    $page = $page.Replace('__NEW__', $NewHtml).Replace('__REPLY__', $ReplyHtml)
     $path = Join-Path $Dir 'preview.html'
     [System.IO.File]::WriteAllText($path, $page, [System.Text.UTF8Encoding]::new($false))
     Start-Process $path | Out-Null
     return $path
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # MAIN
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 try {
     Write-Log "=== Signature deploy started (user: $env:USERNAME) ==="
-
-    $userUpn = Resolve-Upn
-    if (-not $userUpn) {
-        Write-Log "Could not resolve a UPN for the signed-in user; aborting." 'ERROR'
-        exit 1
-    }
-    Write-Log "Resolved UPN: $userUpn"
-
     $lock = -not $NoLock.IsPresent
-
-    # Pull both slots. Reply falls back to the 'all' template server-side if none set.
-    $newHtml   = Get-SignatureHtml -UserPrincipalName $userUpn -Type 'new_email'
-    try   { $replyHtml = Get-SignatureHtml -UserPrincipalName $userUpn -Type 'reply' }
-    catch { $replyHtml = $newHtml; Write-Log "No reply-specific template; reusing new-mail signature." 'WARN' }
 
     # Signatures live in a fixed, locale-independent folder.
     $sigDir = Join-Path $env:APPDATA 'Microsoft\Signatures'
     New-Item -ItemType Directory -Path $sigDir -Force | Out-Null
-
-    # Remove any OTHER (old / personal) signatures so only the corporate ones remain.
-    if (-not $KeepOtherSignatures.IsPresent) {
-        $keep = @($SignatureName, $ReplyName)
-        Get-ChildItem $sigDir -File -ErrorAction SilentlyContinue | Where-Object {
-            $keep -notcontains [IO.Path]::GetFileNameWithoutExtension($_.Name)
-        } | ForEach-Object { try { $_.IsReadOnly = $false } catch {}; Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
-        Get-ChildItem $sigDir -Directory -ErrorAction SilentlyContinue | Where-Object {
-            $keep -notcontains ($_.Name -replace '_files$','')
-        } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Log "Removed other/old signatures (kept: $($keep -join ', '))."
-    }
-
-    # Always install BOTH slots as distinct, named signatures.
-    Write-SignatureFiles -Dir $sigDir -Name $SignatureName -Html $newHtml   -ReadOnly:$lock
-    Write-SignatureFiles -Dir $sigDir -Name $ReplyName     -Html $replyHtml -ReadOnly:$lock
-    Write-Log "Wrote signatures: '$SignatureName' (new) + '$ReplyName' (reply). ReadOnly=$lock"
 
     # Detect installed Outlook version key (16.0 = 2016/2019/2021/365, 15.0 = 2013)
     $verKey = @('16.0','15.0') | Where-Object { Test-Path "HKCU:\Software\Microsoft\Office\$_\Outlook" } | Select-Object -First 1
     if (-not $verKey) { $verKey = '16.0' }
     Write-Log "Using Office version key: $verKey"
 
-    # Set as the default signature for New + Reply/Forward (user hive).
+    $accounts = @(Get-OutlookAccounts -VerKey $verKey)
+    Write-Log ("Outlook accounts found: {0}{1}" -f $accounts.Count, $(if ($accounts.Count) { ' -> ' + (($accounts.Smtp) -join ', ') } else { '' }))
+
+    $keepNames   = @()   # signature names we manage (never delete these)
+    $cards       = @()   # for the preview page (one per assigned account)
+    $hashParts   = @()   # for change detection
+    $assigned    = 0
+    $primarySig  = $null # @{ NewName; ReplyName } used for the global default fallback
+    $primaryUpn  = (Resolve-Upn)
+
+    if ($accounts.Count -gt 0) {
+        # ---- PER-ACCOUNT: assign each account its own signature -------------
+        $fetchCache = @{}   # smtp -> @{ New; Reply; NewName; ReplyName }
+        foreach ($acct in $accounts) {
+            if ($Domains -and ($Domains -notcontains $acct.Domain)) {
+                Write-Log "Skipping $($acct.Smtp) (domain '$($acct.Domain)' not in managed list)."
+                continue
+            }
+            if (-not $fetchCache.ContainsKey($acct.Smtp)) {
+                try {
+                    $new = Get-SignatureHtml -UserPrincipalName $acct.Smtp -Type 'new_email'
+                } catch {
+                    Write-Log ("No signature for $($acct.Smtp): " + $_.Exception.Message + " -- leaving this account untouched.") 'WARN'
+                    continue
+                }
+                try   { $reply = Get-SignatureHtml -UserPrincipalName $acct.Smtp -Type 'reply' }
+                catch { $reply = $new; Write-Log "No reply-specific template for $($acct.Smtp); reusing new-mail signature." 'WARN' }
+
+                $newName   = "$SignatureName ($($acct.Smtp))"
+                $replyName = "$ReplyName ($($acct.Smtp))"
+                Write-SignatureFiles -Dir $sigDir -Name $newName   -Html $new   -ReadOnly:$lock
+                Write-SignatureFiles -Dir $sigDir -Name $replyName -Html $reply -ReadOnly:$lock
+                $fetchCache[$acct.Smtp] = @{ New = $new; Reply = $reply; NewName = $newName; ReplyName = $replyName }
+
+                $keepNames += $newName; $keepNames += $replyName
+                $hashParts += ($acct.Smtp + '|' + $new + '|' + $reply)
+                $cards     += @{ Smtp = $acct.Smtp; New = $new; Reply = $reply }
+            }
+            $c = $fetchCache[$acct.Smtp]
+            Set-AccountSignature -KeyPath $acct.KeyPath -NewSigName $c.NewName -ReplySigName $c.ReplyName
+            $assigned++
+            Write-Log "Assigned $($acct.Smtp) -> '$($c.NewName)' / '$($c.ReplyName)'"
+
+            # Pick the primary (matches the signed-in UPN) for the global default fallback.
+            if (-not $primarySig -or ($primaryUpn -and ($acct.Smtp -ieq $primaryUpn))) {
+                $primarySig = @{ NewName = $c.NewName; ReplyName = $c.ReplyName }
+            }
+        }
+        if ($assigned -eq 0) {
+            Write-Log "No managed accounts matched; nothing assigned." 'WARN'
+        }
+    }
+
+    # ---- FALLBACK: no accounts in the profile yet -> single global default ----
+    if ($accounts.Count -eq 0 -or $assigned -eq 0) {
+        $userUpn = $primaryUpn
+        if (-not $userUpn) {
+            Write-Log "No Outlook accounts and could not resolve a UPN; aborting." 'ERROR'
+            exit 1
+        }
+        Write-Log "Fallback single-account mode for UPN: $userUpn"
+        $new = Get-SignatureHtml -UserPrincipalName $userUpn -Type 'new_email'
+        try   { $reply = Get-SignatureHtml -UserPrincipalName $userUpn -Type 'reply' }
+        catch { $reply = $new; Write-Log "No reply-specific template; reusing new-mail signature." 'WARN' }
+        Write-SignatureFiles -Dir $sigDir -Name $SignatureName -Html $new   -ReadOnly:$lock
+        Write-SignatureFiles -Dir $sigDir -Name $ReplyName     -Html $reply -ReadOnly:$lock
+        $keepNames += $SignatureName; $keepNames += $ReplyName
+        $hashParts += ($userUpn + '|' + $new + '|' + $reply)
+        $cards     += @{ Smtp = $userUpn; New = $new; Reply = $reply }
+        $primarySig = @{ NewName = $SignatureName; ReplyName = $ReplyName }
+    }
+
+    # ---- Remove any OTHER (old / personal) signatures --------------------------
+    if (-not $KeepOtherSignatures.IsPresent) {
+        Get-ChildItem $sigDir -File -ErrorAction SilentlyContinue | Where-Object {
+            $keepNames -notcontains [IO.Path]::GetFileNameWithoutExtension($_.Name)
+        } | ForEach-Object { try { $_.IsReadOnly = $false } catch {}; Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+        Get-ChildItem $sigDir -Directory -ErrorAction SilentlyContinue | Where-Object {
+            $keepNames -notcontains ($_.Name -replace '_files$','')
+        } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Log "Removed other/old signatures (kept: $($keepNames -join ', '))."
+    }
+
+    # ---- Global default (fallback for any account without an explicit assignment) ----
     $ms = "HKCU:\Software\Microsoft\Office\$verKey\Common\MailSettings"
     New-Item -Path $ms -Force | Out-Null
-    Set-ItemProperty -Path $ms -Name 'NewSignature'   -Value $SignatureName -Type String
-    Set-ItemProperty -Path $ms -Name 'ReplySignature' -Value $ReplyName     -Type String
+    Set-ItemProperty -Path $ms -Name 'NewSignature'   -Value $primarySig.NewName   -Type String
+    Set-ItemProperty -Path $ms -Name 'ReplySignature' -Value $primarySig.ReplyName -Type String
 
     # Make local files win over M365 cloud/roaming signatures.
     $setup = "HKCU:\Software\Microsoft\Office\$verKey\Outlook\Setup"
     New-Item -Path $setup -Force | Out-Null
     Set-ItemProperty -Path $setup -Name 'DisableRoamingSignaturesTemporaryToggle' -Value 1 -Type DWord
 
-    # ── Lock: force the selection via the POLICY hive (takes precedence over any
-    #    change a user makes in the Outlook UI, and reasserts on every Outlook read).
+    # ---- Lock ----------------------------------------------------------------
+    # Multi-account: a single policy-forced signature can't express per-account, so we
+    #   enforce via read-only files + a disabled compose button + the daily re-assert task.
+    # Single account: also pin the selection through the POLICY hive (strongest lock).
     if ($lock) {
-        $pol = "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings"
-        New-Item -Path $pol -Force | Out-Null
-        Set-ItemProperty -Path $pol -Name 'NewSignature'   -Value $SignatureName -Type String
-        Set-ItemProperty -Path $pol -Name 'ReplySignature' -Value $ReplyName     -Type String
-
-        # Best-effort: grey out the "Signature" button in the compose window so users
-        # can't add/edit signatures there (control ID 5608). The policy-hive selection
-        # above is the real guarantee — even a user-added signature is never applied.
         $dis = "HKCU:\Software\Policies\Microsoft\Office\$verKey\Outlook\DisabledCmdBarItemsList"
         New-Item -Path $dis -Force | Out-Null
-        Set-ItemProperty -Path $dis -Name 'TCID1' -Value '5608' -Type String
+        Set-ItemProperty -Path $dis -Name 'TCID1' -Value '5608' -Type String   # compose-window Signature button
 
-        Write-Log "Locked: files read-only, selection forced via policy, Signature button disabled."
+        if ($keepNames.Count -le 2) {
+            $pol = "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings"
+            New-Item -Path $pol -Force | Out-Null
+            Set-ItemProperty -Path $pol -Name 'NewSignature'   -Value $primarySig.NewName   -Type String
+            Set-ItemProperty -Path $pol -Name 'ReplySignature' -Value $primarySig.ReplyName -Type String
+            Write-Log "Locked (single account): files read-only, selection forced via policy, Signature button disabled."
+        } else {
+            # Remove any stale policy-forced single default so it doesn't override per-account.
+            Remove-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings" `
+                -Name 'NewSignature','ReplySignature' -ErrorAction SilentlyContinue
+            Write-Log "Locked (multi-account): files read-only, Signature button disabled, per-account re-asserted daily."
+        }
     }
-    Write-Log "Set default signatures (New='$SignatureName', Reply='$ReplyName')."
 
-    # Hash the content so we (a) let the detection script know when the template changed
-    # and (b) only pop the preview when it actually changed — not on every scheduled run.
+    # ---- Change detection (for the preview pop) ------------------------------
     $hashFile = Join-Path $LogDir 'last.hash'
     $oldHash  = (Get-Content -Path $hashFile -ErrorAction SilentlyContinue | Select-Object -First 1)
-    $hash     = (Get-FileHash -Algorithm SHA256 -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($newHtml + $replyHtml)))).Hash
+    $blob     = ($hashParts -join "`n")
+    $hash     = (Get-FileHash -Algorithm SHA256 -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($blob)))).Hash
     Set-Content -Path $hashFile -Value $hash -Encoding ASCII
     $changed  = ($oldHash -ne $hash)
 
-    # Show the branded preview only on first install / when the signature changed.
-    if (-not $NoPreview.IsPresent -and $changed) {
+    # Show the branded preview only on first install / when a signature changed.
+    if (-not $NoPreview.IsPresent -and $changed -and $cards.Count -gt 0) {
         try {
-            $p = Show-SignaturePreview -NewHtml $newHtml -ReplyHtml $replyHtml -Dir $LogDir
+            $p = Show-SignaturePreview -Cards $cards -Dir $LogDir
             Write-Log "Opened signature preview: $p"
         } catch {
             Write-Log ("Preview failed (non-fatal): " + $_.Exception.Message) 'WARN'
         }
     }
 
-    # Register a daily Scheduled Task that re-runs this script, so template edits apply
-    # automatically without Intune Proactive Remediations. Copies the script to a stable
-    # path (the Intune temp copy is deleted after the run) and schedules it daily + at logon.
+    # ---- Daily self-refresh Scheduled Task -----------------------------------
+    # Re-runs this script so template/account edits apply without Proactive Remediations.
     # On by default (Intune platform scripts pass no args); -NoDailyTask opts out.
     if (-not $NoDailyTask.IsPresent) {
         try {
@@ -270,7 +397,7 @@ try {
         }
     }
 
-    Write-Log "=== Signature deploy completed OK ==="
+    Write-Log "=== Signature deploy completed OK (accounts assigned: $assigned) ==="
     exit 0
 }
 catch {

@@ -296,9 +296,17 @@ template changes and any user edit is overwritten. Log: `%LOCALAPPDATA%\SamirGro
   Remove-Item "HKCU:\Software\Policies\Microsoft\Office\$ver\Outlook\DisabledCmdBarItemsList" -Recurse -Force -EA SilentlyContinue
   ```
 
-- **Per-account overrides.** If a mailbox already has a *manually chosen* per-account
-  signature, that can override the global default. A clean deployment (or clearing the
-  user's existing selection once) resolves it.
+- **Per-account signatures (multi-account users).** `Deploy-Signature.ps1` enumerates
+  **every** account in the Outlook profile and assigns each its own signature, fetched from
+  the API by that mailbox's SMTP (so the domain + gender + name/title/email are correct per
+  account). A user with both `@samirgroup.com` and `@sssegypt.com` mailboxes gets the Samir
+  signature on the Samir account and the SSS signature on the SSS account. Only domains in
+  the `-Domains` list (`samirgroup.com`, `sssegypt.com` by default) are managed — any other
+  account (e.g. a personal Gmail) is left untouched. With **2+ managed accounts** the lock
+  drops the policy-forced single default (it can't express per-account) and instead relies on
+  read-only files + the disabled compose button + the daily re-assert task; with a **single**
+  account the strong policy-forced lock is used. If no accounts exist yet (profile not built),
+  it falls back to one global default from the signed-in UPN.
 - **Remote logo.** The signature references the logo by URL (`logo_url`), so the image
   loads from the web. Recipients may need to allow image download on first view — this
   is normal for HTML signatures. To embed the logo instead, host it and it still renders;
