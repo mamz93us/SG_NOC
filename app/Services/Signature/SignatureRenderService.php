@@ -67,6 +67,17 @@ class SignatureRenderService
     {
         $html = $template->html_body;
 
+        // Strip Word/Outlook cruft that Exchange's disclaimer parser rejects (a Word-pasted
+        // template otherwise fails with "Disclaimer text is invalid"). Order matters:
+        // hidden conditional comments (with their content) first, then the rest.
+        $html = preg_replace('/<!--\[if[\s\S]*?<!\[endif\]-->/i', '', $html);   // <!--[if ...]> ... <![endif]-->
+        $html = preg_replace('/<!\[if[^\]]*\]>/i', '', $html);                  // revealed <![if ...]> (keep inner)
+        $html = preg_replace('/<!\[endif\]>/i', '', $html);
+        $html = preg_replace('/<xml[\s\S]*?<\/xml>/i', '', $html);              // Word xml islands
+        $html = preg_replace('/<!--[\s\S]*?-->/', '', $html);                   // any remaining HTML comments
+        $html = preg_replace('/<\/?(o|v|w|m|st1|x):[^>]*>/i', '', $html);       // namespaced tags: <o:p>, VML <v:*>, etc.
+        $html = preg_replace('/\x{FEFF}/u', '', $html);                         // stray BOM/zero-width
+
         // Extension has no AD token (it is folded into the business phone) — drop its block.
         $html = preg_replace('/\{\{#if\s+extension\}\}.*?\{\{\/if\}\}/s', '', $html);
 
@@ -101,6 +112,12 @@ class SignatureRenderService
 
         // Drop any leftover placeholders with no AD token (extension, stray tags).
         $html = preg_replace('/\{\{[#\/]?\w+\}\}/', '', $html);
+
+        // Collapse the whitespace bloat a Word paste leaves behind (long runs of blank
+        // lines/spaces) so the disclaimer stays well under the Exchange size limit.
+        $html = preg_replace('/[ \t]+/', ' ', $html);        // runs of spaces/tabs -> one
+        $html = preg_replace('/(\r?\n\s*){2,}/', "\n", $html); // 2+ blank lines -> one
+        $html = trim($html);
 
         return $html.$this->markerHtml();
     }
