@@ -10,12 +10,11 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
  * Reconciles an HR employee export (xlsx) against the NOC employee records.
  *
  * Matches each HR row on THREE signals — EMP_NO -> oracle_emp_no, email, and name —
- * and scores candidates by how many agree (id=5, email=4, name=3). Two or more
- * signals = a confident match; a single strong signal (id or email) is accepted only
- * when it points to exactly one person. This resolves the two known traps safely:
+ * scored (id=5, email=4, name=3). Requires TWO signals to agree (id+email, email+name
+ * or id+name); NO single signal is trusted, because:
  *   - EMP_NO collides between the SSS-Egypt and SamirGroup/Saudi series, and
- *   - shared emails (drivers/guards listed under a colleague's address),
- * by flagging ties as AMBIGUOUS instead of guessing. Name-only hits are LOW-CONFIDENCE.
+ *   - mail-less staff (drivers/guards) are listed under their MANAGER's email.
+ * A top-score tie is AMBIGUOUS and a lone signal is SINGLE-SIGNAL — both skipped.
  *
  * Sets gender and reports other field differences. Dry-run by default; --apply writes
  * gender only; --apply-all also writes job title / department / location.
@@ -135,20 +134,18 @@ class EmployeesSyncHrList extends Command
                 }
             }
 
-            // Accept: 2+ signals (>=7) always; a lone strong signal (id=5 or email=4)
-            // only when it points to exactly one person. Ties = ambiguous; name-only = weak.
+            // Require TWO signals to agree (>=7), unambiguously. No single signal is
+            // trusted: email alone can be the manager's (mail-less staff) and emp_no
+            // alone collides across the SSS/Saudi series. Single signal / tie = skipped.
             $emp = null;
             $method = 'unmatched';
-            if ($best && $bestScore >= 7) {
+            if ($best && $bestScore >= 7 && $topCount === 1) {
                 $emp = $best;
                 $method = 'multi ('.implode('+', $bestSig).')';
-            } elseif ($best && $bestScore >= 4 && $topCount === 1) {
-                $emp = $best;
-                $method = implode('+', $bestSig);
-            } elseif ($best && $bestScore >= 4 && $topCount > 1) {
+            } elseif ($best && $bestScore >= 7 && $topCount > 1) {
                 $method = 'ambiguous';
-            } elseif ($best && $bestScore === 3) {
-                $method = 'name-only';
+            } elseif ($best && $bestScore > 0) {
+                $method = 'single ('.implode('+', $bestSig).')';
             }
 
             if (! $emp) {
@@ -156,9 +153,9 @@ class EmployeesSyncHrList extends Command
                 if ($method === 'ambiguous') {
                     $stats['ambiguous']++;
                     $ambiguous[] = $line;
-                } elseif ($method === 'name-only') {
+                } elseif (str_starts_with($method, 'single')) {
                     $stats['lowconf']++;
-                    $lowconf[] = $line;
+                    $lowconf[] = $line.'  ['.$method.']';
                 } else {
                     $stats['unmatched']++;
                     $unmatched[] = $line;
@@ -249,8 +246,8 @@ class EmployeesSyncHrList extends Command
             }
         };
 
-        $report('AMBIGUOUS — id/email matched more than one person (skipped, resolve by hand)', $ambiguous);
-        $report('LOW-CONFIDENCE — name matched but no id/email confirm (skipped)', $lowconf);
+        $report('AMBIGUOUS — two signals tied across more than one person (skipped, resolve by hand)', $ambiguous);
+        $report('SINGLE-SIGNAL — only id OR email OR name matched, not enough to trust (skipped)', $lowconf);
         $report('In file but NOT in NOC', $unmatched);
 
         // Active NOC employees absent from the HR list (possible leavers)

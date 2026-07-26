@@ -119,9 +119,9 @@ class OracleHrImportService
                 // for the two "close but unsafe" cases so the reviewer knows what to do.
                 $status = $employee ? 'matched' : 'unmatched';
                 if (! $employee) {
-                    $reason = match ($method) {
-                        'ambiguous' => 'Ambiguous: emp_no/email matched more than one employee — link the correct one.',
-                        'name-only' => 'Name matched but no emp_no/email confirmation — verify before linking.',
+                    $reason = match (true) {
+                        $method === 'ambiguous' => 'Ambiguous: two signals tied across more than one employee — link the correct one.',
+                        str_starts_with($method, 'single:') => 'Only one signal ('.substr($method, 7).') matched — needs a second (id/email/name) to confirm; the email may be the manager\'s. Verify and link manually.',
                         default => null,
                     };
                     if ($reason) {
@@ -161,10 +161,11 @@ class OracleHrImportService
      * oracle_emp_no (5), email (4), name (3). Email also matches when the address
      * lives on the employee's linked Azure identity (UPN/mail), not just employees.email.
      *
-     * Two+ signals (>=7) is a confident match. A lone strong signal (id or email) is
-     * accepted only when it points to exactly one person; a tie returns 'ambiguous'
-     * (handles the SSS/Saudi emp_no collision and shared driver/guard emails safely).
-     * Name-only returns 'name-only'. Both are surfaced for manual resolution.
+     * Requires TWO signals to agree (>=7): id+email, email+name, or id+name. No single
+     * signal is trusted — email alone is unreliable because mail-less staff are listed
+     * under their MANAGER's email, and emp_no alone collides between the SSS-Egypt and
+     * Saudi series. A single-signal hit returns 'single:<sig>' and a top-score tie returns
+     * 'ambiguous'; both are surfaced (unmatched) for manual resolution.
      *
      * @return array{0: ?Employee, 1: string} [employee|null, match_method]
      */
@@ -240,17 +241,15 @@ class OracleHrImportService
             }
         }
 
-        if ($best && $bestScore >= 7) {
+        // Require two signals to agree, and unambiguously.
+        if ($best && $bestScore >= 7 && $topCount === 1) {
             return [$best, 'multi:'.implode('+', $bestSig)];
         }
-        if ($best && $bestScore >= 4 && $topCount === 1) {
-            return [$best, implode('+', $bestSig)];
-        }
-        if ($best && $bestScore >= 4 && $topCount > 1) {
+        if ($best && $bestScore >= 7 && $topCount > 1) {
             return [null, 'ambiguous'];
         }
-        if ($best && $bestScore === 3) {
-            return [null, 'name-only'];
+        if ($best && $bestScore > 0) {
+            return [null, 'single:'.implode('+', $bestSig)];
         }
 
         return [null, 'none'];
