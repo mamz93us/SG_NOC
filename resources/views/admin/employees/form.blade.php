@@ -124,9 +124,9 @@
                                    value="{{ old('work_phone', $employee->work_phone ?? '') }}" placeholder="+20 2 …">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Extension <small class="text-muted">(from phone system)</small></label>
-                            <input type="text" class="form-control bg-body-secondary" disabled
-                                   value="{{ $employee->extension_number ?? '—' }}">
+                            <label class="form-label small fw-semibold">Extension <small class="text-muted">(&rarr; Azure fax field / signature)</small></label>
+                            <input type="text" name="extension_number" class="form-control"
+                                   value="{{ old('extension_number', $employee->extension_number ?? '') }}" placeholder="e.g. 1708">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Company</label>

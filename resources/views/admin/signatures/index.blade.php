@@ -9,6 +9,9 @@
     </div>
     <div class="ms-auto d-flex gap-2">
         @can('manage-signatures')
+        <a href="{{ route('admin.signatures.log') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-clock-history me-1"></i>Request Log
+        </a>
         <a href="{{ route('admin.signatures.create') }}" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-circle me-1"></i>New Template
         </a>

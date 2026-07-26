@@ -2164,6 +2164,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
         Route::middleware('permission:manage-signatures')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\SignatureController::class, 'index'])->name('index');
+            Route::get('/log', [\App\Http\Controllers\Admin\SignatureController::class, 'log'])->name('log');
             Route::get('/create', [\App\Http\Controllers\Admin\SignatureController::class, 'create'])->name('create');
             Route::post('/', [\App\Http\Controllers\Admin\SignatureController::class, 'store'])->name('store');
             Route::get('/{signature}/edit', [\App\Http\Controllers\Admin\SignatureController::class, 'edit'])->name('edit');

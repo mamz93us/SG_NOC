@@ -8,12 +8,10 @@ use App\Models\Department;
 use App\Models\Device;
 use App\Models\Employee;
 use App\Models\EmployeeAsset;
-use App\Models\AllowedDomain;
 use App\Models\IdentityUser;
 use App\Services\Identity\AzureContactSyncService;
 use App\Services\PhoneDeviceLookup;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class EmployeeController extends Controller
@@ -53,31 +51,31 @@ class EmployeeController extends Controller
         // Sorting
         $sort = $request->get('sort', 'name');
         $direction = $request->get('direction', 'asc') === 'desc' ? 'desc' : 'asc';
-        
+
         $sortMap = [
-            'name'       => 'employees.name',
-            'branch'     => 'branches.name',
+            'name' => 'employees.name',
+            'branch' => 'branches.name',
             'department' => 'departments.name',
-            'job_title'  => 'employees.job_title',
-            'status'     => 'employees.status',
-            'assets'     => 'active_assets_count',
-            'hired'      => 'employees.hired_date',
+            'job_title' => 'employees.job_title',
+            'status' => 'employees.status',
+            'assets' => 'active_assets_count',
+            'hired' => 'employees.hired_date',
         ];
 
         $orderCol = $sortMap[$sort] ?? 'employees.name';
         $query->orderBy($orderCol, $direction);
 
         $employees = $query->paginate(25)->withQueryString();
-        $branches  = Branch::orderBy('name')->get();
-        $total     = Employee::count();
+        $branches = Branch::orderBy('name')->get();
+        $total = Employee::count();
 
         return view('admin.employees.index', compact('employees', 'branches', 'total'));
     }
 
     public function search(Request $request)
     {
-        $q         = $request->get('q', '');
-        $branchId  = $request->get('branch_id');
+        $q = $request->get('q', '');
+        $branchId = $request->get('branch_id');
 
         $query = Employee::query()
             ->where('status', 'active')
@@ -122,7 +120,7 @@ class EmployeeController extends Controller
         // Eager-count assignments and filter in SQL to avoid N+1 usedSeats() calls.
         $availableLicenses = \App\Models\License::withCount('assignments')
             ->get()
-            ->filter(fn($l) => ($l->seats - $l->assignments_count) > 0)
+            ->filter(fn ($l) => ($l->seats - $l->assignments_count) > 0)
             ->values();
 
         // License assignments for this employee (morphMany)
@@ -160,10 +158,10 @@ class EmployeeController extends Controller
 
     public function create()
     {
-        $branches    = Branch::orderBy('name')->get();
+        $branches = Branch::orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
-        $managers    = Employee::where('status', 'active')->orderBy('name')->get();
-        $azureUsers  = IdentityUser::where('account_enabled', true)->orderBy('display_name')->get();
+        $managers = Employee::where('status', 'active')->orderBy('name')->get();
+        $azureUsers = IdentityUser::where('account_enabled', true)->orderBy('display_name')->get();
 
         return view('admin.employees.form', compact('branches', 'departments', 'managers', 'azureUsers'));
     }
@@ -171,17 +169,17 @@ class EmployeeController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'          => 'required|string|max:255',
-            'email'         => 'nullable|email|max:255',
-            'azure_id'      => 'nullable|string|max:100',
-            'branch_id'     => 'nullable|exists:branches,id',
+            'name' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'azure_id' => 'nullable|string|max:100',
+            'branch_id' => 'nullable|exists:branches,id',
             'department_id' => 'nullable|exists:departments,id',
-            'manager_id'    => 'nullable|exists:employees,id',
-            'job_title'     => 'nullable|string|max:255',
-            'gender'        => 'nullable|in:male,female',
-            'status'        => 'required|in:active,terminated,on_leave',
-            'hired_date'    => 'nullable|date',
-            'notes'         => 'nullable|string|max:2000',
+            'manager_id' => 'nullable|exists:employees,id',
+            'job_title' => 'nullable|string|max:255',
+            'gender' => 'nullable|in:male,female',
+            'status' => 'required|in:active,terminated,on_leave',
+            'hired_date' => 'nullable|date',
+            'notes' => 'nullable|string|max:2000',
         ] + $this->contactRules());
 
         $employee = Employee::create($validated);
@@ -197,12 +195,13 @@ class EmployeeController extends Controller
     private function contactRules(): array
     {
         return [
-            'mobile_phone'    => 'nullable|string|max:50',
-            'work_phone'      => 'nullable|string|max:50',
+            'mobile_phone' => 'nullable|string|max:50',
+            'work_phone' => 'nullable|string|max:50',
+            'extension_number' => 'nullable|string|max:20',   // pushed to Azure fax field (%%FaxNumber%%)
             'office_location' => 'nullable|string|max:120',
-            'city'            => 'nullable|string|max:120',
-            'street_address'  => 'nullable|string|max:255',
-            'company'         => 'nullable|string|max:150',
+            'city' => 'nullable|string|max:120',
+            'street_address' => 'nullable|string|max:255',
+            'company' => 'nullable|string|max:150',
         ];
     }
 
@@ -210,7 +209,7 @@ class EmployeeController extends Controller
      * Push the employee's contact fields to Azure AD (auto-sync on save).
      * Never blocks the save — returns a message + flash level to append.
      *
-     * @return array{0: string, 1: string}  [message, flashLevel]
+     * @return array{0: string, 1: string} [message, flashLevel]
      */
     private function pushToAzure(Employee $employee): array
     {
@@ -219,7 +218,7 @@ class EmployeeController extends Controller
         }
 
         try {
-            $service  = app(AzureContactSyncService::class);
+            $service = app(AzureContactSyncService::class);
             $proposed = $service->computeFromEmployee($employee);
             if ($proposed === []) {
                 return ['', 'success'];
@@ -230,7 +229,7 @@ class EmployeeController extends Controller
         } catch (\Throwable $e) {
             Log::warning('EmployeeController: Azure push failed', [
                 'employee_id' => $employee->id,
-                'error'       => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             if (AzureContactSyncService::isProtectedAdminError($e)) {
@@ -244,9 +243,9 @@ class EmployeeController extends Controller
 
     public function edit(Employee $employee)
     {
-        $branches    = Branch::orderBy('name')->get();
+        $branches = Branch::orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
-        $managers    = Employee::where('status', 'active')->where('id', '!=', $employee->id)->orderBy('name')->get();
+        $managers = Employee::where('status', 'active')->where('id', '!=', $employee->id)->orderBy('name')->get();
 
         return view('admin.employees.form', compact('employee', 'branches', 'departments', 'managers'));
     }
@@ -254,18 +253,18 @@ class EmployeeController extends Controller
     public function update(Request $request, Employee $employee)
     {
         $validated = $request->validate([
-            'name'             => 'required|string|max:255',
-            'email'            => 'nullable|email|max:255',
-            'azure_id'         => 'nullable|string|max:100',
-            'branch_id'        => 'nullable|exists:branches,id',
-            'department_id'    => 'nullable|exists:departments,id',
-            'manager_id'       => 'nullable|exists:employees,id',
-            'job_title'        => 'nullable|string|max:255',
-            'gender'           => 'nullable|in:male,female',
-            'status'           => 'required|in:active,terminated,on_leave',
-            'hired_date'       => 'nullable|date',
-            'terminated_date'  => 'nullable|date|after_or_equal:hired_date',
-            'notes'            => 'nullable|string|max:2000',
+            'name' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'azure_id' => 'nullable|string|max:100',
+            'branch_id' => 'nullable|exists:branches,id',
+            'department_id' => 'nullable|exists:departments,id',
+            'manager_id' => 'nullable|exists:employees,id',
+            'job_title' => 'nullable|string|max:255',
+            'gender' => 'nullable|in:male,female',
+            'status' => 'required|in:active,terminated,on_leave',
+            'hired_date' => 'nullable|date',
+            'terminated_date' => 'nullable|date|after_or_equal:hired_date',
+            'notes' => 'nullable|string|max:2000',
         ] + $this->contactRules());
 
         $employee->update($validated);
@@ -280,10 +279,10 @@ class EmployeeController extends Controller
     public function assignAsset(Request $request, Employee $employee)
     {
         $validated = $request->validate([
-            'asset_id'      => 'required|exists:devices,id',
+            'asset_id' => 'required|exists:devices,id',
             'assigned_date' => 'required|date',
-            'condition'     => 'required|in:good,fair,poor',
-            'notes'         => 'nullable|string|max:500',
+            'condition' => 'required|in:good,fair,poor',
+            'notes' => 'nullable|string|max:500',
         ]);
 
         // 1. Prevent double-click submissions (debounce)
@@ -303,11 +302,11 @@ class EmployeeController extends Controller
             ->first();
 
         if ($activeAssignment) {
-            return back()->with('error', 'This asset is already assigned to ' . ($activeAssignment->employee?->name ?? 'someone else') . '.');
+            return back()->with('error', 'This asset is already assigned to '.($activeAssignment->employee?->name ?? 'someone else').'.');
         }
 
         // 3. Update status and create record atomically
-        \Illuminate\Support\Facades\DB::transaction(function() use ($validated, $employee) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($validated, $employee) {
             EmployeeAsset::create(array_merge($validated, ['employee_id' => $employee->id]));
             Device::where('id', $validated['asset_id'])->update(['status' => 'assigned']);
         });
@@ -324,15 +323,15 @@ class EmployeeController extends Controller
 
         $request->validate([
             'returned_date' => 'required|date',
-            'condition'     => 'required|in:good,fair,poor',
-            'notes'         => 'nullable|string|max:500',
+            'condition' => 'required|in:good,fair,poor',
+            'notes' => 'nullable|string|max:500',
         ]);
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($asset, $request) {
             $asset->update([
                 'returned_date' => $request->returned_date,
-                'condition'     => $request->condition,
-                'notes'         => $request->notes,
+                'condition' => $request->condition,
+                'notes' => $request->notes,
             ]);
 
             Device::where('id', $asset->asset_id)->update(['status' => 'available']);
@@ -499,7 +498,7 @@ class EmployeeController extends Controller
 
         $azureUsers = $query->get();
         $departments = Department::orderBy('name')->get();
-        $branches    = Branch::orderBy('name')->get();
+        $branches = Branch::orderBy('name')->get();
 
         return view('admin.employees.sync', compact('azureUsers', 'departments', 'branches'));
     }
@@ -509,23 +508,28 @@ class EmployeeController extends Controller
         $this->authorize('manage-employees');
 
         $request->validate([
-            'azure_ids'   => 'required|array|min:1',
+            'azure_ids' => 'required|array|min:1',
             'azure_ids.*' => 'required|string',
-            'branch_id'   => 'nullable|exists:branches,id',
+            'branch_id' => 'nullable|exists:branches,id',
         ]);
 
         $created = 0;
         foreach ($request->azure_ids as $azureId) {
             $identityUser = IdentityUser::where('azure_id', $azureId)->first();
-            if (! $identityUser) continue;
+            if (! $identityUser) {
+                continue;
+            }
 
             // Skip if already linked by azure_id
-            if (Employee::where('azure_id', $azureId)->exists()) continue;
+            if (Employee::where('azure_id', $azureId)->exists()) {
+                continue;
+            }
 
             // Also deduplicate by email — link if a manual employee already exists
             $email = $identityUser->mail ?? $identityUser->user_principal_name;
             if ($email && ($existing = Employee::where('email', $email)->whereNull('azure_id')->first())) {
                 $existing->update(['azure_id' => $azureId]);
+
                 continue;
             }
             // ── Auto-match Department (create if not found) ───────
@@ -553,15 +557,15 @@ class EmployeeController extends Controller
             }
 
             Employee::create([
-                'azure_id'      => $azureId,
-                'name'          => $identityUser->display_name,
-                'email'         => $email,
-                'branch_id'     => $branchId,
+                'azure_id' => $azureId,
+                'name' => $identityUser->display_name,
+                'email' => $email,
+                'branch_id' => $branchId,
                 'department_id' => $department?->id,
-                'manager_id'    => $manager?->id,
-                'job_title'     => $identityUser->job_title,
-                'status'        => 'active',
-                'hired_date'    => now()->toDateString(),
+                'manager_id' => $manager?->id,
+                'job_title' => $identityUser->job_title,
+                'status' => 'active',
+                'hired_date' => now()->toDateString(),
             ]);
             $created++;
         }

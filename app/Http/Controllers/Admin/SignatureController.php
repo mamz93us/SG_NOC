@@ -7,6 +7,7 @@ use App\Models\AllowedDomain;
 use App\Models\EmailSignatureTemplate;
 use App\Models\HrApiKey;
 use App\Models\IdentityUser;
+use App\Models\SignatureRequestLog;
 use App\Services\Signature\SignatureRenderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,14 +24,16 @@ class SignatureController extends Controller
     public function index(): View
     {
         $templates = EmailSignatureTemplate::orderBy('sort_order')->orderBy('name')->get();
+
         return view('admin.signatures.index', compact('templates'));
     }
 
     public function create(): View
     {
-        $domains  = AllowedDomain::orderBy('is_primary', 'desc')->orderBy('domain')->get();
+        $domains = AllowedDomain::orderBy('is_primary', 'desc')->orderBy('domain')->get();
         $template = null;
-        $default  = $this->defaultNewEmailHtml();
+        $default = $this->defaultNewEmailHtml();
+
         return view('admin.signatures.edit', compact('template', 'domains', 'default'));
     }
 
@@ -38,6 +41,7 @@ class SignatureController extends Controller
     {
         $data = $this->validated($request);
         EmailSignatureTemplate::create($data);
+
         return redirect()->route('admin.signatures.index')
             ->with('success', 'Signature template created.');
     }
@@ -46,7 +50,8 @@ class SignatureController extends Controller
     {
         $domains = AllowedDomain::orderBy('is_primary', 'desc')->orderBy('domain')->get();
         $template = $signature;
-        $default  = null;
+        $default = null;
+
         return view('admin.signatures.edit', compact('template', 'domains', 'default'));
     }
 
@@ -54,6 +59,7 @@ class SignatureController extends Controller
     {
         $data = $this->validated($request);
         $signature->update($data);
+
         return redirect()->route('admin.signatures.index')
             ->with('success', 'Signature template updated.');
     }
@@ -61,6 +67,7 @@ class SignatureController extends Controller
     public function destroy(EmailSignatureTemplate $signature): RedirectResponse
     {
         $signature->delete();
+
         return redirect()->route('admin.signatures.index')
             ->with('success', 'Signature template deleted.');
     }
@@ -71,6 +78,7 @@ class SignatureController extends Controller
         $copy->name .= ' (copy)';
         $copy->is_active = false;
         $copy->save();
+
         return redirect()->route('admin.signatures.edit', $copy)
             ->with('success', 'Template duplicated — edit and activate when ready.');
     }
@@ -80,7 +88,7 @@ class SignatureController extends Controller
     /** Preview a saved template by ID — used by the index page quick-preview. */
     public function previewSaved(Request $request): JsonResponse
     {
-        $id  = $request->input('id');
+        $id = $request->input('id');
         $upn = $request->input('upn');
 
         $template = EmailSignatureTemplate::find($id);
@@ -103,10 +111,10 @@ class SignatureController extends Controller
     /** Preview raw HTML from the editor in real-time (unsaved). */
     public function preview(Request $request): JsonResponse
     {
-        $html    = $request->input('html_body', '');
-        $color   = $request->input('primary_color', '#d81f2a');
+        $html = $request->input('html_body', '');
+        $color = $request->input('primary_color', '#d81f2a');
         $logoUrl = $request->input('logo_url', '');
-        $upn     = $request->input('upn');
+        $upn = $request->input('upn');
 
         // Resolve the variable map (real employee when a UPN is given, else sample data)
         if ($upn) {
@@ -121,13 +129,13 @@ class SignatureController extends Controller
         // Always render the template CURRENTLY being edited (WYSIWYG) — never swap in
         // another saved template. The New-email/Reply toggle only reframes the mock email.
         $fake = new EmailSignatureTemplate([
-            'html_body'     => $html,
+            'html_body' => $html,
             'primary_color' => $color,
-            'logo_url'      => $logoUrl,
+            'logo_url' => $logoUrl,
         ]);
 
         return response()->json([
-            'html'   => $this->renderer->render($fake, $vars),
+            'html' => $this->renderer->render($fake, $vars),
             'source' => 'live',
         ]);
     }
@@ -143,36 +151,116 @@ class SignatureController extends Controller
      */
     public function apiRender(Request $request): Response|JsonResponse
     {
+        $upn = $request->query('upn');
+        $type = in_array($request->query('type'), ['new_email', 'reply']) ? $request->query('type') : 'new_email';
+        $domain = $request->query('domain') ?: null;
+
         // Auth: accept key via ?api_key= (Intune scripts) or Authorization: Bearer (Graph job)
         $raw = $request->query('api_key') ?? $request->bearerToken();
         if (empty($raw)) {
+            $this->logRequest($request, 'render', $upn, $type, $domain, 'unauthorized');
+
             return response()->json(['error' => 'API key required. Pass ?api_key= or Authorization: Bearer.'], 401);
         }
         $apiKey = HrApiKey::findByRawKey($raw, 'signature');
         if (! $apiKey) {
+            $this->logRequest($request, 'render', $upn, $type, $domain, 'unauthorized');
+
             return response()->json(['error' => 'Invalid or revoked API key.'], 401);
         }
-        try { $apiKey->recordUsage($request->ip()); } catch (\Throwable) {}
-
-        $upn    = $request->query('upn');
-        $type   = in_array($request->query('type'), ['new_email', 'reply']) ? $request->query('type') : 'new_email';
-        $domain = $request->query('domain') ?: null;
+        try {
+            $apiKey->recordUsage($request->ip());
+        } catch (\Throwable) {
+        }
 
         if (! $upn) {
+            $this->logRequest($request, 'render', null, $type, $domain, 'bad_request', apiKeyId: $apiKey->id);
+
             return response()->json(['error' => 'upn parameter required'], 400);
         }
 
-        $html = $this->renderer->resolveAndRender($upn, $type, $domain);
+        $meta = null;
+        $html = $this->renderer->resolveAndRender($upn, $type, $domain, $meta);
 
         if ($html === null) {
+            $this->logRequest($request, 'render', $upn, $type, $meta['domain'] ?? $domain, 'not_found', apiKeyId: $apiKey->id, meta: $meta);
+
             return response()->json(['error' => 'No template or user found'], 404);
         }
+
+        $this->logRequest($request, 'render', $upn, $type, $meta['domain'] ?? $domain, 'ok', apiKeyId: $apiKey->id, meta: $meta);
 
         if ($request->query('format') === 'json') {
             return response()->json(['html' => $html, 'upn' => $upn, 'type' => $type]);
         }
 
         return response($html, 200)->header('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /** Write one audit row for a signature API call (best-effort; never breaks the response). */
+    private function logRequest(
+        Request $request,
+        string $endpoint,
+        ?string $upn,
+        ?string $type,
+        ?string $domain,
+        string $status,
+        ?int $apiKeyId = null,
+        ?array $meta = null,
+    ): void {
+        try {
+            SignatureRequestLog::create([
+                'upn' => $upn ? mb_substr($upn, 0, 255) : null,
+                'endpoint' => $endpoint,
+                'type' => $type,
+                'domain' => $domain,
+                'gender' => $meta['gender'] ?? null,
+                'template_id' => $meta['template']->id ?? null,
+                'template_name' => $meta['template']->name ?? null,
+                'resolved_name' => $meta['resolved_name'] ?? null,
+                'status' => $status,
+                'ip' => $request->ip(),
+                'api_key_id' => $apiKeyId,
+                'user_agent' => mb_substr((string) $request->userAgent(), 0, 255) ?: null,
+            ]);
+        } catch (\Throwable) {
+            // Logging must never take down the signature endpoint.
+        }
+    }
+
+    /**
+     * GET /admin/signatures/log — audit page: every signature request, who asked,
+     * and what NOC served. Gated by manage-signatures (same as the templates CRUD).
+     */
+    public function log(Request $request): View
+    {
+        $q = trim((string) $request->query('q', ''));
+        $status = $request->query('status');
+        $domain = $request->query('domain');
+
+        $logs = SignatureRequestLog::query()
+            ->when($q !== '', fn ($w) => $w->where(fn ($x) => $x
+                ->where('upn', 'like', "%{$q}%")
+                ->orWhere('resolved_name', 'like', "%{$q}%")
+                ->orWhere('template_name', 'like', "%{$q}%")))
+            ->when($status, fn ($w) => $w->where('status', $status))
+            ->when($domain, fn ($w) => $w->where('domain', $domain))
+            ->orderByDesc('id')
+            ->paginate(50)
+            ->withQueryString();
+
+        $domains = SignatureRequestLog::query()
+            ->whereNotNull('domain')->distinct()->orderBy('domain')->pluck('domain');
+
+        $stats = [
+            'total' => SignatureRequestLog::count(),
+            'today' => SignatureRequestLog::whereDate('created_at', today())->count(),
+            'ok' => SignatureRequestLog::where('status', 'ok')->count(),
+            'missing' => SignatureRequestLog::where('status', 'not_found')->count(),
+            'people' => SignatureRequestLog::where('status', 'ok')->distinct('upn')->count('upn'),
+        ];
+
+        return view('admin.signatures.log', compact('logs', 'q', 'status', 'domain', 'domains', 'stats'));
     }
 
     /**
@@ -193,10 +281,13 @@ class SignatureController extends Controller
         if (! $apiKey) {
             return response()->json(['error' => 'Invalid or revoked API key.'], 401);
         }
-        try { $apiKey->recordUsage($request->ip()); } catch (\Throwable) {}
+        try {
+            $apiKey->recordUsage($request->ip());
+        } catch (\Throwable) {
+        }
 
         $domain = $request->query('domain');
-        $type   = in_array($request->query('type'), ['new_email', 'reply']) ? $request->query('type') : 'new_email';
+        $type = in_array($request->query('type'), ['new_email', 'reply']) ? $request->query('type') : 'new_email';
         $gender = in_array($request->query('gender'), ['male', 'female']) ? $request->query('gender') : null;
 
         if (! $domain) {
@@ -205,8 +296,11 @@ class SignatureController extends Controller
 
         $template = EmailSignatureTemplate::findBest($type, $domain, $gender);
         if (! $template) {
+            $this->logRequest($request, 'transport_rule', null, $type, $domain, 'not_found', apiKeyId: $apiKey->id, meta: ['gender' => $gender]);
+
             return response()->json(['error' => 'No active template for this domain'], 404);
         }
+        $this->logRequest($request, 'transport_rule', null, $type, $domain, 'ok', apiKeyId: $apiKey->id, meta: ['gender' => $gender, 'template' => $template]);
 
         $html = $this->renderer->renderForTransportRule($template);
 
@@ -235,7 +329,10 @@ class SignatureController extends Controller
         if (! $apiKey) {
             return response()->json(['error' => 'Invalid or revoked API key.'], 401);
         }
-        try { $apiKey->recordUsage($request->ip()); } catch (\Throwable) {}
+        try {
+            $apiKey->recordUsage($request->ip());
+        } catch (\Throwable) {
+        }
 
         $domain = strtolower((string) $request->query('domain'));
         $gender = in_array($request->query('gender'), ['male', 'female'], true) ? $request->query('gender') : null;
@@ -259,11 +356,13 @@ class SignatureController extends Controller
             ->sort()
             ->values();
 
+        $this->logRequest($request, 'gender_members', null, null, $domain, 'ok', apiKeyId: $apiKey->id, meta: ['gender' => $gender]);
+
         return response()->json([
             'domain' => $domain,
             'gender' => $gender ?? 'all',
-            'count'  => $upns->count(),
-            'upns'   => $upns,
+            'count' => $upns->count(),
+            'upns' => $upns,
         ]);
     }
 
@@ -272,16 +371,16 @@ class SignatureController extends Controller
     private function validated(Request $request): array
     {
         return $request->validate([
-            'name'            => 'required|string|max:200',
-            'domain'          => 'nullable|string|max:100',
-            'type'            => 'required|in:new_email,reply,all',
-            'gender'          => 'required|in:all,male,female',
-            'logo_url'        => 'nullable|url|max:500',
-            'primary_color'   => 'nullable|regex:/^#[0-9a-fA-F]{3,8}$/',
-            'html_body'       => 'required|string',
+            'name' => 'required|string|max:200',
+            'domain' => 'nullable|string|max:100',
+            'type' => 'required|in:new_email,reply,all',
+            'gender' => 'required|in:all,male,female',
+            'logo_url' => 'nullable|url|max:500',
+            'primary_color' => 'nullable|regex:/^#[0-9a-fA-F]{3,8}$/',
+            'html_body' => 'required|string',
             'plain_text_body' => 'nullable|string',
-            'is_active'       => 'boolean',
-            'sort_order'      => 'integer|min:0|max:9999',
+            'is_active' => 'boolean',
+            'sort_order' => 'integer|min:0|max:9999',
         ]);
     }
 
