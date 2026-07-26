@@ -32,7 +32,7 @@ param(
     [switch] $NoLock,                                                     # pass to skip the read-only/policy lock
     [switch] $KeepOtherSignatures,                                        # pass to NOT delete pre-existing signatures
     [switch] $NoPreview,                                                  # pass to suppress the branded preview window
-    [switch] $InstallDailyTask                                            # also register a daily Scheduled Task that re-runs this (auto-applies template edits, no Proactive Remediation needed)
+    [switch] $NoDailyTask                                                 # pass to SKIP the daily self-refresh Scheduled Task (registered by default; Intune platform scripts take no args, so on-by-default is what makes daily refresh work)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -247,10 +247,13 @@ try {
     # Register a daily Scheduled Task that re-runs this script, so template edits apply
     # automatically without Intune Proactive Remediations. Copies the script to a stable
     # path (the Intune temp copy is deleted after the run) and schedules it daily + at logon.
-    if ($InstallDailyTask.IsPresent) {
+    # On by default (Intune platform scripts pass no args); -NoDailyTask opts out.
+    if (-not $NoDailyTask.IsPresent) {
         try {
             $stableScript = Join-Path $LogDir 'Deploy-Signature.ps1'
-            Copy-Item -Path $PSCommandPath -Destination $stableScript -Force
+            if ($PSCommandPath -and ($PSCommandPath -ne $stableScript)) {
+                Copy-Item -Path $PSCommandPath -Destination $stableScript -Force
+            }
             $taskName = 'SG-Signature-Refresh'
             $arg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$stableScript`""
             $action   = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arg
