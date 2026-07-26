@@ -45,7 +45,10 @@ class SyncIdentity extends Command
         }
 
         // ── Lock ───────────────────────────────────────────────────────
-        $lock = Cache::lock('sync_identity_running', 7200);
+        // TTL must exceed the schedule interval so an overrunning run can't be
+        // overlapped by the next scheduled one (which caused concurrent syncs +
+        // DB serialization failures). 4h > healthy run (~1h) and the 2h cadence.
+        $lock = Cache::lock('sync_identity_running', 14400);
 
         if (! $lock->get()) {
             $this->warn('A sync is already running. Use --force to override.');
