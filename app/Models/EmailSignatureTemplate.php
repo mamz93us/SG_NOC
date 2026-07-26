@@ -88,8 +88,12 @@ class EmailSignatureTemplate extends Model
                     ELSE 7
                 END
             ", [$domain, $type, $domain, $domain, $type])
-            // Tiebreak: prefer a gender-specific template over the gender-neutral one.
+            // Tiebreak: prefer the template matching this gender (harmless for known
+            // genders; wins the tie so a female user gets the female template, etc.).
             ->orderByRaw('CASE WHEN gender = ? THEN 0 ELSE 1 END', [$gender ?? '__none__'])
+            // When gender is unknown, default to male (org majority) > neutral > female,
+            // so the ~100 gender-less samirgroup users get the male variant, not female.
+            ->orderByRaw("CASE `gender` WHEN 'male' THEN 0 WHEN 'all' THEN 1 WHEN 'female' THEN 2 ELSE 3 END")
             ->orderBy('sort_order')
             ->first();
     }
