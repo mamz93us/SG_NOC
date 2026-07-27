@@ -366,25 +366,9 @@ class IdentitySyncService
                 IdentityUser::whereNotIn('azure_id', $activeIds)->delete();
             }
 
-            // Fix assigned_licenses from raw_data (Eloquent updateOrCreate has
-            // a dirty-check issue with array-cast fields on existing rows)
-            IdentityUser::whereNotNull('raw_data')
-                ->where('licenses_count', '>', 0)
-                ->chunk(200, function ($users) {
-                    foreach ($users as $user) {
-                        $raw = $user->raw_data;
-                        $skus = [];
-                        foreach ($raw['assignedLicenses'] ?? [] as $lic) {
-                            if (isset($lic['skuId'])) {
-                                $skus[] = $lic['skuId'];
-                            }
-                        }
-                        // Use DB query to bypass Eloquent cast/dirty issues
-                        DB::table('identity_users')
-                            ->where('id', $user->id)
-                            ->update(['assigned_licenses' => json_encode($skus)]);
-                    }
-                });
+            // (Removed the per-user assigned_licenses fix-up loop: the bulk upsert above
+            //  now writes assigned_licenses directly via json_encode, so re-deriving it
+            //  from raw_data row-by-row was redundant and a major slowdown of this phase.)
 
             Log::info("IdentitySyncService: Synced {$count} users.");
 
