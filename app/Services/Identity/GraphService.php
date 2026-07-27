@@ -11,14 +11,19 @@ use Illuminate\Support\Str;
 class GraphService
 {
     private string $tenantId;
+
     private string $clientId;
+
     private string $clientSecret;
+
     private string $baseUrl = 'https://graph.microsoft.com/v1.0';
+
     /** Intune / DeviceManagement APIs are only available on the beta endpoint */
     private string $betaUrl = 'https://graph.microsoft.com/beta';
 
     private const TIMEOUT_STANDARD = 30;
-    private const TIMEOUT_BULK     = 120;
+
+    private const TIMEOUT_BULK = 120;
 
     /**
      * Maximum $top allowed by the Intune proxy (deviceManagement endpoints).
@@ -37,9 +42,9 @@ class GraphService
         ?string $clientId = null,
         ?string $clientSecret = null
     ) {
-        $settings           = Setting::get();
-        $this->tenantId     = $tenantId     ?? $settings->graph_tenant_id     ?? '';
-        $this->clientId     = $clientId     ?? $settings->graph_client_id     ?? '';
+        $settings = Setting::get();
+        $this->tenantId = $tenantId ?? $settings->graph_tenant_id ?? '';
+        $this->clientId = $clientId ?? $settings->graph_client_id ?? '';
         $this->clientSecret = $clientSecret ?? $settings->graph_client_secret ?? '';
     }
 
@@ -54,10 +59,10 @@ class GraphService
             $url = "https://login.microsoftonline.com/{$this->tenantId}/oauth2/v2.0/token";
 
             $response = Http::asForm()->post($url, [
-                'grant_type'    => 'client_credentials',
-                'client_id'     => $this->clientId,
+                'grant_type' => 'client_credentials',
+                'client_id' => $this->clientId,
                 'client_secret' => $this->clientSecret,
-                'scope'         => 'https://graph.microsoft.com/.default',
+                'scope' => 'https://graph.microsoft.com/.default',
             ]);
 
             if (! $response->successful()) {
@@ -72,6 +77,7 @@ class GraphService
     private function refreshToken(): string
     {
         Cache::forget("graph_token_{$this->clientId}");
+
         return $this->getAccessToken();
     }
 
@@ -82,12 +88,12 @@ class GraphService
     private function get(string $endpoint, array $query = [], int $timeout = self::TIMEOUT_STANDARD, array $headers = []): array
     {
         $token = $this->getAccessToken();
-        $url   = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl . $endpoint;
+        $url = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl.$endpoint;
 
         $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
 
         if ($response->status() === 401 || $response->status() === 403) {
-            $token    = $this->refreshToken();
+            $token = $this->refreshToken();
             $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
         }
 
@@ -100,14 +106,14 @@ class GraphService
                 $retryAfter = min(10 * (2 ** $attempts), 90); // 10s, 20s, 40s, 80s, 90s, 90s
             }
             $retryAfter = max(5, min($retryAfter, 90));
-            \Illuminate\Support\Facades\Log::warning("Graph 429 on {$url} — waiting {$retryAfter}s (attempt " . ($attempts + 1) . "/6)");
+            \Illuminate\Support\Facades\Log::warning("Graph 429 on {$url} — waiting {$retryAfter}s (attempt ".($attempts + 1).'/6)');
             sleep($retryAfter);
             $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
             $attempts++;
         }
 
         if (! $response->successful()) {
-            throw new \RuntimeException("Graph GET {$endpoint} failed ({$response->status()}): " . $response->body());
+            throw new \RuntimeException("Graph GET {$endpoint} failed ({$response->status()}): ".$response->body());
         }
 
         return $response->json() ?? [];
@@ -115,17 +121,17 @@ class GraphService
 
     public function post(string $endpoint, array $data, int $timeout = self::TIMEOUT_STANDARD): array
     {
-        $token    = $this->getAccessToken();
-        $url      = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl . $endpoint;
+        $token = $this->getAccessToken();
+        $url = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl.$endpoint;
         $response = Http::timeout($timeout)->withToken($token)->post($url, $data);
 
         if ($response->status() === 401 || $response->status() === 403) {
-            $token    = $this->refreshToken();
+            $token = $this->refreshToken();
             $response = Http::timeout($timeout)->withToken($token)->post($url, $data);
         }
 
         if (! $response->successful()) {
-            throw new \RuntimeException("Graph POST {$endpoint} failed ({$response->status()}): " . $response->body());
+            throw new \RuntimeException("Graph POST {$endpoint} failed ({$response->status()}): ".$response->body());
         }
 
         return $response->json() ?? [];
@@ -133,12 +139,12 @@ class GraphService
 
     private function patch(string $endpoint, array $data, int $timeout = self::TIMEOUT_STANDARD): void
     {
-        $token    = $this->getAccessToken();
-        $url      = $this->baseUrl . $endpoint;
+        $token = $this->getAccessToken();
+        $url = $this->baseUrl.$endpoint;
         $response = Http::timeout($timeout)->withToken($token)->patch($url, $data);
 
         if ($response->status() === 401 || $response->status() === 403) {
-            $token    = $this->refreshToken();
+            $token = $this->refreshToken();
             $response = Http::timeout($timeout)->withToken($token)->patch($url, $data);
         }
 
@@ -152,30 +158,30 @@ class GraphService
                 $retryAfter = min(10 * (2 ** $attempts), 90);
             }
             $retryAfter = max(5, min($retryAfter, 90));
-            \Illuminate\Support\Facades\Log::warning("Graph 429 on PATCH {$url} — waiting {$retryAfter}s (attempt " . ($attempts + 1) . '/6)');
+            \Illuminate\Support\Facades\Log::warning("Graph 429 on PATCH {$url} — waiting {$retryAfter}s (attempt ".($attempts + 1).'/6)');
             sleep($retryAfter);
             $response = Http::timeout($timeout)->withToken($token)->patch($url, $data);
             $attempts++;
         }
 
         if (! $response->successful()) {
-            throw new \RuntimeException("Graph PATCH {$endpoint} failed ({$response->status()}): " . $response->body());
+            throw new \RuntimeException("Graph PATCH {$endpoint} failed ({$response->status()}): ".$response->body());
         }
     }
 
     private function delete(string $endpoint, int $timeout = self::TIMEOUT_STANDARD): void
     {
-        $token    = $this->getAccessToken();
-        $url      = $this->baseUrl . $endpoint;
+        $token = $this->getAccessToken();
+        $url = $this->baseUrl.$endpoint;
         $response = Http::timeout($timeout)->withToken($token)->delete($url);
 
         if ($response->status() === 401 || $response->status() === 403) {
-            $token    = $this->refreshToken();
+            $token = $this->refreshToken();
             $response = Http::timeout($timeout)->withToken($token)->delete($url);
         }
 
         if (! $response->successful()) {
-            throw new \RuntimeException("Graph DELETE {$endpoint} failed ({$response->status()}): " . $response->body());
+            throw new \RuntimeException("Graph DELETE {$endpoint} failed ({$response->status()}): ".$response->body());
         }
     }
 
@@ -184,9 +190,9 @@ class GraphService
     // ─────────────────────────────────────────────────────────────
 
     /**
-     * @param int $defaultTop  Page size sent in the first request.
-     *                         Pass TOP_INTUNE (100) for Intune/deviceManagement
-     *                         endpoints; the default 999 is fine for AAD endpoints.
+     * @param  int  $defaultTop  Page size sent in the first request.
+     *                           Pass TOP_INTUNE (100) for Intune/deviceManagement
+     *                           endpoints; the default 999 is fine for AAD endpoints.
      */
     private function paginateWithCallback(
         string $endpoint,
@@ -201,9 +207,9 @@ class GraphService
             $query['$top'] = $defaultTop;
         }
 
-        $baseUrl = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl . $endpoint;
-        $url     = $baseUrl;
-        $page    = 0;
+        $baseUrl = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl.$endpoint;
+        $url = $baseUrl;
+        $page = 0;
 
         do {
             // Courtesy delay between pages to avoid 429s
@@ -211,7 +217,7 @@ class GraphService
                 usleep($pageDelayMs * 1000);
             }
 
-            $body   = $this->get($url, $url === $baseUrl ? $query : [], self::TIMEOUT_BULK, $headers);
+            $body = $this->get($url, $url === $baseUrl ? $query : [], self::TIMEOUT_BULK, $headers);
             $values = $body['value'] ?? [];
 
             if (! empty($values)) {
@@ -236,7 +242,7 @@ class GraphService
     public function testConnection(): string
     {
         $result = $this->get('/organization', ['$select' => 'displayName']);
-        $orgs   = $result['value'] ?? [];
+        $orgs = $result['value'] ?? [];
 
         return $orgs[0]['displayName'] ?? 'Unknown Organisation';
     }
@@ -250,7 +256,11 @@ class GraphService
      */
     public function listUsers(callable $callback): void
     {
+        // Small pages ($top=100): a full 999-user page is a large payload that stalls on
+        // the NOC2 network (a single /users request could hang for minutes), while small
+        // pages transfer cleanly. 100/page = ~10 quick requests instead of 1-2 huge ones.
         $this->paginateWithCallback('/users', $callback, [
+            '$top' => 100,
             '$select' => implode(',', [
                 'id', 'displayName', 'userPrincipalName', 'mail',
                 'jobTitle', 'department', 'companyName',
@@ -258,7 +268,7 @@ class GraphService
                 'businessPhones', 'mobilePhone', 'officeLocation',
                 'streetAddress', 'city', 'postalCode', 'country',
             ]),
-        ]);
+        ], pageDelayMs: 150);
     }
 
     /**
@@ -269,7 +279,7 @@ class GraphService
     {
         // $expand=manager is slow on large tenants — use smaller pages
         $this->paginateWithCallback('/users', $callback, [
-            '$top'    => 100,
+            '$top' => 100,
             '$select' => 'id',
             '$expand' => 'manager($select=id)',
         ]);
@@ -295,14 +305,14 @@ class GraphService
     /**
      * Create a new Azure AD user.
      *
-     * @param array $data Must include: displayName, userPrincipalName, mailNickname, password.
-     *                     Optional: jobTitle, department, usageLocation, accountEnabled, etc.
+     * @param  array  $data  Must include: displayName, userPrincipalName, mailNickname, password.
+     *                       Optional: jobTitle, department, usageLocation, accountEnabled, etc.
      * @return array The created user object (includes 'id').
      */
     public function createUser(array $data): array
     {
-        $password       = $data['password'] ?? null;
-        $forceChange    = $data['forceChangePasswordNextSignIn'] ?? true;
+        $password = $data['password'] ?? null;
+        $forceChange = $data['forceChangePasswordNextSignIn'] ?? true;
         $accountEnabled = $data['accountEnabled'] ?? true;
 
         // Remove our convenience keys before sending to Graph
@@ -311,7 +321,7 @@ class GraphService
         $payload = array_merge($data, [
             'accountEnabled' => $accountEnabled,
             'passwordProfile' => [
-                'password'                      => $password,
+                'password' => $password,
                 'forceChangePasswordNextSignIn' => $forceChange,
             ],
         ]);
@@ -355,7 +365,7 @@ class GraphService
     {
         $this->patch("/users/{$id}", [
             'passwordProfile' => [
-                'password'                      => $password,
+                'password' => $password,
                 'forceChangePasswordNextSignIn' => $forceChange,
             ],
         ]);
@@ -379,6 +389,7 @@ class GraphService
     public function listSubscribedSkus(): array
     {
         $result = $this->get('/subscribedSkus');
+
         return $result['value'] ?? [];
     }
 
@@ -388,7 +399,7 @@ class GraphService
     public function getSkuNameMap(): array
     {
         $skus = $this->listSubscribedSkus();
-        $map  = [];
+        $map = [];
 
         foreach ($skus as $sku) {
             $map[$sku['skuId']] = $sku['skuPartNumber'] ?? $sku['skuId'];
@@ -418,7 +429,7 @@ class GraphService
     public function removeLicense(string $userId, string $skuId): array
     {
         return $this->post("/users/{$userId}/assignLicense", [
-            'addLicenses'    => [],
+            'addLicenses' => [],
             'removeLicenses' => [$skuId],
         ]);
     }
@@ -436,6 +447,7 @@ class GraphService
             $this->paginateWithCallback('/groups', $callback, [
                 '$select' => 'id,displayName,description,groupTypes,mailEnabled,securityEnabled',
             ]);
+
             return [];
         }
 
@@ -455,7 +467,9 @@ class GraphService
      */
     public function batchGroupMembers(array $groupIds): array
     {
-        if (empty($groupIds)) return [];
+        if (empty($groupIds)) {
+            return [];
+        }
 
         $result = [];
 
@@ -463,9 +477,9 @@ class GraphService
             $requests = [];
             foreach (array_values($chunk) as $i => $gid) {
                 $requests[] = [
-                    'id'     => (string) ($i + 1),
+                    'id' => (string) ($i + 1),
                     'method' => 'GET',
-                    'url'    => "/groups/{$gid}/members/microsoft.graph.user?\$select=id&\$top=999",
+                    'url' => "/groups/{$gid}/members/microsoft.graph.user?\$select=id&\$top=999",
                 ];
             }
 
@@ -473,7 +487,7 @@ class GraphService
                 $resp = $this->post('/$batch', ['requests' => $requests], self::TIMEOUT_BULK);
 
                 foreach ($resp['responses'] ?? [] as $r) {
-                    $idx     = (int) $r['id'] - 1;
+                    $idx = (int) $r['id'] - 1;
                     $groupId = $chunk[$idx] ?? null;
                     if ($groupId && (int) $r['status'] === 200) {
                         $result[$groupId] = collect($r['body']['value'] ?? [])->pluck('id')->all();
@@ -481,7 +495,8 @@ class GraphService
                 }
                 gc_collect_cycles();
             } catch (\Throwable $e) {
-                Log::error("Graph batch error for group members chunk: " . $e->getMessage());
+                Log::error('Graph batch error for group members chunk: '.$e->getMessage());
+
                 continue;
             }
         }
@@ -541,13 +556,14 @@ class GraphService
     public function findGroupByName(string $name): ?array
     {
         $encoded = rawurlencode("displayName eq '{$name}'");
-        $result  = $this->get('/groups', [
+        $result = $this->get('/groups', [
             '$filter' => "displayName eq '{$name}'",
             '$select' => 'id,displayName,description',
-            '$top'    => 1,
+            '$top' => 1,
         ]);
         $groups = $result['value'] ?? [];
-        return !empty($groups) ? $groups[0] : null;
+
+        return ! empty($groups) ? $groups[0] : null;
     }
 
     /**
@@ -561,13 +577,14 @@ class GraphService
             return [];
         }
         $escaped = addslashes($query);
-        $result  = $this->get('/groups', [
-            '$search'  => "\"displayName:{$escaped}\"",
-            '$select'  => 'id,displayName,description',
-            '$filter'  => 'securityEnabled eq true',
-            '$top'     => $top,
+        $result = $this->get('/groups', [
+            '$search' => "\"displayName:{$escaped}\"",
+            '$select' => 'id,displayName,description',
+            '$filter' => 'securityEnabled eq true',
+            '$top' => $top,
             '$orderby' => 'displayName',
         ], self::TIMEOUT_STANDARD, ['ConsistencyLevel' => 'eventual']);
+
         return $result['value'] ?? [];
     }
 
@@ -588,6 +605,7 @@ class GraphService
     public function getUserLicenses(string $userId): array
     {
         $result = $this->get("/users/{$userId}/licenseDetails");
+
         return $result['value'] ?? [];
     }
 
@@ -609,8 +627,8 @@ class GraphService
         ]);
         // Set forwarding via user profile (deliverAndRedirect)
         $this->patch("/users/{$userId}", [
-            'otherMails'             => [],
-            'proxyAddresses'         => [],
+            'otherMails' => [],
+            'proxyAddresses' => [],
         ]);
         // Note: Full mailbox forwarding via Graph requires Exchange Online PowerShell or
         // the Set-Mailbox cmdlet. We log the intent here — actual forwarding should be
@@ -630,7 +648,7 @@ class GraphService
         foreach ($licenses as $lic) {
             // Keep only Exchange Online (plan name contains EXCHANGE)
             $hasExchangeOnly = collect($lic['servicePlans'] ?? [])
-                ->filter(fn($p) => stripos($p['servicePlanName'], 'EXCHANGE') !== false)
+                ->filter(fn ($p) => stripos($p['servicePlanName'], 'EXCHANGE') !== false)
                 ->isNotEmpty();
 
             $isExchangeOnlyPlan = count($lic['servicePlans'] ?? []) === 1 && $hasExchangeOnly;
@@ -642,7 +660,7 @@ class GraphService
 
         if (! empty($toRemove)) {
             $this->post("/users/{$userId}/assignLicense", [
-                'addLicenses'    => [],
+                'addLicenses' => [],
                 'removeLicenses' => $toRemove,
             ]);
         }
@@ -676,14 +694,14 @@ class GraphService
         string $ps1Content,
         string $description = ''
     ): string {
-        $data = $this->post($this->betaUrl . '/deviceManagement/deviceManagementScripts', [
-            'displayName'           => $displayName,
-            'description'           => $description,
-            'scriptContent'         => base64_encode($ps1Content),
-            'runAs32Bit'            => false,
-            'runAsAccount'          => 'system',
+        $data = $this->post($this->betaUrl.'/deviceManagement/deviceManagementScripts', [
+            'displayName' => $displayName,
+            'description' => $description,
+            'scriptContent' => base64_encode($ps1Content),
+            'runAs32Bit' => false,
+            'runAsAccount' => 'system',
             'enforceSignatureCheck' => false,
-            'fileName'              => \Illuminate\Support\Str::slug($displayName) . '.ps1',
+            'fileName' => \Illuminate\Support\Str::slug($displayName).'.ps1',
         ]);
 
         return $data['id'] ?? throw new \RuntimeException('Intune script upload returned no ID.');
@@ -697,12 +715,12 @@ class GraphService
         string $azureGroupId
     ): void {
         $this->post(
-            $this->betaUrl . "/deviceManagement/deviceManagementScripts/{$intuneScriptId}/assign",
+            $this->betaUrl."/deviceManagement/deviceManagementScripts/{$intuneScriptId}/assign",
             [
                 'deviceManagementScriptAssignments' => [[
                     'target' => [
                         '@odata.type' => '#microsoft.graph.groupAssignmentTarget',
-                        'groupId'     => $azureGroupId,
+                        'groupId' => $azureGroupId,
                     ],
                 ]],
             ]
@@ -715,9 +733,10 @@ class GraphService
     public function listIntuneScripts(): array
     {
         $result = $this->get(
-            $this->betaUrl . '/deviceManagement/deviceManagementScripts',
+            $this->betaUrl.'/deviceManagement/deviceManagementScripts',
             ['$select' => 'id,displayName,lastModifiedDateTime']
         );
+
         return $result['value'] ?? [];
     }
 
@@ -738,8 +757,8 @@ class GraphService
      * NOTE on $top: Intune's internal proxy rejects $top > 100 with HTTP 400.
      *       We pass TOP_INTUNE (100) as the defaultTop for this endpoint.
      *
-     * @param string   $scriptId  Intune deviceManagementScript GUID
-     * @param callable $callback  Receives array of run-state objects per page
+     * @param  string  $scriptId  Intune deviceManagementScript GUID
+     * @param  callable  $callback  Receives array of run-state objects per page
      */
     public function listScriptRunStates(string $scriptId, callable $callback): void
     {
@@ -752,13 +771,13 @@ class GraphService
         // that haven't appeared yet.
 
         $baseUrl = $this->betaUrl
-            . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
+            ."/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
 
-        $seen              = [];   // composite IDs already delivered to the callback
-        $page              = 0;
-        $url               = $baseUrl;
-        $consecutiveEmpty  = 0;
-        $maxEmptyStreak    = 3;    // stop after 3 back-to-back pages with no new IDs
+        $seen = [];   // composite IDs already delivered to the callback
+        $page = 0;
+        $url = $baseUrl;
+        $consecutiveEmpty = 0;
+        $maxEmptyStreak = 3;    // stop after 3 back-to-back pages with no new IDs
 
         do {
             if ($page > 0) {
@@ -769,7 +788,7 @@ class GraphService
                 $url,
                 $url === $baseUrl
                     ? ['$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime',
-                       '$top'    => self::TOP_INTUNE]
+                        '$top' => self::TOP_INTUNE]
                     : [],
                 self::TIMEOUT_BULK
             );
@@ -778,7 +797,7 @@ class GraphService
             $page++;
 
             // Filter to items we have not yet delivered
-            $fresh = array_filter($states, fn($s) => ! isset($seen[$s['id'] ?? '']));
+            $fresh = array_filter($states, fn ($s) => ! isset($seen[$s['id'] ?? '']));
             foreach ($fresh as $s) {
                 $seen[$s['id'] ?? ''] = true;
             }
@@ -810,13 +829,14 @@ class GraphService
         // Use a filtered list query on the collection instead (valid route).
         $compositeId = "{$scriptId}:{$managedDeviceId}";
         $url = $this->betaUrl
-            . "/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
+            ."/deviceManagement/deviceManagementScripts/{$scriptId}/deviceRunStates";
         try {
             $body = $this->get($url, [
                 '$filter' => "id eq '{$compositeId}'",
                 '$select' => 'id,runState,resultMessage,errorCode,lastStateUpdateDateTime',
-                '$top'    => 1,
+                '$top' => 1,
             ]);
+
             return $body['value'][0] ?? null;
         } catch (\RuntimeException $e) {
             throw $e;
@@ -839,10 +859,11 @@ class GraphService
      *
      * Required Graph permission: DeviceManagementConfiguration.Read.All
      *
-     * @param  string        $scriptId  Intune deviceManagementScript GUID
-     * @param  callable|null $progress  Optional fn(string $msg) for status logging
-     * @return array<string, array>     managedDeviceId => state array
-     * @throws \RuntimeException        on export failure / timeout
+     * @param  string  $scriptId  Intune deviceManagementScript GUID
+     * @param  callable|null  $progress  Optional fn(string $msg) for status logging
+     * @return array<string, array> managedDeviceId => state array
+     *
+     * @throws \RuntimeException on export failure / timeout
      */
     public function exportScriptRunStates(string $scriptId, ?callable $progress = null): array
     {
@@ -850,12 +871,12 @@ class GraphService
         // Use empty select (all columns) — Intune rejects explicit column lists
         // for this report name with HTTP 400 InvalidArgument on some tenants.
         $job = $this->post(
-            $this->betaUrl . '/deviceManagement/reports/exportJobs',
+            $this->betaUrl.'/deviceManagement/reports/exportJobs',
             [
-                'reportName'       => 'DeviceRunStatesByScript',
-                'filter'           => "PolicyId eq '{$scriptId}'",
-                'select'           => [],
-                'format'           => 'csv',
+                'reportName' => 'DeviceRunStatesByScript',
+                'filter' => "PolicyId eq '{$scriptId}'",
+                'select' => [],
+                'format' => 'csv',
                 'localizationType' => 'ReplaceLocalizableValues',
             ],
             self::TIMEOUT_BULK
@@ -866,18 +887,20 @@ class GraphService
             throw new \RuntimeException('Intune export: no job ID returned from POST exportJobs');
         }
 
-        if ($progress) { $progress("  Export job created (id={$jobId})"); }
+        if ($progress) {
+            $progress("  Export job created (id={$jobId})");
+        }
 
         // ── 2. Poll until completed — max 15 minutes (90 × 10 s) ─────────
-        $statusUrl   = $this->betaUrl . "/deviceManagement/reports/exportJobs/{$jobId}";
+        $statusUrl = $this->betaUrl."/deviceManagement/reports/exportJobs/{$jobId}";
         $maxAttempts = 90;
-        $attempt     = 0;
-        $status      = $job['status'] ?? 'inProgress';
+        $attempt = 0;
+        $status = $job['status'] ?? 'inProgress';
 
         while (! in_array($status, ['completed', 'failed'], true) && $attempt < $maxAttempts) {
             sleep(10);
             $attempt++;
-            $job    = $this->get($statusUrl, [], self::TIMEOUT_BULK);
+            $job = $this->get($statusUrl, [], self::TIMEOUT_BULK);
             $status = $job['status'] ?? 'unknown';
             if ($progress && $attempt % 3 === 0) {
                 $progress("  Polling export job — attempt {$attempt}: {$status}");
@@ -895,16 +918,18 @@ class GraphService
             throw new \RuntimeException("Export job {$jobId} completed but returned no download URL");
         }
 
-        if ($progress) { $progress("  Export completed — downloading ZIP..."); }
+        if ($progress) {
+            $progress('  Export completed — downloading ZIP...');
+        }
 
         // ── 3. Download ZIP (SAS URL — no Authorization header needed) ────
         $zipBytes = Http::timeout(180)->get($downloadUrl)->body();
 
         // ── 4. Extract CSV from ZIP ───────────────────────────────────────
-        $tmpZip = tempnam(sys_get_temp_dir(), 'intune_') . '.zip';
+        $tmpZip = tempnam(sys_get_temp_dir(), 'intune_').'.zip';
         file_put_contents($tmpZip, $zipBytes);
 
-        $zip = new \ZipArchive();
+        $zip = new \ZipArchive;
         if ($zip->open($tmpZip) !== true) {
             @unlink($tmpZip);
             throw new \RuntimeException('Failed to open Intune export ZIP');
@@ -924,11 +949,13 @@ class GraphService
             throw new \RuntimeException('No CSV file found inside Intune export ZIP');
         }
 
-        if ($progress) { $progress("  Parsing CSV..."); }
+        if ($progress) {
+            $progress('  Parsing CSV...');
+        }
 
         // ── 5. Parse CSV → managedDeviceId lookup map ─────────────────────
         // Use fgetcsv on a memory stream to correctly handle embedded commas/newlines.
-        $handle  = fopen('php://memory', 'r+');
+        $handle = fopen('php://memory', 'r+');
         fwrite($handle, $csvContent);
         rewind($handle);
 
@@ -939,26 +966,26 @@ class GraphService
         }
         // Strip UTF-8 BOM from first header and remove surrounding quotes
         $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headers[0]);
-        $headers = array_map(fn($h) => trim($h, " \t\n\r\0\x0B\""), $headers);
+        $headers = array_map(fn ($h) => trim($h, " \t\n\r\0\x0B\""), $headers);
 
         if ($progress) {
-            $progress("  CSV columns: " . implode(', ', $headers));
+            $progress('  CSV columns: '.implode(', ', $headers));
         }
 
         // Normalise column name variations across Intune tenants/locales.
         // IMPORTANT: The export CSV uses 'PolicyResultDetail' for the script
         // stdout output, NOT 'ResultMessage'.
         $colAlias = [
-            'DeviceId'                => 'deviceId',
-            'ManagedDeviceId'         => 'deviceId',
-            'DeviceName'              => 'deviceName',
-            'RunState'                => 'runState',
-            'ResultMessage'           => 'resultMessage',
-            'PolicyResultDetail'      => 'resultMessage',
-            'ErrorCode'               => 'errorCode',
+            'DeviceId' => 'deviceId',
+            'ManagedDeviceId' => 'deviceId',
+            'DeviceName' => 'deviceName',
+            'RunState' => 'runState',
+            'ResultMessage' => 'resultMessage',
+            'PolicyResultDetail' => 'resultMessage',
+            'ErrorCode' => 'errorCode',
             'LastStateUpdateDateTime' => 'lastUpdated',
-            'LastSyncDateTime'        => 'lastUpdated',
-            'ModifiedTime'            => 'lastUpdated',
+            'LastSyncDateTime' => 'lastUpdated',
+            'ModifiedTime' => 'lastUpdated',
         ];
 
         // Intune CSV may encode RunState as an integer; map to the string used by the JSON API
@@ -973,27 +1000,31 @@ class GraphService
 
         $map = [];
         while (($row = fgetcsv($handle)) !== false) {
-            if (count($row) !== count($headers)) { continue; }
+            if (count($row) !== count($headers)) {
+                continue;
+            }
             $raw = array_combine($headers, $row);
 
             // Canonicalise keys
             $data = [];
             foreach ($raw as $k => $v) {
-                $canon        = $colAlias[trim($k)] ?? trim($k);
+                $canon = $colAlias[trim($k)] ?? trim($k);
                 $data[$canon] = trim($v);
             }
 
             $deviceId = $data['deviceId'] ?? null;
-            if (! $deviceId) { continue; }
+            if (! $deviceId) {
+                continue;
+            }
 
-            $rs       = strtolower($data['runState'] ?? 'unknown');
+            $rs = strtolower($data['runState'] ?? 'unknown');
             $runState = $numericRunState[$rs] ?? $rs;   // pass through if already a string
 
             $map[$deviceId] = [
-                'id'                      => "{$scriptId}:{$deviceId}",
-                'runState'                => $runState,
-                'resultMessage'           => $data['resultMessage'] ?? '',
-                'errorCode'               => (int) ($data['errorCode'] ?? 0),
+                'id' => "{$scriptId}:{$deviceId}",
+                'runState' => $runState,
+                'resultMessage' => $data['resultMessage'] ?? '',
+                'errorCode' => (int) ($data['errorCode'] ?? 0),
                 'lastStateUpdateDateTime' => $data['lastUpdated'] ?? null,
             ];
         }
@@ -1007,7 +1038,7 @@ class GraphService
      */
     public function deleteIntuneScript(string $intuneScriptId): void
     {
-        $this->delete($this->betaUrl . "/deviceManagement/deviceManagementScripts/{$intuneScriptId}");
+        $this->delete($this->betaUrl."/deviceManagement/deviceManagementScripts/{$intuneScriptId}");
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -1021,12 +1052,12 @@ class GraphService
     public function createGroup(string $name, string $description = ''): array
     {
         return $this->post('/groups', [
-            'displayName'     => $name,
-            'description'     => $description,
-            'mailEnabled'     => false,
-            'mailNickname'    => Str::slug($name, '_') ?: 'group_' . time(),
+            'displayName' => $name,
+            'description' => $description,
+            'mailEnabled' => false,
+            'mailNickname' => Str::slug($name, '_') ?: 'group_'.time(),
             'securityEnabled' => true,
-            'groupTypes'      => [],
+            'groupTypes' => [],
         ]);
     }
 
@@ -1037,9 +1068,11 @@ class GraphService
     {
         try {
             $this->delete("/groups/{$azureGroupId}");
+
             return true;
         } catch (\Throwable $e) {
-            Log::warning("GraphService::deleteGroup failed for {$azureGroupId}: " . $e->getMessage());
+            Log::warning("GraphService::deleteGroup failed for {$azureGroupId}: ".$e->getMessage());
+
             return false;
         }
     }
@@ -1052,6 +1085,7 @@ class GraphService
         $result = $this->get("/groups/{$azureGroupId}/members", [
             '$select' => 'id,displayName,userPrincipalName',
         ]);
+
         return $result['value'] ?? [];
     }
 
@@ -1067,10 +1101,10 @@ class GraphService
         }
 
         $escaped = addslashes($query);
-        $result  = $this->get('/users', [
-            '$search'  => "\"displayName:{$escaped}\" OR \"userPrincipalName:{$escaped}\"",
-            '$select'  => 'id,displayName,userPrincipalName,jobTitle,department',
-            '$top'     => 20,
+        $result = $this->get('/users', [
+            '$search' => "\"displayName:{$escaped}\" OR \"userPrincipalName:{$escaped}\"",
+            '$select' => 'id,displayName,userPrincipalName,jobTitle,department',
+            '$top' => 20,
             '$orderby' => 'displayName',
         ], self::TIMEOUT_STANDARD, [
             'ConsistencyLevel' => 'eventual',
@@ -1089,7 +1123,7 @@ class GraphService
      */
     public function getIntuneScriptAssignments(string $scriptId): array
     {
-        $result = $this->get($this->betaUrl . "/deviceManagement/deviceManagementScripts/{$scriptId}/assignments");
+        $result = $this->get($this->betaUrl."/deviceManagement/deviceManagementScripts/{$scriptId}/assignments");
 
         return $result['value'] ?? [];
     }
@@ -1101,17 +1135,17 @@ class GraphService
      */
     public function unassignIntuneScriptFromGroup(string $scriptId, string $groupId): void
     {
-        $current  = $this->getIntuneScriptAssignments($scriptId);
+        $current = $this->getIntuneScriptAssignments($scriptId);
         $filtered = array_values(array_filter(
             $current,
-            fn($a) => ($a['target']['groupId'] ?? '') !== $groupId
+            fn ($a) => ($a['target']['groupId'] ?? '') !== $groupId
         ));
 
-        $this->post($this->betaUrl . "/deviceManagement/deviceManagementScripts/{$scriptId}/assign", [
-            'deviceManagementScriptAssignments' => array_map(fn($a) => [
+        $this->post($this->betaUrl."/deviceManagement/deviceManagementScripts/{$scriptId}/assign", [
+            'deviceManagementScriptAssignments' => array_map(fn ($a) => [
                 'target' => [
                     '@odata.type' => '#microsoft.graph.groupAssignmentTarget',
-                    'groupId'     => $a['target']['groupId'],
+                    'groupId' => $a['target']['groupId'],
                 ],
             ], $filtered),
         ]);
@@ -1133,7 +1167,7 @@ class GraphService
         try {
             // Reports endpoint returns CSV. Ask for JSON via $format hint.
             $token = $this->getAccessToken();
-            $url   = $this->baseUrl . "/reports/getMailboxUsageDetail(period='D7')?\$format=application/json";
+            $url = $this->baseUrl."/reports/getMailboxUsageDetail(period='D7')?\$format=application/json";
 
             $response = Http::timeout(self::TIMEOUT_BULK)
                 ->withToken($token)
@@ -1144,13 +1178,13 @@ class GraphService
             }
 
             $rows = $response->json('value', []);
-            $upn  = strtolower($upnOrId);
+            $upn = strtolower($upnOrId);
             foreach ($rows as $row) {
                 if (strtolower($row['userPrincipalName'] ?? '') === $upn) {
                     return [
-                        'size_bytes'    => (int) ($row['storageUsedInBytes'] ?? 0),
-                        'item_count'    => (int) ($row['itemCount']          ?? 0),
-                        'last_activity' => $row['lastActivityDate']          ?? null,
+                        'size_bytes' => (int) ($row['storageUsedInBytes'] ?? 0),
+                        'item_count' => (int) ($row['itemCount'] ?? 0),
+                        'last_activity' => $row['lastActivityDate'] ?? null,
                     ];
                 }
             }
@@ -1170,7 +1204,7 @@ class GraphService
     {
         try {
             $token = $this->getAccessToken();
-            $url   = $this->baseUrl . "/reports/getOneDriveUsageAccountDetail(period='D7')?\$format=application/json";
+            $url = $this->baseUrl."/reports/getOneDriveUsageAccountDetail(period='D7')?\$format=application/json";
 
             $response = Http::timeout(self::TIMEOUT_BULK)
                 ->withToken($token)
@@ -1181,13 +1215,13 @@ class GraphService
             }
 
             $rows = $response->json('value', []);
-            $upn  = strtolower($upnOrId);
+            $upn = strtolower($upnOrId);
             foreach ($rows as $row) {
                 if (strtolower($row['ownerPrincipalName'] ?? '') === $upn) {
                     return [
-                        'size_bytes'    => (int) ($row['storageUsedInBytes'] ?? 0),
-                        'file_count'    => (int) ($row['fileCount']          ?? 0),
-                        'last_activity' => $row['lastActivityDate']          ?? null,
+                        'size_bytes' => (int) ($row['storageUsedInBytes'] ?? 0),
+                        'file_count' => (int) ($row['fileCount'] ?? 0),
+                        'last_activity' => $row['lastActivityDate'] ?? null,
                     ];
                 }
             }
@@ -1216,8 +1250,8 @@ class GraphService
 
         // Paginate
         while (! empty($result['@odata.nextLink'])) {
-            $result   = $this->get($result['@odata.nextLink']);
-            $groups   = array_merge($groups, $result['value'] ?? []);
+            $result = $this->get($result['@odata.nextLink']);
+            $groups = array_merge($groups, $result['value'] ?? []);
         }
 
         if (! $excludeSecurity) {
@@ -1229,6 +1263,7 @@ class GraphService
             // Drop pure-security (mailEnabled=false, securityEnabled=true, not Unified).
             $isUnified = in_array('Unified', $g['groupTypes'] ?? [], true);
             $mailEnabled = (bool) ($g['mailEnabled'] ?? false);
+
             return $isUnified || $mailEnabled;
         }));
     }
@@ -1244,6 +1279,7 @@ class GraphService
     {
         $recipients = array_values(array_filter(array_map(function ($addr) {
             $addr = trim($addr);
+
             return $addr ? [
                 'emailAddress' => ['address' => $addr],
             ] : null;
@@ -1255,11 +1291,11 @@ class GraphService
 
         $payload = [
             'displayName' => 'NOC Offboarding Forwarding',
-            'sequence'    => 1,
-            'isEnabled'   => true,
-            'conditions'  => new \stdClass(),                       // match all
-            'actions'     => [
-                'forwardTo'       => $recipients,
+            'sequence' => 1,
+            'isEnabled' => true,
+            'conditions' => new \stdClass,                       // match all
+            'actions' => [
+                'forwardTo' => $recipients,
                 'stopProcessingRules' => false,
                 // 'forwardAsAttachmentTo' could be used for a true copy;
                 // forwardTo with keepCopy=true is the standard "redirect + keep".
@@ -1272,6 +1308,7 @@ class GraphService
         if (! $ruleId) {
             throw new \RuntimeException('Mailbox forwarding rule created but Graph returned no id.');
         }
+
         return $ruleId;
     }
 
@@ -1292,9 +1329,10 @@ class GraphService
     public function listIntuneDevicesForUpn(string $upn): array
     {
         $result = $this->get(
-            $this->betaUrl . "/deviceManagement/managedDevices",
-            ['$filter' => "userPrincipalName eq '" . str_replace("'", "''", $upn) . "'", '$top' => 100]
+            $this->betaUrl.'/deviceManagement/managedDevices',
+            ['$filter' => "userPrincipalName eq '".str_replace("'", "''", $upn)."'", '$top' => 100]
         );
+
         return $result['value'] ?? [];
     }
 
@@ -1305,6 +1343,6 @@ class GraphService
      */
     public function deleteIntuneDevice(string $managedDeviceId): void
     {
-        $this->delete($this->betaUrl . "/deviceManagement/managedDevices/{$managedDeviceId}");
+        $this->delete($this->betaUrl."/deviceManagement/managedDevices/{$managedDeviceId}");
     }
 }
