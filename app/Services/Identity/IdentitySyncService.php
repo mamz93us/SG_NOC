@@ -426,9 +426,15 @@ class IdentitySyncService
             }
 
             // Bulk update users — one upsert per 500 rows instead of ~1000 single
-            // UPDATE queries (that per-row loop was the slow part of the sync).
+            // UPDATE queries. Only touch users that EXIST in identity_users; group
+            // members can include guests/service principals we don't sync, and upsert
+            // would otherwise try to INSERT a phantom row (no display_name -> error).
+            $existingUserIds = IdentityUser::pluck('azure_id')->flip();
             $userRows = [];
             foreach ($userMemberOf as $uid => $gids) {
+                if (! isset($existingUserIds[$uid])) {
+                    continue;
+                }
                 $userRows[] = [
                     'azure_id' => $uid,
                     'member_of' => json_encode(array_values($gids)),

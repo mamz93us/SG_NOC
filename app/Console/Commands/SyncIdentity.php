@@ -125,7 +125,7 @@ class SyncIdentity extends Command
                 'users_synced' => $userCount,
                 'groups_synced' => $groupCount,
                 'licenses_synced' => $licenseCount,
-                'error_message' => empty($errors) ? null : implode("\n", $errors),
+                'error_message' => empty($errors) ? null : mb_substr(implode("\n", $errors), 0, 2000),
                 'completed_at' => now(),
             ]);
 
@@ -142,7 +142,7 @@ class SyncIdentity extends Command
             ]);
             $detailedLog->update([
                 'status' => 'failed',
-                'error_message' => $e->getMessage(),
+                'error_message' => mb_substr($e->getMessage(), 0, 2000),
                 'completed_at' => now(),
             ]);
             $this->error('Identity sync failed: '.$e->getMessage());

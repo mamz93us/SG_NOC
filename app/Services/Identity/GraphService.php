@@ -90,11 +90,22 @@ class GraphService
         $token = $this->getAccessToken();
         $url = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl.$endpoint;
 
-        $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
+        // CRITICAL: when following an @odata.nextLink the query params ($skiptoken,
+        // $top, $select) are already embedded in the URL. Passing an (empty) $query
+        // array makes Guzzle REPLACE the URL's query string with it — wiping the
+        // $skiptoken, so Graph restarts from page 1 and pagination loops forever.
+        // So only pass $query when it is non-empty; otherwise send the URL verbatim.
+        $doGet = function (string $tok) use ($timeout, $headers, $url, $query) {
+            $req = Http::timeout($timeout)->withToken($tok)->withHeaders($headers);
+
+            return empty($query) ? $req->get($url) : $req->get($url, $query);
+        };
+
+        $response = $doGet($token);
 
         if ($response->status() === 401 || $response->status() === 403) {
             $token = $this->refreshToken();
-            $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
+            $response = $doGet($token);
         }
 
         // Retry on 429 Too Many Requests — honour Retry-After header (max 6 attempts)
@@ -108,7 +119,7 @@ class GraphService
             $retryAfter = max(5, min($retryAfter, 90));
             \Illuminate\Support\Facades\Log::warning("Graph 429 on {$url} — waiting {$retryAfter}s (attempt ".($attempts + 1).'/6)');
             sleep($retryAfter);
-            $response = Http::timeout($timeout)->withToken($token)->withHeaders($headers)->get($url, $query);
+            $response = $doGet($token);
             $attempts++;
         }
 
