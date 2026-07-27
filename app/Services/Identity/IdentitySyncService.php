@@ -438,33 +438,31 @@ class IdentitySyncService
                 }
             }
 
-            // Bulk update users — one upsert per 500 rows instead of ~1000 single
-            // UPDATE queries. Only touch users that EXIST in identity_users; group
-            // members can include guests/service principals we don't sync, and upsert
-            // would otherwise try to INSERT a phantom row (no display_name -> error).
-            $existingUserIds = IdentityUser::pluck('azure_id')->flip();
-            $userRows = [];
-            foreach ($userMemberOf as $uid => $gids) {
-                if (! isset($existingUserIds[$uid])) {
-                    continue;
-                }
-                $userRows[] = [
-                    'azure_id' => $uid,
-                    'member_of' => json_encode(array_values($gids)),
-                    'groups_count' => count($gids),
-                ];
-            }
-            foreach (array_chunk($userRows, 500) as $chunk) {
-                IdentityUser::upsert($chunk, ['azure_id'], ['member_of', 'groups_count']);
+            // Update each user's memberships. Plain UPDATE (not upsert): the rows already
+            // exist, and a partial-column upsert generates an INSERT missing the NOT NULL
+            // display_name. A non-existent azure_id (guest/service principal) just updates
+            // 0 rows — harmless. This is fast enough now that the /users loop is fixed.
+            foreach (array_chunk(array_keys($userMemberOf), 500) as $chunk) {
+                DB::transaction(function () use ($chunk, $userMemberOf) {
+                    foreach ($chunk as $uid) {
+                        $gids = $userMemberOf[$uid] ?? [];
+                        IdentityUser::where('azure_id', $uid)->update([
+                            'member_of' => $gids,
+                            'groups_count' => count($gids),
+                        ]);
+                    }
+                });
             }
 
-            // Bulk update group counts — same, one upsert per 500 groups.
-            $groupRows = [];
-            foreach ($allGroupIds as $gid) {
-                $groupRows[] = ['azure_id' => $gid, 'members_count' => $groupMemberCounts[$gid] ?? 0];
-            }
-            foreach (array_chunk($groupRows, 500) as $chunk) {
-                IdentityGroup::upsert($chunk, ['azure_id'], ['members_count']);
+            // Update group member counts (same reasoning — plain UPDATE).
+            foreach (array_chunk($allGroupIds, 500) as $chunk) {
+                DB::transaction(function () use ($chunk, $groupMemberCounts) {
+                    foreach ($chunk as $gid) {
+                        IdentityGroup::where('azure_id', $gid)->update([
+                            'members_count' => $groupMemberCounts[$gid] ?? 0,
+                        ]);
+                    }
+                });
             }
 
             Log::info('IdentitySyncService: Group memberships synced.');
