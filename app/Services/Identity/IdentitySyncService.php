@@ -424,28 +424,27 @@ class IdentitySyncService
                 }
             }
 
-            // Bulk update users
-            foreach (array_chunk(array_keys($userMemberOf), 200) as $chunk) {
-                DB::transaction(function () use ($chunk, $userMemberOf) {
-                    foreach ($chunk as $uid) {
-                        $gids = $userMemberOf[$uid] ?? [];
-                        IdentityUser::where('azure_id', $uid)->update([
-                            'member_of' => $gids,
-                            'groups_count' => count($gids),
-                        ]);
-                    }
-                });
+            // Bulk update users — one upsert per 500 rows instead of ~1000 single
+            // UPDATE queries (that per-row loop was the slow part of the sync).
+            $userRows = [];
+            foreach ($userMemberOf as $uid => $gids) {
+                $userRows[] = [
+                    'azure_id' => $uid,
+                    'member_of' => json_encode(array_values($gids)),
+                    'groups_count' => count($gids),
+                ];
+            }
+            foreach (array_chunk($userRows, 500) as $chunk) {
+                IdentityUser::upsert($chunk, ['azure_id'], ['member_of', 'groups_count']);
             }
 
-            // Bulk update group counts
-            foreach (array_chunk($allGroupIds, 200) as $chunk) {
-                DB::transaction(function () use ($chunk, $groupMemberCounts) {
-                    foreach ($chunk as $gid) {
-                        IdentityGroup::where('azure_id', $gid)->update([
-                            'members_count' => $groupMemberCounts[$gid] ?? 0,
-                        ]);
-                    }
-                });
+            // Bulk update group counts — same, one upsert per 500 groups.
+            $groupRows = [];
+            foreach ($allGroupIds as $gid) {
+                $groupRows[] = ['azure_id' => $gid, 'members_count' => $groupMemberCounts[$gid] ?? 0];
+            }
+            foreach (array_chunk($groupRows, 500) as $chunk) {
+                IdentityGroup::upsert($chunk, ['azure_id'], ['members_count']);
             }
 
             Log::info('IdentitySyncService: Group memberships synced.');
