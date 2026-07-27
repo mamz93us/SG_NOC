@@ -78,6 +78,12 @@ class SignatureRenderService
         $html = preg_replace('/<\/?(o|v|w|m|st1|x):[^>]*>/i', '', $html);       // namespaced tags: <o:p>, VML <v:*>, etc.
         $html = preg_replace('/\x{FEFF}/u', '', $html);                         // stray BOM/zero-width
 
+        // Strip editor-noise attributes. Word Online / Outlook-on-the-web paste huge
+        // class="…SCXW…BCX8", data-*, aria-*, role, lang, and id values that mean nothing
+        // in an email but bloat the disclaimer far past the size limit (Oriana was 18KB).
+        $html = preg_replace('/\s(?:class|data-[\w-]+|aria-[\w-]+|role|lang|id|dir|contenteditable|spellcheck|xml:lang)\s*=\s*"[^"]*"/i', '', $html);
+        $html = preg_replace("/\s(?:class|data-[\w-]+|aria-[\w-]+|role|lang|id|dir)\s*=\s*'[^']*'/i", '', $html);
+
         // Remove empty inline/paragraph elements a Word paste leaves behind (many
         // <p>&nbsp;</p> / <span>&nbsp;</span>), looping for nested ones. This is what
         // actually shrinks a Word-pasted template enough to fit the disclaimer limit.
