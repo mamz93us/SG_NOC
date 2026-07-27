@@ -31,13 +31,15 @@ class SignatureRenderService
     {
         $html = $template->html_body;
 
-        // Strip Outlook/OWA image-attachment artifacts left by pasting a signature out of
-        // an email: data-imagetype="AttachmentByCid" makes Outlook look for a CID email
-        // attachment that isn't there -> the logo shows as a broken image even though the
-        // real src is a valid URL. data-custom / naturalheight / naturalwidth are noise.
-        // Keep src / alt / width / height / style so the logo still renders correctly.
-        $html = preg_replace('/\s(?:data-[\w-]+|natural(?:height|width))\s*=\s*"[^"]*"/i', '', $html);
-        $html = preg_replace("/\s(?:data-[\w-]+|natural(?:height|width))\s*=\s*'[^']*'/i", '', $html);
+        // Strip Outlook/OWA image artifacts left by pasting a signature out of an email.
+        // Two of these BREAK the logo: data-imagetype="AttachmentByCid" makes Outlook hunt
+        // for a non-existent CID attachment, and crossorigin="use-credentials" forces a
+        // credentialed CORS fetch the image host doesn't allow — both show a broken image
+        // even though src is a valid URL. The rest (data-*, natural*, fetchpriority,
+        // tabindex, id, class) are harmless noise. Keep src / alt / width / height / style.
+        $noise = 'data-[\w-]+|natural(?:height|width)|crossorigin|fetchpriority|tabindex|contenteditable|spellcheck';
+        $html = preg_replace('/\s(?:'.$noise.')\s*=\s*"[^"]*"/i', '', $html);
+        $html = preg_replace("/\s(?:{$noise})\s*=\s*'[^']*'/i", '', $html);
 
         // Inject template-level meta-variables so they are available inside {{#if}} blocks too
         $vars['logo_url'] = $vars['logo_url'] ?? $template->logo_url ?? '';
