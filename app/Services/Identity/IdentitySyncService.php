@@ -375,10 +375,23 @@ class IdentitySyncService
                 // Capture removed azure_ids BEFORE deleting so we can notify
                 $removedAzureIds = IdentityUser::whereNotIn('azure_id', $activeIds)
                     ->pluck('azure_id')->toArray();
-                if (! empty($removedAzureIds)) {
-                    $this->handleRemovedAccounts($removedAzureIds);
+
+                // SAFETY GUARD: never mass-remove. handleRemovedAccounts marks employees
+                // terminated, which the EmployeeObserver cascades into DISABLING their Azure
+                // account. If a run "loses" a large fraction of users it is almost certainly
+                // an incomplete fetch (pagination bug / throttling), NOT hundreds of real
+                // departures. Bailing out here prevents cascade-disabling live accounts.
+                $removedCount = count($removedAzureIds);
+                $existingCount = IdentityUser::count();
+                if ($removedCount > 25 && $removedCount > $existingCount * 0.10) {
+                    $errors[] = "Users: REFUSED to remove {$removedCount} users ({$existingCount} total) — looks like an incomplete fetch, not real departures. No accounts disabled.";
+                    Log::error("IdentitySyncService: safety guard blocked removal of {$removedCount}/{$existingCount} users.");
+                } else {
+                    if (! empty($removedAzureIds)) {
+                        $this->handleRemovedAccounts($removedAzureIds);
+                    }
+                    IdentityUser::whereNotIn('azure_id', $activeIds)->delete();
                 }
-                IdentityUser::whereNotIn('azure_id', $activeIds)->delete();
             }
 
             // (Removed the per-user assigned_licenses fix-up loop: the bulk upsert above
