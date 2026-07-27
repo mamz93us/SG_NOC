@@ -70,7 +70,9 @@ Schedule::command('meraki:sync')
 // Azure / Entra ID Identity Sync
 Schedule::command('identity:sync')
     ->cron($everyN($identityInterval))
-    ->withoutOverlapping(30)
+    // Expiry (minutes) must exceed the worst-case run; at 30 the mutex expired
+    // mid-run and the next tick launched concurrently -> 19 piled-up syncs.
+    ->withoutOverlapping(240)
     ->runInBackground();
 
 // CUPS Print Manager — status refresh
