@@ -288,66 +288,64 @@ class IdentitySyncService
             // Pre-load existing account_enabled status snapshot for transition detection.
             // We do this once before chunked processing so we compare against the
             // state that was in the DB before this sync run started.
-            \Illuminate\Support\Facades\Log::info('syncUsers: loading enabled map...');
             $existingEnabledMap = IdentityUser::pluck('account_enabled', 'azure_id');
-            \Illuminate\Support\Facades\Log::info('syncUsers: enabled map loaded ('.$existingEnabledMap->count().'), calling listUsers...');
 
             $this->graph->listUsers(function ($chunk) use (&$count, &$activeIds, &$newlyDisabled, $existingEnabledMap) {
                 if (empty($chunk)) {
                     return;
                 }
-                Log::info('syncUsers: RECEIVED page of '.count($chunk).' (fetch ok), writing...');
-
-                DB::transaction(function () use ($chunk, &$activeIds, &$newlyDisabled, $existingEnabledMap) {
-                    foreach ($chunk as $u) {
-                        // ── Detect account_enabled: true → false transition ──────
-                        $wasEnabled = isset($existingEnabledMap[$u['id']])
-                            ? (bool) $existingEnabledMap[$u['id']]
-                            : null; // null = new user (never seen before)
-                        $nowEnabled = (bool) ($u['accountEnabled'] ?? true);
-
-                        if ($wasEnabled === true && ! $nowEnabled) {
-                            $newlyDisabled[] = $u['id'];
-                        }
-                        // ────────────────────────────────────────────────────────
-
-                        // Extract skuIds from assignedLicenses array of objects
-                        $rawLicenses = $u['assignedLicenses'] ?? [];
-                        $licenseSkus = [];
-                        foreach ($rawLicenses as $lic) {
-                            if (is_array($lic) && ! empty($lic['skuId'])) {
-                                $licenseSkus[] = $lic['skuId'];
-                            }
-                        }
-
-                        IdentityUser::updateOrCreate(
-                            ['azure_id' => $u['id']],
-                            [
-                                'display_name' => $u['displayName'],
-                                'user_principal_name' => $u['userPrincipalName'],
-                                'mail' => $u['mail'] ?? null,
-                                'job_title' => $u['jobTitle'] ?? null,
-                                'department' => $u['department'] ?? null,
-                                'company_name' => $u['companyName'] ?? null,
-                                'account_enabled' => $u['accountEnabled'] ?? true,
-                                'usage_location' => $u['usageLocation'] ?? null,
-                                'phone_number' => $u['businessPhones'][0] ?? null,
-                                'mobile_phone' => $u['mobilePhone'] ?? null,
-                                'office_location' => $u['officeLocation'] ?? null,
-                                'street_address' => $u['streetAddress'] ?? null,
-                                'city' => $u['city'] ?? null,
-                                'postal_code' => $u['postalCode'] ?? null,
-                                'country' => $u['country'] ?? null,
-                                'licenses_count' => count($licenseSkus),
-                                'assigned_licenses' => $licenseSkus,
-                                'raw_data' => $u,
-                            ]
-                        );
-                        $activeIds[] = $u['id'];
+                // Build the page's rows, then write them in ONE bulk upsert instead of a
+                // SELECT+UPDATE per user (updateOrCreate did ~2 queries × 1000 users, the
+                // real bottleneck). JSON columns are encoded by hand since upsert skips casts.
+                $rows = [];
+                foreach ($chunk as $u) {
+                    // Detect account_enabled: true -> false transition.
+                    $wasEnabled = isset($existingEnabledMap[$u['id']])
+                        ? (bool) $existingEnabledMap[$u['id']]
+                        : null;
+                    $nowEnabled = (bool) ($u['accountEnabled'] ?? true);
+                    if ($wasEnabled === true && ! $nowEnabled) {
+                        $newlyDisabled[] = $u['id'];
                     }
-                });
+
+                    $licenseSkus = [];
+                    foreach ($u['assignedLicenses'] ?? [] as $lic) {
+                        if (is_array($lic) && ! empty($lic['skuId'])) {
+                            $licenseSkus[] = $lic['skuId'];
+                        }
+                    }
+
+                    $rows[] = [
+                        'azure_id' => $u['id'],
+                        'display_name' => $u['displayName'] ?? null,
+                        'user_principal_name' => $u['userPrincipalName'] ?? null,
+                        'mail' => $u['mail'] ?? null,
+                        'job_title' => $u['jobTitle'] ?? null,
+                        'department' => $u['department'] ?? null,
+                        'company_name' => $u['companyName'] ?? null,
+                        'account_enabled' => $u['accountEnabled'] ?? true,
+                        'usage_location' => $u['usageLocation'] ?? null,
+                        'phone_number' => $u['businessPhones'][0] ?? null,
+                        'mobile_phone' => $u['mobilePhone'] ?? null,
+                        'office_location' => $u['officeLocation'] ?? null,
+                        'street_address' => $u['streetAddress'] ?? null,
+                        'city' => $u['city'] ?? null,
+                        'postal_code' => $u['postalCode'] ?? null,
+                        'country' => $u['country'] ?? null,
+                        'licenses_count' => count($licenseSkus),
+                        'assigned_licenses' => json_encode($licenseSkus),
+                        'raw_data' => json_encode($u),
+                    ];
+                    $activeIds[] = $u['id'];
+                }
+
+                IdentityUser::upsert($rows, ['azure_id'], [
+                    'display_name', 'user_principal_name', 'mail', 'job_title', 'department',
+                    'company_name', 'account_enabled', 'usage_location', 'phone_number',
+                    'mobile_phone', 'office_location', 'street_address', 'city', 'postal_code',
+                    'country', 'licenses_count', 'assigned_licenses', 'raw_data',
+                ]);
                 $count += count($chunk);
-                Log::info("syncUsers: page fetched, cumulative {$count} users (unique in DB: ".IdentityUser::count().')');
                 gc_collect_cycles();
             });
 
