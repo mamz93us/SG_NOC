@@ -344,6 +344,7 @@ class IdentitySyncService
                     }
                 });
                 $count += count($chunk);
+                Log::info("syncUsers: page fetched, cumulative {$count} users (unique in DB: ".IdentityUser::count().')');
                 gc_collect_cycles();
             });
 
