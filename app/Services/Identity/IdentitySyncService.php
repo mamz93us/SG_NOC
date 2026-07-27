@@ -289,10 +289,25 @@ class IdentitySyncService
             // We do this once before chunked processing so we compare against the
             // state that was in the DB before this sync run started.
             $existingEnabledMap = IdentityUser::pluck('account_enabled', 'azure_id');
+            $seenIds = [];
 
-            $this->graph->listUsers(function ($chunk) use (&$count, &$activeIds, &$newlyDisabled, $existingEnabledMap) {
+            $this->graph->listUsers(function ($chunk) use (&$count, &$activeIds, &$newlyDisabled, &$seenIds, $existingEnabledMap) {
                 if (empty($chunk)) {
                     return;
+                }
+
+                // Stop if this page brought no NEW users — Graph's /users nextLink can
+                // cycle indefinitely (returning the same users forever). Without this the
+                // sync never finishes. Return false to break pagination.
+                $newInPage = 0;
+                foreach ($chunk as $u) {
+                    if (! isset($seenIds[$u['id']])) {
+                        $seenIds[$u['id']] = true;
+                        $newInPage++;
+                    }
+                }
+                if ($newInPage === 0) {
+                    return false;
                 }
                 // Build the page's rows, then write them in ONE bulk upsert instead of a
                 // SELECT+UPDATE per user (updateOrCreate did ~2 queries × 1000 users, the

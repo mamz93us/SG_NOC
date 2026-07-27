@@ -210,6 +210,7 @@ class GraphService
         $baseUrl = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl.$endpoint;
         $url = $baseUrl;
         $page = 0;
+        $seenLinks = [];
 
         do {
             // Courtesy delay between pages to avoid 429s
@@ -221,13 +222,27 @@ class GraphService
             $values = $body['value'] ?? [];
 
             if (! empty($values)) {
-                $callback($values);
+                // A callback may return false to stop early (e.g. it detected the page
+                // brought no new records — a cycling @odata.nextLink, which some Graph
+                // endpoints do and which would otherwise loop forever).
+                if ($callback($values) === false) {
+                    break;
+                }
             }
 
             $url = $body['@odata.nextLink'] ?? null;
             unset($body);
             gc_collect_cycles();
             $page++;
+
+            // Safety net: a nextLink that repeats a URL we've already fetched is a cycle.
+            if ($url !== null) {
+                if (isset($seenLinks[$url])) {
+                    Log::warning("paginateWithCallback: repeated nextLink on {$endpoint} at page {$page} — stopping (cycle).");
+                    break;
+                }
+                $seenLinks[$url] = true;
+            }
         } while ($url);
     }
 
