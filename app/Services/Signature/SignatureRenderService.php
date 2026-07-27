@@ -31,6 +31,14 @@ class SignatureRenderService
     {
         $html = $template->html_body;
 
+        // Strip Outlook/OWA image-attachment artifacts left by pasting a signature out of
+        // an email: data-imagetype="AttachmentByCid" makes Outlook look for a CID email
+        // attachment that isn't there -> the logo shows as a broken image even though the
+        // real src is a valid URL. data-custom / naturalheight / naturalwidth are noise.
+        // Keep src / alt / width / height / style so the logo still renders correctly.
+        $html = preg_replace('/\s(?:data-[\w-]+|natural(?:height|width))\s*=\s*"[^"]*"/i', '', $html);
+        $html = preg_replace("/\s(?:data-[\w-]+|natural(?:height|width))\s*=\s*'[^']*'/i", '', $html);
+
         // Inject template-level meta-variables so they are available inside {{#if}} blocks too
         $vars['logo_url'] = $vars['logo_url'] ?? $template->logo_url ?? '';
         $vars['primary_color'] = $vars['primary_color'] ?? $template->primary_color ?? '#d81f2a';
