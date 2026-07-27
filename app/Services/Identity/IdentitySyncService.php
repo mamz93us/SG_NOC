@@ -288,12 +288,15 @@ class IdentitySyncService
             // Pre-load existing account_enabled status snapshot for transition detection.
             // We do this once before chunked processing so we compare against the
             // state that was in the DB before this sync run started.
+            \Illuminate\Support\Facades\Log::info('syncUsers: loading enabled map...');
             $existingEnabledMap = IdentityUser::pluck('account_enabled', 'azure_id');
+            \Illuminate\Support\Facades\Log::info('syncUsers: enabled map loaded ('.$existingEnabledMap->count().'), calling listUsers...');
 
             $this->graph->listUsers(function ($chunk) use (&$count, &$activeIds, &$newlyDisabled, $existingEnabledMap) {
                 if (empty($chunk)) {
                     return;
                 }
+                Log::info('syncUsers: RECEIVED page of '.count($chunk).' (fetch ok), writing...');
 
                 DB::transaction(function () use ($chunk, &$activeIds, &$newlyDisabled, $existingEnabledMap) {
                     foreach ($chunk as $u) {
