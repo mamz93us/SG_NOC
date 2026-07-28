@@ -40,6 +40,7 @@ param(
     [string] $Organization   = '',
     [switch] $Pilot,        # create groups + rules but SKIP bulk populate (hand-add testers)
     [switch] $RefreshOnly,  # ONLY re-push the rule HTML (fast) - skip groups + populate. Use after a template/logo edit.
+    [switch] $PopulateOnly, # ONLY create + sync group membership from NOC - skip the transport rules. Use to add/refresh users.
     [switch] $WhatIf
 )
 
@@ -123,6 +124,10 @@ try {
     }
 
     # 3) Transport rules
+    if ($PopulateOnly) {
+        Write-Host "`n== PopulateOnly: skipping transport rules (group membership synced above) ==" -ForegroundColor Yellow
+        return
+    }
     Write-Host "`n== 3. Transport rules ==" -ForegroundColor Cyan
     $failed = @()
     foreach ($p in $Plan) {

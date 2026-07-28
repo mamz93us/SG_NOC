@@ -264,6 +264,37 @@ class SignatureController extends Controller
     }
 
     /**
+     * GET /admin/signatures/commands — a copy-and-run console of the PowerShell
+     * commands IT uses to operate the signature system: (1) update the server-side
+     * Exchange transport rules, (2) add / sync users into the scope groups, (3) test,
+     * and (4) force-apply the classic-Outlook signature on an employee device. The
+     * signature API key is never stored in plain text, so it is pasted into the page
+     * once and injected into every command client-side.
+     */
+    public function commands(Request $request): View
+    {
+        $baseUrl = rtrim(config('app.url') ?: $request->getSchemeAndHttpHost(), '/');
+
+        // Active signature-scoped keys so the operator knows which key to paste
+        // (prefix only — the raw value is bcrypt-hashed and cannot be shown again).
+        $keys = HrApiKey::where('is_active', true)
+            ->where(fn ($q) => $q->where('scope', 'signature')->orWhereNull('scope'))
+            ->orderByDesc('last_used_at')
+            ->get(['id', 'name', 'key_prefix', 'scope', 'last_used_at']);
+
+        // The domain/gender scope groups the server-side setup manages, so the
+        // "add users" panel can show exactly which group each domain maps to.
+        $groups = [
+            ['label' => 'Samir Group — Male',   'domain' => 'samirgroup.com', 'group' => 'SG-Signature-Male'],
+            ['label' => 'Samir Group — Female', 'domain' => 'samirgroup.com', 'group' => 'SG-Signature-Female'],
+            ['label' => 'SSS Egypt',            'domain' => 'sssegypt.com',   'group' => 'SG-Signature-SSS'],
+            ['label' => 'Oriana',               'domain' => 'oriana-sa.com',  'group' => 'SG-Signature-Oriana'],
+        ];
+
+        return view('admin.signatures.commands', compact('baseUrl', 'keys', 'groups'));
+    }
+
+    /**
      * GET /admin/signatures/transport-preview — shows exactly what each server-side
      * transport rule will stamp (New Outlook / OWA / mobile), with %%AD tokens%% filled
      * with sample data, plus each rule's HTML size so oversized (Exchange-rejected)
@@ -441,7 +472,11 @@ class SignatureController extends Controller
         }
 
         // Whitelist of scripts this endpoint may serve (no arbitrary file reads).
-        $files = ['deploy' => 'Deploy-Signature.ps1', 'test' => 'Test-Signature.ps1'];
+        $files = [
+            'deploy' => 'Deploy-Signature.ps1',
+            'test' => 'Test-Signature.ps1',
+            'setup' => 'Setup-ServerSignatures.ps1',
+        ];
         $which = $files[$request->query('file', 'deploy')] ?? 'Deploy-Signature.ps1';
 
         $path = base_path('deployment/signature/'.$which);
