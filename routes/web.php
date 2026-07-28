@@ -1015,6 +1015,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/groups/{azureId}/members', [IdentityController::class, 'groupMembers'])->name('group.members');
         Route::get('/sync-logs', [IdentityController::class, 'syncLogs'])->name('sync-logs');
         Route::get('/contact-sync', [IdentityController::class, 'contactSyncIndex'])->name('contact-sync');
+        Route::get('/linked-accounts', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'index'])->name('linked-accounts');
         Route::get('/hr-import', [OracleHrImportController::class, 'index'])->name('hr-import');
         Route::get('/hr-import/{batch}', [OracleHrImportController::class, 'show'])->name('hr-import.show');
     });
@@ -1030,6 +1031,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/users/{azureId}/delete', [IdentityController::class, 'destroyUser'])->name('user.destroy');
         Route::post('/contact-sync/apply', [IdentityController::class, 'contactSyncApply'])->name('contact-sync.apply');
         Route::post('/contact-sync/send-reminders', [IdentityController::class, 'contactSyncSendMobileReminders'])->name('contact-sync.send-reminders');
+        Route::post('/linked-accounts', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'store'])->name('linked-accounts.store');
+        Route::delete('/linked-accounts/{employee}', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'destroy'])->name('linked-accounts.destroy');
         Route::post('/hr-import', [OracleHrImportController::class, 'upload'])->name('hr-import.upload');
         Route::post('/hr-import/{batch}/apply', [OracleHrImportController::class, 'apply'])->name('hr-import.apply');
         Route::post('/hr-import/rows/{row}/resolve', [OracleHrImportController::class, 'resolveRow'])->name('hr-import.resolve-row');

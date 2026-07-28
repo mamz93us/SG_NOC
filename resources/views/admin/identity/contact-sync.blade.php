@@ -34,6 +34,9 @@
             </button>
         </form>
         @endcan
+        <a href="{{ route('admin.identity.linked-accounts') }}" class="btn btn-outline-secondary btn-sm" title="Dual-account users (SamirGroup ← SSS)">
+            <i class="bi bi-link-45deg me-1"></i>Linked Accounts
+        </a>
         <a href="{{ route('admin.identity.users') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i>Back
         </a>

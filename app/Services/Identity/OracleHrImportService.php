@@ -207,7 +207,10 @@ class OracleHrImportService
         if ($name !== '') {
             $cands = $cands->merge(Employee::whereRaw("REPLACE(LOWER(name), ' ', '') = ?", [str_replace(' ', '', $norm($name))])->get());
         }
-        $cands = $cands->unique('id');
+        // Never match onto a linked secondary account (e.g. a SamirGroup mailbox that
+        // mirrors an SSS record). Its HR fields are inherited from its primary, so an
+        // Oracle row must resolve to the primary, not overwrite the shadow account.
+        $cands = $cands->unique('id')->reject(fn ($c) => $c->linked_primary_employee_id !== null);
         if ($cands->isEmpty()) {
             return [null, 'none'];
         }

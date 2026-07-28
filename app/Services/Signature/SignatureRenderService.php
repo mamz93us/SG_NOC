@@ -154,8 +154,15 @@ class SignatureRenderService
      */
     public function varsForUser(IdentityUser $user): array
     {
-        $employee = Employee::where('azure_id', $user->azure_id)->with(['branch', 'department'])->first();
+        $employee = Employee::where('azure_id', $user->azure_id)
+            ->with(['branch', 'department', 'linkedPrimary.department'])
+            ->first();
         $branch = $employee?->branch;
+
+        // Dual-account users: a secondary account (e.g. a SamirGroup mailbox) inherits
+        // job title / department / extension / mobile from the linked primary (the SSS
+        // HR record). Branch, name, and email stay this account's own (branch = JED).
+        $hr = $employee?->hrSource();
 
         // NOC employee profile is the source of truth; fall back to the Azure cache.
         $name = $employee?->name ?: $user->display_name ?? '';
@@ -163,13 +170,13 @@ class SignatureRenderService
         return [
             'name' => $name,
             'first_name' => explode(' ', trim($name))[0] ?? '',
-            'job_title' => $employee?->job_title ?: $user->job_title ?? '',
-            'department' => $employee?->department?->name ?: $employee?->oracle_department ?: $user->department ?? '',
+            'job_title' => $hr?->job_title ?: $user->job_title ?? '',
+            'department' => $hr?->department?->name ?: $hr?->oracle_department ?: $user->department ?? '',
             'company' => $employee?->company ?: $user->company_name ?? '',
             'email' => $employee?->email ?: $user->mail ?: $user->user_principal_name,
             'phone' => $employee?->work_phone ?: $user->phone_number ?? '',
-            'mobile' => $employee?->mobile_phone ?: $user->mobile_phone ?? '',
-            'extension' => $employee?->extension_number ?? '',
+            'mobile' => $hr?->mobile_phone ?: $user->mobile_phone ?? '',
+            'extension' => $hr?->extension_number ?? '',
             'branch_name' => $employee?->office_location ?: $branch?->name ?: $user->office_location ?? '',
             'branch_city' => $employee?->city ?: $branch?->city ?: $user->city ?? '',
             'branch_address' => $employee?->street_address ?: $branch?->street ?: $user->street_address ?? '',

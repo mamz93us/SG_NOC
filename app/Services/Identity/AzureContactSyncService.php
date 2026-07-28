@@ -67,21 +67,26 @@ class AzureContactSyncService
     {
         $data = [];
 
+        // Dual-account users: a secondary account inherits job title / department /
+        // extension / mobile from its linked primary (the SSS HR record). displayName,
+        // branch, and location stay this account's own.
+        $hr = $employee->hrSource();
+
         // Oracle-sourced HR fields — NOC is the system of record for these.
         if (! empty($employee->name)) {
             $data['displayName'] = $employee->name;
         }
-        if (! empty($employee->job_title)) {
-            $data['jobTitle'] = $employee->job_title;
+        if (! empty($hr->job_title)) {
+            $data['jobTitle'] = $hr->job_title;
         }
-        $department = $employee->oracle_department ?: $employee->department?->name;
+        $department = $hr->oracle_department ?: $hr->department?->name;
         if (! empty($department)) {
             $data['department'] = $department;
         }
-        $data['mobilePhone'] = $this->resolveMobile($employee);
+        $data['mobilePhone'] = $this->resolveMobile($hr);
         // Extension carried in the fax field (read by the signature via %%FaxNumber%%).
-        if (! empty($employee->extension_number)) {
-            $data['faxNumber'] = (string) $employee->extension_number;
+        if (! empty($hr->extension_number)) {
+            $data['faxNumber'] = (string) $hr->extension_number;
         }
 
         $branch = $employee->branch;
@@ -155,12 +160,16 @@ class AzureContactSyncService
     {
         $data = [];
 
+        // Secondary accounts inherit the HR fields from their linked primary; name,
+        // company, and location stay their own. See computeProposedFields().
+        $hr = $employee->hrSource();
+
         if (! empty($employee->name))            { $data['displayName']    = $employee->name; }
-        if (! empty($employee->job_title))       { $data['jobTitle']       = $employee->job_title; }
-        $department = $employee->oracle_department ?: $employee->department?->name;
+        if (! empty($hr->job_title))             { $data['jobTitle']       = $hr->job_title; }
+        $department = $hr->oracle_department ?: $hr->department?->name;
         if (! empty($department))                { $data['department']     = $department; }
         if (! empty($employee->company))         { $data['companyName']    = $employee->company; }
-        $data['mobilePhone'] = $this->resolveMobile($employee);
+        $data['mobilePhone'] = $this->resolveMobile($hr);
         // Business phone = the office landline (employee work_phone, else branch phone),
         // with any embedded "EXT ###" stripped — the extension is carried separately in fax.
         $officePhone = $employee->work_phone ?: $employee->branch?->phone_number;
@@ -169,7 +178,7 @@ class AzureContactSyncService
         }
         // Extension has no native Azure field, so we carry it in the (unused) fax field —
         // the signature transport rule reads it via %%FaxNumber%%.
-        if (! empty($employee->extension_number)) { $data['faxNumber']     = (string) $employee->extension_number; }
+        if (! empty($hr->extension_number))      { $data['faxNumber']     = (string) $hr->extension_number; }
         if (! empty($employee->office_location)) { $data['officeLocation'] = $employee->office_location; }
         if (! empty($employee->city))            { $data['city']           = $employee->city; }
         if (! empty($employee->street_address))  { $data['streetAddress']  = $employee->street_address; }
@@ -309,9 +318,9 @@ class AzureContactSyncService
      *      (Graph never removes a key we omit — that was the "mobile can't be deleted" bug).
      * Any resolved number is normalised to the canonical Saudi form "+966 5X XXX XXXX".
      */
-    private function resolveMobile(Employee $employee): string
+    private function resolveMobile(Employee $source): string
     {
-        $raw = $employee->mobile_phone ?: $employee->identityUser?->mobile_phone;
+        $raw = $source->mobile_phone ?: $source->identityUser?->mobile_phone;
         $normalized = $this->normalizeSaudiMobile($raw);
 
         return $normalized !== '' ? $normalized : '-';

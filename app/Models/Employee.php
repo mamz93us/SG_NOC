@@ -39,6 +39,7 @@ class Employee extends Model
         'extension_number',
         'ucm_server_id',
         'contact_id',
+        'linked_primary_employee_id',
     ];
 
     protected $casts = [
@@ -77,6 +78,37 @@ class Employee extends Model
     public function supervisor(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'supervisor_id');
+    }
+
+    /**
+     * The primary employee this account inherits HR data from (dual-account users:
+     * e.g. a SamirGroup mailbox whose job title / department / extension / mobile are
+     * maintained on the person's SSS record). Null for normal, standalone employees.
+     */
+    public function linkedPrimary(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'linked_primary_employee_id');
+    }
+
+    /** Secondary accounts that inherit their HR data from this employee. */
+    public function linkedSecondaries(): HasMany
+    {
+        return $this->hasMany(Employee::class, 'linked_primary_employee_id');
+    }
+
+    /**
+     * The record HR fields (job title, department, extension, mobile, gender) should
+     * be read from: the linked primary when this is a secondary account, else itself.
+     * Branch, name, and email always stay this account's own.
+     */
+    public function hrSource(): Employee
+    {
+        return $this->linked_primary_employee_id ? ($this->linkedPrimary ?: $this) : $this;
+    }
+
+    public function isLinkedSecondary(): bool
+    {
+        return (bool) $this->linked_primary_employee_id;
     }
 
     public function supervisees(): HasMany
