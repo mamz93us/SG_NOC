@@ -78,9 +78,7 @@ class AzureContactSyncService
         if (! empty($department)) {
             $data['department'] = $department;
         }
-        if (! empty($employee->mobile_phone)) {
-            $data['mobilePhone'] = $employee->mobile_phone;
-        }
+        $data['mobilePhone'] = $this->resolveMobile($employee);
         // Extension carried in the fax field (read by the signature via %%FaxNumber%%).
         if (! empty($employee->extension_number)) {
             $data['faxNumber'] = (string) $employee->extension_number;
@@ -162,7 +160,7 @@ class AzureContactSyncService
         $department = $employee->oracle_department ?: $employee->department?->name;
         if (! empty($department))                { $data['department']     = $department; }
         if (! empty($employee->company))         { $data['companyName']    = $employee->company; }
-        if (! empty($employee->mobile_phone))    { $data['mobilePhone']    = $employee->mobile_phone; }
+        $data['mobilePhone'] = $this->resolveMobile($employee);
         // Business phone = the office landline (employee work_phone, else branch phone),
         // with any embedded "EXT ###" stripped — the extension is carried separately in fax.
         $officePhone = $employee->work_phone ?: $employee->branch?->phone_number;
@@ -300,6 +298,64 @@ class AzureContactSyncService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * The mobilePhone value to push for an employee:
+     *   1. NOC's own HR mobile if set (system of record),
+     *   2. else the number already in Azure (mirrored on identity_users) — so we only
+     *      REFORMAT an existing number and never wipe a real one,
+     *   3. else a literal "-" so the field is explicitly cleared rather than left stale
+     *      (Graph never removes a key we omit — that was the "mobile can't be deleted" bug).
+     * Any resolved number is normalised to the canonical Saudi form "+966 5X XXX XXXX".
+     */
+    private function resolveMobile(Employee $employee): string
+    {
+        $raw = $employee->mobile_phone ?: $employee->identityUser?->mobile_phone;
+        $normalized = $this->normalizeSaudiMobile($raw);
+
+        return $normalized !== '' ? $normalized : '-';
+    }
+
+    /**
+     * Normalise a Saudi mobile number to "+966 5X XXX XXXX". Accepts the common messy
+     * inputs (05xxxxxxxx, 5xxxxxxxx, 9665xxxxxxxx, 009665xxxxxxxx, +966 5x xxx xxxx,
+     * with spaces/dashes). A number that is already an explicit FOREIGN country code
+     * (e.g. +20 Egypt) or that doesn't match the Saudi mobile shape is returned as-is,
+     * so a real non-Saudi number is never mangled. Empty / "-" input returns "".
+     */
+    private function normalizeSaudiMobile(?string $raw): string
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '' || $raw === '-') {
+            return '';
+        }
+
+        $digits = preg_replace('/\D+/', '', $raw) ?? '';
+
+        // Explicit non-Saudi country code (has a leading + and isn't 966) — leave untouched.
+        if (str_starts_with($raw, '+') && ! str_starts_with($digits, '966')) {
+            return $raw;
+        }
+
+        // Reduce the various Saudi prefixes to the 9-digit national form (5XXXXXXXX).
+        if (str_starts_with($digits, '00966')) {
+            $digits = substr($digits, 5);
+        } elseif (str_starts_with($digits, '966')) {
+            $digits = substr($digits, 3);
+        }
+        $digits = ltrim($digits, '0');
+
+        if (preg_match('/^5\d{8}$/', $digits)) {
+            return sprintf('+966 %s %s %s',
+                substr($digits, 0, 2),
+                substr($digits, 2, 3),
+                substr($digits, 5)
+            );
+        }
+
+        // Not a recognisable Saudi mobile — return the original so we never corrupt it.
+        return $raw;
     }
 
     /**
