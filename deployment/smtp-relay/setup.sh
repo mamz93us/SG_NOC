@@ -68,6 +68,7 @@ if [[ -f /etc/postfix/main.cf ]]; then
 fi
 install -m 0644 "$HERE/main.cf" /etc/postfix/main.cf
 install -m 0644 "$HERE/sender_canonical.regexp" /etc/postfix/sender_canonical.regexp
+install -m 0644 "$HERE/header_checks.regexp" /etc/postfix/header_checks.regexp
 # Pin myhostname to this box's FQDN so SES/EHLO look sane.
 postconf -e "myhostname=$(hostname -f 2>/dev/null || hostname)"
 
@@ -80,6 +81,18 @@ chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
 # Keep relayhost in sync with the resolved region.
 postconf -e "relayhost=[email-smtp.$SES_REGION.amazonaws.com]:587"
 
+# --- Let the NOC app read the maillog (for the SMTP Relay Log page) ----------
+# /var/log/mail.log is root:adm 0640, so the app/scheduler user needs to be in
+# the `adm` group to tail it. Group changes only take effect for NEW processes,
+# so the scheduler (supervisor) must be restarted afterwards.
+APP_OWNER="$(stat -c '%U' "$APP_DIR/artisan" 2>/dev/null || echo azureuser)"
+if id -nG "$APP_OWNER" 2>/dev/null | grep -qw adm; then
+    echo "User '$APP_OWNER' already in 'adm' group (can read the maillog)."
+else
+    usermod -aG adm "$APP_OWNER" && ADDED_ADM=1
+    echo "Added '$APP_OWNER' to 'adm' group so it can read /var/log/mail.log."
+fi
+
 # --- Start / reload ----------------------------------------------------------
 systemctl enable --now postfix
 postfix reload || systemctl restart postfix
@@ -91,3 +104,9 @@ echo "        --to you@samirgroup.com --to youralt@gmail.com \\"
 echo "        --header 'Subject: SG-NOC relay test'"
 echo
 echo "Watch delivery:  tail -f /var/log/mail.log"
+if [[ "${ADDED_ADM:-0}" == "1" ]]; then
+    echo
+    echo "NOTE: '$APP_OWNER' was just added to the 'adm' group. Restart the"
+    echo "      scheduler so it can read the maillog for the SMTP Relay Log page:"
+    echo "        sudo supervisorctl restart switch-poll"
+fi

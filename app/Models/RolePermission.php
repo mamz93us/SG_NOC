@@ -31,6 +31,7 @@ class RolePermission extends Model
                 'view-activity-logs' => 'View Activity Logs',
                 'view-phone-logs' => 'View Phone XML Logs',
                 'sync-phone-logs' => 'Sync Phone XML Logs',
+                'view-smtp-relay' => 'View SMTP Relay Log',
             ],
             'PBX' => [
                 'view-extensions' => 'View Extensions',

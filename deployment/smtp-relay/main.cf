@@ -61,6 +61,12 @@ smtpd_recipient_restrictions = permit_mynetworks, reject_unauth_destination
 sender_canonical_maps = regexp:/etc/postfix/sender_canonical.regexp
 sender_canonical_classes = envelope_sender, header_sender
 
+# --- Audit: log Subject + attachment filenames to the maillog ----------------
+# WARN-only rules (no message modification). The NOC `smtp-relay:ingest-log`
+# command parses these into the /admin/smtp-relay page. mime_header_checks
+# defaults to this table too, so attachment part headers are matched.
+header_checks = regexp:/etc/postfix/header_checks.regexp
+
 # --- Upstream: Amazon SES smarthost ------------------------------------------
 # Region MUST match the verified identity AND the sasl_passwd entry. setup.sh
 # sets this authoritatively from the stored SES region — do NOT `cp` this file

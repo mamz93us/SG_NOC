@@ -1,0 +1,22 @@
+# =============================================================================
+# Postfix header_checks — surface Subject + attachment filenames in the maillog
+# -----------------------------------------------------------------------------
+# The WARN action logs the matched header line (tagged with the Postfix queue
+# id) to /var/log/mail.log; it does NOT modify or block the message. The NOC
+# `smtp-relay:ingest-log` command parses those lines into the SMTP Relay Log
+# page (Subject + attachment names per message).
+#
+# Because mime_header_checks defaults to header_checks, the attachment rule also
+# matches the Content-Type/Content-Disposition headers of MIME sub-parts, which
+# is where the filename lives.
+#
+# Installed to /etc/postfix/header_checks.regexp by setup.sh; referenced from
+# main.cf via `header_checks`.
+# =============================================================================
+
+# Subject of every message.
+/^Subject:/                                                          WARN
+
+# Attachment filename (Content-Type: ...; name="x"  /  Content-Disposition:
+# attachment; filename="x").
+/^Content-(?:Type|Disposition):.*(?:file)?name[[:space:]]*=/         WARN

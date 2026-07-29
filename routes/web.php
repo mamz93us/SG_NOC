@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AccessoryController;
 use App\Http\Controllers\Admin\AccessStatsController;
+use App\Http\Controllers\Admin\SmtpRelayController;
 use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\AdminLinkController;
 use App\Http\Controllers\Admin\AlertRuleController;
@@ -391,6 +392,15 @@ Route::middleware(['auth', 'permission:view-activity-logs'])
     });
 Route::middleware(['auth', 'permission:view-activity-logs'])
     ->get('api/access-stats', [AccessStatsController::class, 'data'])->name('api.access-stats');
+
+// SMTP Relay Log — messages the NOC Postfix smarthost relayed to Amazon SES
+// (legacy Ricoh scan-to-email). Populated by `smtp-relay:ingest-log`.
+Route::middleware(['auth', 'permission:view-smtp-relay'])
+    ->prefix('admin')->name('admin.')
+    ->group(function () {
+        Route::get('smtp-relay', [SmtpRelayController::class, 'index'])->name('smtp-relay.index');
+        Route::get('smtp-relay/export', [SmtpRelayController::class, 'export'])->name('smtp-relay.export');
+    });
 
 // NOC public root. Declared AFTER the marketing domain group so a request to
 // em.samirgroup.net/ matches the domain-constrained marketing dashboard first;

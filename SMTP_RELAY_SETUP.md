@@ -140,6 +140,48 @@ couple of printers on the old SES-direct config until the relay is proven.
 - **Queue** — `postqueue -p` to inspect, `postqueue -f` to flush.
 - **Logs** — `/var/log/mail.log`.
 
+## Audit log — the /admin/smtp-relay page
+
+Every relayed message is recorded and shown in the NOC at **Admin → SMTP Relay
+Log** (`/admin/smtp-relay`, permission `view-smtp-relay`): time, client (printer)
+IP, from, to, subject, size, attachment names + count, and SES status
+(sent / bounced / deferred / rejected) with the AWS message-id or error.
+
+How it works:
+
+- Postfix `header_checks` (`header_checks.regexp`, installed by `setup.sh`) log
+  each message's **Subject** and **attachment filenames** to the maillog with a
+  WARN action — this does not alter or block mail.
+- The scheduled command **`smtp-relay:ingest-log`** (every minute) tails
+  `/var/log/mail.log`, groups lines by Postfix queue-id, and upserts one row per
+  message into `smtp_relay_messages` (+ `smtp_relay_attachments`). It resumes
+  from a saved `{inode, offset}` (`storage/app/smtp-relay/ingest-state.json`), so
+  it only reads new lines and survives log rotation. A daily `--prune` run
+  enforces `SMTP_RELAY_RETENTION_DAYS` (default 180).
+
+**"Sent" means AWS accepted the message.** A later async hard-bounce from SES
+(bad recipient) is not visible here — that would need SES event notifications
+(SNS → webhook), a separate setup.
+
+Deploy / enable:
+
+```sh
+cd ~/phonebook2 && git pull
+php artisan migrate --force                       # creates the two audit tables
+cd deployment/smtp-relay && sudo bash setup.sh    # installs header_checks + adds
+                                                  # the app user to the 'adm' group
+sudo supervisorctl restart switch-poll            # so the scheduler can read the maillog
+```
+
+If the page stays empty: confirm the app user can read the log
+(`sudo -u azureuser head -1 /var/log/mail.log`), and run the ingest by hand to
+see its report: `php artisan smtp-relay:ingest-log`.
+
+> **Per-attachment byte sizes** are intentionally *not* captured here — the
+> maillog only has the total message size. Those need a fail-open MIME milter
+> (planned "Phase B"); the `attachments.size_bytes` column and the
+> `attachments_bytes` message column exist for it but stay null until it ships.
+
 ## Rollback
 
 Point the printers back at their previous SMTP settings (or stop Postfix:

@@ -682,6 +682,23 @@ Schedule::command('sftp-backups:prune')
     ->runInBackground()
     ->name('sftp-backups-prune');
 
+// ──────────────────────────────────────────────────────────────────────
+// SMTP relay audit log — tail the Postfix maillog into smtp_relay_messages
+// for the /admin/smtp-relay page. No-ops where the maillog isn't readable
+// (dev boxes). Daily prune enforces smtp_relay.retention_days.
+// ──────────────────────────────────────────────────────────────────────
+Schedule::command('smtp-relay:ingest-log')
+    ->cron($everyN(max(1, (int) config('smtp_relay.ingest_interval', 1))))
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('smtp-relay-ingest-log');
+
+Schedule::command('smtp-relay:ingest-log --prune')
+    ->dailyAt('03:20')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('smtp-relay-ingest-prune');
+
 // Download Center URL fetches — admins paste a URL and the NOC pulls the file
 // into Azure here (async, so a big artifact can't time out the web request).
 Schedule::command('downloads:fetch-remote')
