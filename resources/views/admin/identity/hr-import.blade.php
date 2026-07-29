@@ -128,6 +128,12 @@
         @endif
         @endcan
     </div>
+    <div class="px-3 py-2 border-bottom small text-muted">
+        <i class="bi bi-info-circle me-1"></i>Each field shows what will change on apply:
+        <span class="text-decoration-line-through">current</span>
+        <i class="bi bi-arrow-right mx-1"></i>
+        <span class="text-warning fw-semibold">new</span>. Fields with no change show a single value.
+    </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0 small">
             <thead class="table-light">
@@ -162,16 +168,44 @@
                             {{ $row->gender ? ucfirst($row->gender) : '—' }}
                         @endif
                     </td>
-                    <td>{{ $row->dept_name ?? '—' }}</td>
+                    <td>
+                        @php
+                            $curDept = $emp?->department?->name ?: $emp?->oracle_department;
+                            $deptChanged = $row->dept_name && $emp
+                                && trim(mb_strtolower((string) $curDept)) !== trim(mb_strtolower((string) $row->dept_name));
+                        @endphp
+                        @if($deptChanged)
+                            <div class="text-muted text-decoration-line-through" style="font-size:.8em">{{ $curDept ?: '∅' }}</div>
+                            <div class="text-warning fw-semibold">{{ $row->dept_name }}</div>
+                        @else
+                            {{ $row->dept_name ?? '—' }}
+                        @endif
+                    </td>
                     <td>
                         @if($row->resolvedBranch)
-                            <span class="badge bg-info text-dark">{{ $row->resolvedBranch->name }}</span>
+                            @php $branchChanged = $emp && (int) $emp->branch_id !== (int) $row->resolved_branch_id; @endphp
+                            @if($branchChanged)
+                                <div class="text-muted text-decoration-line-through" style="font-size:.8em">{{ $emp->branch?->name ?: '∅' }}</div>
+                                <div><span class="badge bg-info text-dark">{{ $row->resolvedBranch->name }}</span></div>
+                            @else
+                                <span class="badge bg-info text-dark">{{ $row->resolvedBranch->name }}</span>
+                            @endif
                         @else
                             <span class="text-danger" title="{{ $row->location_name }}">no match</span>
                         @endif
                     </td>
                     <td>
-                        {{ $row->mobile_normalized ?? '—' }}
+                        @php
+                            $curMobDigits = preg_replace('/\D+/', '', (string) ($emp->mobile_phone ?? ''));
+                            $newMobDigits = preg_replace('/\D+/', '', (string) ($row->mobile_normalized ?? ''));
+                            $mobChanged = $row->mobile_normalized && $emp && $curMobDigits !== $newMobDigits;
+                        @endphp
+                        @if($mobChanged)
+                            <div class="text-muted text-decoration-line-through" style="font-size:.8em">{{ $emp->mobile_phone ?: '∅' }}</div>
+                            <div class="text-warning fw-semibold">{{ $row->mobile_normalized }}</div>
+                        @else
+                            {{ $row->mobile_normalized ?? '—' }}
+                        @endif
                         @if($row->mobile_raw && ! $row->mobile_normalized)
                             <i class="bi bi-exclamation-triangle text-warning" title="Raw: {{ $row->mobile_raw }}"></i>
                         @endif

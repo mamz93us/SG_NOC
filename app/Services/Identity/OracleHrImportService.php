@@ -41,7 +41,15 @@ class OracleHrImportService
         'email address' => 'email',
         'emp email address' => 'email',
         'gender' => 'gender',
+        // Mobile — the Oracle export has shipped this header as "MOBILE NO", "MOB NO",
+        // and bare "MOBILE" across versions. Map every form so the number is never
+        // silently dropped (a missed header means blank mobiles on every row).
         'mobile no' => 'mobile_no',
+        'mob no' => 'mobile_no',
+        'mob number' => 'mobile_no',
+        'mobile number' => 'mobile_no',
+        'mobile' => 'mobile_no',
+        'mob' => 'mobile_no',
         'job name' => 'job_name',
     ];
 
@@ -269,15 +277,16 @@ class OracleHrImportService
             return null;
         }
 
-        // Strip an international prefix if present.
-        if (str_starts_with($digits, '00966')) {
-            $digits = substr($digits, 5);
-        } elseif (str_starts_with($digits, '966')) {
-            $digits = substr($digits, 3);
-        }
-
-        // Drop any remaining leading zeros (trunk prefix / '00' placeholder).
+        // Drop leading zeros first — this normalises the many malformed prefixes the
+        // export contains: trunk "05…", "00966…", and especially "0966…" (a stray zero
+        // before the country code, which the old "strip 966 first" order missed and so
+        // rejected ~70 otherwise-valid numbers).
         $digits = ltrim($digits, '0');
+
+        // Strip the Saudi country code if present, then any zero it was hiding (e.g. 9660 5…).
+        if (str_starts_with($digits, '966')) {
+            $digits = ltrim(substr($digits, 3), '0');
+        }
 
         // Valid Saudi mobile: 9 digits, leading 5.
         if (strlen($digits) === 9 && $digits[0] === '5') {
