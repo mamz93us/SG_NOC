@@ -63,7 +63,42 @@ class SignatureRenderService
         // 3. Remove any leftover unfilled placeholders
         $html = preg_replace('/\{\{\w+\}\}/', '', $html);
 
+        $html = $this->absolutizeImageSrcs($html);
+
         return $html.$this->markerHtml();
+    }
+
+    /**
+     * Rewrite relative <img src> URLs to absolute NOC URLs. Email clients (Outlook, OWA,
+     * mobile) have no base URL, so a signature whose logo was hosted with a relative path
+     * like "../../../images/signatures/template-4-logo.png" renders a broken image ("The
+     * linked image cannot be displayed"). Absolute http(s), protocol-relative, data:, and
+     * cid: sources are left untouched.
+     */
+    private function absolutizeImageSrcs(string $html): string
+    {
+        $base = rtrim((string) config('app.url'), '/');
+        if ($base === '') {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/(<img\b[^>]*?\bsrc\s*=\s*)(["\'])(.*?)\2/i',
+            function (array $m) use ($base): string {
+                $src = trim($m[3]);
+                if ($src === ''
+                    || preg_match('#^(https?:)?//#i', $src)
+                    || str_starts_with($src, 'data:')
+                    || str_starts_with($src, 'cid:')) {
+                    return $m[0];
+                }
+                $path = preg_replace('#^(?:\.\./)+#', '', $src); // drop any leading ../
+                $path = '/'.ltrim($path, '/');
+
+                return $m[1].$m[2].$base.$path.$m[2];
+            },
+            $html
+        ) ?? $html;
     }
 
     /**
@@ -145,6 +180,8 @@ class SignatureRenderService
         $html = preg_replace('/[ \t]+/', ' ', $html);        // runs of spaces/tabs -> one
         $html = preg_replace('/(\r?\n\s*){2,}/', "\n", $html); // 2+ blank lines -> one
         $html = trim($html);
+
+        $html = $this->absolutizeImageSrcs($html);
 
         return $html.$this->markerHtml();
     }
