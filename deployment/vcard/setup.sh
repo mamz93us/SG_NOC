@@ -79,22 +79,69 @@ else
 fi
 
 # --- Pre-flight: does DNS actually point here? --------------------------------
-# certbot will fail the HTTP-01 challenge if it doesn't, with a much less obvious
+# certbot fails the HTTP-01 challenge if it doesn't, with a much less obvious
 # error than this one.
+#
+# The authoritative comparison is against the host already serving this app, NOT
+# against our egress IP: on Azure the outbound address (NAT gateway / LB) is
+# frequently not the inbound one, so an egress comparison false-fails on a
+# perfectly correct A record. Egress is only the fallback when no sibling host
+# can be resolved.
 if [[ "${SKIP_DNS_CHECK:-0}" != "1" && "${SKIP_TLS:-0}" != "1" ]]; then
     log "Checking DNS for $DOMAIN ..."
+
     # ahostsv4, not `hosts`: we are comparing against an A record, and `getent
     # hosts` can hand back a AAAA first.
-    RESOLVED="$(getent ahostsv4 "$DOMAIN" | awk '{print $1}' | head -1 || true)"
-    PUBLIC_IP="$(curl -4 -s --max-time 10 https://api.ipify.org || curl -4 -s --max-time 10 https://ifconfig.me || true)"
+    resolve4() { getent ahostsv4 "$1" 2>/dev/null | awk '{print $1}' | head -1 || true; }
 
-    if [[ -z "$RESOLVED" ]]; then
-        die "$DOMAIN does not resolve yet. Add the A record, or re-run with SKIP_DNS_CHECK=1 (TLS will be skipped)."
-    elif [[ -n "$PUBLIC_IP" && "$RESOLVED" != "$PUBLIC_IP" ]]; then
-        die "$DOMAIN resolves to $RESOLVED but this VM's public IP is $PUBLIC_IP.
-     Fix the A record, or re-run with SKIP_DNS_CHECK=1 to continue anyway."
+    RESOLVED="$(resolve4 "$DOMAIN")"
+    [[ -n "$RESOLVED" ]] || die "$DOMAIN does not resolve yet.
+     Add an A record for it pointing at the same address as the host already
+     serving this app, then re-run. To provision the vhost now and add TLS
+     later, re-run with SKIP_DNS_CHECK=1 (TLS will be skipped)."
+
+    # A sibling only counts if it resolves to a PUBLIC address. This box pins
+    # noc.samirgroup.net to 127.0.0.1 in /etc/hosts (the telnet-proxy loopback
+    # fix), and other hosts may resolve to tunnel/private addresses — comparing
+    # against those would tell you to point the A record at loopback.
+    is_public_ip() {
+        case "$1" in
+            127.*|10.*|192.168.*|169.254.*|0.*|'') return 1 ;;
+            172.1[6-9].*|172.2[0-9].*|172.3[01].*) return 1 ;;
+            *) return 0 ;;
+        esac
+    }
+
+    # Consider every server_name across the enabled vhosts, not just the
+    # reference one, and take the first that yields a public address.
+    SIBLING_HOST=""; SIBLING_IP=""
+    while read -r candidate; do
+        [[ -n "$candidate" && "$candidate" != "$DOMAIN" ]] || continue
+        ip="$(resolve4 "$candidate")"
+        if is_public_ip "$ip"; then
+            SIBLING_HOST="$candidate"; SIBLING_IP="$ip"; break
+        fi
+    done < <(grep -hoP '^\s*server_name\s+\K[^;]+' /etc/nginx/sites-available/* 2>/dev/null \
+                | tr ' ' '\n' | grep -vE '^(_|\*.*|)$' | sort -u)
+
+    if [[ -n "$SIBLING_IP" ]]; then
+        if [[ "$RESOLVED" == "$SIBLING_IP" ]]; then
+            log "DNS OK: $DOMAIN -> $RESOLVED (matches $SIBLING_HOST)"
+        else
+            die "$DOMAIN resolves to $RESOLVED, but $SIBLING_HOST — already served by
+     this box — resolves to $SIBLING_IP. Point the A record at $SIBLING_IP.
+     Re-run with SKIP_DNS_CHECK=1 to continue anyway."
+        fi
     else
-        log "DNS OK: $DOMAIN -> $RESOLVED"
+        # No sibling to compare against; fall back to the egress address.
+        PUBLIC_IP="$(curl -4 -s --max-time 10 https://api.ipify.org || curl -4 -s --max-time 10 https://ifconfig.me || true)"
+        if [[ -n "$PUBLIC_IP" && "$RESOLVED" != "$PUBLIC_IP" ]]; then
+            warn "$DOMAIN resolves to $RESOLVED; this VM's egress IP is $PUBLIC_IP."
+            warn "On Azure inbound and outbound addresses often differ, so this may be fine."
+            warn "Continuing — certbot will be the real test."
+        else
+            log "DNS OK: $DOMAIN -> $RESOLVED"
+        fi
     fi
 fi
 
