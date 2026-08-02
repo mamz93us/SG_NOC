@@ -1731,7 +1731,12 @@
                 <div class="col-md-3">
                     <label class="form-label">Pass Background Color</label>
                     <input type="color" name="wallet_pass_bg_color" class="form-control form-control-color form-control-sm"
-                           value="{{ $settings->wallet_pass_bg_color ?: '#1a1a2e' }}">
+                           value="{{ $settings->wallet_pass_bg_color ?: '#ffffff' }}">
+                    <div class="form-text">
+                        Brand default is white (<code>#ffffff</code>) — the logo prints in its true
+                        red&nbsp;&amp;&nbsp;grey. Pick a dark colour and the logo is knocked out to
+                        white and the text flips automatically.
+                    </div>
                 </div>
             </div>
 

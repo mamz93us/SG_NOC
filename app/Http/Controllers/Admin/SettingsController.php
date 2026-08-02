@@ -1207,22 +1207,22 @@ class SettingsController extends Controller
     public function updateEmployeeCards(Request $request)
     {
         $request->validate([
-            'wallet_pass_org_name'       => 'nullable|string|max:100',
-            'wallet_pass_team_id'        => 'nullable|string|max:20',
-            'wallet_pass_type_id'        => 'nullable|string|max:200',
-            'wallet_pass_cert_file'      => 'nullable|file|max:512',
-            'wallet_pass_cert_password'  => 'nullable|string|max:255',
+            'wallet_pass_org_name' => 'nullable|string|max:100',
+            'wallet_pass_team_id' => 'nullable|string|max:20',
+            'wallet_pass_type_id' => 'nullable|string|max:200',
+            'wallet_pass_cert_file' => 'nullable|file|max:512',
+            'wallet_pass_cert_password' => 'nullable|string|max:255',
             'wallet_pass_wwdr_cert_file' => 'nullable|file|max:512',
-            'wallet_pass_bg_color'       => 'nullable|regex:/^#[0-9a-fA-F]{3,8}$/',
+            'wallet_pass_bg_color' => 'nullable|regex:/^#[0-9a-fA-F]{3,8}$/',
         ]);
 
         $settings = Setting::get();
 
-        $settings->wallet_pass_enabled  = $request->boolean('wallet_pass_enabled');
+        $settings->wallet_pass_enabled = $request->boolean('wallet_pass_enabled');
         $settings->wallet_pass_org_name = $request->wallet_pass_org_name;
-        $settings->wallet_pass_team_id  = $request->wallet_pass_team_id;
-        $settings->wallet_pass_type_id  = $request->wallet_pass_type_id;
-        $settings->wallet_pass_bg_color = $request->wallet_pass_bg_color ?: '#1a1a2e';
+        $settings->wallet_pass_team_id = $request->wallet_pass_team_id;
+        $settings->wallet_pass_type_id = $request->wallet_pass_type_id;
+        $settings->wallet_pass_bg_color = $request->wallet_pass_bg_color ?: '#ffffff';
 
         // P12 cert file → store as base64 of binary; skip if no file uploaded
         if ($request->hasFile('wallet_pass_cert_file') && $request->file('wallet_pass_cert_file')->isValid()) {
@@ -1241,8 +1241,8 @@ class SettingsController extends Controller
             $raw = file_get_contents($request->file('wallet_pass_wwdr_cert_file')->getPathname());
             if (! str_starts_with(ltrim($raw), '-----BEGIN')) {
                 $raw = "-----BEGIN CERTIFICATE-----\n"
-                     . chunk_split(base64_encode($raw), 64, "\n")
-                     . "-----END CERTIFICATE-----\n";
+                     .chunk_split(base64_encode($raw), 64, "\n")
+                     ."-----END CERTIFICATE-----\n";
             }
             $settings->wallet_pass_wwdr_cert = base64_encode($raw);
         }
@@ -1251,10 +1251,10 @@ class SettingsController extends Controller
 
         ActivityLog::create([
             'model_type' => 'Setting',
-            'model_id'   => 1,
-            'action'     => 'employee_cards_updated',
-            'changes'    => ['wallet_pass_enabled' => $settings->wallet_pass_enabled],
-            'user_id'    => Auth::id(),
+            'model_id' => 1,
+            'action' => 'employee_cards_updated',
+            'changes' => ['wallet_pass_enabled' => $settings->wallet_pass_enabled],
+            'user_id' => Auth::id(),
         ]);
 
         return redirect()
