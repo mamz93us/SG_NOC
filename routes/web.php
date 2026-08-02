@@ -1698,6 +1698,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('employees/{employee}/link-contact', [EmployeeController::class, 'linkContact'])->name('employees.link-contact');
         Route::delete('employees/{employee}/unlink-contact', [EmployeeController::class, 'unlinkContact'])->name('employees.unlink-contact');
         Route::patch('employees/{employee}/extension', [EmployeeController::class, 'updateExtension'])->name('employees.update-extension');
+        // Signature roles — managed independently of the main profile save (own save/remove).
+        Route::post('employees/{employee}/signature-roles', [EmployeeController::class, 'storeSignatureRole'])->name('employees.signature-roles.store');
+        Route::put('employees/{employee}/signature-roles/{role}', [EmployeeController::class, 'updateSignatureRole'])->name('employees.signature-roles.update');
+        Route::delete('employees/{employee}/signature-roles/{role}', [EmployeeController::class, 'destroySignatureRole'])->name('employees.signature-roles.destroy');
         Route::post('employees/{employee}/assets', [EmployeeController::class, 'assignAsset'])->name('employees.assets.assign');
         Route::patch('employees/{employee}/assets/{asset}/return', [EmployeeController::class, 'returnAsset'])->name('employees.assets.return');
         // Employee items (standalone equipment)

@@ -8,6 +8,7 @@ use App\Models\Department;
 use App\Models\Device;
 use App\Models\Employee;
 use App\Models\EmployeeAsset;
+use App\Models\EmployeeSignatureRole;
 use App\Models\IdentityUser;
 use App\Services\Identity\AzureContactSyncService;
 use App\Services\PhoneDeviceLookup;
@@ -266,29 +267,11 @@ class EmployeeController extends Controller
             'hired_date' => 'nullable|date',
             'terminated_date' => 'nullable|date|after_or_equal:hired_date',
             'notes' => 'nullable|string|max:2000',
-            'signature_roles' => 'nullable|array',
-            'signature_roles.*.label' => 'nullable|string|max:120',
-            'signature_roles.*.job_title' => 'nullable|string|max:255',
-            'signature_roles.*.department' => 'nullable|string|max:255',
         ] + $this->contactRules());
 
-        // A signature role must change something — a labelled row with no title AND no
-        // department renders identically to the default signature (the label is only the
-        // name shown in Outlook's menu, it does not appear in the signature body).
-        foreach ((array) $request->input('signature_roles', []) as $row) {
-            $label = trim((string) ($row['label'] ?? ''));
-            if ($label !== ''
-                && trim((string) ($row['job_title'] ?? '')) === ''
-                && trim((string) ($row['department'] ?? '')) === '') {
-                return back()->withInput()->with('error',
-                    "Signature role \"{$label}\" needs a job title and/or department — otherwise it is identical to the default signature.");
-            }
-        }
-
-        // Employee fields only — signature_roles are synced separately below.
-        $employee->update(collect($validated)->except('signature_roles')->all());
-
-        $this->syncSignatureRoles($request, $employee);
+        // Signature roles are managed by their own endpoints (store/update/destroy) so a
+        // half-filled role can never block saving the employee profile.
+        $employee->update($validated);
 
         [$msg, $level] = $this->pushToAzure($employee);
 
@@ -297,30 +280,70 @@ class EmployeeController extends Controller
             ->with($level, 'Employee updated successfully.'.$msg);
     }
 
-    /**
-     * Replace the employee's extra signature roles from the posted rows.
-     * Delete-and-recreate keeps it simple and race-free; blank-label rows are
-     * dropped. These are NOT pushed to Azure — the transport rule keeps the
-     * primary role (classic-Outlook-only feature).
-     */
-    private function syncSignatureRoles(Request $request, Employee $employee): void
-    {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $employee) {
-            $employee->signatureRoles()->delete();
+    // ─────────────────────────────────────────────────────────────
+    // Signature roles (extra classic-Outlook signatures) — managed
+    // independently of the main profile save, each with its own save/remove.
+    // ─────────────────────────────────────────────────────────────
 
-            foreach (array_values((array) $request->input('signature_roles', [])) as $i => $row) {
-                $label = trim((string) ($row['label'] ?? ''));
-                if ($label === '') {
-                    continue; // skip empty rows
-                }
-                $employee->signatureRoles()->create([
-                    'label' => $label,
-                    'job_title' => trim((string) ($row['job_title'] ?? '')) ?: null,
-                    'department' => trim((string) ($row['department'] ?? '')) ?: null,
-                    'sort_order' => $i,
-                ]);
-            }
-        });
+    /** Validation shared by add + edit: label required, plus at least a title OR department. */
+    private function signatureRoleRules(): array
+    {
+        return [
+            'label' => 'required|string|max:120',
+            'job_title' => 'nullable|string|max:255',
+            'department' => 'nullable|string|max:255',
+        ];
+    }
+
+    /** A role must change something, else it is identical to the default signature. */
+    private function signatureRoleHasContent(array $data): bool
+    {
+        return trim((string) ($data['job_title'] ?? '')) !== ''
+            || trim((string) ($data['department'] ?? '')) !== '';
+    }
+
+    public function storeSignatureRole(Request $request, Employee $employee)
+    {
+        $data = $request->validate($this->signatureRoleRules());
+        if (! $this->signatureRoleHasContent($data)) {
+            return back()->with('error', 'Add a job title and/or department for the role — otherwise it is identical to the default signature.');
+        }
+
+        $employee->signatureRoles()->create([
+            'label' => trim($data['label']),
+            'job_title' => trim((string) ($data['job_title'] ?? '')) ?: null,
+            'department' => trim((string) ($data['department'] ?? '')) ?: null,
+            'sort_order' => (int) ($employee->signatureRoles()->max('sort_order') + 1),
+        ]);
+
+        return back()->with('success', "Signature role \"{$data['label']}\" added.");
+    }
+
+    public function updateSignatureRole(Request $request, Employee $employee, EmployeeSignatureRole $role)
+    {
+        abort_unless($role->employee_id === $employee->id, 404);
+
+        $data = $request->validate($this->signatureRoleRules());
+        if (! $this->signatureRoleHasContent($data)) {
+            return back()->with('error', 'Add a job title and/or department for the role — otherwise it is identical to the default signature.');
+        }
+
+        $role->update([
+            'label' => trim($data['label']),
+            'job_title' => trim((string) ($data['job_title'] ?? '')) ?: null,
+            'department' => trim((string) ($data['department'] ?? '')) ?: null,
+        ]);
+
+        return back()->with('success', "Signature role \"{$data['label']}\" saved.");
+    }
+
+    public function destroySignatureRole(Employee $employee, EmployeeSignatureRole $role)
+    {
+        abort_unless($role->employee_id === $employee->id, 404);
+        $label = $role->label;
+        $role->delete();
+
+        return back()->with('success', "Signature role \"{$label}\" removed.");
     }
 
     public function assignAsset(Request $request, Employee $employee)
