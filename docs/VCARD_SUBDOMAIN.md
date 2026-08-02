@@ -55,7 +55,37 @@ Two properties keep it contained. Do not break either one:
 
 ---
 
-## One-time setup checklist
+## One-time setup
+
+### The short version
+
+Add the DNS record first, then run the provisioning script on the NOC VM:
+
+```
+vcard.samirgroup.net.   A   <VPS_PUBLIC_IP>
+```
+
+```bash
+cd /home/azureuser/phonebook2 && sudo bash deployment/vcard/setup.sh
+```
+
+That creates the vhost (deriving docroot + php-fpm socket from the existing NOC
+vhost, so it survives PHP upgrades), obtains the TLS certificate, clears the
+cached config/routes, and smoke-tests that `/login` serves 200 and
+`/admin/employees` 404s on the new host. It is idempotent.
+
+Then do **step 4 below by hand** — the Entra redirect URI. Nothing else is needed.
+
+Useful overrides:
+
+```bash
+sudo VCARD_DOMAIN=cards.samirgroup.com bash deployment/vcard/setup.sh
+sudo CERTBOT_EMAIL=it@samirgroup.com   bash deployment/vcard/setup.sh
+sudo SKIP_DNS_CHECK=1 bash deployment/vcard/setup.sh   # DNS not propagated yet
+sudo SKIP_TLS=1       bash deployment/vcard/setup.sh   # HTTP now, cert later
+```
+
+The rest of this section is what the script does, for reference or manual setup.
 
 ### 1. DNS
 ```
