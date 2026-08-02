@@ -75,6 +75,18 @@ class Employee extends Model
         return $this->hasMany(Employee::class, 'manager_id');
     }
 
+    /**
+     * Extra signature roles (additional job title + department for a person who
+     * holds more than one role under the same mailbox). Each becomes a selectable
+     * classic-Outlook signature; the employee's own title/department is the default.
+     */
+    public function signatureRoles(): HasMany
+    {
+        return $this->hasMany(EmployeeSignatureRole::class)
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
     public function supervisor(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'supervisor_id');

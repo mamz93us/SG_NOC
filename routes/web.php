@@ -2240,6 +2240,13 @@ Route::get('/api/signature/gender-members', [\App\Http\Controllers\Admin\Signatu
     ->middleware('throttle:120,1')
     ->name('api.signature.gender-members');
 
+// All signatures for a user (primary + extra roles) — consumed by Deploy-Signature.ps1
+// to install multiple selectable classic-Outlook signatures for multi-role users.
+// GET /api/signature/variants?upn=user@domain.com&api_key=…
+Route::get('/api/signature/variants', [\App\Http\Controllers\Admin\SignatureController::class, 'apiVariants'])
+    ->middleware('throttle:120,1')
+    ->name('api.signature.variants');
+
 // Key-gated download of the classic-Outlook deploy script, so a device can fetch +
 // run it in one line: irm "…/signature/deploy.ps1?api_key=…" -OutFile … ; run it.
 Route::get('/signature/deploy.ps1', [\App\Http\Controllers\Admin\SignatureController::class, 'downloadScript'])

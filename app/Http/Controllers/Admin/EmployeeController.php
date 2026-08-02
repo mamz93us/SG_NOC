@@ -246,6 +246,7 @@ class EmployeeController extends Controller
         $branches = Branch::orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
         $managers = Employee::where('status', 'active')->where('id', '!=', $employee->id)->orderBy('name')->get();
+        $employee->load('signatureRoles');
 
         return view('admin.employees.form', compact('employee', 'branches', 'departments', 'managers'));
     }
@@ -265,15 +266,48 @@ class EmployeeController extends Controller
             'hired_date' => 'nullable|date',
             'terminated_date' => 'nullable|date|after_or_equal:hired_date',
             'notes' => 'nullable|string|max:2000',
+            'signature_roles' => 'nullable|array',
+            'signature_roles.*.label' => 'nullable|string|max:120',
+            'signature_roles.*.job_title' => 'nullable|string|max:255',
+            'signature_roles.*.department' => 'nullable|string|max:255',
         ] + $this->contactRules());
 
-        $employee->update($validated);
+        // Employee fields only — signature_roles are synced separately below.
+        $employee->update(collect($validated)->except('signature_roles')->all());
+
+        $this->syncSignatureRoles($request, $employee);
 
         [$msg, $level] = $this->pushToAzure($employee);
 
         return redirect()
             ->route('admin.employees.show', $employee->id)
             ->with($level, 'Employee updated successfully.'.$msg);
+    }
+
+    /**
+     * Replace the employee's extra signature roles from the posted rows.
+     * Delete-and-recreate keeps it simple and race-free; blank-label rows are
+     * dropped. These are NOT pushed to Azure — the transport rule keeps the
+     * primary role (classic-Outlook-only feature).
+     */
+    private function syncSignatureRoles(Request $request, Employee $employee): void
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $employee) {
+            $employee->signatureRoles()->delete();
+
+            foreach (array_values((array) $request->input('signature_roles', [])) as $i => $row) {
+                $label = trim((string) ($row['label'] ?? ''));
+                if ($label === '') {
+                    continue; // skip empty rows
+                }
+                $employee->signatureRoles()->create([
+                    'label' => $label,
+                    'job_title' => trim((string) ($row['job_title'] ?? '')) ?: null,
+                    'department' => trim((string) ($row['department'] ?? '')) ?: null,
+                    'sort_order' => $i,
+                ]);
+            }
+        });
     }
 
     public function assignAsset(Request $request, Employee $employee)

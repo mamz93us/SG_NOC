@@ -149,6 +149,24 @@ function Get-SignatureHtml {
     return [string]$resp.html
 }
 
+# --- Fetch ALL signatures for a user (primary + extra roles) -----------------
+# Returns the .variants array, or $null when the NOC has no variants endpoint yet
+# (HTTP 404) so the caller falls back to the single new/reply Get-SignatureHtml calls.
+function Get-SignatureVariants {
+    param([string]$UserPrincipalName)
+    $uri = "{0}/api/signature/variants?upn={1}&api_key={2}" -f `
+        $BaseUrl, [uri]::EscapeDataString($UserPrincipalName), [uri]::EscapeDataString($ApiKey)
+    try {
+        $resp = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 30
+    } catch {
+        $code = $null
+        try { $code = [int]$_.Exception.Response.StatusCode } catch {}
+        if ($code -eq 404) { return $null }   # older NOC without /variants, or no template for this user
+        throw
+    }
+    return $resp.variants
+}
+
 # --- Derive a plain-text version for the .txt fallback -----------------------
 function ConvertTo-PlainText {
     param([string]$Html)
@@ -263,12 +281,13 @@ try {
     $accounts = @(Get-OutlookAccounts -VerKey $verKey)
     Write-Log ("Outlook accounts found: {0}{1}" -f $accounts.Count, $(if ($accounts.Count) { ' -> ' + (($accounts.Smtp) -join ', ') } else { '' }))
 
-    $keepNames   = @()   # signature names we manage (never delete these)
-    $cards       = @()   # for the preview page (one per assigned account)
-    $hashParts   = @()   # for change detection
-    $assigned    = 0
-    $primarySig  = $null # @{ NewName; ReplyName } used for the global default fallback
-    $primaryUpn  = (Resolve-Upn)
+    $keepNames       = @()   # signature names we manage (never delete these)
+    $cards           = @()   # for the preview page (one per assigned account)
+    $hashParts       = @()   # for change detection
+    $assigned        = 0
+    $anyMultiVariant = $false # true if any assigned account has >1 signature (extra roles)
+    $primarySig      = $null # @{ NewName; ReplyName } used for the global default fallback
+    $primaryUpn      = (Resolve-Upn)
 
     if ($accounts.Count -gt 0) {
         # ---- PER-ACCOUNT: assign each account its own signature -------------
@@ -283,24 +302,59 @@ try {
                 continue
             }
             if (-not $sigBySmtp.ContainsKey($smtp)) {
-                try {
-                    $htmlNew = Get-SignatureHtml -UserPrincipalName $smtp -Type 'new_email'
-                } catch {
-                    Write-Log ("No signature for $smtp : " + $_.Exception.Message + " -- leaving this account untouched.") 'WARN'
-                    continue
-                }
-                try   { $htmlReply = Get-SignatureHtml -UserPrincipalName $smtp -Type 'reply' }
-                catch { $htmlReply = $htmlNew; Write-Log "No reply-specific template for $smtp; reusing new-mail signature." 'WARN' }
+                # Prefer the variants endpoint (primary + any extra roles); fall back to the
+                # single new/reply calls when the NOC has no /variants endpoint (404) yet.
+                $variants = $null
+                try { $variants = Get-SignatureVariants -UserPrincipalName $smtp } catch { $variants = $null }
 
                 $sigNewName   = ('{0} ({1})' -f $SignatureName, $smtp)
                 $sigReplyName = ('{0} ({1})' -f $ReplyName, $smtp)
-                Write-SignatureFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew   -ReadOnly:$lock
-                Write-SignatureFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply -ReadOnly:$lock
-                $sigBySmtp[$smtp] = @{ NewHtml = $htmlNew; ReplyHtml = $htmlReply; NewName = $sigNewName; ReplyName = $sigReplyName }
 
-                $keepNames += $sigNewName; $keepNames += $sigReplyName
-                $hashParts += ($smtp + '|' + $htmlNew + '|' + $htmlReply)
-                $cards     += @{ Smtp = $smtp; New = $htmlNew; Reply = $htmlReply }
+                if ($variants -and @($variants).Count -gt 0) {
+                    # ---- New NOC: default signature + optional extra-role signatures ----
+                    $default = @($variants | Where-Object { $_.is_default })
+                    $default = if ($default.Count) { $default[0] } else { @($variants)[0] }
+
+                    $htmlNew   = [string]$default.new_html
+                    $htmlReply = if ($default.reply_html) { [string]$default.reply_html } else { $htmlNew }
+
+                    Write-SignatureFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew   -ReadOnly:$lock
+                    Write-SignatureFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply -ReadOnly:$lock
+                    $keepNames += $sigNewName; $keepNames += $sigReplyName
+                    $hashParts += ($smtp + '|' + $htmlNew + '|' + $htmlReply)
+                    $cards     += @{ Smtp = $smtp; New = $htmlNew; Reply = $htmlReply }
+
+                    # Each extra role -> one selectable named signature (new-mail HTML).
+                    $extraCount = 0
+                    foreach ($v in @($variants | Where-Object { -not $_.is_default })) {
+                        if (-not $v.new_html) { continue }
+                        $vName = ('{0} - {1} ({2})' -f $SignatureName, $v.label, $smtp)
+                        Write-SignatureFiles -Dir $sigDir -Name $vName -Html ([string]$v.new_html) -ReadOnly:$lock
+                        $keepNames += $vName
+                        $hashParts += ($smtp + '|role|' + $v.label + '|' + $v.new_html)
+                        $extraCount++
+                    }
+                    if ($extraCount -gt 0) { $anyMultiVariant = $true; Write-Log "  $smtp : +$extraCount extra signature role(s)." }
+                }
+                else {
+                    # ---- Fallback (older NOC / no variants): original single new+reply ----
+                    try {
+                        $htmlNew = Get-SignatureHtml -UserPrincipalName $smtp -Type 'new_email'
+                    } catch {
+                        Write-Log ("No signature for $smtp : " + $_.Exception.Message + " -- leaving this account untouched.") 'WARN'
+                        continue
+                    }
+                    try   { $htmlReply = Get-SignatureHtml -UserPrincipalName $smtp -Type 'reply' }
+                    catch { $htmlReply = $htmlNew; Write-Log "No reply-specific template for $smtp; reusing new-mail signature." 'WARN' }
+
+                    Write-SignatureFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew   -ReadOnly:$lock
+                    Write-SignatureFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply -ReadOnly:$lock
+                    $keepNames += $sigNewName; $keepNames += $sigReplyName
+                    $hashParts += ($smtp + '|' + $htmlNew + '|' + $htmlReply)
+                    $cards     += @{ Smtp = $smtp; New = $htmlNew; Reply = $htmlReply }
+                }
+
+                $sigBySmtp[$smtp] = @{ NewName = $sigNewName; ReplyName = $sigReplyName }
             }
             $sig    = $sigBySmtp[$smtp]
             $stored = Set-AccountSignature -KeyPath $acct.KeyPath -NewSigName $sig.NewName -ReplySigName $sig.ReplyName
@@ -372,15 +426,26 @@ try {
     # Single account: also pin the selection through the POLICY hive (strongest lock).
     if ($lock) {
         $dis = "HKCU:\Software\Policies\Microsoft\Office\$verKey\Outlook\DisabledCmdBarItemsList"
-        New-Item -Path $dis -Force | Out-Null
-        Set-ItemProperty -Path $dis -Name 'TCID1' -Value '5608' -Type String   # compose-window Signature button
+        if ($anyMultiVariant) {
+            # Multi-role users MUST be able to pick a signature -> do NOT disable the compose
+            # Signature button, and clear any stale disable left by a previous single-role run.
+            Remove-Item -Path $dis -Recurse -Force -ErrorAction SilentlyContinue
+        } else {
+            New-Item -Path $dis -Force | Out-Null
+            Set-ItemProperty -Path $dis -Name 'TCID1' -Value '5608' -Type String   # compose-window Signature button
+        }
 
         if ($assigned -gt 0) {
             # Per-account is in force. A policy-forced global default ALSO overrides per-account,
-            # so remove it; enforcement is read-only files + disabled button + daily re-assert.
+            # so remove it; enforcement is read-only files (+ disabled button for single-role) +
+            # the daily re-assert task. Never pin a policy default when there are extra roles.
             Remove-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings" `
                 -Name 'NewSignature', 'ReplySignature' -ErrorAction SilentlyContinue
-            Write-Log "Locked (per-account): files read-only, Signature button disabled, per-account re-asserted daily."
+            if ($anyMultiVariant) {
+                Write-Log "Locked (per-account, multi-role): files read-only, per-account re-asserted daily, Signature button LEFT ENABLED so users can choose a role."
+            } else {
+                Write-Log "Locked (per-account): files read-only, Signature button disabled, per-account re-asserted daily."
+            }
         } else {
             # No per-account assignments (single global fallback) -> pin the selection via policy.
             $pol = "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings"

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AllowedDomain;
 use App\Models\EmailSignatureTemplate;
+use App\Models\Employee;
 use App\Models\HrApiKey;
 use App\Models\IdentityUser;
 use App\Models\SignatureRequestLog;
@@ -13,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class SignatureController extends Controller
@@ -195,6 +197,111 @@ class SignatureController extends Controller
         }
 
         return response($html, 200)->header('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /**
+     * GET /api/signature/variants?upn=user@domain.com&api_key=...
+     *
+     * Returns every signature this user can send: the PRIMARY (from their employee
+     * profile) plus one per extra signature role (a second job title + department
+     * under the same mailbox). The classic-Outlook client installs each as a
+     * selectable named signature. New Outlook / OWA / mobile keep the primary only.
+     *
+     * Response: { upn, variants: [ {key,label,is_default,new_html,reply_html}, ... ] }
+     */
+    public function apiVariants(Request $request): JsonResponse
+    {
+        $upn = $request->query('upn');
+
+        // Auth — identical to apiRender.
+        $raw = $request->query('api_key') ?? $request->bearerToken();
+        if (empty($raw)) {
+            $this->logRequest($request, 'variants', $upn, 'new_email', null, 'unauthorized');
+
+            return response()->json(['error' => 'API key required. Pass ?api_key= or Authorization: Bearer.'], 401);
+        }
+        $apiKey = HrApiKey::findByRawKey($raw, 'signature');
+        if (! $apiKey) {
+            $this->logRequest($request, 'variants', $upn, 'new_email', null, 'unauthorized');
+
+            return response()->json(['error' => 'Invalid or revoked API key.'], 401);
+        }
+        try {
+            $apiKey->recordUsage($request->ip());
+        } catch (\Throwable) {
+        }
+
+        if (! $upn) {
+            $this->logRequest($request, 'variants', null, 'new_email', null, 'bad_request', apiKeyId: $apiKey->id);
+
+            return response()->json(['error' => 'upn parameter required'], 400);
+        }
+
+        // Build the ordered list of variants: primary (no override) + each extra role.
+        $user = IdentityUser::where('user_principal_name', $upn)->orWhere('mail', $upn)->first();
+        $employee = $user ? Employee::where('azure_id', $user->azure_id)->with('signatureRoles')->first() : null;
+
+        $plan = [[
+            'key' => 'primary',
+            'label' => $employee?->job_title ?: 'Primary',
+            'is_default' => true,
+            'override' => null,
+        ]];
+
+        $usedKeys = ['primary' => true];
+        foreach ($employee?->signatureRoles ?? [] as $role) {
+            $key = Str::slug((string) $role->label) ?: ('role-'.$role->id);
+            $base = $key;
+            $n = 2;
+            while (isset($usedKeys[$key])) {
+                $key = $base.'-'.$n;
+                $n++;
+            }
+            $usedKeys[$key] = true;
+            $plan[] = [
+                'key' => $key,
+                'label' => $role->label,
+                'is_default' => false,
+                'override' => ['job_title' => $role->job_title, 'department' => $role->department],
+            ];
+        }
+
+        $domain = $request->query('domain') ?: null;
+        $variants = [];
+        $primaryMeta = null;
+
+        foreach ($plan as $i => $v) {
+            $metaNew = null;
+            $newHtml = $this->renderer->resolveAndRender($upn, 'new_email', $domain, $metaNew, $v['override']);
+
+            if ($i === 0) {
+                $primaryMeta = $metaNew;
+                if ($newHtml === null) {
+                    // No primary template/user → nothing to serve.
+                    $this->logRequest($request, 'variants', $upn, 'new_email', $metaNew['domain'] ?? $domain, 'not_found', apiKeyId: $apiKey->id, meta: $metaNew);
+
+                    return response()->json(['error' => 'No template or user found'], 404);
+                }
+            } elseif ($newHtml === null) {
+                // Skip a broken extra role rather than fail the whole set.
+                continue;
+            }
+
+            $metaReply = null;
+            $replyHtml = $this->renderer->resolveAndRender($upn, 'reply', $domain, $metaReply, $v['override']) ?: $newHtml;
+
+            $variants[] = [
+                'key' => $v['key'],
+                'label' => $v['label'],
+                'is_default' => $v['is_default'],
+                'new_html' => $newHtml,
+                'reply_html' => $replyHtml,
+            ];
+        }
+
+        $this->logRequest($request, 'variants', $upn, 'new_email', $primaryMeta['domain'] ?? $domain, 'ok', apiKeyId: $apiKey->id, meta: $primaryMeta);
+
+        return response()->json(['upn' => $upn, 'variants' => $variants]);
     }
 
     /** Write one audit row for a signature API call (best-effort; never breaks the response). */

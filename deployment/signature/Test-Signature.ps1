@@ -36,6 +36,20 @@ function Get-Sig {
     return [string](Invoke-RestMethod -Uri $u -Method Get -TimeoutSec 30).html
 }
 
+# All signatures for a user (primary + extra roles). $null on 404 -> caller falls back.
+function Get-SigVariants {
+    param([string]$Upn)
+    $u = '{0}/api/signature/variants?upn={1}&api_key={2}' -f `
+        $BaseUrl, [uri]::EscapeDataString($Upn), [uri]::EscapeDataString($ApiKey)
+    try { $resp = Invoke-RestMethod -Uri $u -Method Get -TimeoutSec 30 }
+    catch {
+        $code = $null; try { $code = [int]$_.Exception.Response.StatusCode } catch {}
+        if ($code -eq 404) { return $null }
+        throw
+    }
+    return $resp.variants
+}
+
 function ConvertTo-PlainText {
     param([string]$Html)
     $t = $Html -replace '(?is)<style.*?</style>', ''
@@ -118,14 +132,34 @@ foreach ($acct in $accounts) {
         Write-Host "   - skip $smtp (domain not managed)" -ForegroundColor DarkGray
         continue
     }
-    try { $htmlNew = Get-Sig -Upn $smtp -Type 'new_email' }
-    catch { Write-Host "   - $smtp : no signature from API ($($_.Exception.Message)) -- skipped" -ForegroundColor Yellow; continue }
-    try { $htmlReply = Get-Sig -Upn $smtp -Type 'reply' } catch { $htmlReply = $htmlNew }
-
     $sigNewName   = 'Samir Group ({0})' -f $smtp
     $sigReplyName = 'Samir Group Reply ({0})' -f $smtp
-    Write-SigFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew
-    Write-SigFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply
+
+    # Prefer the variants endpoint (primary + extra roles); fall back to single new/reply on 404.
+    $variants = $null
+    try { $variants = Get-SigVariants -Upn $smtp } catch { $variants = $null }
+
+    if ($variants -and @($variants).Count -gt 0) {
+        $default = @($variants | Where-Object { $_.is_default })
+        $default = if ($default.Count) { $default[0] } else { @($variants)[0] }
+        $htmlNew   = [string]$default.new_html
+        $htmlReply = if ($default.reply_html) { [string]$default.reply_html } else { $htmlNew }
+        Write-SigFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew
+        Write-SigFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply
+        foreach ($v in @($variants | Where-Object { -not $_.is_default })) {
+            if (-not $v.new_html) { continue }
+            $vName = 'Samir Group - {0} ({1})' -f $v.label, $smtp
+            Write-SigFiles -Dir $sigDir -Name $vName -Html ([string]$v.new_html)
+            Write-Host ("   + extra role '{0}' -> {1}" -f $v.label, $vName) -ForegroundColor DarkCyan
+        }
+    }
+    else {
+        try { $htmlNew = Get-Sig -Upn $smtp -Type 'new_email' }
+        catch { Write-Host "   - $smtp : no signature from API ($($_.Exception.Message)) -- skipped" -ForegroundColor Yellow; continue }
+        try { $htmlReply = Get-Sig -Upn $smtp -Type 'reply' } catch { $htmlReply = $htmlNew }
+        Write-SigFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew
+        Write-SigFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply
+    }
 
     Set-ItemProperty -LiteralPath $acct.KeyPath -Name 'New Signature'           -Value $sigNewName   -Type String
     Set-ItemProperty -LiteralPath $acct.KeyPath -Name 'Reply-Forward Signature' -Value $sigReplyName -Type String

@@ -188,8 +188,13 @@ class SignatureRenderService
 
     /**
      * Build the variable map for an IdentityUser + their linked Employee/Branch.
+     *
+     * @param  array|null  $override  Optional per-signature overrides — currently
+     *                                job_title + department — for a multi-role user
+     *                                (a second signature under the same mailbox).
+     *                                Blank/missing keys keep the resolved primary value.
      */
-    public function varsForUser(IdentityUser $user): array
+    public function varsForUser(IdentityUser $user, ?array $override = null): array
     {
         $employee = Employee::where('azure_id', $user->azure_id)
             ->with(['branch', 'department', 'linkedPrimary.department'])
@@ -204,7 +209,7 @@ class SignatureRenderService
         // NOC employee profile is the source of truth; fall back to the Azure cache.
         $name = $employee?->name ?: $user->display_name ?? '';
 
-        return [
+        $vars = [
             'name' => $name,
             'first_name' => explode(' ', trim($name))[0] ?? '',
             'job_title' => $hr?->job_title ?: $user->job_title ?? '',
@@ -219,6 +224,19 @@ class SignatureRenderService
             'branch_address' => $employee?->street_address ?: $branch?->street ?: $user->street_address ?? '',
             'branch_phone' => $branch?->phone_number ?? '',
         ];
+
+        // Per-signature role override (multi-role user): swap only the fields provided,
+        // leaving blank ones on the resolved primary value.
+        if ($override) {
+            if (! empty($override['job_title'])) {
+                $vars['job_title'] = $override['job_title'];
+            }
+            if (! empty($override['department'])) {
+                $vars['department'] = $override['department'];
+            }
+        }
+
+        return $vars;
     }
 
     /**
@@ -227,8 +245,10 @@ class SignatureRenderService
      *
      * @param  array|null  $meta  Filled with resolution details for audit logging:
      *                            [found_user, domain, gender, template, resolved_name].
+     * @param  array|null  $override  Optional job_title/department override for a
+     *                                specific signature role (multi-role user).
      */
-    public function resolveAndRender(string $upn, string $type = 'new_email', ?string $domain = null, ?array &$meta = null): ?string
+    public function resolveAndRender(string $upn, string $type = 'new_email', ?string $domain = null, ?array &$meta = null, ?array $override = null): ?string
     {
         $meta = ['found_user' => false, 'domain' => $domain, 'gender' => null, 'template' => null, 'resolved_name' => null];
 
@@ -258,7 +278,7 @@ class SignatureRenderService
         }
         $meta['template'] = $template;
 
-        $vars = $this->varsForUser($user);
+        $vars = $this->varsForUser($user, $override);
         $meta['resolved_name'] = $vars['name'] ?: ($user->display_name ?? null);
 
         return $this->render($template, $vars);

@@ -149,6 +149,68 @@
                                    value="{{ old('street_address', $employee->street_address ?? '') }}">
                         </div>
 
+                        @if($isEdit)
+                        <div class="col-12">
+                            <hr class="my-2">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <i class="bi bi-pen text-primary"></i>
+                                <span class="fw-semibold">Signature roles</span>
+                                <small class="text-muted">— extra classic-Outlook signatures for a person with more than one role on this mailbox</small>
+                            </div>
+                            <p class="text-muted small mb-2">
+                                Each role adds a second signature the user can pick from the Outlook Signature dropdown.
+                                Only the <strong>job title</strong> and <strong>department</strong> change; the employee's own title/department
+                                above stays the default. New Outlook / OWA / mobile always show the default role.
+                            </p>
+
+                            <div id="sig-roles">
+                                @foreach($employee->signatureRoles as $role)
+                                <div class="row g-2 align-items-end mb-2 sig-role-row">
+                                    <div class="col-md-3">
+                                        <label class="form-label small fw-semibold mb-1">Label <small class="text-muted">(shown in Outlook)</small></label>
+                                        <input type="text" name="signature_roles[][label]" class="form-control form-control-sm" value="{{ $role->label }}" placeholder="e.g. Sales Manager">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold mb-1">Job title</label>
+                                        <input type="text" name="signature_roles[][job_title]" class="form-control form-control-sm" value="{{ $role->job_title }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold mb-1">Department</label>
+                                        <input type="text" name="signature_roles[][department]" class="form-control form-control-sm" value="{{ $role->department }}">
+                                    </div>
+                                    <div class="col-md-1">
+                                        <button type="button" class="btn btn-outline-danger btn-sm w-100 sig-role-remove" title="Remove"><i class="bi bi-x-lg"></i></button>
+                                    </div>
+                                </div>
+                                @endforeach
+                            </div>
+
+                            <button type="button" id="sig-role-add" class="btn btn-outline-secondary btn-sm mt-1">
+                                <i class="bi bi-plus-circle me-1"></i>Add role
+                            </button>
+
+                            <template id="sig-role-template">
+                                <div class="row g-2 align-items-end mb-2 sig-role-row">
+                                    <div class="col-md-3">
+                                        <label class="form-label small fw-semibold mb-1">Label <small class="text-muted">(shown in Outlook)</small></label>
+                                        <input type="text" name="signature_roles[][label]" class="form-control form-control-sm" placeholder="e.g. Sales Manager">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold mb-1">Job title</label>
+                                        <input type="text" name="signature_roles[][job_title]" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold mb-1">Department</label>
+                                        <input type="text" name="signature_roles[][department]" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-md-1">
+                                        <button type="button" class="btn btn-outline-danger btn-sm w-100 sig-role-remove" title="Remove"><i class="bi bi-x-lg"></i></button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        @endif
+
                         <div class="col-12">
                             <label class="form-label small fw-semibold">Notes</label>
                             <textarea name="notes" class="form-control" rows="3">{{ old('notes', $employee->notes ?? '') }}</textarea>
@@ -166,4 +228,29 @@
         </div>
     </div>
 </div>
+
+@if($isEdit)
+@push('scripts')
+<script>
+(function () {
+    var container = document.getElementById('sig-roles');
+    var tpl = document.getElementById('sig-role-template');
+    var addBtn = document.getElementById('sig-role-add');
+    if (!container || !tpl || !addBtn) return;
+
+    addBtn.addEventListener('click', function () {
+        container.appendChild(tpl.content.cloneNode(true));
+    });
+
+    // Event delegation for remove buttons (covers pre-filled + newly added rows).
+    container.addEventListener('click', function (e) {
+        var btn = e.target.closest('.sig-role-remove');
+        if (!btn) return;
+        var row = btn.closest('.sig-role-row');
+        if (row) row.remove();
+    });
+})();
+</script>
+@endpush
+@endif
 @endsection
