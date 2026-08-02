@@ -216,6 +216,18 @@ php artisan config:clear && php artisan route:clear
   service and are equivalent.
 - **Access analytics** label this host as app `hr` (`AccessVisitRecorder::appFor`),
   so HR traffic does not inflate the NOC numbers on `/admin/access-stats`.
+- **The onboarding form's availability check is real, and shares code with
+  provisioning.** `GET /onboarding/check-availability` calls
+  `UserProvisioningService::previewIdentity()`, which runs the same private
+  `buildUPN()` the provisioning run uses — so the address HR sees, including any
+  numeric collision suffix, is the one that gets created. It also pre-flights the
+  duplicate-display-name check that otherwise throws mid-provisioning. Caveat: it
+  reads the local `identity_users` mirror, not Azure live, so it is only as fresh
+  as the last identity sync — the same limitation the real run has.
+- **Manager and supervisor are employee IDs, not free text.** Both are picked from
+  the directory; the controller resolves name/email server-side from the id and
+  never trusts them from the post. They land on the new `Employee` record
+  (`manager_id` / `supervisor_id`), so the org chart is right from day one.
 - **`employee_update` is inert until the apply arm ships.** The form raises the
   request and IT can approve it, but `ExecuteWorkflowJob` has no
   `employee_update` handler yet — approving one currently changes nothing.

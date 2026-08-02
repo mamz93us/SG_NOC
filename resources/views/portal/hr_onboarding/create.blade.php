@@ -64,7 +64,12 @@
                                        placeholder="e.g. samirgroup.com" required>
                                 <div class="form-text text-warning">No domains configured — ask IT to set one in Settings → Domains.</div>
                             @endif
-                            <div class="form-text">Preview: <strong id="upnPreview" class="text-primary">—</strong></div>
+                            <div class="form-text mb-0">
+                                Work email: <strong id="upnPreview" class="text-primary">—</strong>
+                                <span id="upnSpinner" class="spinner-border spinner-border-sm text-muted ms-1 d-none"
+                                      style="width:.7rem;height:.7rem" role="status"></span>
+                            </div>
+                            <div id="upnStatus" class="small mt-1"></div>
                         </div>
 
                         <div class="col-md-6">
@@ -114,31 +119,38 @@
                                    min="{{ now()->toDateString() }}" required>
                             <div class="form-text">The date IT should have accounts ready by.</div>
                         </div>
-                        <div class="col-12">
-                            <label class="form-label small fw-semibold">Initial Password</label>
-                            <input type="text" name="initial_password" class="form-control form-control-sm" value="{{ old('initial_password') }}" placeholder="Leave blank for IT to auto-generate">
-                            <div class="form-text">Leave blank — IT will generate a secure password and email the new hire.</div>
-                        </div>
                     </div>
 
-                    {{-- ── Manager Contact ── --}}
+                    {{-- ── Reporting line ── --}}
                     <p class="text-muted small fw-semibold text-uppercase mb-2" style="letter-spacing:.04em">
-                        <i class="bi bi-envelope me-1"></i>Reporting Manager
-                        <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">Required</span>
+                        <i class="bi bi-diagram-3 me-1"></i>Reporting Line
                     </p>
                     <div class="alert alert-info py-2 px-3 small mb-3">
                         <i class="bi bi-info-circle me-1"></i>
-                        After IT approval, the manager will receive a form link to choose laptop type,
-                        extension, floor, internet level, and group memberships.
+                        After IT approval, the <strong>manager</strong> receives a form link to choose laptop type,
+                        extension, floor, internet level, and group memberships. Both people are recorded on
+                        the new employee's record.
                     </div>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Manager Email <span class="text-danger">*</span></label>
-                            <input type="email" name="manager_email" class="form-control form-control-sm" value="{{ old('manager_email') }}" placeholder="manager@company.com" required>
+                            @include('portal.hr._employee_picker', [
+                                'pickerId'     => 'mgr',
+                                'selected'     => null,
+                                'label'        => 'Reporting Manager',
+                                'required'     => true,
+                                'help'         => 'Receives the setup form. Must be an existing employee with a work email.',
+                                'hiddenFields' => ['manager_id' => 'id'],
+                            ])
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Manager Name</label>
-                            <input type="text" name="manager_name" class="form-control form-control-sm" value="{{ old('manager_name') }}" placeholder="e.g. Ahmed Al-Rashidi">
+                            @include('portal.hr._employee_picker', [
+                                'pickerId'     => 'sup',
+                                'selected'     => null,
+                                'label'        => 'Direct Supervisor',
+                                'required'     => false,
+                                'help'         => 'Optional. Recorded on the employee record; does not receive the form.',
+                                'hiddenFields' => ['supervisor_id' => 'id'],
+                            ])
                         </div>
                     </div>
 
@@ -184,8 +196,8 @@
                 <i class="bi bi-shield-check me-1"></i>Privacy note
             </div>
             <div class="card-body small text-muted">
-                Initial passwords are never stored in HR records — IT generates a secure password
-                and shares it with the new employee only.
+                HR never sets or sees the new hire's password. IT generates a secure one at
+                provisioning time and shares it with the employee only.
             </div>
         </div>
     </div>
@@ -193,34 +205,105 @@
 
 @push('scripts')
 <script>
-const firstNameEl = document.getElementById('firstName');
-const lastNameEl  = document.getElementById('lastName');
-const domainEl    = document.getElementById('domainSelect');
-const upnPreview  = document.getElementById('upnPreview');
+// Live availability check. This is NOT a cosmetic string render — it asks the
+// server, which runs the same buildUPN() that provisioning will run, so the
+// address shown here (including any collision suffix) is what actually gets
+// created. It also surfaces the duplicate-display-name check that would
+// otherwise throw at provisioning time, long after IT had approved.
+(function () {
+    const checkUrl    = @json(route('portal.hr.onboarding.check-availability'));
+    const firstNameEl = document.getElementById('firstName');
+    const lastNameEl  = document.getElementById('lastName');
+    const domainEl    = document.getElementById('domainSelect');
+    const preview     = document.getElementById('upnPreview');
+    const spinner     = document.getElementById('upnSpinner');
+    const status      = document.getElementById('upnStatus');
 
-function sanitize(s) {
-    return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-}
+    let timer = null;
+    let controller = null;
 
-function renderUpn() {
-    const first = sanitize(firstNameEl.value.trim());
-    const last  = sanitize(lastNameEl.value.trim());
-    const domain = (domainEl.tagName === 'SELECT')
-        ? (domainEl.options[domainEl.selectedIndex]?.value || '')
-        : domainEl.value;
-    if (first && last && domain) {
-        upnPreview.textContent = `${first}.${last}@${domain}`;
-    } else {
-        upnPreview.textContent = '—';
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[c]);
     }
-}
 
-[firstNameEl, lastNameEl, domainEl].forEach(el => {
-    if (!el) return;
-    el.addEventListener('input', renderUpn);
-    el.addEventListener('change', renderUpn);
-});
-renderUpn();
+    function domainValue() {
+        return domainEl.tagName === 'SELECT'
+            ? (domainEl.options[domainEl.selectedIndex]?.value || '')
+            : domainEl.value.trim();
+    }
+
+    function reset() {
+        preview.textContent = '—';
+        status.innerHTML = '';
+        spinner.classList.add('d-none');
+    }
+
+    function check() {
+        const first  = firstNameEl.value.trim();
+        const last   = lastNameEl.value.trim();
+        const domain = domainValue();
+
+        if (!first || !last || !domain) { reset(); return; }
+
+        spinner.classList.remove('d-none');
+
+        if (controller) controller.abort();
+        controller = new AbortController();
+
+        const params = new URLSearchParams({
+            first_name: first, last_name: last, upn_domain: domain
+        });
+
+        fetch(checkUrl + '?' + params.toString(), {
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal,
+        })
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(d => {
+            spinner.classList.add('d-none');
+            preview.textContent = d.upn || '—';
+
+            const notes = [];
+
+            if (d.error) {
+                notes.push('<span class="text-danger"><i class="bi bi-x-circle me-1"></i>' +
+                           escapeHtml(d.error) + '</span>');
+            } else if (d.exact_taken) {
+                notes.push('<span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>' +
+                           'The plain address is already in use — this hire would get <strong>' +
+                           escapeHtml(d.upn) + '</strong>.</span>');
+            } else {
+                notes.push('<span class="text-success"><i class="bi bi-check-circle me-1"></i>Available.</span>');
+            }
+
+            if (d.display_name_taken) {
+                notes.push('<span class="text-danger d-block mt-1"><i class="bi bi-exclamation-octagon me-1"></i>' +
+                           'Someone with this exact full name already exists' +
+                           (d.existing_upn ? ' (' + escapeHtml(d.existing_upn) + ')' : '') +
+                           '. Provisioning will be <strong>rejected</strong> — add a middle name, or check this is not a duplicate request.</span>');
+            }
+
+            status.innerHTML = notes.join('');
+        })
+        .catch(e => {
+            if (e && e.name === 'AbortError') return;
+            spinner.classList.add('d-none');
+            status.innerHTML = '<span class="text-muted">Could not check availability right now.</span>';
+        });
+    }
+
+    [firstNameEl, lastNameEl, domainEl].forEach(el => {
+        if (!el) return;
+        const debounced = () => { clearTimeout(timer); timer = setTimeout(check, 400); };
+        el.addEventListener('input', debounced);
+        el.addEventListener('change', debounced);
+    });
+
+    check();
+})();
 </script>
 @endpush
+
 @endsection

@@ -287,8 +287,18 @@ Route::domain(HrPortal::domain())->name('portal.hr.')->group(function () {
         ->group(function () {
             Route::get('/', [\App\Http\Controllers\Portal\HrWorkspaceController::class, 'index'])->name('index');
             Route::get('/requests', [\App\Http\Controllers\Portal\HrWorkspaceController::class, 'requests'])->name('requests');
-            Route::get('/employees/search', [\App\Http\Controllers\Portal\HrWorkspaceController::class, 'searchEmployees'])->name('employees.search');
         });
+
+    // The employee type-ahead backs the manager/supervisor pickers on the
+    // onboarding form and the subject pickers on the other two forms, so it must
+    // be reachable by anyone holding ANY of the HR form permissions — not just
+    // `manage-hr-portal`. `permission:a,b,c` is an OR (see EnsurePermission).
+    Route::middleware([
+        'auth',
+        'permission:manage-hr-portal,submit-hr-onboarding,submit-hr-offboarding,submit-hr-employee-update',
+        'throttle:120,1',
+    ])->get('/employees/search', [\App\Http\Controllers\Portal\HrWorkspaceController::class, 'searchEmployees'])
+        ->name('employees.search');
 
     // ── Onboarding (new hire) ─────────────────────────────────────
     Route::middleware(['auth', 'permission:submit-hr-onboarding', 'throttle:60,1'])
@@ -296,6 +306,7 @@ Route::domain(HrPortal::domain())->name('portal.hr.')->group(function () {
         ->group(function () {
             Route::get('/', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'index'])->name('index');
             Route::get('/create', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'create'])->name('create');
+            Route::get('/check-availability', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'checkAvailability'])->name('check-availability');
             Route::post('/', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'store'])->name('store');
         });
 

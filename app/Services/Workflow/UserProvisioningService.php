@@ -445,6 +445,12 @@ class UserProvisioningService
                         'branch_id'        => $workflow->branch_id,
                         'department_id'    => $payload['department_id'] ?? null,
                         'job_title'        => $payload['job_title']     ?? null,
+                        // Reporting line picked by HR on the onboarding form.
+                        // Both are employee IDs, so the org chart is correct from
+                        // day one rather than being back-filled later.
+                        'manager_id'       => $payload['manager_id']    ?? null,
+                        'supervisor_id'    => $payload['supervisor_id'] ?? null,
+                        'mobile_phone'     => $payload['mobile_phone']  ?? null,
                         'status'           => 'active',
                         'hired_date'       => now()->toDateString(),
                         'extension_number' => $extension,
@@ -662,6 +668,57 @@ class UserProvisioningService
     // ─────────────────────────────────────────────────────────────
     // Build UPN: first.last@domain (with collision suffix)
     // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Dry-run of what provisioning would do with this name, for the HR form's
+     * availability check. Uses the SAME buildUPN() the real run uses, so the
+     * preview cannot drift from what actually gets created.
+     *
+     * `display_name_taken` mirrors the duplicate check in provisionUser(), which
+     * throws — surfacing it here means HR finds out before IT approves rather
+     * than after.
+     *
+     * @return array{upn:?string, exact_taken:bool, display_name_taken:bool,
+     *               existing_upn:?string, error:?string}
+     */
+    public function previewIdentity(string $firstName, string $lastName, string $domain): array
+    {
+        $displayName = trim("{$firstName} {$lastName}");
+
+        $result = [
+            'upn'                => null,
+            'exact_taken'        => false,
+            'display_name_taken' => false,
+            'existing_upn'       => null,
+            'error'              => null,
+        ];
+
+        $existing = IdentityUser::where('display_name', $displayName)->first();
+        if ($existing) {
+            $result['display_name_taken'] = true;
+            $result['existing_upn']       = $existing->user_principal_name;
+        }
+
+        try {
+            // What the plain first.last@domain would be, before any suffix.
+            $result['upn'] = $this->buildUPN($firstName, $lastName, $domain);
+        } catch (\Throwable $e) {
+            $result['error'] = $e->getMessage();
+
+            return $result;
+        }
+
+        // buildUPN appends a numeric suffix on collision, so a returned UPN that
+        // differs from the plain form tells us the plain one was already taken.
+        $sanitize = fn (string $s) => preg_replace(
+            '/[^a-z0-9]/', '', strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s)
+        );
+        $plain = $sanitize($firstName).'.'.$sanitize($lastName).'@'.$domain;
+
+        $result['exact_taken'] = $result['upn'] !== $plain;
+
+        return $result;
+    }
 
     private function buildUPN(string $firstName, string $lastName, string $domain): string
     {

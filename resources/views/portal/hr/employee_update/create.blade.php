@@ -165,8 +165,9 @@
 // Selecting an employee reloads the page so the form can be pre-filled with
 // that person's current values server-side — the diff is computed against them.
 document.addEventListener('hr:employee-selected', function (e) {
+    if (e.detail.picker !== 'emp') return;
     const url = new URL(window.location.href);
-    url.searchParams.set('employee', e.detail.id);
+    url.searchParams.set('employee', e.detail.employee.id);
     window.location.href = url.toString();
 });
 </script>
