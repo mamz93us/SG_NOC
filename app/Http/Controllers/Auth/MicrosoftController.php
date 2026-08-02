@@ -48,6 +48,7 @@ class MicrosoftController extends Controller
             $errorRoute = match (true) {
                 $from === 'admin' => 'login',
                 $request->getHost() === \App\Support\Marketing::domain() => 'portal.marketing.login',
+                \App\Support\VCard::isHost($request) => 'vcard.login',
                 default => 'portal.login',
             };
 
@@ -73,6 +74,7 @@ class MicrosoftController extends Controller
         try {
             $loginApp = match (true) {
                 $request->getHost() === \App\Support\Marketing::domain() => 'em',
+                \App\Support\VCard::isHost($request) => 'vcard',
                 $user->usesPortal() => 'portal',
                 default => 'noc',
             };
@@ -101,14 +103,23 @@ class MicrosoftController extends Controller
         // is the only thing served there. Marketing-role users land there too,
         // even when they sign in from NOC.
         $onMarketingHost = $request->getHost() === \App\Support\Marketing::domain();
+        $onVcardHost = \App\Support\VCard::isHost($request);
 
         $landing = match (true) {
+            $onVcardHost => route('vcard.mine'),
             $onMarketingHost, $user->isMarketing() => route('portal.marketing.dashboard'),
             $from === 'admin' && ! $user->usesPortal() => route($user->homeRoute()),
             default => route('portal.index'),
         };
 
         $request->session()->put('url.intended', $landing);
+
+        // Card host: SSO is the whole gate. Return before the 2FA branches below —
+        // deliberately WITHOUT setting `2fa_verified`, so this session still gets
+        // challenged if it is ever used against NOC. See RequireTwoFactor.
+        if ($onVcardHost) {
+            return redirect()->intended($landing);
+        }
 
         // Browser-only users bypass the app's 2FA. Everyone else — including
         // marketing — goes through the mandatory 2FA flow below; its standalone

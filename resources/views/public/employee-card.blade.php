@@ -163,6 +163,7 @@
             transition: opacity .15s, transform .1s;
         }
         .btn-action:active { transform: scale(.97); opacity: .85; }
+        button.btn-action { font-family: inherit; }
         .btn-primary-action {
             background: var(--brand);
             color: #fff;
@@ -208,6 +209,8 @@
             font-size: 11px;
             color: rgba(255,255,255,.4);
         }
+        .card-footer a { color: rgba(255,255,255,.6); text-decoration: none; }
+        .card-footer a:hover { color: #fff; }
 
         @media print {
             body { background: #fff; padding: 0; }
@@ -306,6 +309,10 @@
             <a href="{{ $vcard_url }}" class="btn-action btn-secondary-action" download>
                 <i class="bi bi-person-plus"></i> Save Contact
             </a>
+            <button type="button" class="btn-action btn-secondary-action" id="shareBtn"
+                    data-url="{{ $card_url }}" data-name="{{ $name }}">
+                <i class="bi bi-share"></i> <span id="shareLabel">Share</span>
+            </button>
             {{-- Wallet download requires a logged-in session; hide it from public viewers --}}
             @auth
                 @if($wallet_ready)
@@ -332,7 +339,57 @@
 
     </div><!-- /.id-card -->
 
-    <div class="card-footer">{{ $company }} · Digital Business Card</div>
+    <div class="card-footer">
+        {{ $company }} · Digital Business Card
+        @if($is_owner)
+            · <a href="#" onclick="event.preventDefault();document.getElementById('signOutForm').submit();">Sign out</a>
+        @endif
+    </div>
+
+    @if($is_owner)
+    <form id="signOutForm" method="POST" action="{{ \Illuminate\Support\Facades\Route::has('vcard.logout') ? route('vcard.logout') : route('logout') }}" hidden>
+        @csrf
+    </form>
+    @endif
 </div>
+
+<script>
+    // Native share sheet where the browser supports it (iOS/Android), clipboard
+    // copy everywhere else. Both share the canonical card-host URL, never the
+    // host this page happens to be open on.
+    (function () {
+        var btn = document.getElementById('shareBtn');
+        if (!btn) return;
+
+        var label = document.getElementById('shareLabel');
+
+        btn.addEventListener('click', async function () {
+            var url = btn.dataset.url;
+            var name = btn.dataset.name;
+
+            if (navigator.share) {
+                try {
+                    await navigator.share({ title: name, text: name, url: url });
+                    return;
+                } catch (e) {
+                    // User dismissed the sheet, or share is blocked — fall through to copy.
+                    if (e && e.name === 'AbortError') return;
+                }
+            }
+
+            try {
+                await navigator.clipboard.writeText(url);
+            } catch (e) {
+                // Clipboard API needs a secure context; prompt() always works.
+                window.prompt('Copy this link:', url);
+                return;
+            }
+
+            var original = label.textContent;
+            label.textContent = 'Link copied';
+            setTimeout(function () { label.textContent = original; }, 1800);
+        });
+    })();
+</script>
 </body>
 </html>

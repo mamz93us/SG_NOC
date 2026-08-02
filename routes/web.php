@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Admin\AccessoryController;
 use App\Http\Controllers\Admin\AccessStatsController;
-use App\Http\Controllers\Admin\SmtpRelayController;
 use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\AdminLinkController;
 use App\Http\Controllers\Admin\AlertRuleController;
@@ -64,6 +63,7 @@ use App\Http\Controllers\Admin\PrinterMaintenanceController;
 use App\Http\Controllers\Admin\PurchaseOrderController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\SlaController;
+use App\Http\Controllers\Admin\SmtpRelayController;
 use App\Http\Controllers\Admin\SnmpMonitoringController;
 use App\Http\Controllers\Admin\SophosFirewallController;
 use App\Http\Controllers\Admin\SslCertificateController;
@@ -146,6 +146,37 @@ Route::get('/card/{token}/vcard', [\App\Http\Controllers\EmployeeCardController:
 Route::get('/card/{token}/wallet', [\App\Http\Controllers\EmployeeCardController::class, 'walletPass'])
     ->middleware('auth')
     ->name('employee.card.wallet');
+
+// ──────────────────────────────────────────────────────────────────
+// Digital business card subdomain (vcard.samirgroup.net by default; set
+// VCARD_DOMAIN to change). Same app, domain-routed — the /card/* routes above
+// are host-agnostic and already answer here, so this group only adds the
+// signed-in "my card" landing plus its SSO-only sign-in.
+//
+// 2FA is deliberately skipped on this host (RequireTwoFactor) and everything
+// that is not a card 404s (EnforceVcardHostIsolation).
+// ──────────────────────────────────────────────────────────────────
+Route::domain(\App\Support\VCard::domain())->name('vcard.')->group(function () {
+    Route::get('/login', function () {
+        if (auth()->check()) {
+            return redirect()->route('vcard.mine');
+        }
+
+        return view('auth.vcard-login');
+    })->name('login');
+
+    Route::post('/logout', function (\Illuminate\Http\Request $request) {
+        \Illuminate\Support\Facades\Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('vcard.login');
+    })->name('logout');
+
+    Route::middleware('auth')->get('/', [\App\Http\Controllers\VCardPortalController::class, 'mine'])
+        ->name('mine');
+});
+
 /*
 |--------------------------------------------------------------------------
 | Microsoft SSO

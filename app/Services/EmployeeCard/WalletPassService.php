@@ -49,7 +49,9 @@ class WalletPassService
         mkdir($tmpDir, 0700, true);
 
         try {
-            $cardUrl = url("/card/{$employee->card_token}");
+            // Canonical card host — the pass may be generated from an admin request
+            // on NOC, but its barcode has to send scanners to the public card host.
+            $cardUrl = \App\Support\VCard::cardUrl($employee->card_token);
             $bgColor = $setting->wallet_pass_bg_color ?: self::DEFAULT_BG;
 
             // Images first — the logo tells us whether pass.json still needs logoText.

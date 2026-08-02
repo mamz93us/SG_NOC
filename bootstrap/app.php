@@ -34,6 +34,14 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
             \App\Http\Middleware\EnforceMarketingHostIsolation::class,
         );
+        // Same deal for the business-card subdomain: it serves cards and nothing
+        // else. Runs before auth for the same reason — a NOC route probed on the
+        // card host should 404, not bounce a guest through the card login first.
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnforceVcardHostIsolation::class);
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\EnforceVcardHostIsolation::class,
+        );
 
         // Guests hitting the isolated /portal/* routes — or anything on the
         // marketing subdomain — go to the portal's SSO-only login page, not the
@@ -41,6 +49,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(function (\Illuminate\Http\Request $request) {
             if ($request->getHost() === \App\Support\Marketing::domain()) {
                 return route('portal.marketing.login');
+            }
+            if (\App\Support\VCard::isHost($request)) {
+                return route('vcard.login');
             }
             if ($request->is('portal') || $request->is('portal/*')) {
                 return route('portal.login');
