@@ -3,17 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#ffffff">
     <title>{{ $name }} — {{ $company }}</title>
     <meta property="og:title" content="{{ $name }}">
     <meta property="og:description" content="{{ $job_title }}{{ $department ? ' · ' . $department : '' }} · {{ $company }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         :root {
-            --brand:    #d81f2a;
-            --dark:     #1a1a2e;
+            /* Samir brand — same values as the Wallet pass (WalletPassService)
+               and the login wallpaper, so the three read as one system. */
+            --brand:    #c8102e;
+            --ink:      #3c3c3b;
             --card-bg:  #ffffff;
-            --text:     #1a1a2e;
+            --text:     #3c3c3b;
             --muted:    #6c757d;
             --border:   #e9ecef;
             --radius:   18px;
@@ -21,12 +23,28 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, var(--dark) 0%, #16213e 50%, #0f3460 100%);
+            /* Clean brand-tinted base. Most views of this page are a phone, where
+               the wallpaper below would be cropped to a ~26% slice and the red
+               wave would cut in at the edges as arbitrary slabs. */
+            background: #f4f4f6;
+            background-image:
+                radial-gradient(120% 55% at 50% 0%, rgba(200,16,46,.10) 0%, rgba(200,16,46,0) 60%);
+            background-repeat: no-repeat;
             min-height: 100vh;
             display: flex;
             align-items: flex-start;
             justify-content: center;
             padding: 24px 16px 48px;
+        }
+        /* Wide enough to show the wave as composed rather than cropped: use the
+           same branded wallpaper as the login / 2FA screens. */
+        @media (min-width: 768px) {
+            body {
+                background:
+                    radial-gradient(120% 55% at 50% 0%, rgba(200,16,46,.10) 0%, rgba(200,16,46,0) 60%),
+                    #f4f4f6 url('{{ \App\Models\Setting::wallpaperUrl() }}') no-repeat center center fixed;
+                background-size: auto, cover;
+            }
         }
         .card-wrap {
             width: 100%;
@@ -37,36 +55,31 @@
         .id-card {
             background: var(--card-bg);
             border-radius: var(--radius);
-            box-shadow: 0 20px 60px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.2);
+            box-shadow: 0 18px 50px rgba(60,60,59,.18), 0 3px 12px rgba(60,60,59,.08);
             overflow: hidden;
         }
 
-        /* Header stripe */
+        /* Header stripe — white, so the logo prints in its true red & grey.
+           Same call as the Wallet pass; a knocked-out logo is the fallback for
+           dark surfaces, not the default. */
         .id-card__header {
-            background: var(--dark);
+            background: #fff;
+            border-bottom: 3px solid var(--brand);
             padding: 20px 24px 16px;
             display: flex;
             align-items: center;
             gap: 12px;
         }
         .id-card__logo {
-            height: 36px;
-            max-width: 130px;
+            height: 38px;
+            max-width: 150px;
             object-fit: contain;
-            filter: brightness(0) invert(1);
         }
         .id-card__logo-text {
-            color: #fff;
+            color: var(--ink);
             font-size: 18px;
             font-weight: 700;
             letter-spacing: 0.5px;
-        }
-        .id-card__accent {
-            width: 4px;
-            height: 36px;
-            background: var(--brand);
-            border-radius: 2px;
-            margin-left: auto;
         }
 
         /* Avatar + name */
@@ -87,7 +100,7 @@
             align-items: center;
             justify-content: center;
             margin: 0 auto 14px;
-            box-shadow: 0 4px 16px rgba(216,31,42,.35);
+            box-shadow: 0 4px 16px rgba(200,16,46,.32);
         }
         .id-card__name {
             font-size: 22px;
@@ -170,7 +183,7 @@
         }
         .btn-secondary-action {
             background: #f1f3f5;
-            color: var(--dark);
+            color: var(--ink);
         }
         .btn-wallet {
             grid-column: 1 / -1;
@@ -207,10 +220,10 @@
             margin-top: 16px;
             text-align: center;
             font-size: 11px;
-            color: rgba(255,255,255,.4);
+            color: var(--muted);
         }
-        .card-footer a { color: rgba(255,255,255,.6); text-decoration: none; }
-        .card-footer a:hover { color: #fff; }
+        .card-footer a { color: var(--brand); text-decoration: none; font-weight: 600; }
+        .card-footer a:hover { text-decoration: underline; }
 
         @media print {
             body { background: #fff; padding: 0; }
@@ -230,7 +243,6 @@
             @else
                 <span class="id-card__logo-text">{{ $company }}</span>
             @endif
-            <div class="id-card__accent"></div>
         </div>
 
         {{-- Profile --}}
