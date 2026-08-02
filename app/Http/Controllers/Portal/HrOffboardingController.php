@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Portal;
 
 use App\Http\Controllers\Controller;
-use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\OffboardingWorkflow;
 use App\Models\Setting;
@@ -47,18 +46,35 @@ class HrOffboardingController extends Controller
 
     /**
      * GET /portal/hr/offboarding/create
+     *
+     * Two states: no employee chosen (just the picker), or an employee chosen
+     * (?employee=123) — in which case their record is rendered read-only and HR
+     * only supplies the termination details. Everything about the person is
+     * derived from the record, never retyped.
      */
     public function create(Request $request): View
     {
-        $branches = Branch::orderBy('name')->get();
         $settings = Setting::get();
 
-        // Deep link from the employee picker / directory: ?employee=123
         $employee = $request->filled('employee')
-            ? Employee::with(['branch', 'department', 'manager'])->find($request->query('employee'))
+            ? Employee::with(['branch', 'department', 'manager', 'supervisor'])
+                ->find($request->query('employee'))
             : null;
 
-        return view('portal.hr.offboarding.create', compact('branches', 'settings', 'employee'));
+        // Counts only — the manager's decision form is where individual assets
+        // are actually itemised and chosen. This is just so HR can see there is
+        // kit to recover before raising the request.
+        $assetCount = $employee
+            ? $employee->activeAssets()->count() + $employee->activeItems()->count()
+            : 0;
+
+        // The decision form is emailed to the manager, so a missing manager is a
+        // blocker, not a cosmetic gap. The view asks HR to pick one in that case.
+        $managerMissing = $employee && ! $employee->manager?->email;
+
+        return view('portal.hr.offboarding.create', compact(
+            'settings', 'employee', 'assetCount', 'managerMissing'
+        ));
     }
 
     /**
@@ -66,31 +82,62 @@ class HrOffboardingController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // HR only supplies termination details. Identity, branch and the
+        // reporting line all come off the employee record — nothing about the
+        // person is retyped, so nothing about them can be mistyped.
         $validated = $request->validate([
-            'employee_id' => 'nullable|integer|exists:employees,id',
-            'upn' => 'nullable|email|max:200',
-            'employee_name' => 'required|string|max:200',
+            'employee_id' => 'required|integer|exists:employees,id',
             'last_day' => 'required|date|after_or_equal:today',
             'reason' => 'nullable|string|max:100',
-            'manager_email' => 'required|email|max:200',
-            'manager_name' => 'nullable|string|max:200',
-            'branch_id' => 'nullable|integer|exists:branches,id',
             'hr_reference' => 'nullable|string|max:100',
             'notes' => 'nullable|string|max:1000',
+            // Only used when the employee has no manager on file, or HR
+            // deliberately overrides who receives the decision form.
+            'manager_override_id' => 'nullable|integer|exists:employees,id',
+        ], [
+            'employee_id.required' => 'Choose the employee from the search box first.',
         ]);
 
-        if (empty($validated['employee_id']) && empty($validated['upn'])) {
-            return back()
-                ->withInput()
-                ->with('error', 'Pick the employee from the search box, or enter their work email.');
+        $employee = Employee::with('manager')->findOrFail($validated['employee_id']);
+
+        if (! $employee->email) {
+            return back()->withInput()->with(
+                'error',
+                "{$employee->name} has no work email on file, so there is no mailbox to offboard. Ask IT to fix the record first."
+            );
+        }
+
+        $manager = ! empty($validated['manager_override_id'])
+            ? Employee::find($validated['manager_override_id'])
+            : $employee->manager;
+
+        if (! $manager?->email) {
+            return back()->withInput()->with(
+                'error',
+                'This employee has no manager with a work email on file. Pick who should receive the decision form.'
+            );
+        }
+
+        if ($manager->id === $employee->id) {
+            return back()->withInput()->with(
+                'error',
+                'The leaver cannot be their own approver — pick a different manager for the decision form.'
+            );
         }
 
         try {
-            $offboardingWorkflow = $this->offboarding->create(
-                $validated,
-                requestedBy: Auth::id(),
-                source: 'hr_portal',
-            );
+            $offboardingWorkflow = $this->offboarding->create([
+                'employee_id' => $employee->id,
+                'upn' => $employee->email,
+                'employee_name' => $employee->name,
+                'branch_id' => $employee->branch_id,
+                'manager_email' => $manager->email,
+                'manager_name' => $manager->name,
+                'last_day' => $validated['last_day'],
+                'reason' => $validated['reason'] ?? null,
+                'hr_reference' => $validated['hr_reference'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+            ], requestedBy: Auth::id(), source: 'hr_portal');
         } catch (\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }

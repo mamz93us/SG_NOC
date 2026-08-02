@@ -228,6 +228,14 @@ php artisan config:clear && php artisan route:clear
   the directory; the controller resolves name/email server-side from the id and
   never trusts them from the post. They land on the new `Employee` record
   (`manager_id` / `supervisor_id`), so the org chart is right from day one.
+- **The termination form retypes nothing.** Picking the employee reloads the page
+  with `?employee=`, renders their record read-only (title, department, branch,
+  manager, supervisor, extension, assigned-asset count), and HR fills in only the
+  termination details — last working day, reason, HR reference, notes. `store()`
+  accepts just `employee_id` plus those, and derives name / UPN / branch / manager
+  from the record. If the employee has **no manager with a work email**, the form
+  blocks and makes HR pick who receives the decision form, since that email is
+  what drives the whole offboarding.
 - **`employee_update` is inert until the apply arm ships.** The form raises the
   request and IT can approve it, but `ExecuteWorkflowJob` has no
   `employee_update` handler yet — approving one currently changes nothing.
