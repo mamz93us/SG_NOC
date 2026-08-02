@@ -793,14 +793,23 @@
 </div>
 
 {{-- ─────────────────────────────────────────────────────── --}}
-{{-- SMTP Email (Outgoing Mail) Section                     --}}
+{{-- Transactional Email (Outgoing Mail) Section            --}}
 {{-- ─────────────────────────────────────────────────────── --}}
+@php
+    // What is actually in effect, including the fall back to SMTP when SES is
+    // selected but not fully configured.
+    $mailTransport = $settings->mail_transport ?? 'smtp';
+    $sesReady = $settings->ses_region && $settings->ses_access_key_id && $settings->ses_secret_access_key;
+    $activeTransport = ($mailTransport === 'ses' && $sesReady) ? 'ses' : 'smtp';
+@endphp
 <div class="card mt-4" id="smtp">
     <div class="card-header d-flex align-items-center gap-2">
         <i class="bi bi-envelope-fill text-primary fs-5"></i>
-        <h5 class="mb-0">SMTP Email (Outgoing Mail)</h5>
-        @if($settings->smtp_host)
-            <span class="badge bg-success ms-auto">Configured</span>
+        <h5 class="mb-0">Transactional Email (Outgoing Mail)</h5>
+        @if($activeTransport === 'ses')
+            <span class="badge bg-success ms-auto">Sending via AWS SES</span>
+        @elseif($settings->smtp_host)
+            <span class="badge bg-info text-dark ms-auto">Sending via SMTP</span>
         @else
             <span class="badge bg-secondary ms-auto">Not Configured</span>
         @endif
@@ -808,10 +817,55 @@
     <div class="card-body">
         <div class="alert alert-info py-2 small mb-3">
             <i class="bi bi-info-circle me-1"></i>
-            Used for sending notification emails and workflow alerts. Credentials are stored encrypted.
+            Used for workflow, onboarding, offboarding, notification and printer-alert emails.
+            Credentials are stored encrypted. Marketing campaigns always go via SES directly and
+            are unaffected by this setting.
         </div>
+
         <form method="POST" action="{{ route('admin.settings.smtp') }}">
             @csrf
+
+            {{-- Transport selector --}}
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Send transactional mail via</label>
+                    <select name="mail_transport" class="form-select" id="mailTransport">
+                        <option value="ses" @selected($mailTransport === 'ses') @disabled(! $sesReady)>
+                            AWS SES — same account as the marketing portal
+                        </option>
+                        <option value="smtp" @selected($mailTransport !== 'ses')>
+                            SMTP server (settings below)
+                        </option>
+                    </select>
+                    @if(! $sesReady)
+                        <div class="form-text text-warning">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            SES is unavailable until the AWS credentials are set under
+                            <a href="{{ route('admin.email-marketing.settings') }}">Email Marketing settings</a>.
+                        </div>
+                    @elseif($mailTransport === 'ses')
+                        <div class="form-text">
+                            Region <code>{{ $settings->ses_region }}</code>@if($settings->ses_configuration_set),
+                            configuration set <code>{{ $settings->ses_configuration_set }}</code>@endif.
+                            The SMTP fields below are kept but unused.
+                        </div>
+                    @endif
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Sender address (both transports)</label>
+                    <div class="form-control-plaintext font-monospace small">
+                        {{ $settings->smtp_from_address ?: ($settings->ses_default_from_email ?: '— not set —') }}
+                    </div>
+                    <div class="form-text">
+                        On SES this must be a verified identity, or every send fails.
+                        Set it in the “From Address” field below.
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+
             <div class="row g-3 mb-3">
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">SMTP Host</label>

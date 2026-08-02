@@ -503,6 +503,7 @@ class SettingsController extends Controller
     public function updateSmtp(Request $request)
     {
         $request->validate([
+            'mail_transport' => 'nullable|in:smtp,ses',
             'smtp_host' => 'nullable|string|max:255',
             'smtp_port' => 'nullable|integer|min:1|max:65535',
             'smtp_encryption' => 'nullable|in:tls,ssl,none',
@@ -514,7 +515,22 @@ class SettingsController extends Controller
         ]);
 
         $settings = Setting::get();
+
+        // Refuse to switch to SES without credentials — otherwise every
+        // transactional email silently falls back to SMTP and the UI would
+        // claim SES is in use.
+        if ($request->input('mail_transport') === 'ses'
+            && (empty($settings->ses_region)
+                || empty($settings->ses_access_key_id)
+                || empty($settings->ses_secret_access_key))) {
+            return redirect()
+                ->route('admin.settings.index')
+                ->with('error', 'Configure the AWS SES credentials under Email Marketing before switching transactional mail to SES.')
+                ->withFragment('smtp');
+        }
+
         $before = [
+            'mail_transport' => $settings->mail_transport,
             'smtp_host' => $settings->smtp_host,
             'smtp_port' => $settings->smtp_port,
             'smtp_encryption' => $settings->smtp_encryption,
@@ -523,6 +539,7 @@ class SettingsController extends Controller
             'smtp_from_name' => $settings->smtp_from_name,
             'snmp_alert_email' => $settings->snmp_alert_email,
         ];
+        $settings->mail_transport = $request->input('mail_transport') ?: 'smtp';
         $settings->smtp_host = $request->smtp_host;
         $settings->smtp_port = $request->smtp_port ?: 587;
         $settings->smtp_encryption = $request->smtp_encryption ?: 'tls';
@@ -544,6 +561,7 @@ class SettingsController extends Controller
             'changes' => [
                 'before' => $before,
                 'after' => [
+                    'mail_transport' => $settings->mail_transport,
                     'smtp_host' => $settings->smtp_host,
                     'smtp_port' => $settings->smtp_port,
                     'smtp_encryption' => $settings->smtp_encryption,

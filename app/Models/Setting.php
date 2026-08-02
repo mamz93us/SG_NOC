@@ -51,6 +51,9 @@ class Setting extends Model
         'smtp_password',
         'smtp_from_address',
         'smtp_from_name',
+        // 'smtp' | 'ses' — which transport transactional mail uses. SES reuses
+        // the marketing portal's ses_* credentials (see SmtpConfigService).
+        'mail_transport',
         'snmp_alert_email',
         // CUPS Print Manager
         'cups_enabled',
