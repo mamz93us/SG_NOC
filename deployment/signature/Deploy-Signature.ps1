@@ -486,13 +486,16 @@ try {
             $taskName = 'SG-Signature-Refresh'
             $arg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$stableScript`""
             $action   = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arg
-            # Daily at 9am, at logon, AND repeat hourly through the day so a user's manual
-            # signature edit is re-applied (reverted to the NOC version) within the hour —
-            # this is what enforces "select but don't edit" now the dropdown is enabled.
+            # Base cadence: daily at 9am + at logon (all users).
             $daily = New-ScheduledTaskTrigger -Daily -At 9am
-            $daily.Repetition = (New-ScheduledTaskTrigger -Once -At 9am `
-                -RepetitionInterval (New-TimeSpan -Hours 1) `
-                -RepetitionDuration (New-TimeSpan -Days 1)).Repetition
+            # ONLY for multi-role users (dropdown enabled) also repeat hourly, so a manual
+            # signature edit is reverted to the NOC version within the hour. Single-role
+            # users have the dropdown disabled and can't edit, so they don't need this.
+            if ($anyMultiVariant) {
+                $daily.Repetition = (New-ScheduledTaskTrigger -Once -At 9am `
+                    -RepetitionInterval (New-TimeSpan -Hours 1) `
+                    -RepetitionDuration (New-TimeSpan -Days 1)).Repetition
+            }
             $triggers = @(
                 $daily,
                 (New-ScheduledTaskTrigger -AtLogOn)
@@ -500,7 +503,7 @@ try {
             $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
             Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $triggers `
                 -Settings $settings -Force -ErrorAction Stop | Out-Null
-            Write-Log "Registered refresh task '$taskName' (daily 9am + at logon + hourly) -> $stableScript"
+            Write-Log ("Registered refresh task '{0}' (daily 9am + at logon{1}) -> {2}" -f $taskName, $(if ($anyMultiVariant) { ' + hourly (multi-role edit-revert)' } else { '' }), $stableScript)
         } catch {
             Write-Log ("Could not register daily task (non-fatal): " + $_.Exception.Message) 'WARN'
         }
