@@ -80,17 +80,17 @@
 
         <p class="fw-semibold small mb-1"><i class="bi bi-lightning-charge me-1 text-warning"></i>Refresh rules only (most common)</p>
         @include('admin.signatures.partials.cmd', ['id' => 'srvRefresh', 'cmd' =>
-            'Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?file=setup&api_key=$k" -OutFile "$env:TEMP\Setup-ServerSignatures.ps1"; & "$env:TEMP\Setup-ServerSignatures.ps1" -ApiKey $k -RefreshOnly'
+            '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?file=setup&api_key=$k" -OutFile "$env:TEMP\Setup-ServerSignatures.ps1"; & "$env:TEMP\Setup-ServerSignatures.ps1" -ApiKey $k -RefreshOnly'
         ])
 
         <p class="fw-semibold small mb-1 mt-3"><i class="bi bi-eye me-1 text-muted"></i>Preview first (changes nothing)</p>
         @include('admin.signatures.partials.cmd', ['id' => 'srvWhatIf', 'cmd' =>
-            'Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?file=setup&api_key=$k" -OutFile "$env:TEMP\Setup-ServerSignatures.ps1"; & "$env:TEMP\Setup-ServerSignatures.ps1" -ApiKey $k -WhatIf'
+            '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?file=setup&api_key=$k" -OutFile "$env:TEMP\Setup-ServerSignatures.ps1"; & "$env:TEMP\Setup-ServerSignatures.ps1" -ApiKey $k -WhatIf'
         ])
 
         <p class="fw-semibold small mb-1 mt-3"><i class="bi bi-stars me-1 text-primary"></i>First-time full setup (creates groups + rules + adds everyone)</p>
         @include('admin.signatures.partials.cmd', ['id' => 'srvFull', 'cmd' =>
-            'Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?file=setup&api_key=$k" -OutFile "$env:TEMP\Setup-ServerSignatures.ps1"; & "$env:TEMP\Setup-ServerSignatures.ps1" -ApiKey $k'
+            '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?file=setup&api_key=$k" -OutFile "$env:TEMP\Setup-ServerSignatures.ps1"; & "$env:TEMP\Setup-ServerSignatures.ps1" -ApiKey $k'
         ])
         <div class="small text-muted mt-2">
             <i class="bi bi-info-circle me-1"></i>The first run prompts for an Exchange Online admin sign-in and installs the
@@ -114,7 +114,7 @@
 
         <p class="fw-semibold small mb-1"><i class="bi bi-arrow-repeat me-1 text-success"></i>Sync all groups from NOC</p>
         @include('admin.signatures.partials.cmd', ['id' => 'usrSync', 'cmd' =>
-            'Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?file=setup&api_key=$k" -OutFile "$env:TEMP\Setup-ServerSignatures.ps1"; & "$env:TEMP\Setup-ServerSignatures.ps1" -ApiKey $k -PopulateOnly'
+            '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?file=setup&api_key=$k" -OutFile "$env:TEMP\Setup-ServerSignatures.ps1"; & "$env:TEMP\Setup-ServerSignatures.ps1" -ApiKey $k -PopulateOnly'
         ])
 
         <p class="fw-semibold small mb-1 mt-3"><i class="bi bi-person-plus me-1 text-muted"></i>Add one specific user by hand</p>
@@ -154,13 +154,13 @@
         <p class="fw-semibold small mb-1"><i class="bi bi-pc-display me-1 text-info"></i>Full clean-slate test on a device</p>
         <p class="text-muted small mb-2">Wipes existing signatures, reinstalls per account, and verifies — for a controlled test on one PC.</p>
         @include('admin.signatures.partials.cmd', ['id' => 'testDevice', 'cmd' =>
-            'Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?file=test&api_key=$k" -OutFile "$env:TEMP\Test-Signature.ps1"; & "$env:TEMP\Test-Signature.ps1"'
+            '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?file=test&api_key=$k" -OutFile "$env:TEMP\Test-Signature.ps1"; & "$env:TEMP\Test-Signature.ps1"'
         ])
 
         <p class="fw-semibold small mb-1 mt-3"><i class="bi bi-braces me-1 text-muted"></i>Check the raw signature NOC returns for a user</p>
         <p class="text-muted small mb-2">Replace the UPN with the person you want to check — returns the exact HTML NOC serves for them.</p>
         @include('admin.signatures.partials.cmd', ['id' => 'testApi', 'cmd' =>
-            '$k = \'__KEY__\'; irm "'.$baseUrl.'/api/signature?upn=firstname.lastname@samirgroup.com&api_key=$k"'
+            '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $k = \'__KEY__\'; irm "'.$baseUrl.'/api/signature?upn=firstname.lastname@samirgroup.com&api_key=$k"'
         ])
     </div>
 </div>
@@ -180,12 +180,12 @@
 
         <p class="fw-semibold small mb-1"><i class="bi bi-lightning-charge me-1 text-danger"></i>Install now (all accounts)</p>
         @include('admin.signatures.partials.cmd', ['id' => 'devApply', 'cmd' =>
-            'Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?api_key=$k" -OutFile "$env:TEMP\Deploy-Signature.ps1"; & "$env:TEMP\Deploy-Signature.ps1"'
+            '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?api_key=$k" -OutFile "$env:TEMP\Deploy-Signature.ps1"; & "$env:TEMP\Deploy-Signature.ps1"'
         ])
 
         <p class="fw-semibold small mb-1 mt-3"><i class="bi bi-trash me-1 text-muted"></i>Remove the NOC-managed signature from a device</p>
         @include('admin.signatures.partials.cmd', ['id' => 'devRemove', 'cmd' =>
-            'Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?api_key=$k" -OutFile "$env:TEMP\Deploy-Signature.ps1"; & "$env:TEMP\Deploy-Signature.ps1" -RemoveClientSignature'
+            '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Set-ExecutionPolicy -Scope Process Bypass -Force; $k = \'__KEY__\'; irm "'.$baseUrl.'/signature/deploy.ps1?api_key=$k" -OutFile "$env:TEMP\Deploy-Signature.ps1"; & "$env:TEMP\Deploy-Signature.ps1" -RemoveClientSignature'
         ])
         <div class="small text-muted mt-2">
             <i class="bi bi-info-circle me-1"></i>Close Outlook before running so the new signature loads on next launch.
