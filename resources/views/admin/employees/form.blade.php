@@ -159,8 +159,10 @@
                             </div>
                             <p class="text-muted small mb-2">
                                 Each role adds a second signature the user can pick from the Outlook Signature dropdown.
-                                Only the <strong>job title</strong> and <strong>department</strong> change; the employee's own title/department
-                                above stays the default. New Outlook / OWA / mobile always show the default role.
+                                <strong>Set a job title and/or department</strong> for the role — that is what makes it differ
+                                from the default. The <em>label</em> is only the name shown in Outlook's menu; it does <strong>not</strong>
+                                appear in the signature. A role with no title and no department is rejected (it would be identical to the default).
+                                New Outlook / OWA / mobile always show the default role.
                             </p>
 
                             <div id="sig-roles">

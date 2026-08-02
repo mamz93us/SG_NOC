@@ -272,6 +272,19 @@ class EmployeeController extends Controller
             'signature_roles.*.department' => 'nullable|string|max:255',
         ] + $this->contactRules());
 
+        // A signature role must change something — a labelled row with no title AND no
+        // department renders identically to the default signature (the label is only the
+        // name shown in Outlook's menu, it does not appear in the signature body).
+        foreach ((array) $request->input('signature_roles', []) as $row) {
+            $label = trim((string) ($row['label'] ?? ''));
+            if ($label !== ''
+                && trim((string) ($row['job_title'] ?? '')) === ''
+                && trim((string) ($row['department'] ?? '')) === '') {
+                return back()->withInput()->with('error',
+                    "Signature role \"{$label}\" needs a job title and/or department — otherwise it is identical to the default signature.");
+            }
+        }
+
         // Employee fields only — signature_roles are synced separately below.
         $employee->update(collect($validated)->except('signature_roles')->all());
 
