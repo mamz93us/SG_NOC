@@ -71,6 +71,15 @@ class EnsurePermission
                 ->with('error', 'Your account does not have access to the marketing portal yet. Please contact your administrator.');
         }
 
+        // Same reasoning on the isolated HR host: keep an authenticated-but-
+        // unauthorized user on hr with a self-explanatory page instead of
+        // bouncing them to the NOC portal. That route has no permission gate,
+        // so there is no redirect loop back through here.
+        if (\App\Support\HrPortal::isHost($request)) {
+            return redirect()->route('portal.hr.no-access')
+                ->with('error', 'Your account does not have access to the HR portal. Please contact IT.');
+        }
+
         // Portal-only roles (browser_user, hr) should never be sent to admin.dashboard —
         // /admin/ bounces them back to /portal, causing an infinite redirect. Instead,
         // send them to the portal hub (which is unguarded) with the error message.

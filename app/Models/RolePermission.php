@@ -99,7 +99,10 @@ class RolePermission extends Model
                 'manage-avepoint' => 'Manage AvePoint Backups (request, retry, download)',
             ],
             'HR' => [
+                'manage-hr-portal' => 'Access the HR Workspace (portal)',
                 'submit-hr-onboarding' => 'Submit HR Onboarding Requests (portal)',
+                'submit-hr-offboarding' => 'Submit HR Termination / Offboarding Requests (portal)',
+                'submit-hr-employee-update' => 'Submit HR Employee Data Change Requests (portal)',
             ],
             'NOC' => [
                 'view-noc' => 'View NOC Dashboard & Events',
@@ -202,7 +205,10 @@ class RolePermission extends Model
             'view-syslog', 'view-agw-audit',
         ];
         $hrPerms = [
+            'manage-hr-portal',
             'submit-hr-onboarding',
+            'submit-hr-offboarding',
+            'submit-hr-employee-update',
             'view-workflows',
             'view-employees',
             'view-contacts',

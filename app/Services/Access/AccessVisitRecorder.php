@@ -31,6 +31,11 @@ class AccessVisitRecorder
             return 'em';
         }
 
+        // HR portal has its own host — keep its traffic out of the NOC bucket.
+        if (\App\Support\HrPortal::isHost($request)) {
+            return 'hr';
+        }
+
         if ($request->is('portal') || $request->is('portal/*')) {
             return 'portal';
         }

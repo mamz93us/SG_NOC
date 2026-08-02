@@ -79,6 +79,7 @@ class WorkflowRequest extends Model
             'employee_offboarding', 'asset_scrap'             => 'bg-danger',
             'license_change', 'license_purchase'              => 'bg-info text-dark',
             'group_assignment'                                => 'bg-primary',
+            'employee_update'                                 => 'bg-info text-dark',
             'profile_update_phone'                            => 'bg-warning text-dark',
             default                                           => 'bg-secondary',
         };
@@ -98,6 +99,7 @@ class WorkflowRequest extends Model
             'extension_delete'     => 'Delete Extension',
             'employee_offboarding' => 'Employee Offboarding',
             'group_assignment'     => 'Group Assignment',
+            'employee_update'      => 'Employee Data Change',
             'profile_update_phone' => 'Phone Update',
             default                => ucfirst(str_replace('_', ' ', $this->type)),
         };

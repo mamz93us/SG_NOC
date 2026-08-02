@@ -42,6 +42,14 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
             \App\Http\Middleware\EnforceVcardHostIsolation::class,
         );
+        // And again for the HR portal subdomain: it serves the HR workspace and
+        // nothing else. Before auth for the same reason — a NOC route probed on
+        // the HR host should 404, not bounce a guest through the HR login first.
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnforceHrPortalHostIsolation::class);
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\EnforceHrPortalHostIsolation::class,
+        );
 
         // Guests hitting the isolated /portal/* routes — or anything on the
         // marketing subdomain — go to the portal's SSO-only login page, not the
@@ -52,6 +60,9 @@ return Application::configure(basePath: dirname(__DIR__))
             }
             if (\App\Support\VCard::isHost($request)) {
                 return route('vcard.login');
+            }
+            if (\App\Support\HrPortal::isHost($request)) {
+                return route('portal.hr.login');
             }
             if ($request->is('portal') || $request->is('portal/*')) {
                 return route('portal.login');

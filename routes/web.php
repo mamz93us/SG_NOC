@@ -109,6 +109,7 @@ use App\Http\Controllers\Public\UnsubscribeController;
 use App\Http\Controllers\PublicContactController;
 use App\Http\Controllers\TicketForwardController;
 use App\Http\Controllers\Training\PublicCertificateController;
+use App\Support\HrPortal;
 use App\Support\Marketing;
 use Illuminate\Support\Facades\Route;
 
@@ -237,14 +238,83 @@ Route::prefix('portal')->name('portal.')->group(function () {
                 ->where('sessionId', '[a-z0-9]{12}');
         });
 
-    // HR onboarding (portal) — gated by submit-hr-onboarding permission.
-    // Does NOT require view-browser-portal so a dedicated HR user can access this page only.
+});
+
+// ──────────────────────────────────────────────────────────────────
+// HR portal — ISOLATED on its own subdomain (hr.samirgroup.net by default; set
+// HR_PORTAL_DOMAIN to change). Same app, domain-routed, served at the subdomain
+// ROOT. Sign-in is Microsoft SSO ONLY and 2FA is skipped on this host
+// (RequireTwoFactor), which is contained by EnforceHrPortalHostIsolation —
+// everything that is not `portal.hr.*` 404s here.
+//
+// These routes used to live at /portal/hr/onboarding on the NOC host. They are
+// registered ONLY here now (same pattern as the marketing portal), so that old
+// path no longer answers; route names stay `portal.hr.*` so every existing
+// route('portal.hr.onboarding.*') reference keeps working and now generates an
+// absolute URL on the HR host.
+//
+// Nothing here writes to an employee record — every HR action raises a
+// WorkflowRequest that IT approves.
+// ──────────────────────────────────────────────────────────────────
+Route::domain(HrPortal::domain())->name('portal.hr.')->group(function () {
+
+    // SSO-only login page (guest — no auth middleware, or guests can't reach it)
+    Route::get('/login', function () {
+        if (auth()->check()) {
+            return redirect()->route('portal.hr.index');
+        }
+
+        return view('auth.hr-login');
+    })->name('login');
+
+    Route::post('/logout', function (\Illuminate\Http\Request $request) {
+        \Illuminate\Support\Facades\Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('portal.hr.login');
+    })->name('logout');
+
+    // Authenticated users without HR access land here rather than being bounced
+    // to the NOC login in a loop (mirrors the marketing no-access page). No
+    // permission middleware on this one, deliberately.
+    Route::middleware('auth')->get('/no-access', function () {
+        return view('auth.hr-no-access');
+    })->name('no-access');
+
+    // ── HR workspace ──────────────────────────────────────────────
+    Route::middleware(['auth', 'permission:manage-hr-portal', 'throttle:120,1'])
+        ->group(function () {
+            Route::get('/', [\App\Http\Controllers\Portal\HrWorkspaceController::class, 'index'])->name('index');
+            Route::get('/requests', [\App\Http\Controllers\Portal\HrWorkspaceController::class, 'requests'])->name('requests');
+            Route::get('/employees/search', [\App\Http\Controllers\Portal\HrWorkspaceController::class, 'searchEmployees'])->name('employees.search');
+        });
+
+    // ── Onboarding (new hire) ─────────────────────────────────────
     Route::middleware(['auth', 'permission:submit-hr-onboarding', 'throttle:60,1'])
-        ->prefix('hr/onboarding')->name('hr.onboarding.')
+        ->prefix('onboarding')->name('onboarding.')
         ->group(function () {
             Route::get('/', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'index'])->name('index');
             Route::get('/create', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'create'])->name('create');
             Route::post('/', [\App\Http\Controllers\Portal\HrOnboardingController::class, 'store'])->name('store');
+        });
+
+    // ── Offboarding (termination) ─────────────────────────────────
+    Route::middleware(['auth', 'permission:submit-hr-offboarding', 'throttle:60,1'])
+        ->prefix('offboarding')->name('offboarding.')
+        ->group(function () {
+            Route::get('/', [\App\Http\Controllers\Portal\HrOffboardingController::class, 'index'])->name('index');
+            Route::get('/create', [\App\Http\Controllers\Portal\HrOffboardingController::class, 'create'])->name('create');
+            Route::post('/', [\App\Http\Controllers\Portal\HrOffboardingController::class, 'store'])->name('store');
+        });
+
+    // ── Employee data changes ─────────────────────────────────────
+    Route::middleware(['auth', 'permission:submit-hr-employee-update', 'throttle:60,1'])
+        ->prefix('employee-update')->name('employee-update.')
+        ->group(function () {
+            Route::get('/', [\App\Http\Controllers\Portal\HrEmployeeUpdateController::class, 'index'])->name('index');
+            Route::get('/create', [\App\Http\Controllers\Portal\HrEmployeeUpdateController::class, 'create'])->name('create');
+            Route::post('/', [\App\Http\Controllers\Portal\HrEmployeeUpdateController::class, 'store'])->name('store');
         });
 });
 

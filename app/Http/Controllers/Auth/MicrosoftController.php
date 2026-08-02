@@ -49,6 +49,7 @@ class MicrosoftController extends Controller
                 $from === 'admin' => 'login',
                 $request->getHost() === \App\Support\Marketing::domain() => 'portal.marketing.login',
                 \App\Support\VCard::isHost($request) => 'vcard.login',
+                \App\Support\HrPortal::isHost($request) => 'portal.hr.login',
                 default => 'portal.login',
             };
 
@@ -75,6 +76,7 @@ class MicrosoftController extends Controller
             $loginApp = match (true) {
                 $request->getHost() === \App\Support\Marketing::domain() => 'em',
                 \App\Support\VCard::isHost($request) => 'vcard',
+                \App\Support\HrPortal::isHost($request) => 'hr',
                 $user->usesPortal() => 'portal',
                 default => 'noc',
             };
@@ -104,9 +106,11 @@ class MicrosoftController extends Controller
         // even when they sign in from NOC.
         $onMarketingHost = $request->getHost() === \App\Support\Marketing::domain();
         $onVcardHost = \App\Support\VCard::isHost($request);
+        $onHrHost = \App\Support\HrPortal::isHost($request);
 
         $landing = match (true) {
             $onVcardHost => route('vcard.mine'),
+            $onHrHost => route('portal.hr.index'),
             $onMarketingHost, $user->isMarketing() => route('portal.marketing.dashboard'),
             $from === 'admin' && ! $user->usesPortal() => route($user->homeRoute()),
             default => route('portal.index'),
@@ -117,7 +121,10 @@ class MicrosoftController extends Controller
         // Card host: SSO is the whole gate. Return before the 2FA branches below —
         // deliberately WITHOUT setting `2fa_verified`, so this session still gets
         // challenged if it is ever used against NOC. See RequireTwoFactor.
-        if ($onVcardHost) {
+        //
+        // The HR host works the same way: SSO only, no 2FA, and the session is
+        // never marked verified — so the same session hitting NOC is challenged.
+        if ($onVcardHost || $onHrHost) {
             return redirect()->intended($landing);
         }
 

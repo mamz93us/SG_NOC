@@ -42,6 +42,20 @@ class RequireTwoFactor
                 return $next($request);
             }
 
+            // The HR portal subdomain is SSO-only too, by the owner's decision.
+            // Same containment argument: EnforceHrPortalHostIsolation 404s
+            // everything that is not the HR workspace, and every HR action is a
+            // WorkflowRequest that IT still has to approve — nothing on this
+            // host writes to an employee record or reaches the NOC.
+            //
+            // Scoped to the HOST, not to the session, for the same reason as
+            // above: the session is never marked `2fa_verified`, so the same
+            // user hitting any NOC route is still challenged normally. Do not
+            // "optimise" this into a session flag.
+            if (\App\Support\HrPortal::enabled() && \App\Support\HrPortal::isHost($request)) {
+                return $next($request);
+            }
+
             // Browser-only users bypass 2FA entirely — low-privilege role,
             // kept frictionless for SSO-first remote-browser access.
             if (method_exists($user, 'isBrowserUser') && $user->isBrowserUser()) {

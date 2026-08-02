@@ -1,4 +1,4 @@
-@extends('layouts.portal')
+@extends('layouts.hr')
 
 @section('title', 'New Onboarding Request')
 

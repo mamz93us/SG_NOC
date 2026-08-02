@@ -1,21 +1,21 @@
 @extends('layouts.hr')
 
-@section('title', 'HR Onboarding')
+@section('title', 'Terminations')
 
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0 fw-bold">
-            <i class="bi bi-person-plus-fill me-2 text-primary"></i>HR Onboarding Requests
+            <i class="bi bi-person-dash-fill me-2 text-danger"></i>Termination Requests
         </h4>
-        <small class="text-muted">Submit and track onboarding requests for new hires</small>
+        <small class="text-muted">Start and track the leaver process for departing employees</small>
     </div>
     <div class="d-flex gap-2">
         <a href="{{ route('portal.hr.index') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i>HR Portal
         </a>
-        <a href="{{ route('portal.hr.onboarding.create') }}" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus-circle me-1"></i>New Request
+        <a href="{{ route('portal.hr.offboarding.create') }}" class="btn btn-danger btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>New Termination
         </a>
     </div>
 </div>
@@ -24,10 +24,10 @@
 <div class="card shadow-sm border-0">
     <div class="card-body text-center py-5">
         <i class="bi bi-inbox display-4 text-muted"></i>
-        <h5 class="mt-3 fw-semibold">No onboarding requests yet</h5>
-        <p class="text-muted mb-3">Submit your first new-hire request to get started.</p>
-        <a href="{{ route('portal.hr.onboarding.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle me-1"></i>New Onboarding Request
+        <h5 class="mt-3 fw-semibold">No termination requests yet</h5>
+        <p class="text-muted mb-3">Raise one when an employee resigns or is leaving.</p>
+        <a href="{{ route('portal.hr.offboarding.create') }}" class="btn btn-danger">
+            <i class="bi bi-plus-circle me-1"></i>New Termination Request
         </a>
     </div>
 </div>
@@ -38,26 +38,25 @@
             <thead class="table-light">
                 <tr>
                     <th>#</th>
-                    <th>New Hire</th>
+                    <th>Employee</th>
                     <th>Manager</th>
                     <th>Branch</th>
-                    <th>Start Date</th>
+                    <th>Last Day</th>
                     <th>Status</th>
-                    <th>Submitted</th>
+                    <th>Raised</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($requests as $r)
                 @php
-                    $p = $r->payload ?? [];
-                    $newHire = trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? ''));
-                    $startDate = $p['suggested_start_date'] ?? $p['start_date'] ?? null;
+                    $p     = $r->payload ?? [];
+                    $state = $states[$r->id] ?? null;
                 @endphp
                 <tr>
                     <td class="text-muted small">#{{ $r->id }}</td>
                     <td>
-                        <div class="fw-semibold">{{ $newHire ?: '—' }}</div>
-                        <div class="text-muted small">{{ $p['job_title'] ?? '' }}</div>
+                        <div class="fw-semibold">{{ $p['employee_name'] ?? '—' }}</div>
+                        <div class="text-muted small">{{ $p['upn'] ?? '' }}</div>
                     </td>
                     <td class="small">
                         {{ $p['manager_name'] ?? '—' }}
@@ -65,12 +64,15 @@
                     </td>
                     <td class="small">{{ $r->branch?->name ?? '—' }}</td>
                     <td class="small">
-                        {{ $startDate ? \Carbon\Carbon::parse($startDate)->format('M j, Y') : '—' }}
+                        {{ isset($p['last_day']) ? \Carbon\Carbon::parse($p['last_day'])->format('M j, Y') : '—' }}
                     </td>
                     <td>
                         <span class="badge {{ $r->statusBadgeClass() }}">
                             {{ ucfirst(str_replace('_', ' ', $r->status)) }}
                         </span>
+                        @if($state)
+                            <div class="text-muted small mt-1">{{ ucfirst(str_replace('_', ' ', $state->status)) }}</div>
+                        @endif
                     </td>
                     <td class="text-muted small">{{ $r->created_at->diffForHumans() }}</td>
                 </tr>
