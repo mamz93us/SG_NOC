@@ -743,6 +743,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/avepoint', [SettingsController::class, 'updateAvePoint'])->name('settings.avepoint');
         Route::post('settings/azure-blob', [SettingsController::class, 'updateAzureBlob'])->name('settings.azure-blob');
         Route::post('settings/offboarding', [SettingsController::class, 'updateOffboarding'])->name('settings.offboarding');
+
+        // ── Per-service sender addresses (Admin → Sender Addresses) ──
+        Route::get('mail-senders', [\App\Http\Controllers\Admin\MailSenderController::class, 'index'])
+            ->name('mail-senders.index');
+        Route::post('mail-senders', [\App\Http\Controllers\Admin\MailSenderController::class, 'update'])
+            ->name('mail-senders.update');
+        Route::post('mail-senders/{serviceKey}/test', [\App\Http\Controllers\Admin\MailSenderController::class, 'test'])
+            ->name('mail-senders.test');
         // Test-connection buttons live on the Settings page — accessible to any settings manager
         Route::post('settings/test-meraki', [NetworkController::class,  'testConnection'])->name('settings.test-meraki');
         Route::post('settings/test-graph', [IdentityController::class, 'testConnection'])->name('settings.test-graph');

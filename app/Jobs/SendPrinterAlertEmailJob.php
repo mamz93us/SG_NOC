@@ -129,7 +129,7 @@ class SendPrinterAlertEmailJob implements ShouldQueue
             if (! empty($cc)) {
                 $message->cc(array_keys($cc));
             }
-            $message->send($mailable);
+            $message->send(\App\Models\MailSender::apply($mailable, \App\Models\MailSender::PRINTERS));
 
             $event->update(['email_sent_at' => now()]);
         } catch (\Throwable $e) {

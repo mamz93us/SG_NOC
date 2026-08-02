@@ -34,7 +34,7 @@ class SendAvepointBackupReadyJob implements ShouldQueue
         $email = $backup->requestedBy?->email;
         if (! $email) return;
 
-        Mail::to($email)->send(new AvepointBackupReadyMail($backup));
+        Mail::to($email)->send(\App\Models\MailSender::apply(new AvepointBackupReadyMail($backup), \App\Models\MailSender::BACKUPS));
 
         $backup->update(['requester_notified_at' => now()]);
     }

@@ -39,7 +39,7 @@ class SendBackupDownloadLinkJob implements ShouldQueue
             $mail->cc($cc);
         }
 
-        $mail->send(new BackupDownloadReadyMail($backup));
+        $mail->send(\App\Models\MailSender::apply(new BackupDownloadReadyMail($backup), \App\Models\MailSender::OFFBOARDING));
 
         $backup->update(['manager_notified_at' => now()]);
     }

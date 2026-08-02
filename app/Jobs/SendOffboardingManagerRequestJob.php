@@ -35,6 +35,11 @@ class SendOffboardingManagerRequestJob implements ShouldQueue
         $email = $token->manager_email;
         if (! $email) return;
 
-        Mail::to($email)->send(new HrOffboardingManagerRequestMail($workflow, $token));
+        Mail::to($email)->send(
+            \App\Models\MailSender::apply(
+                new HrOffboardingManagerRequestMail($workflow, $token),
+                \App\Models\MailSender::OFFBOARDING
+            )
+        );
     }
 }

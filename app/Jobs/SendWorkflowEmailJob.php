@@ -33,6 +33,7 @@ class SendWorkflowEmailJob implements ShouldQueue
         try {
             Mail::raw($body, function ($message) use ($to, $subject) {
                 $message->to($to)->subject($subject);
+                \App\Models\MailSender::applyToMessage($message, \App\Models\MailSender::WORKFLOWS);
             });
         } catch (\Throwable $e) {
             Log::error("[SendWorkflowEmailJob] Failed: {$e->getMessage()}");

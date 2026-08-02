@@ -48,16 +48,18 @@ class SendHrFeedbackEmailJob implements ShouldQueue
             if (empty($recipients)) return;
 
             foreach ($recipients as $email) {
-                \Illuminate\Support\Facades\Mail::to($email)
-                    ->send(new HrOnboardingCompleteMail($workflow, $email));
+                \Illuminate\Support\Facades\Mail::to($email)->send(
+                    \App\Models\MailSender::apply(new HrOnboardingCompleteMail($workflow, $email), \App\Models\MailSender::ONBOARDING)
+                );
             }
 
         } elseif ($this->type === 'offboarding') {
             $email = $managerEmail ?? ($payload['requester_email'] ?? null);
             if (! $email) return;
 
-            \Illuminate\Support\Facades\Mail::to($email)
-                ->send(new HrOffboardingCompleteMail($workflow, $email));
+            \Illuminate\Support\Facades\Mail::to($email)->send(
+                \App\Models\MailSender::apply(new HrOffboardingCompleteMail($workflow, $email), \App\Models\MailSender::OFFBOARDING)
+            );
         }
     }
 }

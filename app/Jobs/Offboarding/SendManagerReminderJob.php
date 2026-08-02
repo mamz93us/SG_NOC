@@ -33,6 +33,9 @@ class SendManagerReminderJob implements ShouldQueue
         $email = $token->manager_email;
         if (! $email) return;
 
-        Mail::to($email)->send(new HrOffboardingManagerRequestMail($ow->workflow, $token, reminder: true));
+        Mail::to($email)->send(\App\Models\MailSender::apply(
+            new HrOffboardingManagerRequestMail($ow->workflow, $token, reminder: true),
+            \App\Models\MailSender::OFFBOARDING
+        ));
     }
 }

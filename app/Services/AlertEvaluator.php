@@ -139,6 +139,7 @@ class AlertEvaluator
                 try {
                     \Illuminate\Support\Facades\Mail::raw($message, function ($mail) use ($email, $subject) {
                         $mail->to($email)->subject($subject);
+                        \App\Models\MailSender::applyToMessage($mail, \App\Models\MailSender::ALERTS);
                     });
                 } catch (\Throwable $e) {
                     Log::warning("[AlertEvaluator] Failed to send email to {$email}: " . $e->getMessage());

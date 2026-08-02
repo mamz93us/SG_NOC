@@ -37,6 +37,6 @@ class EscalateToItJob implements ShouldQueue
         $itEmail  = $settings->offboarding_it_escalation_email;
         if (! $itEmail) return;
 
-        Mail::to($itEmail)->send(new OffboardingEscalationMail($ow));
+        Mail::to($itEmail)->send(\App\Models\MailSender::apply(new OffboardingEscalationMail($ow), \App\Models\MailSender::OFFBOARDING));
     }
 }

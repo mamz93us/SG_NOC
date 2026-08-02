@@ -50,10 +50,6 @@ class SendItOnboardingSummaryJob implements ShouldQueue
         // Queue worker runs in its own process — must load SMTP config from DB.
         $smtp->loadFromSettings();
 
-        $setting  = Setting::first();
-        $fromAddr = $setting?->smtp_from_address ?: config('mail.from.address');
-        $fromName = $setting?->smtp_from_name    ?: 'SG NOC';
-
         $displayName = $workflow->payload['display_name'] ?? 'New Employee';
         $subject     = "IT Onboarding Summary: {$displayName}";
 
@@ -68,8 +64,8 @@ class SendItOnboardingSummaryJob implements ShouldQueue
             try {
                 Mail::to($toEmail, $toName)
                     ->send(
-                        (new ItOnboardingSummaryMail($workflow, $toEmail))
-                            ->from($fromAddr, $fromName)
+                        // Per-service sender (Admin → Sender Addresses).
+                        \App\Models\MailSender::apply(new ItOnboardingSummaryMail($workflow, $toEmail), \App\Models\MailSender::ONBOARDING)
                     );
                 Log::info("SendItOnboardingSummaryJob: sent to {$toEmail} for workflow #{$workflow->id}");
             } catch (\Throwable $e) {

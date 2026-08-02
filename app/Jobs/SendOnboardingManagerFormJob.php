@@ -64,10 +64,6 @@ class SendOnboardingManagerFormJob implements ShouldQueue
         // Queue worker runs in its own process — must load SMTP config from DB.
         $smtp->loadFromSettings();
 
-        $setting  = Setting::first();
-        $fromAddr = $setting?->smtp_from_address ?: config('mail.from.address');
-        $fromName = $setting?->smtp_from_name    ?: 'SG NOC';
-
         $subject      = "Action Required: New Employee Setup Form — " . ($payload['display_name'] ?? 'New Employee');
         $status       = 'sent';
         $errorMessage = null;
@@ -75,8 +71,9 @@ class SendOnboardingManagerFormJob implements ShouldQueue
         try {
             Mail::to($managerEmail, $managerName)
                 ->send(
-                    (new OnboardingManagerFormMail($workflow, $token))
-                        ->from($fromAddr, $fromName)
+                    // Per-service sender (Admin → Sender Addresses); falls back
+                    // to the global default when onboarding has no address.
+                    \App\Models\MailSender::apply(new OnboardingManagerFormMail($workflow, $token), \App\Models\MailSender::ONBOARDING)
                 );
 
             Log::info("SendOnboardingManagerFormJob: form email sent to {$managerEmail} for workflow #{$workflow->id}");

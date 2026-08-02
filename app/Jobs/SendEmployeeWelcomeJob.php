@@ -46,10 +46,6 @@ class SendEmployeeWelcomeJob implements ShouldQueue
 
         $smtp->loadFromSettings();
 
-        $setting  = Setting::first();
-        $fromAddr = $setting?->smtp_from_address ?: config('mail.from.address');
-        $fromName = $setting?->smtp_from_name    ?: 'SG NOC';
-
         $subject      = "Welcome to Samir Group, " . ($toName ?? 'New Employee');
         $status       = 'sent';
         $errorMessage = null;
@@ -57,8 +53,8 @@ class SendEmployeeWelcomeJob implements ShouldQueue
         try {
             Mail::to($toEmail, $toName)
                 ->send(
-                    (new EmployeeWelcomeMail($workflow))
-                        ->from($fromAddr, $fromName)
+                    // Per-service sender (Admin → Sender Addresses).
+                    \App\Models\MailSender::apply(new EmployeeWelcomeMail($workflow), \App\Models\MailSender::ONBOARDING)
                 );
             Log::info("SendEmployeeWelcomeJob: welcome sent to {$toEmail} for workflow #{$workflow->id}");
             $this->logToWorkflow($workflow->id, 'success',

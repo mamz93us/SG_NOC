@@ -1050,6 +1050,12 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.mail-senders.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.mail-senders.index') }}">
+                                    <i class="bi bi-envelope-at me-2"></i>Sender Addresses
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.ticket-stats.*') ? 'active' : '' }}"
                                    href="{{ route('admin.ticket-stats.index') }}">
                                     <i class="bi bi-ticket-detailed me-2"></i>Ticket Portal Stats

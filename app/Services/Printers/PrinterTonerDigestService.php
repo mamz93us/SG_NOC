@@ -154,7 +154,9 @@ class PrinterTonerDigestService
         $status = 'sent';
         $error = null;
         try {
-            Mail::to(array_keys($recipients))->send(new PrinterTonerDigestMail($groups, $total, $period, $subject));
+            Mail::to(array_keys($recipients))->send(
+                \App\Models\MailSender::apply(new PrinterTonerDigestMail($groups, $total, $period, $subject), \App\Models\MailSender::PRINTERS)
+            );
         } catch (\Throwable $e) {
             $status = 'failed';
             $error = $e->getMessage();

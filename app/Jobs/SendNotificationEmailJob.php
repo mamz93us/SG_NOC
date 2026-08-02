@@ -42,20 +42,15 @@ class SendNotificationEmailJob implements ShouldQueue
 
         $smtp->loadFromSettings();
 
-        // Read from-name directly from DB — belt-and-suspenders so the
-        // sender name is correct regardless of config/env values.
-        $setting  = Setting::first();
-        $fromAddr = $setting?->smtp_from_address ?: config('mail.from.address');
-        $fromName = $setting?->smtp_from_name    ?: 'SG NOC';
-
         $notification = $this->notification;
         $errorMessage = null;
 
         try {
             Mail::to($recipient->email, $recipient->name)
                 ->send(
-                    (new NotificationMail($this->notification, $recipient))
-                        ->from($fromAddr, $fromName)  // explicit override — highest priority
+                    // Per-service sender (Admin → Sender Addresses). Notifications
+                    // are the catch-all bucket for "system" mail.
+                    \App\Models\MailSender::apply(new NotificationMail($this->notification, $recipient), \App\Models\MailSender::NOTIFICATIONS)
                 );
             $status = 'sent';
         } catch (\Throwable $e) {
