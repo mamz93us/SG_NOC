@@ -24,6 +24,9 @@ class OsFactory
         EpsonPrinterOS::class,    // Epson inkjet/laser (standard Printer MIB, dynamic supplies)
         CanonPrinterOS::class,    // Canon imageRUNNER/i-SENSYS/PIXMA (standard MIB, dynamic supplies)
         GenericPrinterOS::class,  // HP LaserJet, Lexmark, Xerox, Kyocera
+        // MUST stay ahead of CiscoOS: FortiOS sysDescr strings contain the
+        // substring "IOS" ("Fort-iOS"), which CiscoOS::detect() matches on.
+        FortiGateOS::class,       // Fortinet FortiGate / FortiWiFi firewall
         CiscoOS::class,           // Cisco IOS / NX-OS
         SophosOS::class,          // Sophos SFOS firewall
         GrandstreamOS::class,     // Grandstream UCM PBX
@@ -72,6 +75,7 @@ class OsFactory
             'printer' => GenericPrinterOS::class,
             'cisco' => CiscoOS::class,
             'sophos' => SophosOS::class,
+            'fortigate' => FortiGateOS::class,
             'grandstream' => GrandstreamOS::class,
             'hp_aruba' => HpArubaOS::class,
             'linux' => LinuxOS::class,

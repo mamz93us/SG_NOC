@@ -112,6 +112,17 @@ class CollectSnmpMetricsJob implements ShouldQueue
                             if ($sensor->sensor_group === 'interface_status' || str_contains($sensor->oid, '1.3.6.1.2.1.2.2.1.8')) {
                                 // Standard ifOperStatus: 1=up, everything else (2=down, 3=testing, etc.) = down
                                 $finalValue = ($parsedValue == 1) ? 1.0 : 0.0;
+                            } elseif (str_contains($sensor->oid, '1.3.6.1.4.1.12356.101.12.2.2.1.20')) {
+                                // FortiGate fgVpnTunEntStatus: INTEGER { down(1), up(2) } — must be
+                                // checked before the generic VPN branch below, which would read 1 as up.
+                                $finalValue = ($parsedValue == 2) ? 1.0 : 0.0;
+                            } elseif (str_contains($sensor->oid, '1.3.6.1.4.1.12356.101.4.8.2.1.3')) {
+                                // FortiGate fgLinkMonitorState: INTEGER { alive(0), dead(1) } — inverted
+                                $finalValue = ($parsedValue == 0) ? 1.0 : 0.0;
+                            } elseif (str_contains($sensor->oid, '1.3.6.1.4.1.12356.101.4.3.2.1.4')) {
+                                // FortiGate fgHwSensorEntAlarmStatus: INTEGER { false(0), true(1) }.
+                                // Graph as 1=healthy so it reads like every other boolean sensor.
+                                $finalValue = ($parsedValue == 0) ? 1.0 : 0.0;
                             } elseif ($sensor->sensor_group === 'VPN') {
                                 // Sophos VPN status: 2=active, 1=connecting, 0=inactive
                                 $finalValue = ($parsedValue >= 1) ? 1.0 : 0.0;
@@ -283,6 +294,14 @@ class CollectSnmpMetricsJob implements ShouldQueue
     {
         // Handle numeric values
         if (preg_match('/(?:INTEGER|Gauge32|Counter32|Counter64|Unsigned32|TimeTicks):\s*(-?\d+)/i', $value, $matches)) {
+            return (float) $matches[1];
+        }
+
+        // Numerics carried inside a DisplayString, e.g. STRING: "35.000000".
+        // FortiGate reports hardware sensor readings and link-monitor latency/jitter/
+        // packet-loss this way; without stripping the quotes these fall through to the
+        // status-word matching below and get logged as 0.
+        if (preg_match('/^\s*STRING:\s*"?\s*(-?\d+(?:\.\d+)?)\s*"?\s*$/i', $value, $matches)) {
             return (float) $matches[1];
         }
 

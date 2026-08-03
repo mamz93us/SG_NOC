@@ -140,6 +140,7 @@
                             <label class="form-label fw-bold small">Type</label>
                             <select name="type" class="form-select" required>
                                 <option value="gateway">Gateway</option>
+                                <option value="firewall">Firewall</option>
                                 <option value="switch">Switch</option>
                                 <option value="ucm">IP-PBX (UCM)</option>
                                 <option value="printer">Printer</option>
@@ -304,6 +305,7 @@
                             <label class="form-label fw-bold small">Type</label>
                             <select name="type" id="edit-type" class="form-select" required>
                                 <option value="gateway">Gateway</option>
+                                <option value="firewall">Firewall</option>
                                 <option value="switch">Switch</option>
                                 <option value="ucm">IP-PBX (UCM)</option>
                                 <option value="printer">Printer</option>
