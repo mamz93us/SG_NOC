@@ -183,7 +183,14 @@ class SignatureRenderService
 
         $html = $this->absolutizeImageSrcs($html);
 
-        return $html.$this->markerHtml();
+        // NOTE: the transport-rule output deliberately does NOT carry the SGSIGMARKER.
+        // The marker's only job is to let the rule skip classic-Outlook mail (whose CLIENT
+        // signature carries it). If the transport rule stamped the marker into its own
+        // output, every REPLY that quotes an already-stamped message would contain the
+        // marker, so the rule's "except if body contains SGSIGMARKER" would skip it —
+        // replies on New Outlook / OWA / mobile would come out unsigned. Omitting it here
+        // means replies get signed while classic-Outlook mail is still de-duped.
+        return $html;
     }
 
     /**

@@ -311,8 +311,10 @@ flowchart LR
     Q -->|no = OWA/new/mobile| STAMP["Rule appends signature<br/>(with marker)"]
 ```
 
-- Constant: `SignatureRenderService::SIG_MARKER = 'SGSIGMARKER'`, emitted as a hidden `<span>` on **every** render (client + transport).
+- Constant: `SignatureRenderService::SIG_MARKER = 'SGSIGMARKER'`, emitted as a hidden `<span>` on the **classic-Outlook client render only** (`render()`).
+- The **transport-rule output deliberately omits the marker** (`renderForTransportRule()` does not append it). If it stamped the marker, every **reply** that quotes an already-stamped message would contain it, and the rule's exception would skip the reply — replies on New Outlook / OWA / mobile would be unsigned. Omitting it means replies get signed while classic-Outlook mail (whose client signature carries the marker) is still de-duped.
 - Transport rule condition: `ExceptIfSubjectOrBodyContainsWords 'SGSIGMARKER'`.
+- Residual edge: a New-Outlook/OWA reply that quotes a **classic-Outlook** sender's signature (which has the marker) is still skipped. Fully solving that needs header-based dedup, which classic Outlook can't set — accepted.
 
 ---
 
@@ -439,6 +441,7 @@ Related artisan commands: `signatures:host-logos` (embed→hosted logos), `signa
 | **Multi-role user can't switch signature** | The Signature dropdown is only enabled on machines with a multi-role account; make sure the role is saved and the device re-ran `Deploy-Signature.ps1` (not the unlocked `Test-Signature.ps1`). |
 | **OWA/new Outlook shows the wrong/old title** | Azure is stale. Edit the employee (auto-push) or run Bulk Azure Contact Sync / `employees:push-azure`, then `Setup-ServerSignatures.ps1 -RefreshOnly` if the template changed. |
 | **New Outlook won't show a second role** | By design — server rules read one Azure title; multi-role is classic-Outlook only. |
+| **Reply is unsigned on New Outlook / OWA / mobile (new mail is fine)** | The transport output used to include `SGSIGMARKER`; a reply quotes the earlier stamped message, so the rule's "except if body contains SGSIGMARKER" skipped it. Fixed by omitting the marker from the transport output (client keeps it). Re-push with `Setup-ServerSignatures.ps1 -RefreshOnly`. Old threads that still contain the old marker roll off as new threads start. |
 
 ---
 
