@@ -287,6 +287,8 @@ Route::domain(HrPortal::domain())->name('portal.hr.')->group(function () {
         ->group(function () {
             Route::get('/', [\App\Http\Controllers\Portal\HrWorkspaceController::class, 'index'])->name('index');
             Route::get('/requests', [\App\Http\Controllers\Portal\HrWorkspaceController::class, 'requests'])->name('requests');
+            Route::get('/requests/{workflow}', [\App\Http\Controllers\Portal\HrWorkspaceController::class, 'showRequest'])
+                ->whereNumber('workflow')->name('requests.show');
         });
 
     // The employee type-ahead backs the manager/supervisor pickers on the

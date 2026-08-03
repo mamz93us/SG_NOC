@@ -90,6 +90,7 @@ class HrOnboardingController extends Controller
             'first_name' => 'required|string|max:100',
             'last_name' => 'required|string|max:100',
             'upn_domain' => 'required|string|max:255',
+            'gender' => 'required|in:male,female',
             'job_title' => 'nullable|string|max:255',
             'department_id' => 'nullable|exists:departments,id',
             'mobile_phone' => 'nullable|string|max:50',
@@ -105,6 +106,7 @@ class HrOnboardingController extends Controller
         ], [
             // The pickers post hidden ids, so the default "manager id field is
             // required" wording would be meaningless to an HR user.
+            'gender.required' => 'Select a gender — it determines which Azure groups are assigned automatically.',
             'manager_id.required' => 'Choose the reporting manager from the employee list.',
             'manager_id.exists' => 'That manager is not an active employee — pick again from the list.',
             'supervisor_id.exists' => 'That supervisor is not an active employee — pick again from the list.',
@@ -136,6 +138,9 @@ class HrOnboardingController extends Controller
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
             'upn_domain' => $validated['upn_domain'],
+            // Drives gender-specific Azure group auto-assignment, and lands on
+            // the employee record for the gendered signature templates.
+            'gender' => $validated['gender'],
             'job_title' => $validated['job_title'] ?? null,
             'department_id' => $validated['department_id'] ?? null,
             'mobile_phone' => $validated['mobile_phone'] ?? null,

@@ -56,7 +56,9 @@
                 <tr>
                     <td class="text-muted small">#{{ $r->id }}</td>
                     <td>
-                        <div class="fw-semibold">{{ $newHire ?: '—' }}</div>
+                        <a href="{{ route('portal.hr.requests.show', $r->id) }}" class="fw-semibold text-decoration-none">
+                            {{ $newHire ?: '—' }}
+                        </a>
                         <div class="text-muted small">{{ $p['job_title'] ?? '' }}</div>
                     </td>
                     <td class="small">

@@ -27,10 +27,72 @@ class UserProvisioningService
     ) {}
 
     // ─────────────────────────────────────────────────────────────
-    // Provision new user (7 steps)
+    // Full provisioning = core identity, then the manager-dependent
+    // half. Kept as one call for workflows with no manager form
+    // (and as the resume path — both stages are idempotent, so a
+    // re-run after the manager replies skips straight to stage B).
     // ─────────────────────────────────────────────────────────────
 
     public function provisionUser(WorkflowRequest $workflow): void
+    {
+        $this->provisionCoreIdentity($workflow);
+        $this->completeProvisioning($workflow);
+    }
+
+    /**
+     * Push the employee's NOC profile to Azure through the same service the
+     * rest of the app uses, rather than hand-rolling the field mapping here.
+     *
+     * That is what gets branch street/city, office location, the office phone
+     * with the extension stripped out, and the extension itself in the fax
+     * field (Azure has no extension attribute; the signature transport rule
+     * reads it as %%FaxNumber%%). Non-fatal — a Graph hiccup must not fail
+     * provisioning that has already created the account.
+     */
+    private function syncAzureProfile(WorkflowRequest $workflow, string $stage): void
+    {
+        $employeeId = $workflow->payload['employee_id'] ?? null;
+        if (! $employeeId) {
+            return;
+        }
+
+        $employee = Employee::with('branch', 'department')->find($employeeId);
+        if (! $employee || ! $employee->azure_id) {
+            return;
+        }
+
+        try {
+            $sync     = app(\App\Services\Identity\AzureContactSyncService::class);
+            $proposed = $sync->computeFromEmployee($employee);
+
+            if (empty($proposed)) {
+                return;
+            }
+
+            $sync->applyToEmployee($employee, $proposed);
+
+            $summary = collect($proposed)
+                ->only(['officeLocation', 'city', 'streetAddress', 'faxNumber'])
+                ->filter()
+                ->map(fn ($v, $k) => "{$k}=".(is_array($v) ? implode(',', $v) : $v))
+                ->implode(', ');
+
+            $this->engine->logEvent($workflow, 'success',
+                "Azure profile synced ({$stage})".($summary ? ": {$summary}" : '.'));
+        } catch (\Throwable $e) {
+            $this->engine->logEvent($workflow, 'warning',
+                "Azure profile sync failed during {$stage} (non-fatal): ".$e->getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Stage A — everything that does NOT depend on the manager:
+    // the Azure account, licences, branch/department/gender groups
+    // and the employee record. Runs as soon as IT approves so the
+    // mailbox is live while the manager form is still outstanding.
+    // ─────────────────────────────────────────────────────────────
+
+    public function provisionCoreIdentity(WorkflowRequest $workflow): void
     {
         $payload  = $workflow->payload ?? [];
         $settings = Setting::get();
@@ -74,6 +136,12 @@ class UserProvisioningService
             try {
                 $azureUser = $graph->createUser([
                     'displayName'       => $displayName,
+                    // givenName/surname are separate Azure fields — without them
+                    // Azure only knows the combined display name, which breaks
+                    // anything reading first/last name (Teams, Outlook cards,
+                    // signature tokens). HR gave us both, so send both.
+                    'givenName'         => $firstName ?: null,
+                    'surname'           => $lastName  ?: null,
                     'userPrincipalName' => $upn,
                     'mailNickname'      => explode('@', $upn)[0],
                     'password'          => $password,
@@ -181,10 +249,13 @@ class UserProvisioningService
         $branchIdForGroups = $workflow->branch_id;
         $deptIdForGroups   = isset($payload['department_id']) ? (int) $payload['department_id'] : null;
 
-        if ($branchIdForGroups || $deptIdForGroups) {
+        $genderForGroups = $payload['gender'] ?? null;
+
+        if ($branchIdForGroups || $deptIdForGroups || $genderForGroups) {
             $groupIds = \App\Models\BranchDepartmentGroupMapping::getGroupsFor(
                 $branchIdForGroups ?? 0,
-                $deptIdForGroups   ?? 0
+                $deptIdForGroups   ?? 0,
+                $genderForGroups
             );
 
             if ($groupIds->isNotEmpty()) {
@@ -217,6 +288,86 @@ class UserProvisioningService
                 $workflow->save();
             }
         }
+
+        // ── Step 4: Create employee record ────────────────────────
+        // Created here, in the core stage, so the person exists in NOC as soon
+        // as the identity does. The extension is attached later by
+        // completeProvisioning() once the manager has said whether they need one.
+        //
+        // Idempotency: skip if already created in a previous attempt, or if an
+        // employee with the same azure_id already exists.
+        if (! empty($payload['employee_id'])) {
+            $this->engine->logEvent($workflow, 'info', "Resuming — employee record already created (ID: {$payload['employee_id']})");
+        } else {
+            $this->engine->logEvent($workflow, 'info', 'Creating employee record...');
+            try {
+                // Guard against duplicate if a previous attempt created the employee
+                // but failed before saving the ID to the payload
+                $employee = Employee::where('azure_id', $azureId)->first()
+                    ?? Employee::create([
+                        'azure_id'         => $azureId,
+                        'name'             => $displayName,
+                        'email'            => $upn,
+                        'gender'           => $payload['gender']       ?? null,
+                        'branch_id'        => $workflow->branch_id,
+                        'department_id'    => $payload['department_id'] ?? null,
+                        'job_title'        => $payload['job_title']     ?? null,
+                        // Reporting line picked by HR on the onboarding form.
+                        // Both are employee IDs, so the org chart is correct from
+                        // day one rather than being back-filled later.
+                        'manager_id'       => $payload['manager_id']    ?? null,
+                        'supervisor_id'    => $payload['supervisor_id'] ?? null,
+                        'mobile_phone'     => $payload['mobile_phone']  ?? null,
+                        'status'           => 'active',
+                        'hired_date'       => now()->toDateString(),
+                    ]);
+                $this->engine->logEvent($workflow, 'success', 'Employee record created.');
+
+                // Save employee ID to payload so the show page can link to the profile
+                $payload = array_merge($payload, ['employee_id' => $employee->id]);
+                $workflow->payload = $payload;
+                $workflow->save();
+            } catch (\Throwable $e) {
+                $this->engine->logEvent($workflow, 'warning', 'Employee record creation failed (non-fatal): ' . $e->getMessage());
+            }
+        }
+
+        // ── Step 5: Push the NOC profile to Azure ─────────────────
+        $this->syncAzureProfile($workflow, 'core identity');
+
+        $this->engine->logEvent($workflow, 'success',
+            'Core identity provisioned (account, licences, groups, employee record).');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Stage B — everything that depends on the manager's answers:
+    // their chosen groups, internet tier, the IP-phone extension, and
+    // the resulting tickets and notifications.
+    //
+    // Runs immediately after the manager submits the form. Safe to
+    // re-run: every step checks the payload for prior results first.
+    // ─────────────────────────────────────────────────────────────
+
+    public function completeProvisioning(WorkflowRequest $workflow): void
+    {
+        $payload  = $workflow->payload ?? [];
+        $settings = Setting::get();
+
+        $azureId = $payload['azure_id'] ?? null;
+        $upn     = $payload['upn']      ?? null;
+
+        if (! $azureId || ! $upn) {
+            throw new \RuntimeException(
+                'Cannot complete provisioning — the Azure account was never created. Retry the workflow to run core provisioning first.'
+            );
+        }
+
+        $firstName   = trim($payload['first_name'] ?? '');
+        $lastName    = trim($payload['last_name']  ?? '');
+        $displayName = $payload['display_name'] ?? trim("{$firstName} {$lastName}");
+        $graph       = new GraphService();
+
+        $this->engine->logEvent($workflow, 'info', 'Applying the manager’s setup choices.');
 
         // ── Step 3c: Assign manager-selected groups ───────────────
         // If the manager filled the onboarding form, assign the groups they chose.
@@ -355,117 +506,23 @@ class UserProvisioningService
                 'Set a UCM server on the branch, on the floor\'s branch, or as the global default in Settings.');
         }
 
-        // ── Step 5: Update Azure profile (branch-aware) ──
-        // Fields set (when data is available):
-        //   - city            = branch name
-        //   - officeLocation  = rendered office template (falls back to branch name)
-        //   - businessPhones  = rendered phone template, or "{branch_phone} EXT {extension}"
-        //   - mobilePhone     = payload mobile_phone (HR form)
-        $officeTemplate = $branch ? $branch->effectiveOfficeTemplate($settings) : $settings->profile_office_template;
-        $phoneTemplate  = $branch ? $branch->effectivePhoneTemplate($settings)  : $settings->profile_phone_template;
-        $mobilePhone    = trim((string) ($payload['mobile_phone'] ?? ''));
-
-        $updateData = [];
-
-        if ($branch) {
-            // City — always branch name
-            if (! empty($branch->name)) {
-                $updateData['city'] = $branch->name;
-            }
-
-            // Rendered templates (if configured)
-            $profileFields = $this->extProvisioning->buildProfileFields(
-                $branch,
-                $extension ?? '',
-                $firstName,
-                $lastName,
-                $upn,
-                [
-                    'officeLocation' => $officeTemplate,
-                    'phone'          => $phoneTemplate,
-                ]
-            );
-
-            if (! empty($profileFields['officeLocation'])) {
-                $updateData['officeLocation'] = $profileFields['officeLocation'];
-            } elseif (! empty($branch->name)) {
-                // Sensible default when no template is configured
-                $updateData['officeLocation'] = $branch->name;
-            }
-
-            // Office phone: prefer rendered template, otherwise compose
-            // "{branch phone} EXT {extension}" if both pieces exist.
-            if (! empty($profileFields['phone'])) {
-                $updateData['businessPhones'] = [$profileFields['phone']];
-            } elseif (! empty($branch->phone_number) && ! empty($extension)) {
-                $updateData['businessPhones'] = [trim($branch->phone_number) . ' EXT ' . $extension];
-            } elseif (! empty($branch->phone_number)) {
-                $updateData['businessPhones'] = [trim($branch->phone_number)];
+        // ── Attach the extension to the employee record, then re-sync ──
+        // The employee row was created in the core stage before the extension
+        // existed. Writing it here is what lets AzureContactSyncService carry the
+        // extension into Azure's fax field (%%FaxNumber%% in the signature rule)
+        // and compose the "{branch phone} EXT {n}" business phone.
+        if (! empty($payload['employee_id'])) {
+            $employee = Employee::find($payload['employee_id']);
+            if ($employee && $extension && $employee->extension_number !== $extension) {
+                $employee->update([
+                    'extension_number' => $extension,
+                    'ucm_server_id'    => $ucmServer?->id,
+                ]);
+                $this->engine->logEvent($workflow, 'info', "Employee record updated with extension {$extension}.");
             }
         }
 
-        // Mobile phone from HR intake
-        if ($mobilePhone !== '') {
-            $updateData['mobilePhone'] = $mobilePhone;
-        }
-
-        if (! empty($updateData)) {
-            try {
-                $summary = [];
-                foreach (['city', 'officeLocation', 'mobilePhone'] as $f) {
-                    if (! empty($updateData[$f])) $summary[] = "{$f}={$updateData[$f]}";
-                }
-                if (! empty($updateData['businessPhones'][0])) {
-                    $summary[] = "businessPhones={$updateData['businessPhones'][0]}";
-                }
-                $this->engine->logEvent($workflow, 'info', 'Updating Azure profile: ' . implode(', ', $summary));
-
-                $graph->updateUser($azureId, $updateData);
-                $this->engine->logEvent($workflow, 'success', 'Azure profile updated.');
-            } catch (\Throwable $e) {
-                $this->engine->logEvent($workflow, 'warning', 'Azure profile update failed (non-fatal): ' . $e->getMessage());
-            }
-        }
-
-        // ── Step 6: Create employee record ────────────────────────
-        // Idempotency: skip if already created in a previous attempt,
-        // or if an employee with the same azure_id already exists.
-        if (!empty($payload['employee_id'])) {
-            $this->engine->logEvent($workflow, 'info', "Resuming — employee record already created (ID: {$payload['employee_id']})");
-        } else {
-            $this->engine->logEvent($workflow, 'info', 'Creating employee record...');
-            try {
-                // Guard against duplicate if a previous attempt created the employee
-                // but failed before saving the ID to the payload
-                $employee = Employee::where('azure_id', $azureId)->first()
-                    ?? Employee::create([
-                        'azure_id'         => $azureId,
-                        'name'             => $displayName,
-                        'email'            => $upn,
-                        'branch_id'        => $workflow->branch_id,
-                        'department_id'    => $payload['department_id'] ?? null,
-                        'job_title'        => $payload['job_title']     ?? null,
-                        // Reporting line picked by HR on the onboarding form.
-                        // Both are employee IDs, so the org chart is correct from
-                        // day one rather than being back-filled later.
-                        'manager_id'       => $payload['manager_id']    ?? null,
-                        'supervisor_id'    => $payload['supervisor_id'] ?? null,
-                        'mobile_phone'     => $payload['mobile_phone']  ?? null,
-                        'status'           => 'active',
-                        'hired_date'       => now()->toDateString(),
-                        'extension_number' => $extension,
-                        'ucm_server_id'    => $ucmServer?->id,
-                    ]);
-                $this->engine->logEvent($workflow, 'success', 'Employee record created.');
-
-                // Save employee ID to payload so the show page can link to the profile
-                $payload = array_merge($payload, ['employee_id' => $employee->id]);
-                $workflow->payload = $payload;
-                $workflow->save();
-            } catch (\Throwable $e) {
-                $this->engine->logEvent($workflow, 'warning', 'Employee record creation failed (non-fatal): ' . $e->getMessage());
-            }
-        }
+        $this->syncAzureProfile($workflow, 'manager setup');
 
         // ── Step 7: Notify admins ─────────────────────────────────
         $extInfo     = $extension ? " Extension: {$extension}." : '';
@@ -563,6 +620,17 @@ class UserProvisioningService
         } catch (\Throwable $e) {
             $this->engine->logEvent($workflow, 'warning',
                 'Failed to queue employee welcome email: ' . $e->getMessage());
+        }
+
+        // ── Details email to HR + the reporting manager ───────────
+        // Same facts as the IT summary minus every credential, so it can go to
+        // people who need to contact the new starter but not sign in as them.
+        try {
+            \App\Jobs\SendOnboardingDetailsJob::dispatch($workflow->id);
+            $this->engine->logEvent($workflow, 'info', 'Details email queued for HR and the manager.');
+        } catch (\Throwable $e) {
+            $this->engine->logEvent($workflow, 'warning',
+                'Failed to queue HR/manager details email: ' . $e->getMessage());
         }
     }
 

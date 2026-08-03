@@ -157,7 +157,11 @@
                     @foreach($recent as $r)
                     <tr>
                         <td class="text-muted small">#{{ $r->id }}</td>
-                        <td class="fw-semibold">{{ $r->title }}</td>
+                        <td>
+                            <a href="{{ route('portal.hr.requests.show', $r->id) }}" class="fw-semibold text-decoration-none">
+                                {{ $r->title }}
+                            </a>
+                        </td>
                         <td><span class="badge {{ $r->typeBadgeClass() }}">{{ $r->typeLabel() }}</span></td>
                         <td class="small">{{ $r->branch?->name ?? '—' }}</td>
                         <td><span class="badge {{ $r->statusBadgeClass() }}">{{ ucfirst(str_replace('_', ' ', $r->status)) }}</span></td>

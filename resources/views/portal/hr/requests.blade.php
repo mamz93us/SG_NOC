@@ -69,7 +69,9 @@
                 <tr>
                     <td class="text-muted small">#{{ $r->id }}</td>
                     <td>
-                        <div class="fw-semibold">{{ $r->title }}</div>
+                        <a href="{{ route('portal.hr.requests.show', $r->id) }}" class="fw-semibold text-decoration-none">
+                            {{ $r->title }}
+                        </a>
                         @if($r->description)
                             <div class="text-muted small text-truncate" style="max-width: 480px;">{{ $r->description }}</div>
                         @endif

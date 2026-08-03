@@ -28,6 +28,7 @@
           <tr>
             <th class="ps-4">Branch</th>
             <th>Department</th>
+            <th>Gender</th>
             <th>Azure Group</th>
             <th>Type</th>
             <th>Status</th>
@@ -50,6 +51,15 @@
                 <span class="badge bg-info-subtle text-info border border-info-subtle">{{ $m->department->name }}</span>
               @else
                 <span class="badge bg-secondary-subtle text-secondary">Any Department</span>
+              @endif
+            </td>
+            <td>
+              @if($m->gender)
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                  {{ ucfirst($m->gender) }} only
+                </span>
+              @else
+                <span class="badge bg-secondary-subtle text-secondary">Any Gender</span>
               @endif
             </td>
             <td>

@@ -46,12 +46,15 @@ class BranchDepartmentGroupController extends Controller
         $data = $request->validate([
             'branch_id'         => 'nullable|integer|exists:branches,id',
             'department_id'     => 'nullable|integer|exists:departments,id',
+            // Blank = applies to everyone, same as a blank branch or department.
+            'gender'            => 'nullable|in:male,female',
             'identity_group_id' => 'required|integer|exists:identity_groups,id',
             'is_active'         => 'boolean',
             'notes'             => 'nullable|string|max:500',
         ]);
 
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['gender']    = $data['gender'] ?? null;
 
         BranchDepartmentGroupMapping::create($data);
 
@@ -78,8 +81,9 @@ class BranchDepartmentGroupController extends Controller
     {
         $branchId = $request->integer('branch_id') ?: null;
         $deptId   = $request->integer('department_id') ?: null;
+        $gender   = $request->string('gender')->toString() ?: null;
 
-        $groupIds = BranchDepartmentGroupMapping::getGroupsFor($branchId, $deptId);
+        $groupIds = BranchDepartmentGroupMapping::getGroupsFor($branchId, $deptId, $gender);
         $groups   = IdentityGroup::whereIn('id', $groupIds)
             ->get(['id', 'display_name', 'group_type', 'security_enabled']);
 

@@ -73,6 +73,15 @@
                         </div>
 
                         <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Gender <span class="text-danger">*</span></label>
+                            <select name="gender" class="form-select form-select-sm" required>
+                                <option value="">— Select —</option>
+                                <option value="female" @selected(old('gender') === 'female')>Female</option>
+                                <option value="male" @selected(old('gender') === 'male')>Male</option>
+                            </select>
+                            <div class="form-text">Determines which Azure groups are auto-assigned.</div>
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label small fw-semibold">Mobile Phone</label>
                             <input type="text" name="mobile_phone" class="form-control form-control-sm" value="{{ old('mobile_phone') }}" placeholder="+966XXXXXXXXX">
                             <div class="form-text">Used on Azure profile.</div>

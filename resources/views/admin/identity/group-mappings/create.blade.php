@@ -59,6 +59,22 @@
 
             <div class="mb-4">
               <label class="form-label fw-semibold">
+                Gender
+                <span class="text-muted fw-normal small ms-1">(leave blank = applies to everyone)</span>
+              </label>
+              <select name="gender" class="form-select">
+                <option value="">Any Gender</option>
+                <option value="female" @selected(old('gender') === 'female')>Female only</option>
+                <option value="male" @selected(old('gender') === 'male')>Male only</option>
+              </select>
+              <div class="form-text">
+                Matched against the gender HR records on the onboarding form. An employee
+                with no gender on file only ever matches “Any Gender” mappings.
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label fw-semibold">
                 Azure Group <span class="text-danger">*</span>
               </label>
               <select name="identity_group_id" class="form-select" required>

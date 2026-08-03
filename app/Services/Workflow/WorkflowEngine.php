@@ -449,12 +449,29 @@ class WorkflowEngine
         // manager has declared whether an extension is needed, chosen
         // internet access level, floor, groups, etc.
         if ($this->shouldWaitForManagerForm($workflow)) {
+            // Create the identity NOW — Azure account, licences, branch/gender
+            // groups, employee record — so the mailbox is live and licensed
+            // while the manager form is still outstanding. Only the half that
+            // genuinely depends on the manager's answers (IP-phone extension,
+            // their chosen groups, internet tier, tickets) waits for the form.
+            $workflow->update(['status' => 'executing']);
+
+            try {
+                app(UserProvisioningService::class)->provisionCoreIdentity($workflow);
+            } catch (\Throwable $e) {
+                // A failure here is fatal: without an account there is nothing
+                // for the manager's answers to be applied to.
+                Log::error("[WorkflowEngine] Core provisioning failed for workflow #{$workflow->id}: {$e->getMessage()}");
+                $this->markFailed($workflow, $e->getMessage());
+                return;
+            }
+
             $this->dispatchManagerFormEmail($workflow);
             $workflow->update(['status' => 'awaiting_manager_form']);
             $this->logEvent(
                 $workflow,
                 'info',
-                'Approvals complete. Manager setup form sent — waiting for manager response before provisioning.'
+                'Account, licences and groups are done. Manager setup form sent — waiting on their response for the phone extension and remaining setup.'
             );
             return;
         }
