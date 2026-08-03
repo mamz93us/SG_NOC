@@ -528,10 +528,12 @@ class SnmpMonitoringController extends Controller
 
     public function discoverDevice(MonitoredHost $host)
     {
-        // dispatch_sync runs this exact instance, so $job->outcome is populated on return.
-        // Without this the button reported success even when the device never answered.
+        // Must be dispatchNow, NOT dispatch_sync: this job implements ShouldQueue, so
+        // dispatch_sync routes it through SyncQueue, which serialises and re-hydrates the
+        // job — handle() then writes its outcome to a copy and the caller always sees the
+        // default ("Discovery did not run."). dispatchNow invokes this exact instance.
         $job = new \App\Jobs\DiscoverSnmpDeviceJob($host);
-        dispatch_sync($job);
+        \Illuminate\Support\Facades\Bus::dispatchNow($job);
 
         if (! ($job->outcome['ok'] ?? false)) {
             return back()->with('error', $job->outcome['reason'] ?? 'Discovery failed — see the application log.');
