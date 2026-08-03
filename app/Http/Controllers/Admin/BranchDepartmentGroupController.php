@@ -61,6 +61,27 @@ class BranchDepartmentGroupController extends Controller
         $data['gender']    = $data['gender'] ?? null;
         $data['floor_id']  = $data['floor_id'] ?? null;
 
+        // A floor belongs to exactly one branch, so a floor paired with a
+        // different branch is a mapping that can never match anybody. The form
+        // filters the picker to prevent it, but validate server-side too —
+        // silently saving dead rules is worse than an error.
+        if ($data['floor_id']) {
+            $floor = \App\Models\NetworkFloor::find($data['floor_id']);
+
+            if ($data['branch_id'] && $floor && (int) $floor->branch_id !== (int) $data['branch_id']) {
+                return back()->withInput()->withErrors([
+                    'floor_id' => "“{$floor->name}” belongs to a different branch, so this mapping could never match anyone. "
+                        .'Pick a floor in the selected branch, or set Branch to Any.',
+                ]);
+            }
+
+            // Floor chosen with Branch left as "Any": pin the branch to the
+            // floor's own, so the rule reads honestly in the list.
+            if (! $data['branch_id'] && $floor) {
+                $data['branch_id'] = $floor->branch_id;
+            }
+        }
+
         BranchDepartmentGroupMapping::create($data);
 
         return redirect('/admin/identity/group-mappings')
