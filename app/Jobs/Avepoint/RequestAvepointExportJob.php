@@ -71,7 +71,7 @@ class RequestAvepointExportJob implements ShouldQueue
     private function createManualUploadTask(AvepointBackup $backup): void
     {
         $subject = $backup->subject_name ?? $backup->subject_upn;
-        $url     = route('admin.avepoint.backup.show', $backup);
+        $url     = \App\Support\Noc::route('admin.avepoint.backup.show', $backup);
 
         ItTask::create([
             'title'        => "AvePoint export ({$backup->type}) for {$subject}",

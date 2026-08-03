@@ -58,7 +58,7 @@ class CreateLaptopBackupTaskJob implements ShouldQueue
                             . "1. Physically retrieve or remotely connect to the laptop.\n"
                             . "2. Extract user folder (C:\\Users\\{username}\\Documents, Desktop, Downloads, etc.).\n"
                             . "3. Compress to a single .zip / .7z.\n"
-                            . "4. Upload via NOC: " . route('admin.offboarding.show', $ow) . " (look for the laptop backup row).\n"
+                            . "4. Upload via NOC: " . \App\Support\Noc::route('admin.offboarding.show', $ow) . " (look for the laptop backup row).\n"
                             . "Intune device wipe is on hold until this upload completes.",
             'type'         => 'offboarding_laptop_backup',
             'priority'     => 'high',

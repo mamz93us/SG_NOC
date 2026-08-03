@@ -92,7 +92,7 @@ class StartAvePointMailboxExportJob implements ShouldQueue
                             . "1. Log into AvePoint Cloud Backup for M365.\n"
                             . "2. Locate the latest {$type} backup for {$ow->employee->email}.\n"
                             . "3. Export and download the archive.\n"
-                            . "4. Upload via NOC: " . route('admin.offboarding.show', $ow) . " (look for the {$type} backup row).",
+                            . "4. Upload via NOC: " . \App\Support\Noc::route('admin.offboarding.show', $ow) . " (look for the {$type} backup row).",
             'type'         => 'offboarding_avepoint_manual',
             'priority'     => 'high',
             'status'       => 'open',

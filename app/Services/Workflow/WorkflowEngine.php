@@ -132,7 +132,7 @@ class WorkflowEngine
                 'approval_action',
                 "Step {$step->step_number} Approved — {$workflow->title}",
                 "{$user->name} approved step {$step->step_number} ({$step->approverRoleLabel()}).",
-                route('admin.workflows.show', $workflow->id),
+                \App\Support\Noc::route('admin.workflows.show', $workflow->id),
                 'info'
             );
         }
@@ -164,7 +164,7 @@ class WorkflowEngine
                 'approval_action',
                 "Request Rejected — {$workflow->title}",
                 "{$user->name} rejected this request at step {$step->step_number}." . ($comments ? " Reason: {$comments}" : ''),
-                route('admin.workflows.show', $workflow->id),
+                \App\Support\Noc::route('admin.workflows.show', $workflow->id),
                 'warning'
             );
         }
@@ -382,7 +382,7 @@ class WorkflowEngine
                         'workflow_notification',
                         $subject,
                         $body,
-                        route('admin.workflows.show', $workflow->id),
+                        \App\Support\Noc::route('admin.workflows.show', $workflow->id),
                         'info'
                     );
                 } elseif ($workflow->requested_by) {
@@ -391,7 +391,7 @@ class WorkflowEngine
                         'workflow_notification',
                         $subject,
                         $body,
-                        route('admin.workflows.show', $workflow->id),
+                        \App\Support\Noc::route('admin.workflows.show', $workflow->id),
                         'info'
                     );
                 }
@@ -564,7 +564,7 @@ class WorkflowEngine
             'workflow_failed',
             "Workflow Failed — {$workflow->title}",
             "Workflow #{$workflow->id} ({$workflow->typeLabel()}) failed: {$message}",
-            route('admin.workflows.show', $workflow->id),
+            \App\Support\Noc::route('admin.workflows.show', $workflow->id),
             'critical'
         );
 
@@ -574,7 +574,7 @@ class WorkflowEngine
                 'workflow_failed',
                 "Your Request Failed — {$workflow->title}",
                 "Your request could not be completed: {$message}",
-                route('admin.workflows.show', $workflow->id),
+                \App\Support\Noc::route('admin.workflows.show', $workflow->id),
                 'critical'
             );
         }
@@ -613,7 +613,7 @@ class WorkflowEngine
                 'approval_request',
                 "Approval Required — {$workflow->title}",
                 "A workflow request requires your approval (Step {$stepNumber}: {$step->approverRoleLabel()}).",
-                route('admin.workflows.show', $workflow->id),
+                \App\Support\Noc::route('admin.workflows.show', $workflow->id),
                 'warning'
             );
             return;
@@ -626,7 +626,7 @@ class WorkflowEngine
             'approval_request',
             "Approval Required — {$workflow->title}",
             "A workflow request requires {$step->approverRoleLabel()} approval (Step {$stepNumber}).",
-            route('admin.workflows.show', $workflow->id),
+            \App\Support\Noc::route('admin.workflows.show', $workflow->id),
             'warning'
         );
     }

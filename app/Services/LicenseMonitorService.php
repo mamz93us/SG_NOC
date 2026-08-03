@@ -69,7 +69,7 @@ class LicenseMonitorService
                 'system_alert',
                 'Low License Alert',
                 "License '{$license->display_name}' has only {$available} seat(s) left (threshold: {$monitor->critical_threshold}). A purchase workflow has been created.",
-                route('admin.license-monitors.index'),
+                \App\Support\Noc::route('admin.license-monitors.index'),
                 'warning'
             );
 

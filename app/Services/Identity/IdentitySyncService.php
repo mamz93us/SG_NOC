@@ -511,7 +511,7 @@ class IdentitySyncService
                     $message .= " {$activeAssets->count()} device(s) still assigned and require return: {$assetNames}.";
                 }
 
-                $link = route('admin.employees.show', $employee->id);
+                $link = \App\Support\Noc::route('admin.employees.show', $employee->id);
 
                 $notifier->notifyViaRules(
                     'account_disabled',
@@ -565,7 +565,7 @@ class IdentitySyncService
                     $message .= " Please collect {$activeAssets->count()} device(s): {$assetNames}.";
                 }
 
-                $link = route('admin.employees.show', $employee->id);
+                $link = \App\Support\Noc::route('admin.employees.show', $employee->id);
 
                 $notifier->notifyViaRules(
                     'account_removed',

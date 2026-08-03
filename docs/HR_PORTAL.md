@@ -214,6 +214,16 @@ php artisan config:clear && php artisan route:clear
   does) produces no manager token and no `OffboardingWorkflow` row, so nothing
   ever executes. The portal form and `POST /api/hr/offboarding` both use the
   service and are equivalent.
+- **Never use plain `route('admin.*')` for a link that travels.** `route()` builds
+  absolute URLs from the *current* host, so an approval notification raised on the
+  HR host used to contain `https://hr.samirgroup.net/admin/workflows/1`, which
+  404s here by design. Use `App\Support\Noc::route()` for any `/admin` link that
+  ends up in a notification, an email, or anywhere else it gets clicked later —
+  it pins the root to `APP_URL`. Plain `route()` is still correct for
+  `redirect()->route(...)` inside an admin controller.
+- **`APP_URL` must be the NOC host in production** (`https://noc.samirgroup.net`).
+  It is what `Noc::route()` and every queued-job link resolve against; a wrong
+  value silently sends people to the wrong host.
 - **Access analytics** label this host as app `hr` (`AccessVisitRecorder::appFor`),
   so HR traffic does not inflate the NOC numbers on `/admin/access-stats`.
 - **The onboarding form's availability check is real, and shares code with

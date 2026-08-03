@@ -7,7 +7,9 @@
     $ow      = $offboardingWorkflow;
     $emp     = $ow->employee;
     $token   = $ow->token;
-    $adminUrl = url(route('admin.offboarding.show', $ow));
+    // Canonical NOC host — this link is emailed, so it must not inherit the
+    // host that happened to generate it (hr./em./vcard. all 404 on /admin).
+    $adminUrl = \App\Support\Noc::route('admin.offboarding.show', $ow);
 @endphp
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f9;padding:30px 0;">

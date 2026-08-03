@@ -61,7 +61,7 @@ class ExecuteWorkflowJob implements ShouldQueue
                     'workflow_complete',
                     "Request Completed — {$workflow->title}",
                     'Your request has been fully processed and completed.',
-                    route('admin.workflows.show', $workflow->id),
+                    \App\Support\Noc::route('admin.workflows.show', $workflow->id),
                     'info'
                 );
             }

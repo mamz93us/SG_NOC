@@ -476,7 +476,7 @@ class UserProvisioningService
             'workflow_complete',
             'User Provisioned',
             "New user '{$displayName}' ({$upn}) has been successfully provisioned.{$extInfo}{$commentInfo}",
-            route('admin.workflows.show', $workflow->id),
+            \App\Support\Noc::route('admin.workflows.show', $workflow->id),
             'info'
         );
 

@@ -71,7 +71,7 @@ class StartAvePointOneDriveExportJob implements ShouldQueue
                     'title'        => "Manual upload: export {$ow->employee->name}'s OneDrive from AvePoint UI",
                     'description'  => "AvePoint Graph API trigger/download endpoints are not configured.\n"
                                     . "Export OneDrive backup from AvePoint UI and upload via NOC: "
-                                    . route('admin.offboarding.show', $ow),
+                                    . \App\Support\Noc::route('admin.offboarding.show', $ow),
                     'type'         => 'offboarding_avepoint_manual',
                     'priority'     => 'high',
                     'status'       => 'open',

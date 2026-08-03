@@ -83,7 +83,7 @@ class PrinterSupplyMonitorService
         $title = "Low Toner Alert: {$printer->printer_name}";
         $message = "Printer {$printer->printer_name} at {$location} has low toner "
                  ."({$supplyName}: {$level}%). Please replace soon.";
-        $link = route('admin.printers.show', $printer->id);
+        $link = \App\Support\Noc::route('admin.printers.show', $printer->id);
 
         try {
             $this->notifications->notifyViaRules(

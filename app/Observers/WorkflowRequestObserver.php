@@ -79,7 +79,7 @@ class WorkflowRequestObserver
                 'workflow_' . $model->status,
                 $title,
                 $message,
-                route('admin.workflows.show', $model->id),
+                \App\Support\Noc::route('admin.workflows.show', $model->id),
                 $severity
             );
         } catch (\Throwable) {
