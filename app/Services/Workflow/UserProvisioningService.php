@@ -369,6 +369,54 @@ class UserProvisioningService
 
         $this->engine->logEvent($workflow, 'info', 'Applying the manager’s setup choices.');
 
+        // ── Step 3b(ii): Floor-specific auto-groups ───────────────
+        // The floor is only known now — the manager picked it on the form — so
+        // this is the earliest any floor-scoped mapping can be applied. Re-runs
+        // the same matcher with the real floor and assigns only what stage A
+        // did not already cover (printer groups per floor, typically).
+        $floorIdForGroups = $payload['floor_id'] ?? null;
+
+        if ($floorIdForGroups) {
+            $alreadyAssigned = collect($payload['auto_assigned_groups'] ?? []);
+
+            $floorGroupIds = \App\Models\BranchDepartmentGroupMapping::getGroupsFor(
+                $workflow->branch_id ?? 0,
+                isset($payload['department_id']) ? (int) $payload['department_id'] : 0,
+                $payload['gender'] ?? null,
+                (int) $floorIdForGroups
+            )->reject(fn ($id) => $alreadyAssigned->contains($id))->values();
+
+            if ($floorGroupIds->isNotEmpty()) {
+                $this->engine->logEvent($workflow, 'info',
+                    "Assigning {$floorGroupIds->count()} floor-specific Azure group(s) for the manager's chosen floor.");
+
+                foreach ($floorGroupIds as $identityGroupId) {
+                    $group = IdentityGroup::find($identityGroupId);
+                    if (! $group) {
+                        continue;
+                    }
+                    try {
+                        $graph->addUserToGroup($azureId, $group->azure_id);
+                        $this->engine->logEvent($workflow, 'success', "Floor group '{$group->display_name}' assigned.");
+                        sleep(1);
+                    } catch (\Throwable $e) {
+                        if (str_contains($e->getMessage(), '409')) {
+                            $this->engine->logEvent($workflow, 'info', "Already in group: {$group->display_name}");
+                        } else {
+                            $this->engine->logEvent($workflow, 'warning',
+                                "Floor group '{$group->display_name}' assignment failed (non-fatal): " . $e->getMessage());
+                        }
+                    }
+                }
+
+                // Record them alongside the stage-A groups so a retry does not
+                // try to assign the same ones again.
+                $payload['auto_assigned_groups'] = $alreadyAssigned->merge($floorGroupIds)->unique()->values()->all();
+                $workflow->payload = $payload;
+                $workflow->save();
+            }
+        }
+
         // ── Step 3c: Assign manager-selected groups ───────────────
         // If the manager filled the onboarding form, assign the groups they chose.
         $managerGroupIds = $payload['manager_groups'] ?? [];

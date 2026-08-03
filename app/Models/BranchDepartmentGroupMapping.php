@@ -12,6 +12,7 @@ class BranchDepartmentGroupMapping extends Model
     protected $fillable = [
         'branch_id',
         'department_id',
+        'floor_id',
         'gender',
         'identity_group_id',
         'is_active',
@@ -34,6 +35,11 @@ class BranchDepartmentGroupMapping extends Model
         return $this->belongsTo(Department::class);
     }
 
+    public function floor(): BelongsTo
+    {
+        return $this->belongsTo(NetworkFloor::class, 'floor_id');
+    }
+
     public function identityGroup(): BelongsTo
     {
         return $this->belongsTo(IdentityGroup::class, 'identity_group_id');
@@ -50,22 +56,27 @@ class BranchDepartmentGroupMapping extends Model
 
     /**
      * Get identity_group_id values for active mappings that match a
-     * branch + department + gender.
+     * branch + department + gender + floor.
      *
-     * Logic: (branch_id = $branchId OR branch_id IS NULL)
-     *        AND (department_id = $deptId OR department_id IS NULL)
-     *        AND (gender = $gender OR gender IS NULL)
-     *        AND is_active = true
+     * Every dimension follows the same rule: NULL on the mapping means "any",
+     * so a mapping that leaves a field blank still matches everyone — which is
+     * what keeps older, narrower mappings working after each new dimension is
+     * added. A NULL *argument* (we don't know the employee's gender/floor yet)
+     * matches only the mappings that are agnostic about it, never a specific
+     * one — so nothing is assigned prematurely.
      *
-     * NULL on a mapping means "any", so a mapping with no gender set still
-     * matches everyone — which is what keeps pre-gender mappings working.
-     * A NULL *argument* (employee with no gender recorded) matches only the
-     * gender-agnostic mappings, never a male- or female-specific one.
+     * Floor in particular is unknown until the manager returns the setup form,
+     * which is why provisioning calls this twice: once at account creation with
+     * floorId = null, and again afterwards with the real floor.
      *
      * Returns a Collection of identity_group_id integers.
      */
-    public static function getGroupsFor(?int $branchId, ?int $deptId, ?string $gender = null): Collection
-    {
+    public static function getGroupsFor(
+        ?int $branchId,
+        ?int $deptId,
+        ?string $gender = null,
+        ?int $floorId = null
+    ): Collection {
         $gender = $gender ? strtolower(trim($gender)) : null;
 
         return static::active()
@@ -81,6 +92,12 @@ class BranchDepartmentGroupMapping extends Model
                 $q->whereNull('gender');
                 if ($gender !== null) {
                     $q->orWhereRaw('LOWER(gender) = ?', [$gender]);
+                }
+            })
+            ->where(function (Builder $q) use ($floorId) {
+                $q->whereNull('floor_id');
+                if ($floorId !== null) {
+                    $q->orWhere('floor_id', $floorId);
                 }
             })
             ->pluck('identity_group_id');

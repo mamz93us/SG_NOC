@@ -59,6 +59,26 @@
 
             <div class="mb-4">
               <label class="form-label fw-semibold">
+                Floor
+                <span class="text-muted fw-normal small ms-1">(leave blank = applies to all floors)</span>
+              </label>
+              <select name="floor_id" class="form-select">
+                <option value="">Any Floor</option>
+                @foreach($floors as $f)
+                  <option value="{{ $f->id }}" @selected(old('floor_id') == $f->id)>
+                    {{ $f->branch?->name ? $f->branch->name.' — ' : '' }}{{ $f->name }}
+                  </option>
+                @endforeach
+              </select>
+              <div class="form-text">
+                Use this for per-floor groups such as printer access. The floor is chosen by the
+                manager on the onboarding form, so a floor-specific mapping is applied
+                <strong>after</strong> the manager replies — not at account creation.
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label fw-semibold">
                 Gender
                 <span class="text-muted fw-normal small ms-1">(leave blank = applies to everyone)</span>
               </label>

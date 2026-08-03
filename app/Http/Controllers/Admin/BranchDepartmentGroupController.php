@@ -19,7 +19,7 @@ class BranchDepartmentGroupController extends Controller
      */
     public function index(): View
     {
-        $mappings = BranchDepartmentGroupMapping::with(['branch', 'department', 'identityGroup'])
+        $mappings = BranchDepartmentGroupMapping::with(['branch', 'department', 'floor', 'identityGroup'])
             ->orderBy('id', 'desc')
             ->paginate(50);
 
@@ -34,8 +34,11 @@ class BranchDepartmentGroupController extends Controller
         $branches   = Branch::orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
         $groups     = IdentityGroup::orderBy('display_name')->get();
+        // Floors carry their branch so the picker can say which building it is in.
+        $floors     = \App\Models\NetworkFloor::with('branch')
+            ->orderBy('branch_id')->orderBy('sort_order')->orderBy('name')->get();
 
-        return view('admin.identity.group-mappings.create', compact('branches', 'departments', 'groups'));
+        return view('admin.identity.group-mappings.create', compact('branches', 'departments', 'floors', 'groups'));
     }
 
     /**
@@ -47,6 +50,7 @@ class BranchDepartmentGroupController extends Controller
             'branch_id'         => 'nullable|integer|exists:branches,id',
             'department_id'     => 'nullable|integer|exists:departments,id',
             // Blank = applies to everyone, same as a blank branch or department.
+            'floor_id'          => 'nullable|integer|exists:network_floors,id',
             'gender'            => 'nullable|in:male,female',
             'identity_group_id' => 'required|integer|exists:identity_groups,id',
             'is_active'         => 'boolean',
@@ -55,6 +59,7 @@ class BranchDepartmentGroupController extends Controller
 
         $data['is_active'] = $request->boolean('is_active', true);
         $data['gender']    = $data['gender'] ?? null;
+        $data['floor_id']  = $data['floor_id'] ?? null;
 
         BranchDepartmentGroupMapping::create($data);
 
@@ -82,8 +87,9 @@ class BranchDepartmentGroupController extends Controller
         $branchId = $request->integer('branch_id') ?: null;
         $deptId   = $request->integer('department_id') ?: null;
         $gender   = $request->string('gender')->toString() ?: null;
+        $floorId  = $request->integer('floor_id') ?: null;
 
-        $groupIds = BranchDepartmentGroupMapping::getGroupsFor($branchId, $deptId, $gender);
+        $groupIds = BranchDepartmentGroupMapping::getGroupsFor($branchId, $deptId, $gender, $floorId);
         $groups   = IdentityGroup::whereIn('id', $groupIds)
             ->get(['id', 'display_name', 'group_type', 'security_enabled']);
 

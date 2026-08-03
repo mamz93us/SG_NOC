@@ -28,6 +28,7 @@
           <tr>
             <th class="ps-4">Branch</th>
             <th>Department</th>
+            <th>Floor</th>
             <th>Gender</th>
             <th>Azure Group</th>
             <th>Type</th>
@@ -51,6 +52,13 @@
                 <span class="badge bg-info-subtle text-info border border-info-subtle">{{ $m->department->name }}</span>
               @else
                 <span class="badge bg-secondary-subtle text-secondary">Any Department</span>
+              @endif
+            </td>
+            <td>
+              @if($m->floor)
+                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">{{ $m->floor->name }}</span>
+              @else
+                <span class="badge bg-secondary-subtle text-secondary">Any Floor</span>
               @endif
             </td>
             <td>
