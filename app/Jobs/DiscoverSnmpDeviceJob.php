@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\MonitoredHost;
-use App\Models\SnmpSensor;
 use App\Polling\OS\OsFactory;
 use App\Services\Snmp\SnmpClient;
 use Illuminate\Bus\Queueable;
@@ -17,18 +16,33 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(public MonitoredHost $host)
-    {
-    }
+    /**
+     * Outcome of the last handle() run, for callers that dispatch this job
+     * synchronously (the "Discover" button) and need to report back to the user.
+     * dispatchSync runs this very instance, so the caller sees these writes.
+     *
+     * @var array{ok: bool, reason: ?string, type: ?string, sensors: int}
+     */
+    public array $outcome = ['ok' => false, 'reason' => 'Discovery did not run.', 'type' => null, 'sensors' => 0];
+
+    public function __construct(public MonitoredHost $host) {}
 
     public function handle(): void
     {
-        if (!$this->host->snmp_enabled) {
+        if (! $this->host->snmp_enabled) {
+            $this->outcome = [
+                'ok' => false,
+                'reason' => 'SNMP is disabled for this host — enable it in the host settings first.',
+                'type' => null,
+                'sensors' => 0,
+            ];
+            Log::warning("DiscoverSnmpDeviceJob: skipped, snmp_enabled is off for {$this->host->ip}");
+
             return;
         }
 
-        if (!SnmpClient::isSnmpExtensionLoaded()) {
-            Log::warning("DiscoverSnmpDeviceJob: PHP SNMP extension not loaded — will attempt CLI fallback.", [
+        if (! SnmpClient::isSnmpExtensionLoaded()) {
+            Log::warning('DiscoverSnmpDeviceJob: PHP SNMP extension not loaded — will attempt CLI fallback.', [
                 'host' => $this->host->ip,
             ]);
         }
@@ -44,11 +58,24 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
 
             if ($sysDescrRaw === false && $sysNameRaw === false) {
                 $communityUsed = $this->host->snmp_community; // This calls the accessor
+                $port = $this->host->snmp_port ?? 161;
+
+                $this->outcome = [
+                    'ok' => false,
+                    'reason' => "No SNMP response from {$this->host->ip}:{$port} ({$this->host->snmp_version}). "
+                        .'Check the community string, that the device permits SNMP from this server, and that UDP '
+                        .$port.' is reachable.',
+                    'type' => null,
+                    'sensors' => 0,
+                ];
+
                 Log::error("SNMP Discovery failed: No response from {$this->host->ip} for basic OIDs (sysDescr, sysName). Check community string or host availability.", [
                     'community' => $communityUsed,
-                    'port' => $this->host->snmp_port ?? 161,
+                    'port' => $port,
                     'version' => $this->host->snmp_version,
+                    'cli_fallback' => $client->isCliMode(),
                 ]);
+
                 return;
             }
 
@@ -70,7 +97,7 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
             // Fallback to sysUpTime (.1.3.6.1.2.1.1.3.0) which is time since SNMP service start.
             $testHrUptime = $client->get('1.3.6.1.2.1.25.1.1.0');
             $uptimeOid = ($testHrUptime !== false) ? '1.3.6.1.2.1.25.1.1.0' : '1.3.6.1.2.1.1.3.0';
-            
+
             // Re-use or create the System Uptime sensor
             $this->host->snmpSensors()->updateOrCreate(
                 ['name' => 'System Uptime'],
@@ -79,7 +106,7 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
                     'data_type' => 'uptime',
                     'poll_interval' => 60,
                     'graph_enabled' => true,
-                    'sensor_group' => 'system'
+                    'sensor_group' => 'system',
                 ]
             );
 
@@ -89,7 +116,7 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
             $sysObjectIDStr = is_string($sysObjectID) ? $this->cleanString($sysObjectID) ?? '' : '';
             $os = OsFactory::make($this->host, $client, $sysDescr, $sysObjectIDStr);
 
-            $this->host->type           = $os->hostType();
+            $this->host->type = $os->hostType();
             $this->host->discovered_type = $os->discoveredType();
 
             // Create vendor-specific sensors
@@ -100,16 +127,32 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
 
             $this->host->save();
 
+            $this->outcome = [
+                'ok' => true,
+                'reason' => null,
+                'type' => $os->discoveredType(),
+                'sensors' => $this->host->snmpSensors()->count(),
+            ];
+
             Log::info("SNMP Discovery completed for {$this->host->ip}", [
                 'discovered_type' => $os->discoveredType(),
                 'sysName' => $sysName,
+                'sysDescr' => $sysDescr,
+                'sensors' => $this->outcome['sensors'],
             ]);
 
             // Fire Interface Discovery automatically
             DiscoverSnmpInterfacesJob::dispatchSync($this->host);
 
         } catch (\Exception $e) {
-            Log::error("DiscoverSnmpDeviceJob failed", [
+            $this->outcome = [
+                'ok' => false,
+                'reason' => 'Discovery failed: '.$e->getMessage(),
+                'type' => null,
+                'sensors' => 0,
+            ];
+
+            Log::error('DiscoverSnmpDeviceJob failed', [
                 'host' => $this->host->ip,
                 'port' => $this->host->snmp_port ?? 161,
                 'version' => $this->host->snmp_version,
@@ -122,8 +165,11 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
 
     protected function cleanString(string|false|null $value): ?string
     {
-        if (!$value || $value === false) return null;
+        if (! $value || $value === false) {
+            return null;
+        }
         $value = preg_replace('/^[a-zA-Z]+:\s*/', '', $value);
+
         return trim(trim($value, '"'));
     }
 

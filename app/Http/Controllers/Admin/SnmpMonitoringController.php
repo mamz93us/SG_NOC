@@ -528,8 +528,20 @@ class SnmpMonitoringController extends Controller
 
     public function discoverDevice(MonitoredHost $host)
     {
-        dispatch_sync(new \App\Jobs\DiscoverSnmpDeviceJob($host));
-        return back()->with('success', 'Device discovery completed synchronously.');
+        // dispatch_sync runs this exact instance, so $job->outcome is populated on return.
+        // Without this the button reported success even when the device never answered.
+        $job = new \App\Jobs\DiscoverSnmpDeviceJob($host);
+        dispatch_sync($job);
+
+        if (! ($job->outcome['ok'] ?? false)) {
+            return back()->with('error', $job->outcome['reason'] ?? 'Discovery failed — see the application log.');
+        }
+
+        return back()->with('success', sprintf(
+            'Discovery complete — detected as "%s", %d sensor(s) now configured.',
+            $job->outcome['type'] ?? 'unknown',
+            $job->outcome['sensors'] ?? 0
+        ));
     }
 
     public function discoverInterfaces(MonitoredHost $host)
