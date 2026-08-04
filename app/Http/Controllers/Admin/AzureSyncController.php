@@ -222,6 +222,35 @@ class AzureSyncController extends Controller
     /**
      * Confirm user-to-device link: assigns the Azure device's ITAM asset to an employee.
      */
+    /**
+     * Attach a device to an employee, dating the assignment from when the
+     * machine was actually enrolled in Intune rather than when the sync ran.
+     *
+     * `now()` was wrong twice over: a laptop enrolled in 2022 would show as
+     * assigned today, and because this used updateOrCreate, every re-sync
+     * rewrote the date again. So an existing assignment date is never
+     * overwritten here — only filled in when missing.
+     */
+    private function linkEmployeeAsset(int $employeeId, int $deviceId, AzureDevice $azureDevice, string $notes): void
+    {
+        $asset = \App\Models\EmployeeAsset::firstOrNew([
+            'employee_id' => $employeeId,
+            'asset_id' => $deviceId,
+        ]);
+
+        $asset->condition = 'used';
+        $asset->notes = $notes;
+
+        if (! $asset->assigned_date) {
+            // Enrolment date is the closest thing we have to "the day this
+            // person got the laptop". Fall back to today only when Intune
+            // never reported one.
+            $asset->assigned_date = $azureDevice->enrolled_date ?? now();
+        }
+
+        $asset->save();
+    }
+
     public function confirmUserLink(Request $request, AzureDevice $azureDevice)
     {
         $request->validate(['employee_id' => 'required|exists:employees,id']);
@@ -234,9 +263,11 @@ class AzureSyncController extends Controller
         $employee = \App\Models\Employee::findOrFail($request->employee_id);
 
         if ($device) {
-            \App\Models\EmployeeAsset::updateOrCreate(
-                ['employee_id' => $employee->id, 'asset_id' => $device->id],
-                ['assigned_date' => now(), 'condition' => 'used', 'notes' => 'User link confirmed via Azure Sync page.']
+            $this->linkEmployeeAsset(
+                $employee->id,
+                $device->id,
+                $azureDevice,
+                'User link confirmed via Azure Sync page.'
             );
             $device->update(['status' => 'assigned']);
             AssetHistory::record($device, 'assigned', "User link confirmed: {$employee->name} via Azure Sync.");
@@ -488,13 +519,11 @@ class AzureSyncController extends Controller
                 // 5. Assign to Employee if UPN matches
                 $employee = $this->findEmployeeByUpn($azureDevice->upn);
                 if ($employee) {
-                    \App\Models\EmployeeAsset::updateOrCreate(
-                        ['employee_id' => $employee->id, 'asset_id' => $device->id],
-                        [
-                            'assigned_date' => now(),
-                            'condition' => 'used',
-                            'notes' => 'Assigned during Azure import.',
-                        ]
+                    $this->linkEmployeeAsset(
+                        $employee->id,
+                        $device->id,
+                        $azureDevice,
+                        'Assigned during Azure import.'
                     );
 
                     $device->update(['status' => 'assigned']);
@@ -603,13 +632,11 @@ class AzureSyncController extends Controller
                     // 5. Assign to Employee
                     $employee = $this->findEmployeeByUpn($azureDevice->upn);
                     if ($employee) {
-                        \App\Models\EmployeeAsset::updateOrCreate(
-                            ['employee_id' => $employee->id, 'asset_id' => $device->id],
-                            [
-                                'assigned_date' => now(),
-                                'condition' => 'used',
-                                'notes' => 'Assigned during batch import.',
-                            ]
+                        $this->linkEmployeeAsset(
+                            $employee->id,
+                            $device->id,
+                            $azureDevice,
+                            'Assigned during batch import.'
                         );
                         $device->update(['status' => 'assigned']);
                     }
