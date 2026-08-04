@@ -1799,6 +1799,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('employees/{employee}/signature-roles', [EmployeeController::class, 'storeSignatureRole'])->name('employees.signature-roles.store');
         Route::put('employees/{employee}/signature-roles/{role}', [EmployeeController::class, 'updateSignatureRole'])->name('employees.signature-roles.update');
         Route::delete('employees/{employee}/signature-roles/{role}', [EmployeeController::class, 'destroySignatureRole'])->name('employees.signature-roles.destroy');
+        // Business app access (Salesforce / Oracle / …) for an existing employee
+        Route::post('employees/{employee}/app-accounts', [\App\Http\Controllers\Admin\EmployeeAppAccountController::class, 'store'])
+            ->name('employees.app-accounts.store');
+        Route::patch('employees/{employee}/app-accounts/{account}/activate', [\App\Http\Controllers\Admin\EmployeeAppAccountController::class, 'activate'])
+            ->name('employees.app-accounts.activate');
+        Route::delete('employees/{employee}/app-accounts/{account}', [\App\Http\Controllers\Admin\EmployeeAppAccountController::class, 'destroy'])
+            ->name('employees.app-accounts.destroy');
         Route::post('employees/{employee}/assets', [EmployeeController::class, 'assignAsset'])->name('employees.assets.assign');
         Route::patch('employees/{employee}/assets/{asset}/return', [EmployeeController::class, 'returnAsset'])->name('employees.assets.return');
         // Employee items (standalone equipment)

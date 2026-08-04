@@ -2,9 +2,10 @@
 
 namespace App\Jobs;
 
-use App\Mail\BusinessAppRequestMail;
+use App\Mail\BusinessAppAccountMail;
 use App\Models\BusinessApp;
 use App\Models\EmailLog;
+use App\Models\Employee;
 use App\Models\MailSender;
 use App\Models\WorkflowLog;
 use App\Models\WorkflowRequest;
@@ -18,17 +19,13 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Asks the team that runs a business system (Salesforce, Oracle, …) to create
- * an account for a new starter.
+ * Sends the create-account or disable-account request for a business system.
  *
- * NOC cannot create these accounts, so this email IS the handoff — if it does
- * not arrive, nothing happens. That is why the app is hidden from the manager's
- * form unless recipients are configured.
- *
- * Carries the employee's work details only. No password: NOC has no credentials
- * for these systems and the recipient sets their own.
+ * Used by onboarding (activate) and by the add/remove buttons on an employee's
+ * profile (either). Workflow context is optional — a mid-career access change
+ * has no onboarding request behind it.
  */
-class SendBusinessAppRequestJob implements ShouldQueue
+class SendBusinessAppAccountMailJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -37,17 +34,20 @@ class SendBusinessAppRequestJob implements ShouldQueue
     public int $timeout = 60;
 
     public function __construct(
-        public int $workflowId,
+        public int $employeeId,
         public int $businessAppId,
+        public string $action = BusinessAppAccountMail::ACTIVATE,
+        public ?int $workflowId = null,
+        public ?string $reason = null,
     ) {}
 
     public function handle(SmtpConfigService $smtp): void
     {
-        $workflow = WorkflowRequest::find($this->workflowId);
+        $employee = Employee::with(['branch', 'department', 'manager'])->find($this->employeeId);
         $app = BusinessApp::find($this->businessAppId);
 
-        if (! $workflow || ! $app) {
-            Log::warning("SendBusinessAppRequestJob: workflow #{$this->workflowId} or app #{$this->businessAppId} not found.");
+        if (! $employee || ! $app) {
+            Log::warning("SendBusinessAppAccountMailJob: employee #{$this->employeeId} or app #{$this->businessAppId} not found.");
 
             return;
         }
@@ -55,17 +55,16 @@ class SendBusinessAppRequestJob implements ShouldQueue
         $recipients = $app->requestRecipients();
 
         if (empty($recipients)) {
-            $this->logToWorkflow($workflow->id, 'warning',
-                "{$app->name} account was requested but no recipient address is configured — nobody has been told. Set one in Admin → Business App Accounts.");
+            $this->log("{$app->name} {$this->action} request could not be sent — no recipient address is configured. Set one in Admin → Business App Accounts.", 'warning');
 
             return;
         }
 
         $smtp->loadFromSettings();
 
-        $payload = $workflow->payload ?? [];
-        $displayName = $payload['display_name'] ?? 'New employee';
-        $subject = "Account request: {$app->name} for {$displayName}";
+        $workflow = $this->workflowId ? WorkflowRequest::find($this->workflowId) : null;
+        $verb = $this->action === BusinessAppAccountMail::DEACTIVATE ? 'Disable' : 'Create';
+        $subject = "{$verb} {$app->name} account: {$employee->name}";
 
         foreach ($recipients as $email) {
             $status = 'sent';
@@ -74,14 +73,14 @@ class SendBusinessAppRequestJob implements ShouldQueue
             try {
                 Mail::to($email)->send(
                     MailSender::apply(
-                        new BusinessAppRequestMail($workflow, $app),
+                        new BusinessAppAccountMail($employee, $app, $this->action, $workflow, $this->reason),
                         MailSender::ONBOARDING
                     )
                 );
             } catch (\Throwable $e) {
                 $status = 'failed';
                 $error = $e->getMessage();
-                Log::error("SendBusinessAppRequestJob: send failed to {$email} for workflow #{$workflow->id}: {$error}");
+                Log::error("SendBusinessAppAccountMailJob: send failed to {$email}: {$error}");
             }
 
             try {
@@ -89,7 +88,7 @@ class SendBusinessAppRequestJob implements ShouldQueue
                     'to_email' => $email,
                     'to_name' => null,
                     'subject' => $subject,
-                    'notification_type' => 'business_app_request_'.$app->key,
+                    'notification_type' => "business_app_{$this->action}_{$app->key}",
                     'notification_id' => null,
                     'status' => $status,
                     'error_message' => $error,
@@ -100,15 +99,24 @@ class SendBusinessAppRequestJob implements ShouldQueue
             }
         }
 
-        $this->logToWorkflow($workflow->id, 'success',
-            "{$app->name} account request emailed to ".implode(', ', $recipients).'.');
+        $this->log("{$app->name} account {$this->action} request emailed to ".implode(', ', $recipients).'.', 'success');
     }
 
-    private function logToWorkflow(int $workflowId, string $level, string $message): void
+    /**
+     * Log to the workflow timeline when there is one; otherwise the Laravel log
+     * is the only trail (profile-driven changes have no workflow).
+     */
+    private function log(string $message, string $level): void
     {
+        if (! $this->workflowId) {
+            Log::info("[BusinessApp] {$message}");
+
+            return;
+        }
+
         try {
             WorkflowLog::create([
-                'workflow_id' => $workflowId,
+                'workflow_id' => $this->workflowId,
                 'level' => $level,
                 'message' => $message,
                 'created_at' => now(),

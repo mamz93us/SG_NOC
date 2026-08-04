@@ -704,7 +704,12 @@ class UserProvisioningService
             ]);
 
             try {
-                \App\Jobs\SendBusinessAppRequestJob::dispatch($workflow->id, $app->id);
+                \App\Jobs\SendBusinessAppAccountMailJob::dispatch(
+                    $employeeId,
+                    $app->id,
+                    \App\Mail\BusinessAppAccountMail::ACTIVATE,
+                    $workflow->id,
+                );
             } catch (\Throwable $e) {
                 $this->engine->logEvent($workflow, 'warning',
                     "Failed to queue the {$app->name} account request email: " . $e->getMessage());

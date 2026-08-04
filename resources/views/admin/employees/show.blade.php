@@ -254,14 +254,30 @@
         </div>
 
         {{-- Business systems (Salesforce, Oracle, …) NOC requests but does not create --}}
-        @php $appAccounts = $employee->appAccounts()->with('app')->get(); @endphp
-        @if($appAccounts->isNotEmpty())
+        @php
+            $canManageApps = auth()->user()?->can('manage-employees');
+            $appAccounts   = $employee->appAccounts()->with('app')->get();
+            // Only offer apps that are switched on, have somewhere to send the
+            // request, and the employee does not already hold.
+            $heldAppIds    = $appAccounts->where('status', '!=', 'revoked')->pluck('business_app_id')->all();
+            $availableApps = $canManageApps
+                ? \App\Models\BusinessApp::selectable()
+                    ->filter(fn ($a) => $a->isConfigured() && ! in_array($a->id, $heldAppIds))
+                    ->values()
+                : collect();
+        @endphp
+        @if($appAccounts->isNotEmpty() || $availableApps->isNotEmpty())
         <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #6f42c1!important">
-            <div class="card-header bg-transparent">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
                 <strong><i class="bi bi-app-indicator me-1" style="color:#6f42c1"></i>Business Applications</strong>
+                @if($availableApps->isNotEmpty())
+                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#grantAppModal">
+                        <i class="bi bi-plus-lg"></i> Add
+                    </button>
+                @endif
             </div>
             <div class="card-body py-2">
-                @foreach($appAccounts as $acct)
+                @forelse($appAccounts as $acct)
                     <div class="d-flex justify-content-between align-items-center {{ ! $loop->last ? 'border-bottom pb-2 mb-2' : '' }}">
                         <div>
                             <div class="fw-semibold">{{ $acct->app?->name ?? '—' }}</div>
@@ -269,16 +285,115 @@
                                 @if($acct->account_identifier)
                                     <span class="font-monospace">{{ $acct->account_identifier }}</span> ·
                                 @endif
-                                {{ $acct->status === 'active'
-                                    ? 'Active since '.$acct->activated_at?->format('d M Y')
-                                    : 'Requested '.$acct->requested_at?->diffForHumans() }}
+                                @if($acct->status === 'active')
+                                    Active since {{ $acct->activated_at?->format('d M Y') }}
+                                @elseif($acct->status === 'revoked')
+                                    Revoked {{ $acct->revoked_at?->format('d M Y') }}
+                                @else
+                                    Requested {{ $acct->requested_at?->diffForHumans() }}
+                                @endif
                             </div>
                         </div>
-                        <span class="badge {{ $acct->statusBadgeClass() }}">{{ $acct->statusLabel() }}</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge {{ $acct->statusBadgeClass() }}">{{ $acct->statusLabel() }}</span>
+                            @if($canManageApps && $acct->status !== 'revoked')
+                                @if($acct->status === 'requested')
+                                    <form method="POST" action="{{ route('admin.employees.app-accounts.activate', [$employee, $acct]) }}" class="d-inline">
+                                        @csrf @method('PATCH')
+                                        <button class="btn btn-sm btn-outline-success" title="Mark as created">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                    </form>
+                                @endif
+                                <button class="btn btn-sm btn-outline-danger" title="Revoke access"
+                                        data-bs-toggle="modal" data-bs-target="#revokeAppModal"
+                                        data-action="{{ route('admin.employees.app-accounts.destroy', [$employee, $acct]) }}"
+                                        data-app="{{ $acct->app?->name }}">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            @endif
+                        </div>
                     </div>
-                @endforeach
+                @empty
+                    <div class="text-muted small py-2">No business app access recorded.</div>
+                @endforelse
             </div>
         </div>
+
+        @if($canManageApps)
+        {{-- Grant --}}
+        <div class="modal fade" id="grantAppModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <form method="POST" action="{{ route('admin.employees.app-accounts.store', $employee) }}">
+                    @csrf
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Grant business app access</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="small text-muted">
+                                Adds {{ $employee->name }} to the app's security group and emails the team
+                                who runs it. They create the account — NOC cannot.
+                            </p>
+                            <label class="form-label fw-semibold">Application</label>
+                            <select name="business_app_id" class="form-select mb-3" required>
+                                @foreach($availableApps as $a)
+                                    <option value="{{ $a->id }}">{{ $a->name }}</option>
+                                @endforeach
+                            </select>
+                            <label class="form-label fw-semibold">Note for the app team <span class="text-muted fw-normal">(optional)</span></label>
+                            <textarea name="notes" class="form-control" rows="2" maxlength="500"
+                                      placeholder="e.g. Moving to the sales team from 1 September."></textarea>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1"></i>Request Access</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Revoke --}}
+        <div class="modal fade" id="revokeAppModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <form method="POST" id="revokeAppForm">
+                    @csrf @method('DELETE')
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Revoke <span id="revokeAppName"></span> access</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="small text-muted">
+                                Removes {{ $employee->name }} from the security group and emails the app team
+                                asking them to disable the account. The record is kept, marked revoked.
+                            </p>
+                            <label class="form-label fw-semibold">Reason <span class="text-muted fw-normal">(optional, included in the email)</span></label>
+                            <textarea name="reason" class="form-control" rows="2" maxlength="500"
+                                      placeholder="e.g. Moved off the sales team."></textarea>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-danger"><i class="bi bi-x-lg me-1"></i>Revoke Access</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        @push('scripts')
+        <script>
+        document.getElementById('revokeAppModal')?.addEventListener('show.bs.modal', function (e) {
+            const btn = e.relatedTarget;
+            if (!btn) return;
+            document.getElementById('revokeAppForm').action = btn.getAttribute('data-action');
+            document.getElementById('revokeAppName').textContent = btn.getAttribute('data-app') || '';
+        });
+        </script>
+        @endpush
+        @endif
         @endif
 
         @php $canManageEmp = auth()->user()?->can('manage-employees'); @endphp
