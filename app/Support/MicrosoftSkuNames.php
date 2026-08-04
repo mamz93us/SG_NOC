@@ -117,6 +117,15 @@ class MicrosoftSkuNames
         'CDSAICAPACITY' => 'AI Builder Capacity Add-on',
         'MICROSOFT_BUSINESS_CENTER' => 'Microsoft Business Center',
         'Microsoft_365_Copilot' => 'Microsoft 365 Copilot',
+
+        // ── SKUs seen in this tenant that the general list above misses ──
+        // "_DEPT" variants are the departmental purchase channel for the same
+        // product, so they carry the same product name.
+        'TVM_Premium_Standalone' => 'Microsoft Defender Vulnerability Management',
+        'CCIBOTS_PRIVPREV_VIRAL' => 'Power Virtual Agents Viral Trial',
+        'Microsoft_Teams_Exploratory_Dept' => 'Microsoft Teams Exploratory',
+        'POWERAPPS_DEV' => 'Microsoft Power Apps for Developer',
+        'PROJECT_PLAN3_DEPT' => 'Project Plan 3',
     ];
 
     /**
