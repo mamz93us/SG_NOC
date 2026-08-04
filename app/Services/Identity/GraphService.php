@@ -535,6 +535,27 @@ class GraphService
      *
      * @see https://learn.microsoft.com/en-us/graph/api/group-post-members
      */
+
+    /**
+     * True when a group-membership write failed only because the desired state
+     * already holds — the user is already a member, or already isn't one.
+     *
+     * Worth a helper because Graph is inconsistent here: adding a duplicate
+     * member returns **400 Request_BadRequest** with "already exist" in the
+     * message, NOT the 409 you would expect. Checking for 409 alone (as this
+     * codebase used to) reports every already-a-member as a failure, which
+     * turns a no-op bulk re-run into a wall of false errors.
+     */
+    public static function isAlreadyMemberError(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+
+        return str_contains($message, '409')
+            || str_contains($message, 'already exist')          // add: duplicate member
+            || str_contains($message, 'one or more added object references already exist')
+            || str_contains($message, 'does not exist or one of its queried reference-property'); // remove: not a member
+    }
+
     public function addUserToGroup(string $userId, string $groupId): void
     {
         $this->post("/groups/{$groupId}/members/\$ref", [

@@ -273,7 +273,7 @@ class UserProvisioningService
                         sleep(1); // Small delay to avoid Graph throttling
                     } catch (\Throwable $e) {
                         // 409 = already a member — not an error
-                        if (str_contains($e->getMessage(), '409')) {
+                        if (\App\Services\Identity\GraphService::isAlreadyMemberError($e)) {
                             $this->engine->logEvent($workflow, 'info', "Already in group: {$group->display_name}");
                         } else {
                             $this->engine->logEvent($workflow, 'warning',
@@ -400,7 +400,7 @@ class UserProvisioningService
                         $this->engine->logEvent($workflow, 'success', "Floor group '{$group->display_name}' assigned.");
                         sleep(1);
                     } catch (\Throwable $e) {
-                        if (str_contains($e->getMessage(), '409')) {
+                        if (\App\Services\Identity\GraphService::isAlreadyMemberError($e)) {
                             $this->engine->logEvent($workflow, 'info', "Already in group: {$group->display_name}");
                         } else {
                             $this->engine->logEvent($workflow, 'warning',
@@ -434,7 +434,7 @@ class UserProvisioningService
                     $this->engine->logEvent($workflow, 'success', "Group '{$group->display_name}' assigned.");
                     sleep(1);
                 } catch (\Throwable $e) {
-                    if (str_contains($e->getMessage(), '409')) {
+                    if (\App\Services\Identity\GraphService::isAlreadyMemberError($e)) {
                         $this->engine->logEvent($workflow, 'info', "Already in group: {$group->display_name}");
                     } else {
                         $this->engine->logEvent($workflow, 'warning',
@@ -457,7 +457,7 @@ class UserProvisioningService
                     "Internet access group '{$internetLevelLabel}' assigned.");
                 sleep(1);
             } catch (\Throwable $e) {
-                if (str_contains($e->getMessage(), '409')) {
+                if (\App\Services\Identity\GraphService::isAlreadyMemberError($e)) {
                     $this->engine->logEvent($workflow, 'info',
                         "Already in internet access group: {$internetLevelLabel}");
                 } else {
@@ -683,7 +683,7 @@ class UserProvisioningService
                         "{$app->name} security group '{$app->identityGroup->display_name}' assigned.");
                     sleep(1);
                 } catch (\Throwable $e) {
-                    if (str_contains($e->getMessage(), '409')) {
+                    if (\App\Services\Identity\GraphService::isAlreadyMemberError($e)) {
                         $this->engine->logEvent($workflow, 'info', "Already in {$app->name} security group.");
                     } else {
                         $this->engine->logEvent($workflow, 'warning',

@@ -168,7 +168,7 @@ class EmployeeAppAccountController extends Controller
             }
         } catch (\Throwable $e) {
             // 404/409 mean the membership was already in the desired state.
-            if (! str_contains($e->getMessage(), '404') && ! str_contains($e->getMessage(), '409')) {
+            if (! str_contains($e->getMessage(), '404') && ! \App\Services\Identity\GraphService::isAlreadyMemberError($e)) {
                 session()->flash('warning',
                     "{$app->name} security group could not be updated in Azure: ".$e->getMessage());
             }

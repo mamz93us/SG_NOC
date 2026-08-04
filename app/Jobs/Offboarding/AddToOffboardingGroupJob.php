@@ -51,7 +51,7 @@ class AddToOffboardingGroupJob implements ShouldQueue
                 "Added user to offboarding Azure group ({$groupId}).");
         } catch (\Throwable $e) {
             // 409 = already a member — not an error.
-            if (str_contains($e->getMessage(), '409')) {
+            if (\App\Services\Identity\GraphService::isAlreadyMemberError($e)) {
                 $engine->logEvent($ow->workflow, 'info',
                     "User already in offboarding group ({$groupId}).");
                 return;

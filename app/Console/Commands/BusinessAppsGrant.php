@@ -146,7 +146,7 @@ class BusinessAppsGrant extends Command
                     // Graph throttles hard on bulk membership writes.
                     usleep(400_000);
                 } catch (\Throwable $e) {
-                    if (! str_contains($e->getMessage(), '409')) {
+                    if (! \App\Services\Identity\GraphService::isAlreadyMemberError($e)) {
                         $groupFailures[] = "{$employee->email}: ".$e->getMessage();
                     }
                 }
