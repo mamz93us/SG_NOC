@@ -104,11 +104,16 @@ class IdentitySyncService
 
             DB::transaction(function () use ($skus, &$syncedIds) {
                 foreach ($skus as $sku) {
+                    // Graph only gives us the part number (SPE_E3, EMS, ...), which
+                    // means nothing to anyone reading the licences page. Resolve it
+                    // to the name shown in the Microsoft 365 admin centre.
+                    $friendlyName = \App\Support\MicrosoftSkuNames::forPartNumber($sku['skuPartNumber']);
+
                     $identityLicense = IdentityLicense::updateOrCreate(
                         ['sku_id' => $sku['skuId']],
                         [
                             'sku_part_number' => $sku['skuPartNumber'],
-                            'display_name' => $sku['skuPartNumber'],
+                            'display_name' => $friendlyName,
                             'total' => $sku['prepaidUnits']['enabled'] ?? 0,
                             'consumed' => $sku['consumedUnits'] ?? 0,
                             'available' => max(0, ($sku['prepaidUnits']['enabled'] ?? 0) - ($sku['consumedUnits'] ?? 0)),
@@ -122,7 +127,7 @@ class IdentitySyncService
                     // bidirectional via identity_licenses.license_id.
                     if (! $identityLicense->license_id) {
                         $itamLicense = License::create([
-                            'license_name' => $sku['skuPartNumber'],
+                            'license_name' => $friendlyName,
                             'vendor' => 'Microsoft',
                             'license_type' => 'subscription',
                             'seats' => $sku['prepaidUnits']['enabled'] ?? 1,
