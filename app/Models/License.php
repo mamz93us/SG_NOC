@@ -11,14 +11,13 @@ class License extends Model
 {
     protected $fillable = [
         'license_name', 'vendor', 'supplier_id', 'purchase_order_id', 'license_key', 'license_type',
-        'purchase_date', 'expiry_date', 'cost', 'vat_rate', 'currency', 'seats', 'notes',
+        'purchase_date', 'expiry_date', 'cost', 'currency', 'seats', 'notes',
     ];
 
     protected $casts = [
         'purchase_date' => 'date',
         'expiry_date' => 'date',
         'cost' => 'decimal:2',
-        'vat_rate' => 'decimal:2',
         'seats' => 'integer',
     ];
 
@@ -121,48 +120,18 @@ class License extends Model
     // ─────────────────────────────────────────────────────────────
     // Money
     //
-    // `cost` is the UNIT price per seat, excluding VAT — that is what a PO
-    // quotes, and it stays meaningful when seat counts change. Everything
-    // else is derived, so nothing can drift out of step with it.
+    // `cost` is the price per seat INCLUDING VAT — one figure, as invoiced.
+    // There is deliberately no separate tax field: everything that reports
+    // money reads this directly, so there is no basis to get wrong.
     // ─────────────────────────────────────────────────────────────
 
-    /** Unit price including VAT. */
-    public function unitCostIncVat(): ?float
-    {
-        if ($this->cost === null) {
-            return null;
-        }
-
-        return round((float) $this->cost * (1 + ((float) ($this->vat_rate ?? 0) / 100)), 2);
-    }
-
-    /** Whole-subscription cost at the current seat count, excluding VAT. */
-    public function totalCostExVat(): ?float
+    /** Whole-subscription cost at the current seat count. */
+    public function totalCost(): ?float
     {
         if ($this->cost === null) {
             return null;
         }
 
         return round((float) $this->cost * max(0, (int) $this->seats), 2);
-    }
-
-    /** VAT amount across all seats. */
-    public function vatAmount(): ?float
-    {
-        $ex = $this->totalCostExVat();
-
-        if ($ex === null) {
-            return null;
-        }
-
-        return round($ex * ((float) ($this->vat_rate ?? 0) / 100), 2);
-    }
-
-    /** Whole-subscription cost at the current seat count, including VAT. */
-    public function totalCostIncVat(): ?float
-    {
-        $ex = $this->totalCostExVat();
-
-        return $ex === null ? null : round($ex + (float) $this->vatAmount(), 2);
     }
 }

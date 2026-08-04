@@ -34,7 +34,7 @@
         <input type="number" name="seats" class="form-control" value="1" min="1" required>
     </div>
     <div class="col-md-3">
-        <label class="form-label">Cost <span class="text-muted small">(per seat, ex-VAT)</span></label>
+        <label class="form-label">Cost <span class="text-muted small">(per seat, VAT included)</span></label>
         <div class="input-group">
             <input type="number" name="cost" class="form-control" step="0.01" min="0">
             <select name="currency" class="form-select" style="max-width:80px">
@@ -43,16 +43,7 @@
                 @endforeach
             </select>
         </div>
-        <div class="form-text">Unit price as quoted on the PO. Totals are calculated from seats.</div>
-    </div>
-    <div class="col-md-3">
-        <label class="form-label">VAT</label>
-        <div class="input-group">
-            <input type="number" name="vat_rate" class="form-control" step="0.01" min="0" max="100"
-                   value="{{ old('vat_rate') }}" placeholder="15">
-            <span class="input-group-text">%</span>
-        </div>
-        <div class="form-text">Leave blank if the licence is zero-rated.</div>
+        <div class="form-text">Price per seat as invoiced, tax included. Totals are calculated from seats.</div>
     </div>
     <div class="col-md-6">
         <label class="form-label">Purchase Date</label>

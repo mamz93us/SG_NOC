@@ -324,15 +324,11 @@ class AssetReportController extends Controller
 
         // Per-license full cost: each assignment gets the full license cost.
         // Cross-row totals will exceed the actual amount paid when licenses are shared.
-        //
-        // Costs here are INCLUSIVE of VAT — these reports answer "what are we
-        // spending", so they should show the amount actually paid. `cost` is
-        // stored as the ex-VAT unit price (what a PO quotes), so the rate is
-        // applied here rather than at every call site.
-        $licenseCosts = License::select('id', 'cost', 'vat_rate', 'currency')->get()
+        // Costs are as stored on the licence: price per seat, VAT included.
+        $licenseCosts = License::select('id', 'cost', 'currency')->get()
             ->mapWithKeys(function ($l) {
                 return [$l->id => [
-                    'cost'     => (float) ($l->unitCostIncVat() ?? 0),
+                    'cost'     => (float) ($l->cost ?? 0),
                     'currency' => $l->currency ?? 'USD',
                 ]];
             });

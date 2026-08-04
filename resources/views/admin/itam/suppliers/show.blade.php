@@ -186,11 +186,10 @@
                                 @endif
                             </td>
                             <td class="text-end font-monospace">
-                                {{-- Inc VAT: `cost` is stored ex-VAT (the PO figure). --}}
-                                {{ $l->cost ? ($l->currency ?? 'USD') . ' ' . number_format($l->unitCostIncVat(), 2) : '—' }}
+                                {{ $l->cost ? ($l->currency ?? 'USD') . ' ' . number_format($l->cost, 2) : '—' }}
                             </td>
                             <td class="text-end font-monospace fw-semibold">
-                                {{ $l->cost ? ($l->currency ?? 'USD') . ' ' . number_format($l->totalCostIncVat(), 2) : '—' }}
+                                {{ $l->cost ? ($l->currency ?? 'USD') . ' ' . number_format($l->totalCost(), 2) : '—' }}
                             </td>
                         </tr>
                         @endforeach
