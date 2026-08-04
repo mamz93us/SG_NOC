@@ -266,7 +266,14 @@
                     ->values()
                 : collect();
         @endphp
-        @if($appAccounts->isNotEmpty() || $availableApps->isNotEmpty())
+        @php
+            // Apps that exist and are switched on, regardless of whether they are
+            // usable yet. An admin looking at this card is exactly the person who
+            // can fix an unconfigured app, so hiding it from them would be wrong —
+            // the manager's onboarding form is the place that hides them.
+            $anyActiveApps = $canManageApps && \App\Models\BusinessApp::active()->exists();
+        @endphp
+        @if($appAccounts->isNotEmpty() || $availableApps->isNotEmpty() || $anyActiveApps)
         <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #6f42c1!important">
             <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
                 <strong><i class="bi bi-app-indicator me-1" style="color:#6f42c1"></i>Business Applications</strong>
@@ -274,9 +281,21 @@
                     <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#grantAppModal">
                         <i class="bi bi-plus-lg"></i> Add
                     </button>
+                @elseif($anyActiveApps && $appAccounts->isEmpty())
+                    <a href="{{ route('admin.business-apps.index') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-gear"></i> Configure
+                    </a>
                 @endif
             </div>
             <div class="card-body py-2">
+                @if($availableApps->isEmpty() && $appAccounts->isEmpty() && $anyActiveApps)
+                    <div class="text-muted small py-1">
+                        <i class="bi bi-exclamation-triangle text-warning me-1"></i>
+                        No business app has a request recipient configured yet, so access cannot be
+                        requested. Set one in
+                        <a href="{{ route('admin.business-apps.index') }}">Business App Accounts</a>.
+                    </div>
+                @endif
                 @forelse($appAccounts as $acct)
                     <div class="d-flex justify-content-between align-items-center {{ ! $loop->last ? 'border-bottom pb-2 mb-2' : '' }}">
                         <div>
@@ -315,7 +334,11 @@
                         </div>
                     </div>
                 @empty
-                    <div class="text-muted small py-2">No business app access recorded.</div>
+                    {{-- Suppressed when the unconfigured-apps hint above is already showing,
+                         so the card does not display two "nothing here" messages. --}}
+                    @if($availableApps->isNotEmpty())
+                        <div class="text-muted small py-2">No business app access recorded.</div>
+                    @endif
                 @endforelse
             </div>
         </div>
