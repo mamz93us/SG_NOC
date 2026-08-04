@@ -75,6 +75,22 @@ Schedule::command('identity:sync')
     ->withoutOverlapping(240)
     ->runInBackground();
 
+// Employee licence assignments — hourly, at :35.
+//
+// This same step already runs as the LAST thing inside identity:sync, but it
+// sat at zero assignments for two months while every sync reported "completed":
+// the heavy job evidently was not always reaching the end, and LOG_LEVEL=error
+// on production meant its Log::info never recorded that it had been skipped.
+//
+// Running it standalone as well makes licence data independent of whether the
+// big sync finishes. It is cheap (a chunked read plus firstOrCreate) and
+// idempotent, so the overlap with identity:sync is harmless — whichever runs
+// first, the second is a no-op. Offset to :35 to stay clear of the hourly sync.
+Schedule::command('identity:sync-license-assignments')
+    ->hourlyAt(35)
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
 // CUPS Print Manager — status refresh
 $cupsInterval = max(1, (int) ($settings?->cups_refresh_interval ?: 5));
 Schedule::command('cups:refresh-status')
