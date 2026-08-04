@@ -417,6 +417,9 @@ class UserProvisioningService
             }
         }
 
+        // ── Business app accounts (Salesforce, Oracle, …) ─────────
+        $this->requestBusinessAppAccounts($workflow, $payload, $graph, $azureId);
+
         // ── Step 3c: Assign manager-selected groups ───────────────
         // If the manager filled the onboarding form, assign the groups they chose.
         $managerGroupIds = $payload['manager_groups'] ?? [];
@@ -633,6 +636,80 @@ class UserProvisioningService
         $this->createProvisioningTasks($workflow, $payload, $extension, $ucmServer);
 
         $this->engine->logEvent($workflow, 'success', 'User provisioning complete.');
+    }
+
+    /**
+     * Act on the business systems the manager ticked (Salesforce, Oracle, …).
+     *
+     * NOC cannot create these accounts, so for each one it does the two things
+     * it can: put the employee in the security group that governs access, and
+     * email the team who administers that system. The employee_app_accounts row
+     * is what makes it visible on the profile and stops a duplicate request.
+     *
+     * Idempotent — an existing row means the email already went out.
+     */
+    private function requestBusinessAppAccounts(
+        WorkflowRequest $workflow,
+        array $payload,
+        GraphService $graph,
+        string $azureId
+    ): void {
+        $appIds     = $payload['business_apps'] ?? [];
+        $employeeId = $payload['employee_id'] ?? null;
+
+        if (empty($appIds) || ! $employeeId) {
+            return;
+        }
+
+        $apps = \App\Models\BusinessApp::with('identityGroup')->whereIn('id', $appIds)->get();
+
+        foreach ($apps as $app) {
+            $existing = \App\Models\EmployeeAppAccount::where('employee_id', $employeeId)
+                ->where('business_app_id', $app->id)
+                ->first();
+
+            if ($existing) {
+                $this->engine->logEvent($workflow, 'info',
+                    "{$app->name} account already recorded for this employee — not requesting again.");
+                continue;
+            }
+
+            // Security group first: if the email lands before access is granted,
+            // whoever picks it up may find the person cannot sign in yet.
+            if ($app->identityGroup?->azure_id) {
+                try {
+                    $graph->addUserToGroup($azureId, $app->identityGroup->azure_id);
+                    $this->engine->logEvent($workflow, 'success',
+                        "{$app->name} security group '{$app->identityGroup->display_name}' assigned.");
+                    sleep(1);
+                } catch (\Throwable $e) {
+                    if (str_contains($e->getMessage(), '409')) {
+                        $this->engine->logEvent($workflow, 'info', "Already in {$app->name} security group.");
+                    } else {
+                        $this->engine->logEvent($workflow, 'warning',
+                            "{$app->name} security group assignment failed (non-fatal): " . $e->getMessage());
+                    }
+                }
+            } else {
+                $this->engine->logEvent($workflow, 'info',
+                    "{$app->name} has no security group configured — skipping group assignment.");
+            }
+
+            \App\Models\EmployeeAppAccount::create([
+                'employee_id'     => $employeeId,
+                'business_app_id' => $app->id,
+                'workflow_id'     => $workflow->id,
+                'status'          => \App\Models\EmployeeAppAccount::STATUS_REQUESTED,
+                'requested_at'    => now(),
+            ]);
+
+            try {
+                \App\Jobs\SendBusinessAppRequestJob::dispatch($workflow->id, $app->id);
+            } catch (\Throwable $e) {
+                $this->engine->logEvent($workflow, 'warning',
+                    "Failed to queue the {$app->name} account request email: " . $e->getMessage());
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

@@ -253,6 +253,34 @@
             </div>
         </div>
 
+        {{-- Business systems (Salesforce, Oracle, …) NOC requests but does not create --}}
+        @php $appAccounts = $employee->appAccounts()->with('app')->get(); @endphp
+        @if($appAccounts->isNotEmpty())
+        <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #6f42c1!important">
+            <div class="card-header bg-transparent">
+                <strong><i class="bi bi-app-indicator me-1" style="color:#6f42c1"></i>Business Applications</strong>
+            </div>
+            <div class="card-body py-2">
+                @foreach($appAccounts as $acct)
+                    <div class="d-flex justify-content-between align-items-center {{ ! $loop->last ? 'border-bottom pb-2 mb-2' : '' }}">
+                        <div>
+                            <div class="fw-semibold">{{ $acct->app?->name ?? '—' }}</div>
+                            <div class="text-muted small">
+                                @if($acct->account_identifier)
+                                    <span class="font-monospace">{{ $acct->account_identifier }}</span> ·
+                                @endif
+                                {{ $acct->status === 'active'
+                                    ? 'Active since '.$acct->activated_at?->format('d M Y')
+                                    : 'Requested '.$acct->requested_at?->diffForHumans() }}
+                            </div>
+                        </div>
+                        <span class="badge {{ $acct->statusBadgeClass() }}">{{ $acct->statusLabel() }}</span>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
         @php $canManageEmp = auth()->user()?->can('manage-employees'); @endphp
         @if($employee->extension_number || ($employee->contact && $employee->contact->phone) || $canManageEmp)
         <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #0d6efd!important">

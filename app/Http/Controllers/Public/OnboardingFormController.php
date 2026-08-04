@@ -47,8 +47,15 @@ class OnboardingFormController extends Controller
         // Load internet access level choices dynamically from settings
         $internetLevels = InternetAccessLevel::ordered()->get();
 
+        // Business systems the manager can request (Salesforce, Oracle, …).
+        // Only apps with somewhere to send the request are offered — otherwise
+        // ticking the box would do nothing visible to anyone.
+        $businessApps = \App\Models\BusinessApp::selectable()
+            ->filter(fn ($a) => $a->isConfigured())
+            ->values();
+
         return view('public.onboarding_form', compact(
-            'tokenRecord', 'workflow', 'payload', 'floors', 'groups', 'internetLevels'
+            'tokenRecord', 'workflow', 'payload', 'floors', 'groups', 'internetLevels', 'businessApps'
         ));
     }
 
@@ -74,6 +81,8 @@ class OnboardingFormController extends Controller
             'floor_id' => 'nullable|exists:network_floors,id',
             'selected_groups' => 'nullable|array',
             'selected_groups.*' => 'integer|exists:identity_groups,id',
+            'business_apps' => 'nullable|array',
+            'business_apps.*' => 'integer|exists:business_apps,id',
             'manager_comments' => 'nullable|string|max:2000',
         ]);
 
@@ -116,6 +125,14 @@ class OnboardingFormController extends Controller
                 'internet_access_group_name' => $internetLevel->azure_group_name,
                 'floor_id' => $data['floor_id'] ?? null,
                 'manager_groups' => $data['selected_groups'] ?? [],
+                // Business systems the manager asked for. Re-checked against
+                // active+configured apps so a stale form cannot request one
+                // that has since been switched off.
+                'business_apps' => \App\Models\BusinessApp::active()
+                    ->whereIn('id', $data['business_apps'] ?? [])
+                    ->get()
+                    ->filter(fn ($a) => $a->isConfigured())
+                    ->pluck('id')->all(),
                 'manager_comments' => $data['manager_comments'] ?? null,
             ]);
             $workflow->payload = $payload;

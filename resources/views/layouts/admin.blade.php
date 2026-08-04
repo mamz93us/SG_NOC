@@ -1056,6 +1056,12 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.business-apps.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.business-apps.index') }}">
+                                    <i class="bi bi-app-indicator me-2"></i>Business App Accounts
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.ticket-stats.*') ? 'active' : '' }}"
                                    href="{{ route('admin.ticket-stats.index') }}">
                                     <i class="bi bi-ticket-detailed me-2"></i>Ticket Portal Stats

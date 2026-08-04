@@ -172,6 +172,36 @@
         </div>
       </div>
 
+      {{-- Business systems (Salesforce / Oracle / …) --}}
+      @if($businessApps->isNotEmpty())
+      <div class="mb-4">
+        <div class="section-title"><i class="bi bi-app-indicator me-1"></i>Business Applications</div>
+        <label class="form-label fw-semibold">
+          Does this employee need any of these?
+          <span class="text-muted fw-normal">(optional)</span>
+        </label>
+        <div class="row g-2">
+          @foreach($businessApps as $app)
+          <div class="col-12 col-md-6">
+            <label class="d-block border rounded p-2" style="cursor:pointer">
+              <input class="form-check-input me-1" type="checkbox"
+                     name="business_apps[]" value="{{ $app->id }}"
+                     {{ in_array($app->id, old('business_apps', [])) ? 'checked' : '' }}>
+              <span class="fw-semibold">{{ $app->name }}</span>
+              @if($app->description)
+                <small class="text-muted d-block mt-1" style="font-size:.75rem">{{ $app->description }}</small>
+              @endif
+            </label>
+          </div>
+          @endforeach
+        </div>
+        <div class="form-text">
+          These accounts are created by the team that runs each system. Ticking a box notifies
+          them with the employee's details — it does not create the account instantly.
+        </div>
+      </div>
+      @endif
+
       {{-- Groups (searchable checkbox list — security groups excluded by controller) --}}
       <div class="mb-4">
         <div class="section-title"><i class="bi bi-people me-1"></i>Group Memberships</div>

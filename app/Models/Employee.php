@@ -138,6 +138,15 @@ class Employee extends Model
         return $this->hasMany(EmployeeAsset::class)->whereNull('returned_date');
     }
 
+    /**
+     * Access to business systems NOC requests but does not create
+     * (Salesforce, Oracle, …). See BusinessApp.
+     */
+    public function appAccounts(): HasMany
+    {
+        return $this->hasMany(EmployeeAppAccount::class);
+    }
+
     public function identityUser(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(IdentityUser::class, 'azure_id', 'azure_id');

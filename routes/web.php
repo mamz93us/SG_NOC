@@ -753,6 +753,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('mail-senders.update');
         Route::post('mail-senders/{serviceKey}/test', [\App\Http\Controllers\Admin\MailSenderController::class, 'test'])
             ->name('mail-senders.test');
+
+        // ── Business app accounts (Salesforce / Oracle / …) ──
+        Route::get('business-apps', [\App\Http\Controllers\Admin\BusinessAppController::class, 'index'])
+            ->name('business-apps.index');
+        Route::post('business-apps', [\App\Http\Controllers\Admin\BusinessAppController::class, 'update'])
+            ->name('business-apps.update');
         // Test-connection buttons live on the Settings page — accessible to any settings manager
         Route::post('settings/test-meraki', [NetworkController::class,  'testConnection'])->name('settings.test-meraki');
         Route::post('settings/test-graph', [IdentityController::class, 'testConnection'])->name('settings.test-graph');

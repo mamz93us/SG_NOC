@@ -135,6 +135,21 @@
                     new employee directly.
                 </div>
 
+                @php $appAccounts = $employee?->appAccounts()->with('app')->get() ?? collect(); @endphp
+                @if($appAccounts->isNotEmpty())
+                    <hr>
+                    <div class="text-muted small mb-2">Business applications</div>
+                    @foreach($appAccounts as $acct)
+                        <div class="d-flex justify-content-between align-items-center small {{ ! $loop->last ? 'mb-2' : '' }}">
+                            <span class="fw-semibold">{{ $acct->app?->name }}</span>
+                            <span class="badge {{ $acct->statusBadgeClass() }}">{{ $acct->statusLabel() }}</span>
+                        </div>
+                    @endforeach
+                    <div class="form-text">
+                        These accounts are created by the team that runs each system, not by IT.
+                    </div>
+                @endif
+
                 @if($employee)
                     <div class="mt-3">
                         <span class="text-muted small">Employee record #{{ $employee->id }} created.</span>
