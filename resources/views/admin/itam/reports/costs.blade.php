@@ -122,6 +122,21 @@
         </div>
     </div>
 
+    {{-- The two cost sources are on different bases, which materially changes
+         the totals — say so rather than let someone reconcile against an
+         invoice and find a 15% gap they cannot explain. --}}
+    <div class="alert alert-light border small d-flex gap-2">
+        <i class="bi bi-info-circle text-primary"></i>
+        <div>
+            <strong>Licence costs include VAT.</strong>
+            They are calculated from the per-seat price on the purchase order plus that
+            licence's VAT rate.
+            <strong>Device and accessory costs are shown exactly as entered</strong> —
+            there is no VAT field on those, so whether they include tax depends on what
+            was typed when the asset was recorded.
+        </div>
+    </div>
+
     {{-- Rows --}}
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white">
