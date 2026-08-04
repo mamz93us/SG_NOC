@@ -84,7 +84,27 @@
                                 <span class="text-muted">—</span>
                             @endif
                         </td>
-                        <td class="font-monospace">{{ $lic->cost ? ($lic->currency ?? 'USD') . ' ' . number_format($lic->cost, 0) : '—' }}</td>
+                        <td class="font-monospace">
+                            @if($lic->cost)
+                                @php $cur = $lic->currency ?? 'USD'; @endphp
+                                {{-- Unit price is the stored figure; the rest is derived from seats. --}}
+                                {{ $cur }} {{ number_format($lic->cost, 2) }}
+                                <span class="text-muted small">/seat</span>
+                                @if($lic->vat_rate)
+                                    <div class="text-muted small">
+                                        +{{ rtrim(rtrim(number_format($lic->vat_rate, 2), '0'), '.') }}% VAT
+                                        &rarr; {{ $cur }} {{ number_format($lic->unitCostIncVat(), 2) }}
+                                    </div>
+                                @endif
+                                <div class="small">
+                                    <span class="text-muted">{{ $lic->seats }} seats:</span>
+                                    <strong>{{ $cur }} {{ number_format($lic->totalCostIncVat(), 2) }}</strong>
+                                    @if($lic->vat_rate)<span class="text-muted">inc VAT</span>@endif
+                                </div>
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td class="text-end">
                             @can('manage-licenses')
                             <button class="btn btn-sm btn-outline-primary" title="Assign"
