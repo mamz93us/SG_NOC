@@ -68,8 +68,7 @@ class SnmpClient
                 $this->retries
             );
         } else {
-            $community = $this->host->snmp_community ?? 'public';
-            $this->session = new \SNMP($version, $target, $community, $this->timeout, $this->retries);
+            $this->session = new \SNMP($version, $target, $this->community(), $this->timeout, $this->retries);
         }
 
         $this->session->exceptions_enabled = \SNMP::ERRNO_ANY;
@@ -293,7 +292,7 @@ class SnmpClient
                 'v1'    => '1',
                 default => '2c',
             };
-            $community = escapeshellarg($this->host->snmp_community ?? '');
+            $community = escapeshellarg($this->community());
             $args = "-v {$version} -c {$community}";
         }
 
@@ -310,6 +309,26 @@ class SnmpClient
     {
         $output = @shell_exec($cmd);
         return is_string($output) ? trim($output) : null;
+    }
+
+    /**
+     * v1/v2c community for this host. Older rows were saved with an encrypted
+     * empty string, which would go on the wire as-is and make every request
+     * time out — degrade to the conventional default and say so in the log.
+     */
+    protected function community(): string
+    {
+        $community = (string) ($this->host->snmp_community ?? '');
+
+        if ($community === '') {
+            Log::warning('SnmpClient: host has no community string configured — falling back to "public".', [
+                'host' => $this->host->ip,
+            ]);
+
+            return 'public';
+        }
+
+        return $community;
     }
 
     public function isCliMode(): bool

@@ -277,8 +277,9 @@ class SnmpMonitoringController extends Controller
         $data = $request->except(['_token', '_method']);
         $data['alert_enabled'] = $request->boolean('alert_enabled', false);
 
-        // Ensure snmp_community is always a string
-        $data['snmp_community'] = $data['snmp_community'] ?? '';
+        // A blank community would go on the wire as-is and every request would
+        // silently time out — fall back to the conventional default instead.
+        $data['snmp_community'] = ($data['snmp_community'] ?? '') ?: 'public';
 
         // Ensure snmp_port has a default
         $data['snmp_port'] = $data['snmp_port'] ?? 161;
@@ -355,9 +356,11 @@ class SnmpMonitoringController extends Controller
         $data['snmp_enabled']  = $request->boolean('snmp_enabled', false);
         $data['alert_enabled'] = $request->boolean('alert_enabled', false);
 
-        // Ensure snmp_community is always a string
-        if (!isset($data['snmp_community']) || $data['snmp_community'] === null) {
-            $data['snmp_community'] = '';
+        // The edit form renders the community as an empty password field
+        // ("Leave blank to keep"), so a blank submission means "unchanged" —
+        // never overwrite the stored community with an empty string.
+        if (empty($data['snmp_community'])) {
+            unset($data['snmp_community']);
         }
 
         // Ensure snmp_port has a default
