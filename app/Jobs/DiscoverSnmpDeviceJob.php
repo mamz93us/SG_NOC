@@ -113,7 +113,7 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
             $sysObjectID = $client->get('1.3.6.1.2.1.1.2.0');
 
             // --- Vendor Detection via OS Factory (LibreNMS-inspired) ---
-            $sysObjectIDStr = is_string($sysObjectID) ? $this->cleanString($sysObjectID) ?? '' : '';
+            $sysObjectIDStr = is_string($sysObjectID) ? $this->normalizeOid($sysObjectID) : '';
             $os = OsFactory::make($this->host, $client, $sysDescr, $sysObjectIDStr);
 
             $this->host->type = $os->hostType();
@@ -171,6 +171,23 @@ class DiscoverSnmpDeviceJob implements ShouldQueue
         $value = preg_replace('/^[a-zA-Z]+:\s*/', '', $value);
 
         return trim(trim($value, '"'));
+    }
+
+    /**
+     * sysObjectID comes back from net-snmp with a type prefix and a *symbolic*
+     * root — "OID: iso.3.6.1.4.1.12356.101.1.644". Every OS::detect() matches on
+     * the numeric enterprise arc, so translate "iso." back to "1." or vendor
+     * detection silently falls through to GenericOS.
+     */
+    protected function normalizeOid(string|false|null $value): string
+    {
+        $oid = $this->cleanString($value) ?? '';
+
+        if (str_starts_with($oid, 'iso.')) {
+            $oid = '1.'.substr($oid, 4);
+        }
+
+        return ltrim($oid, '.');
     }
 
     protected function createSensor(
