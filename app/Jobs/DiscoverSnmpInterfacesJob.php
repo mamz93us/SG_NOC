@@ -99,8 +99,11 @@ class DiscoverSnmpInterfacesJob implements ShouldQueue
                     continue;
                 }
                 
-                // Skip if it looks like a VLAN by type even if name is weird
-                if (in_array($type, [135, 136, 161])) {
+                // Skip if it looks like a VLAN by type even if name is weird.
+                // 161 (ieee8023adLag) is deliberately NOT skipped — an aggregate
+                // such as a FortiGate's "fortilink" carries all the downstream
+                // switch traffic and is one of the more useful ports to graph.
+                if (in_array($type, [135, 136])) {
                     continue;
                 }
 
