@@ -38,19 +38,28 @@ class DiscoverSnmpInterfacesJob implements ShouldQueue
             $client->setOidOutputFormat(\SNMP_OID_OUTPUT_NUMERIC ?? 3);
             $client->setValueRetrieval(\SNMP_VALUE_PLAIN ?? 4);
 
-            // Walk IF-MIB::ifDescr (.1.3.6.1.2.1.2.2.1.2)
-            $ifDescrs = $client->walk('1.3.6.1.2.1.2.2.1.2');
-            
+            // IF-MIB::ifName (.1.3.6.1.2.1.31.1.1.1.1) is the reliable label —
+            // FortiOS returns an empty ifDescr for every port, which used to
+            // leave every sensor named " - Status" and collapse the whole
+            // interface list into one unnamed row in the UI.
+            $ifNames = $this->indexed($client->walk('1.3.6.1.2.1.31.1.1.1.1') ?: []);
+
+            // Walk IF-MIB::ifDescr (.1.3.6.1.2.1.2.2.1.2) as the fallback label
+            $ifDescrs = $this->indexed($client->walk('1.3.6.1.2.1.2.2.1.2') ?: []);
+
             // Walk IF-MIB::ifType (.1.3.6.1.2.1.2.2.1.3) to filter physical ports
-            $ifTypes = $client->walk('1.3.6.1.2.1.2.2.1.3') ?: [];
+            $ifTypes = $this->indexed($client->walk('1.3.6.1.2.1.2.2.1.3') ?: []);
 
             // Try to walk IF-MIB::ifAlias (.1.3.6.1.2.1.31.1.1.1.18) for prettier names/descriptions
-            $ifAliases = $client->walk('1.3.6.1.2.1.31.1.1.1.18') ?: [];
-            
-            // Try to walk ifHighSpeed (.1.3.6.1.2.1.31.1.1.1.15) for 64-bit speed info (mbps)
-            $ifHighSpeeds = $client->walk('1.3.6.1.2.1.31.1.1.1.15') ?: [];
+            $ifAliases = $this->indexed($client->walk('1.3.6.1.2.1.31.1.1.1.18') ?: []);
 
-            if (!$ifDescrs) {
+            // Try to walk ifHighSpeed (.1.3.6.1.2.1.31.1.1.1.15) for 64-bit speed info (mbps)
+            $ifHighSpeeds = $this->indexed($client->walk('1.3.6.1.2.1.31.1.1.1.15') ?: []);
+
+            $indices = array_keys($ifNames + $ifDescrs);
+            sort($indices);
+
+            if (!$indices) {
                 Log::info("DiscoverSnmpInterfacesJob: No interfaces found for {$this->host->ip}");
                 return;
             }
@@ -61,27 +70,22 @@ class DiscoverSnmpInterfacesJob implements ShouldQueue
             // Check if HC counters are supported
             $hcSupported = false;
             if ($this->host->snmp_version !== 'v1') {
-                foreach ($ifDescrs as $oid => $descr) {
-                    $parts = explode('.', $oid);
-                    $index = (int) end($parts);
+                foreach (array_slice($indices, 0, 5) as $index) {
                     $testVal = $client->get("1.3.6.1.2.1.31.1.1.1.6.{$index}");
                     if ($testVal !== false && $testVal !== null && $testVal !== '') {
                         $hcSupported = true;
                         break;
                     }
-                    if (++$discoveredCount >= 5) break;
                 }
-                $discoveredCount = 0; // reset for actual count
             }
 
-            foreach ($ifDescrs as $oid => $descr) {
-                // Determine port index
-                $parts = explode('.', $oid);
-                $index = (int) end($parts);
-                $cleanName = trim(trim($descr, '"'));
+            foreach ($indices as $index) {
+                // ifName wins, then ifDescr, then the bare index so a sensor is
+                // never left with an empty label.
+                $cleanName = ($ifNames[$index] ?? '') ?: ($ifDescrs[$index] ?? '') ?: "Index {$index}";
 
                 // --- STRICT FILTERING ---
-                $type = isset($ifTypes[$oid]) ? (int)$ifTypes[$oid] : 0;
+                $type = (int) ($ifTypes[$index] ?? 0);
                 
                 // Keep only physical-like types (6=ethernet, 7=ethernet, 117=gigabit)
                 // Skip common virtual/software types: 24=loopback, 53=propVirtual, 131=tunnel, 135=l2vlan/l3ipvlan
@@ -100,8 +104,8 @@ class DiscoverSnmpInterfacesJob implements ShouldQueue
                     continue;
                 }
 
-                $alias = isset($ifAliases["1.3.6.1.2.1.31.1.1.1.18.{$index}"]) ? trim(trim($ifAliases["1.3.6.1.2.1.31.1.1.1.18.{$index}"], '"')) : null;
-                $speedMbps = isset($ifHighSpeeds["1.3.6.1.2.1.31.1.1.1.15.{$index}"]) ? (int)$ifHighSpeeds["1.3.6.1.2.1.31.1.1.1.15.{$index}"] : 0;
+                $alias = ($ifAliases[$index] ?? '') ?: null;
+                $speedMbps = (int) ($ifHighSpeeds[$index] ?? 0);
                 
                 $description = $alias ?: $cleanName;
                 if ($speedMbps > 0) {
@@ -195,6 +199,31 @@ class DiscoverSnmpInterfacesJob implements ShouldQueue
         } finally {
             $client?->close();
         }
+    }
+
+    /**
+     * Re-key an OID-keyed walk result by its final sub-identifier (the interface
+     * index). Walk keys arrive with a leading dot via the PHP extension but
+     * without one via the CLI fallback, so rebuilding the full OID to look a
+     * value up silently missed — which is why ifAlias and ifHighSpeed were
+     * never applied. Keying off the last arc works for both.
+     */
+    protected function indexed(array $walk): array
+    {
+        $out = [];
+
+        foreach ($walk as $oid => $value) {
+            $parts = explode('.', (string) $oid);
+            $value = preg_replace(
+                '/^(?:STRING|INTEGER|Gauge32|Counter32|Counter64|Hex-STRING|OID|IpAddress|Timeticks|BITS)\s*:\s*/',
+                '',
+                (string) $value
+            );
+
+            $out[(int) end($parts)] = trim(trim($value), '"');
+        }
+
+        return $out;
     }
 
     protected function createSensor(
