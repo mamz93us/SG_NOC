@@ -6,6 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * VESTIGIAL — a leftover of the strongSwan VPN Hub, which was removed once the
+ * branch tunnels moved to the Azure VPN gateway. Nothing writes these rows and
+ * the table is empty in production; the model survives only because
+ * `MonitoredHost.vpn_id`, `BranchAgent.vpn_id`, `VpnLog.vpn_id` and
+ * `TopologyService` still reference it.
+ *
+ * For live tunnel health use `BranchTunnel` + `TunnelProbe` (the Branch Tunnel
+ * Watchdog). Do not build new features on this model.
+ */
 class VpnTunnel extends Model
 {
     protected $fillable = [
@@ -66,10 +76,11 @@ class VpnTunnel extends Model
     }
 
     /**
-     * The CHILD_SAs this tunnel is configured for — the cross-product of local
-     * and remote subnets, named exactly as VpnControlService::generateConfig
-     * writes them (first child = tunnel name, then -2, -3…). Used to show
-     * per-child up/down status like the Sophos "Connection detail" view.
+     * DEAD CODE — kept for reference only. The CHILD_SAs this tunnel was
+     * configured for: the cross-product of local and remote subnets, named the
+     * way the removed VpnControlService::generateConfig wrote them (first child
+     * = tunnel name, then -2, -3…). Nothing calls this since the strongSwan
+     * control plane was removed.
      *
      * @return array<int, array{name:string, local_ts:string, remote_ts:string}>
      */

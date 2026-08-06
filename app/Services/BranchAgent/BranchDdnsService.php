@@ -7,24 +7,21 @@ use App\Models\BranchAgent;
 use App\Models\BranchAgentWanIpHistory;
 use App\Models\NocEvent;
 use App\Services\Dns\GoDaddyService;
-use App\Services\VpnControlService;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Applies a branch agent's reported WAN-IP change: updates the GoDaddy A
- * record, re-points/refreshes the linked IPsec tunnel, records history and
- * audits the whole thing.
+ * record, records history and audits the whole thing.
  *
- * Tunnel strategy (safe by design): we point the tunnel's remote endpoint at
- * the branch FQDN, not a literal IP. strongSwan then re-resolves the name on
- * reload, so future IP changes need only a DNS update — and we never touch the
- * child-SA traffic selectors (the thing that, per ops history, can hijack all
- * VPS egress if widened). We only ever change `remote_addrs`.
+ * Tunnel strategy: the tunnel's remote endpoint is pointed at the branch FQDN,
+ * not a literal IP, so a WAN-IP change needs only the DNS update below — the
+ * gateway re-resolves the name itself. The NOC no longer runs strongSwan (the
+ * tunnels moved to the Azure VPN gateway), so there is nothing local to reload;
+ * a tunnel pinned to a literal IP needs a human on the Azure side. The Branch
+ * Tunnel Watchdog is what tells you if that hasn't happened.
  */
 class BranchDdnsService
 {
-    public function __construct(private readonly VpnControlService $vpn) {}
-
     /**
      * Apply a changed WAN IP. Returns a result array with per-step outcomes.
      */
@@ -62,27 +59,16 @@ class BranchDdnsService
         }
 
         // ── VPN tunnel ──────────────────────────────────────────────
-        // SAFETY: we deliberately do NOT regenerate the swanctl config here.
-        // generateConfig() rebuilds the traffic selectors from the DB's
-        // local_subnet/remote_subnet (and falls back to 0.0.0.0/0 if blank) —
-        // a stale/blank record would break the tunnel (TS_UNACCEPTABLE) or
-        // hijack VPS egress. Instead the operator points the tunnel's remote
-        // endpoint at the branch FQDN ONCE; on a WAN-IP change we only refresh
-        // DNS (above) and reload so strongSwan re-resolves the existing config.
+        // Nothing to do locally: the tunnels live on the Azure VPN gateway, which
+        // re-resolves an FQDN remote endpoint on its own. A tunnel pinned to a
+        // literal IP cannot follow a WAN-IP change without a human, so say so
+        // rather than pretending the tunnel side was handled.
         if ($agent->vpn_tunnel_id && $agent->vpnTunnel) {
-            try {
-                if (! $agent->fqdn()) {
-                    // No DDNS name → the tunnel must use a literal IP, which a
-                    // reload can't refresh. Leave it to a human rather than
-                    // silently rewriting the config.
-                    $errors[] = 'Tunnel: no FQDN configured; skipped (point the tunnel at the FQDN to enable auto-refresh).';
-                } else {
-                    $this->vpn->reload(); // re-resolve the FQDN-based remote_addrs
-                    $appliedTunnel = true;
-                }
-            } catch (\Throwable $e) {
-                $errors[] = 'Tunnel: '.$e->getMessage();
-                Log::error('BranchDdns: tunnel reload failed', ['agent' => $agent->code, 'e' => $e->getMessage()]);
+            if ($agent->fqdn()) {
+                $appliedTunnel = true;
+            } else {
+                $errors[] = 'Tunnel: no FQDN configured; the Azure gateway cannot follow the new IP '
+                    .'(point the tunnel at the FQDN, or update the remote endpoint by hand).';
             }
         }
 

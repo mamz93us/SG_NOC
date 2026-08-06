@@ -37,8 +37,8 @@
 
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-    {{-- VPN Hub --}}
-    @php $href = \Route::has('admin.network.vpn.index') ? route('admin.network.vpn.index') : null; @endphp
+    {{-- Branch Tunnel Watchdog --}}
+    @php $href = \Route::has('admin.network.tunnel-health.index') ? route('admin.network.tunnel-health.index') : null; @endphp
     <{{ $href ? 'a' : 'div' }}
         @if($href) href="{{ $href }}" @endif
         class="group relative overflow-hidden bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm transition-all hover:shadow-lg @if($href) hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer @endif">

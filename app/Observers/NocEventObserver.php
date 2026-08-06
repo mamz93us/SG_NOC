@@ -51,8 +51,8 @@ class NocEventObserver
     }
 
     /**
-     * When the originating NocEvent is resolved (e.g. VpnMonitorService flips
-     * the tunnel back to up), close the auto-created incident in lockstep so
+     * When the originating NocEvent is resolved (e.g. TunnelWatchdog flips the
+     * tunnel back to up), close the auto-created incident in lockstep so
      * the incident queue doesn't stay red after the underlying condition clears.
      */
     public function updated(NocEvent $event): void

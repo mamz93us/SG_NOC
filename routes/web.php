@@ -77,7 +77,6 @@ use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\UcmServerController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserPermissionController;
-use App\Http\Controllers\Admin\VpnHubController;
 use App\Http\Controllers\Admin\WarrantyTrackerController;
 use App\Http\Controllers\Admin\WorkersDashboardController;
 use App\Http\Controllers\Admin\WorkflowController;
@@ -1241,34 +1240,27 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('switches.sync-snmp-from-configs');
     });
 
-    // ─── VPN Hub ──────────────────────────────────────────────
-    Route::middleware(['auth', 'permission:manage-network-settings'])->prefix('network/vpn')->name('network.vpn.')->group(function () {
-        Route::get('/', [VpnHubController::class, 'index'])->name('index');
-        Route::get('/create', [VpnHubController::class, 'create'])->name('create');
-        Route::post('/', [VpnHubController::class, 'store'])->name('store');
-        Route::get('/{tunnel}/edit', [VpnHubController::class, 'edit'])->name('edit');
-        Route::put('/{tunnel}', [VpnHubController::class, 'update'])->name('update');
-        Route::delete('/{tunnel}', [VpnHubController::class, 'destroy'])->name('destroy');
-        Route::post('/{tunnel}/up', [VpnHubController::class, 'initiate'])->name('up');
-        Route::post('/{tunnel}/down', [VpnHubController::class, 'terminate'])->name('down');
-        Route::post('/{tunnel}/child/{action}', [VpnHubController::class, 'childAction'])
-            ->whereIn('action', ['up', 'down'])->name('child');
-        Route::post('/reload', [VpnHubController::class, 'reload'])->name('reload');
-        Route::get('/logs', [VpnHubController::class, 'showLogs'])->name('logs');
-        Route::get('/{tunnel}/status', [VpnHubController::class, 'checkStatus'])->name('status');
-    });
-
-    // ─── Branch Tunnel Health ─────────────────────────────────
-    // Self-contained per-branch firewall ping board. Not tied to the VPN Hub —
-    // tunnels are created on the Azure VPN gateway now. Viewing needs
-    // view-network; adding/editing/removing branches needs manage-network-settings.
+    // ─── Branch Tunnel Watchdog ───────────────────────────────
+    // Replaces the retired strongSwan VPN Hub — tunnels live on the Azure VPN
+    // gateway now, so the NOC watches them rather than controlling them. Each
+    // tunnel is a gateway firewall plus a probe per carried subnet. Viewing
+    // needs view-network; editing needs manage-network-settings.
     Route::middleware('auth')->prefix('network/tunnel-health')->name('network.tunnel-health.')->group(function () {
-        Route::get('/', [TunnelHealthController::class, 'index'])->middleware('permission:view-network')->name('index');
-        Route::get('/data', [TunnelHealthController::class, 'data'])->middleware('permission:view-network')->name('data');
-        Route::post('/ping', [TunnelHealthController::class, 'pingNow'])->middleware('permission:view-network')->name('ping');
-        Route::post('/', [TunnelHealthController::class, 'store'])->middleware('permission:manage-network-settings')->name('store');
-        Route::put('/{tunnel}', [TunnelHealthController::class, 'update'])->middleware('permission:manage-network-settings')->name('update');
-        Route::delete('/{tunnel}', [TunnelHealthController::class, 'destroy'])->middleware('permission:manage-network-settings')->name('destroy');
+        Route::middleware('permission:view-network')->group(function () {
+            Route::get('/', [TunnelHealthController::class, 'index'])->name('index');
+            Route::get('/data', [TunnelHealthController::class, 'data'])->name('data');
+            Route::post('/check', [TunnelHealthController::class, 'checkNow'])->name('check');
+        });
+
+        Route::middleware('permission:manage-network-settings')->group(function () {
+            Route::post('/', [TunnelHealthController::class, 'store'])->name('store');
+            Route::put('/{tunnel}', [TunnelHealthController::class, 'update'])->name('update');
+            Route::delete('/{tunnel}', [TunnelHealthController::class, 'destroy'])->name('destroy');
+
+            Route::post('/{tunnel}/probes', [TunnelHealthController::class, 'storeProbe'])->name('probes.store');
+            Route::put('/probes/{probe}', [TunnelHealthController::class, 'updateProbe'])->name('probes.update');
+            Route::delete('/probes/{probe}', [TunnelHealthController::class, 'destroyProbe'])->name('probes.destroy');
+        });
     });
 
     // ─── Diagnostics ──────────────────────────────────────────

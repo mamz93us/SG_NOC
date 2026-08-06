@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
 
 /**
- * Thin wrapper around `sudo docker ...`. Mirrors VpnControlService's shell-out
+ * Thin wrapper around `sudo docker ...`. Uses the same shell-out
  * pattern: Symfony Process, sudo-prefixed, arg array (not a single string so
  * there's nothing to shell-escape). All methods return process stdout.
  *

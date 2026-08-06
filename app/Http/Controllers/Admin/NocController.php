@@ -70,8 +70,10 @@ class NocController extends Controller
         $totalInUse = UcmExtensionCache::whereIn('status', ['inuse', 'busy', 'ringing'])->count();
 
         // VPN / Hosts summary (4 COUNT queries — no ::all())
-        $vpnTotal = \App\Models\VpnTunnel::count();
-        $vpnOnline = \App\Models\VpnTunnel::where('status', 'up')->count();
+        // Source of truth is the Branch Tunnel Watchdog; "online" means fully up,
+        // so a tunnel that is passing traffic but missing a subnet is not counted.
+        $vpnTotal = \App\Models\BranchTunnel::active()->count();
+        $vpnOnline = \App\Models\BranchTunnel::active()->where('state', \App\Models\BranchTunnel::STATE_UP)->count();
         $hostsUp = \App\Models\MonitoredHost::where('status', 'up')->count();
         $hostsDown = \App\Models\MonitoredHost::where('status', 'down')->count();
 
@@ -146,12 +148,20 @@ class NocController extends Controller
             ],
         ])->values();
 
-        // VPN Tunnel Details (was loading ::all() for the detail grid)
-        $vpnTunnels = \App\Models\VpnTunnel::with('branch')->orderBy('status')->get()->map(fn ($t) => [
-            'name' => $t->name,
-            'status' => $t->status,
-            'branch' => $t->branch?->name ?: 'No branch',
-        ]);
+        // VPN Tunnel Details — from the Branch Tunnel Watchdog. `state` carries
+        // "degraded" (gateway up, a carried subnet unreachable) alongside up/down;
+        // the panel colours that amber rather than calling it up.
+        // Worst-first, so whatever needs attention is at the top of the panel.
+        $vpnStateRank = ['down' => 0, 'degraded' => 1, 'unknown' => 2, 'up' => 3];
+        $vpnTunnels = \App\Models\BranchTunnel::active()->with('branch')->ordered()->get()
+            ->sortBy(fn ($t) => $vpnStateRank[$t->state] ?? 2)
+            ->values()
+            ->map(fn ($t) => [
+                'name' => $t->name,
+                'status' => $t->state,
+                'detail' => $t->firewall_ip,
+                'branch' => $t->branch?->name ?: 'No branch',
+            ]);
 
         // Sophos S2S VPN Tunnels — from SNMP sensors (sensor_group='VPN')
         // Each tunnel has 2 sensors: "VPN: {name} - Active" and "VPN: {name} - Connection"
@@ -188,7 +198,7 @@ class NocController extends Controller
             'vpn_tunnels' => $vpnTunnels,
             'vpn_summary' => [
                 'up' => $vpnTunnels->where('status', 'up')->count(),
-                'connecting' => $vpnTunnels->where('status', 'connecting')->count(),
+                'degraded' => $vpnTunnels->where('status', 'degraded')->count(),
                 'down' => $vpnTunnels->where('status', 'down')->count(),
             ],
             'sophos_vpn_tunnels' => $sophosVpnTunnels,
@@ -502,8 +512,8 @@ class NocController extends Controller
         $totalExtensions = UcmExtensionCache::count();
         $registeredExt = UcmExtensionCache::whereIn('status', ['idle', 'inuse', 'busy', 'ringing'])->count();
         $activeCalls = UcmActiveCall::count();
-        $vpnUp = \App\Models\VpnTunnel::where('status', 'up')->count();
-        $vpnTotal = \App\Models\VpnTunnel::count();
+        $vpnUp = \App\Models\BranchTunnel::active()->where('state', \App\Models\BranchTunnel::STATE_UP)->count();
+        $vpnTotal = \App\Models\BranchTunnel::active()->count();
         $openAlerts = NocEvent::open()->count();
         $criticalAlerts = NocEvent::open()->where('severity', 'critical')->count();
 

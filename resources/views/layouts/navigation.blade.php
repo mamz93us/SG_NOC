@@ -74,8 +74,8 @@
                                 <x-dropdown-link :href="route('admin.network.overview')">
                                     {{ __('Meraki Overview') }}
                                 </x-dropdown-link>
-                                <x-dropdown-link :href="route('admin.network.vpn.index')">
-                                    {{ __('VPN Hub') }}
+                                <x-dropdown-link :href="route('admin.network.tunnel-health.index')">
+                                    {{ __('Branch Tunnel Watchdog') }}
                                 </x-dropdown-link>
                                 <x-dropdown-link :href="route('admin.network.diagnostics.index')">
                                     {{ __('Diagnostics') }}
@@ -200,8 +200,8 @@
                 <x-responsive-nav-link :href="route('admin.network.overview')" :active="request()->routeIs('admin.network.overview')">
                     {{ __('Meraki Overview') }}
                 </x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('admin.network.vpn.index')" :active="request()->routeIs('admin.network.vpn.*')">
-                    {{ __('VPN Hub') }}
+                <x-responsive-nav-link :href="route('admin.network.tunnel-health.index')" :active="request()->routeIs('admin.network.tunnel-health.*')">
+                    {{ __('Branch Tunnel Watchdog') }}
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('admin.network.diagnostics.index')" :active="request()->routeIs('admin.network.diagnostics.*')">
                     {{ __('Diagnostics') }}

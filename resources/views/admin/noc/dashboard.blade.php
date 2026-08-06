@@ -180,11 +180,13 @@
                     <div class="progress-bar {{ $vpnPct >= 90 ? 'bg-success' : 'bg-warning' }}" style="width:{{ $vpnPct }}%"></div>
                 </div>
                 @if($vpnTotal > 0 && $vpnOnline < $vpnTotal)
-                <div class="small text-danger mt-2"><i class="bi bi-dash-circle-fill me-1"></i>{{ $vpnTotal - $vpnOnline }} tunnels down</div>
+                {{-- "not fully up" covers both down and degraded, so this never reads
+                     as healthy while a tunnel is missing one of its subnets. --}}
+                <div class="small text-danger mt-2"><i class="bi bi-dash-circle-fill me-1"></i>{{ $vpnTotal - $vpnOnline }} tunnels down or degraded</div>
                 @else
-                <div class="small text-success mt-2"><i class="bi bi-check-circle-fill me-1"></i>All tunnels connected</div>
+                <div class="small text-success mt-2"><i class="bi bi-check-circle-fill me-1"></i>All tunnels fully up</div>
                 @endif
-                <a href="{{ route('admin.network.vpn.index') }}" class="stretched-link"></a>
+                <a href="{{ route('admin.network.tunnel-health.index') }}" class="stretched-link"></a>
             </div>
         </div>
     </div>
@@ -625,19 +627,25 @@ function renderVpnTunnels(tunnels, summary) {
 
     const summaryHtml = `<div class="d-flex gap-4 mb-3">
         <div class="text-center"><div class="fs-3 fw-bold text-success">${summary.up || 0}</div><small class="text-muted">Up</small></div>
-        <div class="text-center"><div class="fs-3 fw-bold text-warning">${summary.connecting || 0}</div><small class="text-muted">Connecting</small></div>
+        <div class="text-center"><div class="fs-3 fw-bold text-warning">${summary.degraded || 0}</div><small class="text-muted">Degraded</small></div>
         <div class="text-center"><div class="fs-3 fw-bold text-danger">${summary.down || 0}</div><small class="text-muted">Down</small></div>
     </div>`;
 
+    // "degraded" = tunnel is passing traffic but a carried subnet is unreachable.
+    // Deliberately amber, never green — this is the state that hid the JED outage.
     const gridHtml = tunnels.map(t => {
-        const cls = t.status === 'down' ? 'border-danger bg-danger bg-opacity-10' : (t.status === 'connecting' ? 'border-warning bg-warning bg-opacity-10' : 'border-success bg-success bg-opacity-10');
-        const icon = t.status === 'up' ? 'bi-check-circle-fill text-success' : (t.status === 'connecting' ? 'bi-arrow-repeat text-warning' : 'bi-x-circle-fill text-danger');
-        return `<div class="col-md-4 col-lg-3">
+        const cls = t.status === 'down' ? 'border-danger bg-danger bg-opacity-10'
+                  : (t.status === 'degraded' ? 'border-warning bg-warning bg-opacity-10'
+                  : (t.status === 'up' ? 'border-success bg-success bg-opacity-10' : 'border-secondary bg-secondary bg-opacity-10'));
+        const icon = t.status === 'up' ? 'bi-check-circle-fill text-success'
+                   : (t.status === 'degraded' ? 'bi-exclamation-triangle-fill text-warning'
+                   : (t.status === 'down' ? 'bi-x-circle-fill text-danger' : 'bi-question-circle-fill text-secondary'));
+        return `<a href="/admin/network/tunnel-health" class="col-md-4 col-lg-3 text-decoration-none">
             <div class="d-flex align-items-center gap-2 p-2 rounded border ${cls}">
                 <i class="bi ${icon}"></i>
-                <div><div class="small fw-semibold">${t.name}</div><div style="font-size:10px" class="text-muted">${t.branch}</div></div>
+                <div><div class="small fw-semibold">${t.name}</div><div style="font-size:10px" class="text-muted">${t.detail || t.branch}</div></div>
             </div>
-        </div>`;
+        </a>`;
     }).join('');
 
     content.innerHTML = summaryHtml + '<div class="row g-2">' + gridHtml + '</div>';

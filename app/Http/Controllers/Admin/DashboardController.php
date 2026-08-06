@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\AdminLink;
 use App\Models\AdminLinkClick;
 use App\Models\Branch;
+use App\Models\BranchTunnel;
 use App\Models\Contact;
 use App\Models\Device;
 use App\Models\FormSubmission;
@@ -19,7 +20,6 @@ use App\Models\Setting;
 use App\Models\UcmServer;
 use App\Models\User;
 use App\Models\UserQuickLink;
-use App\Models\VpnTunnel;
 use App\Models\WorkflowRequest;
 use App\Services\IppbxApiService;
 use Illuminate\Support\Facades\Auth;
@@ -76,8 +76,13 @@ class DashboardController extends Controller
         // ── New widgets requested by user ──────────────────────────────
         $systemStats = Cache::remember('welcome.system_stats', 60, function () {
             return [
-                'vpn' => Schema::hasTable('vpn_tunnels')
-                    ? ['up' => VpnTunnel::where('status', 'up')->count(), 'total' => VpnTunnel::count()]
+                // Branch Tunnel Watchdog is the source of truth for tunnel health;
+                // only fully-up counts as up (degraded means a subnet is dark).
+                'vpn' => Schema::hasTable('branch_tunnels')
+                    ? [
+                        'up' => BranchTunnel::active()->where('state', BranchTunnel::STATE_UP)->count(),
+                        'total' => BranchTunnel::active()->count(),
+                    ]
                     : ['up' => 0, 'total' => 0],
                 'users' => Schema::hasTable('users') ? User::count() : 0,
                 'assets' => Schema::hasTable('devices') ? Device::count() : 0,

@@ -4,9 +4,9 @@ namespace App\Console\Commands;
 
 use App\Models\AccessPoint;
 use App\Models\AvailabilitySnapshot;
+use App\Models\BranchTunnel;
 use App\Models\MonitoredHost;
 use App\Models\NocMetricSnapshot;
-use App\Models\VpnTunnel;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -35,10 +35,14 @@ class CaptureAvailabilitySnapshots extends Command
             }
         }
 
-        // VPN tunnels — prefer ping_status, fall back to status
-        if (Schema::hasTable('vpn_tunnels')) {
-            foreach (VpnTunnel::query()->get(['id', 'branch_id', 'status', 'ping_status', 'ping_latency_ms']) as $t) {
-                $up = ($t->ping_status ?? $t->status) === 'up';
+        // VPN tunnels — from the Branch Tunnel Watchdog. Only a full "up" counts:
+        // a degraded tunnel is passing traffic but not carrying every subnet, and
+        // charting that as uptime is what let the JED outage hide for a month.
+        // entity_type stays 'vpn_tunnel' so existing uptime charts keep working;
+        // the ids now reference branch_tunnels.
+        if (Schema::hasTable('branch_tunnels')) {
+            foreach (BranchTunnel::active()->get(['id', 'branch_id', 'state', 'ping_latency_ms']) as $t) {
+                $up = $t->state === BranchTunnel::STATE_UP;
                 $rows[] = $this->row('vpn_tunnel', $t->id, $t->branch_id, $up, $t->ping_latency_ms, $now);
             }
         }

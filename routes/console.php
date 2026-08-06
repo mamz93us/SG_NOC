@@ -134,31 +134,24 @@ Schedule::call(function () {
     }
 })->name('check-warranty-expiry')->withoutOverlapping(60)->weekly();
 
-// Monitoring jobs run directly (not via queue) — shared hosting has no queue worker
-Schedule::call(function () {
-    try {
-        (new \App\Jobs\CheckVpnStatusJob)->handle();
-    } catch (\Throwable $e) {
-    }
-})->name('check-vpn-status')->withoutOverlapping(5)->everyMinute();
-
-// VPN Hub connectivity double-check — pings each tunnel's branch firewall
-// through the tunnel (IKE can be ESTABLISHED while traffic is blackholed).
-// Results land on vpn_tunnels.ping_* and show as the Connectivity column.
-Schedule::command('vpn:ping-tunnels')
-    ->everyTenMinutes()
-    ->withoutOverlapping(8)
-    ->runInBackground()
-    ->name('vpn-ping-tunnels');
-
-// Branch Tunnel Health — pings each branch firewall added on the
-// /admin/network/tunnel-health page. Independent of the VPN Hub; results land
-// on branch_tunnels.ping_* and surface as the status board.
-Schedule::command('tunnel-health:ping')
+// Branch Tunnel Watchdog — probes each tunnel's gateway firewall AND every
+// subnet the tunnel is supposed to carry, then rolls it up to up/degraded/down
+// and raises NocEvents on transitions. Gateway-only checks are not enough: a
+// branch firewall keeps answering ICMP while a subnet missing from the tunnel's
+// traffic selector is completely unreachable (JED, 2026-07-05 → 2026-08-06).
+// Probes run in parallel, so a full sweep is seconds.
+Schedule::command('tunnel-health:watch')
     ->everyMinute()
     ->withoutOverlapping(5)
     ->runInBackground()
-    ->name('tunnel-health-ping');
+    ->name('tunnel-health-watch');
+
+// Trim watchdog check history to the retention window.
+Schedule::command('tunnel-health:watch --prune')
+    ->dailyAt('03:20')
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('tunnel-health-prune');
 
 Schedule::call(function () {
     $service = app(\App\Services\PingService::class);

@@ -69,6 +69,7 @@ The pieces below need multiple files read together to make sense — start here 
 - **Workflow engine** — `Workflow`, `WorkflowTemplate`, `WorkflowTrigger`, `WorkflowAction` models + matching controllers; supports retries and templated actions.
 - **Telephony** — UCM SOAP integration via `SyncUcmExtensionsJob`, `SyncUcmActiveCallsJob`. Models in `app/Models/` (`Extension`, `Trunk`, `UcmServer`, `Phone`, `ActiveCall`).
 - **CUPS printers** — `CupsRefreshStatus` command, `CupsPrinter` / `CupsPrintJob` models.
+- **Branch tunnel watchdog** — `TunnelWatchdog` service + `tunnel-health:watch` command (every minute), `TunnelHealthController`, page at `/admin/network/tunnel-health`. Models: `BranchTunnel` (gateway firewall), `TunnelProbe` (one per carried subnet), `TunnelHealthCheck` (history). Replaced the strongSwan **VPN Hub**, which could start/stop tunnels the NOC no longer owns — see the gotcha below.
 
 **Time-series telemetry pipeline.** Raw rows land in `sensor_metrics`; `RollupMetricsJob` aggregates to `metric_rollups` hourly; `PruneVqData` enforces retention daily. When querying historical data, hit the rollup tables — the raw table is huge.
 
@@ -90,7 +91,7 @@ The Laravel app does not run alone — these run alongside it in production:
 - **`deployment/supervisor/`** — `switch-poll.conf` keeps `php artisan schedule:run` alive.
 - **`deployment/sftp/`** — chrooted, SFTP-only inbox network devices push backups into (`setup-sftp.sh` + sshd `Match` snippet). The scheduled `sftp-backups:sweep` command streams each stable file to Azure Blob (the `azure_backups` disk) and deletes the local copy; `sftp-backups:prune` enforces Azure retention. Tracked in `sftp_backups`. See [deployment/sftp/README.md](deployment/sftp/README.md).
 
-VPN: strongSwan IPsec configs (`JED.conf`, `RYD.conf`, etc.) plus the `sg-vpn-control.sh` wrapper. See [INFRA_SETUP.md](INFRA_SETUP.md).
+VPN: branch tunnels terminate on the **Azure VPN gateway**, not on the NOC VM — since the NOC2 migration there is no local strongSwan, so `swanctl --list-sas` is empty and there are no `10.x` routes in `ip route`. The app therefore *watches* tunnels rather than controlling them (see Branch tunnel watchdog above); the old `VpnHubController` / `VpnControlService` / `sg-vpn-control.sh` control plane has been removed. The `VpnTunnel` model survives only as a passive record that `MonitoredHost.vpn_id`, `BranchAgent.vpn_id`, `VpnLog` and `TopologyService` still reference. Historical strongSwan notes: [INFRA_SETUP.md](INFRA_SETUP.md).
 
 ## Deploy workflow
 
@@ -105,7 +106,8 @@ SSH is for diagnostics and system-level configs (rsyslog, nginx, supervisor, str
 ## Operational gotchas
 
 - **Root-level `check_*.php`, `test_*.php`, `fix_cai_*.php`, `clean_cai.php`, `clear_jobs.php`, `list_tunnels_v2.php`** are **ad-hoc operational scripts**, not part of the app build or CI. Don't refactor them as if they were app code, and don't add new features by adding more of them — extend the relevant controller/command/job instead.
-- **strongSwan tunnels: never add a `0.0.0.0/0` child SA to an existing IKE conn.** Sophos widens narrow children during rekey; doing this to an existing conn will hijack all VPS outbound traffic. New wide selectors need their own IKE conn.
+- **strongSwan tunnels: never add a `0.0.0.0/0` child SA to an existing IKE conn.** Sophos widens narrow children during rekey; doing this to an existing conn will hijack all VPS outbound traffic. New wide selectors need their own IKE conn. (Applies to branch-side Sophos config; the NOC itself no longer runs strongSwan.)
+- **A reachable branch firewall does NOT mean the tunnel is carrying every subnet.** After the NOC2 migration, JED's tunnel was rebuilt covering only `10.1.0.0/24`: the firewall at `10.1.0.1` answered ICMP for a month while `10.1.8.0/24` — and the UCM on it — was completely unreachable, and every dashboard showed JED green. This is why the watchdog probes one target *per carried subnet* and has a **degraded** state. Never "fix" a monitor by reducing it to a single gateway ping, and when a device is unreachable from the NOC but fine on the branch LAN, check the tunnel's traffic selector before suspecting the device.
 - **CUPS over TLS** — CUPS reads cert files keyed off the **machine hostname**, not `ServerName`. The Let's Encrypt cert is bridged in by symlink. Don't rename the host or remove those symlinks without re-pointing CUPS.
 - **Database is the queue, the cache, and the session store.** Truncating `cache`, `sessions`, or `jobs` mid-flight wipes live state — don't do it casually in production.
 - **CSRF-excepted routes** depend on a shared-secret header check inside the controller (or `hr.api_key` middleware). If you change the request shape, keep the auth check in place; do not "re-enable CSRF" on those paths to fix a 419.

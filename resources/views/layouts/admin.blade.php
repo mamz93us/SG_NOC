@@ -379,15 +379,9 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.network.vpn.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.network.vpn.index') }}">
-                                    <i class="bi bi-shield-lock me-2"></i>VPN Hub
-                                </a>
-                            </li>
-                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.tunnel-health.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.tunnel-health.index') }}">
-                                    <i class="bi bi-activity me-2"></i>Branch Tunnel Health
+                                    <i class="bi bi-shield-lock me-2"></i>Branch Tunnel Watchdog
                                 </a>
                             </li>
                             <li>
