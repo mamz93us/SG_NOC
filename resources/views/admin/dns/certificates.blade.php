@@ -17,6 +17,9 @@
         </div>
         <div class="d-flex gap-2">
             @can('manage-dns')
+            <button class="btn btn-primary btn-sm" onclick="openAddModal()">
+                <i class="bi bi-plus-lg"></i> New Certificate
+            </button>
             <button class="btn btn-success btn-sm" @click="renewAllExpiring()" :disabled="saving">
                 <span x-show="saving" class="spinner-border spinner-border-sm me-1"></span>
                 <i class="bi bi-arrow-repeat" x-show="!saving"></i> Renew All Expiring
@@ -81,11 +84,13 @@
                         <td>
                             <div class="btn-group btn-group-sm">
                                 @can('manage-dns')
-                                @if(in_array($cert->status, ['valid', 'expired', 'expiring_soon', 'failed', 'pending']))
+                                {{-- 'revoked' is included: renewCertificate() re-issues against the
+                                     same FQDN, which is the only way back from a revoke. --}}
+                                @if(in_array($cert->status, ['valid', 'expired', 'expiring_soon', 'failed', 'pending', 'revoked']))
                                 <button class="btn btn-outline-success"
-                                        onclick="renewCert({{ $cert->id }})"
-                                        title="Renew">
-                                    <i class="bi bi-arrow-repeat"></i>
+                                        onclick="renewCert({{ $cert->id }}, '{{ $cert->status }}')"
+                                        title="{{ $cert->status === 'revoked' ? 'Re-issue' : 'Renew' }}">
+                                    <i class="bi {{ $cert->status === 'revoked' ? 'bi-plus-circle' : 'bi-arrow-repeat' }}"></i>
                                 </button>
                                 @endif
                                 @if($cert->status === 'valid')
@@ -114,6 +119,13 @@
                         <td colspan="8" class="text-center text-muted py-5">
                             <i class="bi bi-shield-check display-4 d-block mb-2"></i>
                             No certificates found for {{ $domain }}.
+                            @can('manage-dns')
+                            <div class="mt-3">
+                                <button class="btn btn-primary btn-sm" onclick="openAddModal()">
+                                    <i class="bi bi-plus-lg"></i> New Certificate
+                                </button>
+                            </div>
+                            @endcan
                         </td>
                     </tr>
                     @endforelse
@@ -121,6 +133,49 @@
             </table>
         </div>
     </div>
+
+    {{-- Add Certificate Modal --}}
+    @can('manage-dns')
+    <div class="modal fade" id="addCertModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-lg me-2"></i>New Certificate</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label small fw-semibold">Subdomain</label>
+                    <div class="input-group">
+                        <input type="text" id="newCertLabel" class="form-control" placeholder="e.g. jed"
+                               autocomplete="off" onkeydown="if(event.key==='Enter') submitAddCert()">
+                        <span class="input-group-text">.{{ $domain }}</span>
+                    </div>
+                    <div class="form-text">
+                        Leave blank to issue for <strong>{{ $domain }}</strong> itself.
+                        The host does not need to be publicly reachable — validation is DNS-01.
+                    </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="newCertAutoRenew" checked>
+                        <label class="form-check-label" for="newCertAutoRenew">
+                            Auto-renew (renewed automatically within 14 days of expiry)
+                        </label>
+                    </div>
+                    <p class="text-muted small mt-3 mb-0">
+                        <i class="bi bi-clock-history me-1"></i>Issuance is queued and waits on DNS
+                        propagation — the row appears as <span class="badge bg-primary">Pending</span>
+                        and turns <span class="badge bg-success">Valid</span> within a couple of minutes.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" id="addCertSubmit" onclick="submitAddCert()">
+                        <i class="bi bi-shield-plus me-1"></i>Issue Certificate
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endcan
 
     {{-- Export Modal --}}
     <div class="modal fade" id="exportCertModal" tabindex="-1">
@@ -189,8 +244,55 @@ function triggerDownload(format) {
     a.click();
 }
 
-function renewCert(certId) {
-    if (!confirm('Renew this certificate? This will initiate a new ACME DNS-01 challenge.')) return;
+function openAddModal() {
+    document.getElementById('newCertLabel').value = '';
+    document.getElementById('newCertAutoRenew').checked = true;
+    new bootstrap.Modal(document.getElementById('addCertModal')).show();
+}
+
+function submitAddCert() {
+    const label = document.getElementById('newCertLabel').value.trim().replace(/\.+$/, '');
+    const domain = @json($domain);
+
+    // Accept either a bare label ("jed") or a FQDN already ending in the domain.
+    const fqdn = !label ? domain
+        : (label === domain || label.endsWith('.' + domain)) ? label
+        : `${label}.${domain}`;
+
+    if (!/^[a-z0-9.*-]+$/i.test(fqdn)) {
+        alert('That does not look like a valid hostname.');
+        return;
+    }
+
+    const btn = document.getElementById('addCertSubmit');
+    btn.disabled = true;
+
+    fetch(`{{ url('admin/network/dns') }}/{{ $account->id }}/domains/{{ $domain }}/certificates`, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            fqdn,
+            auto_renew: document.getElementById('newCertAutoRenew').checked
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        alert(data.message || 'Certificate issuance queued.');
+        if (data.success) location.reload(); else btn.disabled = false;
+    })
+    .catch(() => {
+        alert('Failed to queue certificate issuance.');
+        btn.disabled = false;
+    });
+}
+
+function renewCert(certId, status) {
+    const verb = status === 'revoked' ? 'Re-issue' : 'Renew';
+    if (!confirm(`${verb} this certificate? This will initiate a new ACME DNS-01 challenge.`)) return;
     fetch(`{{ url('admin/network/dns') }}/{{ $account->id }}/domains/{{ $domain }}/certificates/${certId}/renew`, {
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
