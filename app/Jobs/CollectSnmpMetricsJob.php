@@ -172,6 +172,12 @@ class CollectSnmpMetricsJob implements ShouldQueue
                             ]);
                             $this->checkThresholds($host, $sensor, $finalValue);
                             $this->checkDuplexAlert($host, $sensor, $finalValue);
+
+                            // calculateCounterRate() is the only other writer of
+                            // last_recorded_at, so gauge/boolean/uptime sensors never
+                            // got one and the health page reported them as permanently
+                            // stale even while they were returning fresh values.
+                            $sensor->last_recorded_at = now();
                         }
 
                         $sensor->update(['status' => 'active', 'consecutive_failures' => 0]);
