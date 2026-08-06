@@ -38,8 +38,8 @@ use App\Models\WorkflowRequest;
  * The catalogue of every designed email SG NOC sends.
  *
  * Like MailSender::SERVICES this lives in code, not the database — a template
- * exists because something sends it. The email_templates table only ever holds
- * *overrides*; delete the row and the original Blade takes over again.
+ * exists because something sends it. The system_email_templates table only ever
+ * holds *overrides*; delete the row and the original Blade takes over again.
  *
  * Each entry knows how to build a throwaway instance of its own Mailable, which
  * is what powers both the preview and the "load current design" seed. Nothing

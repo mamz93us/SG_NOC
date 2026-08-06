@@ -929,6 +929,8 @@
                                 </a>
                             </li>
                             @endcan
+                            {{-- Guarded: a stale route cache must not take the whole admin panel down --}}
+                            @if (Route::has('admin.form-previews.onboarding'))
                             @can('view-workflows')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-eye me-1"></i>Manager Form Previews</h6></li>
@@ -947,6 +949,7 @@
                                 </a>
                             </li>
                             @endcan
+                            @endif
                             @can('manage-workflow-templates')
                             <li><hr class="dropdown-divider"></li>
                             <li>
@@ -1067,12 +1070,14 @@
                                     <i class="bi bi-envelope-at me-2"></i>Sender Addresses
                                 </a>
                             </li>
+                            @if (Route::has('admin.email-templates.index'))
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.email-templates.*') ? 'active' : '' }}"
                                    href="{{ route('admin.email-templates.index') }}">
                                     <i class="bi bi-envelope-paper me-2"></i>Email Templates
                                 </a>
                             </li>
+                            @endif
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.business-apps.*') ? 'active' : '' }}"
                                    href="{{ route('admin.business-apps.index') }}">

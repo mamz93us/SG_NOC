@@ -2,7 +2,7 @@
 
 namespace App\Mail\Concerns;
 
-use App\Models\EmailTemplate;
+use App\Models\SystemEmailTemplate;
 use App\Support\EmailTemplateRenderer;
 use App\Support\EmailTemplates;
 use Illuminate\Mail\Mailables\Content;
@@ -49,7 +49,7 @@ trait UsesEmailTemplate
 
         $default = $this->renderDefault($view);
 
-        $custom = EmailTemplate::bodyFor($key);
+        $custom = SystemEmailTemplate::bodyFor($key);
         if ($custom === null) {
             return new Content(htmlString: EmailTemplateRenderer::strip($default));
         }
@@ -70,7 +70,7 @@ trait UsesEmailTemplate
     protected function templatedSubject(string $default): string
     {
         $key = $this->templateKey();
-        $custom = EmailTemplate::subjectFor($key);
+        $custom = SystemEmailTemplate::subjectFor($key);
 
         if ($custom === null) {
             return $default;
@@ -112,7 +112,7 @@ trait UsesEmailTemplate
     {
         // envelope() routes through templatedSubject(), so stand the overrides
         // down for the duration to see what the code alone would produce.
-        return EmailTemplate::withoutOverrides(fn () => (string) ($this->envelope()->subject ?? ''));
+        return SystemEmailTemplate::withoutOverrides(fn () => (string) ($this->envelope()->subject ?? ''));
     }
 
     /**

@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
-use App\Models\EmailTemplate;
 use App\Models\MailSender;
+use App\Models\SystemEmailTemplate;
 use App\Services\SmtpConfigService;
 use App\Support\EmailTemplateRenderer;
 use App\Support\EmailTemplates;
@@ -34,7 +34,7 @@ class EmailTemplateController extends Controller
 
     public function index(): View
     {
-        $overrides = EmailTemplate::all()->keyBy('template_key');
+        $overrides = SystemEmailTemplate::all()->keyBy('template_key');
 
         return view('admin.email_templates.index', [
             'grouped' => EmailTemplates::grouped(),
@@ -51,7 +51,7 @@ class EmailTemplateController extends Controller
     {
         $meta = $this->metaOr404($key);
 
-        $override = EmailTemplate::where('template_key', $key)->first();
+        $override = SystemEmailTemplate::where('template_key', $key)->first();
 
         // Everything the editor needs comes from rendering the coded design
         // once against sample data: the seed body, the placeholder list and the
@@ -63,7 +63,7 @@ class EmailTemplateController extends Controller
         $renderError = null;
 
         try {
-            EmailTemplate::withoutOverrides(function () use ($key, &$codedHtml, &$codedSubject) {
+            SystemEmailTemplate::withoutOverrides(function () use ($key, &$codedHtml, &$codedSubject) {
                 $mailable = EmailTemplates::sampleMailable($key);
                 $codedHtml = $mailable->renderCodedView();
                 $codedSubject = $mailable->codedSubject();
@@ -118,8 +118,8 @@ class EmailTemplateController extends Controller
         // Both blank means "no override" — drop the row rather than keeping an
         // empty one around pretending to be a customisation.
         if ($subject === '' && $body === '') {
-            EmailTemplate::where('template_key', $key)->delete();
-            EmailTemplate::flushCache();
+            SystemEmailTemplate::where('template_key', $key)->delete();
+            SystemEmailTemplate::flushCache();
 
             $this->log($key, 'email_template_cleared', []);
 
@@ -128,7 +128,7 @@ class EmailTemplateController extends Controller
                 ->with('success', 'Override removed — this email now sends its original design.');
         }
 
-        EmailTemplate::updateOrCreate(
+        SystemEmailTemplate::updateOrCreate(
             ['template_key' => $key],
             [
                 'subject' => $subject ?: null,
@@ -138,7 +138,7 @@ class EmailTemplateController extends Controller
             ]
         );
 
-        EmailTemplate::flushCache();
+        SystemEmailTemplate::flushCache();
 
         $this->log($key, 'email_template_updated', [
             'subject' => $subject !== '',
@@ -156,8 +156,8 @@ class EmailTemplateController extends Controller
     {
         $this->metaOr404($key);
 
-        EmailTemplate::where('template_key', $key)->delete();
-        EmailTemplate::flushCache();
+        SystemEmailTemplate::where('template_key', $key)->delete();
+        SystemEmailTemplate::flushCache();
 
         $this->log($key, 'email_template_reset', []);
 
@@ -181,7 +181,7 @@ class EmailTemplateController extends Controller
         $body = trim((string) $request->input('body_html', ''));
 
         try {
-            $html = EmailTemplate::withoutOverrides(function () use ($key, $body) {
+            $html = SystemEmailTemplate::withoutOverrides(function () use ($key, $body) {
                 $coded = EmailTemplates::sampleMailable($key)->renderCodedView();
 
                 if ($body === '') {
@@ -246,7 +246,7 @@ class EmailTemplateController extends Controller
     private function log(string $key, string $action, array $changes): void
     {
         ActivityLog::create([
-            'model_type' => EmailTemplate::class,
+            'model_type' => SystemEmailTemplate::class,
             'model_id' => 0,
             'action' => $action,
             'changes' => ['template' => $key] + $changes,

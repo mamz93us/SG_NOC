@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('email_templates', function (Blueprint $table) {
+        Schema::create('system_email_templates', function (Blueprint $table) {
             $table->id();
 
             // Catalogue key from App\Support\EmailTemplates — a row only ever
@@ -29,6 +29,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('email_templates');
+        Schema::dropIfExists('system_email_templates');
     }
 };

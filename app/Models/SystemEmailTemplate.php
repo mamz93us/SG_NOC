@@ -12,8 +12,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * original Blade. That is what makes this table safe to add to a live system —
  * nothing changes until somebody deliberately saves an override, and deleting
  * the row is a complete undo.
+ *
+ * Named "system" to keep it clear of App\Models\EmailMarketing\EmailTemplate,
+ * which owns the `email_templates` table (the Unlayer campaign designs). These
+ * two have nothing to do with each other.
  */
-class EmailTemplate extends Model
+class SystemEmailTemplate extends Model
 {
     protected $fillable = [
         'template_key',
