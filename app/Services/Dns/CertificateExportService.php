@@ -64,17 +64,35 @@ class CertificateExportService
             throw new \RuntimeException('OpenSSL PHP extension is required for P12 export.');
         }
 
-        $x509 = openssl_x509_read($cert->certificate);
+        // $cert->certificate holds the full ACME chain (leaf first, then the
+        // issuers). openssl_x509_read() only ever reads the first block, so the
+        // issuers have to be split off and passed as extracerts — without them
+        // an appliance importing this .p12 serves a chainless certificate and
+        // clients report it as untrusted.
+        $pems = $this->splitPems($cert->certificate);
+        $leaf = array_shift($pems);
+
+        $x509 = $leaf ? openssl_x509_read($leaf) : false;
         $pkey = openssl_pkey_get_private($cert->private_key);
 
         if (!$x509 || !$pkey) {
             throw new \RuntimeException('Failed to read certificate or private key for P12 export.');
         }
 
+        $extracerts = [];
+        foreach ($pems as $issuerPem) {
+            if ($issuer = openssl_x509_read($issuerPem)) {
+                $extracerts[] = $issuer;
+            }
+        }
+
+        $args = ['friendly_name' => $cert->fqdn];
+        if ($extracerts) {
+            $args['extracerts'] = $extracerts;
+        }
+
         $p12 = '';
-        openssl_pkcs12_export($x509, $p12, $pkey, $password ?: '', [
-            'friendly_name' => $cert->fqdn,
-        ]);
+        openssl_pkcs12_export($x509, $p12, $pkey, $password ?: '', $args);
 
         if (empty($p12)) {
             throw new \RuntimeException('Failed to generate PKCS#12 bundle.');
@@ -85,6 +103,20 @@ class CertificateExportService
             'filename' => "{$cert->fqdn}.p12",
             'mime'     => 'application/x-pkcs12',
         ];
+    }
+
+    /**
+     * Split a PEM chain into its individual certificate blocks, in order.
+     *
+     * @return string[]
+     */
+    private function splitPems(?string $pem): array
+    {
+        if (!$pem) return [];
+
+        preg_match_all('/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/s', $pem, $m);
+
+        return $m[0] ?? [];
     }
 
     /**
