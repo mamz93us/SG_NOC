@@ -108,7 +108,7 @@
                     @if($cvExport->cv_count){{ $cvExport->cv_count }} added so far. @endif
                     Refresh this page in a minute.
                 @elseif($cvExport && $cvExport->isCompleted())
-                    {{ $cvExport->cv_count }} CV{{ $cvExport->cv_count === 1 ? '' : 's' }} zipped@if($cvExport->failed_count), {{ $cvExport->failed_count }} could not be fetched@endif
+                    {{ $cvExport->cv_count }} CV{{ $cvExport->cv_count === 1 ? '' : 's' }} zipped{{ '' }}@if($cvExport->failed_count), {{ $cvExport->failed_count }} could not be fetched@endif
                     &middot; {{ $cvExport->humanSize() }}
                     @if($cvExport->completed_at)&middot; prepared {{ $cvExport->completed_at->diffForHumans() }}@endif
                 @elseif($cvExport && $cvExport->isFailed())

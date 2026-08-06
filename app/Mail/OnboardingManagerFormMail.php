@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\UsesEmailTemplate;
 use App\Models\OnboardingManagerToken;
 use App\Models\WorkflowRequest;
 use Illuminate\Bus\Queueable;
@@ -12,28 +13,31 @@ use Illuminate\Queue\SerializesModels;
 
 class OnboardingManagerFormMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, UsesEmailTemplate;
+
+    public function templateKey(): string
+    {
+        return 'onboarding.manager_form';
+    }
 
     public function __construct(
-        public WorkflowRequest        $workflow,
+        public WorkflowRequest $workflow,
         public OnboardingManagerToken $token
     ) {}
 
     public function envelope(): Envelope
     {
-        $payload     = $this->workflow->payload ?? [];
+        $payload = $this->workflow->payload ?? [];
         $displayName = $payload['display_name'] ?? 'New Employee';
 
         return new Envelope(
-            subject: "Action Required: New Employee Setup Form for {$displayName}",
+            subject: $this->templatedSubject("Action Required: New Employee Setup Form for {$displayName}"),
         );
     }
 
     public function content(): Content
     {
-        return new Content(
-            view: 'emails.hr.onboarding_manager_request',
-        );
+        return $this->templatedContent();
     }
 
     public function attachments(): array

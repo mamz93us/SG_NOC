@@ -14,7 +14,7 @@
                 <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);">
                     <tr>
                         <td style="background:#0d6efd;color:#fff;padding:16px 24px;font-size:18px;font-weight:bold;">
-                            Monthly Low-Toner Report — {{ $period }}
+                            Monthly Low-Toner Report — <!--f:period-->{{ $period }}<!--/f-->
                         </td>
                     </tr>
                     <tr>
@@ -23,12 +23,12 @@
                             <p style="margin:0;color:#2e7d32;font-size:16px;">✓ No printers are low on toner this month.</p>
                             @else
                             <p style="margin:0 0 16px 0;color:#555;line-height:1.5;">
-                                <strong>{{ $total }}</strong> cartridge{{ $total === 1 ? '' : 's' }} across
+                                <strong><!--f:total-->{{ $total }}<!--/f--></strong> cartridge{{ $total === 1 ? '' : 's' }} across
                                 <strong>{{ count($groups) }}</strong> branch{{ count($groups) === 1 ? '' : 'es' }}
                                 {{ $total === 1 ? 'is' : 'are' }} at or below the warning threshold and should be ordered / replaced.
                             </p>
 
-                            @foreach($groups as $group)
+                            <!--f:branch_groups-->@foreach($groups as $group)
                             <h3 style="margin:20px 0 8px 0;font-size:15px;color:#222;border-bottom:2px solid #eee;padding-bottom:4px;">
                                 {{ $group['branch'] }}
                                 <span style="font-weight:normal;color:#888;font-size:13px;">({{ count($group['rows']) }})</span>
@@ -54,7 +54,7 @@
                                 </tr>
                                 @endforeach
                             </table>
-                            @endforeach
+                            @endforeach<!--/f-->
 
                             <p style="margin:20px 0 0 0;">
                                 <a href="{{ $appUrl }}/admin/printers/snmp-status" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 20px;border-radius:4px;text-decoration:none;font-weight:bold;">
@@ -71,7 +71,7 @@
                     </tr>
                     <tr>
                         <td style="background:#f9fafb;color:#888;font-size:12px;padding:12px 24px;text-align:center;">
-                            {{ $companyName }} — sent by {{ $fromName }}
+                            <!--f:companyName-->{{ $companyName }}<!--/f--> — sent by <!--f:fromName-->{{ $fromName }}<!--/f-->
                         </td>
                     </tr>
                 </table>

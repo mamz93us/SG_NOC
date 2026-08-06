@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\UsesEmailTemplate;
 use App\Models\WorkflowRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -11,29 +12,32 @@ use Illuminate\Queue\SerializesModels;
 
 class HrOnboardingCompleteMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, UsesEmailTemplate;
+
+    public function templateKey(): string
+    {
+        return 'onboarding.hr_complete';
+    }
 
     public function __construct(
         public WorkflowRequest $workflow,
-        public string          $recipientEmail
+        public string $recipientEmail
     ) {}
 
     public function envelope(): Envelope
     {
-        $payload     = $this->workflow->payload ?? [];
+        $payload = $this->workflow->payload ?? [];
         $displayName = $payload['display_name'] ?? 'New Employee';
-        $hrRef       = $payload['hr_reference'] ?? $this->workflow->id;
+        $hrRef = $payload['hr_reference'] ?? $this->workflow->id;
 
         return new Envelope(
-            subject: "Onboarding Complete: {$displayName} (Ref: {$hrRef})",
+            subject: $this->templatedSubject("Onboarding Complete: {$displayName} (Ref: {$hrRef})"),
         );
     }
 
     public function content(): Content
     {
-        return new Content(
-            view: 'emails.hr.onboarding_complete',
-        );
+        return $this->templatedContent();
     }
 
     public function attachments(): array

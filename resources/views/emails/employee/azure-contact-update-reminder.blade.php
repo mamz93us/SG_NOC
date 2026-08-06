@@ -21,7 +21,7 @@
         <tr>
           <td style="padding:32px;">
             <p style="margin:0 0 16px;color:#212529;font-size:16px;">
-              Hi <strong>{{ $employeeName }}</strong>,
+              Hi <strong><!--f:employeeName-->{{ $employeeName }}<!--/f--></strong>,
             </p>
             <p style="margin:0 0 18px;color:#495057;font-size:15px;line-height:1.6;">
               Your <strong>mobile number</strong> is currently missing from your Microsoft 365 / Azure AD profile.

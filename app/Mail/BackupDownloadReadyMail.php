@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\UsesEmailTemplate;
 use App\Models\OffboardingBackup;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -11,7 +12,12 @@ use Illuminate\Queue\SerializesModels;
 
 class BackupDownloadReadyMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, UsesEmailTemplate;
+
+    public function templateKey(): string
+    {
+        return 'offboarding.backup_ready';
+    }
 
     public function __construct(public OffboardingBackup $backup) {}
 
@@ -21,15 +27,13 @@ class BackupDownloadReadyMail extends Mailable
         $type = $this->backup->typeLabel();
 
         return new Envelope(
-            subject: "Backup ready: {$type} for {$name}",
+            subject: $this->templatedSubject("Backup ready: {$type} for {$name}"),
         );
     }
 
     public function content(): Content
     {
-        return new Content(
-            view: 'emails.hr.backup_download_ready',
-        );
+        return $this->templatedContent();
     }
 
     public function attachments(): array

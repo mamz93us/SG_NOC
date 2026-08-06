@@ -869,7 +869,7 @@
                     {{-- ── Workflows dropdown ── --}}
                     @canany(['view-workflows','manage-workflows','approve-workflows'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/workflows*','admin/forms*','admin/workflow-templates*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/workflows*','admin/forms*','admin/workflow-templates*','admin/form-previews*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-diagram-2-fill me-1"></i>Workflows
                         </a>
@@ -926,6 +926,24 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.avepoint.*') ? 'active' : '' }}"
                                    href="{{ route('admin.avepoint.dashboard') }}">
                                     <i class="bi bi-cloud-arrow-down-fill me-2 text-info"></i>AvePoint Backups
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-workflows')
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-eye me-1"></i>Manager Form Previews</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.form-previews.onboarding') ? 'active' : '' }}"
+                                   href="{{ route('admin.form-previews.onboarding') }}" target="_blank">
+                                    <i class="bi bi-person-plus me-2"></i>Onboarding Form
+                                    <i class="bi bi-box-arrow-up-right ms-1 small opacity-50"></i>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.form-previews.offboarding') ? 'active' : '' }}"
+                                   href="{{ route('admin.form-previews.offboarding') }}" target="_blank">
+                                    <i class="bi bi-person-dash me-2"></i>Offboarding Form
+                                    <i class="bi bi-box-arrow-up-right ms-1 small opacity-50"></i>
                                 </a>
                             </li>
                             @endcan
@@ -1031,7 +1049,7 @@
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
                     @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*','admin/smtp-relay*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/email-templates*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*','admin/smtp-relay*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-gear-fill me-1"></i>Admin
                         </a>
@@ -1047,6 +1065,12 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.mail-senders.*') ? 'active' : '' }}"
                                    href="{{ route('admin.mail-senders.index') }}">
                                     <i class="bi bi-envelope-at me-2"></i>Sender Addresses
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.email-templates.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.email-templates.index') }}">
+                                    <i class="bi bi-envelope-paper me-2"></i>Email Templates
                                 </a>
                             </li>
                             <li>

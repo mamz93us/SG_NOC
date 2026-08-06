@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\UsesEmailTemplate;
 use App\Models\WorkflowRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -19,7 +20,12 @@ use Illuminate\Queue\SerializesModels;
  */
 class OnboardingDetailsMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, UsesEmailTemplate;
+
+    public function templateKey(): string
+    {
+        return 'onboarding.details';
+    }
 
     public function __construct(
         public WorkflowRequest $workflow,
@@ -31,11 +37,11 @@ class OnboardingDetailsMail extends Mailable
         $payload = $this->workflow->payload ?? [];
         $name = $payload['display_name'] ?? 'New employee';
 
-        return new Envelope(subject: "{$name} is set up and ready");
+        return new Envelope(subject: $this->templatedSubject("{$name} is set up and ready"));
     }
 
     public function content(): Content
     {
-        return new Content(view: 'emails.hr.onboarding_details');
+        return $this->templatedContent();
     }
 }

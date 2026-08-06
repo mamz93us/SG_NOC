@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\UsesEmailTemplate;
 use App\Models\AvepointBackup;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -11,22 +12,27 @@ use Illuminate\Queue\SerializesModels;
 
 class AvepointBackupReadyMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, UsesEmailTemplate;
+
+    public function templateKey(): string
+    {
+        return 'backups.avepoint_ready';
+    }
 
     public function __construct(public AvepointBackup $backup) {}
 
     public function envelope(): Envelope
     {
         $subject = $this->backup->subject_name ?? $this->backup->subject_upn;
-        $type    = $this->backup->typeLabel();
+        $type = $this->backup->typeLabel();
 
         return new Envelope(
-            subject: "AvePoint backup ready: {$type} for {$subject}",
+            subject: $this->templatedSubject("AvePoint backup ready: {$type} for {$subject}"),
         );
     }
 
     public function content(): Content
     {
-        return new Content(view: 'emails.avepoint.backup_ready');
+        return $this->templatedContent();
     }
 }

@@ -42,13 +42,13 @@
                     <th style="padding:8px 12px;text-align:left;color:#555;font-weight:600;border-bottom:2px solid #dde3ea;">Location</th>
                     <th style="padding:8px 12px;text-align:left;color:#555;font-weight:600;border-bottom:2px solid #dde3ea;">IP Address</th>
                 </tr>
-                @foreach($printers as $printer)
+                <!--f:printer_list-->@foreach($printers as $printer)
                 <tr style="border-bottom:1px solid #eef0f3;">
                     <td style="padding:8px 12px;color:#333;font-weight:500;">{{ $printer->printer_name }}</td>
                     <td style="padding:8px 12px;color:#666;">{{ $printer->locationLabel() ?: '—' }}</td>
                     <td style="padding:8px 12px;color:#666;font-family:monospace;">{{ $printer->ip_address ?: '—' }}</td>
                 </tr>
-                @endforeach
+                @endforeach<!--/f-->
             </table>
             @endif
 

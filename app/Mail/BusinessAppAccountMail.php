@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\UsesEmailTemplate;
 use App\Models\BusinessApp;
 use App\Models\Employee;
 use App\Models\WorkflowRequest;
@@ -24,7 +25,12 @@ use Illuminate\Queue\SerializesModels;
  */
 class BusinessAppAccountMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, UsesEmailTemplate;
+
+    public function templateKey(): string
+    {
+        return 'business_app.account';
+    }
 
     public const ACTIVATE = 'activate';
 
@@ -43,12 +49,12 @@ class BusinessAppAccountMail extends Mailable
         $verb = $this->action === self::DEACTIVATE ? 'Disable' : 'Create';
 
         return new Envelope(
-            subject: "{$verb} {$this->app->name} account: {$this->employee->name}",
+            subject: $this->templatedSubject("{$verb} {$this->app->name} account: {$this->employee->name}"),
         );
     }
 
     public function content(): Content
     {
-        return new Content(view: 'emails.hr.business_app_account');
+        return $this->templatedContent();
     }
 }

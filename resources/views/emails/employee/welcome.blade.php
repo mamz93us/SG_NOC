@@ -33,7 +33,7 @@
             @endphp
 
             <p style="margin:0 0 16px;color:#212529;font-size:16px;">
-              Hi <strong>{{ $greetName }}</strong>,
+              Hi <strong><!--f:greetName-->{{ $greetName }}<!--/f--></strong>,
             </p>
             <p style="margin:0 0 20px;color:#495057;font-size:15px;line-height:1.6;">
               Welcome to <strong>Samir Group</strong>! Your IT account has been set up and is ready to use.
@@ -47,31 +47,31 @@
               @if($upn)
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;width:160px;border-top:1px solid #dee2e6;">Email / Login</td>
-                <td style="padding:10px 16px;color:#0d6efd;font-size:14px;border-top:1px solid #dee2e6;font-family:monospace;font-weight:600;">{{ $upn }}</td>
+                <td style="padding:10px 16px;color:#0d6efd;font-size:14px;border-top:1px solid #dee2e6;font-family:monospace;font-weight:600;"><!--f:upn-->{{ $upn }}<!--/f--></td>
               </tr>
               @endif
               @if($extension)
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Phone Extension</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;font-weight:700;">{{ $extension }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;font-weight:700;"><!--f:extension-->{{ $extension }}<!--/f--></td>
               </tr>
               @endif
               @if($jobTitle)
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Job Title</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;">{{ $jobTitle }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;"><!--f:jobTitle-->{{ $jobTitle }}<!--/f--></td>
               </tr>
               @endif
               @if($department)
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Department</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;">{{ $department }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;"><!--f:department-->{{ $department }}<!--/f--></td>
               </tr>
               @endif
               @if($branch)
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Office</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;">{{ $branch->name }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;"><!--f:branch_name-->{{ $branch->name }}<!--/f--></td>
               </tr>
               @endif
             </table>

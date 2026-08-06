@@ -24,17 +24,17 @@
       <tr>
         <td style="padding:28px 30px;">
           <p>
-            The offboarding workflow for <strong>{{ $emp?->name ?? 'an employee' }}</strong>
+            The offboarding workflow for <strong><!--f:employee_name-->{{ $emp?->name ?? 'an employee' }}<!--/f--></strong>
             has reached the manager grace window without a response.
             The Azure user has been disabled. No destructive deprovisioning has run.
           </p>
 
           <table cellpadding="6" cellspacing="0" border="0" width="100%" style="border:1px solid #dee2e6;border-radius:6px;margin:16px 0;">
-            <tr><td style="background:#f8f9fa;width:160px;">Employee</td><td><strong>{{ $emp?->name ?? '—' }}</strong></td></tr>
-            <tr><td style="background:#f8f9fa;">UPN</td><td style="font-family:monospace;">{{ $emp?->email ?? '—' }}</td></tr>
-            <tr><td style="background:#f8f9fa;">Last working day</td><td>{{ $ow->expected_last_day?->format('Y-m-d') }}</td></tr>
-            <tr><td style="background:#f8f9fa;">Manager email</td><td>{{ $token?->manager_email ?? '—' }}</td></tr>
-            <tr><td style="background:#f8f9fa;">Grace expired</td><td>{{ $ow->manager_grace_until?->format('Y-m-d') }}</td></tr>
+            <tr><td style="background:#f8f9fa;width:160px;">Employee</td><td><strong><!--f:employee_name_row-->{{ $emp?->name ?? '—' }}<!--/f--></strong></td></tr>
+            <tr><td style="background:#f8f9fa;">UPN</td><td style="font-family:monospace;"><!--f:employee_email-->{{ $emp?->email ?? '—' }}<!--/f--></td></tr>
+            <tr><td style="background:#f8f9fa;">Last working day</td><td><!--f:last_working_day-->{{ $ow->expected_last_day?->format('Y-m-d') }}<!--/f--></td></tr>
+            <tr><td style="background:#f8f9fa;">Manager email</td><td><!--f:manager_email-->{{ $token?->manager_email ?? '—' }}<!--/f--></td></tr>
+            <tr><td style="background:#f8f9fa;">Grace expired</td><td><!--f:grace_expired-->{{ $ow->manager_grace_until?->format('Y-m-d') }}<!--/f--></td></tr>
           </table>
 
           <p>Please take one of these actions:</p>
@@ -46,9 +46,9 @@
           </ol>
 
           <div style="text-align:center;margin:24px 0;">
-            <a href="{{ $adminUrl }}" style="display:inline-block;background:#dc3545;color:#fff;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:6px;">
+            <!--f:noc_button--><a href="{{ $adminUrl }}" style="display:inline-block;background:#dc3545;color:#fff;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:6px;">
               Open in NOC
-            </a>
+            </a><!--/f-->
           </div>
 
           <p style="font-size:12px;color:#6c757d;">SG NOC &bull; Offboarding escalation &bull; Automated email</p>

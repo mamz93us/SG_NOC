@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\UsesEmailTemplate;
 use App\Models\Notification;
 use App\Models\Setting;
 use App\Models\User;
@@ -15,26 +16,34 @@ use Illuminate\Queue\SerializesModels;
 
 class NotificationMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, UsesEmailTemplate;
+
+    public function templateKey(): string
+    {
+        return 'system.notification';
+    }
 
     public ?WorkflowRequest $workflow = null;
 
     // Scalar copies — avoids SerializesModels trying to reload a singleton model
     private string $fromAddress;
+
     private string $fromName;
+
     private string $companyName;
+
     private ?string $companyLogoPath;
 
     public function __construct(
         public Notification $notification,
-        public User         $recipient
+        public User $recipient
     ) {
         $setting = Setting::first();
 
-        $this->fromAddress     = $setting?->smtp_from_address ?: 'noreply@samirgroup.com';
-        $this->fromName        = $setting?->smtp_from_name    ?: 'SG NOC';
-        $this->companyName     = $setting?->company_name      ?: 'Samir Group';
-        $this->companyLogoPath = $setting?->company_logo      ?: null;
+        $this->fromAddress = $setting?->smtp_from_address ?: 'noreply@samirgroup.com';
+        $this->fromName = $setting?->smtp_from_name ?: 'SG NOC';
+        $this->companyName = $setting?->company_name ?: 'Samir Group';
+        $this->companyLogoPath = $setting?->company_logo ?: null;
 
         // Auto-load WorkflowRequest when the notification links to one
         if ($notification->link && preg_match('#/workflows/(\d+)#', $notification->link, $m)) {
@@ -46,20 +55,22 @@ class NotificationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            from:    new Address($this->fromAddress, $this->fromName),
-            subject: '[SG NOC] ' . $this->notification->title,
+            from: new Address($this->fromAddress, $this->fromName),
+            subject: $this->templatedSubject('[SG NOC] '.$this->notification->title),
         );
     }
 
     public function content(): Content
     {
-        return new Content(
-            view: 'emails.notification',
-            with: [
-                'fromName'        => $this->fromName,
-                'companyName'     => $this->companyName,
-                'companyLogoPath' => $this->companyLogoPath,
-            ],
-        );
+        return $this->templatedContent();
+    }
+
+    protected function templateWith(): array
+    {
+        return [
+            'fromName' => $this->fromName,
+            'companyName' => $this->companyName,
+            'companyLogoPath' => $this->companyLogoPath,
+        ];
     }
 }

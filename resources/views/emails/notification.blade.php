@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>[SG NOC] {{ $notification->title }}</title>
+    <title>[SG NOC] <!--f:notification_title-->{{ $notification->title }}<!--/f--></title>
     <!--[if mso]>
     <noscript>
         <xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
@@ -128,7 +128,7 @@
                     <td style="{{ $severityBg }};padding:9px 40px;text-align:center;">
                         <span style="color:#ffffff;font-size:11px;font-weight:700;
                                      letter-spacing:2px;text-transform:uppercase;">
-                            {{ $severityLabel }}
+                            <!--f:severityLabel-->{{ $severityLabel }}<!--/f-->
                         </span>
                     </td>
                 </tr>
@@ -146,7 +146,7 @@
                                     border-radius:2px;margin-bottom:16px;"></div>
 
                         <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4b5563;">
-                            {{ $notification->message }}
+                            <!--f:notification_message-->{{ $notification->message }}<!--/f-->
                         </p>
 
                         {{-- Type + timestamp --}}
@@ -186,7 +186,7 @@
 
                             <tr>
                                 <td style="padding:10px 18px 6px;font-size:12px;color:#6b7280;font-weight:600;width:38%;vertical-align:top;">Request ID</td>
-                                <td style="padding:10px 18px 6px;font-size:13px;color:#1e293b;font-weight:700;vertical-align:top;">#{{ $workflow->id }}</td>
+                                <td style="padding:10px 18px 6px;font-size:13px;color:#1e293b;font-weight:700;vertical-align:top;">#<!--f:workflow_id-->{{ $workflow->id }}<!--/f--></td>
                             </tr>
                             <tr style="background:#f8fafc;">
                                 <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Workflow Type</td>
@@ -194,12 +194,12 @@
                             </tr>
                             <tr>
                                 <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Title</td>
-                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">{{ $workflow->title }}</td>
+                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;"><!--f:workflow_title-->{{ $workflow->title }}<!--/f--></td>
                             </tr>
                             @if($workflow->description)
                             <tr style="background:#f8fafc;">
                                 <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Description</td>
-                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">{{ $workflow->description }}</td>
+                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;"><!--f:workflow_description-->{{ $workflow->description }}<!--/f--></td>
                             </tr>
                             @endif
                             <tr @if(!$workflow->description) style="background:#f8fafc;" @endif>
@@ -209,13 +209,13 @@
                             @if($workflow->branch)
                             <tr>
                                 <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Branch</td>
-                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">{{ $workflow->branch->name }}</td>
+                                <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;"><!--f:workflow_branch_name-->{{ $workflow->branch->name }}<!--/f--></td>
                             </tr>
                             @endif
                             <tr style="background:#f8fafc;">
                                 <td style="padding:6px 18px;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">Approval Progress</td>
                                 <td style="padding:6px 18px;font-size:13px;color:#1e293b;vertical-align:top;">
-                                    Step {{ $workflow->current_step }} of {{ $workflow->total_steps }}
+                                    Step <!--f:workflow_current_step-->{{ $workflow->current_step }}<!--/f--> of <!--f:workflow_total_steps-->{{ $workflow->total_steps }}<!--/f-->
                                     &nbsp;
                                     <span style="display:inline-block;background:{{ $severityColor }}1a;
                                                  color:{{ $severityColor }};font-size:10px;font-weight:700;
@@ -240,12 +240,12 @@
                                     </span>
                                 </td>
                             </tr>
-                            @foreach($payloadRows as $i => $row)
+                            <!--f:detail_rows-->@foreach($payloadRows as $i => $row)
                             <tr @if($i % 2 !== 0) style="background:#f8fafc;" @endif>
                                 <td style="padding:6px 18px @if($loop->last) 12px @endif;font-size:12px;color:#6b7280;font-weight:600;vertical-align:top;">{{ $row['label'] }}</td>
                                 <td style="padding:6px 18px @if($loop->last) 12px @endif;font-size:13px;color:#1e293b;word-break:break-word;vertical-align:top;">{{ $row['value'] }}</td>
                             </tr>
-                            @endforeach
+                            @endforeach<!--/f-->
                             @endif
 
                         </table>
@@ -257,7 +257,7 @@
                             <tr>
                                 <td align="center" style="padding:4px 0 8px;">
                                     <a href="{{ $notification->link }}"
-                                       style="display:inline-block;background:{{ $severityColor }};color:#ffffff;
+                                       style="display:inline-block;background:<!--f:severityColor-->{{ $severityColor }}<!--/f-->;color:#ffffff;
                                               text-decoration:none;font-size:14px;font-weight:700;
                                               padding:14px 40px;border-radius:8px;letter-spacing:0.5px;">
                                         @if($workflow) → Review &amp; Approve Request
@@ -287,7 +287,7 @@
                                 <td>
                                     <p style="margin:0;font-size:12px;color:#6b7280;">
                                         <strong style="color:#374151;">Sent to:</strong>
-                                        {{ $recipient->name }} &lt;{{ $recipient->email }}&gt;
+                                        <!--f:recipient_name-->{{ $recipient->name }}<!--/f--> &lt;<!--f:recipient_email-->{{ $recipient->email }}<!--/f-->&gt;
                                     </p>
                                 </td>
                                 <td align="right">
@@ -308,7 +308,7 @@
                     <td style="background:#f1f5f9;padding:20px 40px;text-align:center;
                                border-top:1px solid #e2e8f0;">
                         <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#475569;">
-                            🛡️ SG NOC — {{ $companyName }} IT Department
+                            🛡️ SG NOC — <!--f:companyName-->{{ $companyName }}<!--/f--> IT Department
                         </p>
                         <p style="margin:0 0 10px;font-size:11px;color:#94a3b8;">
                             This is an automated alert from the Network Operations Center.

@@ -49,32 +49,32 @@
               </tr>
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;width:180px;border-top:1px solid #dee2e6;">Full Name</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;font-weight:600;">{{ $displayName }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;font-weight:600;"><!--f:displayName-->{{ $displayName }}<!--/f--></td>
               </tr>
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Login (UPN)</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;font-family:monospace;">{{ $upn }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;font-family:monospace;"><!--f:upn-->{{ $upn }}<!--/f--></td>
               </tr>
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Initial Password</td>
-                <td style="padding:10px 16px;color:#dc3545;font-size:14px;border-top:1px solid #dee2e6;font-family:monospace;font-weight:700;">{{ $initialPwd }}</td>
+                <td style="padding:10px 16px;color:#dc3545;font-size:14px;border-top:1px solid #dee2e6;font-family:monospace;font-weight:700;"><!--f:initialPwd-->{{ $initialPwd }}<!--/f--></td>
               </tr>
               @if($department)
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Department</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;">{{ $department }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;"><!--f:department-->{{ $department }}<!--/f--></td>
               </tr>
               @endif
               @if($jobTitle)
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Job Title</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;">{{ $jobTitle }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;"><!--f:jobTitle-->{{ $jobTitle }}<!--/f--></td>
               </tr>
               @endif
               @if($branch)
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Branch</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;">{{ $branch->name }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;"><!--f:branch_name-->{{ $branch->name }}<!--/f--></td>
               </tr>
               @endif
             </table>
@@ -87,7 +87,7 @@
               </tr>
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;width:180px;border-top:1px solid #dee2e6;">Extension Number</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;font-weight:700;">{{ $extension }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;font-weight:700;"><!--f:extension-->{{ $extension }}<!--/f--></td>
               </tr>
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Extension ID (UCM login)</td>
@@ -100,7 +100,7 @@
               @if($ucmServer)
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">UCM Server</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;">{{ $ucmServer->name }} <span style="color:#6c757d;">({{ $ucmServer->url ?? '—' }})</span></td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;"><!--f:ucmServer_name-->{{ $ucmServer->name }}<!--/f--> <span style="color:#6c757d;">({{ $ucmServer->url ?? '—' }})</span></td>
               </tr>
               @endif
             </table>
@@ -109,20 +109,20 @@
             @if(!empty($licenses))
             <p style="margin:16px 0 8px;color:#212529;font-size:14px;font-weight:600;">Assigned Licenses:</p>
             <ul style="margin:0 0 18px;padding-left:20px;color:#495057;font-size:14px;">
-              @foreach($licenses as $lic)
+              <!--f:detail_rows-->@foreach($licenses as $lic)
               <li style="margin-bottom:4px;">{{ $lic['name'] ?? $lic['sku'] }}</li>
-              @endforeach
+              @endforeach<!--/f-->
             </ul>
             @endif
 
             @if($internetLvl)
-            <p style="margin:8px 0;color:#495057;font-size:14px;"><strong>Internet Level:</strong> {{ $internetLvl }}</p>
+            <p style="margin:8px 0;color:#495057;font-size:14px;"><strong>Internet Level:</strong> <!--f:internetLvl-->{{ $internetLvl }}<!--/f--></p>
             @endif
 
             @if($managerCmts)
             <div style="margin:16px 0;padding:12px 14px;border-left:3px solid #0d6efd;background:#f0f6ff;border-radius:4px;">
               <div style="font-size:12px;font-weight:700;color:#0d6efd;text-transform:uppercase;margin-bottom:4px;">Manager Comments</div>
-              <div style="font-size:14px;color:#212529;white-space:pre-wrap;">{{ $managerCmts }}</div>
+              <div style="font-size:14px;color:#212529;white-space:pre-wrap;"><!--f:managerCmts-->{{ $managerCmts }}<!--/f--></div>
             </div>
             @endif
 
@@ -132,7 +132,7 @@
             </p>
 
             <p style="margin:20px 0 0;color:#6c757d;font-size:13px;">
-              Workflow #{{ $workflow->id }} — automated by SG NOC IT Management System.
+              Workflow #<!--f:workflow_id-->{{ $workflow->id }}<!--/f--> — automated by SG NOC IT Management System.
             </p>
           </td>
         </tr>

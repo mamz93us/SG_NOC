@@ -49,9 +49,9 @@
 
         <tr>
           <td style="padding:32px;">
-            <p style="margin:0 0 16px;color:#212529;font-size:16px;">Dear {{ $managerName }},</p>
+            <p style="margin:0 0 16px;color:#212529;font-size:16px;">Dear <!--f:managerName-->{{ $managerName }}<!--/f-->,</p>
             <p style="margin:0 0 20px;color:#212529;font-size:15px;">
-              HR has initiated an offboarding process for <strong>{{ $displayName }}</strong>.
+              HR has initiated an offboarding process for <strong><!--f:displayName-->{{ $displayName }}<!--/f--></strong>.
               <strong>Mailbox and OneDrive will be backed up to the NOC archive automatically</strong> —
               you'll receive secure download links once each backup is ready. Please review the details
               below and submit your decisions so IT can proceed with the rest of the deprovisioning.
@@ -68,20 +68,20 @@
               </tr>
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Login (UPN)</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;font-family:monospace;">{{ $upn }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;font-family:monospace;"><!--f:upn-->{{ $upn }}<!--/f--></td>
               </tr>
               @if(!empty($live['job_title']) || !empty($live['department']))
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Role</td>
                 <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;">
-                  {{ $live['job_title'] ?? '—' }}@if(!empty($live['department'])) <span style="color:#6c757d;"> · {{ $live['department'] }}</span>@endif
+                  {{ $live['job_title'] ?? '—' }}@if(!empty($live['department'])) <span style="color:#6c757d;"> · <!--f:live_department-->{{ $live['department'] }}<!--/f--></span>@endif
                 </td>
               </tr>
               @endif
               @if($lastDay)
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Last Working Day</td>
-                <td style="padding:10px 16px;color:#dc3545;font-size:14px;font-weight:600;">{{ $lastDay }}</td>
+                <td style="padding:10px 16px;color:#dc3545;font-size:14px;font-weight:600;"><!--f:lastDay-->{{ $lastDay }}<!--/f--></td>
               </tr>
               @endif
               @if($reason)
@@ -92,7 +92,7 @@
               @endif
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">HR Reference</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;">{{ $hrRef }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;"><!--f:hrRef-->{{ $hrRef }}<!--/f--></td>
               </tr>
             </table>
 
@@ -130,11 +130,11 @@
                 </tr>
                 <tr>
                   <td style="padding:10px 16px;color:#212529;font-size:13px;border-top:1px solid #dee2e6;">
-                    @foreach($groups as $i => $g)
+                    <!--f:decision_rows-->@foreach($groups as $i => $g)
                       <span style="display:inline-block;background-color:#fffaf0;border:1px solid #ffecb5;padding:2px 8px;border-radius:12px;margin:2px 4px 2px 0;">
                         {{ $g['display_name'] ?? '(unnamed)' }}
                       </span>
-                    @endforeach
+                    @endforeach<!--/f-->
                     <div style="margin-top:8px;color:#6c757d;font-size:12px;">
                       Security groups are not shown. The user will be removed from all groups as part of deprovisioning.
                     </div>
@@ -157,7 +157,7 @@
 
             @if($expiresAt)
             <p style="margin:0 0 16px;color:#856404;font-size:13px;background-color:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:10px 14px;">
-              &#9888; This link expires on <strong>{{ $expiresAt }}</strong>. After expiry, please contact IT directly.
+              &#9888; This link expires on <strong><!--f:expiresAt-->{{ $expiresAt }}<!--/f--></strong>. After expiry, please contact IT directly.
             </p>
             @endif
 

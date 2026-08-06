@@ -38,6 +38,7 @@
     $groups      = $live['groups']   ?? [];
     $assets      = $assets ?? collect();          // passed in by controller
     $activeEmps  = $activeEmployees ?? collect(); // passed in by controller
+    $preview     = $preview ?? false;
 
     $humanSize = function ($bytes) {
         if (! $bytes) return '—';
@@ -48,6 +49,13 @@
         return sprintf('%.2f %s', $size, $units[$i]);
     };
 @endphp
+
+@if($preview)
+<div class="alert alert-warning border-warning rounded-0 mb-0 text-center small fw-semibold">
+  <i class="bi bi-eye-fill me-1"></i>
+  Preview mode — this is what the manager sees. Sample data, submission disabled.
+</div>
+@endif
 
 <div class="container container-narrow">
   <div class="header-bar">
@@ -217,11 +225,11 @@
         </div>
 
         <div class="d-flex justify-content-between gap-2">
-          <button type="submit" name="decision" value="rejected" class="btn btn-outline-secondary"
+          <button type="submit" name="decision" value="rejected" class="btn btn-outline-secondary" {{ $preview ? 'disabled' : '' }}
                   onclick="return confirm('Reject this offboarding? This will cancel the workflow.');">
             <i class="bi bi-x-circle me-1"></i>Reject / Do Not Proceed
           </button>
-          <button type="submit" name="decision" value="approved" class="btn btn-danger btn-lg fw-bold">
+          <button type="submit" name="decision" value="approved" class="btn btn-danger btn-lg fw-bold" {{ $preview ? 'disabled' : '' }}>
             <i class="bi bi-check-circle me-1"></i>Approve & Start Offboarding
           </button>
         </div>

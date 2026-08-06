@@ -41,7 +41,7 @@
       <tr>
         <td style="padding:22px 26px 6px;color:#333;font-size:14px;line-height:1.55;">
           @if($deactivate)
-            This employee no longer needs <strong>{{ $app->name }}</strong> access. Please disable
+            This employee no longer needs <strong><!--f:app_name-->{{ $app->name }}<!--/f--></strong> access. Please disable
             or remove their account. They have already been removed from the corresponding
             security group.
           @else
@@ -54,12 +54,12 @@
       <tr>
         <td style="padding:10px 26px 4px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#333;">
-            @foreach($rows as $label => $value)
+            <!--f:detail_rows-->@foreach($rows as $label => $value)
             <tr>
               <td style="padding:7px 0;color:#6c757d;width:38%;">{{ $label }}</td>
               <td style="padding:7px 0;font-weight:600;{{ in_array($label, ['Work email','Extension']) ? 'font-family:monospace;' : '' }}">{{ $value }}</td>
             </tr>
-            @endforeach
+            @endforeach<!--/f-->
           </table>
         </td>
       </tr>
@@ -68,7 +68,7 @@
       <tr>
         <td style="padding:8px 26px 0;">
           <div style="background:#f8f9fa;border-left:3px solid {{ $accent }};padding:10px 12px;border-radius:6px;font-size:13px;color:#444;">
-            <strong>Reason:</strong> {{ $reason }}
+            <strong>Reason:</strong> <!--f:reason-->{{ $reason }}<!--/f-->
           </div>
         </td>
       </tr>
@@ -78,7 +78,7 @@
       <tr>
         <td style="padding:8px 26px 0;">
           <div style="background:#f8f9fa;border-left:3px solid {{ $accent }};padding:10px 12px;border-radius:6px;font-size:13px;color:#444;">
-            <strong>Manager notes:</strong> {{ $payload['manager_comments'] }}
+            <strong>Manager notes:</strong> <!--f:payload_manager_comments-->{{ $payload['manager_comments'] }}<!--/f-->
           </div>
         </td>
       </tr>
@@ -94,7 +94,8 @@
 
       <tr>
         <td style="padding:0 26px 24px;color:#9aa0a6;font-size:11.5px;border-top:1px solid #eee;padding-top:14px;">
-          Sent automatically by SG NOC@if($workflow) · onboarding request #{{ $workflow->id }}@endif
+          Sent automatically by SG NOC
+          @if($workflow) · onboarding request #<!--f:workflow_id-->{{ $workflow->id }}<!--/f-->@endif
         </td>
       </tr>
 

@@ -48,7 +48,15 @@
   $startDate   = $payload['start_date'] ?? null;
   $managerEmail= $tokenRecord->manager_email ?? '—';
   $managerName = $tokenRecord->manager_name ?? 'Manager';
+  $preview     = $preview ?? false;
 @endphp
+
+@if($preview)
+<div class="alert alert-warning border-warning rounded-0 mb-0 text-center small fw-semibold">
+  <i class="bi bi-eye-fill me-1"></i>
+  Preview mode — this is what the manager sees. Sample data, submission disabled.
+</div>
+@endif
 
 <div class="card">
   <div class="header-bar">
@@ -251,7 +259,7 @@
       </div>
 
       <div class="d-grid">
-        <button type="submit" class="btn btn-primary btn-lg fw-bold">
+        <button type="submit" class="btn btn-primary btn-lg fw-bold" {{ $preview ? 'disabled' : '' }}>
           <i class="bi bi-check-circle me-2"></i>Submit Setup Form
         </button>
       </div>

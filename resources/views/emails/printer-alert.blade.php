@@ -14,7 +14,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>{{ $event->title }}</title>
+    <title><!--f:event_title-->{{ $event->title }}<!--/f--></title>
 </head>
 <body style="margin:0;padding:0;background:#f5f6f8;font-family:Arial,Helvetica,sans-serif;color:#222;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f6f8;padding:24px 0;">
@@ -29,21 +29,21 @@
                     <tr>
                         <td style="padding:24px;">
                             <h2 style="margin:0 0 8px 0;font-size:18px;color:#222;">{{ $event->title }}</h2>
-                            <p style="margin:0 0 16px 0;color:#555;line-height:1.5;">{{ $event->message }}</p>
+                            <p style="margin:0 0 16px 0;color:#555;line-height:1.5;"><!--f:event_message-->{{ $event->message }}<!--/f--></p>
 
                             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:16px 0;">
                                 <tr>
                                     <td style="padding:8px 12px;border:1px solid #e5e7eb;background:#fafafa;width:160px;font-weight:bold;">Printer</td>
-                                    <td style="padding:8px 12px;border:1px solid #e5e7eb;">{{ $printer->printer_name }}</td>
+                                    <td style="padding:8px 12px;border:1px solid #e5e7eb;"><!--f:printer_printer_name-->{{ $printer->printer_name }}<!--/f--></td>
                                 </tr>
                                 <tr>
                                     <td style="padding:8px 12px;border:1px solid #e5e7eb;background:#fafafa;font-weight:bold;">Branch</td>
-                                    <td style="padding:8px 12px;border:1px solid #e5e7eb;">{{ $branchName }}</td>
+                                    <td style="padding:8px 12px;border:1px solid #e5e7eb;"><!--f:branchName-->{{ $branchName }}<!--/f--></td>
                                 </tr>
                                 @if($assetCode)
                                 <tr>
                                     <td style="padding:8px 12px;border:1px solid #e5e7eb;background:#fafafa;font-weight:bold;">Asset Code</td>
-                                    <td style="padding:8px 12px;border:1px solid #e5e7eb;">{{ $assetCode }}</td>
+                                    <td style="padding:8px 12px;border:1px solid #e5e7eb;"><!--f:assetCode-->{{ $assetCode }}<!--/f--></td>
                                 </tr>
                                 @endif
                                 <tr>
@@ -52,7 +52,7 @@
                                 </tr>
                                 <tr>
                                     <td style="padding:8px 12px;border:1px solid #e5e7eb;background:#fafafa;font-weight:bold;">Model</td>
-                                    <td style="padding:8px 12px;border:1px solid #e5e7eb;">{{ $printer->manufacturer }} {{ $printer->model }}</td>
+                                    <td style="padding:8px 12px;border:1px solid #e5e7eb;"><!--f:printer_manufacturer-->{{ $printer->manufacturer }}<!--/f--> <!--f:printer_model-->{{ $printer->model }}<!--/f--></td>
                                 </tr>
                                 <tr>
                                     <td style="padding:8px 12px;border:1px solid #e5e7eb;background:#fafafa;font-weight:bold;">Detected</td>
@@ -73,7 +73,7 @@
                     </tr>
                     <tr>
                         <td style="background:#f9fafb;color:#888;font-size:12px;padding:12px 24px;text-align:center;">
-                            {{ $companyName }} — sent by {{ $fromName }}
+                            <!--f:companyName-->{{ $companyName }}<!--/f--> — sent by <!--f:fromName-->{{ $fromName }}<!--/f-->
                         </td>
                     </tr>
                 </table>

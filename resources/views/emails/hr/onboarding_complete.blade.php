@@ -35,7 +35,7 @@
             @endphp
 
             <p style="margin:0 0 16px;color:#212529;font-size:16px;">
-              The IT onboarding process for <strong>{{ $displayName }}</strong> has been completed successfully.
+              The IT onboarding process for <strong><!--f:displayName-->{{ $displayName }}<!--/f--></strong> has been completed successfully.
             </p>
 
             <!-- Details table -->
@@ -45,34 +45,34 @@
               </tr>
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;width:160px;border-top:1px solid #dee2e6;">HR Reference</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;font-weight:600;">{{ $hrRef }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;font-weight:600;"><!--f:hrRef-->{{ $hrRef }}<!--/f--></td>
               </tr>
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Login (UPN)</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;font-family:monospace;">{{ $upn }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;font-family:monospace;"><!--f:upn-->{{ $upn }}<!--/f--></td>
               </tr>
               @if($department)
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Department</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;">{{ $department }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;"><!--f:department-->{{ $department }}<!--/f--></td>
               </tr>
               @endif
               @if($jobTitle)
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Job Title</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;">{{ $jobTitle }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;"><!--f:jobTitle-->{{ $jobTitle }}<!--/f--></td>
               </tr>
               @endif
               @if($extension)
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Phone Extension</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;font-weight:600;">{{ $extension }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;font-weight:600;"><!--f:extension-->{{ $extension }}<!--/f--></td>
               </tr>
               @endif
               @if($startDate)
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Start Date</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;">{{ $startDate }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;"><!--f:startDate-->{{ $startDate }}<!--/f--></td>
               </tr>
               @endif
             </table>
@@ -81,9 +81,9 @@
             <!-- Licenses -->
             <p style="margin:0 0 8px;color:#212529;font-size:14px;font-weight:600;">Assigned Licenses:</p>
             <ul style="margin:0 0 24px;padding-left:20px;color:#495057;font-size:14px;">
-              @foreach($licenses as $lic)
+              <!--f:license_list-->@foreach($licenses as $lic)
               <li style="margin-bottom:4px;">{{ $lic['name'] ?? $lic['sku'] }}</li>
-              @endforeach
+              @endforeach<!--/f-->
             </ul>
             @endif
 

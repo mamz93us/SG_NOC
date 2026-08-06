@@ -33,7 +33,7 @@
             @endphp
 
             <p style="margin:0 0 16px;color:#212529;font-size:16px;">
-              The IT offboarding process for <strong>{{ $displayName }}</strong> has been completed.
+              The IT offboarding process for <strong><!--f:displayName-->{{ $displayName }}<!--/f--></strong> has been completed.
             </p>
 
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #dee2e6;border-radius:6px;overflow:hidden;margin-bottom:24px;">
@@ -46,17 +46,17 @@
               </tr>
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Login (UPN)</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;font-family:monospace;">{{ $upn }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;font-family:monospace;"><!--f:upn-->{{ $upn }}<!--/f--></td>
               </tr>
               @if($lastDay)
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Last Working Day</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;">{{ $lastDay }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;"><!--f:lastDay-->{{ $lastDay }}<!--/f--></td>
               </tr>
               @endif
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">HR Reference</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;">{{ $hrRef }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;"><!--f:hrRef-->{{ $hrRef }}<!--/f--></td>
               </tr>
             </table>
 
@@ -65,12 +65,12 @@
               <li>Azure AD account disabled</li>
               <li>Employee record marked as terminated</li>
               <li>Active asset assignments flagged for return</li>
-              @if(!empty($payload['forward_to']))<li>Mailbox forwarding requested to {{ $payload['forward_to'] }}</li>@endif
+              @if(!empty($payload['forward_to']))<li>Mailbox forwarding requested to <!--f:payload_forward_to-->{{ $payload['forward_to'] }}<!--/f--></li>@endif
             </ul>
 
             @if($managerNotes)
             <p style="margin:0 0 8px;color:#212529;font-size:14px;font-weight:600;">Manager Notes:</p>
-            <p style="margin:0 0 24px;color:#495057;font-size:14px;background:#f8f9fa;padding:12px 16px;border-radius:6px;border-left:4px solid #6c757d;">{{ $managerNotes }}</p>
+            <p style="margin:0 0 24px;color:#495057;font-size:14px;background:#f8f9fa;padding:12px 16px;border-radius:6px;border-left:4px solid #6c757d;"><!--f:managerNotes-->{{ $managerNotes }}<!--/f--></p>
             @endif
 
             <p style="margin:0;color:#6c757d;font-size:13px;">

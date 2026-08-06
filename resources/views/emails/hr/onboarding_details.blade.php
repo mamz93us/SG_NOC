@@ -42,26 +42,26 @@
 
       <tr>
         <td style="background:linear-gradient(135deg,#4a00e0,#8e2de2);padding:22px 26px;color:#fff;">
-          <div style="font-size:19px;font-weight:700;">{{ $name }} is ready</div>
+          <div style="font-size:19px;font-weight:700;"><!--f:name-->{{ $name }}<!--/f--> is ready</div>
           <div style="font-size:13px;opacity:.9;margin-top:3px;">{{ $settings->company_name ?? 'Samir Group' }} — IT onboarding complete</div>
         </td>
       </tr>
 
       <tr>
         <td style="padding:22px 26px 6px;color:#333;font-size:14px;line-height:1.55;">
-          {{ $intro }}
+          <!--f:intro-->{{ $intro }}<!--/f-->
         </td>
       </tr>
 
       <tr>
         <td style="padding:10px 26px 4px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#333;">
-            @foreach($rows as $label => $value)
+            <!--f:detail_rows-->@foreach($rows as $label => $value)
             <tr>
               <td style="padding:7px 0;color:#6c757d;width:38%;">{{ $label }}</td>
               <td style="padding:7px 0;font-weight:600;{{ in_array($label, ['Work email','Extension']) ? 'font-family:monospace;' : '' }}">{{ $value }}</td>
             </tr>
-            @endforeach
+            @endforeach<!--/f-->
           </table>
         </td>
       </tr>
@@ -88,7 +88,7 @@
 
       <tr>
         <td style="padding:0 26px 24px;color:#9aa0a6;font-size:11.5px;border-top:1px solid #eee;padding-top:14px;">
-          Sent automatically by SG NOC · request #{{ $workflow->id }}
+          Sent automatically by SG NOC · request #<!--f:workflow_id-->{{ $workflow->id }}<!--/f-->
         </td>
       </tr>
 

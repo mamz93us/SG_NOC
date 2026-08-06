@@ -73,7 +73,6 @@
                 @endforelse
             </div>
         </div>
-        @endif
 
         {{-- 2b. Sophos VPN Tunnels (SNMP) --}}
         @if(($sophosVpnTunnels ?? collect())->count() > 0)

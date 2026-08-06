@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\UsesEmailTemplate;
 use App\Models\WorkflowRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -11,7 +12,12 @@ use Illuminate\Queue\SerializesModels;
 
 class EmployeeWelcomeMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, UsesEmailTemplate;
+
+    public function templateKey(): string
+    {
+        return 'onboarding.employee_welcome';
+    }
 
     public function __construct(
         public WorkflowRequest $workflow
@@ -20,13 +26,14 @@ class EmployeeWelcomeMail extends Mailable
     public function envelope(): Envelope
     {
         $displayName = $this->workflow->payload['display_name'] ?? 'there';
+
         return new Envelope(
-            subject: "Welcome to Samir Group, {$displayName}!",
+            subject: $this->templatedSubject("Welcome to Samir Group, {$displayName}!"),
         );
     }
 
     public function content(): Content
     {
-        return new Content(view: 'emails.employee.welcome');
+        return $this->templatedContent();
     }
 }

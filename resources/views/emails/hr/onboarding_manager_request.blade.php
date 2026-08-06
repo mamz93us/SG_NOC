@@ -34,7 +34,7 @@
             @endphp
 
             <p style="margin:0 0 16px;color:#212529;font-size:16px;">
-              Dear {{ $managerName }},
+              Dear <!--f:manager_name-->{{ $managerName }}<!--/f-->,
             </p>
             <p style="margin:0 0 20px;color:#212529;font-size:15px;">
               A new employee is being onboarded. Before IT can complete the setup, we need your input
@@ -48,21 +48,21 @@
               </tr>
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;width:160px;border-top:1px solid #dee2e6;">Full Name</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;font-weight:600;border-top:1px solid #dee2e6;">{{ $displayName }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;font-weight:600;border-top:1px solid #dee2e6;"><!--f:employee_name-->{{ $displayName }}<!--/f--></td>
               </tr>
               <tr style="background-color:#f8f9fa;">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Email (UPN)</td>
-                <td style="padding:10px 16px;color:#0d6efd;font-size:14px;font-family:monospace;">{{ $upn }}</td>
+                <td style="padding:10px 16px;color:#0d6efd;font-size:14px;font-family:monospace;"><!--f:employee_email-->{{ $upn }}<!--/f--></td>
               </tr>
               @if($startDate)
               <tr>
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Start Date</td>
-                <td style="padding:10px 16px;color:#198754;font-size:14px;font-weight:600;border-top:1px solid #dee2e6;">{{ $startDate }}</td>
+                <td style="padding:10px 16px;color:#198754;font-size:14px;font-weight:600;border-top:1px solid #dee2e6;"><!--f:start_date-->{{ $startDate }}<!--/f--></td>
               </tr>
               @endif
               <tr style="{{ $startDate ? 'background-color:#f8f9fa;' : '' }}">
                 <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">HR Reference</td>
-                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;">{{ $hrRef }}</td>
+                <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;"><!--f:hr_reference-->{{ $hrRef }}<!--/f--></td>
               </tr>
             </table>
 
@@ -75,23 +75,23 @@
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
               <tr>
                 <td align="center">
-                  <a href="{{ $formUrl }}"
+                  <!--f:form_button--><a href="{{ $formUrl }}"
                      style="display:inline-block;background-color:#0d6efd;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:6px;">
                     Fill New Employee Setup Form
-                  </a>
+                  </a><!--/f-->
                 </td>
               </tr>
             </table>
 
             @if($expiresAt)
             <p style="margin:0 0 16px;color:#856404;font-size:13px;background-color:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:10px 14px;">
-              &#9888; This link expires on <strong>{{ $expiresAt }}</strong>.
+              &#9888; This link expires on <strong><!--f:expires_at-->{{ $expiresAt }}<!--/f--></strong>.
               If you are unable to complete the form, please contact the IT department directly.
             </p>
             @endif
 
             <p style="margin:0;color:#6c757d;font-size:13px;">
-              If you have questions, contact IT quoting reference: <strong>{{ $hrRef }}</strong>.
+              If you have questions, contact IT quoting reference: <strong><!--f:hrRef-->{{ $hrRef }}<!--/f--></strong>.
             </p>
           </td>
         </tr>

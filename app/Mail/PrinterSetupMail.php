@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\UsesEmailTemplate;
 use App\Models\PrinterDeployToken;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -12,7 +13,12 @@ use Illuminate\Support\Collection;
 
 class PrinterSetupMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, UsesEmailTemplate;
+
+    public function templateKey(): string
+    {
+        return 'printers.setup';
+    }
 
     public function __construct(
         public readonly PrinterDeployToken $token,
@@ -23,19 +29,21 @@ class PrinterSetupMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '🖨️ Printer Setup Instructions — ' . ($this->token->branch?->name ?? 'Your Branch'),
+            subject: $this->templatedSubject('🖨️ Printer Setup Instructions — '.($this->token->branch?->name ?? 'Your Branch')),
         );
     }
 
     public function content(): Content
     {
-        return new Content(
-            view: 'emails.printer_setup',
-            with: [
-                'token'     => $this->token,
-                'printers'  => $this->printers,
-                'setup_url' => $this->setupUrl,
-            ],
-        );
+        return $this->templatedContent();
+    }
+
+    protected function templateWith(): array
+    {
+        return [
+            'token' => $this->token,
+            'printers' => $this->printers,
+            'setup_url' => $this->setupUrl,
+        ];
     }
 }

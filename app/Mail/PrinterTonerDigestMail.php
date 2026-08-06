@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\UsesEmailTemplate;
 use App\Models\Setting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -12,7 +13,12 @@ use Illuminate\Queue\SerializesModels;
 
 class PrinterTonerDigestMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, UsesEmailTemplate;
+
+    public function templateKey(): string
+    {
+        return 'printers.toner_digest';
+    }
 
     private string $fromAddress;
 
@@ -39,22 +45,24 @@ class PrinterTonerDigestMail extends Mailable
     {
         return new Envelope(
             from: new Address($this->fromAddress, $this->fromName),
-            subject: $this->subjectLine,
+            subject: $this->templatedSubject($this->subjectLine),
         );
     }
 
     public function content(): Content
     {
-        return new Content(
-            view: 'emails.printer-toner-digest',
-            with: [
-                'groups' => $this->groups,
-                'total' => $this->total,
-                'period' => $this->period,
-                'companyName' => $this->companyName,
-                'fromName' => $this->fromName,
-                'appUrl' => rtrim((string) config('app.url'), '/'),
-            ],
-        );
+        return $this->templatedContent();
+    }
+
+    protected function templateWith(): array
+    {
+        return [
+            'groups' => $this->groups,
+            'total' => $this->total,
+            'period' => $this->period,
+            'companyName' => $this->companyName,
+            'fromName' => $this->fromName,
+            'appUrl' => rtrim((string) config('app.url'), '/'),
+        ];
     }
 }

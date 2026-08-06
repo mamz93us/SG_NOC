@@ -19,11 +19,11 @@
       </tr>
       <tr>
         <td style="padding:28px 30px;">
-          <p>The AvePoint backup you requested for <strong>{{ $subject }}</strong> is ready.</p>
+          <p>The AvePoint backup you requested for <strong><!--f:subject-->{{ $subject }}<!--/f--></strong> is ready.</p>
 
           <table cellpadding="6" cellspacing="0" border="0" width="100%" style="border:1px solid #dee2e6;border-radius:6px;margin:16px 0;">
             <tr><td style="background:#f8f9fa;width:140px;">Subject</td><td><strong>{{ $subject }}</strong></td></tr>
-            <tr><td style="background:#f8f9fa;">UPN</td><td style="font-family:monospace;">{{ $backup->subject_upn }}</td></tr>
+            <tr><td style="background:#f8f9fa;">UPN</td><td style="font-family:monospace;"><!--f:backup_subject_upn-->{{ $backup->subject_upn }}<!--/f--></td></tr>
             <tr><td style="background:#f8f9fa;">Type</td><td>{{ $backup->typeLabel() }}</td></tr>
             <tr><td style="background:#f8f9fa;">Size</td><td>{{ $backup->humanSize() }}</td></tr>
             <tr><td style="background:#f8f9fa;">SHA-256</td><td style="font-family:monospace;font-size:11px;">{{ $backup->file_sha256 ? substr($backup->file_sha256, 0, 16) : '—' }}…</td></tr>

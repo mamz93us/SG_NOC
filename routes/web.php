@@ -1762,6 +1762,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('offboarding/backup/{backup}/upload', [\App\Http\Controllers\Admin\OffboardingBackupUploadController::class, 'upload'])->name('offboarding.backup.upload');
     });
 
+    // ─── Manager form previews (read-only, no token burned) ───
+    Route::middleware('permission:view-workflows')->group(function () {
+        Route::get('form-previews/onboarding', [\App\Http\Controllers\Admin\ManagerFormPreviewController::class, 'onboarding'])->name('form-previews.onboarding');
+        Route::get('form-previews/offboarding', [\App\Http\Controllers\Admin\ManagerFormPreviewController::class, 'offboarding'])->name('form-previews.offboarding');
+    });
+
     // ─── Employees ────────────────────────────────────────────
     Route::middleware('permission:view-employees')->group(function () {
         Route::get('employees', [EmployeeController::class, 'index'])->name('employees.index');
@@ -1860,6 +1866,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/settings/provisioning', [SettingsController::class, 'updateProvisioning'])->name('settings.provisioning');
         Route::get('/settings/provisioning-licenses', [SettingsController::class, 'provisioningLicenses'])->name('settings.provisioning-licenses');
         Route::post('/settings/provisioning-licenses', [SettingsController::class, 'setDefaultLicense'])->name('settings.provisioning-licenses.save');
+
+        // ── Email Templates ───────────────────────────────────────────
+        Route::prefix('email-templates')->name('email-templates.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('index');
+            Route::get('/{key}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'edit'])->name('edit');
+            Route::put('/{key}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'update'])->name('update');
+            Route::delete('/{key}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'reset'])->name('reset');
+            Route::post('/{key}/preview', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'preview'])->name('preview');
+            Route::post('/{key}/test', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'test'])->name('test');
+        });
 
         // ── Internet Access Levels ────────────────────────────────────
         Route::prefix('settings/internet-access-levels')->name('settings.internet-access-levels.')->group(function () {

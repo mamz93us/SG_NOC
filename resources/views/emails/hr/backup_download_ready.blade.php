@@ -39,7 +39,7 @@
 
           <p style="font-size:13px;color:#6c757d;">
             If the button doesn't work, copy this URL:<br>
-            <span style="word-break:break-all;font-family:monospace;font-size:11px;">{{ $url }}</span>
+            <span style="word-break:break-all;font-family:monospace;font-size:11px;"><!--f:url-->{{ $url }}<!--/f--></span>
           </p>
 
           <p style="font-size:12px;color:#6c757d;margin-top:24px;">
