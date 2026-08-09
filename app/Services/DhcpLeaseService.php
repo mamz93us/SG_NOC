@@ -2,16 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\DhcpLease;
 use App\Models\Device;
+use App\Models\DhcpLease;
 use App\Models\FortigateFirewall;
 use App\Models\IpamSubnet;
 use App\Models\NocEvent;
 use App\Models\SophosFirewall;
 use App\Services\Network\WifiMacDirectory;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class DhcpLeaseService
 {
@@ -27,7 +24,7 @@ class DhcpLeaseService
      * adapter get labelled — everything else is left unlabelled rather than
      * being wrongly reported as on the wireless network.
      *
-     * @param SophosFirewall|FortigateFirewall $firewall
+     * @param  SophosFirewall|FortigateFirewall  $firewall
      */
     public function labelFor($firewall, ?string $mac): ?string
     {
@@ -45,29 +42,31 @@ class DhcpLeaseService
     /**
      * Create/update DHCP leases from Meraki client data.
      *
-     * @param array  $clientData   Raw client array from Meraki API
-     * @param string $switchSerial Switch that reported this client
-     * @param int|null $branchId   Branch of the reporting switch
+     * @param  array  $clientData  Raw client array from Meraki API
+     * @param  string  $switchSerial  Switch that reported this client
+     * @param  int|null  $branchId  Branch of the reporting switch
      */
     public function syncFromMeraki(array $clientData, string $switchSerial, ?int $branchId = null): void
     {
         $mac = $clientData['mac'] ?? null;
-        if (!$mac) return;
+        if (! $mac) {
+            return;
+        }
 
         $ip = $clientData['ip'] ?? null;
 
         $lease = DhcpLease::updateOrCreate(
             ['mac_address' => $mac, 'source' => 'meraki'],
             [
-                'ip_address'    => $ip,
-                'hostname'      => $clientData['description'] ?? $clientData['dhcpHostname'] ?? null,
-                'vendor'        => $clientData['manufacturer'] ?? null,
-                'vlan'          => $clientData['vlan'] ?? null,
+                'ip_address' => $ip,
+                'hostname' => $clientData['description'] ?? $clientData['dhcpHostname'] ?? null,
+                'vendor' => $clientData['manufacturer'] ?? null,
+                'vlan' => $clientData['vlan'] ?? null,
                 'source_device' => $switchSerial,
                 'switch_serial' => $switchSerial,
-                'port_id'       => $clientData['switchport'] ?? null,
-                'branch_id'     => $branchId,
-                'last_seen'     => now(),
+                'port_id' => $clientData['switchport'] ?? null,
+                'branch_id' => $branchId,
+                'last_seen' => now(),
             ]
         );
 
@@ -90,7 +89,7 @@ class DhcpLeaseService
      *    "vci":"MSFT 5.0","hostname":"J-AIbrahim","expire_time":1786262394,
      *    "status":"leased","interface":"internal","type":"ipv4", ...}
      *
-     * @param  array<int, array<string, mixed>> $entries Raw `results` array from the API
+     * @param  array<int, array<string, mixed>>  $entries  Raw `results` array from the API
      * @return int Number of leases created or updated
      */
     public function syncFromFortiGate(array $entries, FortigateFirewall $firewall): int
@@ -99,30 +98,34 @@ class DhcpLeaseService
 
         foreach ($entries as $entry) {
             $mac = $entry['mac'] ?? null;
-            $ip  = $entry['ip']  ?? null;
-            if (!$mac || !$ip) continue;
+            $ip = $entry['ip'] ?? null;
+            if (! $mac || ! $ip) {
+                continue;
+            }
 
             // Skip anything that isn't an IPv4 lease we can act on.
-            if (($entry['type'] ?? 'ipv4') !== 'ipv4') continue;
+            if (($entry['type'] ?? 'ipv4') !== 'ipv4') {
+                continue;
+            }
 
             $expire = $entry['expire_time'] ?? null;
 
             $lease = DhcpLease::updateOrCreate(
                 [
-                    'mac_address'   => strtolower($mac),
-                    'source'        => 'fortigate',
+                    'mac_address' => strtolower($mac),
+                    'source' => 'fortigate',
                     'source_device' => $firewall->ip,
                 ],
                 [
-                    'ip_address'    => $ip,
-                    'hostname'      => $entry['hostname'] ?? null,
-                    'vendor'        => $entry['vci'] ?? null,
-                    'interface'     => $entry['interface'] ?? null,
-                    'is_reserved'   => (bool) ($entry['reserved'] ?? false),
+                    'ip_address' => $ip,
+                    'hostname' => $entry['hostname'] ?? null,
+                    'vendor' => $entry['vci'] ?? null,
+                    'interface' => $entry['interface'] ?? null,
+                    'is_reserved' => (bool) ($entry['reserved'] ?? false),
                     'network_label' => $this->labelFor($firewall, $mac),
-                    'branch_id'     => $firewall->branch_id,
-                    'lease_end'     => $expire ? \Carbon\CarbonImmutable::createFromTimestamp($expire) : null,
-                    'last_seen'     => now(),
+                    'branch_id' => $firewall->branch_id,
+                    'lease_end' => $expire ? \Carbon\CarbonImmutable::createFromTimestamp($expire) : null,
+                    'last_seen' => now(),
                 ]
             );
 
@@ -143,24 +146,26 @@ class DhcpLeaseService
     /**
      * Sync DHCP leases from SNMP ARP table entries.
      *
-     * @param array           $arpEntries  [[ip => ..., mac => ...], ...]
-     * @param SophosFirewall  $firewall    Source firewall
+     * @param  array  $arpEntries  [[ip => ..., mac => ...], ...]
+     * @param  SophosFirewall  $firewall  Source firewall
      */
     public function syncFromArpTable(array $arpEntries, SophosFirewall $firewall): void
     {
         foreach ($arpEntries as $entry) {
             $mac = $entry['mac'] ?? null;
-            $ip  = $entry['ip']  ?? null;
-            if (!$mac || !$ip) continue;
+            $ip = $entry['ip'] ?? null;
+            if (! $mac || ! $ip) {
+                continue;
+            }
 
             $lease = DhcpLease::updateOrCreate(
                 ['mac_address' => $mac, 'source' => 'snmp'],
                 [
-                    'ip_address'    => $ip,
+                    'ip_address' => $ip,
                     'source_device' => $firewall->ip,
                     'network_label' => $this->labelFor($firewall, $mac),
-                    'branch_id'     => $firewall->branch_id,
-                    'last_seen'     => now(),
+                    'branch_id' => $firewall->branch_id,
+                    'last_seen' => now(),
                 ]
             );
 
@@ -175,57 +180,95 @@ class DhcpLeaseService
     // ─── Conflict Detection ───────────────────────────────────────
 
     /**
-     * Detect IP conflicts: same IP assigned to multiple MACs.
+     * How recently a lease must have been seen to count as "present right now".
+     *
+     * A real conflict means two devices hold the address *simultaneously*. The
+     * feeds refresh every 5–10 min (Meraki 5, FortiGate 10, ARP 10), so this
+     * covers two cycles of the slowest one. A wider window turns ordinary DHCP
+     * churn into false conflicts: a phone with MAC randomisation reconnects,
+     * takes the address its previous identity just released, and the released
+     * row is still sitting there with its old IP.
      */
-    public function detectConflicts(?int $branchId = null): int
+    public const CONFLICT_WINDOW_MINUTES = 20;
+
+    /**
+     * Detect IP conflicts: one address held by multiple MACs at the same time,
+     * within a single L3 domain.
+     *
+     * Scoped per branch on purpose — every branch runs its own RFC1918 space,
+     * so `192.168.1.1` legitimately exists at JED, RYD, KBR and ABH at once.
+     * Grouping on the address alone reported all of them as one conflict.
+     */
+    public function detectConflicts(?int $branchId = null, ?int $windowMinutes = null): int
     {
+        $window = $windowMinutes ?? self::CONFLICT_WINDOW_MINUTES;
+        $since = now()->subMinutes($window);
+
         // Reset previous conflict flags
         $resetQuery = DhcpLease::where('is_conflict', true);
-        if ($branchId) $resetQuery->where('branch_id', $branchId);
+        if ($branchId) {
+            $resetQuery->where('branch_id', $branchId);
+        }
         $resetQuery->update(['is_conflict' => false]);
 
-        // Find IPs with multiple active MACs
-        $query = DhcpLease::select('ip_address')
-            ->where('last_seen', '>=', now()->subHours(24))
-            ->whereNotNull('ip_address');
+        // Candidate leases: currently present, real addresses only.
+        // 169.254.0.0/16 is APIPA — self-assigned when DHCP fails, so several
+        // unrelated hosts landing on the same one carries no signal.
+        $candidates = fn () => DhcpLease::query()
+            ->where('last_seen', '>=', $since)
+            ->whereNotNull('ip_address')
+            ->where('ip_address', 'not like', '169.254.%')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
 
-        if ($branchId) {
-            $query->where('branch_id', $branchId);
-        }
-
-        $conflicts = $query->groupBy('ip_address')
+        $groups = $candidates()
+            ->selectRaw('branch_id, ip_address')
+            ->groupBy('branch_id', 'ip_address')
             ->havingRaw('COUNT(DISTINCT mac_address) > 1')
-            ->pluck('ip_address');
+            ->get();
 
         $conflictCount = 0;
+        $activeKeys = [];
 
-        foreach ($conflicts as $ip) {
-            $leases = DhcpLease::where('ip_address', $ip)
-                ->where('last_seen', '>=', now()->subHours(24))
+        foreach ($groups as $group) {
+            $leases = $candidates()
+                ->with('branch')
+                ->where('ip_address', $group->ip_address)
+                ->when(
+                    $group->branch_id === null,
+                    fn ($q) => $q->whereNull('branch_id'),
+                    fn ($q) => $q->where('branch_id', $group->branch_id)
+                )
                 ->get();
 
-            foreach ($leases as $lease) {
-                $lease->update(['is_conflict' => true]);
-                $conflictCount++;
-            }
+            DhcpLease::whereIn('id', $leases->pluck('id'))->update(['is_conflict' => true]);
+            $conflictCount += $leases->count();
 
-            // Create NOC alert
+            // Branch is part of the identity now, so two branches sharing an
+            // address raise two independent events instead of colliding.
+            $key = ($group->branch_id ?? '-').':'.$group->ip_address;
+            $activeKeys[] = $key;
+
+            $branchName = $leases->first()?->branch?->name;
+            $scope = $branchName ? " at {$branchName}" : '';
             $macs = $leases->pluck('mac_address')->implode(', ');
+
             app(NocAlertEngine::class)->createOrUpdateEvent(
                 'network',
                 'ip_conflict',
-                $ip,
+                $key,
                 'warning',
-                "IP Conflict: {$ip}",
-                "IP address {$ip} is assigned to multiple MAC addresses: {$macs}"
+                "IP Conflict: {$group->ip_address}{$scope}",
+                "IP address {$group->ip_address}{$scope} is held by multiple MAC addresses "
+                ."within the last {$window} minutes: {$macs}"
             );
         }
 
-        // Auto-resolve conflicts that no longer exist
+        // Auto-resolve conflicts that no longer exist. Events raised under the
+        // old address-only entity_id never match a key and so resolve here too.
         NocEvent::where('module', 'network')
             ->where('entity_type', 'ip_conflict')
             ->whereIn('status', ['open', 'acknowledged'])
-            ->whereNotIn('entity_id', $conflicts)
+            ->whereNotIn('entity_id', $activeKeys)
             ->update(['status' => 'resolved', 'resolved_at' => now()]);
 
         return $conflictCount;
@@ -238,7 +281,9 @@ class DhcpLeaseService
      */
     public function correlateDevice(DhcpLease $lease): void
     {
-        if ($lease->device_id) return;
+        if ($lease->device_id) {
+            return;
+        }
 
         $device = Device::where('mac_address', $lease->mac_address)->first();
         if ($device) {
@@ -253,7 +298,9 @@ class DhcpLeaseService
      */
     protected function linkToSubnet(DhcpLease $lease, int $branchId): void
     {
-        if ($lease->subnet_id || !$lease->ip_address) return;
+        if ($lease->subnet_id || ! $lease->ip_address) {
+            return;
+        }
 
         $subnet = IpamSubnet::where('branch_id', $branchId)->get()->first(function ($subnet) use ($lease) {
             return $subnet->containsIp($lease->ip_address);
@@ -274,7 +321,7 @@ class DhcpLeaseService
         return IpamSubnet::firstOrCreate(
             ['branch_id' => $branchId, 'cidr' => $cidr],
             [
-                'source'    => $source,
+                'source' => $source,
                 'total_ips' => $this->computeTotalFromCidr($cidr),
             ]
         );
@@ -282,9 +329,10 @@ class DhcpLeaseService
 
     protected function computeTotalFromCidr(string $cidr): int
     {
-        $parts  = explode('/', $cidr);
+        $parts = explode('/', $cidr);
         $prefix = (int) ($parts[1] ?? 24);
-        $total  = pow(2, 32 - $prefix);
+        $total = pow(2, 32 - $prefix);
+
         return $total > 2 ? $total - 2 : $total;
     }
 }
