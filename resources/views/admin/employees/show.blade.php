@@ -519,6 +519,67 @@
         </div>
         @endif
 
+        {{-- Where this employee's devices were last seen on the network --}}
+        @can('view-dhcp-leases')
+        @if($networkPresence->isNotEmpty())
+        <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #0dcaf0!important">
+            <div class="card-header bg-transparent py-2 d-flex align-items-center">
+                <strong><i class="bi bi-geo-alt me-1 text-info"></i>Network Location</strong>
+                <span class="badge bg-light text-muted ms-auto small">Last known IP</span>
+            </div>
+            <div class="list-group list-group-flush small">
+                @foreach($networkPresence as $row)
+                @php $lease = $row->lease; @endphp
+                <div class="list-group-item px-3 py-2">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <div class="fw-semibold">
+                            {{ $row->device_name ?: 'Unknown device' }}
+                            <span class="text-muted fw-normal">· {{ $row->label }}</span>
+                        </div>
+                        @if($lease)
+                        <span class="badge {{ $lease->isCurrent() ? 'bg-success' : 'bg-secondary' }}">
+                            {{ $lease->isCurrent() ? 'Online' : 'Last seen' }}
+                        </span>
+                        @endif
+                    </div>
+
+                    @if($lease)
+                        <div class="mb-1">
+                            <a href="{{ route('admin.network.dhcp.show', $lease) }}" class="font-monospace fw-semibold text-decoration-none">
+                                {{ $lease->ip_address }}
+                            </a>
+                            @if($lease->network_label)
+                                <span class="badge bg-info text-dark ms-1">{{ $lease->network_label }}</span>
+                            @endif
+                            @if($lease->is_conflict)
+                                <span class="badge bg-danger ms-1">CONFLICT</span>
+                            @endif
+                        </div>
+                        <div class="text-muted" style="font-size:.78rem">
+                            <i class="bi bi-building me-1"></i>{{ $lease->branch?->name ?? 'Unknown branch' }}
+                            <span class="mx-1">·</span>
+                            <i class="bi bi-diagram-3 me-1"></i>{{ $lease->connectionPoint() }}
+                        </div>
+                        <div class="text-muted d-flex justify-content-between" style="font-size:.72rem">
+                            <span class="font-monospace">{{ strtoupper($row->mac) }}</span>
+                            <span>
+                                <span class="badge {{ $lease->sourceBadgeClass() }}" style="font-size:.62rem">{{ $lease->sourceLabel() }}</span>
+                                {{ $lease->last_seen?->diffForHumans() }}
+                            </span>
+                        </div>
+                    @else
+                        <div class="text-muted" style="font-size:.78rem">
+                            Never seen on the network
+                            <span class="font-monospace ms-1">{{ strtoupper($row->mac) }}</span>
+                        </div>
+                    @endif
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+        @endcan
+
         {{-- Intune-managed devices (laptops) owned by this employee --}}
         @foreach($azureDevices as $dev)
         <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #0d6efd!important">
