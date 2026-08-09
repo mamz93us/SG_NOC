@@ -496,6 +496,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('view-fortigate')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.fortigate.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.fortigate.index') }}">
+                                    <i class="bi bi-bricks me-2"></i>FortiGate Firewalls
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-access-points')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.access-points.*') ? 'active' : '' }}"

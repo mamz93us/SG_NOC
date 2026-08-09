@@ -264,6 +264,20 @@ $sophosCentralInterval = max(5, (int) ($settings?->sophos_central_sync_interval 
 Schedule::command('sophos-central:sync')
     ->name('sync-sophos-central')->withoutOverlapping(10)->cron($everyN($sophosCentralInterval));
 
+// ──────────────────────────────────────────────────────────────────────
+// FortiGate DHCP Lease Sync — every 10 minutes (runs inline)
+// ──────────────────────────────────────────────────────────────────────
+Schedule::call(function () {
+    $firewalls = \App\Models\FortigateFirewall::where('sync_enabled', true)->get();
+    foreach ($firewalls as $fw) {
+        try {
+            (new \App\Jobs\SyncFortiGateDhcpJob($fw))->handle();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("FortiGate DHCP sync failed for {$fw->name}: ".$e->getMessage());
+        }
+    }
+})->name('sync-fortigate-dhcp')->withoutOverlapping(10)->everyTenMinutes();
+
 // ARP Table Collection (Sophos hosts) — every 10 minutes
 Schedule::call(function () {
     $hosts = \App\Models\MonitoredHost::where('snmp_enabled', true)

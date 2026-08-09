@@ -18,6 +18,9 @@ class DhcpLease extends Model
         'vlan',
         'source',
         'source_device',
+        'network_label',
+        'interface',
+        'is_reserved',
         'lease_start',
         'lease_end',
         'last_seen',
@@ -30,6 +33,7 @@ class DhcpLease extends Model
     protected $casts = [
         'vlan'        => 'integer',
         'is_conflict' => 'boolean',
+        'is_reserved' => 'boolean',
         'lease_start' => 'datetime',
         'lease_end'   => 'datetime',
         'last_seen'   => 'datetime',
@@ -79,11 +83,29 @@ class DhcpLease extends Model
     public function sourceBadgeClass(): string
     {
         return match ($this->source) {
-            'meraki' => 'bg-primary',
-            'sophos' => 'bg-danger',
-            'snmp'   => 'bg-warning text-dark',
-            default  => 'bg-secondary',
+            'meraki'    => 'bg-primary',
+            'sophos'    => 'bg-danger',
+            'fortigate' => 'bg-dark',
+            'snmp'      => 'bg-warning text-dark',
+            default     => 'bg-secondary',
         };
+    }
+
+    public function sourceLabel(): string
+    {
+        return match ($this->source) {
+            'fortigate' => 'FortiGate',
+            'snmp'      => 'SNMP',
+            default     => ucfirst((string) $this->source),
+        };
+    }
+
+    /**
+     * The firewall that handed out this lease, if it is one we manage.
+     */
+    public function fortigate(): BelongsTo
+    {
+        return $this->belongsTo(FortigateFirewall::class, 'source_device', 'ip');
     }
 
     public function displayName(): string

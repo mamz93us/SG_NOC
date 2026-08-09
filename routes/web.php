@@ -65,6 +65,7 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\SlaController;
 use App\Http\Controllers\Admin\SmtpRelayController;
 use App\Http\Controllers\Admin\SnmpMonitoringController;
+use App\Http\Controllers\Admin\FortigateFirewallController;
 use App\Http\Controllers\Admin\SophosFirewallController;
 use App\Http\Controllers\Admin\SslCertificateController;
 use App\Http\Controllers\Admin\SubdomainController;
@@ -1437,6 +1438,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/{firewall}', [SophosFirewallController::class, 'destroy'])->name('destroy')->middleware('permission:manage-sophos');
         Route::post('/{firewall}/sync', [SophosFirewallController::class, 'sync'])->name('sync')->middleware('permission:manage-sophos');
         Route::post('/{firewall}/test', [SophosFirewallController::class, 'testConnection'])->name('test')->middleware('permission:manage-sophos');
+    });
+
+    // ─── FortiGate Firewalls (REST API — DHCP leases) ───────────
+    Route::prefix('network/fortigate')->name('network.fortigate.')->group(function () {
+        Route::get('/', [FortigateFirewallController::class, 'index'])->name('index')->middleware('permission:view-fortigate');
+        Route::get('/create', [FortigateFirewallController::class, 'create'])->name('create')->middleware('permission:manage-fortigate');
+        Route::post('/', [FortigateFirewallController::class, 'store'])->name('store')->middleware('permission:manage-fortigate');
+        Route::get('/{fortigate}', [FortigateFirewallController::class, 'show'])->name('show')->middleware('permission:view-fortigate');
+        Route::get('/{fortigate}/edit', [FortigateFirewallController::class, 'edit'])->name('edit')->middleware('permission:manage-fortigate');
+        Route::put('/{fortigate}', [FortigateFirewallController::class, 'update'])->name('update')->middleware('permission:manage-fortigate');
+        Route::delete('/{fortigate}', [FortigateFirewallController::class, 'destroy'])->name('destroy')->middleware('permission:manage-fortigate');
+        Route::post('/{fortigate}/sync', [FortigateFirewallController::class, 'sync'])->name('sync')->middleware('permission:manage-fortigate');
+        Route::post('/{fortigate}/test', [FortigateFirewallController::class, 'testConnection'])->name('test')->middleware('permission:manage-fortigate');
     });
 
     // ─── Sophos Central (cloud — APs, firewall fleet, alerts) ───
