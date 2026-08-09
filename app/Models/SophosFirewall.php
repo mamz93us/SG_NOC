@@ -17,6 +17,7 @@ class SophosFirewall extends Model
         'serial_number',
         'firmware_version',
         'model',
+        'network_label',
         'monitored_host_id',
         'api_username',
         'api_password',

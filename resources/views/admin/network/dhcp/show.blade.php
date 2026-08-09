@@ -27,8 +27,21 @@
                         <tr><th class="text-muted">Hostname</th><td>{{ $lease->hostname ?? '-' }}</td></tr>
                         <tr><th class="text-muted">Vendor</th><td>{{ $lease->vendor ?? '-' }}</td></tr>
                         <tr><th class="text-muted">VLAN</th><td>{{ $lease->vlan ?? '-' }}</td></tr>
-                        <tr><th class="text-muted">Source</th><td><span class="badge {{ $lease->sourceBadgeClass() }}">{{ ucfirst($lease->source) }}</span></td></tr>
+                        <tr>
+                            <th class="text-muted">Network / SSID</th>
+                            <td>
+                                @if($lease->network_label)
+                                    <span class="badge bg-info text-dark">{{ $lease->network_label }}</span>
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
+                            </td>
+                        </tr>
+                        <tr><th class="text-muted">Interface</th><td>{{ $lease->interface ?? '-' }}</td></tr>
+                        <tr><th class="text-muted">Reserved</th><td>{{ $lease->is_reserved ? 'Yes' : 'No' }}</td></tr>
+                        <tr><th class="text-muted">Source</th><td><span class="badge {{ $lease->sourceBadgeClass() }}">{{ $lease->sourceLabel() }}</span></td></tr>
                         <tr><th class="text-muted">Source Device</th><td>{{ $lease->source_device ?? '-' }}</td></tr>
+                        <tr><th class="text-muted">Lease Expires</th><td>{{ $lease->lease_end?->format('Y-m-d H:i:s') ?? '-' }}</td></tr>
                         <tr><th class="text-muted">Last Seen</th><td>{{ $lease->last_seen?->format('Y-m-d H:i:s') ?? '-' }}</td></tr>
                         <tr><th class="text-muted">First Seen</th><td>{{ $lease->created_at?->format('Y-m-d H:i:s') ?? '-' }}</td></tr>
                     </table>

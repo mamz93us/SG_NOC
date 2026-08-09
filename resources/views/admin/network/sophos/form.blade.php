@@ -47,6 +47,13 @@
                         </select>
                     </div>
                     <div class="col-md-6">
+                        <label class="form-label">Network / SSID Label</label>
+                        <input type="text" name="network_label" class="form-control"
+                               value="{{ old('network_label', $firewall?->network_label) }}" placeholder="samirgroup">
+                        <div class="form-text">Stamped onto DHCP/ARP entries from this firewall so you can tell which network a client is on.</div>
+                    </div>
+
+                    <div class="col-md-6">
                         <label class="form-label">Linked Monitored Host (SNMP)</label>
                         <select name="monitored_host_id" class="form-select">
                             <option value="">None</option>

@@ -9,7 +9,7 @@
 
     {{-- Summary Cards --}}
     <div class="row g-3 mb-4">
-        <div class="col-md-3">
+        <div class="col-md">
             <div class="card text-center border-0 shadow-sm">
                 <div class="card-body">
                     <div class="fs-2 fw-bold text-primary">{{ number_format($totalLeases) }}</div>
@@ -17,7 +17,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md">
             <div class="card text-center border-0 shadow-sm">
                 <div class="card-body">
                     <div class="fs-2 fw-bold text-info">{{ number_format($merakiLeases) }}</div>
@@ -25,7 +25,15 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md">
+            <div class="card text-center border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="fs-2 fw-bold text-dark">{{ number_format($fortigateLeases) }}</div>
+                    <div class="text-muted small">FortiGate</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
             <div class="card text-center border-0 shadow-sm">
                 <div class="card-body">
                     <div class="fs-2 fw-bold text-warning">{{ number_format($snmpLeases) }}</div>
@@ -33,7 +41,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md">
             <div class="card text-center border-0 shadow-sm {{ $conflictCount > 0 ? 'border-danger' : '' }}">
                 <div class="card-body">
                     <div class="fs-2 fw-bold text-danger">{{ $conflictCount }}</div>
@@ -61,15 +69,25 @@
                     <select name="source" class="form-select form-select-sm">
                         <option value="">All Sources</option>
                         <option value="meraki" {{ request('source') == 'meraki' ? 'selected' : '' }}>Meraki</option>
+                        <option value="fortigate" {{ request('source') == 'fortigate' ? 'selected' : '' }}>FortiGate</option>
                         <option value="sophos" {{ request('source') == 'sophos' ? 'selected' : '' }}>Sophos</option>
                         <option value="snmp" {{ request('source') == 'snmp' ? 'selected' : '' }}>SNMP</option>
                     </select>
                 </div>
                 <div class="col-md-2">
+                    <label class="form-label small mb-0">Network / SSID</label>
+                    <select name="network" class="form-select form-select-sm">
+                        <option value="">All Networks</option>
+                        @foreach($networks as $n)
+                        <option value="{{ $n }}" {{ request('network') == $n ? 'selected' : '' }}>{{ $n }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-1">
                     <label class="form-label small mb-0">VLAN</label>
                     <input type="number" name="vlan" class="form-control form-control-sm" value="{{ request('vlan') }}" placeholder="VLAN">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label small mb-0">Search</label>
                     <input type="text" name="search" class="form-control form-control-sm" value="{{ request('search') }}" placeholder="IP, MAC, or hostname">
                 </div>
@@ -96,10 +114,11 @@
                         <th>IP Address</th>
                         <th>MAC Address</th>
                         <th>Hostname</th>
+                        <th>Network / SSID</th>
                         <th>VLAN</th>
                         <th>Source</th>
                         <th>Branch</th>
-                        <th>Switch / Port</th>
+                        <th>Switch / Port / Iface</th>
                         <th>Linked Asset</th>
                         <th>Last Seen</th>
                         <th></th>
@@ -116,13 +135,29 @@
                         </td>
                         <td><code class="text-muted">{{ $lease->mac_address }}</code></td>
                         <td>{{ $lease->hostname ?? '-' }}</td>
+                        <td>
+                            @if($lease->network_label)
+                                <span class="badge bg-info text-dark">{{ $lease->network_label }}</span>
+                            @else
+                                <span class="text-muted">-</span>
+                            @endif
+                        </td>
                         <td>{{ $lease->vlan ?? '-' }}</td>
-                        <td><span class="badge {{ $lease->sourceBadgeClass() }}">{{ ucfirst($lease->source) }}</span></td>
+                        <td><span class="badge {{ $lease->sourceBadgeClass() }}">{{ $lease->sourceLabel() }}</span></td>
                         <td>{{ $lease->branch?->name ?? '-' }}</td>
                         <td>
                             @if($lease->switch_serial)
-                                {{ $lease->switch_serial }}
+                                @can('view-network')
+                                <a href="{{ route('admin.network.switch-detail', $lease->switch_serial) }}"
+                                   class="text-decoration-none" title="{{ $lease->switch_serial }}">
+                                    {{ $lease->networkSwitch?->name ?: $lease->switch_serial }}
+                                </a>
+                                @else
+                                <span title="{{ $lease->switch_serial }}">{{ $lease->networkSwitch?->name ?: $lease->switch_serial }}</span>
+                                @endcan
                                 @if($lease->port_id) / {{ $lease->port_id }} @endif
+                            @elseif($lease->interface)
+                                <span class="text-muted small">{{ $lease->interface }}</span>
                             @else
                                 -
                             @endif
@@ -171,7 +206,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="10" class="text-center text-muted py-4">No DHCP leases found.</td></tr>
+                    <tr><td colspan="11" class="text-center text-muted py-4">No DHCP leases found.</td></tr>
                 @endforelse
                 </tbody>
             </table>

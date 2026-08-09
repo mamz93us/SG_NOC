@@ -24,6 +24,9 @@ class DhcpLeaseController extends Controller
         if ($request->filled('vlan')) {
             $query->where('vlan', $request->vlan);
         }
+        if ($request->filled('network')) {
+            $query->where('network_label', $request->network);
+        }
         if ($request->filled('conflicts') && $request->conflicts) {
             $query->where('is_conflict', true);
         }
@@ -39,15 +42,23 @@ class DhcpLeaseController extends Controller
         $leases = $query->orderByDesc('last_seen')->paginate(50)->withQueryString();
 
         // Summary stats
-        $totalLeases    = DhcpLease::count();
-        $merakiLeases   = DhcpLease::where('source', 'meraki')->count();
-        $snmpLeases     = DhcpLease::whereIn('source', ['sophos', 'snmp'])->count();
-        $conflictCount  = DhcpLease::where('is_conflict', true)->count();
+        $totalLeases     = DhcpLease::count();
+        $merakiLeases    = DhcpLease::where('source', 'meraki')->count();
+        $fortigateLeases = DhcpLease::where('source', 'fortigate')->count();
+        $snmpLeases      = DhcpLease::whereIn('source', ['sophos', 'snmp'])->count();
+        $conflictCount   = DhcpLease::where('is_conflict', true)->count();
 
         $branches = Branch::orderBy('name')->get();
 
+        // Distinct network / SSID labels seen across all leases, for the filter.
+        $networks = DhcpLease::whereNotNull('network_label')
+            ->distinct()
+            ->orderBy('network_label')
+            ->pluck('network_label');
+
         return view('admin.network.dhcp.index', compact(
-            'leases', 'branches', 'totalLeases', 'merakiLeases', 'snmpLeases', 'conflictCount'
+            'leases', 'branches', 'networks',
+            'totalLeases', 'merakiLeases', 'fortigateLeases', 'snmpLeases', 'conflictCount'
         ));
     }
 
@@ -117,6 +128,7 @@ class DhcpLeaseController extends Controller
         return response()->json([
             'total'     => DhcpLease::count(),
             'meraki'    => DhcpLease::where('source', 'meraki')->count(),
+            'fortigate' => DhcpLease::where('source', 'fortigate')->count(),
             'snmp'      => DhcpLease::whereIn('source', ['sophos', 'snmp'])->count(),
             'conflicts' => DhcpLease::where('is_conflict', true)->count(),
         ]);

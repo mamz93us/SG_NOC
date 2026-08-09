@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DhcpLease;
 use App\Models\Device;
+use App\Models\FortigateFirewall;
 use App\Models\IpamSubnet;
 use App\Models\NocEvent;
 use App\Models\SophosFirewall;
@@ -53,6 +54,64 @@ class DhcpLeaseService
         }
     }
 
+    // ─── FortiGate Sync ──────────────────────────────────────────
+
+    /**
+     * Create/update DHCP leases from a FortiGate `monitor/system/dhcp` payload.
+     *
+     * Each entry looks like:
+     *   {"ip":"192.168.100.137","mac":"3c:9c:0f:34:85:e1","reserved":false,
+     *    "vci":"MSFT 5.0","hostname":"J-AIbrahim","expire_time":1786262394,
+     *    "status":"leased","interface":"internal","type":"ipv4", ...}
+     *
+     * @param  array<int, array<string, mixed>> $entries Raw `results` array from the API
+     * @return int Number of leases created or updated
+     */
+    public function syncFromFortiGate(array $entries, FortigateFirewall $firewall): int
+    {
+        $count = 0;
+
+        foreach ($entries as $entry) {
+            $mac = $entry['mac'] ?? null;
+            $ip  = $entry['ip']  ?? null;
+            if (!$mac || !$ip) continue;
+
+            // Skip anything that isn't an IPv4 lease we can act on.
+            if (($entry['type'] ?? 'ipv4') !== 'ipv4') continue;
+
+            $expire = $entry['expire_time'] ?? null;
+
+            $lease = DhcpLease::updateOrCreate(
+                [
+                    'mac_address'   => strtolower($mac),
+                    'source'        => 'fortigate',
+                    'source_device' => $firewall->ip,
+                ],
+                [
+                    'ip_address'    => $ip,
+                    'hostname'      => $entry['hostname'] ?? null,
+                    'vendor'        => $entry['vci'] ?? null,
+                    'interface'     => $entry['interface'] ?? null,
+                    'is_reserved'   => (bool) ($entry['reserved'] ?? false),
+                    'network_label' => $firewall->network_label,
+                    'branch_id'     => $firewall->branch_id,
+                    'lease_end'     => $expire ? \Carbon\CarbonImmutable::createFromTimestamp($expire) : null,
+                    'last_seen'     => now(),
+                ]
+            );
+
+            $this->correlateDevice($lease);
+
+            if ($firewall->branch_id) {
+                $this->linkToSubnet($lease, $firewall->branch_id);
+            }
+
+            $count++;
+        }
+
+        return $count;
+    }
+
     // ─── ARP / SNMP Sync ─────────────────────────────────────────
 
     /**
@@ -73,6 +132,7 @@ class DhcpLeaseService
                 [
                     'ip_address'    => $ip,
                     'source_device' => $firewall->ip,
+                    'network_label' => $firewall->network_label,
                     'branch_id'     => $firewall->branch_id,
                     'last_seen'     => now(),
                 ]
