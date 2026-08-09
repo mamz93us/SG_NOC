@@ -151,9 +151,14 @@ class EmployeeController extends Controller
             );
         }
 
+        // Where this employee's devices were last seen on the network,
+        // resolved from their MACs through the DHCP lease table.
+        $networkPresence = app(\App\Services\Network\EmployeeNetworkLocator::class)->locate($employee);
+
         return view('admin.employees.show', compact(
             'employee', 'availableDevices', 'availableAccessories',
-            'availableLicenses', 'licenseAssignments', 'phoneInfo', 'azureDevices'
+            'availableLicenses', 'licenseAssignments', 'phoneInfo', 'azureDevices',
+            'networkPresence'
         ));
     }
 

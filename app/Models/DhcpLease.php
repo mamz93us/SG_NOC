@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DhcpLease extends Model
@@ -31,12 +31,12 @@ class DhcpLease extends Model
     ];
 
     protected $casts = [
-        'vlan'        => 'integer',
+        'vlan' => 'integer',
         'is_conflict' => 'boolean',
         'is_reserved' => 'boolean',
         'lease_start' => 'datetime',
-        'lease_end'   => 'datetime',
-        'last_seen'   => 'datetime',
+        'lease_end' => 'datetime',
+        'last_seen' => 'datetime',
     ];
 
     // ─── Relationships ────────────────────────────────────────────
@@ -83,11 +83,11 @@ class DhcpLease extends Model
     public function sourceBadgeClass(): string
     {
         return match ($this->source) {
-            'meraki'    => 'bg-primary',
-            'sophos'    => 'bg-danger',
+            'meraki' => 'bg-primary',
+            'sophos' => 'bg-danger',
             'fortigate' => 'bg-dark',
-            'snmp'      => 'bg-warning text-dark',
-            default     => 'bg-secondary',
+            'snmp' => 'bg-warning text-dark',
+            default => 'bg-secondary',
         };
     }
 
@@ -95,8 +95,8 @@ class DhcpLease extends Model
     {
         return match ($this->source) {
             'fortigate' => 'FortiGate',
-            'snmp'      => 'SNMP',
-            default     => ucfirst((string) $this->source),
+            'snmp' => 'SNMP',
+            default => ucfirst((string) $this->source),
         };
     }
 
@@ -111,5 +111,33 @@ class DhcpLease extends Model
     public function displayName(): string
     {
         return $this->hostname ?: $this->mac_address;
+    }
+
+    /**
+     * Where the client physically attached: switch + port for Meraki, or the
+     * firewall + interface for a FortiGate/ARP-derived lease.
+     */
+    public function connectionPoint(): string
+    {
+        if ($this->switch_serial) {
+            $switch = $this->networkSwitch?->name ?: $this->switch_serial;
+
+            return $this->port_id ? "{$switch} · port {$this->port_id}" : $switch;
+        }
+
+        if ($this->interface) {
+            return trim(($this->source_device ?: '').' · '.$this->interface, ' ·');
+        }
+
+        return $this->source_device ?: '—';
+    }
+
+    /**
+     * Leases stop refreshing when the device leaves, so anything older than a
+     * day is history rather than "currently connected".
+     */
+    public function isCurrent(): bool
+    {
+        return $this->last_seen !== null && $this->last_seen->gt(now()->subDay());
     }
 }
