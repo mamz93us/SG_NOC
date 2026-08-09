@@ -55,7 +55,7 @@
               </tr>
               @endif
               <tr style="background-color:#f8f9fa;">
-                <td style="padding:10px 16px;color:#6c757d;font-size:14px;">HR Reference</td>
+                <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Oracle Employee ID</td>
                 <td style="padding:10px 16px;color:#212529;font-size:14px;"><!--f:hrRef-->{{ $hrRef }}<!--/f--></td>
               </tr>
             </table>

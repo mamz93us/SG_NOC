@@ -30,7 +30,7 @@
     $upn         = $payload['upn']          ?? '—';
     $lastDay     = $payload['last_day']     ?? null;
     $reason      = $payload['reason']       ?? null;
-    $hrRef       = $payload['hr_reference'] ?? $token->workflow_id;
+    $hrRef       = $payload['oracle_emp_no'] ?? $payload['hr_reference'] ?? $token->workflow_id;
     $managerName = $token->manager_name     ?? 'Manager';
     $live        = $payload['live_graph_data'] ?? [];
     $mailbox     = $live['mailbox']  ?? [];
@@ -60,7 +60,7 @@
 <div class="container container-narrow">
   <div class="header-bar">
     <h4 class="mb-1 fw-bold"><i class="bi bi-person-x-fill me-2"></i>Employee Offboarding · Manager Form</h4>
-    <small class="opacity-75">HR Reference: {{ $hrRef }}</small>
+    <small class="opacity-75">Oracle Employee ID: {{ $hrRef }}</small>
   </div>
 
   <div class="card border-0 rounded-bottom shadow-sm">

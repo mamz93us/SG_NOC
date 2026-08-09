@@ -308,6 +308,10 @@ class UserProvisioningService
                         'azure_id'         => $azureId,
                         'name'             => $displayName,
                         'email'            => $upn,
+                        // The Oracle employee number HR supplied on the form.
+                        // Set here so `employees:sync-hr-list` can match this
+                        // person on their first run rather than orphaning them.
+                        'oracle_emp_no'    => $payload['oracle_emp_no'] ?? $payload['hr_reference'] ?? null,
                         'gender'           => $payload['gender']       ?? null,
                         'branch_id'        => $workflow->branch_id,
                         'department_id'    => $payload['department_id'] ?? null,

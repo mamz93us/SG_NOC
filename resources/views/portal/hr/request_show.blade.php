@@ -105,7 +105,7 @@
                         'Manager'     => $payload['manager_name'] ?? $employee?->manager?->name,
                         'Supervisor'  => $payload['supervisor_name'] ?? $employee?->supervisor?->name,
                         'Start date'  => isset($payload['start_date']) ? \Carbon\Carbon::parse($payload['start_date'])->format('d M Y') : null,
-                        'HR reference'=> $payload['hr_reference'] ?? null,
+                        'Oracle Employee ID' => $payload['oracle_emp_no'] ?? $payload['hr_reference'] ?? null,
                     ];
                 @endphp
                 <div class="row g-3 small">

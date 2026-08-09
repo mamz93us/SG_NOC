@@ -2524,10 +2524,19 @@ Route::prefix('api/hr')
     ->middleware('hr.api_key')
     ->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class)
     ->group(function () {
-        Route::post('/onboarding', [HrOnboardingController::class,      'store'])->name('api.hr.onboarding');
-        Route::post('/offboarding', [HrOffboardingController::class,     'store'])->name('api.hr.offboarding');
+        // ── Employee lifecycle (mirrors the three HR portal forms) ──
+        Route::post('/onboarding', [HrOnboardingController::class, 'store'])->name('api.hr.onboarding');
+        Route::get('/onboarding/check-availability', [HrOnboardingController::class, 'checkAvailability'])->name('api.hr.onboarding.check-availability');
+        Route::post('/offboarding', [HrOffboardingController::class, 'store'])->name('api.hr.offboarding');
+        Route::post('/employee-update', [\App\Http\Controllers\Api\HrEmployeeUpdateController::class, 'store'])->name('api.hr.employee-update');
+
+        // ── Lookups an integration needs in place of the form pickers ──
+        Route::get('/reference-data', [\App\Http\Controllers\Api\HrLookupController::class, 'referenceData'])->name('api.hr.reference-data');
+        Route::get('/employees', [\App\Http\Controllers\Api\HrLookupController::class, 'employees'])->name('api.hr.employees');
+        Route::get('/requests/{workflow}', [\App\Http\Controllers\Api\HrLookupController::class, 'requestStatus'])->name('api.hr.request-status');
+
         Route::post('/group-assignment', [HrGroupAssignmentController::class, 'store'])->name('api.hr.group-assignment');
-        Route::get('/device-lookup', [DeviceLookupController::class,      'lookup'])->name('api.hr.device-lookup');
+        Route::get('/device-lookup', [DeviceLookupController::class, 'lookup'])->name('api.hr.device-lookup');
     });
 
 /*

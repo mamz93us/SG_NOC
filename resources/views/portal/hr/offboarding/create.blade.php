@@ -138,9 +138,18 @@
                 </div>
 
                 <div class="col-12 col-md-6">
-                    <label class="form-label fw-semibold">HR reference</label>
-                    <input type="text" name="hr_reference" class="form-control" maxlength="100"
-                           placeholder="e.g. HR-OFF-2026-012" value="{{ old('hr_reference') }}">
+                    <label class="form-label fw-semibold">Oracle Employee ID</label>
+                    <input type="text" name="hr_reference" class="form-control" maxlength="50"
+                           placeholder="Not set on this employee record"
+                           value="{{ old('hr_reference', $employee?->oracle_emp_no) }}"
+                           {{ $employee?->oracle_emp_no ? 'readonly' : '' }}>
+                    <div class="form-text">
+                        @if($employee?->oracle_emp_no)
+                            Taken from {{ $employee->name }}'s record.
+                        @else
+                            This employee has no Oracle number on file — add it if you have it.
+                        @endif
+                    </div>
                 </div>
 
                 <div class="col-12">

@@ -6,12 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\AllowedDomain;
 use App\Models\Branch;
 use App\Models\Department;
-use App\Models\Employee;
-use App\Models\OnboardingManagerToken;
 use App\Models\Setting;
 use App\Models\WorkflowRequest;
+use App\Services\Workflow\OnboardingRequestService;
 use App\Services\Workflow\UserProvisioningService;
-use App\Services\Workflow\WorkflowEngine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,7 +18,7 @@ use Illuminate\View\View;
 class HrOnboardingController extends Controller
 {
     public function __construct(
-        private WorkflowEngine $engine,
+        private OnboardingRequestService $onboarding,
         private UserProvisioningService $provisioning,
     ) {}
 
@@ -95,7 +93,7 @@ class HrOnboardingController extends Controller
             'department_id' => 'nullable|exists:departments,id',
             'mobile_phone' => 'nullable|string|max:50',
             'suggested_start_date' => 'required|date|after_or_equal:today',
-            'hr_reference' => 'nullable|string|max:100',
+            'oracle_emp_no' => 'nullable|string|max:50',
             // Manager is picked from the employee directory, so the decision
             // form is guaranteed to reach a real mailbox. The email/name are
             // resolved server-side from the id — never trusted from the post.
@@ -112,72 +110,11 @@ class HrOnboardingController extends Controller
             'supervisor_id.exists' => 'That supervisor is not an active employee — pick again from the list.',
         ]);
 
-        if (! empty($validated['supervisor_id'])
-            && (int) $validated['supervisor_id'] === (int) $validated['manager_id']) {
-            return back()->withInput()->with(
-                'error',
-                'Manager and supervisor are the same person. Leave the supervisor blank if there is only one.'
-            );
+        try {
+            $workflow = $this->onboarding->create($validated, requestedBy: Auth::id(), source: 'hr_portal');
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
         }
-
-        $manager = Employee::find($validated['manager_id']);
-
-        if (! $manager?->email) {
-            return back()->withInput()->with(
-                'error',
-                "{$manager?->name} has no work email on file, so the manager setup form cannot be sent. Pick someone else or ask IT to add their email."
-            );
-        }
-
-        $supervisor = ! empty($validated['supervisor_id'])
-            ? Employee::find($validated['supervisor_id'])
-            : null;
-
-        // Build payload — keep keys aligned with UserProvisioningService expectations
-        $payload = [
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'upn_domain' => $validated['upn_domain'],
-            // Drives gender-specific Azure group auto-assignment, and lands on
-            // the employee record for the gendered signature templates.
-            'gender' => $validated['gender'],
-            'job_title' => $validated['job_title'] ?? null,
-            'department_id' => $validated['department_id'] ?? null,
-            'mobile_phone' => $validated['mobile_phone'] ?? null,
-            // Keep both keys: suggested_start_date (HR label) + start_date (provisioning uses this)
-            'suggested_start_date' => $validated['suggested_start_date'],
-            'start_date' => $validated['suggested_start_date'],
-            'hr_reference' => $validated['hr_reference'] ?? null,
-            // manager_email drives the engine's manager-form gate; manager_id /
-            // supervisor_id land on the Employee record at provisioning time.
-            'manager_id' => $manager->id,
-            'manager_email' => $manager->email,
-            'manager_name' => $manager->name,
-            'supervisor_id' => $supervisor?->id,
-            'supervisor_email' => $supervisor?->email,
-            'supervisor_name' => $supervisor?->name,
-            'submitted_by_hr' => true,
-            'hr_submitter_id' => Auth::id(),
-            'hr_submitter_name' => Auth::user()->name ?? null,
-        ];
-
-        $title = 'Onboarding: '.trim($validated['first_name'].' '.$validated['last_name']);
-
-        $workflow = $this->engine->createRequest(
-            type: 'create_user',
-            payload: $payload,
-            branchId: $validated['branch_id'] ?? null,
-            requestedBy: Auth::id(),
-            title: $title,
-            description: $validated['description'] ?? null,
-        );
-
-        // Mirror admin behaviour: generate manager form token so it shows on workflow page.
-        // Email dispatch happens after IT approval completes (handled by the engine).
-        OnboardingManagerToken::generate($workflow->id, [
-            'manager_email' => $manager->email,
-            'manager_name' => $manager->name,
-        ]);
 
         return redirect()
             ->route('portal.hr.onboarding.index')

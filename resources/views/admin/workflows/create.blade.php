@@ -136,7 +136,7 @@
                                 <div class="form-text">Displayed on the manager onboarding form.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">HR Reference</label>
+                                <label class="form-label small fw-semibold">Oracle Employee ID</label>
                                 <input type="text" name="hr_reference" class="form-control form-control-sm" value="{{ old('hr_reference') }}" placeholder="e.g. HR-2026-0045">
                                 <div class="form-text">Shown on the manager form for reference.</div>
                             </div>
@@ -196,7 +196,7 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">HR Reference</label>
+                                <label class="form-label small fw-semibold">Oracle Employee ID</label>
                                 <input type="text" name="hr_reference" class="form-control form-control-sm" value="{{ old('hr_reference') }}" placeholder="HR-2026-XXX">
                             </div>
                         </div>
@@ -236,7 +236,7 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">HR Reference</label>
+                                <label class="form-label small fw-semibold">Oracle Employee ID</label>
                                 <input type="text" name="hr_reference" class="form-control form-control-sm" value="{{ old('hr_reference') }}" placeholder="HR-OFF-2026-XXX">
                             </div>
                             <div class="col-md-6">

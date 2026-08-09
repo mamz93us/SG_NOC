@@ -13,7 +13,7 @@
     $upn         = $payload['upn'] ?? '—';
     $lastDay     = $payload['last_day'] ?? null;
     $reason      = $payload['reason'] ?? null;
-    $hrRef       = $payload['hr_reference'] ?? $workflow->id;
+    $hrRef       = $payload['oracle_emp_no'] ?? $payload['hr_reference'] ?? $workflow->id;
     $managerName = $token->manager_name ?? 'Manager';
     $formUrl     = url('/offboarding/respond?token=' . $token->token);
     $expiresAt   = $token->expires_at?->format('d M Y, H:i');
@@ -91,7 +91,7 @@
               </tr>
               @endif
               <tr style="background-color:#f8f9fa;">
-                <td style="padding:10px 16px;color:#6c757d;font-size:14px;">HR Reference</td>
+                <td style="padding:10px 16px;color:#6c757d;font-size:14px;">Oracle Employee ID</td>
                 <td style="padding:10px 16px;color:#212529;font-size:14px;"><!--f:hrRef-->{{ $hrRef }}<!--/f--></td>
               </tr>
             </table>
