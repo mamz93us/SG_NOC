@@ -69,7 +69,9 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // Shared across every firewall sync in a run — loading the Wi-Fi MAC
+        // set once instead of per-firewall.
+        $this->app->singleton(\App\Services\Network\WifiMacDirectory::class);
     }
 
     public function boot(): void

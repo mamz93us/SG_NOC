@@ -43,6 +43,7 @@ class FortigateFirewallController extends Controller
         $validated['port'] = $validated['port'] ?? 443;
         $validated['vdom'] = $validated['vdom'] ?: 'root';
         $validated['sync_enabled'] = $request->boolean('sync_enabled', true);
+        $validated['label_wifi_only'] = $request->boolean('label_wifi_only');
 
         $firewall = FortigateFirewall::create($validated);
 
@@ -84,6 +85,7 @@ class FortigateFirewallController extends Controller
         $validated['port'] = $validated['port'] ?? 443;
         $validated['vdom'] = $validated['vdom'] ?: 'root';
         $validated['sync_enabled'] = $request->boolean('sync_enabled', true);
+        $validated['label_wifi_only'] = $request->boolean('label_wifi_only');
 
         // Blank token means "keep the existing key".
         if (empty($validated['api_token'])) {
@@ -138,6 +140,7 @@ class FortigateFirewallController extends Controller
             'branch_id' => 'nullable|exists:branches,id',
             'monitored_host_id' => 'nullable|exists:monitored_hosts,id',
             'network_label' => 'nullable|string|max:255',
+            'label_wifi_only' => 'nullable|boolean',
             'model' => 'nullable|string|max:255',
             'api_token' => ($creating ? 'required' : 'nullable').'|string|max:255',
             'sync_enabled' => 'nullable|boolean',

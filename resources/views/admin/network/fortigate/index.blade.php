@@ -47,6 +47,9 @@
                         <td>
                             @if($fw->network_label)
                                 <span class="badge bg-info text-dark">{{ $fw->network_label }}</span>
+                                @if($fw->label_wifi_only)
+                                    <i class="bi bi-wifi text-muted ms-1" title="Wi-Fi clients only"></i>
+                                @endif
                             @else
                                 <span class="text-muted">-</span>
                             @endif

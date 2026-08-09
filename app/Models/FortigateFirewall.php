@@ -19,6 +19,7 @@ class FortigateFirewall extends Model
         'vdom',
         'api_token',
         'network_label',
+        'label_wifi_only',
         'serial_number',
         'firmware_version',
         'model',
@@ -36,6 +37,7 @@ class FortigateFirewall extends Model
     protected $casts = [
         'port' => 'integer',
         'sync_enabled' => 'boolean',
+        'label_wifi_only' => 'boolean',
         'last_synced_at' => 'datetime',
         'last_lease_count' => 'integer',
     ];

@@ -44,13 +44,15 @@ class SophosFirewallController extends Controller
             'branch_id'         => 'nullable|exists:branches,id',
             'monitored_host_id' => 'nullable|exists:monitored_hosts,id',
             'network_label'     => 'nullable|string|max:255',
+            'label_wifi_only'   => 'nullable|boolean',
             'api_username'      => 'required|string|max:255',
             'api_password'      => 'required|string|max:255',
             'sync_enabled'      => 'nullable|boolean',
         ]);
 
         $validated['port']         = $validated['port'] ?? 4444;
-        $validated['sync_enabled'] = $request->boolean('sync_enabled', true);
+        $validated['sync_enabled']     = $request->boolean('sync_enabled', true);
+        $validated['label_wifi_only']  = $request->boolean('label_wifi_only');
 
         $firewall = SophosFirewall::create($validated);
 
@@ -91,13 +93,15 @@ class SophosFirewallController extends Controller
             'branch_id'         => 'nullable|exists:branches,id',
             'monitored_host_id' => 'nullable|exists:monitored_hosts,id',
             'network_label'     => 'nullable|string|max:255',
+            'label_wifi_only'   => 'nullable|boolean',
             'api_username'      => 'nullable|string|max:255',
             'api_password'      => 'nullable|string|max:255',
             'sync_enabled'      => 'nullable|boolean',
         ]);
 
         $validated['port']         = $validated['port'] ?? 4444;
-        $validated['sync_enabled'] = $request->boolean('sync_enabled', true);
+        $validated['sync_enabled']     = $request->boolean('sync_enabled', true);
+        $validated['label_wifi_only']  = $request->boolean('label_wifi_only');
 
         // Don't overwrite credentials with empty values
         if (empty($validated['api_username'])) unset($validated['api_username']);
