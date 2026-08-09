@@ -8,12 +8,38 @@ use App\Models\FortigateFirewall;
 use App\Models\IpamSubnet;
 use App\Models\NocEvent;
 use App\Models\SophosFirewall;
+use App\Services\Network\WifiMacDirectory;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class DhcpLeaseService
 {
+    public function __construct(protected WifiMacDirectory $wifiMacs) {}
+
+    // ─── Network Labelling ────────────────────────────────────────
+
+    /**
+     * The network / SSID label to stamp on a lease from this firewall.
+     *
+     * A firewall serves both wired and wireless clients. When its label is a
+     * Wi-Fi SSID (`label_wifi_only`), only clients whose MAC is a known Wi-Fi
+     * adapter get labelled — everything else is left unlabelled rather than
+     * being wrongly reported as on the wireless network.
+     *
+     * @param SophosFirewall|FortigateFirewall $firewall
+     */
+    public function labelFor($firewall, ?string $mac): ?string
+    {
+        $label = $firewall->network_label ?: null;
+
+        if ($label === null || ! ($firewall->label_wifi_only ?? false)) {
+            return $label;
+        }
+
+        return $this->wifiMacs->isWifi($mac) ? $label : null;
+    }
+
     // ─── Meraki Sync ──────────────────────────────────────────────
 
     /**
@@ -93,7 +119,7 @@ class DhcpLeaseService
                     'vendor'        => $entry['vci'] ?? null,
                     'interface'     => $entry['interface'] ?? null,
                     'is_reserved'   => (bool) ($entry['reserved'] ?? false),
-                    'network_label' => $firewall->network_label,
+                    'network_label' => $this->labelFor($firewall, $mac),
                     'branch_id'     => $firewall->branch_id,
                     'lease_end'     => $expire ? \Carbon\CarbonImmutable::createFromTimestamp($expire) : null,
                     'last_seen'     => now(),
@@ -132,7 +158,7 @@ class DhcpLeaseService
                 [
                     'ip_address'    => $ip,
                     'source_device' => $firewall->ip,
-                    'network_label' => $firewall->network_label,
+                    'network_label' => $this->labelFor($firewall, $mac),
                     'branch_id'     => $firewall->branch_id,
                     'last_seen'     => now(),
                 ]

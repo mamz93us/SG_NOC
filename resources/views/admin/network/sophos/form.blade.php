@@ -51,6 +51,19 @@
                         <input type="text" name="network_label" class="form-control"
                                value="{{ old('network_label', $firewall?->network_label) }}" placeholder="samirgroup">
                         <div class="form-text">Stamped onto DHCP/ARP entries from this firewall so you can tell which network a client is on.</div>
+                        <div class="form-check mt-2">
+                            <input type="hidden" name="label_wifi_only" value="0">
+                            <input class="form-check-input" type="checkbox" name="label_wifi_only" value="1"
+                                   id="labelWifiOnly" {{ old('label_wifi_only', $firewall?->label_wifi_only ?? true) ? 'checked' : '' }}>
+                            <label class="form-check-label small" for="labelWifiOnly">
+                                Label Wi-Fi clients only
+                            </label>
+                            <div class="form-text">
+                                This firewall serves the wired LAN too. With this on, the label is applied
+                                only when the client MAC matches a known Wi-Fi adapter from the Intune sync —
+                                wired clients are left unlabelled instead of being reported as wireless.
+                            </div>
+                        </div>
                     </div>
 
                     <div class="col-md-6">

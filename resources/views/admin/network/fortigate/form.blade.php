@@ -57,6 +57,18 @@
                         <input type="text" name="network_label" class="form-control"
                                value="{{ old('network_label', $firewall?->network_label) }}" placeholder="SG_Open">
                         <div class="form-text">Stamped onto every lease so you can tell which network a client is on.</div>
+                        <div class="form-check mt-2">
+                            <input type="hidden" name="label_wifi_only" value="0">
+                            <input class="form-check-input" type="checkbox" name="label_wifi_only" value="1"
+                                   id="labelWifiOnly" {{ old('label_wifi_only', $firewall?->label_wifi_only ?? false) ? 'checked' : '' }}>
+                            <label class="form-check-label small" for="labelWifiOnly">
+                                Label Wi-Fi clients only
+                            </label>
+                            <div class="form-text">
+                                Leave off when the whole firewall serves this network. Turn on to apply the
+                                label only to clients whose MAC matches a known Wi-Fi adapter from the Intune sync.
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Model</label>

@@ -24,6 +24,7 @@
                         <th>Name</th>
                         <th>IP : Port</th>
                         <th>Branch</th>
+                        <th>Network / SSID</th>
                         <th>Model</th>
                         <th>Firmware</th>
                         <th>Interfaces</th>
@@ -40,6 +41,16 @@
                         <td class="fw-semibold">{{ $fw->name }}</td>
                         <td><code>{{ $fw->ip }}:{{ $fw->port }}</code></td>
                         <td>{{ $fw->branch?->name ?? '-' }}</td>
+                        <td>
+                            @if($fw->network_label)
+                                <span class="badge bg-info text-dark">{{ $fw->network_label }}</span>
+                                @if($fw->label_wifi_only)
+                                    <i class="bi bi-wifi text-muted ms-1" title="Wi-Fi clients only"></i>
+                                @endif
+                            @else
+                                <span class="text-muted">-</span>
+                            @endif
+                        </td>
                         <td>{{ $fw->model ?? '-' }}</td>
                         <td>{{ $fw->firmware_version ?? '-' }}</td>
                         <td>{{ $fw->interfaces_count }}</td>
@@ -65,7 +76,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="11" class="text-center text-muted py-4">No Sophos firewalls configured.</td></tr>
+                    <tr><td colspan="12" class="text-center text-muted py-4">No Sophos firewalls configured.</td></tr>
                 @endforelse
                 </tbody>
             </table>

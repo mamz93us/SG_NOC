@@ -18,6 +18,7 @@ class SophosFirewall extends Model
         'firmware_version',
         'model',
         'network_label',
+        'label_wifi_only',
         'monitored_host_id',
         'api_username',
         'api_password',
@@ -31,8 +32,9 @@ class SophosFirewall extends Model
     ];
 
     protected $casts = [
-        'port'           => 'integer',
-        'sync_enabled'   => 'boolean',
+        'port'            => 'integer',
+        'sync_enabled'    => 'boolean',
+        'label_wifi_only' => 'boolean',
         'last_synced_at' => 'datetime',
     ];
 
