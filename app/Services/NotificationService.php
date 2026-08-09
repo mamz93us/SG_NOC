@@ -12,6 +12,17 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class NotificationService
 {
     /**
+     * Floor on the unconfigured broadcast path: how long the same event type
+     * must stay quiet for a given user before it is broadcast to them again.
+     *
+     * Rules have their own per-rule `cooldown_minutes`. This is the backstop for
+     * when there are NO rules — previously that path had no rate limiting at
+     * all, so a flapping monitor could put 60+ identical emails an hour into
+     * every admin's inbox.
+     */
+    private const BROADCAST_COOLDOWN_MINUTES = 60;
+
+    /**
      * Create an in-app notification and optionally dispatch an email for a single user.
      *
      * @param  bool  $skipRules  Pass true for broadcast calls (notifyAdmins / notifyRole)
@@ -73,8 +84,15 @@ class NotificationService
     }
 
     /**
-     * Broadcast to all super_admin and admin users.
-     * Rules are skipped — the broadcast already covers the target audience.
+     * Notify the audience configured for this event type, falling back to every
+     * admin when no rule covers it.
+     *
+     * This used to broadcast to all admins unconditionally, which meant the
+     * callers that use it — NocAlertEngine, SlaMonitorService,
+     * LicenseMonitorService, WorkflowEngine — bypassed the Notification Rules
+     * page entirely: configuring a rule there had no effect on them. It now
+     * delegates to notifyViaRules() so one page governs every alert, and the
+     * broadcast is what happens only when nothing is configured.
      */
     public function notifyAdmins(
         string  $type,
@@ -83,8 +101,32 @@ class NotificationService
         ?string $link = null,
         string  $severity = 'info'
     ): void {
+        $this->notifyViaRules($type, $title, $message, $link, $severity);
+    }
+
+    /**
+     * The unconfigured fallback: every super_admin / admin, rate-limited per
+     * user per event type so a flapping source cannot storm them.
+     */
+    private function broadcastToAdmins(
+        string  $type,
+        string  $title,
+        string  $message,
+        ?string $link = null,
+        string  $severity = 'info'
+    ): void {
         $users = User::whereIn('role', ['super_admin', 'admin'])->get();
+
         foreach ($users as $user) {
+            $recentExists = Notification::where('user_id', $user->id)
+                ->where('type', $type)
+                ->where('created_at', '>=', now()->subMinutes(self::BROADCAST_COOLDOWN_MINUTES))
+                ->exists();
+
+            if ($recentExists) {
+                continue;
+            }
+
             $this->notify($user->id, $type, $title, $message, $link, $severity, skipRules: true);
         }
     }
@@ -112,7 +154,7 @@ class NotificationService
 
         if ($rules->isEmpty()) {
             // No rules configured for this event — fall back to all admins
-            $this->notifyAdmins($type, $title, $message, $link, $severity);
+            $this->broadcastToAdmins($type, $title, $message, $link, $severity);
             return;
         }
 
@@ -161,9 +203,14 @@ class NotificationService
                     'created_at' => now(),
                 ]);
 
-                // Email — rule flag OR the user's personal notify_email preference
+                // Email — the rule decides WHO gets mailed; the user's personal
+                // notify_email preference can only veto it.
+                //
+                // This was `||`, which made the rule's "send email" checkbox
+                // inert: notify_email defaults to true for every user, so a rule
+                // with email switched off still emailed everyone it matched.
                 $settings     = NotificationSetting::forUser($recipient->id);
-                $shouldEmail  = $rule->send_email || $settings->notify_email;
+                $shouldEmail  = $rule->send_email && $settings->notify_email;
 
                 if ($shouldEmail) {
                     SendNotificationEmailJob::dispatch($notification, $recipient)->afterCommit();
@@ -245,9 +292,6 @@ class NotificationService
                         }
                     }
 
-                    // Skip email if recipient already gets emails via their own
-                    // notify_email preference — they will receive their own direct
-                    // email when notify() is called for them (e.g. via notifyAdmins).
                     $recipientPref = NotificationSetting::forUser($recipient->id);
 
                     // In-app notification (always send regardless of email preference)
@@ -264,9 +308,18 @@ class NotificationService
                         ]);
                     }
 
-                    // Email notification — only if recipient does NOT already
-                    // receive email via their personal notify_email setting
-                    if ($rule->send_email && ! $recipientPref->notify_email) {
+                    // Email notification. Same semantics as notifyViaRules(): the
+                    // rule decides, the recipient's preference can veto.
+                    //
+                    // This was `&& ! $recipientPref->notify_email`, on the theory
+                    // that the recipient would already be getting their own copy.
+                    // They would not — the notification's owner is skipped above,
+                    // so this recipient is always someone else, and their own
+                    // preference never produced a mail for this notification.
+                    // With notify_email defaulting to true, the condition was
+                    // false for everyone and rule-routed email on this path never
+                    // sent at all.
+                    if ($rule->send_email && $recipientPref->notify_email) {
                         SendNotificationEmailJob::dispatch($notification, $recipient)->afterCommit();
                     }
                 }

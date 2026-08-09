@@ -206,6 +206,48 @@ it('does not re-notify while an outage stays open', function () {
     expect(NocEvent::where('source_type', 'tunnel_down')->where('status', 'open')->count())->toBe(1);
 });
 
+it('does not re-notify each time a tunnel flaps between down and degraded', function () {
+    // RYD, 2026-08-09: the gateway answered intermittently, so every sweep
+    // resolved one event and raised the other. Each new row looked like a fresh
+    // incident and paged everyone — 63 emails inside one hour.
+    jed();
+    $allDown = ['10.1.0.1' => down(), '10.1.8.5' => down()];
+    $gatewayOnly = ['10.1.0.1' => up(), '10.1.8.5' => down()];
+
+    $this->mock(NotificationService::class)
+        ->shouldReceive('notifyViaRules')->twice()   // one outage + one degraded, no more
+        ->andReturnNull();
+
+    // Settle into an outage, then oscillate.
+    watchdog($allDown, ['probe-2' => down()])->run();
+    watchdog($allDown, ['probe-2' => down()])->run();
+
+    foreach (range(1, 5) as $_) {
+        watchdog($gatewayOnly, ['probe-2' => down()])->run();
+        watchdog($gatewayOnly, ['probe-2' => down()])->run();
+        watchdog($allDown, ['probe-2' => down()])->run();
+        watchdog($allDown, ['probe-2' => down()])->run();
+    }
+
+    // And one row per incident, not one per flap.
+    expect(NocEvent::where('source_type', 'tunnel_degraded')->count())->toBe(1);
+    expect(NocEvent::where('source_type', 'tunnel_down')->count())->toBe(1);
+});
+
+it('waits for a second consecutive degraded sweep before notifying', function () {
+    jed();
+
+    $this->mock(NotificationService::class)
+        ->shouldReceive('notifyViaRules')->never()
+        ->andReturnNull();
+
+    // One sweep only: the event exists so the dashboard is truthful, but a
+    // single dropped probe has not earned an email yet.
+    watchdog(['10.1.0.1' => up(), '10.1.8.5' => down()], ['probe-2' => down()])->run();
+
+    expect(NocEvent::where('source_type', 'tunnel_degraded')->where('status', 'open')->count())->toBe(1);
+});
+
 it('resolves the outage and opens a degraded warning when only the gateway comes back', function () {
     $tunnel = jed();
     $downFixture = ['10.1.0.1' => down(), '10.1.8.5' => down()];

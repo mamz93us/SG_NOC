@@ -36,13 +36,22 @@ class NotificationRule extends Model
 
     /**
      * Match rules for a specific event type OR wildcard '*' rules.
+     *
+     * Ordered specific-first: the consumers treat this as a priority list and
+     * take the first rule that matches each user ("first rule wins"). Without
+     * an explicit order that came out in row order, so a catch-all '*' rule
+     * could beat a rule written for the exact event purely because it was
+     * created earlier.
      */
     public function scopeForEvent($query, string $type)
     {
-        return $query->where(function ($q) use ($type) {
-            $q->where('event_type', $type)
-                ->orWhere('event_type', '*');
-        });
+        return $query
+            ->where(function ($q) use ($type) {
+                $q->where('event_type', $type)
+                    ->orWhere('event_type', '*');
+            })
+            ->orderByRaw("CASE WHEN event_type = '*' THEN 1 ELSE 0 END")
+            ->orderBy('id');
     }
 
     /**
@@ -84,13 +93,18 @@ class NotificationRule extends Model
                 'it_onboarding_summary' => 'IT Onboarding Summary (new-hire credentials)',
             ],
             'NOC & Monitoring' => [
-                'noc_alert' => 'NOC Alert (switch / VPN / UCM)',
-                'system_alert' => 'System Alert (licence / SLA)',
+                'noc_alert' => 'NOC Alert (switch offline / not syncing, UCM unreachable)',
+                'system_alert' => 'System Alert (licence quota / SLA breach / overdue backup)',
                 'host_down' => 'Host Down (SNMP / ping)',
                 'supply_alert' => 'Supply / Toner Alert',
                 'printer_maintenance' => 'Printer Maintenance',
                 'cups_printer_offline' => 'CUPS Printer Offline',
                 'backup_overdue' => 'Device Backup Overdue',
+            ],
+            'Branch Tunnels (VPN)' => [
+                'tunnel_down' => 'Branch Tunnel Down',
+                'tunnel_degraded' => 'Branch Tunnel Degraded (subnet unreachable)',
+                'vpn_alert' => 'VPN Event Re-sent from the Events page',
             ],
             'Assets, Licences & Expiries' => [
                 'license_expiring' => 'Licence Expiring Soon',
@@ -101,10 +115,23 @@ class NotificationRule extends Model
                 'warranty_expiring' => 'Warranty Expiring Soon',
                 'warranty_expired' => 'Warranty Expired',
                 'isp_renewal' => 'ISP Renewal Reminder',
+                'assets_alert' => 'Asset Event Re-sent from the Events page (warranty / printer)',
             ],
             'Identity / Azure' => [
                 'account_disabled' => 'Azure Account Disabled',
                 'account_removed' => 'Azure Account Removed',
+            ],
+            // NocController::resend() derives the event type from the event's
+            // module — `printers` and `network`/`voip` are special-cased, every
+            // other module becomes "{module}_alert". Without these slugs listed,
+            // a re-sent Sophos or access-point event has no rule to match and
+            // silently falls back to broadcasting to every admin.
+            'Re-sent Events (by module)' => [
+                'sophos_alert' => 'Sophos Central Alert / Firewall Disconnected',
+                'access_point_alert' => 'Access Point Down',
+                'ping_alert' => 'Ping / Host Availability',
+                'branch_agent_alert' => 'Branch Agent Stale or DDNS Failure',
+                'syslog_alert' => 'Syslog / Graylog Rule Match',
             ],
         ];
     }
