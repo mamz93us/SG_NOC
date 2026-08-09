@@ -537,15 +537,16 @@
                             <span class="text-muted fw-normal">· {{ $row->label }}</span>
                         </div>
                         @if($lease)
-                        <span class="badge {{ $lease->isCurrent() ? 'bg-success' : 'bg-secondary' }}">
-                            {{ $lease->isCurrent() ? 'Online' : 'Last seen' }}
+                        <span class="badge {{ $lease->isSelfAssigned() ? 'bg-warning text-dark' : ($lease->isCurrent() ? 'bg-success' : 'bg-secondary') }}">
+                            {{ $lease->isSelfAssigned() ? 'No DHCP' : ($lease->isCurrent() ? 'Online' : 'Last seen') }}
                         </span>
                         @endif
                     </div>
 
                     @if($lease)
                         <div class="mb-1">
-                            <a href="{{ route('admin.network.dhcp.show', $lease) }}" class="font-monospace fw-semibold text-decoration-none">
+                            <a href="{{ route('admin.network.dhcp.show', $lease) }}"
+                               class="font-monospace fw-semibold text-decoration-none {{ $lease->isSelfAssigned() ? 'text-muted' : '' }}">
                                 {{ $lease->ip_address }}
                             </a>
                             @if($lease->network_label)
@@ -553,6 +554,11 @@
                             @endif
                             @if($lease->is_conflict)
                                 <span class="badge bg-danger ms-1">CONFLICT</span>
+                            @endif
+                            @if($lease->isSelfAssigned())
+                                <div class="text-warning" style="font-size:.72rem">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Self-assigned (APIPA) — the adapter never got a DHCP lease, so this is not a location.
+                                </div>
                             @endif
                         </div>
                         <div class="text-muted" style="font-size:.78rem">
