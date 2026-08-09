@@ -48,9 +48,15 @@ class SendNotificationEmailJob implements ShouldQueue
         try {
             Mail::to($recipient->email, $recipient->name)
                 ->send(
-                    // Per-service sender (Admin → Sender Addresses). Notifications
-                    // are the catch-all bucket for "system" mail.
-                    \App\Models\MailSender::apply(new NotificationMail($this->notification, $recipient), \App\Models\MailSender::NOTIFICATIONS)
+                    // Per-service sender (Admin → Sender Addresses). Every emailed
+                    // notification comes through here, so the bucket is chosen from
+                    // the notification's type — a tunnel or host alert sends as the
+                    // NOC & Monitoring sender, not the catch-all. Unmapped types
+                    // still fall through to General Notifications.
+                    \App\Models\MailSender::apply(
+                        new NotificationMail($this->notification, $recipient),
+                        \App\Models\MailSender::serviceForNotificationType($this->notification->type)
+                    )
                 );
             $status = 'sent';
         } catch (\Throwable $e) {

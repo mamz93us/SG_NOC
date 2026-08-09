@@ -188,7 +188,7 @@ class EmailTemplates
                 'service' => MailSender::NOTIFICATIONS,
                 'view' => 'emails.notification',
                 'mailable' => NotificationMail::class,
-                'description' => 'The wrapper every in-app notification uses when it is also emailed. Editing this affects a lot of mail.',
+                'description' => 'The wrapper every in-app notification uses when it is also emailed. Editing this affects a lot of mail. The From address varies by notification type — alerts go out as the NOC & Monitoring sender, not this one.',
             ],
         ];
     }

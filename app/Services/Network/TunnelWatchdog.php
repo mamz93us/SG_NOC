@@ -32,6 +32,19 @@ class TunnelWatchdog
     /** Consecutive failures before an event/notification fires. Guards against a single dropped packet. */
     public const ALERT_AFTER_FAILURES = 2;
 
+    /**
+     * How long a resolved event stays "the same incident".
+     *
+     * A tunnel that oscillates between down and degraded resolves one event and
+     * raises the other on every 1-minute sweep. Because raise() can only match
+     * an OPEN event, each flap used to mint a brand-new row with
+     * wasRecentlyCreated = true — and therefore a fresh notification to every
+     * recipient. RYD produced 238 emails in three days that way, 63 of them in a
+     * single hour. Inside this window the original event is re-opened instead,
+     * silently: the incident is still the incident, and nobody is told twice.
+     */
+    private const FLAP_WINDOW_MINUTES = 60;
+
     /** Per-target budget. Kept tight so a whole sweep fits comfortably inside one minute. */
     private const ICMP_TIMEOUT_MS = 1000;
 
@@ -198,6 +211,13 @@ class TunnelWatchdog
         if ($state === BranchTunnel::STATE_DEGRADED) {
             $this->resolve($tunnel, 'tunnel_down');
 
+            // The event is raised on the first degraded sweep — partial
+            // reachability must never look healthy on the dashboard, which is
+            // the whole point of this state. The *notification* waits for a
+            // second consecutive degraded sweep: the same "don't trust one
+            // cycle" rule tunnel_down gets from consecutive_failures, which
+            // degraded cannot use because the gateway is answering and the
+            // counter is zero. A single dropped probe is not worth an email.
             $this->raise(
                 $tunnel,
                 'tunnel_degraded',
@@ -206,7 +226,8 @@ class TunnelWatchdog
                 "The {$where} tunnel is up — the firewall at {$tunnel->firewall_ip} is answering — but "
                     .(count($failedLabels) === 1 ? 'this target is' : 'these targets are').' unreachable through it: '
                     .implode(', ', $failedLabels).'. '
-                    .'Usually means the subnet is missing from the tunnel traffic selector on the branch firewall.'
+                    .'Usually means the subnet is missing from the tunnel traffic selector on the branch firewall.',
+                mayNotify: $previousState === BranchTunnel::STATE_DEGRADED,
             );
 
             return;
@@ -219,29 +240,74 @@ class TunnelWatchdog
         }
     }
 
-    protected function raise(BranchTunnel $tunnel, string $sourceType, string $severity, string $title, string $message): void
-    {
-        $event = NocEvent::firstOrCreate(
-            ['source_type' => $sourceType, 'source_id' => $tunnel->id, 'status' => 'open'],
-            [
+    /**
+     * Open (or keep open) the event for this tunnel, and notify at most once
+     * per incident.
+     *
+     * @param  bool  $mayNotify  False suppresses only the notification; the event
+     *                           is still raised so the dashboard stays truthful.
+     */
+    protected function raise(
+        BranchTunnel $tunnel,
+        string $sourceType,
+        string $severity,
+        string $title,
+        string $message,
+        bool $mayNotify = true,
+    ): void {
+        $latest = NocEvent::where('source_type', $sourceType)
+            ->where('source_id', $tunnel->id)
+            ->orderByDesc('id')
+            ->first();
+
+        // Acknowledged counts as open — resolve() leaves those alone, so they
+        // must not spawn a duplicate row.
+        $isOpen = $latest && in_array($latest->status, ['open', 'acknowledged'], true);
+
+        // Resolved a moment ago means the same incident is flapping, not a new
+        // one: re-open the existing row rather than minting another.
+        $isFlap = $latest
+            && ! $isOpen
+            && $latest->resolved_at
+            && $latest->resolved_at->gt(now()->subMinutes(self::FLAP_WINDOW_MINUTES));
+
+        if ($isOpen) {
+            $latest->update(['last_seen' => now(), 'message' => $message]);
+            $event = $latest;
+        } elseif ($isFlap) {
+            $latest->update([
+                'status' => 'open',
+                'resolved_at' => null,
+                'severity' => $severity,
+                'title' => $title,
+                'message' => $message,
+                'last_seen' => now(),
+            ]);
+            $event = $latest;
+        } else {
+            $event = NocEvent::create([
+                'source_type' => $sourceType,
+                'source_id' => $tunnel->id,
+                'status' => 'open',
                 'module' => 'vpn',
                 'severity' => $severity,
                 'title' => $title,
                 'message' => $message,
                 'first_seen' => now(),
                 'last_seen' => now(),
-            ]
-        );
+            ]);
+        }
 
-        if ($event->wasRecentlyCreated) {
-            // Notify only on the opening edge — an open event keeps getting its
-            // last_seen bumped every cycle and must not re-notify each minute.
-            $this->notifications->notifyViaRules($sourceType, $title, $message, url('/admin/network/tunnel-health'), $severity);
-
+        // One notification per incident. email_sent_at is the stamp — it carries
+        // across a re-opened flap, which is what keeps a tunnel oscillating
+        // between down and degraded from paging everyone every single minute.
+        if (! $mayNotify || $event->email_sent_at) {
             return;
         }
 
-        $event->update(['last_seen' => now(), 'message' => $message]);
+        $event->update(['email_sent_at' => now()]);
+
+        $this->notifications->notifyViaRules($sourceType, $title, $message, url('/admin/network/tunnel-health'), $severity);
     }
 
     protected function resolve(BranchTunnel $tunnel, string $sourceType): void

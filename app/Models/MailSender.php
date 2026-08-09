@@ -59,7 +59,7 @@ class MailSender extends Model
         ],
         self::ALERTS => [
             'label' => 'NOC & Monitoring Alerts',
-            'description' => 'SNMP/syslog alert rules, device and link incidents.',
+            'description' => 'SNMP/syslog alert rules, device and link incidents, tunnel health, and licence/SSL/warranty expiry alerts.',
             'example' => 'noc@samirgroup.com',
         ],
         self::PRINTERS => [
@@ -77,6 +77,63 @@ class MailSender extends Model
             'description' => 'AvePoint backup-ready notices and backup job reports.',
             'example' => 'noc@samirgroup.com',
         ],
+    ];
+
+    /**
+     * Which sender bucket an in-app notification belongs to, keyed by the
+     * notification's `type` (the same slugs NotificationRule routes on).
+     *
+     * Every notification that also goes out by email funnels through the one
+     * SendNotificationEmailJob, which used to stamp all of them NOTIFICATIONS.
+     * So a "VPN Tunnel Degraded" alert went out under the catch-all bucket —
+     * blank in practice, which inherits the global default (the marketing
+     * identity) — instead of the NOC & Monitoring sender configured right
+     * above it on the Sender Addresses page.
+     *
+     * Anything not listed here is genuinely miscellaneous system mail and
+     * still falls through to NOTIFICATIONS.
+     *
+     * @var array<string, string>
+     */
+    public const NOTIFICATION_TYPE_SERVICES = [
+        // NOC & monitoring — device, link and tunnel incidents.
+        'noc_alert' => self::ALERTS,
+        'system_alert' => self::ALERTS,
+        'host_down' => self::ALERTS,
+        'tunnel_down' => self::ALERTS,
+        'tunnel_degraded' => self::ALERTS,
+        // Expiry watchers are monitoring output too — same desk, same sender.
+        'license_expiring' => self::ALERTS,
+        'license_expired' => self::ALERTS,
+        'license_alert' => self::ALERTS,
+        'ssl_expiring' => self::ALERTS,
+        'ssl_expired' => self::ALERTS,
+        'warranty_expiring' => self::ALERTS,
+        'warranty_expired' => self::ALERTS,
+        'isp_renewal' => self::ALERTS,
+        'account_disabled' => self::ALERTS,
+        'account_removed' => self::ALERTS,
+
+        // Printers — matches the dedicated printer mail paths.
+        'supply_alert' => self::PRINTERS,
+        'printer_maintenance' => self::PRINTERS,
+        'cups_printer_offline' => self::PRINTERS,
+
+        'backup_overdue' => self::BACKUPS,
+
+        // Workflow & approvals.
+        'approval_request' => self::WORKFLOWS,
+        'approval_action' => self::WORKFLOWS,
+        'workflow_complete' => self::WORKFLOWS,
+        'workflow_completed' => self::WORKFLOWS,
+        'workflow_failed' => self::WORKFLOWS,
+        'workflow_rejected' => self::WORKFLOWS,
+        'workflow_cancelled' => self::WORKFLOWS,
+        'workflow_notification' => self::WORKFLOWS,
+        'workflow_tasks_created' => self::WORKFLOWS,
+        'workflow_all_tasks_done' => self::WORKFLOWS,
+
+        'it_onboarding_summary' => self::ONBOARDING,
     ];
 
     protected $fillable = [
@@ -175,6 +232,16 @@ class MailSender extends Model
         if ($s['reply_to']) {
             $message->replyTo($s['reply_to']);
         }
+    }
+
+    /**
+     * The sender bucket for an in-app notification `type`.
+     *
+     * @see self::NOTIFICATION_TYPE_SERVICES
+     */
+    public static function serviceForNotificationType(?string $type): string
+    {
+        return self::NOTIFICATION_TYPE_SERVICES[$type] ?? self::NOTIFICATIONS;
     }
 
     /** Reset the memo — call after saving from the admin page. */
