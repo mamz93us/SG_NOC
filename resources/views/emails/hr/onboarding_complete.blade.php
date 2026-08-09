@@ -27,7 +27,7 @@
               $displayName = $payload['display_name'] ?? 'New Employee';
               $upn         = $payload['upn'] ?? '—';
               $extension   = $payload['extension'] ?? null;
-              $hrRef       = $payload['hr_reference'] ?? $workflow->id;
+              $hrRef       = $payload['oracle_emp_no'] ?? $payload['hr_reference'] ?? $workflow->id;
               $startDate   = $payload['start_date'] ?? null;
               $department  = $payload['department'] ?? null;
               $jobTitle    = $payload['job_title'] ?? null;
@@ -44,7 +44,7 @@
                 <td colspan="2" style="padding:10px 16px;font-size:13px;font-weight:700;color:#495057;text-transform:uppercase;letter-spacing:.5px;">Account Details</td>
               </tr>
               <tr>
-                <td style="padding:10px 16px;color:#6c757d;font-size:14px;width:160px;border-top:1px solid #dee2e6;">HR Reference</td>
+                <td style="padding:10px 16px;color:#6c757d;font-size:14px;width:160px;border-top:1px solid #dee2e6;">Oracle Employee ID</td>
                 <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;font-weight:600;"><!--f:hrRef-->{{ $hrRef }}<!--/f--></td>
               </tr>
               <tr style="background-color:#f8f9fa;">

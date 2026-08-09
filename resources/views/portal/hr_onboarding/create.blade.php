@@ -87,9 +87,9 @@
                             <div class="form-text">Used on Azure profile.</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">HR Reference</label>
-                            <input type="text" name="hr_reference" class="form-control form-control-sm" value="{{ old('hr_reference') }}" placeholder="e.g. HR-2026-0045">
-                            <div class="form-text">Internal HR ticket / employee number.</div>
+                            <label class="form-label small fw-semibold">Oracle Employee ID</label>
+                            <input type="text" name="oracle_emp_no" class="form-control form-control-sm" value="{{ old('oracle_emp_no') }}" placeholder="e.g. 10432" maxlength="50">
+                            <div class="form-text">The employee number from Oracle HR — it becomes this person's reference everywhere in NOC.</div>
                         </div>
                     </div>
 

@@ -26,7 +26,7 @@
               $payload     = $workflow->payload ?? [];
               $displayName = $payload['display_name'] ?? 'New Employee';
               $upn         = $payload['upn'] ?? ($payload['first_name'] . '.' . $payload['last_name'] . '@company.com');
-              $hrRef       = $payload['hr_reference'] ?? $workflow->id;
+              $hrRef       = $payload['oracle_emp_no'] ?? $payload['hr_reference'] ?? $workflow->id;
               $startDate   = $payload['start_date'] ?? null;
               $managerName = $token->manager_name ?? 'Manager';
               $formUrl     = url('/onboarding/form/' . $token->token);
@@ -61,7 +61,7 @@
               </tr>
               @endif
               <tr style="{{ $startDate ? 'background-color:#f8f9fa;' : '' }}">
-                <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">HR Reference</td>
+                <td style="padding:10px 16px;color:#6c757d;font-size:14px;border-top:1px solid #dee2e6;">Oracle Employee ID</td>
                 <td style="padding:10px 16px;color:#212529;font-size:14px;border-top:1px solid #dee2e6;"><!--f:hr_reference-->{{ $hrRef }}<!--/f--></td>
               </tr>
             </table>

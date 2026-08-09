@@ -15,7 +15,7 @@
 @php
   $payload     = $workflow?->payload ?? [];
   $displayName = $payload['display_name'] ?? 'the new employee';
-  $hrRef       = $payload['hr_reference'] ?? '';
+  $hrRef       = $payload['oracle_emp_no'] ?? $payload['hr_reference'] ?? '';
 @endphp
 
 <div class="card text-center">
@@ -45,7 +45,7 @@
     </div>
 
     @if($hrRef)
-    <p class="text-muted small mb-0">HR Reference: <strong>{{ $hrRef }}</strong></p>
+    <p class="text-muted small mb-0">Oracle Employee ID: <strong>{{ $hrRef }}</strong></p>
     @endif
   </div>
 </div>

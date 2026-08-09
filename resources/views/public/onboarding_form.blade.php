@@ -44,7 +44,7 @@
 @php
   $displayName = $payload['display_name'] ?? 'New Employee';
   $upn         = $payload['upn'] ?? '—';
-  $hrRef       = $payload['hr_reference'] ?? '';
+  $hrRef       = $payload['oracle_emp_no'] ?? $payload['hr_reference'] ?? '';
   $startDate   = $payload['start_date'] ?? null;
   $managerEmail= $tokenRecord->manager_email ?? '—';
   $managerName = $tokenRecord->manager_name ?? 'Manager';
@@ -86,7 +86,7 @@
           @endif
           @if($hrRef)
           <tr>
-            <th class="text-muted bg-light">HR Reference</th>
+            <th class="text-muted bg-light">Oracle Employee ID</th>
             <td>{{ $hrRef }}</td>
           </tr>
           @endif
