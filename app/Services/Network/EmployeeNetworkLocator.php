@@ -143,6 +143,10 @@ class EmployeeNetworkLocator
         $leases = DhcpLease::query()
             ->whereIn('mac_address', $macs)
             ->with(['branch', 'networkSwitch', 'subnet'])
+            // A real routable address beats a newer APIPA one: 169.254.x means
+            // the NIC came up and never got a lease, so it locates nothing.
+            // Only fall back to it when there is nothing else for that MAC.
+            ->orderByRaw("(ip_address LIKE '169.254.%') asc")
             ->orderByDesc('last_seen')
             ->get();
 

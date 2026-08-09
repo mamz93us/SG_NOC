@@ -133,6 +133,15 @@ class DhcpLease extends Model
     }
 
     /**
+     * 169.254.0.0/16 — the address a host picks for itself when DHCP fails.
+     * It says the NIC is up but got no lease; it locates nothing.
+     */
+    public function isSelfAssigned(): bool
+    {
+        return str_starts_with((string) $this->ip_address, '169.254.');
+    }
+
+    /**
      * Leases stop refreshing when the device leaves, so anything older than a
      * day is history rather than "currently connected".
      */
