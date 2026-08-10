@@ -74,6 +74,7 @@ use App\Http\Controllers\Admin\TicketStatsController;
 use App\Http\Controllers\Admin\TopologyController;
 use App\Http\Controllers\Admin\TrunkController;
 use App\Http\Controllers\Admin\TunnelHealthController;
+use App\Http\Controllers\Admin\TunnelHealthHistoryController;
 use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\UcmServerController;
 use App\Http\Controllers\Admin\UserController;
@@ -1250,6 +1251,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::middleware('permission:view-network')->group(function () {
             Route::get('/', [TunnelHealthController::class, 'index'])->name('index');
             Route::get('/data', [TunnelHealthController::class, 'data'])->name('data');
+            Route::get('/history', [TunnelHealthHistoryController::class, 'index'])->name('history');
             Route::post('/check', [TunnelHealthController::class, 'checkNow'])->name('check');
         });
 

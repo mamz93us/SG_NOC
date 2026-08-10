@@ -379,9 +379,15 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.network.tunnel-health.*') ? 'active' : '' }}"
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.tunnel-health.index') ? 'active' : '' }}"
                                    href="{{ route('admin.network.tunnel-health.index') }}">
                                     <i class="bi bi-shield-lock me-2"></i>Branch Tunnel Watchdog
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.tunnel-health.history') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.tunnel-health.history') }}">
+                                    <i class="bi bi-calendar-week me-2"></i>Tunnel History (7 days)
                                 </a>
                             </li>
                             <li>
