@@ -12,6 +12,9 @@
     </div>
     <div class="d-flex gap-2 align-items-center">
         <span id="tw-updated" class="text-muted small"></span>
+        <a href="{{ route('admin.network.tunnel-health.history') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-calendar-week me-1"></i> 7 day history
+        </a>
         <button id="tw-check-now" class="btn btn-primary">
             <i class="bi bi-arrow-repeat me-1"></i> Check now
         </button>
