@@ -497,24 +497,13 @@ try {
             $vbsBody = 'CreateObject("Wscript.Shell").Run "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File ""' + $stableScript + '"" -NoPreview", 0, False'
             Set-Content -Path $vbs -Value $vbsBody -Encoding ASCII
             $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument ('"{0}"' -f $vbs)
-            # Base cadence: daily at 9am + at logon (all users).
-            $daily = New-ScheduledTaskTrigger -Daily -At 9am
-            # ONLY for multi-role users (dropdown enabled) also repeat hourly, so a manual
-            # signature edit is reverted to the NOC version within the hour. Single-role
-            # users have the dropdown disabled and can't edit, so they don't need this.
-            if ($anyMultiVariant) {
-                $daily.Repetition = (New-ScheduledTaskTrigger -Once -At 9am `
-                    -RepetitionInterval (New-TimeSpan -Hours 1) `
-                    -RepetitionDuration (New-TimeSpan -Days 1)).Repetition
-            }
-            $triggers = @(
-                $daily,
-                (New-ScheduledTaskTrigger -AtLogOn)
-            )
+            # Run once per day at 08:30 (no logon trigger, no hourly repetition).
+            # -StartWhenAvailable (below) still catches up if the PC was off at 08:30.
+            $triggers = @( New-ScheduledTaskTrigger -Daily -At '8:30am' )
             $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
             Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $triggers `
                 -Settings $settings -Force -ErrorAction Stop | Out-Null
-            Write-Log ("Registered refresh task '{0}' (hidden, no preview; daily 9am + at logon{1}) -> {2}" -f $taskName, $(if ($anyMultiVariant) { ' + hourly (multi-role edit-revert)' } else { '' }), $stableScript)
+            Write-Log ("Registered refresh task '{0}' (hidden, no preview; daily 08:30) -> {1}" -f $taskName, $stableScript)
         } catch {
             Write-Log ("Could not register daily task (non-fatal): " + $_.Exception.Message) 'WARN'
         }
