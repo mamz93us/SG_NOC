@@ -28,16 +28,19 @@ class TunnelProbeSeeder extends Seeder
      * UCM probes are TCP against the HTTPS API port rather than ICMP: that is
      * the port the app actually needs, and it fails independently of ping.
      *
-     * Each UCM also gets a SIP OPTIONS ping, because a tunnel policy can permit
-     * ICMP and TCP/8089 while dropping UDP/5060 — the board goes green and no
-     * call ever completes.
+     * Each UCM also gets an RTP media probe, because a tunnel policy can permit
+     * ICMP and TCP/8089 while dropping the UDP voice traffic — the board goes
+     * green and no call ever completes. Verified against all seven UCMs on
+     * 2026-08-11: every one answers a closed media port with ICMP unreachable,
+     * so the probe reports "port closed — path OK" and any future silence is a
+     * real change.
      *
-     * The matching RTP probe is seeded PAUSED on purpose. It passes on an ICMP
-     * port-unreachable from the UCM, which is the correct healthy answer for an
-     * idle media port — but a branch firewall that suppresses ICMP type 3 makes
-     * a perfectly good path look silent, and an always-red probe would email
-     * everyone every hour. Enable it per branch once you have watched one sweep
-     * and seen it report "port closed — path OK".
+     * The SIP probe is seeded PAUSED. The mechanism is sound, but on that same
+     * sweep every UCM stayed silent on 5060 while answering ICMP unreachable on
+     * every other port — meaning 5060 is bound and the UCM is declining to
+     * answer OPTIONS from 172.16.8.11, not that the tunnel is broken. Left
+     * active it would mark all seven tunnels degraded forever. Permit SIP
+     * requests from the NOC on the UCM first, then enable it per branch.
      */
     private const PROBES = [
         'CAI' => [
@@ -124,8 +127,8 @@ class TunnelProbeSeeder extends Seeder
                 continue;
             }
 
-            $out[] = ['UCM SIP signalling', $target, 'sip', 5060, true];
-            $out[] = ['UCM RTP media', $target, 'udp', self::RTP_SAMPLE_PORT, false];
+            $out[] = ['UCM RTP media', $target, 'udp', self::RTP_SAMPLE_PORT, true];
+            $out[] = ['UCM SIP signalling', $target, 'sip', 5060, false];
         }
 
         return $out;

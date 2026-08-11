@@ -378,8 +378,8 @@ it('degrades a tunnel whose voice ports are dark even though everything else ans
         ['10.1.0.1' => up(2), '10.1.8.5' => up(6)],
         ['probe-2' => up(11)],
         [
-            'probe-3' => ['alive' => false, 'latency' => null, 'note' => 'no reply'],
-            'probe-4' => ['alive' => false, 'latency' => null, 'note' => 'no reply — UDP not crossing the tunnel'],
+            'probe-3' => ['alive' => false, 'latency' => null, 'note' => 'no reply — SIP ACL or tunnel policy'],
+            'probe-4' => ['alive' => false, 'latency' => null, 'note' => 'no reply — path blocked or port filtered'],
         ],
     )->run();
 

@@ -755,9 +755,12 @@ class TunnelWatchdog
                     : ['alive' => false, 'latency' => null, 'note' => 'non-SIP reply'];
             }
 
+            // Silence on 5060 while other ports on the same host answer ICMP
+            // unreachable means something IS bound there and chose not to reply —
+            // on a Grandstream UCM, that is its SIP ACL, not a broken tunnel.
             return $refused
                 ? ['alive' => false, 'latency' => null, 'note' => 'port closed — host reachable, SIP not listening']
-                : ['alive' => false, 'latency' => null, 'note' => 'no reply'];
+                : ['alive' => false, 'latency' => null, 'note' => 'no reply — SIP ACL or tunnel policy'];
         }
 
         if ($reply !== null) {
@@ -766,9 +769,11 @@ class TunnelWatchdog
 
         // Port unreachable still proves the datagram crossed the tunnel, which is
         // the whole question a media probe is asking.
+        // Silence is either "nothing crossed" or "something is listening and
+        // ignoring us" — don't claim to know which.
         return $refused
             ? ['alive' => true, 'latency' => $latency, 'note' => 'port closed — path OK']
-            : ['alive' => false, 'latency' => null, 'note' => 'no reply — UDP not crossing the tunnel'];
+            : ['alive' => false, 'latency' => null, 'note' => 'no reply — path blocked or port filtered'];
     }
 
     /**

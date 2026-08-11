@@ -434,7 +434,8 @@
     // "port closed" is the healthy answer.
     const PORT_HELP = {
         tcp: 'TCP connect only — nothing is sent on the socket.',
-        sip: 'A real SIP OPTIONS ping is sent over UDP. Passes only when the far end answers SIP/2.0. Standard port is 5060.',
+        sip: 'A real SIP OPTIONS ping is sent over UDP (port 5060). Passes only when the far end answers SIP/2.0 — '
+           + 'a Grandstream UCM must be told to accept SIP requests from the NOC first, or this stays red with the tunnel perfectly healthy.',
         udp: 'For RTP/media ports. Passes on a reply <em>or</em> an ICMP port-unreachable — either proves UDP crosses the tunnel. '
            + 'Silence means it does not. Keep to one media probe per host: the far kernel rate-limits ICMP replies.',
     };
