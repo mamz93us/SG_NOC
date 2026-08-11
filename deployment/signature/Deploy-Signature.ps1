@@ -270,8 +270,9 @@ try {
         Remove-Item -Path "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "HKCU:\Software\Policies\Microsoft\Office\$verKey\Outlook\DisabledCmdBarItemsList" -Recurse -Force -ErrorAction SilentlyContinue
 
-        # Remove the daily self-refresh task.
+        # Remove the daily self-refresh task + its hidden launcher.
         Unregister-ScheduledTask -TaskName 'SG-Signature-Refresh' -Confirm:$false -ErrorAction SilentlyContinue
+        Remove-Item -Path (Join-Path $LogDir 'sg-sig-refresh.vbs') -Force -ErrorAction SilentlyContinue
 
         Write-Log "=== RemoveClientSignature done: local signatures, per-account assignments, lock and daily task removed. ==="
         Write-Log "Reminder: the user must clear their cloud/roaming signatures once in OWA; the transport rule then stamps by sending domain."
@@ -484,8 +485,15 @@ try {
                 Copy-Item -Path $PSCommandPath -Destination $stableScript -Force
             }
             $taskName = 'SG-Signature-Refresh'
-            $arg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$stableScript`""
-            $action   = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arg
+            # Run the scheduled refresh COMPLETELY hidden and WITHOUT the preview window.
+            # `powershell.exe -WindowStyle Hidden` still briefly flashes a console when a task
+            # fires in the user session, so launch it through wscript.exe + a tiny .vbs wrapper
+            # (Run window-style 0 = fully hidden, no console). `-NoPreview` stops the branded
+            # preview page from opening on the daily/hourly/logon runs.
+            $vbs = Join-Path $LogDir 'sg-sig-refresh.vbs'
+            $vbsBody = 'CreateObject("Wscript.Shell").Run "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File ""' + $stableScript + '"" -NoPreview", 0, False'
+            Set-Content -Path $vbs -Value $vbsBody -Encoding ASCII
+            $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument ('"{0}"' -f $vbs)
             # Base cadence: daily at 9am + at logon (all users).
             $daily = New-ScheduledTaskTrigger -Daily -At 9am
             # ONLY for multi-role users (dropdown enabled) also repeat hourly, so a manual
@@ -503,7 +511,7 @@ try {
             $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
             Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $triggers `
                 -Settings $settings -Force -ErrorAction Stop | Out-Null
-            Write-Log ("Registered refresh task '{0}' (daily 9am + at logon{1}) -> {2}" -f $taskName, $(if ($anyMultiVariant) { ' + hourly (multi-role edit-revert)' } else { '' }), $stableScript)
+            Write-Log ("Registered refresh task '{0}' (hidden, no preview; daily 9am + at logon{1}) -> {2}" -f $taskName, $(if ($anyMultiVariant) { ' + hourly (multi-role edit-revert)' } else { '' }), $stableScript)
         } catch {
             Write-Log ("Could not register daily task (non-fatal): " + $_.Exception.Message) 'WARN'
         }
