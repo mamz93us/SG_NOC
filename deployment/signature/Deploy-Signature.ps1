@@ -465,8 +465,11 @@ try {
     Set-Content -Path $hashFile -Value $hash -Encoding ASCII
     $changed  = ($oldHash -ne $hash)
 
-    # Show the branded preview only on first install / when a signature changed.
-    if (-not $NoPreview.IsPresent -and $changed -and $cards.Count -gt 0) {
+    # Show the branded preview only when a HUMAN is running this in a console AND a signature
+    # changed. [Environment]::UserInteractive is false under Intune and the hidden scheduled
+    # task, so automated runs never pop the preview (or any window) — only a tech running it
+    # by hand sees it.
+    if (-not $NoPreview.IsPresent -and [Environment]::UserInteractive -and $changed -and $cards.Count -gt 0) {
         try {
             $p = Show-SignaturePreview -Cards $cards -Dir $LogDir
             Write-Log "Opened signature preview: $p"
