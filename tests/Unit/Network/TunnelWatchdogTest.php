@@ -21,12 +21,16 @@ use Illuminate\Support\Facades\Schema;
 uses(Tests\TestCase::class);
 
 /** Watchdog with the network replaced by a fixture. */
-function watchdog(array $icmp, array $tcp = []): TunnelWatchdog
+function watchdog(array $icmp, array $tcp = [], array $udp = []): TunnelWatchdog
 {
-    return new class(app(NotificationService::class), $icmp, $tcp) extends TunnelWatchdog
+    return new class(app(NotificationService::class), $icmp, $tcp, $udp) extends TunnelWatchdog
     {
-        public function __construct(NotificationService $n, private array $icmpFixture, private array $tcpFixture)
-        {
+        public function __construct(
+            NotificationService $n,
+            private array $icmpFixture,
+            private array $tcpFixture,
+            private array $udpFixture,
+        ) {
             parent::__construct($n);
         }
 
@@ -38,6 +42,11 @@ function watchdog(array $icmp, array $tcp = []): TunnelWatchdog
         protected function tcpBatch(array $targets): array
         {
             return $this->tcpFixture;
+        }
+
+        protected function udpBatch(array $targets): array
+        {
+            return $this->udpFixture;
         }
     };
 }
@@ -86,6 +95,7 @@ beforeEach(function () {
         $t->boolean('is_active')->default(true);
         $t->string('status', 20)->default('unknown');
         $t->unsignedInteger('latency_ms')->nullable();
+        $t->string('result_note', 120)->nullable();
         $t->timestamp('last_checked_at')->nullable();
         $t->timestamp('status_changed_at')->nullable();
         $t->unsignedSmallInteger('consecutive_failures')->default(0);
@@ -348,6 +358,88 @@ it('reads ping output as down when every packet was lost', function () {
     $win = "Ping statistics for 10.9.8.1:\r\n    Packets: Sent = 2, Received = 2, Lost = 0 (0% loss),\r\n"
         ."Approximate round trip times in milli-seconds:\r\n    Minimum = 3ms, Maximum = 5ms, Average = 4ms";
     expect($parser->parse($win, true))->toBe(['alive' => true, 'latency' => 4]);
+});
+
+it('degrades a tunnel whose voice ports are dark even though everything else answers', function () {
+    // The failure UDP probes exist for: ICMP and TCP/8089 pass, so the board is
+    // green, while UDP/5060 and the RTP range are dropped by the tunnel policy
+    // and not one call completes.
+    $tunnel = jed();
+    $tunnel->probes()->create([
+        'label' => 'UCM SIP', 'target' => '10.1.8.10',
+        'check_type' => TunnelProbe::TYPE_SIP, 'port' => 5060,
+    ]);
+    $tunnel->probes()->create([
+        'label' => 'UCM RTP', 'target' => '10.1.8.10',
+        'check_type' => TunnelProbe::TYPE_UDP, 'port' => 10000,
+    ]);
+
+    watchdog(
+        ['10.1.0.1' => up(2), '10.1.8.5' => up(6)],
+        ['probe-2' => up(11)],
+        [
+            'probe-3' => ['alive' => false, 'latency' => null, 'note' => 'no reply'],
+            'probe-4' => ['alive' => false, 'latency' => null, 'note' => 'no reply — UDP not crossing the tunnel'],
+        ],
+    )->run();
+
+    $tunnel = $tunnel->fresh();
+    expect($tunnel->state)->toBe(BranchTunnel::STATE_DEGRADED);
+
+    $probes = $tunnel->probes->keyBy('label');
+    expect($probes['UCM SIP']->status)->toBe('down');
+    expect($probes['UCM RTP']->status)->toBe('down');
+
+    // The note is the diagnosis — it must reach the alert, not just the row.
+    $event = NocEvent::where('source_type', 'tunnel_degraded')->first();
+    expect($event->message)->toContain('10.1.8.10:5060/udp')->toContain('no reply');
+});
+
+it('passes an RTP probe on ICMP port-unreachable, since that proves traversal', function () {
+    // Nothing is bound to an RTP port between calls. A rejection from the far
+    // host is the healthy answer: the datagram got there.
+    $tunnel = BranchTunnel::create(['name' => 'KBR', 'firewall_ip' => '10.3.0.1']);
+    $tunnel->probes()->create([
+        'label' => 'UCM RTP', 'target' => '10.3.0.10',
+        'check_type' => TunnelProbe::TYPE_UDP, 'port' => 10000,
+    ]);
+
+    watchdog(['10.3.0.1' => up(4)], [], [
+        'probe-1' => ['alive' => true, 'latency' => 22, 'note' => 'port closed — path OK'],
+    ])->run();
+
+    expect($tunnel->fresh()->state)->toBe(BranchTunnel::STATE_UP);
+    expect($tunnel->fresh()->probes->first()->result_note)->toBe('port closed — path OK');
+});
+
+it('scores raw UDP outcomes by what each check type is actually asking', function () {
+    $rules = new class(app(NotificationService::class)) extends TunnelWatchdog
+    {
+        public function score(string $mode, ?string $reply, bool $refused, ?int $latency = 7): array
+        {
+            return $this->interpretUdp($mode, $reply, $refused, $latency);
+        }
+    };
+
+    $sip = TunnelProbe::TYPE_SIP;
+    $udp = TunnelProbe::TYPE_UDP;
+
+    // SIP is a service check: only a SIP response passes.
+    expect($rules->score($sip, "SIP/2.0 200 OK\r\n", false)['alive'])->toBeTrue();
+    expect($rules->score($sip, "SIP/2.0 405 Method Not Allowed\r\n", false)['alive'])
+        ->toBeTrue('any SIP response proves signalling reaches the far end');
+    expect($rules->score($sip, 'garbage', false)['alive'])->toBeFalse();
+    expect($rules->score($sip, null, true)['alive'])
+        ->toBeFalse('the packet arrived but nothing is listening on 5060');
+    expect($rules->score($sip, null, false)['alive'])->toBeFalse();
+
+    // RTP is a path check: a rejection counts, silence does not.
+    expect($rules->score($udp, null, true)['alive'])->toBeTrue();
+    expect($rules->score($udp, 'anything', false)['alive'])->toBeTrue();
+    expect($rules->score($udp, null, false)['alive'])->toBeFalse();
+
+    // A failed probe never carries a latency figure into the board.
+    expect($rules->score($udp, null, false)['latency'])->toBeNull();
 });
 
 it('computes uptime from the fully-up share of recent checks', function () {

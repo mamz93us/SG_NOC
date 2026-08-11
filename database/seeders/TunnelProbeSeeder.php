@@ -19,11 +19,25 @@ use Illuminate\Database\Seeder;
  */
 class TunnelProbeSeeder extends Seeder
 {
+    /** A media port inside every UCM's default RTP range (10000–20000). */
+    private const RTP_SAMPLE_PORT = 10000;
+
     /**
      * tunnel name => list of [label, target, check_type, port]
      *
      * UCM probes are TCP against the HTTPS API port rather than ICMP: that is
      * the port the app actually needs, and it fails independently of ping.
+     *
+     * Each UCM also gets a SIP OPTIONS ping, because a tunnel policy can permit
+     * ICMP and TCP/8089 while dropping UDP/5060 — the board goes green and no
+     * call ever completes.
+     *
+     * The matching RTP probe is seeded PAUSED on purpose. It passes on an ICMP
+     * port-unreachable from the UCM, which is the correct healthy answer for an
+     * idle media port — but a branch firewall that suppresses ICMP type 3 makes
+     * a perfectly good path look silent, and an always-red probe would email
+     * everyone every hour. Enable it per branch once you have watched one sweep
+     * and seen it report "port closed — path OK".
      */
     private const PROBES = [
         'CAI' => [
@@ -65,7 +79,7 @@ class TunnelProbeSeeder extends Seeder
                 continue;
             }
 
-            foreach ($probes as $i => [$label, $target, $type, $port]) {
+            foreach ($this->withVoiceProbes($probes) as $i => [$label, $target, $type, $port, $active]) {
                 $existing = $tunnel->probes()
                     ->where('target', $target)
                     ->where('check_type', $type)
@@ -81,11 +95,39 @@ class TunnelProbeSeeder extends Seeder
                     'target' => $target,
                     'check_type' => $type,
                     'port' => $port,
+                    'is_active' => $active,
                     'sort_order' => $i,
                 ]);
 
-                $this->command?->info("  + {$tunnelName}: {$label} ({$target}".($port ? ":{$port}" : '').')');
+                $this->command?->info("  + {$tunnelName}: {$label} ({$target}".($port ? ":{$port}" : '').')'
+                    .($active ? '' : ' [paused]'));
             }
         }
+    }
+
+    /**
+     * Expand the table above: normalise each row to include an is_active flag,
+     * and give every UCM a SIP and an RTP probe alongside its API check.
+     *
+     * @param  array<int, array{0:string, 1:string, 2:string, 3:?int}>  $probes
+     * @return array<int, array{0:string, 1:string, 2:string, 3:?int, 4:bool}>
+     */
+    private function withVoiceProbes(array $probes): array
+    {
+        $out = [];
+
+        foreach ($probes as [$label, $target, $type, $port]) {
+            $out[] = [$label, $target, $type, $port, true];
+
+            // The UCM row is the one identified by its 8089 API port.
+            if ($type !== 'tcp' || $port !== 8089) {
+                continue;
+            }
+
+            $out[] = ['UCM SIP signalling', $target, 'sip', 5060, true];
+            $out[] = ['UCM RTP media', $target, 'udp', self::RTP_SAMPLE_PORT, false];
+        }
+
+        return $out;
     }
 }

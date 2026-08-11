@@ -157,11 +157,11 @@ class TunnelHealthController extends Controller
         $data = $request->validate([
             'label' => 'required|string|max:255',
             'target' => 'required|ip',
-            'check_type' => 'required|in:icmp,tcp',
-            'port' => 'nullable|integer|min:1|max:65535|required_if:check_type,tcp',
+            'check_type' => 'required|in:'.implode(',', array_keys(TunnelWatchdog::checkTypes())),
+            'port' => 'nullable|integer|min:1|max:65535|required_unless:check_type,icmp',
             'is_active' => 'sometimes|boolean',
         ], [
-            'port.required_if' => 'A port is required for a TCP probe.',
+            'port.required_unless' => 'A port is required for anything other than an ICMP probe.',
         ]);
 
         // An ICMP probe has no port; drop any leftover value so the row is clean.
@@ -207,6 +207,7 @@ class TunnelHealthController extends Controller
                 'is_active' => $p->is_active,
                 'status' => $p->is_active ? ($p->status ?? 'unknown') : 'paused',
                 'latency_ms' => $p->latency_ms,
+                'note' => $p->result_note,
                 'checked' => $p->last_checked_at?->diffForHumans(short: true),
             ])->values()->all(),
             'probes_up' => $t->probes->where('is_active', true)->where('status', 'up')->count(),

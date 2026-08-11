@@ -137,7 +137,10 @@
                                 <td style="width:1%" data-cell="probe-status">
                                     <span class="badge {{ $p->statusBadgeClass() }}">{{ ucfirst($p->status ?? 'unknown') }}</span>
                                 </td>
-                                <td>{{ $p->label }}</td>
+                                <td>
+                                    {{ $p->label }}
+                                    <span class="text-muted small d-block" data-cell="probe-note">{{ $p->result_note }}</span>
+                                </td>
                                 <td><code class="small">{{ $p->targetLabel() }}</code></td>
                                 <td class="text-muted small text-uppercase">{{ $p->check_type }}</td>
                                 <td class="text-muted small" data-cell="probe-latency">—</td>
@@ -282,7 +285,8 @@
                 <div class="modal-body">
                     <p class="text-muted small">
                         A probe is something you expect to reach through this tunnel. Give it one per
-                        carried subnet — the gateway alone can't prove a subnet is routed.
+                        carried subnet — the gateway alone can't prove a subnet is routed — and a
+                        SIP/RTP pair per UCM, since a policy can pass ICMP and TCP while dropping voice.
                     </p>
                     <div class="mb-3">
                         <label class="form-label small mb-1">Label</label>
@@ -305,7 +309,7 @@
                     <div class="mb-3 mt-2 d-none" id="tw-p-port-wrap">
                         <label class="form-label small mb-1">Port</label>
                         <input type="number" name="port" id="tw-p-port" class="form-control" min="1" max="65535" placeholder="e.g. 8089">
-                        <div class="form-text small">TCP connect only — nothing is sent on the socket.</div>
+                        <div class="form-text small" id="tw-p-port-help">TCP connect only — nothing is sent on the socket.</div>
                     </div>
                     <div class="form-check mt-3">
                         <input type="hidden" name="is_active" value="0">
@@ -392,6 +396,8 @@
                 if (lc) lc.textContent = p.latency_ms != null ? `${p.latency_ms} ms` : '—';
                 const cc = tr.querySelector('[data-cell="probe-checked"]');
                 if (cc) cc.textContent = p.checked || 'never';
+                const nc = tr.querySelector('[data-cell="probe-note"]');
+                if (nc) nc.textContent = p.note || '';
             });
         });
 
@@ -419,11 +425,27 @@
 
     // ── Modal wiring ──────────────────────────────────────────────
     const portWrap = document.getElementById('tw-p-port-wrap');
+    const portHelp = document.getElementById('tw-p-port-help');
+    const portIn   = document.getElementById('tw-p-port');
     const typeSel  = document.getElementById('tw-p-type');
+
+    // Voice is why these tunnels exist and it rides on UDP, so the two UDP types
+    // get an explanation of what a pass actually proves — especially RTP, where
+    // "port closed" is the healthy answer.
+    const PORT_HELP = {
+        tcp: 'TCP connect only — nothing is sent on the socket.',
+        sip: 'A real SIP OPTIONS ping is sent over UDP. Passes only when the far end answers SIP/2.0. Standard port is 5060.',
+        udp: 'For RTP/media ports. Passes on a reply <em>or</em> an ICMP port-unreachable — either proves UDP crosses the tunnel. '
+           + 'Silence means it does not. Keep to one media probe per host: the far kernel rate-limits ICMP replies.',
+    };
 
     function syncPortVisibility() {
         if (!portWrap || !typeSel) return;
-        portWrap.classList.toggle('d-none', typeSel.value !== 'tcp');
+        const needsPort = typeSel.value !== 'icmp';
+        portWrap.classList.toggle('d-none', !needsPort);
+        if (needsPort && portHelp) portHelp.innerHTML = PORT_HELP[typeSel.value] || '';
+        // Offer 5060 for SIP rather than making everyone type it.
+        if (typeSel.value === 'sip' && portIn && !portIn.value) portIn.value = 5060;
     }
     if (typeSel) typeSel.addEventListener('change', syncPortVisibility);
 
