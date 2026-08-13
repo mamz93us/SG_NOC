@@ -153,6 +153,26 @@ Schedule::command('tunnel-health:watch --prune')
     ->runInBackground()
     ->name('tunnel-health-prune');
 
+// Voice Mesh — the synthetic call prober itself is NOT scheduled here. It needs
+// pjsua and takes ~14 minutes for a full sweep of 42 branch pairs, so it runs
+// under its own systemd timer on this host (deployment/voice-mesh/) and POSTs
+// its report back to /api/voice-mesh/report.
+//
+// This only notices when that stops happening — otherwise a dead timer would
+// leave the matrix frozen on its last green reading.
+Schedule::command('voice-mesh:check-stale')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(5)
+    ->runInBackground()
+    ->name('voice-mesh-check-stale');
+
+// Offset from the tunnel prune at 03:20.
+Schedule::command('voice-mesh:check-stale --prune')
+    ->dailyAt('03:25')
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('voice-mesh-prune');
+
 Schedule::call(function () {
     $service = app(\App\Services\PingService::class);
     $hosts = \App\Models\MonitoredHost::where('ping_enabled', true)->get();

@@ -106,6 +106,12 @@ class NotificationRule extends Model
                 'tunnel_degraded' => 'Branch Tunnel Degraded (subnet unreachable)',
                 'vpn_alert' => 'VPN Event Re-sent from the Events page',
             ],
+            'Voice Mesh (synthetic calls)' => [
+                'voice_mesh_caller_down' => 'Branch Cannot Place Calls (every outbound leg failed)',
+                'voice_mesh_dest_down' => 'Branch IVR Unreachable (every inbound leg failed)',
+                'voice_mesh_pair_failed' => 'Branch-to-Branch Call Path Failed',
+                'voice_mesh_stale' => 'Voice Mesh Prober Not Reporting',
+            ],
             'Assets, Licences & Expiries' => [
                 'license_expiring' => 'Licence Expiring Soon',
                 'license_expired' => 'Licence Expired',

@@ -2414,6 +2414,19 @@ Route::prefix('api/branch-config')
         Route::post('discovered-devices', [\App\Http\Controllers\Api\BranchConfigController::class, 'postDiscovered'])->name('discovered-devices');
     });
 
+// Voice-mesh endpoints — the synthetic call prober runs as a systemd service on
+// THIS host and dials every branch pair. It pulls its branch list (including
+// plaintext SIP passwords) from /config and POSTs one combined report to
+// /report. Double-gated: internal.ip AND the X-Voice-Mesh-Secret shared secret
+// checked inside the controller. CSRF-exempt (bootstrap/app.php).
+Route::prefix('api/voice-mesh')
+    ->name('api.voice-mesh.')
+    ->middleware(['internal.ip', 'throttle:120,1'])
+    ->group(function () {
+        Route::get('config', [\App\Http\Controllers\Api\VoiceMeshController::class, 'config'])->name('config');
+        Route::post('report', [\App\Http\Controllers\Api\VoiceMeshController::class, 'report'])->name('report');
+    });
+
 // Branch-agent endpoints — sg-branch-agent enrolls (one-time code → token),
 // then heartbeats, reports its WAN IP (DDNS) and pulls config with its Bearer
 // token. CSRF-exempt (machine-to-machine, no session).

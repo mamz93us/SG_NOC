@@ -163,6 +163,9 @@ class Setting extends Model
         // NOC-AGW Access Gateway (read by the noc-agw FastAPI service)
         'agw_backend_url',
         'agw_enforce_ip_acl',
+        // Voice Mesh (read by the voice-mesh prober over localhost)
+        'voice_mesh_secret',
+        'voice_mesh_retention_days',
     ];
 
     protected $casts = [
@@ -212,6 +215,8 @@ class Setting extends Model
         'wallet_pass_enabled' => 'boolean',
         // NOC-AGW Access Gateway
         'agw_enforce_ip_acl' => 'boolean',
+        // Voice Mesh
+        'voice_mesh_retention_days' => 'integer',
     ];
 
     /**
@@ -501,6 +506,25 @@ class Setting extends Model
     }
 
     public function getSftpgoWebhookSecretAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── Voice Mesh ingest secret — encrypted at rest ─────────────
+
+    public function setVoiceMeshSecretAttribute(?string $value): void
+    {
+        $this->attributes['voice_mesh_secret'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getVoiceMeshSecretAttribute(?string $value): ?string
     {
         if (! $value) {
             return null;

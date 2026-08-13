@@ -88,6 +88,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/backup/upload-hook',
             'api/branch-config/*',
             'api/branch-agents/*',
+            'api/voice-mesh/*',
             'api/wallpapers/checkin',
             'api/sns/email-events',
             'email/unsubscribe/*',

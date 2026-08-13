@@ -91,6 +91,13 @@ return [
         'webhook_secret' => env('SFTPGO_WEBHOOK_SECRET'),
     ],
 
+    'voice_mesh' => [
+        // Shared secret the voice-mesh prober sends as X-Voice-Mesh-Secret on
+        // /api/voice-mesh/*. Prefer rotating it from the Voice Mesh admin page,
+        // which stores it (encrypted) in settings and overrides this.
+        'secret' => env('VOICE_MESH_SECRET'),
+    ],
+
     'grafana' => [
         // Public URL users land on when clicking "Metrics" in the navbar.
         // Either a sub-path (https://noc.samirgroup.net/grafana) or a

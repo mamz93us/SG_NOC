@@ -102,6 +102,11 @@ class MailSender extends Model
         'host_down' => self::ALERTS,
         'tunnel_down' => self::ALERTS,
         'tunnel_degraded' => self::ALERTS,
+        // Synthetic branch-to-branch call testing — same desk as the tunnels.
+        'voice_mesh_caller_down' => self::ALERTS,
+        'voice_mesh_dest_down' => self::ALERTS,
+        'voice_mesh_pair_failed' => self::ALERTS,
+        'voice_mesh_stale' => self::ALERTS,
         // Expiry watchers are monitoring output too — same desk, same sender.
         'license_expiring' => self::ALERTS,
         'license_expired' => self::ALERTS,
