@@ -41,6 +41,14 @@ param(
     [switch] $Pilot,        # create groups + rules but SKIP bulk populate (hand-add testers)
     [switch] $RefreshOnly,  # ONLY re-push the rule HTML (fast) - skip groups + populate. Use after a template/logo edit.
     [switch] $PopulateOnly, # ONLY create + sync group membership from NOC - skip the transport rules. Use to add/refresh users.
+    # Sign REPLIES + FORWARDS too: deploy the rules WITHOUT the SGSIGMARKER dedup exception.
+    # A rule cannot tell a reply from a new mail; the marker exception is what skipped replies
+    # (the quoted history contains the marker). Removing it stamps every message - BUT any user
+    # who ALSO has a classic-Outlook client signature will then be double-signed; remove their
+    # client signature (Deploy-Signature.ps1 -RemoveClientSignature) before/after using this.
+    # NOTE: on replies Exchange appends the signature at the BOTTOM of the thread (below the
+    # quoted history) - that placement is inherent to transport-rule disclaimers.
+    [switch] $SignReplies,
     [switch] $WhatIf
 )
 
@@ -129,6 +137,11 @@ try {
         return
     }
     Write-Host "`n== 3. Transport rules ==" -ForegroundColor Cyan
+    if ($SignReplies) {
+        Write-Host "  -SignReplies: dedup exception REMOVED -- replies + forwards WILL be signed." -ForegroundColor Yellow
+        Write-Host "  Anyone who still has a classic-Outlook client signature will be DOUBLE-signed;" -ForegroundColor Yellow
+        Write-Host "  remove it with: Deploy-Signature.ps1 -RemoveClientSignature" -ForegroundColor Yellow
+    }
     $failed = @()
     foreach ($p in $Plan) {
         try {
@@ -153,6 +166,12 @@ try {
             ApplyHtmlDisclaimerText            = $html
             ApplyHtmlDisclaimerFallbackAction  = 'Wrap'
             ExceptIfSubjectOrBodyContainsWords = $Marker
+        }
+        if ($SignReplies) {
+            # No dedup exception -> replies and forwards get signed too (see -SignReplies note).
+            # On an EXISTING rule the property must be explicitly cleared ($null); simply
+            # omitting it would leave the old exception in place and replies would stay unsigned.
+            $params['ExceptIfSubjectOrBodyContainsWords'] = $null
         }
         if ($WhatIf) {
             Write-Host "  WHATIF : '$($p.Rule)' ($($html.Length) chars) scoped to $($p.Group)" -ForegroundColor Yellow
