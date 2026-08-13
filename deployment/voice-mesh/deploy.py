@@ -10,7 +10,6 @@ Instead it proves, before installing anything, that NOC_CONFIG_URL and
 NOC_SECRET actually fetch a usable config, so a bad secret surfaces here rather
 than as a silently stale board an hour later.
 """
-import grp
 import os
 import pwd
 import subprocess
@@ -23,7 +22,7 @@ from voice_mesh import config, noc  # noqa: E402
 
 SYSTEMD_DIR = Path("/etc/systemd/system")
 SERVICE_NAME = "voice-mesh-verify"
-SERVICE_USER = "voicemesh"
+DEDICATED_USER = "voicemesh"
 
 # The timer fires at this fixed cadence; the prober itself decides whether a
 # sweep is actually due, from the interval configured in the NOC. That is what
@@ -31,32 +30,61 @@ SERVICE_USER = "voicemesh"
 TIMER_CADENCE = "5min"
 
 
-def ensure_user_and_state(state_dir: Path) -> None:
+def resolve_service_user() -> tuple[str, bool]:
+    """Decide who the service runs as, and whether ProtectHome can stay on.
+
+    Returns (username, protect_home).
+
+    This project lives inside the app repo so that `git pull` updates it like
+    everything else. On the NOC that repo is under /home/azureuser, and a
+    dedicated system user cannot run from there at all:
+
+      * ProtectHome=true masks /home outright, so the unit fails at
+        WorkingDirectory with 200/CHDIR before Python is even reached;
+      * and even with it off, /home/azureuser is 0750, so a system user cannot
+        traverse into it anyway.
+
+    Rather than fight that (chmod'ing someone's home, or copying the code to
+    /opt and losing git-pull deploys), run as the account that already owns the
+    checkout — the same one the app and scheduler run as — and turn ProtectHome
+    off, since the working directory *is* in a home.
+
+    Outside /home the upstream arrangement is better, so keep it: a dedicated
+    locked-down user with ProtectHome=true.
+    """
+    if PROJECT_DIR.is_relative_to("/home"):
+        owner = pwd.getpwuid(PROJECT_DIR.stat().st_uid).pw_name
+        return owner, False
+
+    return DEDICATED_USER, True
+
+
+def ensure_user_and_state(service_user: str, state_dir: Path) -> None:
     try:
-        pwd.getpwnam(SERVICE_USER)
-        print(f"user {SERVICE_USER} already exists")
+        pwd.getpwnam(service_user)
+        print(f"running as existing user {service_user}")
     except KeyError:
         subprocess.run(
-            ["useradd", "--system", "--no-create-home", "--shell", "/usr/sbin/nologin", SERVICE_USER],
+            ["useradd", "--system", "--no-create-home", "--shell", "/usr/sbin/nologin", service_user],
             check=True,
         )
-        print(f"created system user {SERVICE_USER}")
+        print(f"created system user {service_user}")
 
     state_dir.mkdir(parents=True, exist_ok=True)
-    uid = pwd.getpwnam(SERVICE_USER).pw_uid
-    gid = grp.getgrnam(SERVICE_USER).gr_gid
+    entry = pwd.getpwnam(service_user)
+    uid, gid = entry.pw_uid, entry.pw_gid
     os.chown(state_dir, uid, gid)
     os.chmod(state_dir, 0o750)
-    print(f"state dir {state_dir} owned by {SERVICE_USER}")
+    print(f"state dir {state_dir} owned by {service_user}")
 
     # config.conf holds the ingest secret, and the cached NOC config under the
     # state dir holds every branch's SIP password.
     os.chown(config.CONFIG_PATH, uid, gid)
     os.chmod(config.CONFIG_PATH, 0o600)
-    print(f"{config.CONFIG_PATH} locked to {SERVICE_USER} (0600)")
+    print(f"{config.CONFIG_PATH} locked to {service_user} (0600)")
 
 
-def install_units(branch_count: int, duration: int) -> None:
+def install_units(service_user: str, protect_home: bool, branch_count: int, duration: int) -> None:
     legs = branch_count * (branch_count - 1)
     # Every leg is a sequential pjsua call: register, dial, wait up to DURATION
     # for the IVR to hang up, tear down. Size the timeout so a full mesh is never
@@ -70,17 +98,18 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User={SERVICE_USER}
-Group={SERVICE_USER}
+User={service_user}
 WorkingDirectory={PROJECT_DIR}
 ExecStart=/usr/bin/python3 -m voice_mesh.cli verify
 TimeoutStartSec={timeout_sec}
 
-# Hardening
+# Hardening. ProtectSystem=strict keeps the whole filesystem read-only apart
+# from ReadWritePaths — the prober only ever writes to the state dir, and pjsua's
+# credentials file goes to the private /tmp.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
+ProtectHome={'true' if protect_home else 'false'}
 ReadWritePaths=/var/lib/voice-mesh
 
 [Install]
@@ -122,8 +151,15 @@ def main():
     branches = config.validate_branches(remote.get("branches", []), "the NOC")
     print(f"NOC OK: {len(branches)} active branches ({', '.join(b['name'] for b in branches)})")
 
-    ensure_user_and_state(state_dir)
-    install_units(len(branches), int(remote.get("duration", 10)))
+    service_user, protect_home = resolve_service_user()
+    if not protect_home:
+        print(
+            f"project is under /home, so the service runs as its owner ({service_user}) "
+            "with ProtectHome off — a dedicated system user cannot chdir into a home directory"
+        )
+
+    ensure_user_and_state(service_user, state_dir)
+    install_units(service_user, protect_home, len(branches), int(remote.get("duration", 10)))
 
     interval = float(remote.get("interval_minutes", 30))
     legs = len(branches) * (len(branches) - 1)

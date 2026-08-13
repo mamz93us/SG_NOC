@@ -66,7 +66,7 @@ dir for what pjsua printed around hangup.
 ## Credentials
 
 `config.conf` holds the ingest secret; `state/noc-config.json` caches every
-branch's SIP password. `deploy.py` chowns both to the `voicemesh` service user at
-`0600`/`0750`, and both are gitignored. Credentials reach pjsua through a
+branch's SIP password. `deploy.py` chowns both to whichever account the service
+runs as, at `0600`/`0750`, and both are gitignored. Credentials reach pjsua through a
 `chmod 600` temp file consumed via `--config-file`, never as a `--password`
 argument, so they never appear in `ps aux`.
