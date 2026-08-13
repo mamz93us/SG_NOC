@@ -132,8 +132,10 @@ foreach ($acct in $accounts) {
         Write-Host "   - skip $smtp (domain not managed)" -ForegroundColor DarkGray
         continue
     }
-    $sigNewName   = 'Samir Group ({0})' -f $smtp
-    $sigReplyName = 'Samir Group Reply ({0})' -f $smtp
+    $sigNewName = 'Samir Group ({0})' -f $smtp
+    # No client reply signature: replies/forwards are signed by the Exchange transport rule
+    # (mirrors Deploy-Signature.ps1). Keeping one here would double-sign every reply.
+    $sigReplyName = ''
 
     # Prefer the variants endpoint (primary + extra roles); fall back to single new/reply on 404.
     $variants = $null
@@ -144,8 +146,7 @@ foreach ($acct in $accounts) {
         $default = if ($default.Count) { $default[0] } else { @($variants)[0] }
         $htmlNew   = [string]$default.new_html
         $htmlReply = if ($default.reply_html) { [string]$default.reply_html } else { $htmlNew }
-        Write-SigFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew
-        Write-SigFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply
+        Write-SigFiles -Dir $sigDir -Name $sigNewName -Html $htmlNew
         foreach ($v in @($variants | Where-Object { -not $_.is_default })) {
             if (-not $v.new_html) { continue }
             $vName = 'Samir Group - {0} ({1})' -f $v.label, $smtp
@@ -157,12 +158,12 @@ foreach ($acct in $accounts) {
         try { $htmlNew = Get-Sig -Upn $smtp -Type 'new_email' }
         catch { Write-Host "   - $smtp : no signature from API ($($_.Exception.Message)) -- skipped" -ForegroundColor Yellow; continue }
         try { $htmlReply = Get-Sig -Upn $smtp -Type 'reply' } catch { $htmlReply = $htmlNew }
-        Write-SigFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew
-        Write-SigFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply
+        Write-SigFiles -Dir $sigDir -Name $sigNewName -Html $htmlNew
     }
 
-    Set-ItemProperty -LiteralPath $acct.KeyPath -Name 'New Signature'           -Value $sigNewName   -Type String
-    Set-ItemProperty -LiteralPath $acct.KeyPath -Name 'Reply-Forward Signature' -Value $sigReplyName -Type String
+    Set-ItemProperty -LiteralPath $acct.KeyPath -Name 'New Signature' -Value $sigNewName -Type String
+    # Reply slot stays CLEARED - the transport rule signs replies and forwards.
+    Remove-ItemProperty -LiteralPath $acct.KeyPath -Name 'Reply-Forward Signature' -ErrorAction SilentlyContinue
 
     $chk = Get-ItemProperty -LiteralPath $acct.KeyPath -ErrorAction SilentlyContinue
     if (-not $firstName) { $firstName = $sigNewName }

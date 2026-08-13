@@ -45,6 +45,12 @@ param(
     [switch]   $NoLock,                                                  # pass to skip the read-only/policy lock
     [switch]   $KeepOtherSignatures,                                     # pass to NOT delete pre-existing (non-managed) signatures
     [switch]   $NoPreview,                                               # pass to suppress the branded preview window
+    # By default the client NO LONGER installs a reply signature: replies and forwards are
+    # signed server-side by the Exchange transport rule (one rule can sign every client's
+    # replies, which the body-marker dedup could never do). Pass this to restore the old
+    # behaviour and have the client sign replies too - only if the reply transport rules are
+    # NOT deployed, otherwise replies get double-signed.
+    [switch]   $KeepClientReplySignature,
     [switch]   $NoDailyTask,                                            # pass to SKIP the daily self-refresh Scheduled Task (registered by default)
     [switch]   $RemoveClientSignature                                   # UNINSTALL: remove our local signatures + per-account assignments + lock + daily task, then exit. Use for cross-domain users handled by the server-side transport rule.
 )
@@ -133,8 +139,13 @@ function Get-OutlookAccounts {
 function Set-AccountSignature {
     param([string]$KeyPath, [string]$NewSigName, [string]$ReplySigName)
     Remove-ItemProperty -LiteralPath $KeyPath -Name 'New Signature', 'Reply-Forward Signature' -ErrorAction SilentlyContinue
-    Set-ItemProperty -LiteralPath $KeyPath -Name 'New Signature'           -Value $NewSigName   -Type String
-    Set-ItemProperty -LiteralPath $KeyPath -Name 'Reply-Forward Signature' -Value $ReplySigName -Type String
+    Set-ItemProperty -LiteralPath $KeyPath -Name 'New Signature' -Value $NewSigName -Type String
+    # An EMPTY $ReplySigName leaves 'Reply-Forward Signature' removed on purpose: replies are
+    # signed server-side by the Exchange transport rule, so the client must add nothing to a
+    # reply (otherwise the reply would carry two signatures). See -KeepClientReplySignature.
+    if ($ReplySigName) {
+        Set-ItemProperty -LiteralPath $KeyPath -Name 'Reply-Forward Signature' -Value $ReplySigName -Type String
+    }
     $chk = Get-ItemProperty -LiteralPath $KeyPath -ErrorAction SilentlyContinue
     return @([string]$chk.'New Signature', [string]$chk.'Reply-Forward Signature')
 }
@@ -202,7 +213,8 @@ function Show-SignaturePreview {
         $body += @"
   <div class="acct">$($c.Smtp)</div>
   <div class="card"><h2>New email</h2><div class="sig">$($c.New)</div></div>
-  <div class="card"><h2>Reply &amp; forward</h2><div class="sig">$($c.Reply)</div></div>
+  <div class="card"><h2>Reply &amp; forward</h2><div class="sig">$($c.Reply)</div>
+    <p style="margin:12px 0 0;font-size:12px;color:#6b7280;">On replies and forwards this signature is added automatically when you press Send, so you will not see it while typing.</p></div>
 "@
     }
     $page = @"
@@ -308,8 +320,12 @@ try {
                 $variants = $null
                 try { $variants = Get-SignatureVariants -UserPrincipalName $smtp } catch { $variants = $null }
 
-                $sigNewName   = ('{0} ({1})' -f $SignatureName, $smtp)
-                $sigReplyName = ('{0} ({1})' -f $ReplyName, $smtp)
+                $sigNewName = ('{0} ({1})' -f $SignatureName, $smtp)
+                # Empty unless -KeepClientReplySignature: replies are signed by the transport
+                # rule, so the client installs and binds NO reply signature. Leaving the name
+                # empty also keeps it out of $keepNames, so any previously-installed reply
+                # signature file is deleted by the cleanup pass below.
+                $sigReplyName = if ($KeepClientReplySignature.IsPresent) { ('{0} ({1})' -f $ReplyName, $smtp) } else { '' }
 
                 if ($variants -and @($variants).Count -gt 0) {
                     # ---- New NOC: default signature + optional extra-role signatures ----
@@ -319,9 +335,12 @@ try {
                     $htmlNew   = [string]$default.new_html
                     $htmlReply = if ($default.reply_html) { [string]$default.reply_html } else { $htmlNew }
 
-                    Write-SignatureFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew   -ReadOnly:$lock
-                    Write-SignatureFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply -ReadOnly:$lock
-                    $keepNames += $sigNewName; $keepNames += $sigReplyName
+                    Write-SignatureFiles -Dir $sigDir -Name $sigNewName -Html $htmlNew -ReadOnly:$lock
+                    $keepNames += $sigNewName
+                    if ($sigReplyName) {
+                        Write-SignatureFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply -ReadOnly:$lock
+                        $keepNames += $sigReplyName
+                    }
                     $hashParts += ($smtp + '|' + $htmlNew + '|' + $htmlReply)
                     $cards     += @{ Smtp = $smtp; New = $htmlNew; Reply = $htmlReply }
 
@@ -348,9 +367,12 @@ try {
                     try   { $htmlReply = Get-SignatureHtml -UserPrincipalName $smtp -Type 'reply' }
                     catch { $htmlReply = $htmlNew; Write-Log "No reply-specific template for $smtp; reusing new-mail signature." 'WARN' }
 
-                    Write-SignatureFiles -Dir $sigDir -Name $sigNewName   -Html $htmlNew   -ReadOnly:$lock
-                    Write-SignatureFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply -ReadOnly:$lock
-                    $keepNames += $sigNewName; $keepNames += $sigReplyName
+                    Write-SignatureFiles -Dir $sigDir -Name $sigNewName -Html $htmlNew -ReadOnly:$lock
+                    $keepNames += $sigNewName
+                    if ($sigReplyName) {
+                        Write-SignatureFiles -Dir $sigDir -Name $sigReplyName -Html $htmlReply -ReadOnly:$lock
+                        $keepNames += $sigReplyName
+                    }
                     $hashParts += ($smtp + '|' + $htmlNew + '|' + $htmlReply)
                     $cards     += @{ Smtp = $smtp; New = $htmlNew; Reply = $htmlReply }
                 }
@@ -383,12 +405,16 @@ try {
         $new = Get-SignatureHtml -UserPrincipalName $userUpn -Type 'new_email'
         try   { $reply = Get-SignatureHtml -UserPrincipalName $userUpn -Type 'reply' }
         catch { $reply = $new; Write-Log "No reply-specific template; reusing new-mail signature." 'WARN' }
-        Write-SignatureFiles -Dir $sigDir -Name $SignatureName -Html $new   -ReadOnly:$lock
-        Write-SignatureFiles -Dir $sigDir -Name $ReplyName     -Html $reply -ReadOnly:$lock
-        $keepNames += $SignatureName; $keepNames += $ReplyName
+        Write-SignatureFiles -Dir $sigDir -Name $SignatureName -Html $new -ReadOnly:$lock
+        $keepNames += $SignatureName
+        # Reply signature only when explicitly kept - otherwise the transport rule signs replies.
+        if ($KeepClientReplySignature.IsPresent) {
+            Write-SignatureFiles -Dir $sigDir -Name $ReplyName -Html $reply -ReadOnly:$lock
+            $keepNames += $ReplyName
+        }
         $hashParts += ($userUpn + '|' + $new + '|' + $reply)
         $cards     += @{ Smtp = $userUpn; New = $new; Reply = $reply }
-        $primarySig = @{ NewName = $SignatureName; ReplyName = $ReplyName }
+        $primarySig = @{ NewName = $SignatureName; ReplyName = $(if ($KeepClientReplySignature.IsPresent) { $ReplyName } else { '' }) }
     }
 
     # ---- Remove any OTHER (old / personal) signatures --------------------------
@@ -412,8 +438,13 @@ try {
     if ($assigned -gt 0) {
         Remove-ItemProperty -Path $ms -Name 'NewSignature', 'ReplySignature' -ErrorAction SilentlyContinue
     } else {
-        Set-ItemProperty -Path $ms -Name 'NewSignature'   -Value $primarySig.NewName   -Type String
-        Set-ItemProperty -Path $ms -Name 'ReplySignature' -Value $primarySig.ReplyName -Type String
+        Set-ItemProperty -Path $ms -Name 'NewSignature' -Value $primarySig.NewName -Type String
+        # No reply default unless the client actually installs a reply signature.
+        if ($primarySig.ReplyName) {
+            Set-ItemProperty -Path $ms -Name 'ReplySignature' -Value $primarySig.ReplyName -Type String
+        } else {
+            Remove-ItemProperty -Path $ms -Name 'ReplySignature' -ErrorAction SilentlyContinue
+        }
     }
 
     # Make local files win over M365 cloud/roaming signatures.
@@ -451,8 +482,12 @@ try {
             # No per-account assignments (single global fallback) -> pin the selection via policy.
             $pol = "HKCU:\Software\Policies\Microsoft\Office\$verKey\Common\MailSettings"
             New-Item -Path $pol -Force | Out-Null
-            Set-ItemProperty -Path $pol -Name 'NewSignature'   -Value $primarySig.NewName   -Type String
-            Set-ItemProperty -Path $pol -Name 'ReplySignature' -Value $primarySig.ReplyName -Type String
+            Set-ItemProperty -Path $pol -Name 'NewSignature' -Value $primarySig.NewName -Type String
+            if ($primarySig.ReplyName) {
+                Set-ItemProperty -Path $pol -Name 'ReplySignature' -Value $primarySig.ReplyName -Type String
+            } else {
+                Remove-ItemProperty -Path $pol -Name 'ReplySignature' -ErrorAction SilentlyContinue
+            }
             Write-Log "Locked (single global): files read-only, selection forced via policy, Signature button disabled."
         }
     }
@@ -467,7 +502,7 @@ try {
 
     # Show the branded preview only when a HUMAN is running this in a console AND a signature
     # changed. [Environment]::UserInteractive is false under Intune and the hidden scheduled
-    # task, so automated runs never pop the preview (or any window) — only a tech running it
+    # task, so automated runs never pop the preview (or any window) - only a tech running it
     # by hand sees it.
     if (-not $NoPreview.IsPresent -and [Environment]::UserInteractive -and $changed -and $cards.Count -gt 0) {
         try {

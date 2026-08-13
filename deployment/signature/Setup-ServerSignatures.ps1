@@ -41,19 +41,24 @@ param(
     [switch] $Pilot,        # create groups + rules but SKIP bulk populate (hand-add testers)
     [switch] $RefreshOnly,  # ONLY re-push the rule HTML (fast) - skip groups + populate. Use after a template/logo edit.
     [switch] $PopulateOnly, # ONLY create + sync group membership from NOC - skip the transport rules. Use to add/refresh users.
-    # Sign REPLIES + FORWARDS too: deploy the rules WITHOUT the SGSIGMARKER dedup exception.
-    # A rule cannot tell a reply from a new mail; the marker exception is what skipped replies
-    # (the quoted history contains the marker). Removing it stamps every message - BUT any user
-    # who ALSO has a classic-Outlook client signature will then be double-signed; remove their
-    # client signature (Deploy-Signature.ps1 -RemoveClientSignature) before/after using this.
-    # NOTE: on replies Exchange appends the signature at the BOTTOM of the thread (below the
-    # quoted history) - that placement is inherent to transport-rule disclaimers.
-    [switch] $SignReplies,
+    # Subject prefixes that identify a REPLY or FORWARD. Exchange has no "reply" message
+    # type (MessageTypeMatches has no such value), so the subject is the ONLY way to tell a
+    # reply from new mail. Regex, case-insensitive. Arabic prefixes are appended below.
+    [string[]] $ReplyPrefixPatterns = @(
+        '^\s*(RE|FW|FWD|AW|SV|VS|RES|ANTW)\s*:'    # English + common European
+    ),
     [switch] $WhatIf
 )
 
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# Arabic reply/forward subject prefixes, built from char codes so THIS FILE STAYS PURE ASCII.
+# (Windows PowerShell 5.1 reads a no-BOM UTF-8 .ps1 as ANSI, which corrupts literal Arabic
+# and breaks parsing.) 0x0631,0x062F = "Rad" (reply); the longer run = "I'adat tawjih" (forward).
+$arReply = -join [char[]] @(0x0631, 0x062F)
+$arFwd   = -join [char[]] @(0x0625, 0x0639, 0x0627, 0x062F, 0x0629, 0x0020, 0x062A, 0x0648, 0x062C, 0x064A, 0x0647)
+$ReplyPrefixPatterns += ('^\s*(' + $arReply + '|' + $arFwd + ')\s*:')
 
 # domain/gender -> group + rule. Gender $null = gender-neutral (SSS, Oriana).
 # NOTE: oriana-sa.com must be an accepted domain in THIS Exchange tenant, and an
@@ -73,11 +78,11 @@ function Get-NocUpns {
     ,([array]((Invoke-RestMethod -Uri $u -TimeoutSec 60).upns))
 }
 function Get-NocRuleHtml {
-    param([string]$Domain, [string]$Gender)
-    $u = "$BaseUrl/api/signature/transport-rule?domain=$([uri]::EscapeDataString($Domain))&type=new_email&format=json&api_key=$([uri]::EscapeDataString($ApiKey))"
+    param([string]$Domain, [string]$Gender, [string]$Type = 'new_email')   # new_email | reply
+    $u = "$BaseUrl/api/signature/transport-rule?domain=$([uri]::EscapeDataString($Domain))&type=$Type&format=json&api_key=$([uri]::EscapeDataString($ApiKey))"
     if ($Gender) { $u += '&gender=' + $Gender }
     $h = (Invoke-RestMethod -Uri $u -TimeoutSec 30).html
-    if (-not $h) { throw "NOC returned no HTML for $Domain ($Gender)" }
+    if (-not $h) { throw "NOC returned no HTML for $Domain ($Gender, $Type)" }
     [string]$h
 }
 
@@ -137,77 +142,109 @@ try {
         return
     }
     Write-Host "`n== 3. Transport rules ==" -ForegroundColor Cyan
-    if ($SignReplies) {
-        Write-Host "  -SignReplies: dedup exception REMOVED -- replies + forwards WILL be signed." -ForegroundColor Yellow
-        Write-Host "  Anyone who still has a classic-Outlook client signature will be DOUBLE-signed;" -ForegroundColor Yellow
-        Write-Host "  remove it with: Deploy-Signature.ps1 -RemoveClientSignature" -ForegroundColor Yellow
+    Write-Host "  TWO rules per scope:" -ForegroundColor DarkCyan
+    Write-Host "    NEW MAIL - keeps the $Marker exception, so classic Outlook (whose CLIENT signs" -ForegroundColor DarkCyan
+    Write-Host "               new mail) is not double-signed; OWA/new/mobile new mail is signed." -ForegroundColor DarkCyan
+    Write-Host "    REPLIES  - matched by subject prefix, NO marker exception, so every reply and" -ForegroundColor DarkCyan
+    Write-Host "               forward is signed from every client. Requires the client script to" -ForegroundColor DarkCyan
+    Write-Host "               no longer add a reply signature (Deploy-Signature.ps1 does that now)." -ForegroundColor DarkCyan
+
+    # Deploys/updates one rule; returns $true on success. Retries transient EXO failures.
+    function Set-SgRule {
+        param([string]$Name, [hashtable]$Params)
+        $exists = [bool](Get-TransportRule -Identity $Name -ErrorAction SilentlyContinue)
+        for ($try = 1; $try -le 3; $try++) {
+            try {
+                if ($exists) {
+                    Set-TransportRule -Identity $Name @Params -ErrorAction Stop
+                    Enable-TransportRule -Identity $Name -Confirm:$false -ErrorAction SilentlyContinue
+                } else {
+                    New-TransportRule -Name $Name -Enabled $true @Params -ErrorAction Stop
+                }
+                Write-Host ("  {0}: {1}" -f $(if ($exists) { 'updated' } else { 'created' }), $Name) -ForegroundColor Green
+                return $true
+            } catch {
+                if ($try -lt 3) {
+                    Write-Host "  retry $try/2 for $Name ($($_.Exception.Message))" -ForegroundColor Yellow
+                    Start-Sleep -Seconds 10
+                } else {
+                    Write-Host "  FAILED: $Name -- $($_.Exception.Message)" -ForegroundColor Red
+                }
+            }
+        }
+        return $false
     }
+
     $failed = @()
     foreach ($p in $Plan) {
+        $replyRuleName = "$($p.Rule) (Replies)"
+
+        # Fetch both variants: new-mail HTML and the reply template (falls back server-side
+        # to the domain's template when no reply-specific one exists).
         try {
-            $html = Get-NocRuleHtml -Domain $p.Domain -Gender $p.Gender
+            $htmlNew = Get-NocRuleHtml -Domain $p.Domain -Gender $p.Gender -Type 'new_email'
         } catch {
             Write-Host "  FETCH FAILED: $($p.Rule) -- $($_.Exception.Message)" -ForegroundColor Red
             $failed += $p.Rule; continue
         }
+        try   { $htmlReply = Get-NocRuleHtml -Domain $p.Domain -Gender $p.Gender -Type 'reply' }
+        catch { $htmlReply = $htmlNew; Write-Host "  (no reply-specific template for $($p.Domain); reusing new-mail HTML)" -ForegroundColor DarkGray }
 
         # Exchange rejects an oversized disclaimer (a base64-embedded logo bloats it well past
         # the limit). Catch it here with a clear fix instead of a cryptic binding error.
-        if ($html.Length -gt 15000 -or $html -match 'data:image') {
-            Write-Host ("  TOO BIG ({0} chars): {1} -- host the logo on the NOC server: php artisan signatures:host-logos, then re-run." -f $html.Length, $p.Rule) -ForegroundColor Red
-            $failed += $p.Rule; continue
+        $oversized = $false
+        foreach ($h in @($htmlNew, $htmlReply)) {
+            if ($h.Length -gt 15000 -or $h -match 'data:image') {
+                Write-Host ("  TOO BIG ({0} chars): {1} -- host the logo on the NOC server: php artisan signatures:host-logos, then re-run." -f $h.Length, $p.Rule) -ForegroundColor Red
+                $oversized = $true
+            }
+        }
+        if ($oversized) { $failed += $p.Rule; continue }
+
+        $common = @{
+            FromScope                         = 'InOrganization'
+            SenderDomainIs                    = $p.Domain
+            FromMemberOf                      = $p.Smtp
+            ApplyHtmlDisclaimerLocation       = 'Append'
+            ApplyHtmlDisclaimerFallbackAction = 'Wrap'
         }
 
-        $params = @{
-            FromScope                          = 'InOrganization'
-            SenderDomainIs                     = $p.Domain
-            FromMemberOf                       = $p.Smtp
-            ApplyHtmlDisclaimerLocation        = 'Append'
-            ApplyHtmlDisclaimerText            = $html
-            ApplyHtmlDisclaimerFallbackAction  = 'Wrap'
-            ExceptIfSubjectOrBodyContainsWords = $Marker
-        }
-        if ($SignReplies) {
-            # No dedup exception -> replies and forwards get signed too (see -SignReplies note).
-            # On an EXISTING rule the property must be explicitly cleared ($null); simply
-            # omitting it would leave the old exception in place and replies would stay unsigned.
-            $params['ExceptIfSubjectOrBodyContainsWords'] = $null
-        }
+        # NEW MAIL: everything that is NOT a reply/forward. Keeps the marker exception so a
+        # classic-Outlook new mail (already signed by the client) is skipped.
+        $pNew = $common.Clone()
+        $pNew['ApplyHtmlDisclaimerText']            = $htmlNew
+        $pNew['ExceptIfSubjectMatchesPatterns']     = $ReplyPrefixPatterns
+        $pNew['ExceptIfSubjectOrBodyContainsWords'] = $Marker
+
+        # REPLIES/FORWARDS: no marker exception at all. Safe because no client adds a reply
+        # signature any more, so there is nothing to double up. (The marker can never work on
+        # replies: the quoted history always carries it, which is what suppressed them.)
+        $pReply = $common.Clone()
+        $pReply['ApplyHtmlDisclaimerText']            = $htmlReply
+        $pReply['SubjectMatchesPatterns']             = $ReplyPrefixPatterns
+        # Explicitly clear on an existing rule - omitting would leave a stale exception behind.
+        $pReply['ExceptIfSubjectOrBodyContainsWords'] = $null
+
         if ($WhatIf) {
-            Write-Host "  WHATIF : '$($p.Rule)' ($($html.Length) chars) scoped to $($p.Group)" -ForegroundColor Yellow
+            Write-Host ("  WHATIF : '{0}' new-mail ({1} chars) + '{2}' replies ({3} chars), scoped to {4}" -f `
+                $p.Rule, $htmlNew.Length, $replyRuleName, $htmlReply.Length, $p.Group) -ForegroundColor Yellow
             continue
         }
 
-        $exists = [bool](Get-TransportRule -Identity $p.Rule -ErrorAction SilentlyContinue)
-        $ok = $false
-        for ($try = 1; $try -le 3 -and -not $ok; $try++) {
-            try {
-                if ($exists) {
-                    Set-TransportRule -Identity $p.Rule @params -ErrorAction Stop
-                    Enable-TransportRule -Identity $p.Rule -Confirm:$false -ErrorAction SilentlyContinue
-                } else {
-                    New-TransportRule -Name $p.Rule -Enabled $true @params -ErrorAction Stop
-                }
-                $ok = $true
-            } catch {
-                if ($try -lt 3) {
-                    Write-Host "  retry $try/2 for $($p.Rule) ($($_.Exception.Message))" -ForegroundColor Yellow
-                    Start-Sleep -Seconds 10
-                } else {
-                    Write-Host "  FAILED: $($p.Rule) -- $($_.Exception.Message)" -ForegroundColor Red
-                    $failed += $p.Rule
-                }
-            }
-        }
-        if ($ok) { Write-Host ("  {0}: {1} ({2} chars)" -f $(if ($exists) { 'updated' } else { 'created' }), $p.Rule, $html.Length) -ForegroundColor Green }
+        if (-not (Set-SgRule -Name $p.Rule        -Params $pNew))   { $failed += $p.Rule }
+        if (-not (Set-SgRule -Name $replyRuleName -Params $pReply)) { $failed += $replyRuleName }
     }
 
     if ($failed.Count) {
         Write-Host "`nRules NOT deployed: $($failed -join ', ')" -ForegroundColor Red
         Write-Host "Fix the cause above and re-run (idempotent)." -ForegroundColor Yellow
     } else {
-        Write-Host "`nAll rules deployed. Test: send from OWA/new Outlook per domain/gender;" -ForegroundColor Green
-        Write-Host "then from classic Outlook (must NOT double-sign). Re-run any time to refresh." -ForegroundColor Green
+        Write-Host "`nAll rules deployed (new-mail + replies per scope). Test matrix:" -ForegroundColor Green
+        Write-Host "  classic Outlook  NEW   -> client signature only (no double)" -ForegroundColor Green
+        Write-Host "  classic Outlook  REPLY -> server signature, appended at the bottom" -ForegroundColor Green
+        Write-Host "  OWA/new/mobile   NEW   -> server signature" -ForegroundColor Green
+        Write-Host "  OWA/new/mobile   REPLY -> server signature" -ForegroundColor Green
+        Write-Host "Re-run any time to refresh (idempotent)." -ForegroundColor Green
     }
 }
 finally {
