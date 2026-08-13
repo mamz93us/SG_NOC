@@ -129,6 +129,21 @@ def main() -> None:
         check("a sweep just now is not due again", cli._due(state, 30) is False)
         check("a sweep past its interval is due", cli._due(state, 0.001) is True)
 
+    print("\nargument parsing")
+    # A flag declared only on the top-level parser is rejected after the
+    # subcommand, and vice versa. Both orders have to work — the docs use one,
+    # muscle memory uses the other.
+    parser = cli.build_parser()
+    for argv in (["verify", "--force"], ["--force", "verify"]):
+        parsed = parser.parse_args(argv)
+        check(f"{' '.join(argv)} -> force={parsed.force}", parsed.force is True and parsed.command == "verify")
+    for argv in (["verify", "--state-dir", "/tmp/x"], ["--state-dir", "/tmp/x", "verify"]):
+        parsed = parser.parse_args(argv)
+        # Compare Paths, not strings — the separator differs by platform.
+        check(f"{' '.join(argv)} -> state_dir set", parsed.state_dir == Path("/tmp/x"))
+    check("verify alone does not force", parser.parse_args(["verify"]).force is False)
+    check("verify alone leaves state_dir unset", parser.parse_args(["verify"]).state_dir is None)
+
     print("\nreference prompt path")
     # This is the layout bug that broke the first live deploy: config.conf moved
     # up a directory when the project was vendored into the app repo, but its

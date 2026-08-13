@@ -199,17 +199,42 @@ def show_config(cfg) -> None:
         print(f"  {b['name']:<8} IVR {b['ext']:<8} register {b['sip_user']}@{b['sip_server']}:{b['sip_port']}  pass ****")
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--state-dir", type=Path, default=None,
-                    help="overrides STATE_DIR from config.conf")
-    ap.add_argument("--force", action="store_true",
-                    help="run now even if the configured interval hasn't elapsed")
+def _shared_options(suppress: bool) -> argparse.ArgumentParser:
+    """The flags that apply to every subcommand.
+
+    Added to both the top-level parser and each subparser, so `--force verify`
+    and `verify --force` both work — argparse only accepts a flag on the side it
+    was declared, and nobody should have to remember which.
+
+    The subparser copies use SUPPRESS defaults: without that, a subparser would
+    overwrite a flag given before the subcommand with its own default, silently
+    dropping it.
+    """
+    p = argparse.ArgumentParser(add_help=False)
+    p.add_argument("--state-dir", type=Path,
+                   default=argparse.SUPPRESS if suppress else None,
+                   help="overrides STATE_DIR from config.conf")
+    p.add_argument("--force", action="store_true",
+                   default=argparse.SUPPRESS if suppress else False,
+                   help="run now even if the configured interval hasn't elapsed")
+    return p
+
+
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description=__doc__, parents=[_shared_options(False)])
+    shared = _shared_options(True)
     sub = ap.add_subparsers(dest="command", required=True)
-    sub.add_parser("verify", help="dial every pair and POST the report; exits non-zero only if the report could not be delivered")
-    sub.add_parser("send-health", help="the same, but always exit 0 — for testing the endpoint")
-    sub.add_parser("show-config", help="print the resolved branch list (passwords redacted)")
-    args = ap.parse_args()
+    sub.add_parser("verify", parents=[shared],
+                   help="dial every pair and POST the report; exits non-zero only if the report could not be delivered")
+    sub.add_parser("send-health", parents=[shared],
+                   help="the same, but always exit 0 — for testing the endpoint")
+    sub.add_parser("show-config", parents=[shared],
+                   help="print the resolved branch list (passwords redacted)")
+    return ap
+
+
+def main():
+    args = build_parser().parse_args()
 
     local = config.load_local()
     state_dir = args.state_dir or Path(local["STATE_DIR"])
