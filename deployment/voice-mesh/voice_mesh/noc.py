@@ -64,9 +64,20 @@ def fetch_config(url: str, secret: str, state_dir: Path, timeout: int = 15) -> d
     if payload.get("warning"):
         log.warning("NOC: %s", payload["warning"])
 
-    state_dir.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(json.dumps(payload))
-    cache_path.chmod(0o600)      # it holds every branch's SIP password
+    # Refreshing the cache is best-effort. We already have a good config in hand,
+    # so a cache we cannot write is a warning, never a reason to abandon a sweep
+    # — e.g. a stale copy left root-owned by a `sudo deploy.py` run that the
+    # service user can no longer overwrite.
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        # Replace rather than write in place, so ownership follows the writer
+        # instead of inheriting whatever the previous run left behind.
+        tmp_path = cache_path.with_suffix(".json.tmp")
+        tmp_path.write_text(json.dumps(payload))
+        tmp_path.chmod(0o600)       # it holds every branch's SIP password
+        tmp_path.replace(cache_path)
+    except OSError as e:
+        log.warning("could not refresh the config cache at %s: %s", cache_path, e)
 
     return payload
 

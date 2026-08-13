@@ -43,7 +43,7 @@ meaningless FAILs.
 ## Subcommands
 
 ```sh
-python3 -m voice_mesh.cli verify        # what the service runs; exits 2 if any leg failed
+python3 -m voice_mesh.cli verify        # what the service runs; exits 2 only if the report could not be delivered
 python3 -m voice_mesh.cli verify --force  # ignore the interval gate
 python3 -m voice_mesh.cli send-health   # same sweep and POST, always exits 0
 python3 -m voice_mesh.cli show-config   # resolved branch list, passwords redacted

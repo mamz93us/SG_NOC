@@ -75,7 +75,21 @@ def ensure_user_and_state(service_user: str, state_dir: Path) -> None:
     uid, gid = entry.pw_uid, entry.pw_gid
     os.chown(state_dir, uid, gid)
     os.chmod(state_dir, 0o750)
-    print(f"state dir {state_dir} owned by {service_user}")
+
+    # Recursively, not just the directory: we run as root and fetch the NOC
+    # config before this point, so the cached copy and anything an earlier
+    # `sudo deploy.py` left behind is root-owned. The service would then be
+    # unable to refresh its own cache.
+    reowned = 0
+    for path in state_dir.rglob("*"):
+        try:
+            os.chown(path, uid, gid)
+            reowned += 1
+        except OSError as e:
+            print(f"  ! could not chown {path}: {e}")
+
+    print(f"state dir {state_dir} owned by {service_user}"
+          + (f" ({reowned} existing file(s) re-owned)" if reowned else ""))
 
     # config.conf holds the ingest secret, and the cached NOC config under the
     # state dir holds every branch's SIP password.

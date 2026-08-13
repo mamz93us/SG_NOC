@@ -12,8 +12,9 @@ call is recorded as a failed leg and the run moves on, so one bad branch never
 costs you visibility into the rest.
 
 Subcommands:
-  verify         dial every pair, POST the report, exit non-zero on failure
-                 (what the systemd service runs)
+  verify         dial every pair and POST the report (what the systemd service
+                 runs). Exits non-zero only if the report could not be
+                 delivered — failing legs are output, not a service failure.
   send-health    the same, but always exit 0 — for testing the endpoint
   show-config    print the resolved branch list (passwords redacted) and exit
 """
@@ -100,8 +101,8 @@ def _check(cfg, state_dir: Path, reference_duration_sec: float):
     return all(r["ok"] for r in results), results
 
 
-def _post(cfg, overall_ok: bool, results: list, state_dir: Path) -> None:
-    noc.post_report(
+def _post(cfg, overall_ok: bool, results: list, state_dir: Path) -> bool:
+    return noc.post_report(
         cfg.NOC_REPORT_URL,
         cfg.NOC_SECRET,
         {
@@ -205,7 +206,7 @@ def main():
     ap.add_argument("--force", action="store_true",
                     help="run now even if the configured interval hasn't elapsed")
     sub = ap.add_subparsers(dest="command", required=True)
-    sub.add_parser("verify", help="dial every pair, POST the report, exit non-zero if any leg failed")
+    sub.add_parser("verify", help="dial every pair and POST the report; exits non-zero only if the report could not be delivered")
     sub.add_parser("send-health", help="the same, but always exit 0 — for testing the endpoint")
     sub.add_parser("show-config", help="print the resolved branch list (passwords redacted)")
     args = ap.parse_args()
@@ -230,9 +231,17 @@ def main():
     _stamp(state_dir)   # before dialling, so a crash mid-sweep can't hot-loop the timer
 
     overall_ok, results = _check(cfg, state_dir, reference_duration_sec)
-    _post(cfg, overall_ok, results, state_dir)
+    delivered = _post(cfg, overall_ok, results, state_dir)
 
-    if args.command == "verify" and not overall_ok:
+    failed = sum(1 for r in results if not r["ok"])
+    log.info("sweep complete: %s/%s legs OK", len(results) - failed, len(results))
+
+    # Exit non-zero only when the NOC does not have the result. Failing legs are
+    # this service's OUTPUT, not its failure: the NOC raises the alerts and its
+    # stale check notices if we stop reporting. Exiting non-zero on a red mesh
+    # would leave the unit permanently "failed" in systemctl for as long as a
+    # branch is down, which says nothing useful and buries a real crash.
+    if args.command == "verify" and not delivered:
         sys.exit(2)
 
 
