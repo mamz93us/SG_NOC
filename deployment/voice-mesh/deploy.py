@@ -27,7 +27,12 @@ DEDICATED_USER = "voicemesh"
 # The timer fires at this fixed cadence; the prober itself decides whether a
 # sweep is actually due, from the interval configured in the NOC. That is what
 # lets the interval be changed from the admin UI without touching this host.
-TIMER_CADENCE = "5min"
+#
+# A minute, not five, so "Run a sweep now" in the admin UI starts within about a
+# minute. The wake is cheap when nothing is due — fetch the config, find no
+# request and an unexpired interval, exit — so the cost of the tighter cadence
+# is one short-lived Python process a minute, in line with tunnel-health:watch.
+TIMER_CADENCE = "1min"
 
 
 def resolve_service_user() -> tuple[str, bool]:

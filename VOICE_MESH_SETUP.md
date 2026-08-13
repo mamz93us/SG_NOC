@@ -168,9 +168,25 @@ Then confirm the timer:
 systemctl list-timers voice-mesh-verify.timer
 ```
 
-The timer wakes every 5 minutes; the prober itself only sweeps when the interval
+The timer wakes every minute; the prober itself only sweeps when the interval
 configured in the NOC has elapsed. That is deliberate — it is what lets you change
-the interval from the admin UI without redeploying anything here.
+the interval from the admin UI without redeploying anything here, and it is what
+makes **Run a sweep now** on the board start within about a minute.
+
+## Running a sweep on demand
+
+The prober is a systemd unit, so the web user cannot start it and a full mesh
+takes minutes — a synchronous "check now" button was never possible. Instead:
+
+- **Run a sweep now** (board header) records a request. The prober collects it on
+  its next wake and runs in place of waiting out its interval.
+- **Retry this leg** (on a pair's page) does the same for one leg only — a single
+  call rather than N*(N-1), for confirming a fix in seconds. It deliberately does
+  not reset the full-sweep clock.
+
+Both show as pending on the board until the resulting report clears them, and
+expire on their own after `VOICE_MESH_SWEEP_TTL` minutes (default 15) so a
+request made while the prober was down doesn't fire when it returns.
 
 ---
 

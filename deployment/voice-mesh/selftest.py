@@ -251,6 +251,20 @@ def main() -> None:
     check("verify alone does not force", parser.parse_args(["verify"]).force is False)
     check("verify alone leaves state_dir unset", parser.parse_args(["verify"]).state_dir is None)
 
+    print("\nsweep requests")
+    # "Run a sweep now" and "Retry this leg" in the admin UI both arrive here as
+    # a scope on the config the prober fetches.
+    three = config.validate_branches(BRANCHES + [
+        {"name": "RYD", "ext": "7072", "sip_server": "10.2.88.10", "sip_user": "2999", "sip_pass": "z"},
+    ])
+    check("no scope dials the whole mesh", len(list(cli._pairs(three))) == 6)
+    scoped = list(cli._pairs(three, {"caller": "CAI", "dest": "JED"}))
+    check("a scoped retry dials exactly one leg", len(scoped) == 1)
+    check("...and it is the leg that was asked for",
+          scoped[0][0]["name"] == "CAI" and scoped[0][1]["name"] == "JED")
+    check("a scope naming a branch that is gone dials nothing",
+          list(cli._pairs(three, {"caller": "CAI", "dest": "NOPE"})) == [])
+
     print("\nreference prompt path")
     # This is the layout bug that broke the first live deploy: config.conf moved
     # up a directory when the project was vendored into the app repo, but its

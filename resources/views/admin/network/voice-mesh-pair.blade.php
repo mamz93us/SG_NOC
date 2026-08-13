@@ -12,10 +12,35 @@
                 to <strong>{{ $pair->dest?->name }}</strong>'s IVR extension {{ $pair->dest?->ivr_ext }}.
             </p>
         </div>
-        <a href="{{ route('admin.network.voice-mesh.index') }}" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Back to the mesh
-        </a>
+        <div class="text-end">
+            @can('manage-voice-mesh')
+                <form method="POST" action="{{ route('admin.network.voice-mesh.pair.retry', $pair) }}" class="d-inline">
+                    @csrf
+                    <button class="btn btn-sm btn-primary" {{ $pendingSweep ? 'disabled' : '' }}>
+                        <i class="bi bi-arrow-repeat me-1"></i>Retry this leg
+                    </button>
+                </form>
+            @endcan
+            <a href="{{ route('admin.network.voice-mesh.index') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to the mesh
+            </a>
+            @can('manage-voice-mesh')
+                <div class="small text-muted mt-2" style="max-width: 30ch;">
+                    Retries one call rather than the whole mesh; the prober picks it up within a minute.
+                </div>
+            @endcan
+        </div>
     </div>
+
+    @if ($pendingSweep)
+        <div class="alert alert-info py-2">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            {{ $pendingSweep['scope']
+                ? 'Retry of '.str_replace('>', ' → ', $pendingSweep['scope']).' requested '.$pendingSweep['requested'].'.'
+                : 'Full sweep requested '.$pendingSweep['requested'].'.' }}
+            Reload in a minute or two to see the result.
+        </div>
+    @endif
 
     @if ($events->isNotEmpty())
         <div class="alert alert-warning">

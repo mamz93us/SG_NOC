@@ -55,6 +55,11 @@ return [
     // (timer stopped, pjsua missing, secret rejected) — 2.5x the interval.
     'stale_after_minutes' => (int) env('VOICE_MESH_STALE_MINUTES', 75),
 
+    // How long a "run a sweep now" request from the admin UI stays live. The
+    // prober wakes every minute, so this only matters when it has been down —
+    // a request from an hour ago should not fire the moment it comes back.
+    'sweep_request_ttl_minutes' => (int) env('VOICE_MESH_SWEEP_TTL', 15),
+
     // A leg must fail this many consecutive sweeps before it alerts on its own.
     // Node-level failures alert on the first sweep: "every leg failed at once"
     // is not a fluke.

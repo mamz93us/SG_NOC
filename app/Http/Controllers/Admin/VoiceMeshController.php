@@ -18,9 +18,14 @@ use Illuminate\Support\Facades\DB;
  * Voice Mesh — the live board for synthetic branch-to-branch call testing.
  *
  * Where Tunnel Health answers "can a packet cross?", this answers "can a call
- * complete?" The prober is a systemd service on this host, not something the
- * app can trigger, so there is deliberately no "Check now" button here — see
- * index()'s next-run indicator instead.
+ * complete?"
+ *
+ * Tunnel Health's "Check now" runs the probes inline, because a sweep there is
+ * seconds. That is not possible here: the prober is a systemd unit the web user
+ * cannot start, and a full mesh takes minutes. So "Run a sweep" REQUESTS one —
+ * it records the ask, the prober collects it on its next wake (every minute)
+ * and runs in place of waiting out its interval. The UI shows the request as
+ * pending until the resulting report clears it.
  *
  * Viewing needs view-voice-mesh; editing needs manage-voice-mesh (a higher bar
  * than the network permissions, because node editing sets SIP passwords).
@@ -36,13 +41,17 @@ class VoiceMeshController extends Controller
             'nodeRows' => VoiceMeshNode::with('branch')->ordered()->get(),
             'branches' => Branch::orderBy('name')->get(['id', 'name']),
             'secretIsSet' => $this->secretIsSet(),
+            'pendingSweep' => $this->pendingSweep(),
         ]));
     }
 
     /** JSON snapshot for the page's poll. Read-only, cheap. */
     public function data()
     {
-        return response()->json($this->snapshot() + ['generated_at' => now()->toIso8601String()]);
+        return response()->json($this->snapshot() + [
+            'pending_sweep' => $this->pendingSweep(),
+            'generated_at' => now()->toIso8601String(),
+        ]);
     }
 
     /**
@@ -232,6 +241,7 @@ class VoiceMeshController extends Controller
             'checks' => $checks,
             'reasons' => $reasons,
             'events' => $events,
+            'pendingSweep' => $this->pendingSweep(),
             'rates' => [
                 '24 hours' => $this->rateOver($pair, 1),
                 '7 days' => $this->rateOver($pair, 7),
@@ -376,6 +386,77 @@ class VoiceMeshController extends Controller
             'sort_order' => 'nullable|integer|min:0|max:999',
             'notes' => 'nullable|string|max:2000',
         ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Asking for a sweep
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Queue a full sweep. The prober is a systemd unit on this host, so the web
+     * user cannot start it and a sweep takes minutes anyway — this leaves a
+     * request the prober collects on its next wake (every minute) and runs in
+     * place of waiting out its interval.
+     */
+    public function requestSweep()
+    {
+        $this->queueSweep(null);
+
+        return back()->with('success', 'Sweep requested — the prober picks it up within a minute.');
+    }
+
+    /** Re-test one leg: a single call rather than N*(N-1), for confirming a fix. */
+    public function retryPair(VoiceMeshPair $pair)
+    {
+        $pair->load(['caller', 'dest']);
+
+        if (! $pair->caller || ! $pair->dest) {
+            return back()->with('error', 'That leg no longer has both branches configured.');
+        }
+
+        $this->queueSweep("{$pair->caller->code}>{$pair->dest->code}");
+
+        return back()->with('success',
+            "Retry requested for {$pair->caller->code} → {$pair->dest->code} — the prober picks it up within a minute.");
+    }
+
+    private function queueSweep(?string $scope): void
+    {
+        $settings = Setting::get();
+        $settings->forceFill([
+            'voice_mesh_sweep_requested_at' => now(),
+            'voice_mesh_sweep_scope' => $scope,
+        ])->save();
+
+        ActivityLog::log($scope
+            ? "Requested a voice mesh retry of {$scope}"
+            : 'Requested a full voice mesh sweep');
+    }
+
+    /**
+     * A live request, for the UI to show as pending.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function pendingSweep(): ?array
+    {
+        try {
+            $settings = Setting::get();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $requestedAt = $settings->voice_mesh_sweep_requested_at;
+        $ttl = (int) config('voice_mesh.sweep_request_ttl_minutes', 15);
+
+        if (! $requestedAt || $requestedAt->lt(now()->subMinutes($ttl))) {
+            return null;
+        }
+
+        return [
+            'scope' => $settings->voice_mesh_sweep_scope,
+            'requested' => $requestedAt->diffForHumans(short: true),
+        ];
     }
 
     // ─────────────────────────────────────────────────────────────

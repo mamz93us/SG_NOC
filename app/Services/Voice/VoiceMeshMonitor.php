@@ -3,6 +3,7 @@
 namespace App\Services\Voice;
 
 use App\Models\NocEvent;
+use App\Models\Setting;
 use App\Models\VoiceMeshNode;
 use App\Models\VoiceMeshPair;
 use App\Models\VoiceMeshResult;
@@ -57,7 +58,30 @@ class VoiceMeshMonitor
         // After commit: a notification must never fire for a rolled-back run.
         $this->handleEvents($matched, $nodes, $pairs);
 
+        $this->clearSweepRequest();
+
         return $run;
+    }
+
+    /**
+     * A "run now" from the admin UI is satisfied by the report it produced, so
+     * it fires once rather than on every wake until it expires.
+     */
+    private function clearSweepRequest(): void
+    {
+        try {
+            $settings = Setting::get();
+
+            if ($settings->voice_mesh_sweep_requested_at) {
+                $settings->forceFill([
+                    'voice_mesh_sweep_requested_at' => null,
+                    'voice_mesh_sweep_scope' => null,
+                ])->save();
+            }
+        } catch (\Throwable) {
+            // Never let this fail an otherwise good ingest — the request
+            // expires on its own anyway.
+        }
     }
 
     /**

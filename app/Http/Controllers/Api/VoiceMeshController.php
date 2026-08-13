@@ -51,6 +51,10 @@ class VoiceMeshController extends Controller
             'tolerance_pct' => (float) config('voice_mesh.tolerance_pct'),
             'local_port' => (int) config('voice_mesh.local_port'),
             'reference_sha256' => (string) config('voice_mesh.reference_sha256'),
+            // A pending "run now" from the admin UI. The prober honours it in
+            // place of its interval gate; the NOC clears it when the resulting
+            // report lands.
+            'sweep_request' => $this->sweepRequest(),
             'branches' => $nodes->map->toProberEntry()->values(),
         ];
 
@@ -112,6 +116,47 @@ class VoiceMeshController extends Controller
             'pairs_ok' => $run->pairs_ok,
             'unknown' => $run->unknown_nodes ?? [],
         ]);
+    }
+
+    /**
+     * The pending sweep request, if there is a live one.
+     *
+     * Expires on its own: the prober wakes every minute, so a request still
+     * sitting here after the TTL means the prober was down, and firing an
+     * hour-old request the moment it returns would be surprising rather than
+     * useful.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function sweepRequest(): ?array
+    {
+        try {
+            $settings = Setting::get();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $requestedAt = $settings->voice_mesh_sweep_requested_at;
+
+        if (! $requestedAt) {
+            return null;
+        }
+
+        $ttl = (int) config('voice_mesh.sweep_request_ttl_minutes', 15);
+
+        if ($requestedAt->lt(now()->subMinutes($ttl))) {
+            return null;
+        }
+
+        $scope = (string) ($settings->voice_mesh_sweep_scope ?? '');
+
+        if ($scope !== '' && str_contains($scope, '>')) {
+            [$caller, $dest] = explode('>', $scope, 2);
+
+            return ['requested_at' => $requestedAt->toIso8601String(), 'caller' => $caller, 'dest' => $dest];
+        }
+
+        return ['requested_at' => $requestedAt->toIso8601String(), 'all' => true];
     }
 
     private function authorized(Request $request): bool

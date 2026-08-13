@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\VoiceMeshController;
+use App\Models\Setting;
 use App\Models\VoiceMeshNode;
 use App\Models\VoiceMeshPair;
 use App\Models\VoiceMeshRun;
@@ -150,6 +151,42 @@ it('renders the run log and a single run', function () {
     expect($detail)->toContain('Legs')
         ->and($detail)->toContain('no RTP media received')
         ->and($detail)->toContain('FAIL');
+});
+
+it('offers a sweep button and a per-leg retry', function () {
+    seedSweep();
+
+    expect(app(VoiceMeshController::class)->index()->render())
+        ->toContain('Run a sweep now');
+
+    $pair = VoiceMeshPair::first();
+
+    expect(app(VoiceMeshController::class)->pair($pair)->render())
+        ->toContain('Retry this leg');
+});
+
+it('shows a requested sweep as pending and disables the button', function () {
+    seedSweep();
+
+    $settings = Setting::get();
+    $settings->forceFill([
+        'voice_mesh_sweep_requested_at' => now(),
+        'voice_mesh_sweep_scope' => 'CAI>JED',
+    ])->save();
+
+    $html = app(VoiceMeshController::class)->index()->render();
+
+    expect($html)->toContain('Retry of CAI → JED requested')
+        ->and($html)->toContain('disabled')
+        // The banner must not be hidden while a request is live.
+        ->and($html)->not->toContain('d-none" data-pending-sweep');
+});
+
+it('hides the pending banner when nothing is requested', function () {
+    seedSweep();
+
+    expect(app(VoiceMeshController::class)->index()->render())
+        ->toContain('d-none" data-pending-sweep');
 });
 
 it('renders an empty run log', function () {

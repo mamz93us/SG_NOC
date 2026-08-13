@@ -1263,6 +1263,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::put('/nodes/{node}', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'updateNode'])->name('nodes.update');
             Route::delete('/nodes/{node}', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'destroyNode'])->name('nodes.destroy');
             Route::post('/secret/rotate', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'rotateSecret'])->name('secret.rotate');
+            Route::post('/sweep', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'requestSweep'])->name('sweep');
+            Route::post('/pairs/{pair}/retry', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'retryPair'])->name('pair.retry');
         });
     });
 

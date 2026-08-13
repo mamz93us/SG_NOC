@@ -166,6 +166,8 @@ class Setting extends Model
         // Voice Mesh (read by the voice-mesh prober over localhost)
         'voice_mesh_secret',
         'voice_mesh_retention_days',
+        'voice_mesh_sweep_requested_at',
+        'voice_mesh_sweep_scope',
     ];
 
     protected $casts = [
@@ -217,6 +219,7 @@ class Setting extends Model
         'agw_enforce_ip_acl' => 'boolean',
         // Voice Mesh
         'voice_mesh_retention_days' => 'integer',
+        'voice_mesh_sweep_requested_at' => 'datetime',
     ];
 
     /**

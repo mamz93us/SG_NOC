@@ -40,19 +40,27 @@ LAST_RUN_NAME = "last-run.json"
 PROBE_VERSION = "2.0"
 
 
-def _pairs(branches):
+def _pairs(branches, scope=None):
     """Every (caller, dest) pair — each branch calling every other branch's IVR
-    on the caller's own UCM and credentials."""
+    on the caller's own UCM and credentials.
+
+    `scope` narrows it to one leg, for a retry requested from the admin UI: one
+    call instead of N*(N-1), so confirming a fix takes seconds rather than
+    minutes.
+    """
     for caller in branches:
         for dest in branches:
-            if dest["name"] != caller["name"]:
-                yield caller, dest
+            if dest["name"] == caller["name"]:
+                continue
+            if scope and not (caller["name"] == scope.get("caller") and dest["name"] == scope.get("dest")):
+                continue
+            yield caller, dest
 
 
-def _check(cfg, state_dir: Path, reference):
+def _check(cfg, state_dir: Path, reference, scope=None):
     results = []
 
-    for caller, dest in _pairs(cfg.BRANCHES):
+    for caller, dest in _pairs(cfg.BRANCHES, scope):
         ext, name = dest["ext"], dest["name"]
         rec_path = state_dir / f"last-verify-{caller['name']}-{ext}.wav"
 
@@ -158,6 +166,7 @@ def _load(local: dict, state_dir: Path):
         TOLERANCE_PCT=float(remote.get("tolerance_pct", 10)),
         LOCAL_PORT=int(remote.get("local_port", 5080)),
         REFERENCE_SHA256=str(remote.get("reference_sha256", "")),
+        SWEEP_REQUEST=remote.get("sweep_request") or None,
         BRANCHES=config.validate_branches(remote.get("branches", []), "the NOC"),
     )
 
@@ -247,7 +256,18 @@ def main():
         show_config(cfg)
         return
 
-    if not args.force and not _due(state_dir, cfg.INTERVAL_MINUTES):
+    # A "run now" from the admin UI stands in for the interval gate. The NOC
+    # clears the request when the resulting report lands, so it fires once.
+    requested = cfg.SWEEP_REQUEST
+    scope = None
+
+    if requested and not requested.get("all"):
+        scope = {"caller": requested.get("caller"), "dest": requested.get("dest")}
+        log.info("retry requested from the NOC: %s -> %s", scope["caller"], scope["dest"])
+    elif requested:
+        log.info("full sweep requested from the NOC")
+
+    if not args.force and not requested and not _due(state_dir, cfg.INTERVAL_MINUTES):
         log.info("last sweep was less than %g min ago — nothing to do (use --force to override)",
                  cfg.INTERVAL_MINUTES)
         return
@@ -255,9 +275,13 @@ def main():
     reference = load_reference_profile(Path(cfg.REFERENCE_WAV))
     log.info("reference prompt: %.2fs of audio in %s", reference.duration_sec, cfg.REFERENCE_WAV)
 
-    _stamp(state_dir)   # before dialling, so a crash mid-sweep can't hot-loop the timer
+    if scope is None:
+        # Before dialling, so a crash mid-sweep can't hot-loop the timer. A
+        # scoped retry deliberately does NOT stamp: it tested one leg, so it
+        # should not push the next full sweep back by a whole interval.
+        _stamp(state_dir)
 
-    overall_ok, results = _check(cfg, state_dir, reference)
+    overall_ok, results = _check(cfg, state_dir, reference, scope)
     delivered = _post(cfg, overall_ok, results, state_dir)
 
     failed = sum(1 for r in results if not r["ok"])

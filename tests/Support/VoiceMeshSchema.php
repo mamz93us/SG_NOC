@@ -132,6 +132,8 @@ class VoiceMeshSchema
             $t->string('sso_default_role')->nullable();
             $t->text('voice_mesh_secret')->nullable();
             $t->unsignedSmallInteger('voice_mesh_retention_days')->default(30);
+            $t->timestamp('voice_mesh_sweep_requested_at')->nullable();
+            $t->string('voice_mesh_sweep_scope', 40)->nullable();
             $t->timestamps();
         });
     }

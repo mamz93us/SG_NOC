@@ -17,6 +17,14 @@
             </p>
         </div>
         <div class="text-end">
+            @can('manage-voice-mesh')
+                <form method="POST" action="{{ route('admin.network.voice-mesh.sweep') }}" class="d-inline">
+                    @csrf
+                    <button class="btn btn-primary btn-sm" data-sweep-btn {{ $pendingSweep ? 'disabled' : '' }}>
+                        <i class="bi bi-arrow-repeat me-1"></i>Run a sweep now
+                    </button>
+                </form>
+            @endcan
             <a href="{{ route('admin.network.voice-mesh.runs') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-clock-history me-1"></i>Run log
             </a>
@@ -47,6 +55,16 @@
             </div>
         </div>
     @endif
+
+    <div class="alert alert-info py-2 {{ $pendingSweep ? '' : 'd-none' }}" data-pending-sweep>
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        <span data-pending-text>
+            {{ $pendingSweep && $pendingSweep['scope']
+                ? 'Retry of '.str_replace('>', ' → ', $pendingSweep['scope']).' requested '.$pendingSweep['requested'].'.'
+                : 'Full sweep requested '.($pendingSweep['requested'] ?? '').'.' }}
+        </span>
+        The prober collects it on its next wake — a full mesh takes a few minutes to complete.
+    </div>
 
     @if (! $secretIsSet)
         <div class="alert alert-danger py-2">
@@ -387,6 +405,21 @@
         const due = document.querySelector('[data-next-due]');
         if (age) age.textContent = payload.last_run ? payload.last_run.age : 'never';
         if (due) due.textContent = payload.last_run ? payload.last_run.next_due : '—';
+
+        // The banner clears itself once the requested sweep's report lands, so
+        // the page stops claiming a run is pending after it has happened.
+        const banner = document.querySelector('[data-pending-sweep]');
+        if (banner) {
+            const pending = payload.pending_sweep;
+            banner.classList.toggle('d-none', !pending);
+            const text = banner.querySelector('[data-pending-text]');
+            if (pending && text) {
+                text.textContent = pending.scope
+                    ? `Retry of ${pending.scope.replace('>', ' → ')} requested ${pending.requested}.`
+                    : `Full sweep requested ${pending.requested}.`;
+            }
+            document.querySelectorAll('[data-sweep-btn]').forEach(b => { b.disabled = !!pending; });
+        }
     }
 
     function refresh() {

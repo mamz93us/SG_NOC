@@ -160,6 +160,64 @@ it('stores the raw payload for forensic replay', function () {
     expect(VoiceMeshRun::first()->payload['results'])->toHaveCount(2);
 });
 
+// ── sweep requests ───────────────────────────────────────────────
+
+it('offers no sweep request when none has been made', function () {
+    $body = $this->withHeader('X-Voice-Mesh-Secret', SECRET)
+        ->getJson('/api/voice-mesh/config')->assertOk()->json();
+
+    expect($body['sweep_request'])->toBeNull();
+});
+
+it('passes a full sweep request to the prober', function () {
+    $settings = Setting::get();
+    $settings->forceFill(['voice_mesh_sweep_requested_at' => now(), 'voice_mesh_sweep_scope' => null])->save();
+
+    $body = $this->withHeader('X-Voice-Mesh-Secret', SECRET)
+        ->getJson('/api/voice-mesh/config')->assertOk()->json();
+
+    expect($body['sweep_request']['all'])->toBeTrue();
+});
+
+it('passes a scoped retry to the prober', function () {
+    $settings = Setting::get();
+    $settings->forceFill(['voice_mesh_sweep_requested_at' => now(), 'voice_mesh_sweep_scope' => 'CAI>JED'])->save();
+
+    $body = $this->withHeader('X-Voice-Mesh-Secret', SECRET)
+        ->getJson('/api/voice-mesh/config')->assertOk()->json();
+
+    expect($body['sweep_request']['caller'])->toBe('CAI')
+        ->and($body['sweep_request']['dest'])->toBe('JED')
+        ->and($body['sweep_request'])->not->toHaveKey('all');
+});
+
+it('drops a request the prober was down too long to collect', function () {
+    // Otherwise an hour-old "run now" would fire the moment the prober returns.
+    $settings = Setting::get();
+    $settings->forceFill([
+        'voice_mesh_sweep_requested_at' => now()->subHours(2),
+        'voice_mesh_sweep_scope' => null,
+    ])->save();
+
+    $body = $this->withHeader('X-Voice-Mesh-Secret', SECRET)
+        ->getJson('/api/voice-mesh/config')->assertOk()->json();
+
+    expect($body['sweep_request'])->toBeNull();
+});
+
+it('clears the request once the report it asked for arrives', function () {
+    $settings = Setting::get();
+    $settings->forceFill(['voice_mesh_sweep_requested_at' => now(), 'voice_mesh_sweep_scope' => 'CAI>JED'])->save();
+
+    $this->withHeader('X-Voice-Mesh-Secret', SECRET)
+        ->postJson('/api/voice-mesh/report', meshReport())->assertOk();
+
+    $settings = Setting::get()->fresh();
+
+    expect($settings->voice_mesh_sweep_requested_at)->toBeNull()
+        ->and($settings->voice_mesh_sweep_scope)->toBeNull();
+});
+
 it('rejects a report with no results', function () {
     $this->withHeader('X-Voice-Mesh-Secret', SECRET)
         ->postJson('/api/voice-mesh/report', meshReport(['results' => []]))
