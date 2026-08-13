@@ -1,0 +1,30 @@
+# voice-mesh prober — local config.
+#
+# Copy to config.conf, fill in NOC_SECRET, then run `sudo python3 deploy.py`.
+#
+# This file no longer holds the branch list or any SIP passwords. Those live in
+# the NOC database and are fetched at run time — add and edit branches at
+# /admin/network/voice-mesh instead of here.
+
+# The NOC on this same host. Both endpoints require the request to originate
+# locally AND to carry the secret below, because /config returns every branch's
+# plaintext SIP password.
+NOC_CONFIG_URL = http://127.0.0.1/api/voice-mesh/config
+NOC_REPORT_URL = http://127.0.0.1/api/voice-mesh/report
+
+# Generate this with "Rotate ingest secret" on the Voice Mesh admin page and
+# paste it here. deploy.py chmods this file to 0600.
+NOC_SECRET = CHANGEME
+
+# Recordings, per-call logs, the cached NOC config and any unsent reports.
+STATE_DIR = /var/lib/voice-mesh
+
+# The known-good prompt — the exact file uploaded to every branch's IVR. Its
+# duration is the ground truth every recording is compared against, and the
+# prober refuses to dial if its checksum doesn't match the one the NOC expects.
+# Keep it inside this directory: the service runs with ProtectHome=true and
+# cannot read anything under a user's home.
+REFERENCE_WAV = ../reference.wav
+
+# Only needed if pjsua isn't on PATH or at /usr/local/bin/pjsua:
+# PJSUA_BIN = /usr/local/bin/pjsua

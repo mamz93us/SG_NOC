@@ -116,6 +116,18 @@ else
     note "SFTPGo (optional, device backups): install binary + resource dirs (README §1), run setup.sql, then deployment/sftpgo/install.sh; configure Admin → Settings → SFTPGo."
 fi
 
+# ───────────────────────────────────────────── Voice mesh (synthetic calls)
+sec "Voice mesh (synthetic branch-to-branch calls)"
+if [ -f "${APP_DIR}/deployment/voice-mesh/install.sh" ]; then
+    # install.sh is itself idempotent: it skips the pjsua build if pjsua exists,
+    # never overwrites config.conf, and won't run deploy.py while the secret is
+    # still CHANGEME.
+    bash "${APP_DIR}/deployment/voice-mesh/install.sh" && ok "voice-mesh install.sh ran" || warn "voice-mesh install.sh failed"
+    note "Voice mesh: open SIP from this host on EVERY branch UCM (they currently drop UDP/5060 from the NOC), add each branch at /admin/network/voice-mesh, then put the rotated ingest secret in deployment/voice-mesh/config.conf. See VOICE_MESH_SETUP.md."
+else
+    warn "deployment/voice-mesh/install.sh missing"
+fi
+
 # ───────────────────────────────────────────── strongSwan (branch VPN hub)
 sec "strongSwan (branch VPN hub)"
 if apt-get install -y strongswan strongswan-swanctl charon-systemd libcharon-extra-plugins >/dev/null 2>&1; then

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Setting;
+use App\Models\VoiceMeshRun;
 use App\Services\Voice\VoiceMeshMonitor;
 use Illuminate\Console\Command;
 
@@ -32,7 +33,11 @@ class CheckStaleVoiceMesh extends Command
         $message = $monitor->checkStale();
 
         if ($message === null) {
-            $this->info('[voice-mesh] reporting normally.');
+            // "Never reported" and "reporting normally" both mean no alert, but
+            // they are very different situations to read in a log.
+            $this->info(VoiceMeshRun::exists()
+                ? '[voice-mesh] reporting normally.'
+                : '[voice-mesh] nothing has ever reported — the prober is not installed or has never run.');
 
             return self::SUCCESS;
         }

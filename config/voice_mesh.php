@@ -38,10 +38,18 @@ return [
 
     'local_port' => (int) env('VOICE_MESH_LOCAL_PORT', 5080),
 
-    // sha256 of the reference prompt wav. The prober refuses to dial if the
-    // file on its disk doesn't match — see deployment/voice-mesh/reference.wav
-    // and the "replacing the prompt" procedure in VOICE_MESH_SETUP.md.
-    'reference_sha256' => env('VOICE_MESH_REFERENCE_SHA256', ''),
+    // sha256 of the reference prompt wav. The prober refuses to dial if the file
+    // on its disk doesn't match, so a prompt that has drifted from the one every
+    // IVR plays fails loudly instead of failing every leg for a reason that has
+    // nothing to do with the network.
+    //
+    // The default is the checksum of the committed deployment/voice-mesh/
+    // reference.wav. Only override it if you replace the prompt — which means
+    // re-uploading it to every branch's IVR too (see VOICE_MESH_SETUP.md).
+    'reference_sha256' => env(
+        'VOICE_MESH_REFERENCE_SHA256',
+        'c4c8cda84ad5372bbf944749de56c82bc0923fcc0aab46b108a623242098f3b7'
+    ),
 
     // No report within this many minutes means the prober itself is in trouble
     // (timer stopped, pjsua missing, secret rejected) — 2.5x the interval.

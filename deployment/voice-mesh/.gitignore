@@ -1,0 +1,9 @@
+# Holds the NOC ingest secret once filled in.
+config.conf
+
+# Recordings, per-call pjsua logs, the cached NOC config (which contains every
+# branch's SIP password) and any unsent reports.
+state/
+
+__pycache__/
+*.pyc
