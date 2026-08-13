@@ -3,7 +3,6 @@ what comes back, and report RTP/audio stats for comparison against a
 reference capture.
 """
 import contextlib
-import math
 import os
 import re
 import shutil
@@ -13,10 +12,10 @@ import sys
 import tempfile
 import threading
 import time
-import wave
-from array import array
 from dataclasses import dataclass
 from pathlib import Path
+
+from . import audio
 
 _FALLBACK_PJSUA_LOCATIONS = (Path("/usr/local/bin/pjsua"), Path.home() / ".local" / "bin" / "pjsua")
 
@@ -45,6 +44,10 @@ class CallCapture:
     rx_pkt: int
     duration_sec: float
     log_text: str
+    # What the recording actually contains. None when no call was placed.
+    # reference.compare() judges against this; duration_sec is kept alongside it
+    # because that is the field the health report puts on the wire.
+    profile: object = None
 
 
 def _write_credentials_file(sip_server, sip_port, sip_user, sip_pass, local_port) -> Path:
@@ -58,57 +61,6 @@ def _write_credentials_file(sip_server, sip_port, sip_user, sip_pass, local_port
         f.write(f"--username={sip_user}\n")
         f.write(f"--password={sip_pass}\n")
     return Path(path)
-
-
-def wav_duration_sec(path: Path) -> float:
-    if not path.exists() or path.stat().st_size == 0:
-        return 0.0
-    with wave.open(str(path), "rb") as w:
-        return w.getnframes() / float(w.getframerate())
-
-
-def content_duration_sec(path: Path, block_ms: float = 20.0, silence_ratio: float = 0.1) -> float:
-    """Duration of the actual audio content in `path`, with leading and
-    trailing silence trimmed off.
-
-    A recording's total length tracks how long the call itself lasted
-    (ring time, how promptly the far end hung up, force-hangup padding),
-    not how long the played prompt was — that's fixed regardless of call
-    length. So comparing raw wav length against REFERENCE_WAV's length
-    flags perfectly good calls as drifted whenever the call runs long.
-    Trimming to the non-silent span isolates the part that's actually
-    supposed to match: the prompt's own duration.
-
-    `silence_ratio` is relative to the loudest 20ms block in the file —
-    everything before the first block at or above that level, and after
-    the last, is silence and gets excluded.
-    """
-    if not path.exists() or path.stat().st_size == 0:
-        return 0.0
-    with wave.open(str(path), "rb") as w:
-        n = w.getnframes()
-        fr = w.getframerate()
-        sw = w.getsampwidth()
-        data = w.readframes(n)
-    if sw != 2:
-        raise ValueError(f"{path}: only 16-bit PCM wav is supported, got sampwidth={sw}")
-    samples = array("h", data)
-    if not samples:
-        return 0.0
-    block = max(1, int(fr * block_ms / 1000))
-    rms = [
-        math.sqrt(sum(s * s for s in samples[i : i + block]) / len(samples[i : i + block]))
-        for i in range(0, len(samples), block)
-    ]
-    peak = max(rms, default=0.0)
-    if peak == 0:
-        return 0.0
-    threshold = peak * silence_ratio
-    loud = [i for i, r in enumerate(rms) if r >= threshold]
-    if not loud:
-        return 0.0
-    first, last = loud[0], loud[-1]
-    return ((last - first + 1) * block) / fr
 
 
 def call_and_record(
@@ -216,9 +168,15 @@ def call_and_record(
     log_text = "\n".join(lines)
     answered = bool(re.search(r"CONFIRMED", log_text))
     rx_pkt = _rx_pkt_from_log(log_text)
-    duration_sec = content_duration_sec(rec_path)
+    profile = audio.analyze(rec_path)
 
-    return CallCapture(answered=answered, rx_pkt=rx_pkt, duration_sec=duration_sec, log_text=log_text)
+    return CallCapture(
+        answered=answered,
+        rx_pkt=rx_pkt,
+        duration_sec=profile.duration_sec,
+        log_text=log_text,
+        profile=profile,
+    )
 
 
 def _rx_pkt_from_log(log_text: str) -> int:

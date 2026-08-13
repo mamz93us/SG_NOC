@@ -21,7 +21,8 @@ voice_mesh/
   cli.py              subcommands, the sweep loop, the interval gate
   config.py           config.conf parsing + validation of the NOC's branch list
   noc.py              fetch config / post report, with cache fallback and spill
-  prober.py           one pjsua call: register, dial, record, measure
+  prober.py           one pjsua call: register, dial, record
+  audio.py            what a recording actually contains (level, length, pitch)
   reference.py        the pass/fail comparison
 ```
 

@@ -3,9 +3,10 @@
 Runs on the NOC host, which reaches every branch's UCM over the Azure tunnels.
 For each branch it registers to *that branch's own UCM* with *that branch's own
 SIP credentials* and dials every other branch's IVR extension — a full mesh,
-derived from the branch list the NOC hands back. Each recording's trimmed
-duration is compared against the reference prompt, and one combined report
-covering every pair is POSTed back.
+derived from the branch list the NOC hands back. Each recording is measured for
+audible content, its length compared against the reference prompt and its pitch
+contour matched against it, and one combined report covering every pair is
+POSTed back.
 
 Nothing here ever aborts a sweep part-way: an unreachable branch or a wedged
 call is recorded as a failed leg and the run moves on, so one bad branch never
@@ -30,7 +31,7 @@ from pathlib import Path
 
 from . import config, noc
 from .prober import call_and_record
-from .reference import compare, load_reference_duration
+from .reference import compare, load_reference_profile
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("voice-mesh")
@@ -48,7 +49,7 @@ def _pairs(branches):
                 yield caller, dest
 
 
-def _check(cfg, state_dir: Path, reference_duration_sec: float):
+def _check(cfg, state_dir: Path, reference):
     results = []
 
     for caller, dest in _pairs(cfg.BRANCHES):
@@ -75,17 +76,17 @@ def _check(cfg, state_dir: Path, reference_duration_sec: float):
             results.append({
                 "caller": caller["name"], "dest": name, "dest_ext": ext, "ok": False,
                 "rx_pkt": 0, "duration_sec": 0.0,
-                "reference_duration_sec": reference_duration_sec, "reason": reason,
+                "reference_duration_sec": reference.duration_sec, "reason": reason,
             })
             log.warning("[%s -> %s (ext %s)] FAIL — %s", caller["name"], name, ext, reason)
             continue
 
-        ok, reason = compare(capture, reference_duration_sec, tolerance_pct=cfg.TOLERANCE_PCT)
+        ok, reason = compare(capture, reference, tolerance_pct=cfg.TOLERANCE_PCT)
 
         log.info(
             "[%s -> %s (ext %s)] %s rx_pkt=%s duration=%.2fs (reference=%.2fs) — %s",
             caller["name"], name, ext, "OK" if ok else "FAIL",
-            capture.rx_pkt, capture.duration_sec, reference_duration_sec, reason,
+            capture.rx_pkt, capture.duration_sec, reference.duration_sec, reason,
         )
         results.append({
             "caller": caller["name"],
@@ -94,7 +95,7 @@ def _check(cfg, state_dir: Path, reference_duration_sec: float):
             "ok": ok,
             "rx_pkt": capture.rx_pkt,
             "duration_sec": round(capture.duration_sec, 2),
-            "reference_duration_sec": round(reference_duration_sec, 2),
+            "reference_duration_sec": round(reference.duration_sec, 2),
             "reason": reason,
         })
 
@@ -251,11 +252,12 @@ def main():
                  cfg.INTERVAL_MINUTES)
         return
 
-    reference_duration_sec = load_reference_duration(Path(cfg.REFERENCE_WAV))
+    reference = load_reference_profile(Path(cfg.REFERENCE_WAV))
+    log.info("reference prompt: %.2fs of audio in %s", reference.duration_sec, cfg.REFERENCE_WAV)
 
     _stamp(state_dir)   # before dialling, so a crash mid-sweep can't hot-loop the timer
 
-    overall_ok, results = _check(cfg, state_dir, reference_duration_sec)
+    overall_ok, results = _check(cfg, state_dir, reference)
     delivered = _post(cfg, overall_ok, results, state_dir)
 
     failed = sum(1 for r in results if not r["ok"])

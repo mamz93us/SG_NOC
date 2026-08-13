@@ -16,17 +16,20 @@ Exits non-zero on the first failure.
 import hashlib
 import json
 import logging
+import math
 import sys
 import tempfile
 import types
 import urllib.error
+import wave
+from array import array
 from pathlib import Path
 from unittest import mock
 
 PROJECT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT))
 
-from voice_mesh import cli, config, noc  # noqa: E402
+from voice_mesh import audio, cli, config, noc, prober, reference  # noqa: E402
 
 logging.disable(logging.WARNING)     # the failure paths log loudly by design
 
@@ -71,6 +74,110 @@ class FakeResponse:
 
     def __exit__(self, *args):
         return False
+
+
+def _write_wav(path: Path, segments, rate: int = 8000) -> None:
+    """Synthesise a wav from [(frequency_hz, seconds, amplitude)] — frequency 0
+    means silence. Amplitude is 0..1 of full scale."""
+    samples = array("h")
+    for freq, seconds, amplitude in segments:
+        count = int(rate * seconds)
+        peak = amplitude * 32767
+        for n in range(count):
+            value = 0.0 if freq == 0 else math.sin(2 * math.pi * freq * n / rate)
+            samples.append(int(max(-32767, min(32767, value * peak))))
+
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(samples.tobytes())
+
+
+def _capture(profile, rx_pkt: int = 250, answered: bool = True):
+    return prober.CallCapture(answered=answered, rx_pkt=rx_pkt,
+                              duration_sec=profile.duration_sec, log_text="", profile=profile)
+
+
+def _audio_checks() -> None:
+    """The failure modes reported from the field: recordings measuring 0s, 1s,
+    or the full hangup ceiling, and audio of the right length that isn't the
+    prompt at all."""
+    prompt = [(350, 1.0, 0.5), (440, 1.0, 0.5), (1000, 1.0, 0.5),
+              (2000, 1.0, 0.5), (3000, 1.0, 0.5)]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+
+        ref_path = tmp / "ref.wav"
+        _write_wav(ref_path, prompt)
+        ref = audio.analyze(ref_path)
+        check(f"reference profiles as ~5s of audio (got {ref.duration_sec:.2f}s)",
+              ref.audible and 4.8 <= ref.duration_sec <= 5.2)
+
+        # A good capture: the same prompt with the silence a real call carries
+        # either side of it.
+        good = tmp / "good.wav"
+        _write_wav(good, [(0, 1.2, 0.0)] + prompt + [(0, 2.5, 0.0)])
+        p = audio.analyze(good)
+        check(f"lead-in and trailing silence are excluded (got {p.duration_sec:.2f}s)",
+              4.8 <= p.duration_sec <= 5.2)
+        ok, reason = reference.compare(_capture(p), ref, tolerance_pct=10)
+        check(f"a clean capture passes: {reason}", ok)
+
+        # Was: threshold set by the noise itself, so the whole file read as
+        # content and reported the hangup ceiling.
+        noise = tmp / "noise.wav"
+        _write_wav(noise, [(60, 10.0, 0.002)])
+        p = audio.analyze(noise)
+        check("comfort noise is not mistaken for content", not p.audible)
+        ok, reason = reference.compare(_capture(p), ref, tolerance_pct=10)
+        check(f"a noise-only capture fails with a real reason: {reason[:52]}…", not ok)
+
+        # Was: the click became the peak, so the threshold rose above the tone
+        # and only the click got measured.
+        clicky = tmp / "click.wav"
+        _write_wav(clicky, [(3000, 0.04, 1.0), (0, 1.5, 0.0)] + prompt + [(0, 1.0, 0.0)])
+        p = audio.analyze(clicky)
+        check(f"a loud click no longer defines the threshold (got {p.duration_sec:.2f}s)",
+              4.8 <= p.duration_sec <= 5.2)
+        check("the prompt after a click still passes",
+              reference.compare(_capture(p), ref, tolerance_pct=10)[0])
+
+        silent = tmp / "silent.wav"
+        _write_wav(silent, [(0, 6.0, 0.0)])
+        p = audio.analyze(silent)
+        check("pure silence is reported as silence, not as 0.00s of content",
+              not p.audible and "no audible audio" in p.error)
+
+        empty = tmp / "empty.wav"
+        empty.write_bytes(b"")
+        check("an empty file is a reason, not a crash", not audio.analyze(empty).audible)
+
+        # The false POSITIVE that duration-only comparison could never catch.
+        wrong = tmp / "wrong.wav"
+        _write_wav(wrong, [(425, 5.0, 0.5)])
+        p = audio.analyze(wrong)
+        check(f"wrong audio of the right length is still ~5s (got {p.duration_sec:.2f}s)",
+              4.8 <= p.duration_sec <= 5.2)
+        ok, reason = reference.compare(_capture(p), ref, tolerance_pct=10)
+        check(f"…but is rejected on content: {reason[:46]}…", not ok)
+
+        # A capture that ran to the force-hangup ceiling.
+        long_tone = tmp / "long.wav"
+        _write_wav(long_tone, [(350, 10.0, 0.5)])
+        ok, reason = reference.compare(_capture(audio.analyze(long_tone)), ref, tolerance_pct=10)
+        check(f"an over-long capture names the likely cause: {reason[-38:]}", not ok)
+
+        # Media counted but nothing audible arrived — one-way audio.
+        ok, reason = reference.compare(_capture(audio.analyze(silent), rx_pkt=289), ref, tolerance_pct=10)
+        check(f"RTP with no audio is distinguished from no RTP: {reason[:44]}…",
+              not ok and "289 RTP packets arrived" in reason)
+
+        check("no RTP at all still reports that",
+              reference.compare(_capture(audio.analyze(good), rx_pkt=0), ref, 10)[1] == "no RTP media received")
+        check("an unanswered call still reports signalling",
+              "signalling" in reference.compare(_capture(audio.analyze(good), answered=False), ref, 10)[1])
 
 
 def main() -> None:
@@ -171,6 +278,9 @@ def main() -> None:
         sys.exit("FAIL: a mismatched prompt must refuse to dial")
     except SystemExit as e:
         check("a mismatched prompt refuses to dial", "mismatch" in str(e))
+
+    print("\naudio measurement")
+    _audio_checks()
 
     print("\nmesh expansion")
     check("2 branches make 2 legs", len(list(cli._pairs(branches))) == 2)

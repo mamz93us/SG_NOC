@@ -182,8 +182,11 @@ Keyed on the exact `reason` strings the prober reports.
 |---|---|
 | `call setup failed: pjsua not found…` | pjsua isn't installed system-wide (section 2). |
 | `call never reached CONFIRMED (signalling failure)` | The INVITE never got a call. Registration was refused (section 1), the IVR extension doesn't exist, or inbound routing from the trunks doesn't reach it. |
-| `no RTP media received` | The call connected but no audio came back — one-way media, or the tunnel policy is dropping the RTP range while permitting SIP. |
-| `duration … deviates beyond … tolerance` | A call happened and audio came back, but the wrong length. Usually a different prompt was uploaded to that branch's IVR, or the IVR isn't hanging up on its own (check *Event on No Digits: Hang Up*, *Repeat: 1*). |
+| `no RTP media received` | The call connected but no RTP arrived at all — one-way media, or the tunnel policy is dropping the RTP range while permitting SIP. |
+| `N RTP packets arrived but no audible audio` | Packets came back but carried nothing. A codec both ends nominally agreed on but neither produced, or an IVR that answered and played silence. Distinct from the row above: the media path works, the audio doesn't. |
+| `prompt ran Xs vs reference Ys … IVR may not be hanging up on its own` | The audio matched but ran long — check *Event on No Digits: Hang Up* and *Repeat: 1* on that branch's IVR. If it ran to the hangup ceiling exactly, the IVR is looping or waiting for DTMF. |
+| `prompt ran Xs vs reference Ys … prompt may be truncated or the wrong file` | Cut short. Usually a shorter prompt was uploaded to that IVR. |
+| `audio does not match the reference prompt (pitch match N%) — right length, wrong audio` | Something of roughly the right duration answered, but it isn't the prompt: ringback, hold music, an announcement, or a different recording. Duration-only comparison used to score these OK. |
 | Whole row red | That branch can't place calls — almost always its UCM refusing our registration. |
 | Whole column red | That branch's IVR is unreachable from branches that are otherwise fine. |
 | Board goes stale, no new runs | The timer or the secret. `systemctl status voice-mesh-verify.timer`, then check `NOC_SECRET` still matches the one in Settings. The NOC raises `voice_mesh_stale` for exactly this. |
@@ -192,6 +195,14 @@ Keyed on the exact `reason` strings the prober reports.
 IVR-hangup detection isn't firing — the call is running to `VOICE_MESH_DURATION`
 and being cut off by us. Check the per-call `.log` for what pjsua printed around
 hangup.
+
+**How a leg is judged.** Four things must hold: the call reached CONFIRMED, RTP
+came back, the recording holds audible signal of the right length, and that
+signal's pitch contour matches the reference's. The audio checks are deliberate
+— an earlier version compared length alone, which meant ringback or hold music
+of roughly the right duration scored OK, and which measured silence and noise as
+though they were content. `TOLERANCE_PCT` governs the length comparison only;
+the content match is a fixed threshold in `voice_mesh/audio.py`.
 
 ## Operating notes
 
