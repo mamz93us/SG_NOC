@@ -17,9 +17,18 @@ class VoiceMeshSchema
 {
     public static function create(): void
     {
-        foreach (['voice_mesh_results', 'voice_mesh_pairs', 'voice_mesh_runs', 'voice_mesh_nodes', 'noc_events', 'settings'] as $table) {
+        foreach (['voice_mesh_results', 'voice_mesh_pairs', 'voice_mesh_runs', 'voice_mesh_nodes', 'noc_events', 'settings', 'branches'] as $table) {
             Schema::dropIfExists($table);
         }
+
+        // The admin page offers branches to link a node to. `id` is a manual
+        // unsignedInteger here, matching the real legacy table — the reason
+        // voice_mesh_nodes.branch_id can't use foreignId().
+        Schema::create('branches', function (Blueprint $t) {
+            $t->unsignedInteger('id')->primary();
+            $t->string('name');
+            $t->timestamps();
+        });
 
         Schema::create('voice_mesh_nodes', function (Blueprint $t) {
             $t->id();

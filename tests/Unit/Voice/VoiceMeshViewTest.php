@@ -39,8 +39,15 @@ beforeEach(function () {
     View::getFinder()->prependLocation(base_path('tests/stubs/views'));
     View::getFinder()->flush();
 
+    // Normally shared by ShareErrorsFromSession, which only runs for requests
+    // through the web middleware group — these render the view directly.
+    View::share('errors', new Illuminate\Support\ViewErrorBag);
+
     // Force @can(...) true so the manage-gated markup renders too — otherwise
-    // the node modal and the secret panel would never be exercised.
+    // the node modal and the secret panel would never be exercised. Gate's
+    // before-callbacks are skipped entirely for a guest, so an (unsaved,
+    // in-memory) user has to be present for this to take effect.
+    $this->be(new App\Models\User(['role' => 'super_admin']));
     Gate::before(fn () => true);
 });
 
