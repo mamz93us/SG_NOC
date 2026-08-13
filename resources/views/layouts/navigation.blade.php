@@ -77,6 +77,9 @@
                                 <x-dropdown-link :href="route('admin.network.tunnel-health.index')">
                                     {{ __('Branch Tunnel Watchdog') }}
                                 </x-dropdown-link>
+                                <x-dropdown-link :href="route('admin.network.voice-mesh.index')">
+                                    {{ __('Voice Mesh') }}
+                                </x-dropdown-link>
                                 <x-dropdown-link :href="route('admin.network.diagnostics.index')">
                                     {{ __('Diagnostics') }}
                                 </x-dropdown-link>
@@ -202,6 +205,9 @@
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('admin.network.tunnel-health.index')" :active="request()->routeIs('admin.network.tunnel-health.*')">
                     {{ __('Branch Tunnel Watchdog') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('admin.network.voice-mesh.index')" :active="request()->routeIs('admin.network.voice-mesh.*')">
+                    {{ __('Voice Mesh') }}
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('admin.network.diagnostics.index')" :active="request()->routeIs('admin.network.diagnostics.*')">
                     {{ __('Diagnostics') }}

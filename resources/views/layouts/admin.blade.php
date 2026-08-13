@@ -390,6 +390,14 @@
                                     <i class="bi bi-calendar-week me-2"></i>Tunnel History (7 days)
                                 </a>
                             </li>
+                            @can('view-voice-mesh')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.voice-mesh.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.voice-mesh.index') }}">
+                                    <i class="bi bi-telephone-outbound me-2"></i>Voice Mesh
+                                </a>
+                            </li>
+                            @endcan
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.isp.*') && ! request()->routeIs('admin.network.isp-report.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.isp.index') }}">

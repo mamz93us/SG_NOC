@@ -1247,6 +1247,25 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // gateway now, so the NOC watches them rather than controlling them. Each
     // tunnel is a gateway firewall plus a probe per carried subnet. Viewing
     // needs view-network; editing needs manage-network-settings.
+    // Voice Mesh — synthetic branch-to-branch call testing. Separate permissions
+    // from the network ones on purpose: manage-voice-mesh sets SIP passwords and
+    // rotates the ingest secret.
+    Route::middleware('auth')->prefix('network/voice-mesh')->name('network.voice-mesh.')->group(function () {
+        Route::middleware('permission:view-voice-mesh')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'index'])->name('index');
+            Route::get('/data', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'data'])->name('data');
+            Route::get('/runs', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'runs'])->name('runs');
+            Route::get('/runs/{run}', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'run'])->name('run');
+            Route::get('/pairs/{pair}', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'pair'])->name('pair');
+        });
+        Route::middleware('permission:manage-voice-mesh')->group(function () {
+            Route::post('/nodes', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'storeNode'])->name('nodes.store');
+            Route::put('/nodes/{node}', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'updateNode'])->name('nodes.update');
+            Route::delete('/nodes/{node}', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'destroyNode'])->name('nodes.destroy');
+            Route::post('/secret/rotate', [\App\Http\Controllers\Admin\VoiceMeshController::class, 'rotateSecret'])->name('secret.rotate');
+        });
+    });
+
     Route::middleware('auth')->prefix('network/tunnel-health')->name('network.tunnel-health.')->group(function () {
         Route::middleware('permission:view-network')->group(function () {
             Route::get('/', [TunnelHealthController::class, 'index'])->name('index');
