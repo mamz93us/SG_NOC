@@ -76,8 +76,9 @@ sudo install -m0755 pjsip-apps/bin/pjsua-* /usr/local/bin/pjsua
 pjsua --version
 ```
 
-It must be installed **system-wide**: the service runs as `voicemesh`, which has
-no home directory. `deployment/voice-mesh/install.sh` does all of this for you.
+It must be installed **system-wide**, not into a user's `~/.local/bin` — the
+service may run as a locked-down account. `deployment/voice-mesh/install.sh` does
+all of this for you.
 
 ## 3. Per branch: a probe extension and a test IVR
 
@@ -142,7 +143,7 @@ Check the wiring without dialling anything:
 
 ```bash
 python3 deployment/voice-mesh/selftest.py
-sudo -u voicemesh python3 -m voice_mesh.cli show-config
+sudo -u "$(stat -c %U deployment/voice-mesh)" python3 -m voice_mesh.cli show-config
 ```
 
 `show-config` prints the branch list the NOC handed back, passwords redacted.
@@ -150,7 +151,7 @@ sudo -u voicemesh python3 -m voice_mesh.cli show-config
 ## 6. First sweep
 
 ```bash
-sudo -u voicemesh python3 -m voice_mesh.cli verify --force
+cd deployment/voice-mesh && sudo -u "$(stat -c %U .)" python3 -m voice_mesh.cli verify --force
 journalctl -u voice-mesh-verify -f
 ```
 

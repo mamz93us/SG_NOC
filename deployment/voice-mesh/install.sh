@@ -62,7 +62,8 @@ else
         # The binary is named for the build target, e.g. pjsua-x86_64-unknown-linux-gnu.
         BUILT="$(find "${BUILD_DIR}/pjproject-${PJPROJECT_VERSION}/pjsip-apps/bin" -maxdepth 1 -name 'pjsua-*' -type f 2>/dev/null | head -1)"
         if [ -n "$BUILT" ]; then
-            # System-wide: the service runs as `voicemesh`, which has no home dir.
+            # System-wide, not ~/.local/bin: the service may run as an account
+            # with no home directory.
             install -m0755 "$BUILT" "$PJSUA_BIN" && ok "installed $PJSUA_BIN"
         else
             warn "no pjsua binary produced — install it by hand before running deploy.py"
