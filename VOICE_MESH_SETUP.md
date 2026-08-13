@@ -207,7 +207,10 @@ hangup.
 - **Anyone with root on the NOC host can read every branch's SIP password** — the
   config endpoint hands them out in plaintext. They are encrypted at rest and
   audited, but that is the honest boundary.
-- **Retention** is 30 days of per-leg history, enforced by the daily `data:prune`.
+- **Retention** is 30 days of per-leg history, enforced by
+  `voice-mesh:check-stale --prune` daily at 03:25 (offset from the tunnel prune
+  at 03:20). Change the window in Settings (`voice_mesh_retention_days`) or with
+  `--retain=N`.
 
 ## Tunables
 
