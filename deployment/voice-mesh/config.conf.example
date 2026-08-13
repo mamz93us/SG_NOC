@@ -24,7 +24,7 @@ STATE_DIR = /var/lib/voice-mesh
 # prober refuses to dial if its checksum doesn't match the one the NOC expects.
 # Keep it inside this directory: the service runs with ProtectHome=true and
 # cannot read anything under a user's home.
-REFERENCE_WAV = ../reference.wav
+REFERENCE_WAV = reference.wav
 
 # Only needed if pjsua isn't on PATH or at /usr/local/bin/pjsua:
 # PJSUA_BIN = /usr/local/bin/pjsua

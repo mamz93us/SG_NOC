@@ -21,7 +21,7 @@ REQUIRED_FIELDS = ("NOC_CONFIG_URL", "NOC_REPORT_URL", "NOC_SECRET", "REFERENCE_
 _DEFAULTS = {
     "NOC_CONFIG_URL": "http://127.0.0.1/api/voice-mesh/config",
     "NOC_REPORT_URL": "http://127.0.0.1/api/voice-mesh/report",
-    "REFERENCE_WAV": "../reference.wav",
+    "REFERENCE_WAV": "reference.wav",
     "STATE_DIR": "/var/lib/voice-mesh",
     "PJSUA_BIN": "pjsua",
 }
@@ -64,10 +64,41 @@ def load_local(path: Path = CONFIG_PATH) -> dict:
             "— edit that file with real values."
         )
 
-    # REFERENCE_WAV is written relative to the project dir for readability.
-    values["REFERENCE_WAV"] = str((path.parent / values["REFERENCE_WAV"]).resolve())
+    values["REFERENCE_WAV"] = resolve_reference(path, values["REFERENCE_WAV"])
 
     return values
+
+
+def resolve_reference(config_path: Path, raw: str) -> str:
+    """Resolve REFERENCE_WAV relative to the project directory — the one
+    config.conf itself lives in.
+
+    Tolerates a leading `../`. Upstream, config.conf sat one level deeper inside
+    the package directory, so `../reference.wav` meant the project root; here it
+    points one directory too high. A config written against the old layout names
+    a file that is plainly sitting right next to it, so fall back to that and say
+    so rather than refusing to run.
+    """
+    project_dir = config_path.parent
+
+    candidate = (project_dir / raw).resolve()
+    if candidate.exists():
+        return str(candidate)
+
+    beside_config = (project_dir / Path(raw).name).resolve()
+    if beside_config.exists():
+        print(
+            f"warning: REFERENCE_WAV={raw!r} resolves to {candidate}, which does not exist — "
+            f"using {beside_config} instead. Set REFERENCE_WAV = {Path(raw).name} "
+            f"in {config_path} to silence this.",
+            file=sys.stderr,
+        )
+        return str(beside_config)
+
+    sys.exit(
+        f"{config_path}: REFERENCE_WAV points at {candidate}, which does not exist. "
+        f"It should name the prompt wav inside {project_dir}, e.g. 'reference.wav'."
+    )
 
 
 def validate_branches(entries, source: str = "the NOC") -> list:

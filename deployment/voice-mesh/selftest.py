@@ -129,6 +129,23 @@ def main() -> None:
         check("a sweep just now is not due again", cli._due(state, 30) is False)
         check("a sweep past its interval is due", cli._due(state, 0.001) is True)
 
+    print("\nreference prompt path")
+    # This is the layout bug that broke the first live deploy: config.conf moved
+    # up a directory when the project was vendored into the app repo, but its
+    # REFERENCE_WAV kept the upstream '../' and resolved one level too high.
+    fake_conf = PROJECT / "config.conf"
+    check("a plain filename resolves beside config.conf",
+          config.resolve_reference(fake_conf, "reference.wav") == str(REFERENCE))
+    check("a legacy '../' path still finds the prompt",
+          config.resolve_reference(fake_conf, "../reference.wav") == str(REFERENCE))
+    check("an absolute path is honoured",
+          config.resolve_reference(fake_conf, str(REFERENCE)) == str(REFERENCE))
+    try:
+        config.resolve_reference(fake_conf, "no-such-prompt.wav")
+        sys.exit("FAIL: a genuinely missing prompt must be an error")
+    except SystemExit as e:
+        check("a genuinely missing prompt is a clear error", "does not exist" in str(e))
+
     print("\nreference prompt")
     cfg = types.SimpleNamespace(REFERENCE_WAV=str(REFERENCE), REFERENCE_SHA256=sha)
     cli._assert_reference(cfg)
