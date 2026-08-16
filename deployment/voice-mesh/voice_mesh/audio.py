@@ -59,10 +59,15 @@ RELATIVE_FLOOR = 0.25
 # recordings of slightly different length still line up.
 CONTOUR_POINTS = 32
 
-# Median relative pitch error must be below this for the audio to be considered
-# the same prompt. Tones an octave apart differ by 100%, so this is generous
-# enough for jitter and codec artefacts while still rejecting different audio.
-MAX_PITCH_ERROR = 0.40
+# How alike two pitch contours must be to count as the same prompt.
+#
+# Measured against synthesised captures: the reference prompt recorded back
+# scores 100%, and still scores 91% with every tone 8% off. Audio that is NOT
+# the prompt scores 33-59% (a flat tone, ringback cadence, a rising sweep). The
+# bands are well separated but they are not far apart, so this sits just above
+# the wrong-audio band rather than in the middle: dropping it further would let
+# hold music through, which is the exact false positive this check exists for.
+MIN_PITCH_MATCH = 0.60
 
 
 @dataclass

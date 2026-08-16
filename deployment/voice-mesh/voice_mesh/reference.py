@@ -9,12 +9,16 @@ A leg passes only if all four hold:
 
   1. the call reached CONFIRMED (signalling worked);
   2. RTP actually came back (media worked);
-  3. the recording contains audible signal of the right length;
+  3. the recording contains audible signal of roughly the right length;
   4. and that signal sounds like the reference prompt.
 
 (4) is the one that was missing. Comparing length alone means ringback, hold
 music, or a completely different prompt of similar duration all score OK — see
 audio.py for what the old measurement did and why its numbers were unusable.
+
+The checks run in that order and the first one to fail is the reason reported,
+because that ordering is cause before symptom: a leg with no RTP has nothing to
+say about pitch, and reporting the pitch would bury the actual fault.
 """
 import sys
 from pathlib import Path
@@ -22,6 +26,15 @@ from pathlib import Path
 from . import audio
 from .audio import AudioProfile
 from .prober import CallCapture
+
+# A length difference smaller than this never fails a leg, however tight
+# TOLERANCE_PCT is set in the admin UI.
+#
+# The percentage alone is unforgiving on a short prompt: 10% of the 5.8s
+# reference is 0.58s, and normal IVR timing plus a trimmed RTP tail moves the
+# measurement more than that on a leg that is perfectly healthy. The percentage
+# stays the operator's dial for anything larger than this floor.
+DURATION_GRACE_SEC = 1.0
 
 
 def load_reference_profile(path: Path) -> AudioProfile:
@@ -66,27 +79,38 @@ def compare(capture: CallCapture, reference: AudioProfile, tolerance_pct: float)
         return False, f"{capture.rx_pkt} RTP packets arrived but {detail}"
 
     reference_sec = reference.duration_sec
-    drift_pct = abs(profile.duration_sec - reference_sec) / reference_sec * 100
+    off_by = abs(profile.duration_sec - reference_sec)
 
-    if drift_pct > tolerance_pct:
+    if off_by > _allowed_drift(reference_sec, tolerance_pct):
         # Name the likely cause: a capture that ran to the hangup ceiling is a
         # different fault from one that was cut short.
         hint = (
-            " — IVR may not be hanging up on its own"
+            "IVR may not be hanging up on its own"
             if profile.duration_sec > reference_sec
-            else " — prompt may be truncated or the wrong file"
+            else "prompt may be truncated or the wrong file"
         )
         return False, (
             f"prompt ran {profile.duration_sec:.2f}s vs reference {reference_sec:.2f}s "
-            f"({drift_pct:.0f}% off, tolerance {tolerance_pct:g}%){hint}"
+            f"({off_by:.2f}s off) — {hint}"
         )
 
     match = audio.pitch_match(profile, reference)
 
-    if match < (1.0 - audio.MAX_PITCH_ERROR):
+    if match < audio.MIN_PITCH_MATCH:
         return False, (
-            f"audio does not match the reference prompt (pitch match {match:.0%}) — "
-            f"right length ({profile.duration_sec:.2f}s), wrong audio"
+            f"audio does not match the reference prompt (pitch match {match:.0%}, "
+            f"needs {audio.MIN_PITCH_MATCH:.0%}) — right length "
+            f"({profile.duration_sec:.2f}s), wrong audio"
         )
 
     return True, f"OK ({profile.duration_sec:.2f}s, match {match:.0%})"
+
+
+def _allowed_drift(reference_sec: float, tolerance_pct: float) -> float:
+    """How far from the reference length a capture may be, in seconds.
+
+    Whichever is more generous: the configured percentage, or the absolute
+    grace. One number, so the failure reason can quote plain seconds instead of
+    making whoever reads the matrix convert a percentage in their head.
+    """
+    return max(DURATION_GRACE_SEC, reference_sec * tolerance_pct / 100.0)

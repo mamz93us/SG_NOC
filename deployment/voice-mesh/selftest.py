@@ -179,6 +179,124 @@ def _audio_checks() -> None:
         check("an unanswered call still reports signalling",
               "signalling" in reference.compare(_capture(audio.analyze(good), answered=False), ref, 10)[1])
 
+        # The grace floor. 10% of a 5s reference is 0.5s, which normal IVR
+        # timing exceeds on a healthy leg; a difference under the grace passes
+        # whatever the percentage says, and anything larger still fails.
+        near = tmp / "near.wav"
+        _write_wav(near, [(f, d * 0.85, a) for f, d, a in prompt])
+        p = audio.analyze(near)
+        ok, reason = reference.compare(_capture(p), ref, tolerance_pct=10)
+        check(f"a leg {abs(p.duration_sec - ref.duration_sec):.2f}s off passes on the grace floor: {reason}",
+              ok and abs(p.duration_sec - ref.duration_sec) > ref.duration_sec * 0.10)
+
+        check("the grace floor is a floor, not a replacement for the percentage",
+              reference._allowed_drift(60.0, 10) == 6.0)
+        check("...and it applies when the percentage is tighter",
+              reference._allowed_drift(5.0, 10) == reference.DURATION_GRACE_SEC)
+
+        # Still caught: a capture that ran to the hangup ceiling is far outside
+        # the grace, so loosening the length check did not blind it.
+        ok, reason = reference.compare(_capture(audio.analyze(long_tone)), ref, tolerance_pct=10)
+        check("the grace floor does not excuse a run to the hangup ceiling", not ok)
+
+
+def _retry_checks() -> None:
+    """A leg is never failed on the strength of one call: a failure is
+    re-tested, and if the two disagree a third call settles it."""
+    caller = {"name": "CAI"}
+    dest = {"name": "JED", "ext": "7071"}
+    ref = types.SimpleNamespace(duration_sec=5.0)
+    capture = types.SimpleNamespace(rx_pkt=250, duration_sec=5.0)
+
+    def dial_returning(verdicts: list, placed: list):
+        """Stand in for a real call: hand back a canned verdict per attempt."""
+        def fake_dial(cfg, caller, dest, rec_path, reference):
+            ok = verdicts[len(placed)]
+            placed.append(rec_path)
+            return ok, "OK (5.00s, match 100%)" if ok else "no RTP media received", capture
+        return fake_dial
+
+    def run(verdicts: list, state: Path):
+        placed = []
+        with mock.patch.object(cli, "_dial", dial_returning(verdicts, placed)), \
+             mock.patch.object(cli.time, "sleep"):
+            return cli._probe_leg(None, caller, dest, state, ref), placed
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state = Path(tmp)
+
+        attempts, _ = run([True, True, True], state)
+        check("a leg that passes first time is only dialled once",
+              len(attempts) == 1 and cli._verdict(attempts)[0] is True)
+
+        attempts, _ = run([False, False, True], state)
+        check("a failure is re-tested before it is believed", len(attempts) == 2)
+        check("...and a second failure is the verdict", cli._verdict(attempts)[0] is False)
+
+        attempts, _ = run([False, True, True], state)
+        ok, reason = cli._verdict(attempts)
+        check("a pass after a failure goes to a third, deciding call", len(attempts) == 3)
+        check("...which passes the leg when it agrees with the pass", ok is True)
+
+        # The whole point of the change: a leg that took three calls to pass is
+        # reported exactly like one that passed first time. The result carries
+        # no trace of the retries at all — only the log does.
+        clean, _ = run([True, True, True], state)
+        check("a leg that passed on the third try reads like one that passed first time",
+              reason == cli._verdict(clean)[1])
+        check("...with nothing in the reason about retries",
+              "flaky" not in reason.lower() and "attempt" not in reason.lower())
+
+        # Which is only acceptable because the log still has it.
+        with mock.patch.object(cli.log, "warning") as warned:
+            cli._log_retries(caller, dest, attempts)
+        logged = " ".join(str(a) for a in (warned.call_args[0] if warned.called else ()))
+        check("the retry history is written to the log instead",
+              warned.called and "#1 FAIL" in logged and "#3 OK" in logged)
+        check("...naming the leg it belongs to", "CAI" in logged and "JED" in logged)
+
+        with mock.patch.object(cli.log, "warning") as warned:
+            cli._log_retries(caller, dest, clean)
+        check("a leg that needed no retries logs nothing extra", not warned.called)
+
+        attempts, placed = run([False, True, False], state)
+        ok, reason = cli._verdict(attempts)
+        check("a failing decider fails the leg", ok is False and len(attempts) == 3)
+        check("...quoting the deciding attempt's reason, unadorned",
+              reason == "no RTP media received")
+
+        check("one leg is never dialled more than MAX_ATTEMPTS times",
+              len(placed) == cli.MAX_ATTEMPTS)
+        check("each attempt records to its own file", len(set(placed)) == len(placed))
+        check("the first attempt keeps the plain, documented filename",
+              placed[0].name == "last-verify-CAI-7071.wav")
+
+        # Last sweep's retries must not sit in the state dir looking current.
+        stale = state / "last-verify-CAI-7071.attempt2.wav"
+        stale.write_bytes(b"")
+        run([True, True, True], state)
+        check("a clean sweep clears the previous sweep's retry files", not stale.exists())
+
+        print("\nretries in the report")
+        cfg = types.SimpleNamespace(BRANCHES=config.validate_branches(BRANCHES))
+
+        with mock.patch.object(cli, "_dial", dial_returning([True] * 6, [])), \
+             mock.patch.object(cli.time, "sleep"):
+            overall, results = cli._check(cfg, state, ref)
+        check("a clean mesh reports ok", overall is True and len(results) == 2)
+
+        # The report the NOC receives is binary. No 'flaky', no attempt count:
+        # a leg is up or it is down, and the retry detail stays in the log.
+        check("no leg carries a retry marker into the report",
+              all("flaky" not in r and "attempts" not in r for r in results))
+
+        with mock.patch.object(cli, "_dial", dial_returning([False] * 6, [])), \
+             mock.patch.object(cli.time, "sleep"):
+            overall, results = cli._check(cfg, state, ref)
+        check("a red mesh reports not-ok", overall is False)
+        check("...with the deciding attempt's reason and nothing appended",
+              all(r["reason"] == "no RTP media received" for r in results))
+
 
 def main() -> None:
     sha = hashlib.sha256(REFERENCE.read_bytes()).hexdigest()
@@ -295,6 +413,9 @@ def main() -> None:
 
     print("\naudio measurement")
     _audio_checks()
+
+    print("\nretry policy")
+    _retry_checks()
 
     print("\nmesh expansion")
     check("2 branches make 2 legs", len(list(cli._pairs(branches))) == 2)

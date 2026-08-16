@@ -19,6 +19,7 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_DIR))
 from voice_mesh import config, noc  # noqa: E402
+from voice_mesh.cli import MAX_ATTEMPTS, RETRY_DELAY_SEC  # noqa: E402
 
 SYSTEMD_DIR = Path("/etc/systemd/system")
 SERVICE_NAME = "voice-mesh-verify"
@@ -103,12 +104,28 @@ def ensure_user_and_state(service_user: str, state_dir: Path) -> None:
     print(f"{config.CONFIG_PATH} locked to {service_user} (0600)")
 
 
+def _sweep_seconds(legs: int, duration: int, attempts: int) -> int:
+    """How long a sweep takes at `attempts` calls per leg.
+
+    One call is register, dial, wait up to DURATION for the IVR to hang up, tear
+    down — call it DURATION + 12s. Retries add their own calls plus the pause
+    between them.
+    """
+    per_leg = attempts * (duration + 12) + (attempts - 1) * RETRY_DELAY_SEC
+
+    return legs * per_leg
+
+
 def install_units(service_user: str, protect_home: bool, branch_count: int, duration: int) -> None:
     legs = branch_count * (branch_count - 1)
-    # Every leg is a sequential pjsua call: register, dial, wait up to DURATION
-    # for the IVR to hang up, tear down. Size the timeout so a full mesh is never
-    # killed mid-sweep.
-    timeout_sec = legs * (duration + 12) + 120
+
+    # Size the timeout for the WORST case, not the healthy one: every leg
+    # failing means every leg is dialled MAX_ATTEMPTS times, which is roughly
+    # three times a green sweep. Sizing this for one attempt per leg would kill
+    # the sweep part-way through exactly when the mesh is broken — and since the
+    # report is POSTed at the end, the whole sweep's results would be lost with
+    # it, in the one situation where they matter most.
+    timeout_sec = _sweep_seconds(legs, duration, MAX_ATTEMPTS) + 120
 
     service = f"""[Unit]
 Description=Dial every branch pair's test IVR and report call health to the NOC
@@ -182,12 +199,22 @@ def main():
 
     interval = float(remote.get("interval_minutes", 30))
     legs = len(branches) * (len(branches) - 1)
-    est = legs * (int(remote.get("duration", 10)) + 12) / 60
-    print(f"\nsweep is ~{est:.0f} min for {legs} legs; the NOC interval is {interval:g} min")
-    if est > interval:
+    duration = int(remote.get("duration", 10))
+
+    healthy = _sweep_seconds(legs, duration, 1) / 60
+    worst = _sweep_seconds(legs, duration, MAX_ATTEMPTS) / 60
+
+    print(f"\nsweep is ~{healthy:.0f} min for {legs} legs when they pass, "
+          f"up to ~{worst:.0f} min if every leg fails and is retried")
+    print(f"the NOC interval is {interval:g} min")
+
+    # Warn on the worst case: a mesh that has gone red is exactly when sweeps
+    # get long, and exactly when overlapping runs would hurt.
+    if worst > interval:
         print(
-            "WARNING: a sweep may take longer than the interval, so runs will queue. "
-            "Raise VOICE_MESH_INTERVAL on the NOC, or shorten VOICE_MESH_DURATION."
+            f"WARNING: a fully failing sweep (~{worst:.0f} min) would exceed the {interval:g} min "
+            "interval, so runs could queue. Raise VOICE_MESH_INTERVAL on the NOC, shorten "
+            "VOICE_MESH_DURATION, or lower MAX_ATTEMPTS in cli.py."
         )
 
     print(f"\nrun one now:  sudo systemctl start {SERVICE_NAME}.service")

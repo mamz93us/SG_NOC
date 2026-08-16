@@ -133,6 +133,8 @@ def call_and_record(
             with contextlib.suppress(BrokenPipeError):
                 proc.stdin.write("q\n")
                 proc.stdin.flush()
+            with contextlib.suppress(OSError, ValueError):
+                proc.stdin.close()
             proc.wait(timeout=10)
             reader_thread.join(timeout=5)
             log_text = "\n".join(lines)
@@ -154,9 +156,16 @@ def call_and_record(
                 proc.stdin.flush()
             time.sleep(1)
 
+        # Close stdin as well as sending 'q'. Without an EOF, a pjsua that has
+        # stopped reading its menu — wedged, or already tearing down — sits
+        # there until the wait() below times out, 15 seconds of nothing per
+        # call. Closing stdin is the only signal that does not depend on it
+        # still processing commands.
         with contextlib.suppress(BrokenPipeError):
             proc.stdin.write("q\n")
             proc.stdin.flush()
+        with contextlib.suppress(OSError, ValueError):
+            proc.stdin.close()
 
         proc.wait(timeout=15)
         reader_thread.join(timeout=5)

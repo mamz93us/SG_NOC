@@ -8,6 +8,10 @@ audible content, its length compared against the reference prompt and its pitch
 contour matched against it, and one combined report covering every pair is
 POSTed back.
 
+A leg is never failed on a single call: a failure is re-tested, and if the
+re-test disagrees a third call decides it (see _probe_leg). The report says only
+OK or FAIL — how many calls it took is written to the log, not onto the result.
+
 Nothing here ever aborts a sweep part-way: an unreachable branch or a wedged
 call is recorded as a failed leg and the run moves on, so one bad branch never
 costs you visibility into the rest.
@@ -26,6 +30,7 @@ import logging
 import sys
 import time
 import types
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -37,7 +42,16 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("voice-mesh")
 
 LAST_RUN_NAME = "last-run.json"
-PROBE_VERSION = "2.0"
+PROBE_VERSION = "2.1"
+
+# Never more than three calls for one leg: fail, re-test, and a decider if those
+# two disagree. See _probe_leg for why.
+MAX_ATTEMPTS = 3
+
+# Long enough that a retry isn't racing whatever the first attempt hit — a UCM
+# mid-reload, a re-registration, a tunnel that just flapped — and short enough
+# that a red mesh still finishes inside a sweep interval.
+RETRY_DELAY_SEC = 5
 
 
 def _pairs(branches, scope=None):
@@ -57,52 +71,152 @@ def _pairs(branches, scope=None):
             yield caller, dest
 
 
+@dataclass
+class Attempt:
+    """One call placed for one leg, and what it was judged to be."""
+
+    number: int
+    ok: bool
+    reason: str
+    capture: object = None      # None when the call could not be placed at all
+
+
+def _rec_path(state_dir: Path, caller: str, ext: str, attempt: int) -> Path:
+    """Where attempt `n` of one leg records to.
+
+    The first attempt keeps the plain name every runbook already refers to;
+    retries get their own files rather than overwriting it, so a leg that
+    flapped leaves both the failure and the pass on disk to compare.
+    """
+    base = f"last-verify-{caller}-{ext}"
+    return state_dir / (f"{base}.wav" if attempt == 1 else f"{base}.attempt{attempt}.wav")
+
+
+def _dial(cfg, caller, dest, rec_path: Path, reference) -> tuple:
+    """Place one call and judge it. Never raises — a call that could not be
+    placed is just a failed attempt, so the retry policy treats a wedged pjsua
+    the same as a bad recording."""
+    try:
+        capture = call_and_record(
+            sip_server=caller["sip_server"],
+            sip_user=caller["sip_user"],
+            sip_pass=caller["sip_pass"],
+            dest=dest["ext"],
+            rec_path=rec_path,
+            max_duration=cfg.DURATION,
+            sip_port=caller["sip_port"],
+            local_port=cfg.LOCAL_PORT,
+            pjsua_bin=cfg.PJSUA_BIN,
+        )
+    except (SystemExit, Exception) as e:
+        return False, f"call setup failed: {e}", None
+
+    # The per-call log is where a registration rejection, a missing IVR and a
+    # stuck call are actually distinguishable from each other.
+    rec_path.with_suffix(".log").write_text(capture.log_text)
+
+    ok, reason = compare(capture, reference, tolerance_pct=cfg.TOLERANCE_PCT)
+    return ok, reason, capture
+
+
+def _probe_leg(cfg, caller, dest, state_dir: Path, reference) -> list:
+    """Dial one leg until the answer is believable. Returns every attempt made,
+    in order — the last one is always the verdict.
+
+    One call is not evidence. A UCM mid-reload, a lost INVITE or a single
+    glitched RTP stream fails a leg that is fine, and the NOC's matrix then
+    shows red for something nobody can reproduce by hand. So:
+
+      * a first attempt that passes is taken at its word — the healthy case
+        stays one call, and a green sweep does not get three times longer;
+      * a failure is re-tested once, and only a second failure is believed;
+      * a pass after a failure is one of each, so a third call breaks the tie.
+
+    The cost lands only on legs that are actually misbehaving: a fully red mesh
+    dials twice as many calls as before, which is why RETRY_DELAY_SEC is seconds
+    and not minutes.
+    """
+    ext = dest["ext"]
+
+    # A leg that passes cleanly this sweep must not leave last sweep's retries
+    # sitting in the state dir looking current.
+    for stale in state_dir.glob(f"last-verify-{caller['name']}-{ext}.attempt*"):
+        stale.unlink(missing_ok=True)
+
+    def attempt(number: int) -> Attempt:
+        if number > 1:
+            time.sleep(RETRY_DELAY_SEC)
+
+        ok, reason, capture = _dial(cfg, caller, dest, _rec_path(state_dir, caller["name"], ext, number), reference)
+
+        log.info(
+            "[%s -> %s (ext %s)] attempt %s/%s %s rx_pkt=%s duration=%.2fs (reference=%.2fs) — %s",
+            caller["name"], dest["name"], ext, number, MAX_ATTEMPTS, "OK" if ok else "FAIL",
+            capture.rx_pkt if capture else 0, capture.duration_sec if capture else 0.0,
+            reference.duration_sec, reason,
+        )
+        return Attempt(number=number, ok=ok, reason=reason, capture=capture)
+
+    first = attempt(1)
+    if first.ok:
+        return [first]
+
+    second = attempt(2)
+    if not second.ok:
+        return [first, second]
+
+    return [first, second, attempt(3)]
+
+
+def _verdict(attempts: list) -> tuple:
+    """(ok, reason) for a leg: the deciding attempt's, and nothing else.
+
+    A leg is OK or it is FAIL. Whether it took one call or three is not a third
+    state and is not decorated onto the result — the reason quotes the deciding
+    attempt verbatim, so a leg that passed on the third try reads exactly like
+    one that passed on the first.
+
+    The retry history is not lost, it just isn't part of the verdict: every
+    attempt is logged as it happens, and _log_retries writes the summary. Read
+    the log when you want to know how hard a leg had to work.
+    """
+    decided = attempts[-1]
+    return decided.ok, decided.reason
+
+
+def _log_retries(caller, dest, attempts: list) -> None:
+    """The one place a leg's retry history is recorded. Log only."""
+    if len(attempts) == 1:
+        return
+
+    trail = ", ".join(f"#{a.number} {'OK' if a.ok else 'FAIL'}" for a in attempts)
+    log.warning(
+        "[%s -> %s (ext %s)] took %s attempts (%s) — reported as %s",
+        caller["name"], dest["name"], dest["ext"], len(attempts), trail,
+        "OK" if attempts[-1].ok else "FAIL",
+    )
+
+
 def _check(cfg, state_dir: Path, reference, scope=None):
     results = []
 
     for caller, dest in _pairs(cfg.BRANCHES, scope):
-        ext, name = dest["ext"], dest["name"]
-        rec_path = state_dir / f"last-verify-{caller['name']}-{ext}.wav"
+        attempts = _probe_leg(cfg, caller, dest, state_dir, reference)
+        _log_retries(caller, dest, attempts)
 
-        try:
-            capture = call_and_record(
-                sip_server=caller["sip_server"],
-                sip_user=caller["sip_user"],
-                sip_pass=caller["sip_pass"],
-                dest=ext,
-                rec_path=rec_path,
-                max_duration=cfg.DURATION,
-                sip_port=caller["sip_port"],
-                local_port=cfg.LOCAL_PORT,
-                pjsua_bin=cfg.PJSUA_BIN,
-            )
-            # The per-call log is where a registration rejection, a missing IVR
-            # and a stuck call are actually distinguishable from each other.
-            rec_path.with_suffix(".log").write_text(capture.log_text)
-        except (SystemExit, Exception) as e:
-            reason = f"call setup failed: {e}"
-            results.append({
-                "caller": caller["name"], "dest": name, "dest_ext": ext, "ok": False,
-                "rx_pkt": 0, "duration_sec": 0.0,
-                "reference_duration_sec": reference.duration_sec, "reason": reason,
-            })
-            log.warning("[%s -> %s (ext %s)] FAIL — %s", caller["name"], name, ext, reason)
-            continue
+        ok, reason = _verdict(attempts)
+        capture = attempts[-1].capture
 
-        ok, reason = compare(capture, reference, tolerance_pct=cfg.TOLERANCE_PCT)
+        log.info("[%s -> %s (ext %s)] %s — %s",
+                 caller["name"], dest["name"], dest["ext"], "OK" if ok else "FAIL", reason)
 
-        log.info(
-            "[%s -> %s (ext %s)] %s rx_pkt=%s duration=%.2fs (reference=%.2fs) — %s",
-            caller["name"], name, ext, "OK" if ok else "FAIL",
-            capture.rx_pkt, capture.duration_sec, reference.duration_sec, reason,
-        )
         results.append({
             "caller": caller["name"],
-            "dest": name,
-            "dest_ext": ext,
+            "dest": dest["name"],
+            "dest_ext": dest["ext"],
             "ok": ok,
-            "rx_pkt": capture.rx_pkt,
-            "duration_sec": round(capture.duration_sec, 2),
+            "rx_pkt": capture.rx_pkt if capture else 0,
+            "duration_sec": round(capture.duration_sec, 2) if capture else 0.0,
             "reference_duration_sec": round(reference.duration_sec, 2),
             "reason": reason,
         })

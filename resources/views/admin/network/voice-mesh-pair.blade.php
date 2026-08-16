@@ -138,10 +138,18 @@
                 </tbody>
             </table>
             <div class="card-footer small text-muted">
-                &ldquo;no RTP media received&rdquo; is one-way audio or a blocked RTP range;
-                &ldquo;never reached CONFIRMED&rdquo; is signalling — routing or the IVR itself;
-                a duration deviation usually means the wrong prompt was uploaded, or the IVR is not hanging up
-                on its own.
+                &ldquo;never reached CONFIRMED&rdquo; is signalling — registration refused, or routing never
+                reached the IVR.
+                &ldquo;no RTP media received&rdquo; is one-way audio or a blocked RTP range, while
+                &ldquo;packets arrived but no audible audio&rdquo; means the media path works and the audio
+                doesn't — usually a codec both ends agreed on but neither produced.
+                &ldquo;prompt ran Xs vs reference&rdquo; is a length problem: too long means the IVR isn't
+                hanging up on its own, too short means a truncated or wrong prompt.
+                &ldquo;does not match the reference prompt&rdquo; means something of about the right length
+                answered but it isn't the prompt — ringback, hold music or a different recording.
+                <br>
+                A leg is only failed after a re-test disagrees, so a red cell here has been confirmed by at
+                least two calls; <code>journalctl -u voice-mesh</code> shows how many attempts each took.
             </div>
         </div>
     @endif

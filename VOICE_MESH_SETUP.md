@@ -212,19 +212,54 @@ IVR-hangup detection isn't firing — the call is running to `VOICE_MESH_DURATIO
 and being cut off by us. Check the per-call `.log` for what pjsua printed around
 hangup.
 
-**How a leg is judged.** Four things must hold: the call reached CONFIRMED, RTP
-came back, the recording holds audible signal of the right length, and that
-signal's pitch contour matches the reference's. The audio checks are deliberate
-— an earlier version compared length alone, which meant ringback or hold music
-of roughly the right duration scored OK, and which measured silence and noise as
-though they were content. `TOLERANCE_PCT` governs the length comparison only;
-the content match is a fixed threshold in `voice_mesh/audio.py`.
+**How a leg is judged.** Four things must hold, checked in this order so the
+reported reason is the cause rather than a symptom: the call reached CONFIRMED,
+RTP came back, the recording holds audible signal of roughly the right length,
+and that signal's pitch contour matches the reference's. The audio checks are
+deliberate — an earlier version compared length alone, which meant ringback or
+hold music of roughly the right duration scored OK, and which measured silence
+and noise as though they were content.
+
+**Length has a floor as well as a percentage.** `TOLERANCE_PCT` from the admin
+UI is a percentage of the reference length, but a leg never fails on a
+difference under **1 second** (`DURATION_GRACE_SEC` in `reference.py`). On the
+5.8s prompt, 10% is 0.58s — tighter than normal IVR timing and a trimmed RTP
+tail move a healthy leg. The percentage takes over above 1s, and failure reasons
+quote plain seconds rather than percentages.
+
+**Content matching is not loosened.** Correct audio scores 91–100% pitch match
+even with the tones 8% off; ringback, a flat tone and hold music score 33–59%.
+`MIN_PITCH_MATCH` (60%, in `audio.py`) sits just above the wrong-audio band
+deliberately — lowering it would let hold music through, which is the exact
+false positive the check exists for.
+
+**No leg is failed on one call.** A failure is re-tested, and if the re-test
+disagrees a third call decides it. One call is not evidence: a UCM mid-reload or
+a lost INVITE fails a leg that is fine, and the matrix then shows red for
+something nobody can reproduce by hand. The report stays binary — a leg that
+passed on the third try is indistinguishable from one that passed first time —
+and the retry history goes to the log:
+
+```
+WARNING [CAI -> JED (ext 7071)] took 3 attempts (#1 FAIL, #2 OK, #3 OK) — reported as OK
+```
+
+`journalctl -u voice-mesh` is where the legs quietly working harder than they
+should show up, usually before they go properly red. Each attempt keeps its own
+recording: attempt 1 at the usual `last-verify-<caller>-<ext>.wav`, retries
+beside it as `.attempt2.wav` / `.attempt3.wav`, cleared at the start of each leg.
 
 ## Operating notes
 
-- **Capacity is quadratic.** N branches is N×(N−1) legs, run sequentially on one
-  local port: 4 → 12 legs (~4 min), 7 → 42 (~14 min), 10 → 90 (~30 min). The
-  interval must exceed the sweep time; `deploy.py` warns when it doesn't.
+- **Capacity is quadratic, and a broken mesh is slower than a healthy one.**
+  N branches is N×(N−1) legs, run sequentially on one local port. A leg that
+  passes is one call; a leg that fails is retried, up to three calls. So:
+  4 branches → 12 legs, ~4 min healthy / ~15 min all-failing; 7 → 42 legs,
+  ~15 min / ~53 min. `deploy.py` prints both and sizes `TimeoutStartSec` for
+  the worst case — otherwise a fully red sweep would be killed part-way and its
+  report lost, in the one situation where it matters most. It warns when the
+  worst case exceeds the interval; at 7 branches you will need to raise
+  `VOICE_MESH_INTERVAL` above 30 minutes or lower `MAX_ATTEMPTS`.
 - **These are real calls into production PBXs** — 42 every 30 minutes is ~2,000
   CDR entries a day. Worth mentioning to whoever reads billing reports.
 - **Replacing the reference prompt** is a three-step change: replace
