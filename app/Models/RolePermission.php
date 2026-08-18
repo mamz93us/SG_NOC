@@ -117,6 +117,7 @@ class RolePermission extends Model
             'Platform' => [
                 'manage-workflow-templates' => 'Edit Workflow Types & Approval Chains',
                 'view-email-logs' => 'View Email Send Log',
+                'view-whatsapp-logs' => 'View WhatsApp Send Log',
                 'manage-notification-rules' => 'Manage Notification Routing Rules',
                 'manage-license-monitors' => 'Manage License Inventory Monitors',
                 'manage-allowed-domains' => 'Manage Allowed Domains',

@@ -11,6 +11,7 @@ use App\Models\UcmServer;
 use App\Services\AvePoint\AvePointApiService;
 use App\Services\Backup\SftpgoApiService;
 use App\Services\Identity\GraphService;
+use App\Services\Notifications\WhatsAppService;
 use App\Services\SmtpConfigService;
 use App\Services\Sophos\SophosCentralService;
 use App\Services\Teamtailor\TeamtailorApiService;
@@ -1279,5 +1280,113 @@ class SettingsController extends Controller
             ->route('admin.settings.index')
             ->with('success', 'Employee Card settings updated.')
             ->withFragment('employee-cards');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // WhatsApp Cloud API (Meta) — alert delivery channel
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateWhatsapp(Request $request)
+    {
+        $request->validate([
+            'whatsapp_api_version' => 'nullable|string|max:10',
+            'whatsapp_phone_number_id' => 'nullable|string|max:64',
+            'whatsapp_business_account_id' => 'nullable|string|max:64',
+            'whatsapp_access_token' => 'nullable|string|max:1000',
+            'whatsapp_alert_template' => 'nullable|string|max:128',
+            'whatsapp_template_language' => 'nullable|string|max:16',
+            'whatsapp_template_body_params' => 'nullable|string|max:128',
+            'whatsapp_default_country_code' => 'nullable|string|max:8',
+        ]);
+
+        $settings = Setting::get();
+        $before = [
+            'whatsapp_enabled' => (bool) $settings->whatsapp_enabled,
+            'whatsapp_phone_number_id' => $settings->whatsapp_phone_number_id,
+            'whatsapp_use_template' => (bool) $settings->whatsapp_use_template,
+            'whatsapp_alert_template' => $settings->whatsapp_alert_template,
+            'whatsapp_template_body_params' => $settings->whatsapp_template_body_params,
+        ];
+
+        $settings->whatsapp_enabled = $request->boolean('whatsapp_enabled');
+        $settings->whatsapp_api_version = $request->whatsapp_api_version ?: 'v21.0';
+        $settings->whatsapp_phone_number_id = $request->whatsapp_phone_number_id;
+        $settings->whatsapp_business_account_id = $request->whatsapp_business_account_id;
+        $settings->whatsapp_use_template = $request->boolean('whatsapp_use_template');
+        $settings->whatsapp_alert_template = $request->whatsapp_alert_template;
+        $settings->whatsapp_template_language = $request->whatsapp_template_language ?: 'en';
+        $settings->whatsapp_template_body_params = $request->whatsapp_template_body_params ?: 'title,message';
+        $settings->whatsapp_default_country_code = $request->whatsapp_default_country_code
+            ? preg_replace('/\D+/', '', $request->whatsapp_default_country_code)
+            : null;
+
+        // Blank means "keep the stored token" — the field never renders the
+        // current value, so saving the form must not wipe it.
+        if ($request->filled('whatsapp_access_token')) {
+            $settings->whatsapp_access_token = trim($request->whatsapp_access_token);
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id' => 1,
+            'action' => 'whatsapp_updated',
+            'changes' => [
+                'before' => $before,
+                'after' => [
+                    'whatsapp_enabled' => (bool) $settings->whatsapp_enabled,
+                    'whatsapp_phone_number_id' => $settings->whatsapp_phone_number_id,
+                    'whatsapp_use_template' => (bool) $settings->whatsapp_use_template,
+                    'whatsapp_alert_template' => $settings->whatsapp_alert_template,
+                    'whatsapp_template_body_params' => $settings->whatsapp_template_body_params,
+                ],
+                // Never log the token itself, only whether it changed.
+                'token_replaced' => $request->filled('whatsapp_access_token'),
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'WhatsApp settings updated.')
+            ->withFragment('whatsapp');
+    }
+
+    public function testWhatsapp(Request $request, WhatsAppService $whatsapp)
+    {
+        $request->validate(['to' => 'nullable|string|max:32']);
+
+        // No number given: credential check only, nothing is sent.
+        if (! $request->filled('to')) {
+            return response()->json($whatsapp->testConnection());
+        }
+
+        $number = $whatsapp->withCountryCode($request->input('to'));
+
+        if (! $number) {
+            return response()->json(['ok' => false, 'detail' => 'That does not look like a dialable number.']);
+        }
+
+        try {
+            $result = $whatsapp->sendAlert(
+                to: $number,
+                fields: [
+                    'title' => 'SG NOC test message',
+                    'message' => 'WhatsApp alerting is configured correctly.',
+                    'severity' => 'INFO',
+                    'link' => rtrim((string) config('app.url'), '/') . '/admin/notifications/rules',
+                    'time' => now()->format('Y-m-d H:i'),
+                ],
+                notificationType: 'test',
+            );
+
+            return response()->json([
+                'ok' => true,
+                'detail' => 'Sent. Message id: ' . ($result['wamid'] ?? 'n/a'),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'detail' => $e->getMessage()]);
+        }
     }
 }

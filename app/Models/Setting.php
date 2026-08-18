@@ -55,6 +55,17 @@ class Setting extends Model
         // the marketing portal's ses_* credentials (see SmtpConfigService).
         'mail_transport',
         'snmp_alert_email',
+        // WhatsApp Cloud API (Meta) — alert delivery channel
+        'whatsapp_enabled',
+        'whatsapp_api_version',
+        'whatsapp_phone_number_id',
+        'whatsapp_business_account_id',
+        'whatsapp_access_token',
+        'whatsapp_use_template',
+        'whatsapp_alert_template',
+        'whatsapp_template_language',
+        'whatsapp_template_body_params',
+        'whatsapp_default_country_code',
         // CUPS Print Manager
         'cups_enabled',
         'cups_ipp_domain',
@@ -192,6 +203,8 @@ class Setting extends Model
         'vq_retention_days' => 'integer',
         'switch_drop_retention_days' => 'integer',
         'workflow_retention_days' => 'integer',
+        'whatsapp_enabled' => 'boolean',
+        'whatsapp_use_template' => 'boolean',
         'cups_enabled' => 'boolean',
         'cups_refresh_interval' => 'integer',
         'ticketing_api_enabled' => 'boolean',
@@ -338,6 +351,25 @@ class Setting extends Model
     }
 
     public function getSmtpPasswordAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── WhatsApp access token — encrypted at rest ────────────────
+
+    public function setWhatsappAccessTokenAttribute(?string $value): void
+    {
+        $this->attributes['whatsapp_access_token'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getWhatsappAccessTokenAttribute(?string $value): ?string
     {
         if (! $value) {
             return null;

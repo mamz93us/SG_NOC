@@ -25,6 +25,7 @@ class UserController extends Controller
             'email'    => 'required|email|unique:users,email',
             'password' => ['required', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
             'role'     => 'required|in:super_admin,admin,hr,viewer,browser_user',
+            'whatsapp_number' => 'nullable|string|max:32',
         ]);
 
         $user = User::create([
@@ -32,6 +33,7 @@ class UserController extends Controller
             'email'    => $data['email'],
             'password' => Hash::make($data['password']),
             'role'     => $data['role'],
+            'whatsapp_number' => $data['whatsapp_number'] ?? null,
         ]);
 
         ActivityLog::create([
@@ -53,13 +55,15 @@ class UserController extends Controller
             'email'    => 'required|email|unique:users,email,' . $user->id,
             'role'     => 'required|in:super_admin,admin,hr,viewer,browser_user',
             'password' => ['nullable', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
+            'whatsapp_number' => 'nullable|string|max:32',
         ]);
 
-        $old = $user->only(['name', 'email', 'role']);
+        $old = $user->only(['name', 'email', 'role', 'whatsapp_number']);
 
         $user->name  = $data['name'];
         $user->email = $data['email'];
         $user->role  = $data['role'];
+        $user->whatsapp_number = $data['whatsapp_number'] ?? null;
 
         if (!empty($data['password'])) {
             $user->password = Hash::make($data['password']);
@@ -73,7 +77,7 @@ class UserController extends Controller
             'action'     => 'updated',
             'changes'    => [
                 'old' => $old,
-                'new' => $user->only(['name', 'email', 'role']),
+                'new' => $user->only(['name', 'email', 'role', 'whatsapp_number']),
             ],
             'user_id' => Auth::id(),
         ]);

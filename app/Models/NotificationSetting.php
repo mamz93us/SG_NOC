@@ -11,11 +11,13 @@ class NotificationSetting extends Model
         'user_id',
         'notify_email',
         'notify_in_app',
+        'notify_whatsapp',
     ];
 
     protected $casts = [
-        'notify_email'  => 'boolean',
-        'notify_in_app' => 'boolean',
+        'notify_email'    => 'boolean',
+        'notify_in_app'   => 'boolean',
+        'notify_whatsapp' => 'boolean',
     ];
 
     // ─────────────────────────────────────────────────────────────
@@ -35,7 +37,7 @@ class NotificationSetting extends Model
     {
         return static::firstOrCreate(
             ['user_id' => $userId],
-            ['notify_email' => true, 'notify_in_app' => true]
+            ['notify_email' => true, 'notify_in_app' => true, 'notify_whatsapp' => true]
         );
     }
 }

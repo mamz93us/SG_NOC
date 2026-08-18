@@ -22,6 +22,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'whatsapp_number',
         'password',
         'role',
         'two_factor_secret',
@@ -47,6 +48,20 @@ class User extends Authenticatable
             'dark_mode' => 'boolean',
             'last_login_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Store WhatsApp numbers as bare digits.
+     *
+     * People type them every way there is — +20 100 123 4567, (010) 123-4567.
+     * The Cloud API accepts only digits, so normalise once on write rather
+     * than at each of the send sites.
+     */
+    public function setWhatsappNumberAttribute(?string $value): void
+    {
+        $this->attributes['whatsapp_number'] = blank($value)
+            ? null
+            : (preg_replace('/\D+/', '', $value) ?: null);
     }
 
     // ── Two-Factor Authentication helpers ────────────────────

@@ -52,7 +52,13 @@ class NotificationController extends Controller
     public function settings()
     {
         $preferences = NotificationSetting::forUser(Auth::id());
-        return view('admin.notifications.settings', compact('preferences'));
+
+        return view('admin.notifications.settings', [
+            'preferences' => $preferences,
+            // The WhatsApp toggle is meaningless without a number on the
+            // account, so the page says so rather than silently doing nothing.
+            'whatsappNumber' => Auth::user()?->whatsapp_number,
+        ]);
     }
 
     public function updateSettings(Request $request)
@@ -60,6 +66,7 @@ class NotificationController extends Controller
         $validated = $request->validate([
             'notify_email'  => 'boolean',
             'notify_in_app' => 'boolean',
+            'notify_whatsapp' => 'boolean',
         ]);
 
         $setting = NotificationSetting::updateOrCreate(
@@ -67,6 +74,7 @@ class NotificationController extends Controller
             [
                 'notify_email'  => $request->boolean('notify_email'),
                 'notify_in_app' => $request->boolean('notify_in_app'),
+                'notify_whatsapp' => $request->boolean('notify_whatsapp'),
             ]
         );
 
@@ -77,6 +85,7 @@ class NotificationController extends Controller
             'changes'    => [
                 'notify_email'  => $setting->notify_email,
                 'notify_in_app' => $setting->notify_in_app,
+                'notify_whatsapp' => $setting->notify_whatsapp,
             ],
             'user_id' => Auth::id(),
         ]);

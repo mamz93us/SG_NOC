@@ -770,6 +770,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/sophos-central', [SettingsController::class, 'updateSophosCentral'])->name('settings.sophos-central');
         Route::post('settings/sophos-central/test', [SettingsController::class, 'testSophosCentral'])->name('settings.sophos-central.test');
         Route::post('settings/employee-cards', [SettingsController::class, 'updateEmployeeCards'])->name('settings.employee-cards');
+        Route::post('settings/whatsapp', [SettingsController::class, 'updateWhatsapp'])->name('settings.whatsapp');
+        Route::post('settings/whatsapp/test', [SettingsController::class, 'testWhatsapp'])->name('settings.whatsapp.test');
 
         // ── Sync Status Dashboard ────────────────────────────────────
         Route::get('sync-status', [\App\Http\Controllers\Admin\SyncStatusController::class, 'index'])->name('sync-status');
@@ -1878,6 +1880,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ── Email Logs ────────────────────────────────────────────────
     Route::get('/notifications/email-log', [EmailLogController::class, 'index'])->name('email-log.index');
     Route::delete('/notifications/email-log', [EmailLogController::class, 'clearAll'])->name('email-log.clear');
+
+    // WhatsApp delivery log — the Cloud API counterpart of the email log.
+    Route::get('/notifications/whatsapp-log', [\App\Http\Controllers\Admin\WhatsappLogController::class, 'index'])->name('whatsapp-log.index');
+    Route::delete('/notifications/whatsapp-log', [\App\Http\Controllers\Admin\WhatsappLogController::class, 'clearAll'])->name('whatsapp-log.clear');
 
     // ── Notification Rules ────────────────────────────────────────
     Route::get('/notifications/rules', [NotificationRuleController::class, 'index'])->name('notification-rules.index');

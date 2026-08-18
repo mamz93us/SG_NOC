@@ -32,6 +32,7 @@ return [
     ['key' => 'notification-rules','label' => 'Notification Rules',    'route' => 'admin.notification-rules.index',      'icon' => 'bi-funnel-fill',     'permission' => 'manage-notification-rules'],
     ['key' => 'sync-status',       'label' => 'Sync Status',           'route' => 'admin.sync-status',                   'icon' => 'bi-arrow-repeat',    'permission' => null],
     ['key' => 'email-log',         'label' => 'Email Log',             'route' => 'admin.email-log.index',               'icon' => 'bi-envelope-check',  'permission' => 'view-email-logs'],
+    ['key' => 'whatsapp-log',      'label' => 'WhatsApp Log',          'route' => 'admin.whatsapp-log.index',            'icon' => 'bi-whatsapp',        'permission' => 'view-whatsapp-logs'],
     ['key' => 'license-monitors',  'label' => 'License Monitors',      'route' => 'admin.license-monitors.index',        'icon' => 'bi-eye',             'permission' => 'manage-license-monitors'],
     ['key' => 'activity-logs',     'label' => 'Activity Log',          'route' => 'admin.activity-logs',                 'icon' => 'bi-shield-check',    'permission' => 'view-activity-logs'],
     ['key' => 'phone-logs',        'label' => 'Phone XML Logs',        'route' => 'admin.phone-logs.index',              'icon' => 'bi-filetype-xml',    'permission' => 'view-phone-logs'],

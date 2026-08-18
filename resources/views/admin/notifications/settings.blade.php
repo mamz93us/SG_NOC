@@ -37,6 +37,25 @@
                             <div class="text-muted small mt-1">Receive email alerts for approvals, completions, and critical events</div>
                         </div>
                     </div>
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="notify_whatsapp" id="notify_whatsapp" value="1" {{ $preferences->notify_whatsapp ? 'checked' : '' }}>
+                            <label class="form-check-label fw-semibold" for="notify_whatsapp">
+                                <i class="bi bi-whatsapp me-1"></i>WhatsApp Notifications
+                            </label>
+                            <div class="text-muted small mt-1">
+                                Receive alerts on WhatsApp for the events routed to you.
+                                @if($whatsappNumber)
+                                    Sending to <code>+{{ $whatsappNumber }}</code>.
+                                @else
+                                    <span class="text-warning">
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                        No WhatsApp number is set on your account — ask an admin to add one, or nothing will be sent.
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
                     <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Preferences</button>
                 </form>
             </div>

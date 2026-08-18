@@ -1239,6 +1239,167 @@
 </div>
 
 {{-- ─────────────────────────────────────────────────────── --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+{{-- WhatsApp Cloud API — alert delivery channel             --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="whatsapp">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-whatsapp text-success fs-5"></i>
+        <h5 class="mb-0">WhatsApp Alerts (Meta Cloud API)</h5>
+        @if($settings->whatsapp_enabled && $settings->whatsapp_phone_number_id)
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @elseif($settings->whatsapp_phone_number_id)
+            <span class="badge bg-warning text-dark ms-auto">Configured (Disabled)</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Not configured</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <p class="text-muted small">
+            Sends NOC alerts over WhatsApp. Turn the channel on per rule in
+            <a href="{{ route('admin.notification-rules.index') }}">Notification Rules</a>; each user is messaged on the
+            number saved on their profile in <a href="{{ route('admin.users.index') }}">Users</a>.
+        </p>
+
+        <form method="POST" action="{{ route('admin.settings.whatsapp') }}">
+            @csrf
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="whatsapp_enabled"
+                               id="whatsapp_enabled" value="1" {{ $settings->whatsapp_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="whatsapp_enabled">Enable WhatsApp alerting</label>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Phone Number ID</label>
+                    <input type="text" name="whatsapp_phone_number_id" class="form-control font-monospace"
+                           value="{{ old('whatsapp_phone_number_id', $settings->whatsapp_phone_number_id) }}"
+                           placeholder="300975966437834">
+                    <div class="form-text">Meta Business &rarr; WhatsApp &rarr; API Setup.</div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">WhatsApp Business Account ID</label>
+                    <input type="text" name="whatsapp_business_account_id" class="form-control font-monospace"
+                           value="{{ old('whatsapp_business_account_id', $settings->whatsapp_business_account_id) }}"
+                           placeholder="optional">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Graph API version</label>
+                    <input type="text" name="whatsapp_api_version" class="form-control font-monospace"
+                           value="{{ old('whatsapp_api_version', $settings->whatsapp_api_version ?: 'v21.0') }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Default country code</label>
+                    <input type="text" name="whatsapp_default_country_code" class="form-control font-monospace"
+                           value="{{ old('whatsapp_default_country_code', $settings->whatsapp_default_country_code) }}"
+                           placeholder="20">
+                    <div class="form-text">Applied to numbers saved in national form.</div>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Permanent access token</label>
+                    <input type="password" name="whatsapp_access_token" class="form-control" autocomplete="off"
+                           placeholder="{{ $settings->whatsapp_access_token ? '•••••• (leave blank to keep current)' : 'System-user permanent token' }}">
+                    <div class="form-text">
+                        Stored encrypted. Use a <strong>System User</strong> permanent token — the 24-hour test token in
+                        API Setup expires, and alerting goes silent when it does.
+                    </div>
+                </div>
+
+                <div class="col-12"><hr class="my-1"></div>
+
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="whatsapp_use_template"
+                               id="whatsapp_use_template" value="1" {{ $settings->whatsapp_use_template ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="whatsapp_use_template">Send as an approved template</label>
+                    </div>
+                    <div class="form-text">
+                        Keep this on. Meta only accepts free-form text within 24 hours of the recipient messaging the
+                        business number, which is never the case for an unattended alert — with templates off, sends
+                        fail with error 131047.
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Template name</label>
+                    <input type="text" name="whatsapp_alert_template" class="form-control font-monospace"
+                           value="{{ old('whatsapp_alert_template', $settings->whatsapp_alert_template) }}"
+                           placeholder="sg_noc_alert">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Template language</label>
+                    <input type="text" name="whatsapp_template_language" class="form-control font-monospace"
+                           value="{{ old('whatsapp_template_language', $settings->whatsapp_template_language ?: 'en') }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Body parameters</label>
+                    <input type="text" name="whatsapp_template_body_params" class="form-control font-monospace"
+                           value="{{ old('whatsapp_template_body_params', $settings->whatsapp_template_body_params ?: 'title,message') }}"
+                           placeholder="title,message">
+                    <div class="form-text">
+                        Which alert fields fill the template's numbered placeholders, in order. Available:
+                        <code>title</code>, <code>message</code>, <code>severity</code>, <code>link</code>,
+                        <code>time</code>. The count must match the approved template exactly.
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 mt-3 flex-wrap">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-save me-1"></i>Save WhatsApp Settings
+                </button>
+                <div class="input-group input-group-sm" style="max-width: 400px">
+                    <input type="text" id="whatsapp-test-to" class="form-control font-monospace"
+                           placeholder="Test number (blank = credential check only)">
+                    <button type="button" class="btn btn-outline-secondary" id="whatsapp-test-btn">
+                        <i class="bi bi-plug me-1"></i>Test
+                    </button>
+                </div>
+            </div>
+            <div id="whatsapp-test-result" class="small mt-2"></div>
+        </form>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+document.getElementById('whatsapp-test-btn')?.addEventListener('click', function () {
+    const btn = this;
+    const result = document.getElementById('whatsapp-test-result');
+    const to = document.getElementById('whatsapp-test-to').value.trim();
+
+    btn.disabled = true;
+    result.innerHTML = '<span class="text-muted">Contacting Meta…</span>';
+
+    fetch('{{ route('admin.settings.whatsapp.test') }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({ to: to || null })
+    })
+    .then(r => r.json())
+    .then(d => {
+        result.innerHTML = d.ok
+            ? '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>' + d.detail + '</span>'
+            : '<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>' + d.detail + '</span>';
+    })
+    .catch(() => {
+        result.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>Request failed</span>';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-plug me-1"></i>Test';
+    });
+});
+</script>
+@endpush
+
 {{-- SFTPGo — device backup ingestion (SFTP / FTPS)          --}}
 {{-- ─────────────────────────────────────────────────────── --}}
 <div class="card mt-4" id="sftpgo">

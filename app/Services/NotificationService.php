@@ -3,11 +3,14 @@
 namespace App\Services;
 
 use App\Jobs\SendNotificationEmailJob;
+use App\Jobs\SendNotificationWhatsAppJob;
 use App\Models\Notification;
 use App\Models\NotificationRule;
 use App\Models\NotificationSetting;
 use App\Models\User;
+use App\Services\Notifications\WhatsAppService;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 class NotificationService
 {
@@ -150,7 +153,7 @@ class NotificationService
         string  $severity = 'info',
         bool    $skipCooldown = false
     ): void {
-        $rules = NotificationRule::active()->forEvent($type)->get();
+        $rules = NotificationRule::active()->forEvent($type)->with('recipients')->get();
 
         if ($rules->isEmpty()) {
             // No rules configured for this event — fall back to all admins
@@ -159,14 +162,10 @@ class NotificationService
         }
 
         $notifiedIds = collect(); // deduplicate: first matching rule wins per user
+        $whatsappSent = collect(); // deduplicate by number, across all rules
 
         foreach ($rules as $rule) {
-            if ($rule->recipient_type === 'role') {
-                $recipients = User::where('role', $rule->recipient_role)->get();
-            } else {
-                $user = $rule->recipientUser;
-                $recipients = $user ? collect([$user]) : collect();
-            }
+            $recipients = $rule->resolveRecipients();
 
             foreach ($recipients as $recipient) {
                 if ($notifiedIds->contains($recipient->id)) {
@@ -215,8 +214,81 @@ class NotificationService
                 if ($shouldEmail) {
                     SendNotificationEmailJob::dispatch($notification, $recipient)->afterCommit();
                 }
+
+                // WhatsApp — same semantics as email: the rule decides who is
+                // paged, the recipient's own preference can veto.
+                if ($rule->send_whatsapp && $settings->notify_whatsapp) {
+                    $this->queueWhatsApp(
+                        $recipient->whatsapp_number,
+                        $recipient->name,
+                        $type, $title, $message, $link, $severity,
+                        $notification->id,
+                        $whatsappSent
+                    );
+                }
+            }
+
+            // Numbers typed onto the rule itself: on-call phones and people
+            // with no NOC login. They are a separate audience, not a duplicate
+            // of the users above, so they send whether or not any user matched.
+            if ($rule->send_whatsapp) {
+                foreach ($rule->whatsappNumberList() as $number) {
+                    $this->queueWhatsApp(
+                        $number, null,
+                        $type, $title, $message, $link, $severity,
+                        null,
+                        $whatsappSent
+                    );
+                }
             }
         }
+    }
+
+    /**
+     * Queue one WhatsApp send, skipping numbers already messaged for this
+     * event and anything that does not normalise to a dialable number.
+     *
+     * The alert text is passed as scalars rather than a Notification model:
+     * the rule's extra numbers belong to no user, so there is no notification
+     * row to hang them off, and `notifications.user_id` is not nullable.
+     */
+    private function queueWhatsApp(
+        ?string    $rawNumber,
+        ?string    $name,
+        string     $type,
+        string     $title,
+        string     $message,
+        ?string    $link,
+        string     $severity,
+        ?int       $notificationId,
+        Collection $alreadySent
+    ): void {
+        $whatsapp = app(WhatsAppService::class);
+
+        if (! $whatsapp->isConfigured()) {
+            return;
+        }
+
+        $number = $whatsapp->withCountryCode($rawNumber);
+
+        if (! $number || $alreadySent->contains($number)) {
+            return;
+        }
+
+        $alreadySent->push($number);
+
+        SendNotificationWhatsAppJob::dispatch(
+            $number,
+            [
+                'type'     => $type,
+                'title'    => $title,
+                'message'  => $message,
+                'link'     => $link,
+                'severity' => $severity,
+            ],
+            $notificationId,
+            $name
+        )->afterCommit();
     }
 
     public function markRead(int $notificationId, int $userId): void
@@ -263,15 +335,12 @@ class NotificationService
     private function applyNotificationRules(Notification $notification): void
     {
         try {
-            $rules = NotificationRule::active()->forEvent($notification->type)->get();
+            $rules = NotificationRule::active()->forEvent($notification->type)->with('recipients')->get();
+
+            $whatsappSent = collect(); // deduplicate by number, across all rules
 
             foreach ($rules as $rule) {
-                if ($rule->recipient_type === 'role') {
-                    $recipients = User::where('role', $rule->recipient_role)->get();
-                } else {
-                    $user = $rule->recipientUser;
-                    $recipients = $user ? collect([$user]) : collect();
-                }
+                $recipients = $rule->resolveRecipients();
 
                 foreach ($recipients as $recipient) {
                     // Skip if this user is already the notification owner
@@ -321,6 +390,37 @@ class NotificationService
                     // sent at all.
                     if ($rule->send_email && $recipientPref->notify_email) {
                         SendNotificationEmailJob::dispatch($notification, $recipient)->afterCommit();
+                    }
+
+                    // WhatsApp — rule decides, recipient preference vetoes.
+                    if ($rule->send_whatsapp && $recipientPref->notify_whatsapp) {
+                        $this->queueWhatsApp(
+                            $recipient->whatsapp_number,
+                            $recipient->name,
+                            $notification->type,
+                            $notification->title,
+                            $notification->message,
+                            $notification->link,
+                            $notification->severity,
+                            $notification->id,
+                            $whatsappSent
+                        );
+                    }
+                }
+
+                // The rule's own numbers — see notifyViaRules().
+                if ($rule->send_whatsapp) {
+                    foreach ($rule->whatsappNumberList() as $number) {
+                        $this->queueWhatsApp(
+                            $number, null,
+                            $notification->type,
+                            $notification->title,
+                            $notification->message,
+                            $notification->link,
+                            $notification->severity,
+                            $notification->id,
+                            $whatsappSent
+                        );
                     }
                 }
             }

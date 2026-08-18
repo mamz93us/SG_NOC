@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\Notifications\WhatsAppService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class NotificationRule extends Model
 {
@@ -10,6 +13,7 @@ class NotificationRule extends Model
         'event_type', 'module', 'sensor_id', 'severity',
         'recipient_type', 'recipient_role',
         'recipient_user_id', 'send_email', 'send_in_app',
+        'send_whatsapp', 'whatsapp_numbers',
         'notify_telegram', 'notify_sms', 'notify_dashboard',
         'cooldown_minutes', 'is_active',
     ];
@@ -17,6 +21,7 @@ class NotificationRule extends Model
     protected $casts = [
         'send_email' => 'boolean',
         'send_in_app' => 'boolean',
+        'send_whatsapp' => 'boolean',
         'notify_telegram' => 'boolean',
         'notify_sms' => 'boolean',
         'notify_dashboard' => 'boolean',
@@ -27,6 +32,67 @@ class NotificationRule extends Model
     public function recipientUser()
     {
         return $this->belongsTo(User::class, 'recipient_user_id');
+    }
+
+    /**
+     * Every user this rule pages, when recipient_type = 'user'.
+     *
+     * `recipient_user_id` survives as the first of these so older code and
+     * exports that read the column still resolve to a real person.
+     */
+    public function recipients(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'notification_rule_recipients')
+            ->withTimestamps()
+            ->orderBy('users.name');
+    }
+
+    /**
+     * The users this rule targets, whichever way it is addressed.
+     *
+     * One place resolves role / multi-user / legacy single-user so the two
+     * call sites in NotificationService cannot drift apart.
+     */
+    public function resolveRecipients(): Collection
+    {
+        if ($this->recipient_type === 'role') {
+            return User::where('role', $this->recipient_role)->get();
+        }
+
+        $users = $this->relationLoaded('recipients')
+            ? $this->recipients
+            : $this->recipients()->get();
+
+        if ($users->isNotEmpty()) {
+            return $users;
+        }
+
+        // Pre-pivot rule, or one whose pivot rows went with a deleted user:
+        // fall back to the legacy column rather than paging nobody.
+        $legacy = $this->recipientUser;
+
+        return $legacy ? new Collection([$legacy]) : new Collection;
+    }
+
+    /**
+     * Extra WhatsApp destinations attached to the rule itself — an on-call
+     * phone or a manager with no NOC login. Stored as free text (comma or
+     * newline separated) and normalised to digits on read.
+     */
+    public function whatsappNumberList(): array
+    {
+        if (blank($this->whatsapp_numbers)) {
+            return [];
+        }
+
+        $parts = preg_split('/[,;\r\n]+/', (string) $this->whatsapp_numbers) ?: [];
+
+        return collect($parts)
+            ->map(fn ($n) => WhatsAppService::normaliseNumber($n))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function scopeActive($query)

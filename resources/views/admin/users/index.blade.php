@@ -72,7 +72,14 @@
                             @endif
                         </div>
                     </td>
-                    <td>{{ $user->email }}</td>
+                    <td>
+                        {{ $user->email }}
+                        @if($user->whatsapp_number)
+                            <div class="text-success small font-monospace" title="WhatsApp number">
+                                <i class="bi bi-whatsapp"></i> +{{ $user->whatsapp_number }}
+                            </div>
+                        @endif
+                    </td>
                     <td>
                         <span class="badge bg-{{ $roleColor }}">
                             {{ \App\Models\User::roleLabel($user->role) }}
@@ -150,6 +157,17 @@
                                         <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
                                         <input type="email" name="email" class="form-control"
                                             value="{{ $user->email }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">
+                                            <i class="bi bi-whatsapp text-success me-1"></i>WhatsApp Number
+                                        </label>
+                                        <input type="text" name="whatsapp_number" class="form-control font-monospace"
+                                            value="{{ $user->whatsapp_number }}" placeholder="201001234567">
+                                        <div class="form-text">
+                                            Used by notification rules with the WhatsApp channel on. Digits only;
+                                            include the country code, or set a default in Settings.
+                                        </div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label fw-semibold">Role <span class="text-danger">*</span></label>
@@ -251,6 +269,14 @@
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
                         <input type="email" name="email" class="form-control" required placeholder="user@company.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-whatsapp text-success me-1"></i>WhatsApp Number
+                        </label>
+                        <input type="text" name="whatsapp_number" class="form-control font-monospace"
+                            placeholder="201001234567">
+                        <div class="form-text">Optional. Needed to page this user over WhatsApp.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Role <span class="text-danger">*</span></label>
