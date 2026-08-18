@@ -66,6 +66,51 @@ two placeholders and three configured tokens is rejected with error `132000`.
 Newlines and repeated spaces are flattened out of every parameter before sending —
 Meta rejects them inside a template parameter.
 
+## 2b. Importing the credentials from the UBL portal
+
+The UBL portal already has a working Cloud API setup, hardcoded in
+`SamirGroup/settings.py`. `whatsapp:configure` lifts those two values straight
+into the NOC's encrypted settings without them passing through this repo, a
+shell history entry, or the command's own output (it prints a masked
+fingerprint, never the token):
+
+```bash
+php artisan whatsapp:configure --from-django=/path/to/UnitedByLegacyWebApp/SamirGroup/settings.py --country-code=20 --test
+```
+
+Without `--from-django` the command prompts for the token (hidden) or takes
+`--token=` / `--phone-number-id=`. `--test` verifies against Graph, lists the
+approved templates and checks that the selected one's placeholder count matches
+the configured body parameters. Nothing is sent.
+
+**What that account is, as verified on 2026-08-18:**
+
+| | |
+|---|---|
+| Verified name | Samir Trading & Marketing |
+| Number | +966 59 328 2053 |
+| Quality rating | GREEN |
+| Token type | System user, `expires_at: 0` — permanent |
+| Scopes | `whatsapp_business_management`, `whatsapp_business_messaging` |
+
+Two consequences worth deciding on before switching the channel on:
+
+- **NOC alerts will arrive from the Samir Trading & Marketing number**, the same
+  identity UBL sends its login OTPs from. If NOC alerting should have its own
+  sender, register a separate number on the WABA instead.
+- **The only approved template on that account is UBL's OTP template**
+  (`united_by_legacy_verfitcation_code`), whose body is a verification-code
+  message. It cannot carry an alert — a NOC template still has to be created and
+  approved as described above.
+
+**The Business Account ID has to be pasted in by hand.** It is not derivable
+from a phone number ID: the phone node has no `whatsapp_business_account` field,
+and the token's granular scopes carry no target ids. `whatsapp:configure` tries
+the system user's assigned accounts, which is empty whenever the WABA reaches the
+app through the business rather than a direct assignment. Copy it from WhatsApp
+Manager → API Setup. Only template listing and validation need it — sending does
+not.
+
 ## 3. Configure the NOC
 
 **Admin → Settings → WhatsApp Alerts**:
@@ -115,7 +160,7 @@ the API error verbatim.
 | `131047` re-engagement message | Template mode is off, or the template was not used. Turn template mode on. |
 | `132000` number of parameters mismatch | Body parameters setting does not match the approved template. |
 | `132001` template does not exist | Name or language mismatch — the language code is part of the identity. |
-| `190` / 401 | Token expired. The API Setup token lasts 24 h; use a System User token. |
+| `190` / 401 | Token expired. The API Setup token lasts 24 h; use a System User token. Check with `whatsapp:configure --test`. |
 | `131030` recipient not in allowed list | The app is still in development mode — add the number as a test recipient, or take the app live. |
 | Nothing queued at all | WhatsApp disabled in Settings, no token, or the recipients have no number saved. |
 
@@ -132,5 +177,6 @@ with a 30 s / 120 s backoff; the log row is written on every attempt.
 | Queued send | `app/Jobs/SendNotificationWhatsAppJob.php` |
 | Routing | `app/Services/NotificationService.php` (`notifyViaRules`, `applyNotificationRules`) |
 | Rule model | `app/Models/NotificationRule.php` (`recipients()`, `resolveRecipients()`, `whatsappNumberList()`) |
+| Import / CLI setup | `app/Console/Commands/ConfigureWhatsapp.php` (`whatsapp:configure`) |
 | Admin pages | `Admin\NotificationRuleController`, `Admin\WhatsappLogController`, `Admin\SettingsController::updateWhatsapp` |
 | Log | `whatsapp_logs` table / `App\Models\WhatsappLog` |

@@ -332,6 +332,119 @@ class WhatsAppService
     }
 
     /**
+     * Resolve the WhatsApp Business Account id, needed for template listing.
+     *
+     * There is no reverse lookup from a phone number to its WABA: the phone
+     * node has no `whatsapp_business_account` field (Graph answers "(#100)
+     * Tried accessing nonexisting field"), and a token's granular scopes carry
+     * no target_ids. The one edge that can answer is the system user's
+     * assigned accounts, and that is empty when the WABA reaches the app
+     * through the business rather than a direct assignment — which is the
+     * common setup. When it comes back empty the id has to be pasted in from
+     * WhatsApp Manager; it is not a permissions problem.
+     */
+    public function discoverBusinessAccountId(): ?string
+    {
+        $s = $this->settings();
+
+        if (filled($s->whatsapp_business_account_id)) {
+            return $s->whatsapp_business_account_id;
+        }
+
+        if (blank($s->whatsapp_access_token)) {
+            return null;
+        }
+
+        $version = $s->whatsapp_api_version ?: self::DEFAULT_API_VERSION;
+
+        try {
+            $response = Http::withToken($s->whatsapp_access_token)
+                ->acceptJson()
+                ->timeout(15)
+                ->get("https://graph.facebook.com/{$version}/me/assigned_whatsapp_business_accounts");
+
+            return $response->successful()
+                ? data_get($response->json(), 'data.0.id')
+                : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Approved message templates on the business account, with the number of
+     * body placeholders each one takes.
+     *
+     * The commonest way to break this integration is a template whose
+     * placeholder count does not match the configured body parameters — Meta
+     * answers 132000 and every alert fails. Listing them makes that checkable
+     * before the first real alert rather than after.
+     *
+     * @return array{ok:bool,detail:string,templates:list<array<string,mixed>>}
+     */
+    public function listTemplates(): array
+    {
+        $s = $this->settings();
+        $wabaId = $this->discoverBusinessAccountId();
+
+        if (! $wabaId) {
+            return [
+                'ok' => false,
+                'detail' => 'No WhatsApp Business Account ID. It cannot be derived from a phone number ID — copy it from WhatsApp Manager (API Setup) into Settings → WhatsApp.',
+                'templates' => [],
+            ];
+        }
+
+        $version = $s->whatsapp_api_version ?: self::DEFAULT_API_VERSION;
+
+        try {
+            $response = Http::withToken($s->whatsapp_access_token)
+                ->acceptJson()
+                ->timeout(20)
+                ->get("https://graph.facebook.com/{$version}/{$wabaId}/message_templates", [
+                    'fields' => 'name,status,category,language,components',
+                    'limit' => 100,
+                ]);
+
+            if (! $response->successful()) {
+                return [
+                    'ok' => false,
+                    'detail' => data_get($response->json(), 'error.message') ?: ('HTTP '.$response->status()),
+                    'templates' => [],
+                ];
+            }
+
+            $templates = collect($response->json('data') ?? [])->map(function (array $t) {
+                $body = collect($t['components'] ?? [])->firstWhere('type', 'BODY');
+
+                return [
+                    'name' => $t['name'] ?? '',
+                    'language' => $t['language'] ?? '',
+                    'status' => $t['status'] ?? '',
+                    'category' => $t['category'] ?? '',
+                    'body' => $body['text'] ?? '',
+                    'params' => $this->countPlaceholders($body['text'] ?? ''),
+                ];
+            })->values()->all();
+
+            return ['ok' => true, 'detail' => $wabaId, 'templates' => $templates];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'detail' => $e->getMessage(), 'templates' => []];
+        }
+    }
+
+    /**
+     * Highest {{n}} in a template body — that, not the count of distinct
+     * placeholders, is how many parameters Meta expects.
+     */
+    private function countPlaceholders(string $body): int
+    {
+        preg_match_all('/\{\{\s*(\d+)\s*\}\}/', $body, $m);
+
+        return $m[1] ? max(array_map('intval', $m[1])) : 0;
+    }
+
+    /**
      * Credential check that costs nothing and sends no message: read the
      * phone number back from the Graph API.
      *
