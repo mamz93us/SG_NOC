@@ -86,12 +86,6 @@ class ConfigureWhatsapp extends Command
         $settings->whatsapp_template_language = $this->option('language') ?: ($settings->whatsapp_template_language ?: 'en');
         $settings->whatsapp_template_body_params = $settings->whatsapp_template_body_params ?: 'title,message';
 
-        // Template mode is the only one that can start a conversation; never
-        // silently leave a fresh install in text mode.
-        if ($settings->whatsapp_use_template === null) {
-            $settings->whatsapp_use_template = true;
-        }
-
         if ($this->option('enable')) {
             $settings->whatsapp_enabled = true;
         }
@@ -131,6 +125,11 @@ class ConfigureWhatsapp extends Command
         $this->line('  Country code ....... '.($settings->whatsapp_default_country_code ?: '<none>'));
         $this->line('  Channel ............ '.($settings->whatsapp_enabled ? 'ENABLED' : 'disabled (pass --enable)'));
         $this->newLine();
+
+        if ($issue = $whatsapp->configurationIssue()) {
+            $this->warn('Not sendable yet: '.$issue);
+            $this->newLine();
+        }
 
         if ($this->option('test')) {
             return $this->verify($whatsapp, $settings);

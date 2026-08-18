@@ -1261,6 +1261,14 @@
             number saved on their profile in <a href="{{ route('admin.users.index') }}">Users</a>.
         </p>
 
+        @if($settings->whatsapp_enabled && $settings->whatsapp_use_template && !$settings->whatsapp_alert_template)
+        <div class="alert alert-warning py-2 small">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            The channel is on but no template is named, so nothing can send yet — Meta rejects free-form
+            text that starts a conversation. Name an approved template below.
+        </div>
+        @endif
+
         <form method="POST" action="{{ route('admin.settings.whatsapp') }}">
             @csrf
             <div class="row g-3">

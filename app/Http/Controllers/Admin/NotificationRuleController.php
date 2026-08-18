@@ -18,10 +18,12 @@ class NotificationRuleController extends Controller
         $users = User::orderBy('name')->get(['id', 'name', 'email', 'whatsapp_number']);
         $eventTypes = NotificationRule::eventTypeLabels();
         $eventGroups = NotificationRule::eventTypeGroups();
-        $whatsappReady = app(WhatsAppService::class)->isConfigured();
+        $whatsapp = app(WhatsAppService::class);
+        $whatsappIssue = $whatsapp->configurationIssue();
+        $whatsappReady = $whatsappIssue === null;
 
         return view('admin.notifications.rules', compact(
-            'rules', 'users', 'eventTypes', 'eventGroups', 'whatsappReady'
+            'rules', 'users', 'eventTypes', 'eventGroups', 'whatsappReady', 'whatsappIssue'
         ));
     }
 

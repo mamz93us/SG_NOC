@@ -39,13 +39,46 @@ class WhatsAppService
         return $this->settings ??= Setting::get();
     }
 
+    /**
+     * Can this actually deliver a message right now?
+     *
+     * Gates every dispatch, so a half-configured channel queues nothing rather
+     * than queueing sends that are certain to fail.
+     */
     public function isConfigured(): bool
+    {
+        return $this->configurationIssue() === null;
+    }
+
+    /**
+     * Why the channel cannot send, in a sentence, or null when it can.
+     *
+     * The template check matters as much as the credentials: with template mode
+     * on and no template named, sendAlert() would fall through to plain text,
+     * and Meta refuses free-form text that starts a conversation. That failed
+     * on every alert while the admin page cheerfully showed "Enabled".
+     */
+    public function configurationIssue(): ?string
     {
         $s = $this->settings();
 
-        return (bool) $s->whatsapp_enabled
-            && filled($s->whatsapp_phone_number_id)
-            && filled($s->whatsapp_access_token);
+        if (! $s->whatsapp_enabled) {
+            return 'WhatsApp alerting is switched off in Settings.';
+        }
+
+        if (blank($s->whatsapp_phone_number_id)) {
+            return 'No WhatsApp Phone Number ID is configured.';
+        }
+
+        if (blank($s->whatsapp_access_token)) {
+            return 'No WhatsApp access token is configured.';
+        }
+
+        if ($s->whatsapp_use_template && blank($s->whatsapp_alert_template)) {
+            return 'Template mode is on but no template name is set. Meta rejects free-form text that starts a conversation (error 131047), so name an approved template.';
+        }
+
+        return null;
     }
 
     /**
@@ -280,8 +313,8 @@ class WhatsAppService
     {
         $s = $this->settings();
 
-        if (! $this->isConfigured()) {
-            throw new RuntimeException('WhatsApp is not configured (Admin -> Settings -> WhatsApp).');
+        if ($issue = $this->configurationIssue()) {
+            throw new RuntimeException('WhatsApp cannot send: '.$issue);
         }
 
         $version = $s->whatsapp_api_version ?: self::DEFAULT_API_VERSION;

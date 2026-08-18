@@ -42,9 +42,8 @@
 @if(!$whatsappReady && $rules->contains('send_whatsapp', true))
 <div class="alert alert-warning">
     <i class="bi bi-whatsapp me-2"></i>
-    Rules below have WhatsApp switched on, but the WhatsApp Cloud API is not configured or is disabled —
-    those messages are being skipped. Set it up in
-    <a href="{{ route('admin.settings.index') }}#whatsapp" class="alert-link">Settings &rarr; WhatsApp</a>.
+    Rules below have WhatsApp switched on, but nothing is being sent: {{ $whatsappIssue }}
+    Fix it in <a href="{{ route('admin.settings.index') }}#whatsapp" class="alert-link">Settings &rarr; WhatsApp</a>.
 </div>
 @endif
 
