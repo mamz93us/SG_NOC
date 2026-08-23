@@ -75,6 +75,7 @@ use App\Http\Controllers\Admin\TopologyController;
 use App\Http\Controllers\Admin\TrunkController;
 use App\Http\Controllers\Admin\TunnelHealthController;
 use App\Http\Controllers\Admin\TunnelHealthHistoryController;
+use App\Http\Controllers\Admin\TunnelOutageReportController;
 use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\UcmServerController;
 use App\Http\Controllers\Admin\UserController;
@@ -1275,6 +1276,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('/', [TunnelHealthController::class, 'index'])->name('index');
             Route::get('/data', [TunnelHealthController::class, 'data'])->name('data');
             Route::get('/history', [TunnelHealthHistoryController::class, 'index'])->name('history');
+
+            // Outage report — the incident log with from/to times, kept beyond
+            // the 7-day check retention because ISP credit claims are argued
+            // months later.
+            Route::get('/report', [TunnelOutageReportController::class, 'index'])->name('report');
+            Route::get('/report/export', [TunnelOutageReportController::class, 'export'])->name('report.export');
+
             Route::post('/check', [TunnelHealthController::class, 'checkNow'])->name('check');
         });
 
@@ -1282,6 +1290,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('/', [TunnelHealthController::class, 'store'])->name('store');
             Route::put('/{tunnel}', [TunnelHealthController::class, 'update'])->name('update');
             Route::delete('/{tunnel}', [TunnelHealthController::class, 'destroy'])->name('destroy');
+
+            // Stamping the ISP ticket reference onto an incident.
+            Route::put('/outages/{outage}', [TunnelOutageReportController::class, 'updateIncident'])->name('outages.update');
 
             Route::post('/{tunnel}/probes', [TunnelHealthController::class, 'storeProbe'])->name('probes.store');
             Route::put('/probes/{probe}', [TunnelHealthController::class, 'updateProbe'])->name('probes.update');

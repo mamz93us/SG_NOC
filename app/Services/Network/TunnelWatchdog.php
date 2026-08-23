@@ -5,6 +5,7 @@ namespace App\Services\Network;
 use App\Models\BranchTunnel;
 use App\Models\NocEvent;
 use App\Models\TunnelHealthCheck;
+use App\Models\TunnelOutage;
 use App\Models\TunnelProbe;
 use App\Services\NotificationService;
 use Illuminate\Support\Collection;
@@ -95,6 +96,11 @@ class TunnelWatchdog
                 }
             }
         }
+
+        // A tunnel switched off mid-incident is no longer probed, so its open
+        // outage would sit there forever accruing downtime nobody is measuring.
+        // Close those out before the sweep.
+        $this->closeOutagesForInactiveTunnels();
 
         $icmp = $this->icmpBatch(array_values(array_unique(array_filter($icmpTargets))));
         $tcp = $this->tcpBatch($tcpTargets);
@@ -189,7 +195,96 @@ class TunnelWatchdog
             'checked_at' => $now,
         ]);
 
+        $this->recordOutage($tunnel, $state, $failedLabels, $probesTotal - $probesUp, $now);
+
         $this->handleEvents($tunnel, $state, $previousState, $failedLabels);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Outage log
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Maintain the incident row behind the ISP report.
+     *
+     * Unlike the NocEvent in handleEvents(), this starts the clock on the very
+     * first failing cycle — no ALERT_AFTER_FAILURES grace, no flap window
+     * merging two outages into one. Paging wants to be slow and forgiving; a
+     * duration you are going to quote back to an ISP wants to be exact.
+     *
+     * Down and degraded are separate incidents: a tunnel that recovers from
+     * down to degraded has stopped losing all traffic and started losing one
+     * subnet, and reporting that as one continuous outage would be wrong.
+     *
+     * @param  array<int, string>  $failedLabels
+     */
+    protected function recordOutage(BranchTunnel $tunnel, string $state, array $failedLabels, int $probesDown, $now): void
+    {
+        $open = TunnelOutage::where('branch_tunnel_id', $tunnel->id)
+            ->whereNull('ended_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($state === BranchTunnel::STATE_UP) {
+            if ($open) {
+                $this->closeOutage($open, $now);
+            }
+
+            return;
+        }
+
+        $reason = $state === BranchTunnel::STATE_DOWN
+            ? "Gateway {$tunnel->firewall_ip} did not answer ICMP."
+            : ($failedLabels !== []
+                ? 'Unreachable through the tunnel: '.implode(', ', $failedLabels).'.'
+                : 'A carried subnet was unreachable.');
+
+        // Same state — the incident is still running. Keep duration_seconds
+        // roughly current so the report can sum it in SQL without opening rows.
+        if ($open && $open->state === $state) {
+            $open->forceFill([
+                'checks' => $open->checks + 1,
+                'probes_down' => max($open->probes_down, $probesDown),
+                'reason' => $reason,
+                'duration_seconds' => max(0, $open->started_at->diffInSeconds($now)),
+            ])->save();
+
+            return;
+        }
+
+        // Changed state — close the old incident at this instant and open the
+        // new one at the same instant, so the timeline has no hole in it.
+        if ($open) {
+            $this->closeOutage($open, $now);
+        }
+
+        TunnelOutage::create([
+            'branch_tunnel_id' => $tunnel->id,
+            'state' => $state,
+            'started_at' => $now,
+            'duration_seconds' => 0,
+            'checks' => 1,
+            'probes_down' => $probesDown,
+            'reason' => $reason,
+            'source' => 'watchdog',
+        ]);
+    }
+
+    protected function closeOutage(TunnelOutage $outage, $endedAt): void
+    {
+        $outage->forceFill([
+            'ended_at' => $endedAt,
+            'duration_seconds' => max(0, $outage->started_at->diffInSeconds($endedAt)),
+        ])->save();
+    }
+
+    /** Deactivating a tunnel ends its incident — we stopped watching, so we stop counting. */
+    protected function closeOutagesForInactiveTunnels(): void
+    {
+        TunnelOutage::whereNull('ended_at')
+            ->whereHas('tunnel', fn ($q) => $q->where('is_active', false))
+            ->get()
+            ->each(fn (TunnelOutage $o) => $this->closeOutage($o, now()));
     }
 
     /**

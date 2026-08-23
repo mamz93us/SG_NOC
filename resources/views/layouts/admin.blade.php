@@ -390,6 +390,12 @@
                                     <i class="bi bi-calendar-week me-2"></i>Tunnel History (7 days)
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.network.tunnel-health.report*') ? 'active' : '' }}"
+                                   href="{{ route('admin.network.tunnel-health.report') }}">
+                                    <i class="bi bi-file-earmark-text me-2"></i>Tunnel Outage Report
+                                </a>
+                            </li>
                             @can('view-voice-mesh')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.voice-mesh.*') ? 'active' : '' }}"

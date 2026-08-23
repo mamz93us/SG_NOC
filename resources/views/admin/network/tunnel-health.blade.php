@@ -15,6 +15,9 @@
         <a href="{{ route('admin.network.tunnel-health.history') }}" class="btn btn-outline-secondary">
             <i class="bi bi-calendar-week me-1"></i> 7 day history
         </a>
+        <a href="{{ route('admin.network.tunnel-health.report') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-file-earmark-text me-1"></i> Outage report
+        </a>
         <button id="tw-check-now" class="btn btn-primary">
             <i class="bi bi-arrow-repeat me-1"></i> Check now
         </button>

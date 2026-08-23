@@ -30,6 +30,9 @@
         <a href="{{ route('admin.network.tunnel-health.index') }}" class="btn btn-outline-secondary">
             <i class="bi bi-activity me-1"></i> Live board
         </a>
+        <a href="{{ route('admin.network.tunnel-health.report') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-file-earmark-text me-1"></i> Outage report
+        </a>
     </div>
 </div>
 
