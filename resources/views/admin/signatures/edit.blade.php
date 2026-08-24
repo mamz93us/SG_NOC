@@ -473,9 +473,11 @@ tinymce.init({
         + 'Trebuchet MS=\'trebuchet ms\',geneva,sans-serif;'
         + 'Courier New=\'courier new\',courier,monospace',
     font_size_formats: '8px 9px 10px 11px 12px 13px 14px 15px 16px 18px 20px 24px 28px 32px',
-    // Preserve email-safe inline styles, tables, and template placeholder tokens verbatim
+    // Preserve email-safe inline styles, tables, and template placeholder tokens verbatim.
+    // NOTE: use extended_valid_elements (ADDS to the default schema) NOT valid_elements
+    // (REPLACES it) — a bare '*[*]' in valid_elements drops the built-in strong/em rules
+    // and silently breaks the Bold/Italic buttons.
     entity_encoding: 'raw',
-    valid_elements: '*[*]',
     extended_valid_elements: '*[*]',
     verify_html: false,
     content_style: 'body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#333;}',
