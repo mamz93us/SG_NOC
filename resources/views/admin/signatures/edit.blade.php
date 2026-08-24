@@ -127,6 +127,9 @@
                         <input type="url" name="logo_url" id="logoUrl" class="form-control @error('logo_url') is-invalid @enderror"
                                value="{{ old('logo_url', $template?->logo_url) }}"
                                placeholder="https://…/logo.png">
+                        <button class="btn btn-outline-secondary" type="button" id="logoPickBtn" title="Choose from uploaded images">
+                            <i class="bi bi-images"></i>
+                        </button>
                         <button class="btn btn-outline-secondary" type="button" onclick="testLogoUrl()" title="Open URL in new tab">
                             <i class="bi bi-box-arrow-up-right"></i>
                         </button>
@@ -330,6 +333,29 @@
 </form>
 @endif
 
+{{-- ── Image library picker (choose from uploaded images) ── --}}
+<div class="modal fade" id="imgLibModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-images me-2"></i>Choose an uploaded image</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="imgLibGrid" class="row g-3">
+                    <div class="col-12 text-muted small">Loading…</div>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <a href="{{ route('admin.signatures.assets') }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-upload me-1"></i>Upload more…
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -414,8 +440,14 @@ tinymce.init({
     }),
     plugins: 'link image table lists code autolink',
     toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline forecolor backcolor | '
-           + 'alignleft aligncenter alignright | bullist numlist | link image table | code',
+           + 'alignleft aligncenter alignright | bullist numlist | link image imagelibrary table | code',
     toolbar_mode: 'wrap',
+    // Image dialog's "Source" field gets a browse button that opens the uploads library.
+    file_picker_callback: (cb, value, meta) => {
+        if (meta.filetype === 'image') {
+            openImageLibrary().then(url => { if (url) cb(url, { alt: '' }); });
+        }
+    },
     // Font list: uploaded (self-hosted) fonts first, then web-safe stacks (render
     // everywhere, incl. Outlook desktop), then Google Fonts (render in the editor +
     // web mail; Outlook falls back to the web-safe font at the end of each stack).
@@ -451,6 +483,16 @@ tinymce.init({
         editor.on('init', () => { tinyReady = true; });
         editor.on('input change keyup SetContent ExecCommand', () => {
             if (currentTab === 'visual') scheduleAutoPreview();
+        });
+        // Toolbar button: pick an already-uploaded image and insert it.
+        editor.ui.registry.addButton('imagelibrary', {
+            icon: 'gallery',
+            tooltip: 'Insert from uploaded images',
+            onAction: () => {
+                openImageLibrary().then(url => {
+                    if (url) editor.insertContent(`<img src="${url}" alt="" style="max-width:100%;height:auto;">`);
+                });
+            },
         });
     },
 });
@@ -615,6 +657,71 @@ setTimeout(runPreview, 700);
 function testLogoUrl() {
     const url = document.getElementById('logoUrl').value.trim();
     if (url) window.open(url, '_blank', 'noopener noreferrer');
+}
+
+// ── Image library picker ────────────────────────────────────────────────
+// Fetches uploaded images and shows them in a modal. Resolves to the chosen
+// image URL, or null if the dialog is dismissed. Used by the editor's gallery
+// button, the Image dialog's browse button, and the "Choose image" logo button.
+let _imgLibModal = null;
+function openImageLibrary() {
+    return new Promise((resolve) => {
+        const grid   = document.getElementById('imgLibGrid');
+        const modalEl = document.getElementById('imgLibModal');
+        _imgLibModal = _imgLibModal || new bootstrap.Modal(modalEl);
+        let picked = null;
+
+        grid.innerHTML = '<div class="col-12 text-muted small"><i class="bi bi-hourglass-split me-1"></i>Loading…</div>';
+
+        const onHide = () => { modalEl.removeEventListener('hidden.bs.modal', onHide); resolve(picked); };
+        modalEl.addEventListener('hidden.bs.modal', onHide);
+
+        fetch('{{ route('admin.signatures.assets.list') }}', {
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+        })
+        .then(r => r.json())
+        .then(d => {
+            const imgs = (d && d.images) || [];
+            if (!imgs.length) {
+                grid.innerHTML = '<div class="col-12 text-center text-muted py-4">'
+                    + 'No images uploaded yet.<br><a href="{{ route('admin.signatures.assets') }}" target="_blank">Upload some on the Assets page</a>.</div>';
+                return;
+            }
+            grid.innerHTML = '';
+            imgs.forEach(img => {
+                const col = document.createElement('div');
+                col.className = 'col-6 col-md-3';
+                col.innerHTML =
+                    '<button type="button" class="btn btn-outline-secondary p-1 w-100 h-100 d-flex flex-column align-items-center">'
+                    + '<span style="height:80px;display:flex;align-items:center;justify-content:center;overflow:hidden;">'
+                    + '<img src="' + img.url + '" alt="" style="max-width:100%;max-height:80px;object-fit:contain;"></span>'
+                    + '<span class="small text-truncate w-100 mt-1" title="' + img.name + '">' + img.name + '</span></button>';
+                col.querySelector('button').addEventListener('click', () => {
+                    picked = img.url;
+                    _imgLibModal.hide();
+                });
+                grid.appendChild(col);
+            });
+        })
+        .catch(() => {
+            grid.innerHTML = '<div class="col-12 text-danger small">Could not load images.</div>';
+        });
+
+        _imgLibModal.show();
+    });
+}
+
+// Logo field: "Choose image" button opens the same library.
+const _logoPickBtn = document.getElementById('logoPickBtn');
+if (_logoPickBtn) {
+    _logoPickBtn.addEventListener('click', () => {
+        openImageLibrary().then(url => {
+            if (url) {
+                document.getElementById('logoUrl').value = url;
+                scheduleAutoPreview();
+            }
+        });
+    });
 }
 </script>
 @endpush

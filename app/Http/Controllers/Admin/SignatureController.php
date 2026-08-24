@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -653,18 +654,52 @@ class SignatureController extends Controller
             'file' => 'required|file|mimes:png,jpg,jpeg,gif,webp,svg|max:3072',
         ]);
 
-        $dir = public_path('images/signatures');
-        if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
+        try {
+            $dir = public_path('images/signatures');
+            if (! is_dir($dir) && ! @mkdir($dir, 0755, true) && ! is_dir($dir)) {
+                throw new \RuntimeException("Cannot create {$dir} — check web-user write permission.");
+            }
+            if (! is_writable($dir)) {
+                throw new \RuntimeException("{$dir} is not writable by the web user.");
+            }
+
+            $file = $request->file('file');
+            $name = $this->safeAssetName($file->getClientOriginalName(), $file->getClientOriginalExtension() ?: 'png');
+            $file->move($dir, $name);
+
+            $url = $this->assetBaseUrl().'/images/signatures/'.rawurlencode($name);
+
+            return response()->json(['location' => $url, 'url' => $url, 'name' => $name]);
+        } catch (\Throwable $e) {
+            Log::error('Signature image upload failed: '.$e->getMessage(), ['exception' => $e]);
+
+            return response()->json(['error' => 'Upload failed: '.$e->getMessage()], 500);
         }
+    }
 
-        $file = $request->file('file');
-        $name = $this->safeAssetName($file->getClientOriginalName(), $file->getClientOriginalExtension());
-        $file->move($dir, $name);
+    /**
+     * GET /admin/signatures/assets/list — JSON list of hosted signature images,
+     * consumed by the editor's "choose from uploads" picker.
+     */
+    public function imageList(): JsonResponse
+    {
+        $base = $this->assetBaseUrl();
+        $images = collect(glob(public_path('images/signatures/*')) ?: [])
+            ->filter(fn ($p) => is_file($p) && preg_match('/\.(png|jpe?g|gif|webp|svg)$/i', $p))
+            ->sortByDesc(fn ($p) => filemtime($p))
+            ->map(fn ($p) => [
+                'name' => basename($p),
+                'url' => $base.'/images/signatures/'.rawurlencode(basename($p)),
+            ])
+            ->values();
 
-        $url = rtrim(config('app.url') ?: '', '/').'/images/signatures/'.rawurlencode($name);
+        return response()->json(['images' => $images]);
+    }
 
-        return response()->json(['location' => $url, 'url' => $url, 'name' => $name]);
+    /** Absolute base URL for hosted assets — falls back to the current request host. */
+    private function assetBaseUrl(): string
+    {
+        return rtrim(config('app.url') ?: request()->getSchemeAndHttpHost(), '/');
     }
 
     /**

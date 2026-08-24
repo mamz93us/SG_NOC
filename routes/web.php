@@ -2388,6 +2388,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('/assets', [\App\Http\Controllers\Admin\SignatureController::class, 'assets'])->name('assets');
             Route::post('/assets', [\App\Http\Controllers\Admin\SignatureController::class, 'storeAsset'])->name('assets.store');
             Route::post('/assets/image', [\App\Http\Controllers\Admin\SignatureController::class, 'uploadImage'])->name('assets.image');
+            Route::get('/assets/list', [\App\Http\Controllers\Admin\SignatureController::class, 'imageList'])->name('assets.list');
             Route::delete('/assets', [\App\Http\Controllers\Admin\SignatureController::class, 'destroyAsset'])->name('assets.destroy');
             Route::get('/fonts.css', [\App\Http\Controllers\Admin\SignatureController::class, 'fontsCss'])->name('fonts-css');
             Route::get('/{signature}/edit', [\App\Http\Controllers\Admin\SignatureController::class, 'edit'])->name('edit');
