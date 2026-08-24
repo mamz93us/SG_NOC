@@ -610,7 +610,7 @@ class SignatureController extends Controller
 
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'name' => 'required|string|max:200',
             'domain' => 'nullable|string|max:100',
             'type' => 'required|in:new_email,reply,all',
@@ -622,6 +622,14 @@ class SignatureController extends Controller
             'is_active' => 'boolean',
             'sort_order' => 'integer|min:0|max:9999',
         ]);
+
+        // An unchecked checkbox submits nothing, so the validated set would omit
+        // is_active entirely and update() would leave the old value untouched —
+        // meaning "make inactive" silently reverts to active. Coerce it explicitly
+        // from the request (the form posts a hidden 0 fallback before the checkbox).
+        $data['is_active'] = $request->boolean('is_active');
+
+        return $data;
     }
 
     private function defaultNewEmailHtml(): string

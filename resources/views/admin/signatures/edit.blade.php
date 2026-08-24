@@ -104,6 +104,8 @@
                 <div class="col-md-1 d-flex flex-column">
                     <label class="form-label fw-semibold">Active</label>
                     <div class="form-check form-switch mt-1">
+                        {{-- Hidden 0 fallback so unchecking actually posts a value (see SignatureController::validated) --}}
+                        <input type="hidden" name="is_active" value="0">
                         <input class="form-check-input" type="checkbox" name="is_active" value="1" id="isActive"
                                {{ old('is_active', $template?->is_active ?? true) ? 'checked' : '' }}>
                         <label class="form-check-label" for="isActive"></label>
@@ -382,9 +384,22 @@ tinymce.init({
     skin: isDark ? 'oxide-dark' : 'oxide',
     content_css: isDark ? 'dark' : 'default',
     plugins: 'link image table lists code autolink',
-    toolbar: 'undo redo | blocks fontsizeinput | bold italic underline forecolor backcolor | '
+    toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline forecolor backcolor | '
            + 'alignleft aligncenter alignright | bullist numlist | link image table | code',
     toolbar_mode: 'wrap',
+    // Email-safe font stacks (web-safe only — Outlook ignores webfonts) and a
+    // pixel-based size list, so the Visual editor can set font + size directly.
+    font_family_formats: 'Arial=arial,helvetica,sans-serif;'
+        + 'Helvetica=helvetica,arial,sans-serif;'
+        + 'Calibri=calibri,candara,segoe,\'segoe ui\',optima,sans-serif;'
+        + 'Segoe UI=\'segoe ui\',tahoma,geneva,verdana,sans-serif;'
+        + 'Tahoma=tahoma,verdana,segoe,sans-serif;'
+        + 'Verdana=verdana,geneva,sans-serif;'
+        + 'Georgia=georgia,palatino,serif;'
+        + 'Times New Roman=\'times new roman\',times,serif;'
+        + 'Trebuchet MS=\'trebuchet ms\',geneva,sans-serif;'
+        + 'Courier New=\'courier new\',courier,monospace',
+    font_size_formats: '8px 9px 10px 11px 12px 13px 14px 15px 16px 18px 20px 24px 28px 32px',
     // Preserve email-safe inline styles, tables, and template placeholder tokens verbatim
     entity_encoding: 'raw',
     valid_elements: '*[*]',

@@ -136,6 +136,7 @@
                                 <input type="hidden" name="name" value="{{ $tpl->name }}">
                                 <input type="hidden" name="domain" value="{{ $tpl->domain }}">
                                 <input type="hidden" name="type" value="{{ $tpl->type }}">
+                                <input type="hidden" name="gender" value="{{ $tpl->gender ?? 'all' }}">
                                 <input type="hidden" name="html_body" value="{{ $tpl->html_body }}">
                                 <input type="hidden" name="plain_text_body" value="{{ $tpl->plain_text_body }}">
                                 <input type="hidden" name="logo_url" value="{{ $tpl->logo_url }}">
