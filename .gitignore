@@ -25,6 +25,12 @@ deployment/smtp-relay/sasl_passwd.db
 /public/build
 /public/hot
 /public/storage
+# Runtime-uploaded signature assets (managed via the Assets page on each server)
+/public/images/signatures/*
+!/public/images/signatures/.gitkeep
+/public/fonts/signatures/*
+!/public/fonts/signatures/.gitkeep
+/storage/app/signature-fonts.json
 /storage/*.key
 /storage/pail
 /vendor

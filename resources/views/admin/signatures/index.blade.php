@@ -9,6 +9,9 @@
     </div>
     <div class="ms-auto d-flex gap-2">
         @can('manage-signatures')
+        <a href="{{ route('admin.signatures.assets') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-images me-1"></i>Assets
+        </a>
         <a href="{{ route('admin.signatures.commands') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-terminal me-1"></i>Commands
         </a>

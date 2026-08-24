@@ -4,6 +4,13 @@
 {{-- CodeMirror 5 --}}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/theme/dracula.min.css">
+{{-- Google Fonts — for the editor + web mail clients only. NOTE: Outlook desktop
+     ignores webfonts, so each entry in font_family_formats has a web-safe fallback. --}}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Lato:wght@400;700&family=Montserrat:wght@400;600&family=Open+Sans:wght@400;600;700&family=Poppins:wght@400;600&family=Roboto:wght@400;500;700&display=swap">
+{{-- Uploaded (self-hosted) signature fonts — @font-face generated from the Assets manager --}}
+<link rel="stylesheet" href="{{ route('admin.signatures.fonts-css') }}">
 <style>
     .CodeMirror { height: 400px; font-size: 13px; border: 1px solid #dee2e6; border-radius: 0 0 .375rem .375rem; }
     [data-bs-theme="dark"] .CodeMirror { border-color: #373b3e; }
@@ -382,14 +389,48 @@ tinymce.init({
     menubar: false,
     statusbar: false,
     skin: isDark ? 'oxide-dark' : 'oxide',
-    content_css: isDark ? 'dark' : 'default',
+    // Load the Google Fonts stylesheet inside the editor iframe too, so the chosen
+    // font actually previews in the Visual editor (not just the toolbar dropdown).
+    content_css: [
+        isDark ? 'dark' : 'default',
+        'https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Lato:wght@400;700&family=Montserrat:wght@400;600&family=Open+Sans:wght@400;600;700&family=Poppins:wght@400;600&family=Roboto:wght@400;500;700&display=swap',
+        '{{ route('admin.signatures.fonts-css') }}',
+    ],
+    // Image button / paste / drag-drop upload straight to the NOC asset host.
+    automatic_uploads: true,
+    paste_data_images: true,
+    file_picker_types: 'image',
+    images_upload_handler: (blobInfo) => new Promise((resolve, reject) => {
+        const fd = new FormData();
+        fd.append('file', blobInfo.blob(), blobInfo.filename());
+        fetch('{{ route('admin.signatures.assets.image') }}', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+            body: fd,
+        })
+        .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+        .then(d => resolve(d.location))
+        .catch(err => reject({ message: (err && err.message) || 'Upload failed', remove: true }));
+    }),
     plugins: 'link image table lists code autolink',
     toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline forecolor backcolor | '
            + 'alignleft aligncenter alignright | bullist numlist | link image table | code',
     toolbar_mode: 'wrap',
-    // Email-safe font stacks (web-safe only — Outlook ignores webfonts) and a
-    // pixel-based size list, so the Visual editor can set font + size directly.
-    font_family_formats: 'Arial=arial,helvetica,sans-serif;'
+    // Font list: uploaded (self-hosted) fonts first, then web-safe stacks (render
+    // everywhere, incl. Outlook desktop), then Google Fonts (render in the editor +
+    // web mail; Outlook falls back to the web-safe font at the end of each stack).
+    // Size list is pixel-based.
+    font_family_formats:
+@foreach(($uploadedFonts ?? []) as $uf)
+        "{{ addslashes($uf) }}='{{ addslashes($uf) }}',arial,sans-serif;" +
+@endforeach
+        'Roboto=roboto,arial,helvetica,sans-serif;'
+        + 'Open Sans=\'open sans\',arial,sans-serif;'
+        + 'Lato=lato,\'segoe ui\',arial,sans-serif;'
+        + 'Montserrat=montserrat,\'segoe ui\',arial,sans-serif;'
+        + 'Poppins=poppins,\'segoe ui\',arial,sans-serif;'
+        + 'Cairo (Arabic)=cairo,\'segoe ui\',tahoma,arial,sans-serif;'
+        + 'Arial=arial,helvetica,sans-serif;'
         + 'Helvetica=helvetica,arial,sans-serif;'
         + 'Calibri=calibri,candara,segoe,\'segoe ui\',optima,sans-serif;'
         + 'Segoe UI=\'segoe ui\',tahoma,geneva,verdana,sans-serif;'

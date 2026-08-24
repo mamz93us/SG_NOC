@@ -35,8 +35,9 @@ class SignatureController extends Controller
         $domains = AllowedDomain::orderBy('is_primary', 'desc')->orderBy('domain')->get();
         $template = null;
         $default = $this->defaultNewEmailHtml();
+        $uploadedFonts = $this->uploadedFontFamilies();
 
-        return view('admin.signatures.edit', compact('template', 'domains', 'default'));
+        return view('admin.signatures.edit', compact('template', 'domains', 'default', 'uploadedFonts'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -53,8 +54,9 @@ class SignatureController extends Controller
         $domains = AllowedDomain::orderBy('is_primary', 'desc')->orderBy('domain')->get();
         $template = $signature;
         $default = null;
+        $uploadedFonts = $this->uploadedFontFamilies();
 
-        return view('admin.signatures.edit', compact('template', 'domains', 'default'));
+        return view('admin.signatures.edit', compact('template', 'domains', 'default', 'uploadedFonts'));
     }
 
     public function update(Request $request, EmailSignatureTemplate $signature): RedirectResponse
@@ -604,6 +606,226 @@ class SignatureController extends Controller
             'Content-Type' => 'text/plain; charset=utf-8',
             'Cache-Control' => 'no-cache',
         ]);
+    }
+
+    // ─── Assets (images + fonts) ──────────────────────────────────
+
+    /**
+     * GET /admin/signatures/assets — manage the images and font files that
+     * templates can reference. Images are hosted under public/images/signatures
+     * (same convention as signatures:host-logos) so email clients can load them;
+     * fonts under public/fonts/signatures for the editor's font picker.
+     */
+    public function assets(): View
+    {
+        $base = rtrim(config('app.url') ?: '', '/');
+
+        $images = collect(glob(public_path('images/signatures/*')) ?: [])
+            ->filter(fn ($p) => is_file($p) && preg_match('/\.(png|jpe?g|gif|webp|svg)$/i', $p))
+            ->map(fn ($p) => [
+                'name' => basename($p),
+                'url' => $base.'/images/signatures/'.rawurlencode(basename($p)),
+                'size' => filesize($p),
+            ])
+            ->sortByDesc(fn ($a) => filemtime(public_path('images/signatures/'.$a['name'])))
+            ->values();
+
+        $fonts = collect($this->readFontManifest())
+            ->map(fn ($f) => $f + [
+                'url' => $base.'/fonts/signatures/'.rawurlencode($f['file']),
+                'exists' => is_file(public_path('fonts/signatures/'.$f['file'])),
+                'size' => is_file(public_path('fonts/signatures/'.$f['file']))
+                    ? filesize(public_path('fonts/signatures/'.$f['file'])) : 0,
+            ])
+            ->values();
+
+        return view('admin.signatures.assets', compact('images', 'fonts'));
+    }
+
+    /**
+     * POST /admin/signatures/assets/image — AJAX image upload used by the editor
+     * (TinyMCE image button + the manual "Insert image" control). Returns the hosted
+     * URL as JSON. TinyMCE expects the `location` key; we also send `url` for our own code.
+     */
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:png,jpg,jpeg,gif,webp,svg|max:3072',
+        ]);
+
+        $dir = public_path('images/signatures');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $file = $request->file('file');
+        $name = $this->safeAssetName($file->getClientOriginalName(), $file->getClientOriginalExtension());
+        $file->move($dir, $name);
+
+        $url = rtrim(config('app.url') ?: '', '/').'/images/signatures/'.rawurlencode($name);
+
+        return response()->json(['location' => $url, 'url' => $url, 'name' => $name]);
+    }
+
+    /**
+     * POST /admin/signatures/assets — form upload from the assets page. Accepts an
+     * image or a font file (woff2/woff/ttf/otf). Fonts are recorded in the manifest
+     * with a display family name + weight so the editor can offer them.
+     */
+    public function storeAsset(Request $request): RedirectResponse
+    {
+        $kind = $request->input('kind') === 'font' ? 'font' : 'image';
+
+        if ($kind === 'image') {
+            $request->validate([
+                'file' => 'required|file|mimes:png,jpg,jpeg,gif,webp,svg|max:3072',
+            ]);
+            $dir = public_path('images/signatures');
+            if (! is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            $file = $request->file('file');
+            $name = $this->safeAssetName($file->getClientOriginalName(), $file->getClientOriginalExtension());
+            $file->move($dir, $name);
+
+            return back()->with('success', "Image uploaded: {$name}");
+        }
+
+        // Font — validate by extension (font mime types are unreliable across browsers).
+        $request->validate([
+            'file' => 'required|file|max:5120',
+            'family' => 'required|string|max:60',
+            'weight' => 'required|in:400,600,700',
+        ]);
+        $file = $request->file('file');
+        $ext = strtolower($file->getClientOriginalExtension());
+        if (! in_array($ext, ['woff2', 'woff', 'ttf', 'otf'], true)) {
+            return back()->withErrors(['file' => 'Font must be .woff2, .woff, .ttf or .otf'])->withInput();
+        }
+
+        $dir = public_path('fonts/signatures');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        $name = $this->safeAssetName($file->getClientOriginalName(), $ext);
+        $file->move($dir, $name);
+
+        $manifest = $this->readFontManifest();
+        $manifest[] = [
+            'family' => trim((string) $request->input('family')),
+            'file' => $name,
+            'weight' => (int) $request->input('weight'),
+            'ext' => $ext,
+        ];
+        $this->writeFontManifest($manifest);
+
+        return back()->with('success', "Font uploaded: {$request->input('family')} ({$request->input('weight')})");
+    }
+
+    /**
+     * DELETE /admin/signatures/assets — remove an image file or a font entry.
+     * Whitelisted to the two managed directories; basename() blocks path traversal.
+     */
+    public function destroyAsset(Request $request): RedirectResponse
+    {
+        $kind = $request->input('kind');
+        $name = basename((string) $request->input('name'));
+
+        if ($kind === 'image') {
+            $path = public_path('images/signatures/'.$name);
+            if (is_file($path)) {
+                @unlink($path);
+            }
+
+            return back()->with('success', "Image removed: {$name}");
+        }
+
+        if ($kind === 'font') {
+            $manifest = array_values(array_filter(
+                $this->readFontManifest(),
+                fn ($f) => ($f['file'] ?? null) !== $name,
+            ));
+            $this->writeFontManifest($manifest);
+            $path = public_path('fonts/signatures/'.$name);
+            if (is_file($path)) {
+                @unlink($path);
+            }
+
+            return back()->with('success', "Font removed: {$name}");
+        }
+
+        return back()->with('success', 'Nothing to remove.');
+    }
+
+    /**
+     * GET /admin/signatures/fonts.css — generated @font-face rules for every
+     * uploaded font, loaded into the editor page and the TinyMCE iframe so the
+     * chosen font previews. (Webfonts don't render in Outlook/Gmail email, so this
+     * is for the editing/preview experience only.)
+     */
+    public function fontsCss(): Response
+    {
+        $base = rtrim(config('app.url') ?: '', '/');
+        $formats = ['woff2' => 'woff2', 'woff' => 'woff', 'ttf' => 'truetype', 'otf' => 'opentype'];
+
+        $css = "/* Generated from uploaded signature fonts */\n";
+        foreach ($this->readFontManifest() as $f) {
+            $file = $f['file'] ?? null;
+            if (! $file || ! is_file(public_path('fonts/signatures/'.$file))) {
+                continue;
+            }
+            $ext = strtolower($f['ext'] ?? pathinfo($file, PATHINFO_EXTENSION));
+            $fmt = $formats[$ext] ?? 'woff2';
+            $url = $base.'/fonts/signatures/'.rawurlencode($file);
+            $family = addslashes((string) ($f['family'] ?? 'Custom Font'));
+            $weight = (int) ($f['weight'] ?? 400);
+            $css .= "@font-face{font-family:'{$family}';src:url('{$url}') format('{$fmt}');font-weight:{$weight};font-display:swap;}\n";
+        }
+
+        return response($css, 200, ['Content-Type' => 'text/css; charset=utf-8', 'Cache-Control' => 'no-cache']);
+    }
+
+    /** Distinct uploaded font families, for the editor's font-family dropdown. */
+    private function uploadedFontFamilies(): array
+    {
+        return collect($this->readFontManifest())
+            ->pluck('family')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function fontManifestPath(): string
+    {
+        return storage_path('app/signature-fonts.json');
+    }
+
+    private function readFontManifest(): array
+    {
+        $path = $this->fontManifestPath();
+        if (! is_file($path)) {
+            return [];
+        }
+        $data = json_decode((string) file_get_contents($path), true);
+
+        return is_array($data) ? $data : [];
+    }
+
+    private function writeFontManifest(array $manifest): void
+    {
+        file_put_contents($this->fontManifestPath(), json_encode(array_values($manifest), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
+    /** Produce a filesystem-safe, collision-resistant asset filename. */
+    private function safeAssetName(string $original, string $ext): string
+    {
+        $stem = pathinfo($original, PATHINFO_FILENAME);
+        $stem = Str::slug($stem) ?: 'asset';
+        $stem = Str::limit($stem, 40, '');
+        $ext = preg_replace('/[^a-z0-9]/i', '', strtolower($ext)) ?: 'bin';
+
+        return $stem.'-'.Str::lower(Str::random(6)).'.'.$ext;
     }
 
     // ─── Private helpers ──────────────────────────────────────────

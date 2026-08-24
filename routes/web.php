@@ -2383,6 +2383,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('/commands', [\App\Http\Controllers\Admin\SignatureController::class, 'commands'])->name('commands');
             Route::get('/create', [\App\Http\Controllers\Admin\SignatureController::class, 'create'])->name('create');
             Route::post('/', [\App\Http\Controllers\Admin\SignatureController::class, 'store'])->name('store');
+
+            // Asset manager — images + font files used inside templates
+            Route::get('/assets', [\App\Http\Controllers\Admin\SignatureController::class, 'assets'])->name('assets');
+            Route::post('/assets', [\App\Http\Controllers\Admin\SignatureController::class, 'storeAsset'])->name('assets.store');
+            Route::post('/assets/image', [\App\Http\Controllers\Admin\SignatureController::class, 'uploadImage'])->name('assets.image');
+            Route::delete('/assets', [\App\Http\Controllers\Admin\SignatureController::class, 'destroyAsset'])->name('assets.destroy');
+            Route::get('/fonts.css', [\App\Http\Controllers\Admin\SignatureController::class, 'fontsCss'])->name('fonts-css');
             Route::get('/{signature}/edit', [\App\Http\Controllers\Admin\SignatureController::class, 'edit'])->name('edit');
             Route::put('/{signature}', [\App\Http\Controllers\Admin\SignatureController::class, 'update'])->name('update');
             Route::delete('/{signature}', [\App\Http\Controllers\Admin\SignatureController::class, 'destroy'])->name('destroy');
