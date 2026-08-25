@@ -706,6 +706,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('phones.firmware.index');
         Route::get('phones/firmware/status', [PhoneFirmwareController::class, 'status'])
             ->name('phones.firmware.status');
+        Route::get('phones/firmware/downloads', [PhoneFirmwareController::class, 'downloads'])
+            ->name('phones.firmware.downloads');
     });
     Route::middleware('permission:manage-phone-firmware')->group(function () {
         Route::post('phones/firmware', [PhoneFirmwareController::class, 'storeUpload'])

@@ -352,6 +352,12 @@
                                     <i class="bi bi-clipboard-check me-2"></i>Firmware Status
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/phones/firmware/downloads') ? 'active' : '' }}"
+                                   href="{{ route('admin.phones.firmware.downloads') }}">
+                                    <i class="bi bi-download me-2"></i>Firmware Downloads
+                                </a>
+                            </li>
                             @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-telephone-inbound me-1"></i>Telecom</h6></li>

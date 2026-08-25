@@ -7,9 +7,14 @@
         <h4 class="mb-0 fw-bold"><i class="bi bi-clipboard-check me-2 text-primary"></i>Phone Firmware Status</h4>
         <small class="text-muted">What each phone is actually running, against what the NOC publishes</small>
     </div>
-    <a href="{{ route('admin.phones.firmware.index') }}" class="btn btn-outline-primary btn-sm">
-        <i class="bi bi-hdd-network me-1"></i>Firmware library
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{{ route('admin.phones.firmware.index') }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-hdd-network me-1"></i>Firmware library
+        </a>
+        <a href="{{ route('admin.phones.firmware.downloads') }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-download me-1"></i>Download log
+        </a>
+    </div>
 </div>
 
 @if($active->isEmpty())

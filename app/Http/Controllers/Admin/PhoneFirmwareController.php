@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Device;
 use App\Models\PhoneFirmware;
+use App\Models\PhoneFirmwareDownload;
 use App\Models\PhoneRequestLog;
 use App\Services\Phone\FirmwarePublisher;
 use Illuminate\Http\Request;
@@ -292,6 +293,78 @@ class PhoneFirmwareController extends Controller
      * a phone that cannot reach the NOC at all, which is worth knowing before
      * blaming the firmware server.
      */
+    /**
+     * Who actually fetched a firmware image, and when.
+     *
+     * nginx serves the images, so this reads `phone_firmware_downloads`, which
+     * `firmware:ingest-log` fills from the firmware vhost's access log. The 404s
+     * matter as much as the successes: a phone asking for a filename we never
+     * published is the one failure the version-comparison board cannot show.
+     */
+    public function downloads(Request $request)
+    {
+        $this->authorize('view-phone-firmware');
+
+        $query = PhoneFirmwareDownload::query()->latest('requested_at');
+
+        if ($request->filled('file')) {
+            $query->where('filename', $request->query('file'));
+        }
+
+        match ($request->query('state')) {
+            'delivered' => $query->delivered(),
+            'missing' => $query->missing(),
+            default => null,
+        };
+
+        if ($q = trim((string) $request->query('q', ''))) {
+            $needle = strtolower($q);
+            $bareMac = preg_replace('/[^a-f0-9]/i', '', $needle);
+            $query->where(function ($w) use ($needle, $bareMac) {
+                $w->where('ip', 'like', "%{$needle}%")
+                    ->orWhere('model', 'like', "%{$needle}%")
+                    ->orWhere('filename', 'like', "%{$needle}%");
+                if ($bareMac !== '') {
+                    $w->orWhere('mac', 'like', "%{$bareMac}%");
+                }
+            });
+        }
+
+        $downloads = $query->paginate(50)->withQueryString();
+
+        // Asset lookup in one query rather than per row.
+        $macs = collect($downloads->items())->pluck('mac')->filter()->unique();
+        $devices = $macs->isEmpty()
+            ? collect()
+            : Device::whereIn('mac_address', $macs)->get()->keyBy('mac_address');
+
+        return view('admin.phones.firmware.downloads', [
+            'downloads' => $downloads,
+            'devices' => $devices,
+            'files' => PhoneFirmwareDownload::query()
+                ->select('filename')->distinct()->orderBy('filename')->pluck('filename'),
+            'counts' => [
+                'total' => PhoneFirmwareDownload::count(),
+                'delivered' => PhoneFirmwareDownload::delivered()->count(),
+                'missing' => PhoneFirmwareDownload::missing()->count(),
+                'phones' => PhoneFirmwareDownload::whereNotNull('mac')->distinct()->count('mac'),
+            ],
+            // Filenames phones keep asking for that were never published — the
+            // actionable half of the 404s.
+            'wanted' => PhoneFirmwareDownload::missing()
+                ->select('filename')
+                ->selectRaw('COUNT(*) as hits')
+                ->selectRaw('MAX(requested_at) as last_seen')
+                ->groupBy('filename')
+                ->orderByDesc('hits')
+                ->limit(10)
+                ->get(),
+            'file' => $request->query('file'),
+            'state' => $request->query('state'),
+            'q' => $q ?? '',
+        ]);
+    }
+
     public function status(Request $request)
     {
         $this->authorize('view-phone-firmware');

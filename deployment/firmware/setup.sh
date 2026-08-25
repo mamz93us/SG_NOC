@@ -82,8 +82,7 @@ install -d -o "$APP_USER" -g "$FW_GROUP" -m 2775 "$FW_ROOT/library"
 
 # If FPM runs as neither the owner nor a member of that group, say so plainly
 # rather than leaving an upload to fail with a bare 500 later.
-if [[ -n "$FPM_USER" && "$FPM_USER" != "$APP_USER" ]] && ! id -nG "$FPM_USER" 2>/dev/null | tr ' ' '
-' | grep -qx "$FW_GROUP"; then
+if [[ -n "$FPM_USER" && "$FPM_USER" != "$APP_USER" ]] && ! id -nG "$FPM_USER" 2>/dev/null | grep -qw "$FW_GROUP"; then
     warn "PHP-FPM runs as '$FPM_USER', which is not '$APP_USER' and not in group '$FW_GROUP'."
     warn "Uploads will fail. Fix with:  sudo usermod -aG $FW_GROUP $FPM_USER && sudo systemctl restart php*-fpm"
 fi
@@ -134,7 +133,10 @@ server {
 
     root ${FW_ROOT};
 
-    access_log ${ACCESS_LOG};
+    # `combined` carries the User-Agent, which is the only identity a firmware
+    # fetch has — firmware:ingest-log parses the phone model, MAC and running
+    # version straight out of it.
+    access_log ${ACCESS_LOG} combined;
     error_log  /var/log/nginx/phone-firmware.error.log;
 
     # The library/ subdirectory holds every image ever added, published or not.
@@ -249,6 +251,22 @@ else
     warn "Create it and add 'include $DYNAMIC_DIR/*.conf;' inside the NOC server block,"
     warn "then re-run this script. See deployment/browser-portal/nginx/README.md."
 fi
+
+# --- Download audit log readability -------------------------------------------
+# firmware:ingest-log tails the access log into phone_firmware_downloads so the
+# NOC can answer "which phone took the firmware, and when". nginx logs are
+# root:adm 0640, so the app user has to be in that group — same requirement the
+# SMTP relay ingest has for /var/log/mail.log.
+LOG_GROUP="$(stat -c '%G' /var/log/nginx 2>/dev/null || echo adm)"
+if ! id -nG "$APP_USER" 2>/dev/null | grep -qw "$LOG_GROUP"; then
+    log "Adding $APP_USER to '$LOG_GROUP' so the download log can be read."
+    usermod -aG "$LOG_GROUP" "$APP_USER" || warn "Could not add $APP_USER to $LOG_GROUP."
+    warn "Group membership applies to NEW processes — the ingest picks it up on the"
+    warn "next scheduler tick, but an already-running php-fpm needs a restart."
+fi
+touch "$ACCESS_LOG" 2>/dev/null || true
+chgrp "$LOG_GROUP" "$ACCESS_LOG" 2>/dev/null || true
+chmod 640 "$ACCESS_LOG" 2>/dev/null || true
 
 # --- Apply --------------------------------------------------------------------
 # A failed `nginx -t` used to leave the broken files on disk. nginx keeps
