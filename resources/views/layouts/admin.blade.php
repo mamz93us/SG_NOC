@@ -327,7 +327,7 @@
                             @endcan
                             @can('view-phones')
                             <li>
-                                <a class="dropdown-item {{ request()->is('admin/phones*') ? 'active' : '' }}"
+                                <a class="dropdown-item {{ request()->routeIs('admin.phones.index', 'admin.phones.show', 'admin.phones.create') ? 'active' : '' }}"
                                    href="{{ route('admin.phones.index') }}">
                                     <i class="bi bi-telephone-plus me-2"></i>Phones
                                 </a>
@@ -336,6 +336,20 @@
                                 <a class="dropdown-item {{ request()->is('admin/gdms/templates*') ? 'active' : '' }}"
                                    href="{{ route('admin.gdms.templates.index') }}">
                                     <i class="bi bi-file-earmark-code me-2"></i>Config Templates
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-phone-firmware')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/phones/firmware') ? 'active' : '' }}"
+                                   href="{{ route('admin.phones.firmware.index') }}">
+                                    <i class="bi bi-hdd-network me-2"></i>Firmware Server
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/phones/firmware/status') ? 'active' : '' }}"
+                                   href="{{ route('admin.phones.firmware.status') }}">
+                                    <i class="bi bi-clipboard-check me-2"></i>Firmware Status
                                 </a>
                             </li>
                             @endcan

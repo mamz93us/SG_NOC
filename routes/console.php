@@ -742,6 +742,23 @@ Schedule::command('smtp-relay:ingest-log --prune')
     ->runInBackground()
     ->name('smtp-relay-ingest-prune');
 
+// Phone firmware URL fetches — the UI queues a vendor package URL and the NOC
+// pulls it in here, so a 150 MB Grandstream ZIP never has to survive a browser
+// upload against nginx/PHP body limits.
+Schedule::command('firmware:fetch-remote')
+    ->everyMinute()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('firmware-fetch-remote');
+
+// Refresh what firmware each phone is actually running, so the firmware status
+// board and the ITAM Firmware Tracker stop reporting import-time snapshots.
+Schedule::command('phones:sync-firmware-versions')
+    ->dailyAt('05:45')
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('phones-sync-firmware-versions');
+
 // Download Center URL fetches — admins paste a URL and the NOC pulls the file
 // into Azure here (async, so a big artifact can't time out the web request).
 Schedule::command('downloads:fetch-remote')

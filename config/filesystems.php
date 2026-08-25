@@ -60,6 +60,22 @@ return [
             'report' => false,
         ],
 
+        // Grandstream phone firmware. nginx serves this directory directly — an
+        // internal listener for the branch tunnels and a /fw/ alias on the public
+        // host, both written by deployment/firmware/setup.sh. The URL below is
+        // that /fw/ alias, NOT the storage symlink: the alias points at the real
+        // path, so it keeps working whether or not `storage:link` has been run.
+        // Phones fetch these with no auth — never put anything but vendor
+        // firmware images in here.
+        'firmware' => [
+            'driver' => 'local',
+            'root' => storage_path('app/public/firmware'),
+            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/fw',
+            'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
