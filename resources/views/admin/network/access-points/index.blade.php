@@ -13,6 +13,9 @@
                     <i class="bi bi-reception-4 me-1"></i>Check All Now
                 </button>
             </form>
+            <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addApModal">
+                <i class="bi bi-plus-lg me-1"></i>Add Access Point
+            </button>
             <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importModal">
                 <i class="bi bi-upload me-1"></i>Import CSV
             </button>
@@ -110,7 +113,12 @@
                         <td class="fw-semibold">
                             {{ $ap->name }}
                             @if($ap->device)
-                                <a href="{{ route('admin.devices.show', $ap->device) }}" class="text-muted small ms-1" title="Asset {{ $ap->device->asset_code }}"><i class="bi bi-box-seam"></i></a>
+                                <a href="{{ route('admin.devices.show', $ap->device) }}" class="text-muted small ms-1"
+                                   title="Asset {{ $ap->device->asset_code }}">
+                                    <i class="bi bi-box-seam"></i> {{ $ap->device->asset_code }}
+                                </a>
+                            @else
+                                <span class="badge bg-warning text-dark ms-1" title="Not in the asset register">No asset</span>
                             @endif
                         </td>
                         <td>{{ $ap->vendorLabel() }}</td>
@@ -140,6 +148,12 @@
                                     @csrf
                                     <button class="btn btn-outline-info" title="Ping now"><i class="bi bi-reception-4"></i></button>
                                 </form>
+                                @unless($ap->device)
+                                <form method="POST" action="{{ route('admin.network.access-points.asset', $ap) }}">
+                                    @csrf
+                                    <button class="btn btn-outline-success" title="Register as an asset"><i class="bi bi-box-seam"></i></button>
+                                </form>
+                                @endunless
                                 <form method="POST" action="{{ route('admin.network.access-points.destroy', $ap) }}"
                                       onsubmit="return confirm('Remove {{ $ap->name }}?')">
                                     @csrf @method('DELETE')
@@ -152,7 +166,7 @@
                 @empty
                     <tr><td colspan="12" class="text-center text-muted py-4">
                         No access points yet.
-                        @can('manage-access-points') Use <strong>Import CSV</strong> to load your Sophos Central export. @endcan
+                        @can('manage-access-points') Use <strong>Add Access Point</strong>, or <strong>Import CSV</strong> to load your Sophos Central export. @endcan
                     </td></tr>
                 @endforelse
                 </tbody>
@@ -180,6 +194,100 @@
 @endpush
 
 @can('manage-access-points')
+{{-- Add access point --}}
+<div class="modal fade" id="addApModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <form method="POST" action="{{ route('admin.network.access-points.store') }}">
+            @csrf
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-lg me-2"></i>Add Access Point</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">
+                        For an AP the Sophos Central export does not cover — a TP-Link/Omada unit, a spare, or one
+                        fitted before it was enrolled. It is registered in the asset register automatically and given
+                        an asset code from the same sequence the CSV import uses.
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required value="{{ old('name') }}"
+                                   placeholder="e.g. RYD-Floor2-AP03">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Vendor <span class="text-danger">*</span></label>
+                            <select name="vendor" class="form-select" required>
+                                <option value="sophos"  @selected(old('vendor') === 'sophos')>Sophos</option>
+                                <option value="tp_link" @selected(old('vendor') === 'tp_link')>TP-Link</option>
+                                <option value="other"   @selected(old('vendor') === 'other')>Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Model</label>
+                            <input type="text" name="model" class="form-control" value="{{ old('model') }}"
+                                   placeholder="e.g. APX 320">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">IP address</label>
+                            <input type="text" name="ip_address" class="form-control" value="{{ old('ip_address') }}"
+                                   placeholder="10.1.0.51">
+                            <div class="form-text">Needed for ping monitoring.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Serial number</label>
+                            <input type="text" name="serial_number" class="form-control" value="{{ old('serial_number') }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">MAC address</label>
+                            <input type="text" name="mac_address" class="form-control" value="{{ old('mac_address') }}"
+                                   placeholder="c4:71:54:a1:b2:c3">
+                        </div>
+                        <div class="col-12">
+                            <div class="alert alert-light border small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Give it a serial or a MAC if you have one — that is how the asset register recognises
+                                it later, and how a re-import matches this row instead of adding a duplicate.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Branch</label>
+                            <select name="branch_id" class="form-select">
+                                <option value="">—</option>
+                                @foreach($branches as $b)
+                                    <option value="{{ $b->id }}" @selected((string) old('branch_id') === (string) $b->id)>{{ $b->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Site label</label>
+                            <input type="text" name="site" class="form-control" value="{{ old('site') }}"
+                                   placeholder="Free text, as it appears in the controller">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Firmware</label>
+                            <input type="text" name="firmware" class="form-control" value="{{ old('firmware') }}">
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="hidden" name="monitor_enabled" value="0">
+                                <input type="checkbox" name="monitor_enabled" value="1" class="form-check-input"
+                                       id="apMonitorEnabled" checked>
+                                <label class="form-check-label" for="apMonitorEnabled">Ping-monitor this AP</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Add &amp; register asset</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 {{-- Import modal --}}
 <div class="modal fade" id="importModal" tabindex="-1">
     <div class="modal-dialog">

@@ -1523,7 +1523,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── Access Points (multi-vendor: Sophos, TP-Link/Omada) ───
     Route::prefix('network/access-points')->name('network.access-points.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Admin\AccessPointController::class, 'index'])->name('index')->middleware('permission:view-access-points');
+        Route::post('/', [\App\Http\Controllers\Admin\AccessPointController::class, 'store'])->name('store')->middleware('permission:manage-access-points');
         Route::post('/import', [\App\Http\Controllers\Admin\AccessPointController::class, 'import'])->name('import')->middleware('permission:manage-access-points');
+        Route::post('/{accessPoint}/asset', [\App\Http\Controllers\Admin\AccessPointController::class, 'createAsset'])->name('asset')->middleware('permission:manage-access-points');
         Route::post('/ping-all', [\App\Http\Controllers\Admin\AccessPointController::class, 'pingAll'])->name('ping-all')->middleware('permission:manage-access-points');
         Route::post('/{accessPoint}/ping', [\App\Http\Controllers\Admin\AccessPointController::class, 'pingNow'])->name('ping')->middleware('permission:manage-access-points');
         Route::post('/{accessPoint}/toggle', [\App\Http\Controllers\Admin\AccessPointController::class, 'toggleMonitor'])->name('toggle')->middleware('permission:manage-access-points');
