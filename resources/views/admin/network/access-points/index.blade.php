@@ -123,7 +123,13 @@
                         </td>
                         <td>{{ $ap->vendorLabel() }}</td>
                         <td>{{ $ap->model ?? '-' }}</td>
-                        <td><code>{{ $ap->ip_address ?? '-' }}</code></td>
+                        <td>
+                            @if($ap->ip_address)
+                                <code>{{ $ap->ip_address }}</code>
+                            @else
+                                <span class="badge bg-secondary" title="Never pinged — the scheduled sweep skips APs with no IP">No IP</span>
+                            @endif
+                        </td>
                         <td>{{ $ap->branch?->name ?? $ap->site ?? '-' }}</td>
                         <td class="small">{{ $ap->firmware ?? '-' }}</td>
                         <td>{{ $ap->ping_latency_ms !== null ? $ap->ping_latency_ms.' ms' : '-' }}</td>
@@ -144,10 +150,30 @@
                         <td class="text-end">
                             @can('manage-access-points')
                             <div class="btn-group btn-group-sm">
+                                @if($ap->ip_address)
                                 <form method="POST" action="{{ route('admin.network.access-points.ping', $ap) }}">
                                     @csrf
                                     <button class="btn btn-outline-info" title="Ping now"><i class="bi bi-reception-4"></i></button>
                                 </form>
+                                @else
+                                <button class="btn btn-outline-secondary" disabled
+                                        title="No IP address — edit this AP and add one before it can be pinged">
+                                    <i class="bi bi-reception-4"></i>
+                                </button>
+                                @endif
+                                <button type="button" class="btn btn-outline-primary js-edit-ap" title="Edit"
+                                        data-action="{{ route('admin.network.access-points.update', $ap) }}"
+                                        data-name="{{ $ap->name }}"
+                                        data-vendor="{{ $ap->vendor }}"
+                                        data-model="{{ $ap->model }}"
+                                        data-serial="{{ $ap->serial_number }}"
+                                        data-mac="{{ $ap->mac_address }}"
+                                        data-ip="{{ $ap->ip_address }}"
+                                        data-site="{{ $ap->site }}"
+                                        data-branch="{{ $ap->branch_id }}"
+                                        data-firmware="{{ $ap->firmware }}">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
                                 @unless($ap->device)
                                 <form method="POST" action="{{ route('admin.network.access-points.asset', $ap) }}">
                                     @csrf
@@ -185,6 +211,25 @@
 
 @push('scripts')
 <script>
+    // Fill the single edit modal from whichever row was clicked.
+    document.querySelectorAll('.js-edit-ap').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const form = document.getElementById('editApForm');
+            const d = btn.dataset;
+            form.action = d.action;
+            form.name.value          = d.name    || '';
+            form.vendor.value        = d.vendor  || 'sophos';
+            form.model.value         = d.model   || '';
+            form.serial_number.value = d.serial  || '';
+            form.mac_address.value   = d.mac     || '';
+            form.ip_address.value    = d.ip      || '';
+            form.site.value          = d.site    || '';
+            form.branch_id.value     = d.branch  || '';
+            form.firmware.value      = d.firmware || '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('editApModal')).show();
+        });
+    });
+
     document.getElementById('checkAllBtn')?.closest('form')?.addEventListener('submit', e => {
         const btn = document.getElementById('checkAllBtn');
         btn.disabled = true;
@@ -282,6 +327,76 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Add &amp; register asset</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Edit access point. One shared modal filled from the row's data-* attributes:
+     a modal per row would multiply the whole form across every AP on the page. --}}
+<div class="modal fade" id="editApModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <form method="POST" id="editApForm">
+            @csrf @method('PUT')
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Access Point</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Vendor <span class="text-danger">*</span></label>
+                            <select name="vendor" class="form-select" required>
+                                <option value="sophos">Sophos</option>
+                                <option value="tp_link">TP-Link</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Model</label>
+                            <input type="text" name="model" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">IP address</label>
+                            <input type="text" name="ip_address" class="form-control" placeholder="10.1.0.51">
+                            <div class="form-text">Without this the AP is never pinged and stays Unknown.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Serial number</label>
+                            <input type="text" name="serial_number" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">MAC address</label>
+                            <input type="text" name="mac_address" class="form-control" placeholder="c4:71:54:a1:b2:c3">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Branch</label>
+                            <select name="branch_id" class="form-select">
+                                <option value="">—</option>
+                                @foreach($branches as $b)
+                                    <option value="{{ $b->id }}">{{ $b->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Site label</label>
+                            <input type="text" name="site" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Firmware</label>
+                            <input type="text" name="firmware" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save</button>
                 </div>
             </div>
         </form>
