@@ -82,15 +82,7 @@ class AccessPointController extends Controller
         // against each other: lower-case, colon-separated.
         $mac = $this->normaliseMac($validated['mac_address'] ?? null);
 
-        // Serial and MAC are how every other part of the system recognises an AP
-        // — a duplicate would quietly split its history across two rows.
-        $clash = AccessPoint::query()
-            ->when($serial, fn ($q) => $q->orWhere('serial_number', $serial))
-            ->when($mac, fn ($q) => $q->orWhere('mac_address', $mac))
-            ->when(! $serial && ! $mac, fn ($q) => $q->whereRaw('1 = 0'))
-            ->first();
-
-        if ($clash) {
+        if ($clash = $this->findClash($serial, $mac)) {
             return back()->withInput()->with(
                 'error',
                 "That serial/MAC already belongs to \"{$clash->name}\". Edit that access point instead of adding a second one."
@@ -206,6 +198,15 @@ class AccessPointController extends Controller
 
     public function pingNow(AccessPoint $accessPoint, PingService $ping)
     {
+        // PingService::ping() takes a non-nullable string, so an AP with no IP
+        // used to 500 here. The scheduled sweep has always skipped those
+        // (`AccessPoint::monitored()->whereNotNull('ip_address')`); this button
+        // now agrees with it instead of blowing up.
+        if (! $accessPoint->ip_address) {
+            return back()->with('error',
+                "{$accessPoint->name} has no IP address, so there is nothing to ping. Edit it and add one.");
+        }
+
         $result = $ping->ping($accessPoint->ip_address, 2);
         $alive = (bool) ($result['success'] ?? false);
         $latency = $alive && isset($result['latency']) ? (int) round((float) $result['latency']) : null;
@@ -228,18 +229,61 @@ class AccessPointController extends Controller
             .($accessPoint->monitor_enabled ? 'enabled' : 'disabled').'.');
     }
 
+    /**
+     * Edit an access point. Accepts the same fields as the add form — an AP
+     * created without an IP could otherwise never be given one, which left it
+     * permanently unpingable with no way out of the UI.
+     */
     public function update(Request $request, AccessPoint $accessPoint)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'vendor' => 'required|string|max:50',
+            'model' => 'nullable|string|max:100',
+            'serial_number' => 'nullable|string|max:100',
+            'mac_address' => ['nullable', 'string', 'max:20', 'regex:/^([0-9a-fA-F]{2}[:-]?){5}[0-9a-fA-F]{2}$/'],
             'ip_address' => 'nullable|ip',
+            'site' => 'nullable|string|max:100',
             'branch_id' => 'nullable|exists:branches,id',
-            'vendor' => 'nullable|string|max:50',
+            'firmware' => 'nullable|string|max:50',
+        ], [
+            'mac_address.regex' => 'Enter the MAC as 12 hex digits, with or without separators.',
         ]);
 
-        $accessPoint->update($validated);
+        $serial = trim((string) ($validated['serial_number'] ?? '')) ?: null;
+        $mac = $this->normaliseMac($validated['mac_address'] ?? null);
+
+        if ($clash = $this->findClash($serial, $mac, $accessPoint->id)) {
+            return back()->with('error',
+                "That serial/MAC already belongs to \"{$clash->name}\".");
+        }
+
+        $accessPoint->update([
+            ...$validated,
+            'serial_number' => $serial,
+            'mac_address' => $mac,
+        ]);
 
         return back()->with('success', "{$accessPoint->name} updated.");
+    }
+
+    /**
+     * Another access point already using this serial or MAC. Those two fields are
+     * how every other part of the system recognises an AP, so a duplicate would
+     * quietly split its history across two rows.
+     */
+    private function findClash(?string $serial, ?string $mac, ?int $excludeId = null): ?AccessPoint
+    {
+        if (! $serial && ! $mac) {
+            return null;
+        }
+
+        return AccessPoint::query()
+            ->when($excludeId, fn ($q) => $q->whereKeyNot($excludeId))
+            ->where(fn ($q) => $q
+                ->when($serial, fn ($w) => $w->orWhere('serial_number', $serial))
+                ->when($mac, fn ($w) => $w->orWhere('mac_address', $mac)))
+            ->first();
     }
 
     /** Lower-case, colon-separated — the format the CSV importer stores. */
