@@ -9,7 +9,11 @@ use App\Models\Branch;
 use App\Services\AccessPointImporter;
 use App\Services\PingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\PhpExecutableFinder;
+use Symfony\Component\Process\Process;
 
 class AccessPointController extends Controller
 {
@@ -181,19 +185,62 @@ class AccessPointController extends Controller
         return back()->with('success', $msg);
     }
 
+    /**
+     * Kick off a full ping sweep.
+     *
+     * This used to run the command inline. The sweep takes as long as it takes —
+     * fping's own timeout is 120s, and where fping is missing it falls back to
+     * two ICMP packets per AP, serially — so the request held one PHP-FPM worker
+     * for minutes. With a small pool that starves the whole site, and nginx gives
+     * up first: the 2026-08-25 504 on this endpoint was exactly that. It now
+     * starts the sweep out of band and returns straight away; the scheduler runs
+     * the same command every five minutes regardless.
+     */
     public function pingAll()
     {
-        try {
-            \Illuminate\Support\Facades\Artisan::call('access-points:ping');
-            $out = trim(\Illuminate\Support\Facades\Artisan::output());
-            // Surface the command's summary line (last non-empty line)
-            $lines = array_filter(array_map('trim', preg_split('/\r?\n/', $out)));
-            $summary = end($lines) ?: 'Done.';
-
-            return back()->with('success', "Checked all access points — {$summary}");
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Check-all failed: '.$e->getMessage());
+        // Cheap guard against someone leaning on the button. The TTL matches the
+        // sweep's own worst case rather than trying to track the detached run.
+        if (! Cache::add('access-points:ping-all', true, now()->addSeconds(120))) {
+            return back()->with('error', 'A check is already running — give it a moment and refresh.');
         }
+
+        try {
+            $this->dispatchSweep();
+        } catch (\Throwable $e) {
+            Cache::forget('access-points:ping-all');
+
+            return back()->with('error', 'Could not start the check: '.$e->getMessage());
+        }
+
+        return back()->with('success',
+            'Checking all access points in the background — refresh in a moment for the results.');
+    }
+
+    /**
+     * Run `access-points:ping` detached where the platform allows it.
+     *
+     * There is no queue worker in production, so a background run means handing
+     * the command to the shell with nohup: a plain child process would be killed
+     * when PHP-FPM finishes the request. On Windows (local dev only) there is no
+     * nohup, so fall back to running it inline.
+     */
+    private function dispatchSweep(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            Artisan::call('access-points:ping');
+
+            return;
+        }
+
+        $php = (new PhpExecutableFinder)->find(false) ?: 'php';
+
+        $process = Process::fromShellCommandline(sprintf(
+            'nohup %s %s access-points:ping >/dev/null 2>&1 &',
+            escapeshellarg($php),
+            escapeshellarg(base_path('artisan'))
+        ));
+        $process->setTimeout(10);
+        $process->run();
     }
 
     public function pingNow(AccessPoint $accessPoint, PingService $ping)
