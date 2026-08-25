@@ -46,6 +46,10 @@ ENABLED="/etc/nginx/sites-enabled/phone-firmware"
 DYNAMIC_DIR="/etc/nginx/sites-dynamic"
 SNIPPET="$DYNAMIC_DIR/phone-firmware.conf"
 ACCESS_LOG="/var/log/nginx/phone-firmware.access.log"
+# Backups go OUTSIDE /etc/nginx. nginx.conf includes sites-enabled/* with no
+# extension filter, so a backup dropped beside the vhost is parsed as a second
+# copy of it — "duplicate listen options", and the config stops loading.
+BACKUP_DIR="/var/backups/sg-noc-nginx"
 
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
@@ -158,6 +162,20 @@ to_bytes() {
     esac
 }
 
+# Sweep any backup an older version of this script left inside sites-enabled;
+# nginx is parsing those as extra server blocks right now.
+if [[ -n "$NOC_VHOST" ]]; then
+    mkdir -p "$BACKUP_DIR"
+    shopt -s nullglob
+    for stray in "${NOC_VHOST}".bak-* "$(dirname "$NOC_VHOST")"/*.bak-*; do
+        [[ -f "$stray" ]] || continue
+        warn "Moving stray backup out of nginx's include path: $stray"
+        mv -f "$stray" "$BACKUP_DIR/$(basename "$stray")"
+    done
+    shopt -u nullglob
+fi
+
+BACKUP_FILE=""
 EMIT_BODY_SIZE=1
 if [[ -n "$NOC_VHOST" ]] && grep -qE '^[[:space:]]*client_max_body_size' "$NOC_VHOST"; then
     EMIT_BODY_SIZE=0
@@ -165,9 +183,11 @@ if [[ -n "$NOC_VHOST" ]] && grep -qE '^[[:space:]]*client_max_body_size' "$NOC_V
     log "$NOC_VHOST already sets client_max_body_size ${CURRENT}"
 
     if (( $(to_bytes "$CURRENT") < $(to_bytes "$UPLOAD_MAX_BODY") )); then
-        cp -a "$NOC_VHOST" "${NOC_VHOST}.bak-$(date +%Y%m%d%H%M%S)"
+        mkdir -p "$BACKUP_DIR"
+        BACKUP_FILE="$BACKUP_DIR/$(basename "$NOC_VHOST").bak-$(date +%Y%m%d%H%M%S)"
+        cp -a "$NOC_VHOST" "$BACKUP_FILE"
         sed -i -E "s|^([[:space:]]*)client_max_body_size[[:space:]]+[^;]+;|\1client_max_body_size ${UPLOAD_MAX_BODY};  # raised by deployment/firmware/setup.sh|" "$NOC_VHOST"
-        log "Raised it to ${UPLOAD_MAX_BODY} (backup alongside as .bak-*)."
+        log "Raised it to ${UPLOAD_MAX_BODY} (backup: $BACKUP_FILE)."
     else
         log "Already at or above ${UPLOAD_MAX_BODY} — leaving it alone."
     fi
@@ -219,11 +239,9 @@ fi
 rollback() {
     warn "Rolling back the files this run wrote ..."
     rm -f "$ENABLED" "$AVAILABLE" "$SNIPPET"
-    local backup
-    backup="$(ls -1t "${NOC_VHOST}".bak-* 2>/dev/null | head -1 || true)"
-    if [[ -n "${NOC_VHOST:-}" && -n "$backup" ]]; then
-        mv -f "$backup" "$NOC_VHOST"
-        warn "Restored $NOC_VHOST from $backup"
+    if [[ -n "${NOC_VHOST:-}" && -n "${BACKUP_FILE:-}" && -f "$BACKUP_FILE" ]]; then
+        cp -a "$BACKUP_FILE" "$NOC_VHOST"
+        warn "Restored $NOC_VHOST from $BACKUP_FILE"
     fi
     nginx -t >/dev/null 2>&1 && log "nginx config is valid again."         || warn "nginx config is STILL invalid — something else on this box is broken."
 }

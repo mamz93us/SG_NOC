@@ -135,6 +135,11 @@ if its phones already appear there, they can reach the NOC.
   the snippet. It finds that vhost by which file carries the `sites-dynamic` include, not by
   docroot — vcard, hr-portal and marketing all share this app's docroot, so matching on that picks
   the wrong file.
+
+  Vhost backups go to `/var/backups/sg-noc-nginx/`, never beside the vhost: `nginx.conf` includes
+  `sites-enabled/*` with no extension filter, so a `.bak` file dropped there is parsed as a second
+  copy of the server block and the config stops loading. setup.sh sweeps any such stray it finds
+  before doing anything else.
 - The upload box on the firmware page states the live ceiling and refuses an oversized file in the
   browser, pointing at the URL fetch instead — that path is server-side and has no such limit.
 - **The `/fw/` path only exists after `setup.sh` has run.** It is an nginx alias, not a Laravel
