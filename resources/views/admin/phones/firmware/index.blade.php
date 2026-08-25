@@ -43,10 +43,11 @@
         <div class="card shadow-sm h-100">
             <div class="card-header fw-semibold"><i class="bi bi-upload me-2"></i>Upload a firmware package</div>
             <div class="card-body">
-                <form action="{{ route('admin.phones.firmware.store') }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ route('admin.phones.firmware.store') }}" method="POST" enctype="multipart/form-data"
+                      id="fwUploadForm" data-limit="{{ $uploadLimitBytes }}">
                     @csrf
                     <div class="mb-2">
-                        <input type="file" name="file" class="form-control" accept=".bin,.zip" required>
+                        <input type="file" name="file" id="fwUploadFile" class="form-control" accept=".bin,.zip" required>
                         <div class="form-text">The vendor <code>.zip</code> or a single <code>.bin</code>. Every <code>.bin</code> inside the zip becomes its own entry.</div>
                     </div>
                     <div class="row g-2 mb-2">
@@ -62,11 +63,14 @@
                     <div class="mb-2">
                         <input type="text" name="notes" class="form-control" placeholder="Notes (optional)" value="{{ old('notes') }}">
                     </div>
+                    <div id="fwUploadWarning" class="alert alert-warning small py-2 d-none"></div>
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-cloud-upload me-1"></i>Add to library
                     </button>
                     <div class="form-text mt-2">
-                        Big packages often die on the web server's upload limit — use the URL fetch instead if this 413s.
+                        Server accepts up to <strong>{{ \App\Models\DownloadFile::formatBytes($uploadLimitBytes) }}</strong>
+                        per upload. A larger package has to come in through the URL fetch — the web server rejects it
+                        before the NOC ever sees it.
                     </div>
                 </form>
             </div>
@@ -201,5 +205,37 @@
     Phones compare the version baked into the image against their own and only flash on a difference, so publishing is
     safe to repeat. The filename is the vendor's and must never be renamed — a phone asks for that exact name.
 </p>
+
+@push('scripts')
+<script>
+    // Catch an oversized package in the browser. Past the server ceiling nginx
+    // answers with a bare "413 Request Entity Too Large" page and the operator
+    // never learns which limit they hit or that the URL fetch exists.
+    (function () {
+        const form = document.getElementById('fwUploadForm');
+        if (!form) return;
+        const limit = parseInt(form.dataset.limit, 10) || 0;
+        const warn = document.getElementById('fwUploadWarning');
+        const input = document.getElementById('fwUploadFile');
+        const human = b => (b / 1048576).toFixed(0) + ' MB';
+
+        const check = () => {
+            const file = input.files && input.files[0];
+            if (!file || !limit || file.size <= limit) {
+                warn.classList.add('d-none');
+                return true;
+            }
+            warn.textContent = file.name + ' is ' + human(file.size) + ', over this server’s '
+                + human(limit) + ' upload limit. Use "Fetch from a URL" instead — the NOC pulls it '
+                + 'down server-side with no size limit to fight.';
+            warn.classList.remove('d-none');
+            return false;
+        };
+
+        input.addEventListener('change', check);
+        form.addEventListener('submit', e => { if (!check()) e.preventDefault(); });
+    })();
+</script>
+@endpush
 
 @endsection

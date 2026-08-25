@@ -36,6 +36,9 @@ APP_DIR="${APP_DIR:-$(cd "$HERE/../.." && pwd)}"
 FIRMWARE_HOST="${FIRMWARE_HOST:-fw.samirgroup.net}"
 # Internal address the phones are pointed at. Empty = listen on every interface.
 FIRMWARE_LISTEN="${FIRMWARE_LISTEN:-}"
+# Upload ceiling for the NOC vhost. nginx defaults to 1m, which 413s any real
+# firmware package (60-150 MB) long before Laravel sees the request.
+UPLOAD_MAX_BODY="${UPLOAD_MAX_BODY:-512m}"
 
 FW_ROOT="$APP_DIR/storage/app/public/firmware"
 AVAILABLE="/etc/nginx/sites-available/phone-firmware"
@@ -131,9 +134,17 @@ ln -sfn "$AVAILABLE" "$ENABLED"
 if [[ -d "$DYNAMIC_DIR" ]]; then
     log "Writing $SNIPPET"
     cat > "$SNIPPET" <<NGINX
-# Public fallback for phone firmware — managed by deployment/firmware/setup.sh
-# For branches whose tunnel does not carry the NOC subnet. Prefer the internal
-# path: this one is reachable from the internet.
+# Phone firmware — managed by deployment/firmware/setup.sh
+#
+# This file is included INSIDE the NOC server block, so a bare directive here is
+# a server-level setting. nginx defaults client_max_body_size to 1m, which 413s
+# every firmware upload (and every Download Center artifact) before PHP is even
+# reached. PHP has its own separate ceiling — see public/.user.ini; raising one
+# without the other changes nothing.
+client_max_body_size ${UPLOAD_MAX_BODY};
+
+# Public fallback for the firmware itself, for branches whose tunnel does not
+# carry the NOC subnet. Prefer the internal path: this one faces the internet.
 location ^~ /fw/library/ { deny all; }
 
 location ^~ /fw/ {
@@ -146,6 +157,19 @@ else
     warn "$DYNAMIC_DIR does not exist — public /fw/ fallback NOT installed."
     warn "Create it and add 'include $DYNAMIC_DIR/*.conf;' inside the NOC server block,"
     warn "then re-run this script. See deployment/browser-portal/nginx/README.md."
+fi
+
+# --- Upload ceiling sanity ----------------------------------------------------
+# A client_max_body_size in the vhost AFTER the include would override ours, and
+# the symptom is an unchanged 413 that looks like this script did nothing.
+NOC_VHOST="$(grep -rlsF "$APP_DIR/public" /etc/nginx/sites-available/ 2>/dev/null | grep -v phone-firmware | head -1 || true)"
+if [[ -n "$NOC_VHOST" ]] && grep -q 'client_max_body_size' "$NOC_VHOST"; then
+    warn "$NOC_VHOST already sets client_max_body_size — if uploads still 413,"
+    warn "raise or remove that directive; whichever comes last in the block wins."
+fi
+
+if [[ ! -f "$APP_DIR/public/.user.ini" ]]; then
+    warn "public/.user.ini is missing — PHP will still cap uploads at its stock 2M."
 fi
 
 # --- Apply --------------------------------------------------------------------
@@ -169,6 +193,14 @@ case "$CODE" in
     30*) die "Got HTTP $CODE — something is redirecting port 80. Phones will NOT upgrade through a redirect." ;;
     *)   warn "Smoke test returned HTTP $CODE. Check $ACCESS_LOG and the error log." ;;
 esac
+
+log "nginx client_max_body_size: ${UPLOAD_MAX_BODY}"
+log "PHP limits come from public/.user.ini (FPM re-reads it within"
+log "user_ini.cache_ttl, 300s by default)."
+# Deliberately not probing this with `php -r`: the CLI SAPI does not read
+# .user.ini at all, so it would report php.ini and understate the real limit.
+# The honest check is the figure the firmware page itself prints.
+log "Verify on /admin/phones/firmware — the upload box states the live ceiling."
 
 cat <<DONE
 
