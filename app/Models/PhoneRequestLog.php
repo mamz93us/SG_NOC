@@ -16,5 +16,6 @@ class PhoneRequestLog extends Model
         'user_agent',
         'mac',
         'model',
+        'firmware',
     ];
 }

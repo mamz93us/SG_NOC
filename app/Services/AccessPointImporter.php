@@ -95,7 +95,7 @@ class AccessPointImporter
             // 2. Asset linkage is best-effort — a failure here must never
             //    discard the access point we just saved.
             try {
-                if ($this->linkAsset($ap)) {
+                if ($this->ensureAsset($ap)->wasRecentlyCreated) {
                     $assets++;
                 }
             } catch (\Throwable $e) {
@@ -108,10 +108,23 @@ class AccessPointImporter
 
     // ─── Asset linkage ────────────────────────────────────────────
 
-    protected function linkAsset(AccessPoint $ap): bool
+    /**
+     * Give an access point an ITAM asset, creating one with a fresh asset code if
+     * nothing already matches its serial or MAC. Public because both the CSV
+     * import and the manual "Add access point" form go through here — an AP that
+     * exists in the NOC but not in the asset register is exactly the gap this
+     * closes, and one code path means the two entry points cannot drift.
+     *
+     * Returns the linked device; check `wasRecentlyCreated` to tell a new asset
+     * from one that was already on file.
+     */
+    public function ensureAsset(AccessPoint $ap): Device
     {
-        if ($ap->device_id && Device::whereKey($ap->device_id)->exists()) {
-            return false;
+        if ($ap->device_id) {
+            $existing = Device::find($ap->device_id);
+            if ($existing) {
+                return $existing;
+            }
         }
 
         // Match an existing asset by serial or MAC before creating one
@@ -123,7 +136,6 @@ class AccessPointImporter
             $device = Device::where('mac_address', $ap->mac_address)->first();
         }
 
-        $created = false;
         if (! $device) {
             $this->ensureAssetType();
             $device = Device::create([
@@ -142,13 +154,12 @@ class AccessPointImporter
                 'firmware_version' => $ap->firmware,
                 'asset_code' => $this->safeAssetCode('access_point'),
             ]);
-            $created = true;
         }
 
         $ap->device_id = $device->id;
         $ap->saveQuietly();
 
-        return $created;
+        return $device;
     }
 
     protected function ensureAssetType(): void

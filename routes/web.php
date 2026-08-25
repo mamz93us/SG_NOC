@@ -56,6 +56,7 @@ use App\Http\Controllers\Admin\NotificationRuleController;
 use App\Http\Controllers\Admin\OracleHrImportController;
 use App\Http\Controllers\Admin\PermissionsController;
 use App\Http\Controllers\Admin\PhoneAutoAssignController;
+use App\Http\Controllers\Admin\PhoneFirmwareController;
 use App\Http\Controllers\Admin\PhoneManagementController;
 use App\Http\Controllers\Admin\PortMapController;
 use App\Http\Controllers\Admin\PrinterController;
@@ -693,6 +694,30 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware('permission:view-trunks')->group(function () {
         Route::get('trunks', [TrunkController::class, 'index'])
             ->name('trunks.index');
+    });
+
+    // ─── Phone firmware server ────────────────────────────────
+    // Registered before phones/{mac} so the literal path is matched first, no
+    // matter what the {mac} constraint allows. The firmware BYTES are served by
+    // nginx straight off the `firmware` disk (see deployment/firmware/) — these
+    // routes only manage the library and report state.
+    Route::middleware('permission:view-phone-firmware')->group(function () {
+        Route::get('phones/firmware', [PhoneFirmwareController::class, 'index'])
+            ->name('phones.firmware.index');
+        Route::get('phones/firmware/status', [PhoneFirmwareController::class, 'status'])
+            ->name('phones.firmware.status');
+    });
+    Route::middleware('permission:manage-phone-firmware')->group(function () {
+        Route::post('phones/firmware', [PhoneFirmwareController::class, 'storeUpload'])
+            ->name('phones.firmware.store');
+        Route::post('phones/firmware/url', [PhoneFirmwareController::class, 'storeUrl'])
+            ->name('phones.firmware.store-url');
+        Route::post('phones/firmware/{firmware}/publish', [PhoneFirmwareController::class, 'publish'])
+            ->name('phones.firmware.publish');
+        Route::post('phones/firmware/{firmware}/unpublish', [PhoneFirmwareController::class, 'unpublish'])
+            ->name('phones.firmware.unpublish');
+        Route::delete('phones/firmware/{firmware}', [PhoneFirmwareController::class, 'destroy'])
+            ->name('phones.firmware.destroy');
     });
 
     // ─── Phone Management (GDMS) ──────────────────────────────
@@ -1498,7 +1523,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── Access Points (multi-vendor: Sophos, TP-Link/Omada) ───
     Route::prefix('network/access-points')->name('network.access-points.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Admin\AccessPointController::class, 'index'])->name('index')->middleware('permission:view-access-points');
+        Route::post('/', [\App\Http\Controllers\Admin\AccessPointController::class, 'store'])->name('store')->middleware('permission:manage-access-points');
         Route::post('/import', [\App\Http\Controllers\Admin\AccessPointController::class, 'import'])->name('import')->middleware('permission:manage-access-points');
+        Route::post('/{accessPoint}/asset', [\App\Http\Controllers\Admin\AccessPointController::class, 'createAsset'])->name('asset')->middleware('permission:manage-access-points');
         Route::post('/ping-all', [\App\Http\Controllers\Admin\AccessPointController::class, 'pingAll'])->name('ping-all')->middleware('permission:manage-access-points');
         Route::post('/{accessPoint}/ping', [\App\Http\Controllers\Admin\AccessPointController::class, 'pingNow'])->name('ping')->middleware('permission:manage-access-points');
         Route::post('/{accessPoint}/toggle', [\App\Http\Controllers\Admin\AccessPointController::class, 'toggleMonitor'])->name('toggle')->middleware('permission:manage-access-points');

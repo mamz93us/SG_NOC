@@ -83,14 +83,22 @@ class PhonebookController extends Controller
         $ip        = $request->ip();
         $userAgent = $request->header('User-Agent', '');
 
-        $mac   = null;
-        $model = null;
+        $mac      = null;
+        $model    = null;
+        $firmware = null;
 
         // UA examples:
         //   "Grandstream Model HW GRP2616 SW 1.0.13.59 DevId ec74d7800474"   (no colons)
         //   "Grandstream Model HW GRP2601W SW 1.0.7.32 DevId EC:74:D7:89:1A:76" (with colons)
         if (preg_match('/Model HW\s+([A-Z0-9\-]+)/i', $userAgent, $m)) {
             $model = strtoupper($m[1]); // GRP2616 / GRP2601W
+        }
+
+        // The SW field is the running firmware — the freshest fleet-wide firmware
+        // inventory we have, and what the firmware status board compares against
+        // the published version. No GDMS round trip needed.
+        if (preg_match('/\bSW\s+([0-9]+(?:\.[0-9]+)+)/i', $userAgent, $m)) {
+            $firmware = $m[1]; // 1.0.13.59
         }
 
         // Allow both formats: plain hex (ec74d7800474) or colon-separated (EC:74:D7:89:1A:76)
@@ -105,6 +113,7 @@ class PhonebookController extends Controller
                 'user_agent' => $userAgent,
                 'mac'        => $mac,
                 'model'      => $model,
+                'firmware'   => $firmware,
             ]);
         } catch (\Throwable) {
             // Don't let logging break the phonebook XML response
