@@ -10,6 +10,7 @@ class NocEvent extends Model
 {
     protected $fillable = [
         'module',
+        'branch_id',
         'entity_type',
         'entity_id',
         'source_type',
@@ -37,6 +38,18 @@ class NocEvent extends Model
     // ─────────────────────────────────────────────────────────────
     // Relationships
     // ─────────────────────────────────────────────────────────────
+
+    /**
+     * The branch this event belongs to, when it has one.
+     *
+     * Null is meaningful: a genuinely global alert (a Sophos Central advisory
+     * that maps to no local firewall, say) stays unscoped rather than being
+     * guessed onto a branch.
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
 
     public function acknowledgedBy(): BelongsTo
     {
@@ -70,6 +83,11 @@ class NocEvent extends Model
     public function scopeCritical(Builder $query): Builder
     {
         return $query->where('severity', 'critical');
+    }
+
+    public function scopeForBranch(Builder $query, int $branchId): Builder
+    {
+        return $query->where('branch_id', $branchId);
     }
 
     public function scopeUnmailed(Builder $query): Builder

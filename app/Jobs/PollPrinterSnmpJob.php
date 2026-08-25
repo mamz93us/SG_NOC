@@ -513,17 +513,21 @@ class PollPrinterSnmpJob implements ShouldQueue
             ->first();
 
         if ($existing) {
-            $existing->update([
+            $existing->update(array_filter([
                 'last_seen' => now(),
                 'severity' => $severity,
                 'message' => $message,
-            ]);
+                // Also on the update path — this dedups rather than re-creating,
+                // so a long-open toner alert would otherwise stay unattributed.
+                'branch_id' => $printer->branch_id,
+            ], fn ($v) => $v !== null));
 
             return;
         }
 
         $event = NocEvent::create([
             'module' => 'assets',
+            'branch_id' => $printer->branch_id,
             'entity_type' => 'printer',
             'entity_id' => $eventKey,
             'source_type' => 'printer',

@@ -480,6 +480,18 @@
 </div>
 
 <script>
+// Every value below arrives from JSON and is injected with innerHTML. Branch
+// names, host names and API error strings are all operator- or device-supplied,
+// so they go through esc() before they reach the markup. attr() additionally
+// escapes quotes for values placed inside an attribute.
+function esc(v) {
+    if (v === null || v === undefined) return '';
+    return String(v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+const attr = esc;
+
 // ── Extension Grid (AJAX) ──────────────────────────────────────────
 function loadExtensionGrid() {
     fetch('{{ route("admin.noc.extension-grid") }}')
@@ -560,9 +572,9 @@ function renderUcmStats(servers) {
             ? `<span class="badge bg-success-subtle text-success border border-success"><span class="status-pulse bg-success me-1"></span>Online</span>
                <div class="small text-muted mt-1">${s.uptime || 'Up'}</div>`
             : `<span class="badge bg-danger-subtle text-danger border border-danger"><i class="bi bi-x-circle-fill me-1"></i>Offline</span>
-               <div class="small text-danger mt-1 text-truncate" style="max-width:150px" title="${s.error || 'Unreachable'}">${s.error || 'Unreachable'}</div>`;
+               <div class="small text-danger mt-1 text-truncate" style="max-width:150px" title="${attr(s.error || 'Unreachable')}">${esc(s.error || 'Unreachable')}</div>`;
         const modelHtml = s.online
-            ? `<div class="text-dark small"><i class="bi bi-cpu me-1"></i>${s.model || '-'}</div><div class="text-muted small">v${s.firmware || '-'}</div>`
+            ? `<div class="text-dark small"><i class="bi bi-cpu me-1"></i>${esc(s.model || '-')}</div><div class="text-muted small">v${esc(s.firmware || '-')}</div>`
             : '<span class="text-muted">-</span>';
         const extHtml = s.online
             ? `<div class="d-flex align-items-center gap-2"><div class="fw-bold">${ext.total || 0}</div>
@@ -577,7 +589,7 @@ function renderUcmStats(servers) {
             : '<span class="text-muted">-</span>';
 
         return `<tr>
-            <td class="ps-4"><div class="fw-bold text-dark">${s.name}</div><div class="small text-muted font-monospace">${s.host}</div></td>
+            <td class="ps-4"><div class="fw-bold text-dark">${esc(s.name)}</div><div class="small text-muted font-monospace">${esc(s.host)}</div></td>
             <td>${statusHtml}</td>
             <td>${modelHtml}</td>
             <td>${extHtml}</td>
@@ -597,19 +609,42 @@ function renderBranchHealth(branches) {
     }
 
     content.innerHTML = branches.map(b => {
-        const h = b.health || {};
-        const c = b.color || {};
-        return `<a href="/admin/noc/branch/${b.id}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-bottom-0 border-top">
-            <div>
-                <h6 class="mb-1 fw-bold text-dark">${b.name}</h6>
-                <div class="d-flex gap-2 small">
-                    <span class="badge bg-${c.identity}-subtle text-${c.identity}">ID: ${h.identity || 0}</span>
-                    <span class="badge bg-${c.network}-subtle text-${c.network}">NW: ${h.network || 0}</span>
-                    <span class="badge bg-${c.asset}-subtle text-${c.asset}">IT: ${h.asset || 0}</span>
+        // Coverage is what was actually measurable out of 100. Anything below
+        // that is telemetry we do not have — shown in grey so an unmonitored
+        // branch can never be mistaken for a healthy one.
+        const coverage = b.coverage_percent ?? 0;
+        const unknown = Math.max(0, 100 - coverage);
+
+        const cats = (b.categories || []).map(c => `
+            <span class="badge bg-${c.color}-subtle text-${c.color} fw-semibold"
+                  title="${attr(c.label)}: ${c.points} of ${c.max_points} points">
+                ${esc(c.label)}: ${c.points}/${c.max_points}
+            </span>`).join('');
+
+        const capBadge = b.capped
+            ? `<span class="badge bg-danger-subtle text-danger fw-semibold"
+                     title="${attr((b.cap_reasons || []).join(' '))}">
+                 <i class="bi bi-exclamation-octagon-fill"></i> Capped
+               </span>`
+            : '';
+
+        const coverageNote = unknown > 0
+            ? `<span class="text-muted small" title="${unknown} points could not be assessed — no data or stale data">
+                 <i class="bi bi-question-circle"></i> ${unknown} pts unmonitored
+               </span>`
+            : '';
+
+        return `<a href="${attr(b.url)}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-bottom-0 border-top">
+            <div class="min-w-0">
+                <h6 class="mb-1 fw-bold text-dark">${esc(b.name)}</h6>
+                <div class="d-flex gap-2 small flex-wrap align-items-center">
+                    ${cats}${capBadge}
                 </div>
+                <div class="mt-1">${coverageNote}</div>
             </div>
-            <div class="text-end">
-                <div class="display-6 fw-bold text-${c.total} mb-0" style="font-size:1.5rem">${h.total || 0}%</div>
+            <div class="text-end ps-3">
+                <div class="display-6 fw-bold text-${b.status_color} mb-0" style="font-size:1.5rem">${b.total}</div>
+                <div class="badge bg-${b.status_color}-subtle text-${b.status_color} mt-1">${esc(b.status_label)}</div>
             </div>
         </a>`;
     }).join('');
@@ -643,7 +678,7 @@ function renderVpnTunnels(tunnels, summary) {
         return `<a href="/admin/network/tunnel-health" class="col-md-4 col-lg-3 text-decoration-none">
             <div class="d-flex align-items-center gap-2 p-2 rounded border ${cls}">
                 <i class="bi ${icon}"></i>
-                <div><div class="small fw-semibold">${t.name}</div><div style="font-size:10px" class="text-muted">${t.detail || t.branch}</div></div>
+                <div><div class="small fw-semibold">${esc(t.name)}</div><div style="font-size:10px" class="text-muted">${esc(t.detail || t.branch)}</div></div>
             </div>
         </a>`;
     }).join('');
@@ -691,11 +726,11 @@ function renderSophosVpn(tunnels, summary) {
                     const icon = t.status === 'up' ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger';
                     return `<tr class="${t.status === 'down' ? 'table-danger' : ''}">
                         <td class="ps-3"><i class="bi ${icon} me-1"></i><span class="badge ${badgeCls} rounded-pill">${t.status}</span></td>
-                        <td class="small fw-semibold">${t.name}</td>
-                        <td class="small">${t.firewall}</td>
-                        <td class="small font-monospace">${t.firewall_ip}</td>
-                        <td class="small">${t.branch}</td>
-                        <td class="small text-muted">${t.last_checked}</td>
+                        <td class="small fw-semibold">${esc(t.name)}</td>
+                        <td class="small">${esc(t.firewall)}</td>
+                        <td class="small font-monospace">${esc(t.firewall_ip)}</td>
+                        <td class="small">${esc(t.branch)}</td>
+                        <td class="small text-muted">${esc(t.last_checked)}</td>
                     </tr>`;
                 }).join('')}
             </tbody>

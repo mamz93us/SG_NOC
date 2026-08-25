@@ -196,8 +196,14 @@ Schedule::call(function () {
             if (! $result['success']) {
                 $event = \App\Models\NocEvent::firstOrCreate(
                     ['source_id' => $host->id, 'source_type' => 'host_down', 'status' => 'open'],
-                    ['module' => 'ping', 'title' => "Host Down: {$host->name}", 'message' => "Ping failed for {$host->ip}.", 'severity' => 'critical', 'first_seen' => now(), 'last_seen' => now()]
+                    ['module' => 'ping', 'branch_id' => $host->branch_id, 'title' => "Host Down: {$host->name}", 'message' => "Ping failed for {$host->ip}.", 'severity' => 'critical', 'first_seen' => now(), 'last_seen' => now()]
                 );
+                // firstOrCreate will not re-create a still-open incident, so an
+                // event raised before branch_id existed needs stamping here or it
+                // stays unattributed for as long as the host is down.
+                if (! $event->wasRecentlyCreated && $event->branch_id === null && $host->branch_id !== null) {
+                    $event->update(['branch_id' => $host->branch_id]);
+                }
                 if ($event->wasRecentlyCreated && $host->alert_email) {
                     \Illuminate\Support\Facades\Notification::route('mail', $host->alert_email)
                         ->notify(new \App\Notifications\HostOfflineNotification($host));

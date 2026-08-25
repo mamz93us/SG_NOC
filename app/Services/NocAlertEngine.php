@@ -124,13 +124,19 @@ class NocAlertEngine
     // Create or update event (idempotent)
     // ─────────────────────────────────────────────────────────────
 
+    /**
+     * @param  int|null  $branchId  Scopes the event to a branch when the caller
+     *                              knows it. Trailing and optional so the seven
+     *                              existing call sites are unaffected.
+     */
     public function createOrUpdateEvent(
         string $module,
         string $entityType,
         ?string $entityId,
         string $severity,
         string $title,
-        string $message
+        string $message,
+        ?int $branchId = null
     ): NocEvent {
         $existing = NocEvent::where('module', $module)
             ->where('entity_type', $entityType)
@@ -139,16 +145,21 @@ class NocAlertEngine
             ->first();
 
         if ($existing) {
-            $existing->update([
+            $existing->update(array_filter([
                 'last_seen' => now(),
                 'severity'  => $severity,
                 'message'   => $message,
-            ]);
+                // Stamped on the update path too: these events dedup rather than
+                // re-create, so an incident opened before the column existed
+                // would otherwise never gain its branch.
+                'branch_id' => $branchId,
+            ], fn ($v) => $v !== null));
             return $existing;
         }
 
         return NocEvent::create([
             'module'      => $module,
+            'branch_id'   => $branchId,
             'entity_type' => $entityType,
             'entity_id'   => $entityId,
             'severity'    => $severity,

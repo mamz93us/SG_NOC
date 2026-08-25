@@ -113,7 +113,8 @@ class SyncSophosDataJob implements ShouldQueue
                     (string) $this->firewall->id,
                     'warning',
                     "Sophos Sync Failed: {$this->firewall->name}",
-                    "Failed to sync data from Sophos firewall {$this->firewall->name} ({$this->firewall->ip}): {$e->getMessage()}"
+                    "Failed to sync data from Sophos firewall {$this->firewall->name} ({$this->firewall->ip}): {$e->getMessage()}",
+                    $this->firewall->branch_id
                 );
             } catch (\Throwable $alertErr) {
                 Log::error('SyncSophosDataJob: Could not create NOC alert', ['error' => $alertErr->getMessage()]);

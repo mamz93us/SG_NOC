@@ -109,6 +109,9 @@ class SyncSophosCentralCommand extends Command
                 message: 'Access point '.($row->name ?: $centralId)
                     .($row->site_name ? " (site {$row->site_name})" : '')
                     .' is reported offline by Sophos Central.',
+                // Left unscoped deliberately: sophos_central_access_points has no
+                // branch_id and only a free-text site_name, which is not a
+                // reliable enough link to attribute an alert to a branch.
             );
         }
 
@@ -173,6 +176,9 @@ class SyncSophosCentralCommand extends Command
                 title: 'Sophos Firewall Disconnected from Central: '.($row->name ?: $serial ?: $centralId),
                 message: 'Firewall '.($row->name ?: $centralId)
                     .' has lost its connection to Sophos Central.',
+                // Central firewalls carry no branch of their own; they reach one
+                // only through the local firewall matched by serial above.
+                branchId: $row->localFirewall?->branch_id,
             );
         }
 
@@ -209,17 +215,28 @@ class SyncSophosCentralCommand extends Command
             $product = Arr::get($alert, 'product', 'other');
             $raisedAt = $this->parseTime(Arr::get($alert, 'raisedAt')) ?? now();
 
+            // Scope the alert to a branch ONLY when Central names a device we can
+            // trace to a local firewall. A genuinely global advisory stays
+            // unscoped rather than being attributed to an arbitrary branch.
+            $branchId = $this->branchForCentralAlert($alert);
+
+            $touch = ['last_seen' => now()];
+            if ($branchId !== null) {
+                $touch['branch_id'] = $branchId;
+            }
+
             NocEvent::firstOrCreate(
                 ['source_type' => 'sophos_central_alert', 'source_id' => $alertId, 'status' => 'open'],
                 [
                     'module' => 'sophos',
+                    'branch_id' => $branchId,
                     'severity' => $this->mapSeverity(Arr::get($alert, 'severity')),
                     'title' => 'Sophos Central ['.$product.']: '.Arr::get($alert, 'type', 'alert'),
                     'message' => Arr::get($alert, 'description', 'Sophos Central alert'),
                     'first_seen' => $raisedAt,
                     'last_seen' => now(),
                 ]
-            )->update(['last_seen' => now()]);
+            )->update($touch);
         }
 
         // Resolve NOC events for alerts Central no longer reports as open
@@ -237,6 +254,36 @@ class SyncSophosCentralCommand extends Command
     // ─── Helpers ──────────────────────────────────────────────────
 
     /**
+     * Branch for a generic Central alert, or null when it is genuinely global.
+     *
+     * Central reports alerts against a managed device, not against a site, so
+     * the only trustworthy route to a branch is:
+     *   payload serial/id -> SophosCentralFirewall -> SophosFirewall -> branch_id
+     *
+     * Anything that does not complete that chain is left unscoped. An advisory
+     * about the Central tenant itself belongs to no branch, and guessing would
+     * cap a branch's health score for something that is not its problem.
+     */
+    protected function branchForCentralAlert(array $alert): ?int
+    {
+        $serial = Arr::get($alert, 'managedAgent.id')
+            ?? Arr::get($alert, 'managedAgent.serialNumber')
+            ?? Arr::get($alert, 'serialNumber')
+            ?? Arr::get($alert, 'serial');
+
+        if (! $serial) {
+            return null;
+        }
+
+        $central = SophosCentralFirewall::with('localFirewall:id,branch_id')
+            ->where('serial_number', $serial)
+            ->orWhere('central_id', $serial)
+            ->first();
+
+        return $central?->localFirewall?->branch_id;
+    }
+
+    /**
      * Raise an open NocEvent while a device is down, resolve it when the
      * device is confirmed back up. Unknown statuses leave events untouched.
      */
@@ -247,19 +294,29 @@ class SyncSophosCentralCommand extends Command
         bool $isUp,
         string $title,
         string $message,
+        ?int $branchId = null,
     ): void {
         if ($isDown) {
+            // branch_id is in the update payload as well as the create defaults:
+            // firstOrCreate will not re-create a still-open incident, so an event
+            // raised before the column existed would never otherwise gain a branch.
+            $touch = ['last_seen' => now()];
+            if ($branchId !== null) {
+                $touch['branch_id'] = $branchId;
+            }
+
             NocEvent::firstOrCreate(
                 ['source_type' => $sourceType, 'source_id' => $sourceId, 'status' => 'open'],
                 [
                     'module' => 'sophos',
+                    'branch_id' => $branchId,
                     'severity' => 'critical',
                     'title' => $title,
                     'message' => $message,
                     'first_seen' => now(),
                     'last_seen' => now(),
                 ]
-            )->update(['last_seen' => now()]);
+            )->update($touch);
         } elseif ($isUp) {
             NocEvent::where('source_type', $sourceType)
                 ->where('source_id', $sourceId)

@@ -2,10 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Branch extends Model
 {
@@ -13,6 +14,7 @@ class Branch extends Model
 
     // Manual IDs
     public $incrementing = false;
+
     protected $keyType = 'int';
 
     protected $fillable = [
@@ -30,7 +32,7 @@ class Branch extends Model
 
     protected $casts = [
         'ext_range_start' => 'integer',
-        'ext_range_end'   => 'integer',
+        'ext_range_end' => 'integer',
     ];
 
     // ─── Relationships ────────────────────────────────────────────
@@ -63,6 +65,40 @@ class Branch extends Model
     public function ispConnections(): HasMany
     {
         return $this->hasMany(IspConnection::class);
+    }
+
+    // Inverses used by the branch health score and the NOC drill-down. Each of
+    // these tables has carried a branch_id for a while; the relation simply
+    // never existed on this side.
+
+    public function branchTunnels(): HasMany
+    {
+        return $this->hasMany(BranchTunnel::class);
+    }
+
+    public function accessPoints(): HasMany
+    {
+        return $this->hasMany(AccessPoint::class);
+    }
+
+    public function printers(): HasMany
+    {
+        return $this->hasMany(Printer::class);
+    }
+
+    public function devices(): HasMany
+    {
+        return $this->hasMany(Device::class);
+    }
+
+    public function monitoredHosts(): HasMany
+    {
+        return $this->hasMany(MonitoredHost::class);
+    }
+
+    public function voiceMeshNode(): HasOne
+    {
+        return $this->hasOne(VoiceMeshNode::class);
     }
 
     public function ipReservations(): HasMany
@@ -114,7 +150,7 @@ class Branch extends Model
     {
         return [
             'start' => $this->ext_range_start ?? (int) ($settings->ext_range_start ?? 1000),
-            'end'   => $this->ext_range_end   ?? (int) ($settings->ext_range_end   ?? 1999),
+            'end' => $this->ext_range_end ?? (int) ($settings->ext_range_end ?? 1999),
         ];
     }
 

@@ -133,20 +133,41 @@ class NocController extends Controller
             ];
         });
 
-        // Branch Health (heaviest — calls HealthScoringService for each branch)
-        // ->values() re-indexes; allBranches() uses sortByDesc which leaves sparse
-        // keys, and PHP encodes sparse-keyed arrays as JSON objects, breaking .map() in JS.
-        $branches = $this->health->allBranches()->map(fn ($b) => [
-            'id' => $b->id,
-            'name' => $b->name,
-            'health' => $b->health,
-            'color' => [
-                'total' => HealthScoringService::healthColorStatic($b->health['total'] ?? 0),
-                'identity' => HealthScoringService::healthColorStatic($b->health['identity'] ?? 0),
-                'network' => HealthScoringService::healthColorStatic($b->health['network'] ?? 0),
-                'asset' => HealthScoringService::healthColorStatic($b->health['asset'] ?? 0),
-            ],
-        ])->values();
+        // Branch Health — one bounded set of queries for the whole estate, not a
+        // fan-out per branch. Worst-first so whatever needs attention is on top.
+        //
+        // Lightweight summaries only: per-check detail is an order of magnitude
+        // more payload and is only ever read on the drill-down, which fetches it
+        // itself. ->values() re-indexes because PHP encodes sparse-keyed arrays
+        // as JSON objects, which breaks .map() in the dashboard JS.
+        $branches = $this->health->allBranches()->map(function ($b) {
+            $h = $b->health;
+
+            return [
+                'id' => $b->id,
+                'name' => $b->name,
+                'url' => route('admin.noc.branch', $b->id),
+                'total' => $h['total'],
+                'raw_total' => $h['raw_total'],
+                'coverage_percent' => $h['coverage_percent'],
+                'normalized_percent' => $h['normalized_percent'],
+                'status' => $h['status'],
+                'status_label' => HealthScoringService::statusLabel($h['status']),
+                'status_color' => HealthScoringService::statusColor($h['status']),
+                'capped' => $h['cap_reasons'] !== [],
+                'cap_reasons' => array_map(fn ($r) => $r['message'], $h['cap_reasons']),
+                'categories' => collect($h['categories'])->map(fn ($c) => [
+                    'key' => $c['key'],
+                    'label' => $c['label'],
+                    'points' => $c['points'],
+                    'max_points' => $c['max_points'],
+                    'percent' => $c['percent'],
+                    // Coloured on the category's own 0-100 percentage. Passing raw
+                    // points would paint a perfect 15/15 Devices score red.
+                    'color' => HealthScoringService::healthColorStatic($c['percent']),
+                ])->values(),
+            ];
+        })->values();
 
         // VPN Tunnel Details — from the Branch Tunnel Watchdog. `state` carries
         // "degraded" (gateway up, a carried subnet unreachable) alongside up/down;
@@ -211,22 +232,29 @@ class NocController extends Controller
 
     public function branch(Branch $branch)
     {
-        $score = $this->health->scoreForBranch($branch->id);
+        $score = $this->health->scoreForBranch($branch);
         $switches = NetworkSwitch::where('branch_id', $branch->id)->get();
         $devices = Device::where('branch_id', $branch->id)->with('credentials')->get();
-        $printers = Printer::where('branch_id', $branch->id)->get();
+        $printers = Printer::where('branch_id', $branch->id)->with('supplies')->get();
 
-        // Phase 4A: additional data for single pane of glass
-        $vpnTunnels = \App\Models\VpnTunnel::where('branch_id', $branch->id)->get();
+        // Branch tunnels, from the watchdog. This card used to read VpnTunnel,
+        // whose own docblock says the model is vestigial and its table empty in
+        // production — so it was permanently blank while the dashboard beside it
+        // showed the real thing.
+        $branchTunnels = \App\Models\BranchTunnel::where('branch_id', $branch->id)
+            ->with('activeProbes')->ordered()->get();
         $ispConns = \App\Models\IspConnection::where('branch_id', $branch->id)->get();
         $monitorHosts = \App\Models\MonitoredHost::where('branch_id', $branch->id)->get();
         $landlines = \App\Models\Landline::where('branch_id', $branch->id)->get();
         $ipCount = \App\Models\IpReservation::where('branch_id', $branch->id)->count();
         $employees = \App\Models\Employee::where('branch_id', $branch->id)->get();
+        $accessPoints = \App\Models\AccessPoint::where('branch_id', $branch->id)
+            ->orderBy('name')->get();
+
+        // Indexed on branch_id now. The previous whereHas('branch', ...) called a
+        // relation NocEvent did not have and threw on every render of this page.
         $openAlerts = NocEvent::whereIn('status', ['open', 'acknowledged'])
-            ->where(function ($q) use ($branch) {
-                $q->whereHas('branch', fn ($bq) => $bq->where('id', $branch->id));
-            })
+            ->where('branch_id', $branch->id)
             ->orderByDesc('last_seen')->limit(5)->get();
         $openIncidents = \App\Models\Incident::where('branch_id', $branch->id)
             ->whereIn('status', ['open', 'investigating'])
@@ -240,8 +268,8 @@ class NocController extends Controller
 
         return view('admin.noc.branch', compact(
             'branch', 'score', 'switches', 'devices', 'printers',
-            'vpnTunnels', 'ispConns', 'monitorHosts', 'landlines',
-            'ipCount', 'employees', 'openAlerts', 'openIncidents',
+            'branchTunnels', 'ispConns', 'monitorHosts', 'landlines',
+            'ipCount', 'employees', 'accessPoints', 'openAlerts', 'openIncidents',
             'dhcpLeases', 'subnets', 'sophosFirewalls', 'sophosVpnTunnels'
         ));
     }

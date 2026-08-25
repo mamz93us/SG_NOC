@@ -33,6 +33,7 @@ use App\Http\Controllers\Admin\EmailMarketing\SuppressionsController as EmAdminS
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\EmployeeItemController;
 use App\Http\Controllers\Admin\ExtensionController;
+use App\Http\Controllers\Admin\FortigateFirewallController;
 use App\Http\Controllers\Admin\GdmsController;
 use App\Http\Controllers\Admin\GdmsTemplateController;
 use App\Http\Controllers\Admin\HrApiKeyController;
@@ -66,7 +67,6 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\SlaController;
 use App\Http\Controllers\Admin\SmtpRelayController;
 use App\Http\Controllers\Admin\SnmpMonitoringController;
-use App\Http\Controllers\Admin\FortigateFirewallController;
 use App\Http\Controllers\Admin\SophosFirewallController;
 use App\Http\Controllers\Admin\SslCertificateController;
 use App\Http\Controllers\Admin\SubdomainController;
@@ -1665,7 +1665,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('/', [NocController::class, 'dashboard'])->name('dashboard');
         Route::get('/overview', [\App\Http\Controllers\Admin\NocOverviewController::class, 'index'])->name('overview.index');
         Route::get('/overview/chart', [\App\Http\Controllers\Admin\NocOverviewController::class, 'chart'])->name('overview.chart');
-        Route::get('/branch/{id}', [NocController::class, 'branch'])->name('branch');
+        // {branch}, not {id}: implicit model binding matches the URI segment name
+        // to the controller argument name, so the old {id} silently injected an
+        // empty Branch and the page could never resolve one. Same URL, same name.
+        Route::get('/branch/{branch}', [NocController::class, 'branch'])->name('branch')->whereNumber('branch');
         Route::get('/events', [NocController::class, 'events'])->name('events');
         Route::get('/alerts', [\App\Http\Controllers\Admin\AlertFeedController::class, 'index'])->name('alerts');
         Route::get('/alerts/{id}/timeline', [\App\Http\Controllers\Admin\AlertFeedController::class, 'timeline'])->name('alerts.timeline');
