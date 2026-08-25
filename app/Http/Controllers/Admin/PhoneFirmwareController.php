@@ -11,6 +11,7 @@ use App\Services\Phone\FirmwarePublisher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -78,6 +79,14 @@ class PhoneFirmwareController extends Controller
             'notes' => 'nullable|string|max:2000',
         ]);
 
+        // Unpacking and hashing a 150 MB package takes longer than the default
+        // max_execution_time, and dying halfway looks like a blank 500.
+        @set_time_limit(0);
+
+        if ($problem = $this->storageProblem()) {
+            return back()->with('error', $problem);
+        }
+
         $file = $request->file('file');
         $original = $file->getClientOriginalName();
 
@@ -132,11 +141,24 @@ class PhoneFirmwareController extends Controller
                 return back()->with('error', 'Could not read the extracted image.');
             }
             try {
-                Storage::disk(PhoneFirmware::DISK)->writeStream($row->libraryPath(), $stream);
+                $ok = Storage::disk(PhoneFirmware::DISK)->writeStream($row->libraryPath(), $stream);
+            } catch (\Throwable $e) {
+                // Unguarded, this surfaced as a bare 500. The usual cause is the
+                // firmware directory not being writable by the PHP-FPM user.
+                Log::error('Firmware store failed: '.$e->getMessage(), ['exception' => $e]);
+                $row->delete();
+
+                return back()->with('error', 'Could not save the firmware image: '.$e->getMessage());
             } finally {
                 if (is_resource($stream)) {
                     fclose($stream);
                 }
+            }
+
+            if ($ok === false) {
+                $row->delete();
+
+                return back()->with('error', 'Storage refused the firmware image — check the disk has space and is writable.');
             }
 
             $row->update(['path' => $row->libraryPath()]);
@@ -358,6 +380,38 @@ class PhoneFirmwareController extends Controller
     // ─────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Why the firmware disk cannot be written to, or null when it is fine.
+     *
+     * Worth checking before unpacking a 150 MB package rather than after: the
+     * common failure is the directory being owned by the deploy user while
+     * PHP-FPM runs as another, and the resulting exception says nothing useful
+     * to whoever is standing at the upload form.
+     */
+    private function storageProblem(): ?string
+    {
+        try {
+            $root = Storage::disk(PhoneFirmware::DISK)->path('');
+        } catch (\Throwable $e) {
+            return 'The firmware disk is not configured: '.$e->getMessage();
+        }
+
+        if (! is_dir($root) && ! @mkdir($root, 0775, true) && ! is_dir($root)) {
+            return "The firmware directory ({$root}) does not exist and could not be created. "
+                .'Run deployment/firmware/setup.sh.';
+        }
+
+        if (! is_writable($root)) {
+            $owner = function_exists('posix_getpwuid') ? (posix_getpwuid(fileowner($root))['name'] ?? '?') : '?';
+            $me = function_exists('posix_getpwuid') ? (posix_getpwuid(posix_geteuid())['name'] ?? '?') : '?';
+
+            return "The firmware directory ({$root}) is not writable — it is owned by \"{$owner}\" "
+                ."and PHP runs as \"{$me}\". Re-run deployment/firmware/setup.sh, which fixes this.";
+        }
+
+        return null;
+    }
 
     /**
      * Smaller of PHP's two upload ceilings, in bytes. Both are PHP_INI_PERDIR and

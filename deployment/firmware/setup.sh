@@ -66,12 +66,31 @@ log "Serving:  $FW_ROOT"
 # Lives under the `public` disk root so the existing storage symlink already
 # exposes it; nginx reads the same directory directly for the internal listener.
 APP_USER="$(stat -c '%U' "$APP_DIR/artisan")"
-install -d -o "$APP_USER" -g "$APP_USER" -m 755 "$FW_ROOT"
-install -d -o "$APP_USER" -g "$APP_USER" -m 755 "$FW_ROOT/library"
 
-# nginx (www-data) traverses APP_DIR/storage/app/public to reach it. The
-# storage:link symlink already proves this path is readable, but a fresh clone
-# can land with a tighter umask.
+# PHP-FPM writes the uploads; nginx only reads them. Those can be different
+# users, and a directory owned by the deploy user alone means every upload dies
+# with a permission error the operator never sees. Take the group from the FPM
+# pool and make the directory group-writable.
+FPM_USER="$(sed -nE 's|^[[:space:]]*user[[:space:]]*=[[:space:]]*(.+)$|\1|p' /etc/php/*/fpm/pool.d/www.conf 2>/dev/null | head -1 | tr -d '[:space:]')"
+FPM_GROUP="$(sed -nE 's|^[[:space:]]*group[[:space:]]*=[[:space:]]*(.+)$|\1|p' /etc/php/*/fpm/pool.d/www.conf 2>/dev/null | head -1 | tr -d '[:space:]')"
+FW_GROUP="${FPM_GROUP:-$APP_USER}"
+
+log "App user: $APP_USER   PHP-FPM: ${FPM_USER:-unknown}:${FPM_GROUP:-unknown}"
+
+install -d -o "$APP_USER" -g "$FW_GROUP" -m 2775 "$FW_ROOT"
+install -d -o "$APP_USER" -g "$FW_GROUP" -m 2775 "$FW_ROOT/library"
+
+# If FPM runs as neither the owner nor a member of that group, say so plainly
+# rather than leaving an upload to fail with a bare 500 later.
+if [[ -n "$FPM_USER" && "$FPM_USER" != "$APP_USER" ]] && ! id -nG "$FPM_USER" 2>/dev/null | tr ' ' '
+' | grep -qx "$FW_GROUP"; then
+    warn "PHP-FPM runs as '$FPM_USER', which is not '$APP_USER' and not in group '$FW_GROUP'."
+    warn "Uploads will fail. Fix with:  sudo usermod -aG $FW_GROUP $FPM_USER && sudo systemctl restart php*-fpm"
+fi
+
+# nginx traverses APP_DIR/storage/app/public to reach it. The storage:link
+# symlink already proves this path is readable, but a fresh clone can land with
+# a tighter umask.
 chmod o+x "$APP_DIR/storage" "$APP_DIR/storage/app" "$APP_DIR/storage/app/public" 2>/dev/null || true
 
 # --- Shared location block ----------------------------------------------------
