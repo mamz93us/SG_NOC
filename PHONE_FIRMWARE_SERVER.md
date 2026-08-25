@@ -125,11 +125,16 @@ if its phones already appear there, they can reach the NOC.
   answers anything larger with a bare `413 Request Entity Too Large` before PHP runs at all; PHP
   then applies its own `upload_max_filesize` / `post_max_size`. Raising one without the other
   changes nothing. Both are now set from the repo — nginx by `deployment/firmware/setup.sh`
-  (`UPLOAD_MAX_BODY`, default 512m, written into the `sites-dynamic` snippet, which sits inside the
-  server block and so applies vhost-wide) and PHP by `public/.user.ini`. **A 413 after a deploy
-  almost always means `setup.sh` has not been re-run.** If it persists, check whether the NOC vhost
-  sets its own `client_max_body_size` *after* the include — the last one in the block wins, and
-  setup.sh warns when it sees one.
+  (`UPLOAD_MAX_BODY`, default 512m) and PHP by `public/.user.ini`. **A 413 after a deploy almost
+  always means `setup.sh` has not been re-run.**
+
+  `client_max_body_size` may appear **only once per context** — a second one in the same server
+  block is a hard `nginx -t` failure ("directive is duplicate"), not a last-one-wins override. So
+  setup.sh checks the NOC vhost first: if it already has the directive it *raises that line in
+  place* (keeping a `.bak-*` alongside) and emits nothing; only a vhost without one gets ours from
+  the snippet. It finds that vhost by which file carries the `sites-dynamic` include, not by
+  docroot — vcard, hr-portal and marketing all share this app's docroot, so matching on that picks
+  the wrong file.
 - The upload box on the firmware page states the live ceiling and refuses an oversized file in the
   browser, pointing at the URL fetch instead — that path is server-side and has no such limit.
 - **The `/fw/` path only exists after `setup.sh` has run.** It is an nginx alias, not a Laravel
