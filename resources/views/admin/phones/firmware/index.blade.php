@@ -7,9 +7,14 @@
         <h4 class="mb-0 fw-bold"><i class="bi bi-hdd-network me-2 text-primary"></i>Phone Firmware Server</h4>
         <small class="text-muted">Publish a Grandstream image once — every phone picks it up from the firmware path set in the UCM</small>
     </div>
-    <a href="{{ route('admin.phones.firmware.status') }}" class="btn btn-outline-primary btn-sm">
-        <i class="bi bi-clipboard-check me-1"></i>Who has taken it?
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{{ route('admin.phones.firmware.status') }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-clipboard-check me-1"></i>Who has taken it?
+        </a>
+        <a href="{{ route('admin.phones.firmware.downloads') }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-download me-1"></i>Download log
+        </a>
+    </div>
 </div>
 
 {{-- What to type into the UCM. The whole feature is inert until this is set. --}}

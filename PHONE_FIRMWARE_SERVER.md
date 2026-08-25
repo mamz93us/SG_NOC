@@ -108,6 +108,38 @@ problem, not a firmware-server problem — see the gotchas.
 `phone_request_logs` is also the honest pre-flight before pointing a branch at the internal path:
 if its phones already appear there, they can reach the NOC.
 
+## Who downloaded what, and when
+
+**Firmware Downloads** (`/admin/phones/firmware/downloads`) answers exactly that: every fetch, with
+the phone's model, MAC, running version, the file, the outcome and the size.
+
+nginx serves the images directly — deliberately, so a 60 MB transfer never occupies a PHP-FPM
+worker — which means the app never sees these requests. `firmware:ingest-log` (every minute) tails
+the firmware vhost's access log into `phone_firmware_downloads`, the same shape as
+`smtp-relay:ingest-log`: resume by persisted `{inode, offset}`, so each tick reads only new bytes
+and log rotation is handled, and a no-op when the log is unreadable.
+
+Identity comes from the User-Agent, which is the only thing a firmware fetch carries:
+
+```
+Grandstream Model HW GRP2610 SW 1.0.7.4 DevId c074ad112233
+```
+
+Parsed by `App\Support\GrandstreamUserAgent`, shared with the phonebook check-in so the two cannot
+drift. Rows are matched back to their ITAM asset on MAC.
+
+**The 404s are the useful half.** A phone asking for a filename the directory does not hold is
+either a model whose image was never published — which the version board cannot show you, because a
+phone that never downloaded anything simply looks behind — or a filename typed wrong. The page
+groups them at the top, and marks ringtone requests (`ring1.bin` and friends) as ignorable, since
+every Grandstream asks for those and simply keeps its built-in tones when they are absent.
+
+Reading `/var/log/nginx` needs the app user in the log's group (`adm` on Ubuntu);
+`deployment/firmware/setup.sh` adds it. Group membership only applies to new processes, so an
+already-running php-fpm needs a restart — the scheduled ingest picks it up on its next tick either
+way. Retention is `PHONE_FIRMWARE_RETENTION_DAYS` (365 by default), enforced by
+`firmware:ingest-log --prune` daily.
+
 ## Gotchas
 
 - **Never put this vhost behind an HTTP→HTTPS redirect.** Older Grandstream firmware fails modern
@@ -158,7 +190,8 @@ php artisan config:clear
 Permissions: `view-phone-firmware` (super_admin, admin, viewer), `manage-phone-firmware`
 (super_admin, admin).
 
-Scheduler: `firmware:fetch-remote` every minute, `phones:sync-firmware-versions` daily at 05:45.
+Scheduler: `firmware:fetch-remote` and `firmware:ingest-log` every minute,
+`phones:sync-firmware-versions` daily at 05:45, `firmware:ingest-log --prune` daily at 04:20.
 
 ## Files
 
@@ -166,8 +199,10 @@ Scheduler: `firmware:fetch-remote` every minute, `phones:sync-firmware-versions`
 - Controller: `app/Http/Controllers/Admin/PhoneFirmwareController.php`.
 - Model: `app/Models/PhoneFirmware.php` (note the pinned `$table` — "firmware" is uncountable, so
   Eloquent would otherwise infer `phone_firmware`).
-- Commands: `app/Console/Commands/FetchRemoteFirmware.php`, `SyncPhoneFirmwareVersions.php`.
-- Views: `resources/views/admin/phones/firmware/{index,status}.blade.php`.
+- Commands: `app/Console/Commands/FetchRemoteFirmware.php`, `SyncPhoneFirmwareVersions.php`,
+  `IngestFirmwareLog.php`.
+- Download audit: `app/Models/PhoneFirmwareDownload.php`, `app/Support/GrandstreamUserAgent.php`.
+- Views: `resources/views/admin/phones/firmware/{index,status,downloads}.blade.php`.
 - Config: `config/phone_firmware.php`, plus the `firmware` disk in `config/filesystems.php`.
 - Deployment: `deployment/firmware/setup.sh`.
 - Tests: `tests/Unit/PhoneFirmwareTest.php`.

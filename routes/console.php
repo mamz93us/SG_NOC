@@ -751,6 +751,20 @@ Schedule::command('firmware:fetch-remote')
     ->runInBackground()
     ->name('firmware-fetch-remote');
 
+// nginx serves the firmware images, so the app only learns who downloaded one by
+// reading nginx's access log. Same scheduler-as-worker shape as smtp-relay:ingest-log.
+Schedule::command('firmware:ingest-log')
+    ->everyMinute()
+    ->withoutOverlapping(5)
+    ->runInBackground()
+    ->name('firmware-ingest-log');
+
+Schedule::command('firmware:ingest-log --prune')
+    ->dailyAt('04:20')
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('firmware-prune-downloads');
+
 // Refresh what firmware each phone is actually running, so the firmware status
 // board and the ITAM Firmware Tracker stop reporting import-time snapshots.
 Schedule::command('phones:sync-firmware-versions')

@@ -83,29 +83,18 @@ class PhonebookController extends Controller
         $ip        = $request->ip();
         $userAgent = $request->header('User-Agent', '');
 
-        $mac      = null;
-        $model    = null;
-        $firmware = null;
-
         // UA examples:
         //   "Grandstream Model HW GRP2616 SW 1.0.13.59 DevId ec74d7800474"   (no colons)
         //   "Grandstream Model HW GRP2601W SW 1.0.7.32 DevId EC:74:D7:89:1A:76" (with colons)
-        if (preg_match('/Model HW\s+([A-Z0-9\-]+)/i', $userAgent, $m)) {
-            $model = strtoupper($m[1]); // GRP2616 / GRP2601W
-        }
-
-        // The SW field is the running firmware — the freshest fleet-wide firmware
-        // inventory we have, and what the firmware status board compares against
-        // the published version. No GDMS round trip needed.
-        if (preg_match('/\bSW\s+([0-9]+(?:\.[0-9]+)+)/i', $userAgent, $m)) {
-            $firmware = $m[1]; // 1.0.13.59
-        }
-
-        // Allow both formats: plain hex (ec74d7800474) or colon-separated (EC:74:D7:89:1A:76)
-        if (preg_match('/DevId\s+([0-9a-fA-F:]+)/i', $userAgent, $m)) {
-            // Normalize: strip colons → lowercase hex, e.g. ec74d789001a76 → ec74d789001a76
-            $mac = strtolower(str_replace(':', '', $m[1]));
-        }
+        //
+        // Parsed in App\Support\GrandstreamUserAgent because the firmware
+        // download log reads the same string out of the nginx access log — two
+        // copies of these regexes would drift. The SW field is the running
+        // firmware, and the freshest fleet-wide inventory we have: it is what
+        // the firmware status board compares against the published version, with
+        // no GDMS round trip.
+        ['model' => $model, 'mac' => $mac, 'firmware' => $firmware]
+            = \App\Support\GrandstreamUserAgent::parse($userAgent);
 
         try {
             PhoneRequestLog::create([
