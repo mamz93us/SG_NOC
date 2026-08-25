@@ -56,6 +56,10 @@ class PhoneFirmwareController extends Controller
             'serveRoot' => rtrim(Storage::disk(PhoneFirmware::DISK)->url(''), '/'),
             'internalPath' => config('phone_firmware.internal_url'),
             'publicPath' => config('phone_firmware.public_url'),
+            // What PHP will actually accept. nginx has its own, lower-by-default
+            // ceiling that rejects the request before we ever run, so this is a
+            // guide rather than a guarantee — but showing it beats a bare 413.
+            'uploadLimitBytes' => $this->uploadLimitBytes(),
         ]);
     }
 
@@ -354,6 +358,35 @@ class PhoneFirmwareController extends Controller
     // ─────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Smaller of PHP's two upload ceilings, in bytes. Both are PHP_INI_PERDIR and
+     * set in public/.user.ini; post_max_size caps the whole body, so an
+     * upload_max_filesize above it is not actually reachable.
+     */
+    private function uploadLimitBytes(): int
+    {
+        $toBytes = function (string $value): int {
+            $value = trim($value);
+            $unit = strtolower(substr($value, -1));
+            $number = (int) $value;
+
+            return match ($unit) {
+                'g' => $number * 1024 ** 3,
+                'm' => $number * 1024 ** 2,
+                'k' => $number * 1024,
+                default => $number,
+            };
+        };
+
+        $limits = array_filter([
+            $toBytes((string) ini_get('upload_max_filesize')),
+            $toBytes((string) ini_get('post_max_size')),
+            self::MAX_UPLOAD_KB * 1024,
+        ]);
+
+        return $limits ? (int) min($limits) : 0;
+    }
 
     private function compare(?string $running, ?string $target): string
     {

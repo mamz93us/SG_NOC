@@ -121,9 +121,17 @@ if its phones already appear there, they can reach the NOC.
 - **A reachable branch firewall does not mean the tunnel carries the NOC subnet.** Before switching
   a branch to the internal path, check its phones actually appear in `phone_request_logs`. This is
   the same class of failure the tunnel watchdog exists to catch.
-- **Upload limits.** If a browser upload 413s, raise `client_max_body_size` on the NOC vhost and
-  `upload_max_filesize` / `post_max_size` in the PHP-FPM pool — or just use the URL fetch, which
-  bypasses both.
+- **Upload limits are two ceilings, not one.** nginx defaults `client_max_body_size` to **1 MB** and
+  answers anything larger with a bare `413 Request Entity Too Large` before PHP runs at all; PHP
+  then applies its own `upload_max_filesize` / `post_max_size`. Raising one without the other
+  changes nothing. Both are now set from the repo — nginx by `deployment/firmware/setup.sh`
+  (`UPLOAD_MAX_BODY`, default 512m, written into the `sites-dynamic` snippet, which sits inside the
+  server block and so applies vhost-wide) and PHP by `public/.user.ini`. **A 413 after a deploy
+  almost always means `setup.sh` has not been re-run.** If it persists, check whether the NOC vhost
+  sets its own `client_max_body_size` *after* the include — the last one in the block wins, and
+  setup.sh warns when it sees one.
+- The upload box on the firmware page states the live ceiling and refuses an oversized file in the
+  browser, pointing at the URL fetch instead — that path is server-side and has no such limit.
 - **The `/fw/` path only exists after `setup.sh` has run.** It is an nginx alias, not a Laravel
   route; firmware bytes never pass through PHP.
 
