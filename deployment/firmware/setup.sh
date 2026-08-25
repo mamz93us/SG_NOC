@@ -128,53 +128,111 @@ NGINX
 
 ln -sfn "$AVAILABLE" "$ENABLED"
 
-# --- Public fallback via the sites-dynamic include ----------------------------
-# The main NOC vhost already carries `include /etc/nginx/sites-dynamic/*.conf;`
-# for the browser portal, so we can add /fw/ without touching that file.
-if [[ -d "$DYNAMIC_DIR" ]]; then
-    log "Writing $SNIPPET"
-    cat > "$SNIPPET" <<NGINX
-# Phone firmware — managed by deployment/firmware/setup.sh
+# --- Upload ceiling -----------------------------------------------------------
+# Two ceilings gate an upload: nginx client_max_body_size (default 1m, rejects
+# with a bare 413 before PHP runs) and PHP upload_max_filesize/post_max_size
+# (public/.user.ini). Raising one without the other changes nothing.
 #
-# This file is included INSIDE the NOC server block, so a bare directive here is
-# a server-level setting. nginx defaults client_max_body_size to 1m, which 413s
-# every firmware upload (and every Download Center artifact) before PHP is even
-# reached. PHP has its own separate ceiling — see public/.user.ini; raising one
-# without the other changes nothing.
-client_max_body_size ${UPLOAD_MAX_BODY};
+# The nginx half is fiddly. client_max_body_size is only allowed ONCE per
+# context — a second one in the same server block is a hard `nginx -t` error,
+# not a last-one-wins override — and the limit that actually applies is the one
+# in effect where the body is read, which for a PHP app is the server block or
+# the fastcgi location. So: if the vhost already sets it, raise that directive
+# in place; only add our own when there is none.
 
-# Public fallback for the firmware itself, for branches whose tunnel does not
-# carry the NOC subnet. Prefer the internal path: this one faces the internet.
-location ^~ /fw/library/ { deny all; }
-
-location ^~ /fw/ {
-    alias ${FW_ROOT}/;
-${FW_LOCATION}
-    access_log ${ACCESS_LOG};
-}
-NGINX
-else
-    warn "$DYNAMIC_DIR does not exist — public /fw/ fallback NOT installed."
-    warn "Create it and add 'include $DYNAMIC_DIR/*.conf;' inside the NOC server block,"
-    warn "then re-run this script. See deployment/browser-portal/nginx/README.md."
+# Find the NOC vhost by the include itself rather than by docroot: several
+# sibling subdomains (vcard, hr-portal, marketing) share this app's docroot, and
+# matching on that picks whichever sorts first.
+NOC_VHOST="$(grep -rlsE 'include[[:space:]]+/etc/nginx/sites-dynamic' /etc/nginx/sites-enabled/ 2>/dev/null | head -1 || true)"
+if [[ -n "$NOC_VHOST" ]]; then
+    NOC_VHOST="$(readlink -f "$NOC_VHOST")"
 fi
 
-# --- Upload ceiling sanity ----------------------------------------------------
-# A client_max_body_size in the vhost AFTER the include would override ours, and
-# the symptom is an unchanged 413 that looks like this script did nothing.
-NOC_VHOST="$(grep -rlsF "$APP_DIR/public" /etc/nginx/sites-available/ 2>/dev/null | grep -v phone-firmware | head -1 || true)"
-if [[ -n "$NOC_VHOST" ]] && grep -q 'client_max_body_size' "$NOC_VHOST"; then
-    warn "$NOC_VHOST already sets client_max_body_size — if uploads still 413,"
-    warn "raise or remove that directive; whichever comes last in the block wins."
+to_bytes() {
+    local v="${1,,}" n="${1//[^0-9]/}"
+    case "$v" in
+        *g) echo $(( n * 1024 * 1024 * 1024 )) ;;
+        *m) echo $(( n * 1024 * 1024 )) ;;
+        *k) echo $(( n * 1024 )) ;;
+        *)  echo "${n:-0}" ;;
+    esac
+}
+
+EMIT_BODY_SIZE=1
+if [[ -n "$NOC_VHOST" ]] && grep -qE '^[[:space:]]*client_max_body_size' "$NOC_VHOST"; then
+    EMIT_BODY_SIZE=0
+    CURRENT="$(sed -nE 's|^[[:space:]]*client_max_body_size[[:space:]]+([^;]+);.*|\1|p' "$NOC_VHOST" | head -1 | tr -d '[:space:]')"
+    log "$NOC_VHOST already sets client_max_body_size ${CURRENT}"
+
+    if (( $(to_bytes "$CURRENT") < $(to_bytes "$UPLOAD_MAX_BODY") )); then
+        cp -a "$NOC_VHOST" "${NOC_VHOST}.bak-$(date +%Y%m%d%H%M%S)"
+        sed -i -E "s|^([[:space:]]*)client_max_body_size[[:space:]]+[^;]+;|\1client_max_body_size ${UPLOAD_MAX_BODY};  # raised by deployment/firmware/setup.sh|" "$NOC_VHOST"
+        log "Raised it to ${UPLOAD_MAX_BODY} (backup alongside as .bak-*)."
+    else
+        log "Already at or above ${UPLOAD_MAX_BODY} — leaving it alone."
+    fi
+else
+    log "No client_max_body_size in the NOC vhost — adding ${UPLOAD_MAX_BODY} via the snippet."
 fi
 
 if [[ ! -f "$APP_DIR/public/.user.ini" ]]; then
     warn "public/.user.ini is missing — PHP will still cap uploads at its stock 2M."
 fi
 
+# --- Public fallback via the sites-dynamic include ----------------------------
+# The main NOC vhost already carries `include /etc/nginx/sites-dynamic/*.conf;`
+# for the browser portal, so we can add /fw/ without touching that file.
+if [[ -d "$DYNAMIC_DIR" ]]; then
+    log "Writing $SNIPPET"
+    {
+        echo "# Phone firmware — managed by deployment/firmware/setup.sh"
+        echo "# Included INSIDE the NOC server block."
+        echo
+        if (( EMIT_BODY_SIZE )); then
+            echo "# nginx defaults this to 1m, which 413s every firmware upload (and every"
+            echo "# Download Center artifact) before PHP is reached. Only emitted when the"
+            echo "# vhost has none of its own — a duplicate in one context fails nginx -t."
+            echo "client_max_body_size ${UPLOAD_MAX_BODY};"
+            echo
+        fi
+        echo "# Public fallback for the firmware itself, for branches whose tunnel does not"
+        echo "# carry the NOC subnet. Prefer the internal path: this one faces the internet."
+        echo "location ^~ /fw/library/ { deny all; }"
+        echo
+        echo "location ^~ /fw/ {"
+        echo "    alias ${FW_ROOT}/;"
+        echo "${FW_LOCATION}"
+        echo "    access_log ${ACCESS_LOG};"
+        echo "}"
+    } > "$SNIPPET"
+else
+    warn "$DYNAMIC_DIR does not exist — public /fw/ fallback NOT installed."
+    warn "Create it and add 'include $DYNAMIC_DIR/*.conf;' inside the NOC server block,"
+    warn "then re-run this script. See deployment/browser-portal/nginx/README.md."
+fi
+
 # --- Apply --------------------------------------------------------------------
+# A failed `nginx -t` used to leave the broken files on disk. nginx keeps
+# running on its loaded config, so nothing looks wrong — until the next reload
+# from anywhere (a certbot renewal, an unrelated deploy) fails on our mess.
+# Undo everything we wrote before giving up.
+rollback() {
+    warn "Rolling back the files this run wrote ..."
+    rm -f "$ENABLED" "$AVAILABLE" "$SNIPPET"
+    local backup
+    backup="$(ls -1t "${NOC_VHOST}".bak-* 2>/dev/null | head -1 || true)"
+    if [[ -n "${NOC_VHOST:-}" && -n "$backup" ]]; then
+        mv -f "$backup" "$NOC_VHOST"
+        warn "Restored $NOC_VHOST from $backup"
+    fi
+    nginx -t >/dev/null 2>&1 && log "nginx config is valid again."         || warn "nginx config is STILL invalid — something else on this box is broken."
+}
+
 log "Testing nginx config ..."
-nginx -t || die "nginx config test failed — nothing was reloaded. Fix the errors above."
+if ! nginx -t; then
+    rollback
+    die "nginx config test failed — changes rolled back, nothing was reloaded. See the errors above."
+fi
 systemctl reload nginx
 log "nginx reloaded."
 
