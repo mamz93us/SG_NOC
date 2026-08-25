@@ -67,6 +67,64 @@ php -m | grep -iE '^(openssl|gd|zip|sockets|curl|mbstring|json|fileinfo|bcmath|i
 
 ---
 
+## 1b. PHP-FPM pool tuning
+
+The stock Ubuntu pool ships `pm.max_children = 5`. That is too small for this app
+and shows up as `WARNING: [pool www] server reached pm.max_children setting (5)`
+in `/var/log/php8.3-fpm.log`, then as stalls and 504s: with five workers, a
+handful of concurrent admin pages plus one slow request is the whole pool.
+
+Uploads also need headroom. `public/.user.ini` raises PHP's upload ceilings for
+the firmware library and Download Center; nginx's `client_max_body_size` is the
+other half and is set by `deployment/firmware/setup.sh`.
+
+Size `max_children` from RAM, not guesswork — a Laravel FPM worker on this app
+settles around 80-120 MB:
+
+```sh
+free -m                                          # total RAM
+ps -ylC php-fpm8.3 --sort:rss | awk '{s+=$8; n++} END {print s/n/1024" MB avg"}'
+```
+
+`max_children ≈ (RAM available to PHP) / (avg worker MB)`, leaving room for
+MySQL, nginx and the Docker side services. On a 8 GB box with ~3 GB free for
+PHP that is roughly 25.
+
+```sh
+sudo nano /etc/php/8.3/fpm/pool.d/www.conf
+```
+
+```ini
+pm = dynamic
+pm.max_children = 25
+pm.start_servers = 5
+pm.min_spare_servers = 3
+pm.max_spare_servers = 10
+; Recycle workers so a leak cannot accumulate across a long uptime.
+pm.max_requests = 500
+```
+
+```sh
+sudo php-fpm8.3 -t && sudo systemctl reload php8.3-fpm
+```
+
+Then confirm the warning stops recurring:
+
+```sh
+sudo tail -f /var/log/php8.3-fpm.log
+```
+
+**Do not raise `max_children` without checking RAM.** Overshooting trades 504s
+for the OOM killer, which takes MySQL with it.
+
+Long-running work must not hold a worker. Anything slower than a page load
+belongs in a scheduled command (prod has no `queue:work`) or is started detached
+— `AccessPointController::pingAll()` is the worked example: it hands
+`access-points:ping` to `nohup` and returns immediately, because running it
+inline held a worker for minutes and 504'd.
+
+---
+
 ## 2. External binaries the app shells out to
 
 The app/services run these via `Process`/`exec`. **Bold = needs sudo** (wired through a
