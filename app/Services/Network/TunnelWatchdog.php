@@ -384,8 +384,13 @@ class TunnelWatchdog
             && $latest->resolved_at
             && $latest->resolved_at->gt(now()->subMinutes(self::FLAP_WINDOW_MINUTES));
 
+        // branch_id is written on the update paths too, not just on create.
+        // These events dedup rather than re-create, so a long-running incident
+        // opened before the column existed would otherwise stay unattributed
+        // forever — and the branch health cap that depends on it would stay
+        // silently inert for exactly the incidents that matter most.
         if ($isOpen) {
-            $latest->update(['last_seen' => now(), 'message' => $message]);
+            $latest->update(['last_seen' => now(), 'message' => $message, 'branch_id' => $tunnel->branch_id]);
             $event = $latest;
         } elseif ($isFlap) {
             $latest->update([
@@ -395,6 +400,7 @@ class TunnelWatchdog
                 'title' => $title,
                 'message' => $message,
                 'last_seen' => now(),
+                'branch_id' => $tunnel->branch_id,
             ]);
             $event = $latest;
         } else {
@@ -403,6 +409,7 @@ class TunnelWatchdog
                 'source_id' => $tunnel->id,
                 'status' => 'open',
                 'module' => 'vpn',
+                'branch_id' => $tunnel->branch_id,
                 'severity' => $severity,
                 'title' => $title,
                 'message' => $message,

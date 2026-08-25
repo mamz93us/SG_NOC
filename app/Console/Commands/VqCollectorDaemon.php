@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Branch;
 use App\Models\VoiceQualityReport;
+use App\Services\Voice\VoiceBranchResolver;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -32,8 +32,12 @@ class VqCollectorDaemon extends Command
 
         $this->info("VQ Collector listening on UDP port {$port}...");
 
-        // Cache branches for IP matching
-        $branches = Branch::all();
+        // Shared with VoiceQualityController::receive() so both collectors
+        // attribute a report to a branch the same way. Its lookups are memoized,
+        // so refresh them periodically -- this loop runs for weeks, and a branch
+        // or subnet added afterwards used to stay invisible until a restart.
+        $resolver = app(VoiceBranchResolver::class);
+        $resolverRefreshedAt = time();
 
         while (true) {
             $buf = $from = '';
@@ -66,11 +70,17 @@ class VqCollectorDaemon extends Command
                     $localIp = $data['local_ip'] ?? $from;
                     unset($data['local_ip']); // not a DB column
 
-                    $branch = $branches->first(fn($b) =>
-                        !empty($b->ip_range) && $this->ipInRange($localIp, $b->ip_range)
+                    if (time() - $resolverRefreshedAt > 300) {
+                        $resolver->flush();
+                        $resolverRefreshedAt = time();
+                    }
+
+                    $attribution = $resolver->attribute(
+                        ip: $localIp,
+                        extension: $data['extension'] ?? null,
                     );
-                    $data['branch_id'] = $branch?->id;
-                    $data['branch']    = $branch?->name;
+                    $data['branch_id'] = $attribution['branch_id'];
+                    $data['branch']    = $attribution['branch'];
 
                     // Set quality label
                     if (!empty($data['mos_lq']) && $data['mos_lq'] > 0) {
@@ -334,17 +344,5 @@ class VqCollectorDaemon extends Command
         if ($val === null || $val === '') return null;
         $f = (float) $val;
         return $f > 0 ? $f : null;
-    }
-
-    private function ipInRange(string $ip, string $range): bool
-    {
-        if (str_contains($range, '/')) {
-            [$net, $mask] = explode('/', $range);
-            $ipLong  = ip2long($ip);
-            $netLong = ip2long($net);
-            $maskLong = ~((1 << (32 - (int)$mask)) - 1);
-            return ($ipLong & $maskLong) === ($netLong & $maskLong);
-        }
-        return $ip === $range;
     }
 }

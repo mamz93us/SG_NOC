@@ -133,10 +133,19 @@ class PingAccessPoints extends Command
     {
         $where = $ap->branch?->name ?? $ap->site;
 
+        // branch_id also goes in the update payload below: firstOrCreate will
+        // not re-create a still-open incident, so an event raised before the
+        // column existed would never otherwise gain its branch.
+        $touch = ['last_seen' => now()];
+        if ($ap->branch_id !== null) {
+            $touch['branch_id'] = $ap->branch_id;
+        }
+
         NocEvent::firstOrCreate(
             ['source_type' => 'access_point_down', 'source_id' => $ap->id, 'status' => 'open'],
             [
                 'module' => 'access_point',
+                'branch_id' => $ap->branch_id,
                 'severity' => 'critical',
                 'title' => 'Access Point Down: '.$ap->name,
                 'message' => 'AP '.$ap->name.' ('.$ap->ip_address.')'
@@ -144,7 +153,7 @@ class PingAccessPoints extends Command
                 'first_seen' => now(),
                 'last_seen' => now(),
             ]
-        )->update(['last_seen' => now()]);
+        )->update($touch);
     }
 
     protected function resolveDownEvent(AccessPoint $ap): void

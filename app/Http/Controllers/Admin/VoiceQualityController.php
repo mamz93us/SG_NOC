@@ -191,26 +191,17 @@ class VoiceQualityController extends Controller
             'call_duration_seconds' => 'nullable|integer',
         ]);
 
-        // Resolve branch from remote_ip
-        $branchId = null;
-        $branchName = null;
-        if (!empty($data['remote_ip'])) {
-            $branch = \App\Models\Branch::all()->first(function ($b) use ($data) {
-                return !empty($b->ip_range) && $this->ipInRange($data['remote_ip'], $b->ip_range);
-            });
-            if ($branch) {
-                $branchId   = $branch->id;
-                $branchName = $branch->name;
-            }
-        }
+        // Shared with the vq:collect UDP daemon so both paths attribute a
+        // report identically. Resolves by subnet, then extension range, then the
+        // legacy prefix map -- replacing a match against branches.ip_range, a
+        // column that never existed, so this never resolved anything.
+        $attribution = app(\App\Services\Voice\VoiceBranchResolver::class)->attribute(
+            ip: $data['remote_ip'] ?? null,
+            extension: $data['extension'] ?? null,
+        );
 
-        // Fallback: derive branch from extension prefix when IP-based resolution failed
-        if (!$branchName) {
-            $branchName = VoiceQualityReport::branchFromExtension($data['extension'] ?? null);
-        }
-
-        $data['branch_id'] = $branchId;
-        $data['branch']    = $branchName;
+        $data['branch_id'] = $attribution['branch_id'];
+        $data['branch']    = $attribution['branch'];
 
         if ($data['mos_lq'] !== null && $data['mos_lq'] > 0) {
             $data['quality_label'] = VoiceQualityReport::mosLabel((float)$data['mos_lq']);
@@ -291,17 +282,5 @@ class VoiceQualityController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
-    }
-
-    private function ipInRange(string $ip, string $range): bool
-    {
-        if (str_contains($range, '/')) {
-            [$net, $mask] = explode('/', $range);
-            $ipLong   = ip2long($ip);
-            $netLong  = ip2long($net);
-            $maskLong = ~((1 << (32 - (int)$mask)) - 1);
-            return ($ipLong & $maskLong) === ($netLong & $maskLong);
-        }
-        return $ip === $range;
     }
 }

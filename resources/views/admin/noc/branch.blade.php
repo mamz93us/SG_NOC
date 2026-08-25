@@ -9,36 +9,167 @@
     <a href="{{ route('admin.noc.dashboard') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>NOC Dashboard</a>
 </div>
 
-{{-- 1. Health Score Cards --}}
+{{-- 1. Health Score Cards — the three fixed-weight categories --}}
 <div class="row g-3 mb-4">
-    @foreach([
-        ['identity', 'Identity', 'bi-people-fill', 'primary'],
-        ['voice',    'Voice',    'bi-telephone-fill', 'info'],
-        ['network',  'Network',  'bi-diagram-3-fill', 'success'],
-        ['asset',    'Assets',   'bi-cpu-fill', 'warning'],
-    ] as [$key, $label, $icon, $color])
-    @php $s = $score[$key] ?? 0; @endphp
-    <div class="col-6 col-lg-3">
-        <div class="card shadow-sm border-0 text-center">
-            <div class="card-body py-4">
-                <i class="bi {{ $icon }} fs-2 text-{{ $color }} mb-2 d-block"></i>
-                <div class="display-5 fw-bold text-{{ $color }}">{{ $s }}%</div>
-                <div class="small text-muted mt-1">{{ $label }} Health</div>
-                <div class="progress mt-2" style="height:6px">
-                    <div class="progress-bar bg-{{ $color }}" style="width:{{ $s }}%"></div>
+    @foreach($score['categories'] as $cat)
+        @php
+            // Coloured on the category's own percentage. Raw points run on 0-40,
+            // 0-45 and 0-15 scales, so colouring by points would paint a perfect
+            // 15/15 Devices score red.
+            $color = \App\Services\HealthScoringService::healthColorStatic($cat['percent']);
+            $unmeasured = $cat['max_points'] - $cat['evaluable_points'];
+        @endphp
+        <div class="col-12 col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body py-4 text-center">
+                    <div class="text-uppercase small text-muted fw-semibold">{{ $cat['label'] }}</div>
+                    <div class="display-5 fw-bold text-{{ $color }}">
+                        {{ $cat['points'] }}<span class="fs-5 text-muted">/{{ $cat['max_points'] }}</span>
+                    </div>
+                    <div class="progress mt-2" style="height:8px">
+                        <div class="progress-bar bg-{{ $color }}" style="width:{{ $cat['percent'] }}%"></div>
+                        {{-- Points we could not assess at all, shown in grey so an
+                             unmonitored category never reads as a healthy one. --}}
+                        @if($unmeasured > 0)
+                            <div class="progress-bar bg-secondary opacity-25"
+                                 style="width:{{ round($unmeasured / max(1, $cat['max_points']) * 100) }}%"
+                                 title="{{ $unmeasured }} points could not be assessed"></div>
+                        @endif
+                    </div>
+                    @if($unmeasured > 0)
+                        <div class="small text-muted mt-2">
+                            <i class="bi bi-question-circle"></i> {{ $unmeasured }} pts unmonitored
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
-    </div>
     @endforeach
 </div>
 
 {{-- Overall Score --}}
-<div class="alert alert-{{ $score['total'] >= 90 ? 'success' : ($score['total'] >= 70 ? 'info' : ($score['total'] >= 50 ? 'warning' : 'danger')) }} d-flex align-items-center gap-3 mb-4">
-    <div class="display-6 fw-bold">{{ $score['total'] }}%</div>
-    <div>
-        <strong>Overall Branch Health</strong>
-        <div class="small">Average of all 4 module scores</div>
+@php
+    $statusColor = \App\Services\HealthScoringService::statusColor($score['status']);
+    $statusLabel = \App\Services\HealthScoringService::statusLabel($score['status']);
+@endphp
+<div class="alert alert-{{ $statusColor }} d-flex align-items-center gap-3 mb-3">
+    <div class="display-6 fw-bold">{{ $score['total'] }}</div>
+    <div class="flex-grow-1">
+        <strong>Overall Branch Health &mdash; {{ $statusLabel }}</strong>
+        <div class="small">
+            Weighted total out of 100 &middot;
+            {{ $score['coverage_percent'] }} of 100 points measurable
+            @if($score['coverage_percent'] < 100)
+                <span class="text-muted">({{ 100 - $score['coverage_percent'] }} unmonitored)</span>
+            @endif
+            @if($score['raw_total'] !== $score['total'])
+                &middot; <span class="fw-semibold">capped from {{ $score['raw_total'] }}</span>
+            @endif
+        </div>
+    </div>
+</div>
+
+{{-- Cap reasons — a capped score always travels with its explanation. --}}
+@if(!empty($score['cap_reasons']))
+    <div class="alert alert-danger d-flex align-items-start gap-3 mb-4">
+        <i class="bi bi-exclamation-octagon-fill fs-4"></i>
+        <div>
+            <strong>Score capped at {{ $score['total'] }}</strong>
+            <ul class="mb-0 mt-1 small ps-3">
+                @foreach($score['cap_reasons'] as $reason)
+                    <li>{{ $reason['message'] }} <span class="text-muted">(ceiling {{ $reason['cap'] }})</span></li>
+                @endforeach
+            </ul>
+        </div>
+    </div>
+@endif
+
+{{-- Check breakdown — all 12, with what each one actually looked at. --}}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent">
+        <strong><i class="bi bi-list-check me-1"></i>Health Check Breakdown</strong>
+        <span class="text-muted small ms-2">Updated {{ \Illuminate\Support\Carbon::parse($score['updated_at'])->diffForHumans() }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Check</th>
+                    <th class="text-center">Points</th>
+                    <th class="text-center">Passing</th>
+                    <th class="text-center">Unknown</th>
+                    <th>Detail</th>
+                    <th class="text-end pe-3">Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach($score['categories'] as $cat)
+                <tr class="table-light">
+                    <td colspan="6" class="ps-3 small fw-bold text-uppercase text-muted">
+                        {{ $cat['label'] }} &mdash; {{ $cat['points'] }}/{{ $cat['max_points'] }}
+                    </td>
+                </tr>
+                @foreach($cat['checks'] as $check)
+                    @php
+                        $tone = match($check['status']) {
+                            'pass' => 'success', 'degraded' => 'warning',
+                            'fail' => 'danger', default => 'secondary',
+                        };
+                    @endphp
+                    <tr>
+                        <td class="ps-3">
+                            <span class="badge bg-{{ $tone }}-subtle text-{{ $tone }} me-1">
+                                {{ ucfirst($check['status']) }}
+                            </span>
+                            <a href="{{ $check['portal_url'] }}" class="text-decoration-none fw-semibold">
+                                {{ $check['label'] }}
+                            </a>
+                        </td>
+                        <td class="text-center fw-semibold text-{{ $tone }}">
+                            {{ $check['points'] }}<span class="text-muted small">/{{ $check['max_points'] }}</span>
+                        </td>
+                        <td class="text-center small">
+                            @if($check['total'] > 0)
+                                {{ $check['passing'] }}/{{ $check['total'] }}
+                            @else
+                                <span class="text-muted">&mdash;</span>
+                            @endif
+                        </td>
+                        <td class="text-center small">
+                            @if($check['unknown'] > 0)
+                                <span class="badge bg-secondary-subtle text-secondary">{{ $check['unknown'] }}</span>
+                            @else
+                                <span class="text-muted">&mdash;</span>
+                            @endif
+                        </td>
+                        <td class="small">
+                            {{ $check['message'] }}
+                            {{-- Name what failed. A score that says "8 of 10" without
+                                 saying which two is not actionable. --}}
+                            @if(!empty($check['failures']))
+                                <ul class="mb-0 mt-1 ps-3 text-muted" style="font-size:11px">
+                                    @foreach(array_slice($check['failures'], 0, 6) as $f)
+                                        <li>
+                                            <span class="fw-semibold">{{ $f['label'] }}</span>
+                                            @if(!empty($f['detail'])) &mdash; {{ $f['detail'] }} @endif
+                                        </li>
+                                    @endforeach
+                                    @if(count($check['failures']) > 6)
+                                        <li class="fst-italic">and {{ count($check['failures']) - 6 }} more</li>
+                                    @endif
+                                </ul>
+                            @endif
+                        </td>
+                        <td class="text-end pe-3 small text-muted text-nowrap">
+                            {{ $check['last_updated_at']
+                                ? \Illuminate\Support\Carbon::parse($check['last_updated_at'])->diffForHumans()
+                                : '—' }}
+                        </td>
+                    </tr>
+                @endforeach
+            @endforeach
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -46,30 +177,53 @@
     {{-- Left Column --}}
     <div class="col-lg-8">
 
-        {{-- 2. VPN Tunnels --}}
+        {{-- 2. Branch Tunnels (watchdog) --}}
+        {{-- Was VpnTunnel, whose own docblock calls the model vestigial: nothing
+             writes those rows and the table is empty in production, so this card
+             was permanently blank. BranchTunnel is what the watchdog maintains,
+             and it carries a `degraded` state the old one had no concept of --
+             gateway reachable, but a carried subnet dark. --}}
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-                <strong><i class="bi bi-shield-lock me-1"></i>VPN Tunnels ({{ $vpnTunnels->count() }})</strong>
+                <strong><i class="bi bi-shield-lock me-1"></i>Branch Tunnels ({{ $branchTunnels->count() }})</strong>
                 @php
-                    $vpnUp = $vpnTunnels->where('status', 'up')->count();
-                    $vpnDown = $vpnTunnels->where('status', 'down')->count();
+                    $vpnUp = $branchTunnels->where('state', 'up')->count();
+                    $vpnDegraded = $branchTunnels->where('state', 'degraded')->count();
+                    $vpnDown = $branchTunnels->where('state', 'down')->count();
                 @endphp
                 <span>
                     <span class="badge bg-success">{{ $vpnUp }} Up</span>
+                    @if($vpnDegraded > 0)<span class="badge bg-warning text-dark">{{ $vpnDegraded }} Degraded</span>@endif
                     @if($vpnDown > 0)<span class="badge bg-danger">{{ $vpnDown }} Down</span>@endif
                 </span>
             </div>
             <div class="card-body p-0">
-                @forelse($vpnTunnels as $t)
-                <div class="d-flex align-items-center px-3 py-2 {{ !$loop->last ? 'border-bottom' : '' }} small">
-                    <span class="badge {{ $t->status === 'up' ? 'bg-success' : ($t->status === 'connecting' ? 'bg-warning text-dark' : 'bg-danger') }} me-2">
-                        <i class="bi bi-circle-fill me-1" style="font-size:7px"></i>{{ ucfirst($t->status) }}
-                    </span>
-                    <span class="fw-semibold me-2">{{ $t->name }}</span>
-                    <span class="text-muted">{{ $t->remote_ip }}</span>
+                @forelse($branchTunnels as $t)
+                @php
+                    $tone = match($t->state) {
+                        'up' => 'bg-success', 'degraded' => 'bg-warning text-dark',
+                        'down' => 'bg-danger', default => 'bg-secondary',
+                    };
+                    $downProbes = $t->activeProbes->where('status', 'down');
+                @endphp
+                <div class="px-3 py-2 {{ !$loop->last ? 'border-bottom' : '' }} small">
+                    <div class="d-flex align-items-center">
+                        <span class="badge {{ $tone }} me-2">
+                            <i class="bi bi-circle-fill me-1" style="font-size:7px"></i>{{ ucfirst($t->state) }}
+                        </span>
+                        <span class="fw-semibold me-2">{{ $t->name }}</span>
+                        <span class="text-muted font-monospace">{{ $t->firewall_ip }}</span>
+                        <span class="text-muted ms-auto">{{ $t->last_ping_at?->diffForHumans() ?? 'never checked' }}</span>
+                    </div>
+                    @if($downProbes->isNotEmpty())
+                        <div class="text-warning mt-1" style="font-size:11px">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            Unreachable subnets: {{ $downProbes->pluck('label')->implode(', ') }}
+                        </div>
+                    @endif
                 </div>
                 @empty
-                <div class="text-center py-3 text-muted small">No VPN tunnels for this branch.</div>
+                <div class="text-center py-3 text-muted small">No branch tunnels configured.</div>
                 @endforelse
             </div>
         </div>

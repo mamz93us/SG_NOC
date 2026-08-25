@@ -108,15 +108,18 @@ class CupsRefreshStatus extends Command
             ->first();
 
         if ($existing) {
-            $existing->update([
+            $existing->update(array_filter([
                 'last_seen' => now(),
                 'message'   => $message,
-            ]);
+                // Also on the update path -- this dedups rather than re-creating.
+                'branch_id' => $printer->branch_id,
+            ], fn ($v) => $v !== null));
             return $existing;
         }
 
         return NocEvent::create([
             'module'      => 'printers',
+            'branch_id'   => $printer->branch_id,
             'entity_type' => 'cups_printer',
             'entity_id'   => (string) $printer->id,
             'source_type' => 'cups_printer',

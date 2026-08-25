@@ -13,7 +13,6 @@ use App\Models\Device;
 use App\Models\FormSubmission;
 use App\Models\IdentitySyncLog;
 use App\Models\Incident;
-use App\Models\LinkCheck;
 use App\Models\NocEvent;
 use App\Models\PhoneRequestLog;
 use App\Models\Setting;
@@ -241,30 +240,57 @@ class DashboardController extends Controller
      * Branch health snapshot — counts branches whose ISPs failed the
      * latest link check. Cached upstream so this only runs every 2 min.
      */
+    /**
+     * Fleet-wide branch health for the welcome widget.
+     *
+     * Used to be ISP link checks only -- it counted a branch "down" when a
+     * link_checks row failed and called that Branch Health, which is why the
+     * widget could show all-green while the NOC dashboard showed the same
+     * branches degraded. Both now read the same HealthScoringService, so the two
+     * surfaces cannot disagree.
+     *
+     * HealthScoringService caches internally, so the outer Cache::remember here
+     * is just avoiding the repeat lookup on a page that renders many widgets.
+     */
     private function computeBranchHealth(): array
     {
         if (! Schema::hasTable('branches')) {
-            return ['total' => 0, 'down' => 0, 'healthy' => 0, 'down_branches' => collect()];
+            return ['total' => 0, 'critical' => 0, 'healthy' => 0, 'average' => 0, 'worst' => collect()];
         }
 
-        $totalBranches = Branch::count();
-        $downBranchIds = collect();
+        try {
+            $branches = app(\App\Services\HealthScoringService::class)->allBranches();
+        } catch (\Throwable $e) {
+            // The welcome page must render even if a telemetry table is missing
+            // mid-migration; a broken widget should not take the dashboard down.
+            \Illuminate\Support\Facades\Log::warning('Branch health widget failed: '.$e->getMessage());
 
-        if (Schema::hasTable('link_checks') && Schema::hasTable('isp_connections')) {
-            $downBranchIds = LinkCheck::where('checked_at', '>=', now()->subMinutes(15))
-                ->where('success', false)
-                ->join('isp_connections', 'link_checks.isp_id', '=', 'isp_connections.id')
-                ->distinct()
-                ->pluck('isp_connections.branch_id');
+            return ['total' => 0, 'critical' => 0, 'healthy' => 0, 'average' => 0, 'worst' => collect()];
         }
+
+        if ($branches->isEmpty()) {
+            return ['total' => 0, 'critical' => 0, 'healthy' => 0, 'average' => 0, 'worst' => collect()];
+        }
+
+        // Average the coverage-normalized figure, not the raw total: a branch
+        // that simply has no biometric devices yet should not drag the fleet
+        // average down as though something were broken.
+        $scored = $branches->filter(fn ($b) => $b->health['normalized_percent'] !== null);
 
         return [
-            'total' => $totalBranches,
-            'down' => $downBranchIds->count(),
-            'healthy' => max(0, $totalBranches - $downBranchIds->count()),
-            'down_branches' => $downBranchIds->isNotEmpty()
-                ? Branch::whereIn('id', $downBranchIds)->limit(5)->get(['id', 'name'])
-                : collect(),
+            'total' => $branches->count(),
+            'critical' => $branches->filter(fn ($b) => $b->health['status'] === 'critical')->count(),
+            'healthy' => $branches->filter(fn ($b) => in_array($b->health['status'], ['excellent', 'good'], true))->count(),
+            'average' => $scored->isEmpty() ? 0 : (int) round($scored->avg(fn ($b) => $b->health['normalized_percent'])),
+            // allBranches() is already worst-first, so the head of the list is
+            // exactly what someone opening the dashboard needs to see.
+            'worst' => $branches->take(5)->map(fn ($b) => [
+                'id' => $b->id,
+                'name' => $b->name,
+                'total' => $b->health['total'],
+                'status' => $b->health['status'],
+                'capped' => $b->health['cap_reasons'] !== [],
+            ])->values(),
         ];
     }
 
