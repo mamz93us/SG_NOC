@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\VoiceMeshNode;
+use App\Services\BranchHealth\BranchHealthConfig;
 use App\Services\HealthScoringService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -142,14 +143,14 @@ class BranchHealthIndexController extends Controller
         $basis = $scored->isNotEmpty() ? $scored : $rows;
 
         $categories = [];
-        foreach (array_keys(config('branch_health.weights', [])) as $key) {
+        foreach (array_keys(BranchHealthConfig::get('weights', [])) as $key) {
             $points = $basis->map(fn ($r) => collect($r['categories'])->firstWhere('key', $key)['points'] ?? 0);
 
             $categories[] = [
                 'key' => $key,
-                'label' => config("branch_health.category_labels.{$key}", ucfirst($key)),
+                'label' => BranchHealthConfig::get("category_labels.{$key}", ucfirst($key)),
                 'points' => $basis->isEmpty() ? 0.0 : round($points->avg(), 1),
-                'max_points' => array_sum(config("branch_health.weights.{$key}", [])),
+                'max_points' => array_sum(BranchHealthConfig::get("weights.{$key}", [])),
             ];
         }
 
@@ -158,7 +159,7 @@ class BranchHealthIndexController extends Controller
             $bands[$r['status']] = ($bands[$r['status']] ?? 0) + 1;
         }
 
-        $t = config('branch_health.status_thresholds');
+        $t = BranchHealthConfig::get('status_thresholds');
 
         return [
             'score' => $basis->isEmpty() ? 0.0 : round($basis->avg('total'), 1),
@@ -184,21 +185,21 @@ class BranchHealthIndexController extends Controller
     private function shapeModel(): array
     {
         $labels = [];
-        foreach ((array) config('branch_health.weights') as $key => $checks) {
+        foreach (BranchHealthConfig::array('weights') as $key => $checks) {
             foreach (array_keys($checks) as $i => $checkKey) {
                 $labels[$checkKey] = strtoupper(substr($key, 0, 1)).($i + 1);
             }
         }
 
         $out = [];
-        foreach ((array) config('branch_health.weights') as $key => $checks) {
+        foreach (BranchHealthConfig::array('weights') as $key => $checks) {
             $rows = [];
             foreach ($checks as $checkKey => $points) {
                 $rows[] = ['code' => $labels[$checkKey], 'key' => $checkKey, 'points' => $points];
             }
             $out[] = [
                 'key' => $key,
-                'label' => config("branch_health.category_labels.{$key}", ucfirst($key)),
+                'label' => BranchHealthConfig::get("category_labels.{$key}", ucfirst($key)),
                 'blurb' => $this->categoryBlurb($key),
                 'max_points' => array_sum($checks),
                 'checks' => $rows,
@@ -207,9 +208,9 @@ class BranchHealthIndexController extends Controller
 
         return [
             'categories' => $out,
-            'freshness' => config('branch_health.freshness'),
-            'caps' => config('branch_health.caps'),
-            'min_coverage' => config('branch_health.min_coverage_for_status'),
+            'freshness' => BranchHealthConfig::get('freshness'),
+            'caps' => BranchHealthConfig::get('caps'),
+            'min_coverage' => BranchHealthConfig::get('min_coverage_for_status'),
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\BranchHealth\BranchHealthConfig;
 use Illuminate\Database\Eloquent\Model;
 
 class UcmServer extends Model
@@ -43,7 +44,7 @@ class UcmServer extends Model
             return false;
         }
 
-        $window = $withinMinutes ?? (int) config('branch_health.freshness.ucm', 2);
+        $window = $withinMinutes ?? BranchHealthConfig::int('freshness.ucm', 2);
 
         return $this->last_health_at->gte(now()->subMinutes($window));
     }

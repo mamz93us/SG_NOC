@@ -61,7 +61,7 @@ class BranchHealthEvaluator
 
     private function assemble(array $grouped, BranchSlice $slice): array
     {
-        $labels = config('branch_health.category_labels');
+        $labels = BranchHealthConfig::get('category_labels');
         $categories = [];
         $rawTotal = 0.0;
         $evaluable = 0.0;
@@ -129,7 +129,7 @@ class BranchHealthEvaluator
      */
     private function applyCaps(int $rounded, BranchSlice $slice): array
     {
-        $caps = config('branch_health.caps');
+        $caps = BranchHealthConfig::get('caps');
         $reasons = [];
         $ceiling = 100;
 
@@ -166,11 +166,11 @@ class BranchHealthEvaluator
         // — which is precisely the "green because telemetry is missing" failure
         // this whole scoring model exists to prevent. Below the floor we say
         // unknown, and the coverage figure beside it explains why.
-        if ($evaluable < (float) config('branch_health.min_coverage_for_status', 50)) {
+        if ($evaluable < (float) BranchHealthConfig::get('min_coverage_for_status', 50)) {
             return 'unknown';
         }
 
-        $t = config('branch_health.status_thresholds');
+        $t = BranchHealthConfig::get('status_thresholds');
 
         return match (true) {
             // A capped branch is never "healthy" no matter what it scored: the
@@ -321,7 +321,7 @@ class BranchHealthEvaluator
     private function mosCompliance(BranchSlice $slice): array
     {
         $url = route('admin.voice-quality.index');
-        $cfg = config('branch_health.mos');
+        $cfg = BranchHealthConfig::get('mos');
         $mos = $slice->mos;
 
         if (($mos['samples'] ?? 0) === 0) {
@@ -361,8 +361,8 @@ class BranchHealthEvaluator
      */
     private function firewallInventory(BranchSlice $slice): Collection
     {
-        $tunnelWindow = (int) config('branch_health.freshness.branch_tunnel', 3);
-        $hostWindow = (int) config('branch_health.freshness.monitored_host', 3);
+        $tunnelWindow = BranchHealthConfig::int('freshness.branch_tunnel', 3);
+        $hostWindow = BranchHealthConfig::int('freshness.monitored_host', 3);
         $rows = collect();
 
         foreach ($slice->firewalls as $fw) {
@@ -526,7 +526,7 @@ class BranchHealthEvaluator
                 'No switches are registered as assets for this branch.', $url);
         }
 
-        $hostWindow = (int) config('branch_health.freshness.monitored_host', 3);
+        $hostWindow = BranchHealthConfig::int('freshness.monitored_host', 3);
         $passing = 0;
         $unknown = 0;
         $failing = [];
@@ -624,7 +624,7 @@ class BranchHealthEvaluator
                 'No monitored access points are linked to this branch.', $url);
         }
 
-        $window = (int) config('branch_health.freshness.access_point', 15);
+        $window = BranchHealthConfig::int('freshness.access_point', 15);
         $passing = 0;
         $unknown = 0;
         $failing = [];
@@ -701,7 +701,7 @@ class BranchHealthEvaluator
                 'No printers are registered for this branch.', $url);
         }
 
-        $window = (int) config('branch_health.freshness.monitored_host', 3);
+        $window = BranchHealthConfig::int('freshness.monitored_host', 3);
         $passing = 0;
         $unknown = 0;
         $failing = [];
@@ -772,7 +772,7 @@ class BranchHealthEvaluator
                 'No biometric devices are registered for this branch.', $url);
         }
 
-        $window = (int) config('branch_health.freshness.monitored_host', 3);
+        $window = BranchHealthConfig::int('freshness.monitored_host', 3);
         $passing = 0;
         $unknown = 0;
         $failing = [];
@@ -833,7 +833,7 @@ class BranchHealthEvaluator
                 'No printers are registered for this branch.', $url);
         }
 
-        $min = (int) config('branch_health.toner.min_percent', 30);
+        $min = BranchHealthConfig::int('toner.min_percent', 30);
         $passing = 0;
         $unknown = 0;
         $failing = [];
@@ -890,7 +890,7 @@ class BranchHealthEvaluator
                 ->values()->all();
         }
 
-        $window = (int) config('branch_health.freshness.printer_supply', 30);
+        $window = BranchHealthConfig::int('freshness.printer_supply', 30);
         $polledFresh = $printer->snmp_last_polled_at
             && $printer->snmp_last_polled_at->gte(now()->subMinutes($window));
 
@@ -910,7 +910,7 @@ class BranchHealthEvaluator
 
     private function maxPoints(string $key): int
     {
-        foreach (config('branch_health.weights') as $checks) {
+        foreach (BranchHealthConfig::get('weights') as $checks) {
             if (isset($checks[$key])) {
                 return (int) $checks[$key];
             }
@@ -946,7 +946,12 @@ class BranchHealthEvaluator
             'max_points' => $max,
             'ratio' => round($ratio, 4),
             'status' => match (true) {
-                $total === 0 => 'unknown',
+                // Nothing configured, or nothing we could actually read: either
+                // way we measured nothing. Reporting `fail` here would make a
+                // branch whose collectors died look identical to one whose
+                // switches died, and would count the check as covered when it
+                // was not.
+                $total === 0, $unknown === $total => 'unknown',
                 $passing === $total => 'pass',
                 $passing === 0 => 'fail',
                 default => 'degraded',

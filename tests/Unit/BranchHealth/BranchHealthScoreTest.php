@@ -168,7 +168,11 @@ it('treats stale telemetry as unknown rather than healthy', function () {
     foreach (['ucm_reachable', 'ucm_trunks', 'switch_reachability', 'access_point_reachability', 'gateway_reachable'] as $key) {
         $c = check($score, $key);
         expect($c['points'])->toBe(0.0, "{$key} awarded points for stale data");
-        expect($c['status'])->not->toBe('pass', "{$key} passed on stale data");
+        // `unknown`, specifically -- not `fail`. Everything here was stale, so
+        // nothing was measured; calling that a failure would make a branch with
+        // dead collectors look like a branch with dead hardware, and would count
+        // the check as covered when it was not.
+        expect($c['status'])->toBe('unknown', "{$key} reported a verdict on stale data");
     }
 
     expect($score['coverage_percent'])->toBeLessThan(100);

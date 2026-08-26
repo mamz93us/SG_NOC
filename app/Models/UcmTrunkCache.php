@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\BranchHealth\BranchHealthConfig;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -80,7 +81,7 @@ class UcmTrunkCache extends Model
             return false;
         }
 
-        $window = $withinMinutes ?? (int) config('branch_health.freshness.ucm_trunk', 2);
+        $window = $withinMinutes ?? BranchHealthConfig::int('freshness.ucm_trunk', 2);
 
         return $this->last_checked_at->gte(now()->subMinutes($window));
     }

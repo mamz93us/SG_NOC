@@ -158,7 +158,7 @@
         <span class="bhx-eyebrow">Branch Health Index</span>
         <span class="bhx-eyebrow" style="margin-left:auto">
             Scored {{ $generatedAt->timezone(config('app.display_timezone', 'Africa/Cairo'))->format('H:i') }}
-            &middot; recomputed at most every {{ config('branch_health.cache_ttl_seconds') }}s
+            &middot; recomputed at most every {{ \App\Services\BranchHealth\BranchHealthConfig::get('cache_ttl_seconds') }}s
         </span>
     </div>
 

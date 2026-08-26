@@ -32,7 +32,12 @@ it('scores without fatalling when the config is missing entirely', function () {
 
     $score = app(\App\Services\HealthScoringService::class)->scoreForBranch(1, fresh: true);
 
-    expect($score)->toHaveKeys(['total', 'categories', 'status', 'cap_reasons']);
+    // Not merely non-fatal -- still CORRECT. Falling back to zeroed tuning would
+    // score a healthy branch at 0, or (worse) pass every MOS sample against a
+    // threshold of 0 and report a healthy fleet that isn't.
+    expect($score['total'])->toBe(100)
+        ->and($score['status'])->toBe('healthy')
+        ->and(collect($score['categories'])->pluck('max_points')->all())->toBe([40, 45, 15]);
 });
 
 it('renders the board without fatalling when the config is missing entirely', function () {
@@ -42,5 +47,25 @@ it('renders the board without fatalling when the config is missing entirely', fu
 
     $html = app(BranchHealthIndexController::class)->index()->render();
 
-    expect($html)->toContain('Branch Health Index');
+    expect($html)->toContain('Branch Health Index')
+        // The scoring model tab still documents the real weights.
+        ->toContain('40 pts')->toContain('45 pts')->toContain('15 pts')
+        ->toContain('caps it at 59');
+});
+
+it('still applies the real freshness windows with the config missing', function () {
+    BranchHealthSchema::seedBranches([[1, 'Stale']]);
+    // Pinged six hours ago: well outside the 3-minute window, so unknown.
+    Fx::switches(1, up: 2, down: 0, pingedAt: now()->subHours(6));
+    config()->set('branch_health', null);
+    Cache::flush();
+
+    $score = app(\App\Services\HealthScoringService::class)->scoreForBranch(1, fresh: true);
+    $switches = collect($score['categories'])->firstWhere('key', 'network')['checks'];
+    $check = collect($switches)->firstWhere('key', 'switch_reachability');
+
+    // A zeroed freshness window would treat the stale ping as current and hand
+    // out full marks -- the precise failure this whole model exists to prevent.
+    expect($check['status'])->toBe('unknown')
+        ->and($check['points'])->toBe(0.0);
 });

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Branch;
+use App\Services\BranchHealth\BranchHealthConfig;
 use App\Services\BranchHealth\BranchHealthEvaluator;
 use App\Services\BranchHealth\BranchTelemetryLoader;
 use Illuminate\Support\Collection;
@@ -99,8 +100,8 @@ class HealthScoringService
     private function scoreMap(): array
     {
         return Cache::remember(
-            config('branch_health.cache_key', 'noc:branch_health:v1'),
-            (int) config('branch_health.cache_ttl_seconds', 60),
+            BranchHealthConfig::get('cache_key', 'noc:branch_health:v1'),
+            BranchHealthConfig::int('cache_ttl_seconds', 60),
             fn () => $this->score(Branch::orderBy('name')->get())
         );
     }
@@ -127,10 +128,10 @@ class HealthScoringService
     {
         $categories = [];
 
-        foreach (config('branch_health.weights', []) as $key => $checks) {
+        foreach (BranchHealthConfig::get('weights', []) as $key => $checks) {
             $categories[$key] = [
                 'key' => $key,
-                'label' => config("branch_health.category_labels.{$key}", ucfirst($key)),
+                'label' => BranchHealthConfig::get("category_labels.{$key}", ucfirst($key)),
                 'points' => 0.0,
                 'max_points' => array_sum($checks),
                 'percent' => 0,
@@ -165,7 +166,7 @@ class HealthScoringService
 
     public static function healthColorStatic(int $percent): string
     {
-        $t = config('branch_health.status_thresholds', ['healthy' => 95, 'degraded' => 80, 'at_risk' => 60]);
+        $t = BranchHealthConfig::get('status_thresholds', ['healthy' => 95, 'degraded' => 80, 'at_risk' => 60]);
 
         return match (true) {
             $percent >= (int) $t['healthy'] => 'success',
