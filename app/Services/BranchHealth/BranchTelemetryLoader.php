@@ -185,22 +185,38 @@ class BranchTelemetryLoader
             return $out;
         }
 
-        $cfg = BranchHealthConfig::get('mos');
+        $cfg = BranchHealthConfig::array('mos');
         $threshold = (float) $cfg['threshold'];
         $cut24 = now()->subHours((int) $cfg['window_hours']);
         $cutExtended = now()->subDays((int) $cfg['extended_window_days']);
 
-        $recentExpr = 'CASE WHEN created_at >= ? THEN 1 ELSE 0 END';
-
+        // Both windows in one pass, with every conditional wrapped in SUM().
+        //
+        // The obvious shape -- selecting a bare `CASE WHEN created_at >= ?` as a
+        // recency flag and repeating it in GROUP BY -- is rejected by MySQL under
+        // ONLY_FULL_GROUP_BY, which is on by default in MySQL 8. It cannot prove
+        // the two expressions are the same because each `?` is a distinct
+        // parameter, so it treats the select-list CASE as a non-aggregated column
+        // that is not functionally dependent on the grouping. SQLite has no such
+        // mode, so this passes locally and 500s in production.
+        //
+        // Aggregated conditionals are always legal, and GROUP BY is then just two
+        // plain columns. This is also cheaper: one row per (extension, branch)
+        // instead of two.
         $rows = DB::table('voice_quality_reports')
             ->selectRaw(
-                "extension, branch_id, {$recentExpr} AS is_recent, COUNT(*) AS samples, "
-                .'SUM(mos_lq) AS sum_mos, SUM(CASE WHEN mos_lq >= ? THEN 1 ELSE 0 END) AS passing',
-                [$cut24, $threshold]
+                'extension, branch_id, '
+                .'COUNT(*) AS samples_all, '
+                .'SUM(mos_lq) AS sum_all, '
+                .'SUM(CASE WHEN mos_lq >= ? THEN 1 ELSE 0 END) AS passing_all, '
+                .'SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS samples_recent, '
+                .'SUM(CASE WHEN created_at >= ? THEN mos_lq ELSE 0 END) AS sum_recent, '
+                .'SUM(CASE WHEN created_at >= ? AND mos_lq >= ? THEN 1 ELSE 0 END) AS passing_recent',
+                [$threshold, $cut24, $cut24, $cut24, $threshold]
             )
             ->whereNotNull('mos_lq')
             ->where('created_at', '>=', $cutExtended)
-            ->groupByRaw("extension, branch_id, {$recentExpr}", [$cut24])
+            ->groupBy('extension', 'branch_id')
             ->get();
 
         $rangeMap = $this->extensionRangeMap($branches);
@@ -216,12 +232,13 @@ class BranchTelemetryLoader
                 continue; // unattributable, or not a branch we were asked about
             }
 
-            $targets = ((int) $row->is_recent === 1) ? ['recent', 'all'] : ['all'];
-
-            foreach ($targets as $bucket) {
-                $buckets[$branchId][$bucket]['samples'] = ($buckets[$branchId][$bucket]['samples'] ?? 0) + (int) $row->samples;
-                $buckets[$branchId][$bucket]['passing'] = ($buckets[$branchId][$bucket]['passing'] ?? 0) + (int) $row->passing;
-                $buckets[$branchId][$bucket]['sum_mos'] = ($buckets[$branchId][$bucket]['sum_mos'] ?? 0) + (float) $row->sum_mos;
+            foreach ([
+                'recent' => ['samples_recent', 'passing_recent', 'sum_recent'],
+                'all' => ['samples_all', 'passing_all', 'sum_all'],
+            ] as $bucket => [$samples, $passing, $sum]) {
+                $buckets[$branchId][$bucket]['samples'] = ($buckets[$branchId][$bucket]['samples'] ?? 0) + (int) $row->{$samples};
+                $buckets[$branchId][$bucket]['passing'] = ($buckets[$branchId][$bucket]['passing'] ?? 0) + (int) $row->{$passing};
+                $buckets[$branchId][$bucket]['sum_mos'] = ($buckets[$branchId][$bucket]['sum_mos'] ?? 0) + (float) $row->{$sum};
             }
         }
 
