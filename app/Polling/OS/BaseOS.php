@@ -58,22 +58,59 @@ abstract class BaseOS
         ?float $crit = null,
         ?string $sensorGroup = null,
         ?string $description = null
-    ): void {
-        $this->host->snmpSensors()->updateOrCreate(
+    ): \App\Models\SnmpSensor {
+        // Note what is NOT written here: monitor_enabled. That switch belongs to
+        // the operator, and a rediscovery must never flip a muted sensor back on.
+        // retired_at IS cleared -- seeing a sensor again means it is back.
+        return $this->host->snmpSensors()->updateOrCreate(
             ['oid' => $oid],
             [
-                'name'               => $name,
-                'data_type'          => $dataType,
-                'unit'               => $unit,
-                'poll_interval'      => 60,
-                'warning_threshold'  => $warn,
+                'name' => $name,
+                'data_type' => $dataType,
+                'unit' => $unit,
+                'poll_interval' => 60,
+                'warning_threshold' => $warn,
                 'critical_threshold' => $crit,
-                'graph_enabled'      => true,
-                'sensor_group'       => $sensorGroup,
-                'description'        => $description,
-                'status'             => 'active',
+                'graph_enabled' => true,
+                'sensor_group' => $sensorGroup,
+                'description' => $description,
+                'status' => 'active',
+                'retired_at' => null,
             ]
         );
+    }
+
+    /**
+     * Retire this host's sensors in a group that the walk no longer returned.
+     *
+     * Retired, not deleted: sensor_metrics and metric_rollups both cascade on
+     * delete, so pruning on a walk that came back short would destroy history
+     * that cannot be rebuilt. A retired sensor is hidden from the dashboards and
+     * un-retires itself the moment the device reports it again.
+     *
+     * Callers MUST skip this when the walk failed -- an empty result from a
+     * timeout looks identical to a device with nothing left, and would retire
+     * every sensor on the box.
+     *
+     * @param  array<int, string>  $seenOids
+     */
+    protected function retireUnseenSensors(string $sensorGroup, array $seenOids): int
+    {
+        $query = $this->host->snmpSensors()
+            ->where('sensor_group', $sensorGroup)
+            ->whereNull('retired_at');
+
+        if ($seenOids !== []) {
+            $query->whereNotIn('oid', $seenOids);
+        }
+
+        $stale = $query->get();
+
+        foreach ($stale as $sensor) {
+            $sensor->forceFill(['retired_at' => now(), 'status' => 'retired'])->saveQuietly();
+        }
+
+        return $stale->count();
     }
 
     protected function snmpGet(string $oid): string|false
@@ -88,8 +125,11 @@ abstract class BaseOS
 
     protected function cleanString(string|false|null $value): ?string
     {
-        if (!$value || $value === false) return null;
+        if (! $value || $value === false) {
+            return null;
+        }
         $value = preg_replace('/^[a-zA-Z]+:\s*/', '', $value);
+
         return trim(trim($value, '"'));
     }
 

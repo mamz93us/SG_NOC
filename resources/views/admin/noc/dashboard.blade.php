@@ -491,6 +491,7 @@ function esc(v) {
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 const attr = esc;
+const CSRF = @json(csrf_token());
 
 // ── Extension Grid (AJAX) ──────────────────────────────────────────
 function loadExtensionGrid() {
@@ -538,7 +539,7 @@ function loadExtensionGrid() {
 
 // ── Heavy Dashboard Data (AJAX) ────────────────────────────────────
 function loadHeavyData() {
-    fetch('{{ route("admin.noc.dashboard.data") }}')
+    fetch('{{ route("admin.noc.dashboard.data") }}' + (sophosShowRetired ? '?show_retired=1' : ''))
         .then(r => r.json())
         .then(data => {
             renderUcmStats(data.ucm_stats || []);
@@ -691,23 +692,61 @@ function renderSophosVpn(tunnels, summary) {
     const content = document.getElementById('sophosVpnContent');
     content.classList.remove('d-none');
 
+    const retiredHidden = summary.retired_hidden || 0;
+    const showingRetired = !!summary.showing_retired;
+
+    // Offered whenever there is something hidden, or we are already showing it,
+    // so there is always a way back.
+    const retiredLink = (retiredHidden > 0 || showingRetired)
+        ? `<div class="px-3 pb-2">
+             <button class="btn btn-link btn-sm p-0 text-decoration-none" onclick="toggleRetiredVpn()">
+               <i class="bi bi-clock-history me-1"></i>${showingRetired
+                 ? 'Hide retired tunnels'
+                 : `Show ${retiredHidden} retired tunnel${retiredHidden === 1 ? '' : 's'}`}
+             </button>
+             <div class="small text-muted">Retired = no longer reported by the firewall.</div>
+           </div>`
+        : '';
+
     if (tunnels.length === 0) {
         content.className = content.className.replace('p-0', '');
         content.classList.add('p-3');
-        content.innerHTML = '<div class="text-center text-muted small">No Sophos S2S VPN tunnels configured</div>';
+        content.innerHTML = '<div class="text-center text-muted small">No Sophos S2S VPN tunnels configured</div>' + retiredLink;
         return;
     }
 
-    // Summary counts
+    // Only up/down are counts worth a headline. Disabled and muted are states
+    // someone chose, so they are shown as context rather than as alarms.
+    const chip = (n, cls, label) => n > 0
+        ? `<div class="text-center"><div class="fs-3 fw-bold ${cls}">${n}</div><small class="text-muted">${label}</small></div>`
+        : '';
+
     const summaryHtml = `<div class="px-3 pt-3 pb-2">
-        <div class="d-flex gap-4 mb-2">
-            <div class="text-center"><div class="fs-3 fw-bold text-success">${summary.up || 0}</div><small class="text-muted">Up</small></div>
-            <div class="text-center"><div class="fs-3 fw-bold text-danger">${summary.down || 0}</div><small class="text-muted">Down</small></div>
+        <div class="d-flex gap-4 mb-2 flex-wrap">
+            ${chip(summary.up || 0, 'text-success', 'Up')}
+            ${chip(summary.down || 0, 'text-danger', 'Down')}
+            ${chip(summary.unknown || 0, 'text-warning', 'No reading')}
+            ${chip(summary.disabled || 0, 'text-secondary', 'Disabled')}
+            ${chip(summary.muted || 0, 'text-secondary', 'Not monitored')}
             <div class="text-center"><div class="fs-3 fw-bold text-primary">${tunnels.length}</div><small class="text-muted">Total</small></div>
         </div>
     </div>`;
 
-    // Table view for Sophos VPN — sourced from SNMP monitoring
+    const TONE = {
+        up:       ['bg-success',           'bi-check-circle-fill text-success',      ''],
+        down:     ['bg-danger',            'bi-x-circle-fill text-danger',           'table-danger'],
+        disabled: ['bg-secondary',         'bi-pause-circle-fill text-secondary',    'text-muted'],
+        muted:    ['bg-dark',              'bi-bell-slash-fill text-secondary',      'text-muted'],
+        unknown:  ['bg-warning text-dark', 'bi-question-circle-fill text-warning',   ''],
+    };
+
+    const LABEL = {
+        up: 'up', down: 'down', unknown: 'no reading',
+        disabled: 'disabled on firewall', muted: 'not monitored',
+    };
+
+    const canManage = @json(auth()->user()?->can('manage-noc') ?? false);
+
     const tableHtml = `<div class="table-responsive">
         <table class="table table-hover table-sm mb-0">
             <thead class="table-light">
@@ -718,26 +757,54 @@ function renderSophosVpn(tunnels, summary) {
                     <th class="small fw-semibold">Firewall IP</th>
                     <th class="small fw-semibold">Branch</th>
                     <th class="small fw-semibold">Last Polled</th>
+                    ${canManage ? '<th class="small fw-semibold text-center">Monitor</th>' : ''}
                 </tr>
             </thead>
             <tbody>
                 ${tunnels.map(t => {
-                    const badgeCls = t.status === 'up' ? 'bg-success' : 'bg-danger';
-                    const icon = t.status === 'up' ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger';
-                    return `<tr class="${t.status === 'down' ? 'table-danger' : ''}">
-                        <td class="ps-3"><i class="bi ${icon} me-1"></i><span class="badge ${badgeCls} rounded-pill">${t.status}</span></td>
-                        <td class="small fw-semibold">${esc(t.name)}</td>
+                    const [badgeCls, icon, rowCls] = TONE[t.status] || TONE.unknown;
+                    const retired = t.retired
+                        ? ' <span class="badge bg-light text-dark border" title="No longer reported by the firewall">retired</span>'
+                        : '';
+
+                    // Muting is a state change, so it posts a form rather than
+                    // hanging an action off a link.
+                    const toggle = canManage
+                        ? `<td class="text-center">
+                             <form method="POST" action="/admin/network/sophos-vpn/${t.sensor_id}/toggle" class="d-inline">
+                               <input type="hidden" name="_token" value="${attr(CSRF)}">
+                               <input type="hidden" name="monitor_enabled" value="${t.monitor_enabled ? 0 : 1}">
+                               <button class="btn btn-sm btn-link p-0 ${t.monitor_enabled ? 'text-success' : 'text-muted'}"
+                                       ${t.retired ? 'disabled' : ''}
+                                       title="${t.monitor_enabled ? 'Stop monitoring this tunnel' : 'Start monitoring this tunnel'}">
+                                 <i class="bi ${t.monitor_enabled ? 'bi-toggle-on' : 'bi-toggle-off'} fs-5"></i>
+                               </button>
+                             </form>
+                           </td>`
+                        : '';
+
+                    return `<tr class="${rowCls}${t.retired ? ' opacity-50' : ''}">
+                        <td class="ps-3"><i class="bi ${icon} me-1"></i><span class="badge ${badgeCls} rounded-pill">${esc(LABEL[t.status] || t.status)}</span></td>
+                        <td class="small fw-semibold">${esc(t.name)}${retired}</td>
                         <td class="small">${esc(t.firewall)}</td>
                         <td class="small font-monospace">${esc(t.firewall_ip)}</td>
                         <td class="small">${esc(t.branch)}</td>
                         <td class="small text-muted">${esc(t.last_checked)}</td>
+                        ${toggle}
                     </tr>`;
                 }).join('')}
             </tbody>
         </table>
     </div>`;
 
-    content.innerHTML = summaryHtml + tableHtml;
+    content.innerHTML = summaryHtml + tableHtml + retiredLink;
+}
+
+// Retired tunnels are off by default; this re-fetches with them included.
+let sophosShowRetired = false;
+function toggleRetiredVpn() {
+    sophosShowRetired = !sophosShowRetired;
+    loadHeavyData();
 }
 
 // ── Init ────────────────────────────────────────────────────────────

@@ -18,6 +18,8 @@ class SnmpSensor extends Model
         'warning_threshold',
         'critical_threshold',
         'graph_enabled',
+        'monitor_enabled',
+        'retired_at',
         'last_raw_counter',
         'last_recorded_at',
         'status',
@@ -28,6 +30,8 @@ class SnmpSensor extends Model
 
     protected $casts = [
         'graph_enabled' => 'boolean',
+        'monitor_enabled' => 'boolean',
+        'retired_at' => 'datetime',
         'warning_threshold' => 'float',
         'critical_threshold' => 'float',
         'last_raw_counter' => 'float',
@@ -39,6 +43,75 @@ class SnmpSensor extends Model
     public function host(): BelongsTo
     {
         return $this->belongsTo(MonitoredHost::class, 'host_id');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Monitoring state
+    // ─────────────────────────────────────────────────────────────
+
+    /** Sensors discovery still sees on the device. */
+    public function scopeLive($query)
+    {
+        return $query->whereNull('retired_at');
+    }
+
+    /**
+     * Sensors discovery no longer finds.
+     *
+     * Retired rather than deleted: sensor_metrics and metric_rollups both
+     * cascade, so deleting on a walk that came back short would silently
+     * destroy history that cannot be rebuilt.
+     */
+    public function scopeRetired($query)
+    {
+        return $query->whereNotNull('retired_at');
+    }
+
+    /** Live AND not muted by an operator — what should actually be judged. */
+    public function scopeMonitored($query)
+    {
+        return $query->whereNull('retired_at')->where('monitor_enabled', true);
+    }
+
+    public function isRetired(): bool
+    {
+        return $this->retired_at !== null;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Sophos VPN helpers
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Sophos publishes two sensors per IPsec tunnel:
+     *   "VPN: {name} - Active"      2 = enabled, 0 = administratively disabled
+     *   "VPN: {name} - Connection"  1 = connected, 0 = disconnected
+     *
+     * The tunnel name is the part between them, and is how the two halves are
+     * paired back together.
+     */
+    public function vpnTunnelName(): ?string
+    {
+        if ($this->sensor_group !== 'VPN') {
+            return null;
+        }
+
+        $name = preg_replace('/^VPN:\s*/', '', (string) $this->name);
+        $name = preg_replace('/\s*-\s*(Active|Connection)$/i', '', $name);
+
+        return trim($name) ?: null;
+    }
+
+    public function isVpnConnectionSensor(): bool
+    {
+        return $this->sensor_group === 'VPN'
+            && (bool) preg_match('/-\s*Connection$/i', (string) $this->name);
+    }
+
+    public function isVpnActiveSensor(): bool
+    {
+        return $this->sensor_group === 'VPN'
+            && (bool) preg_match('/-\s*Active$/i', (string) $this->name);
     }
 
     public function sensorMetrics(): \Illuminate\Database\Eloquent\Relations\HasMany

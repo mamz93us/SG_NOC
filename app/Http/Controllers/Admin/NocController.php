@@ -18,13 +18,17 @@ use App\Models\UcmServer;
 use App\Models\UcmTrunkCache;
 use App\Services\HealthScoringService;
 use App\Services\NotificationService;
+use App\Services\Sophos\SophosVpnBoard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class NocController extends Controller
 {
-    public function __construct(private HealthScoringService $health) {}
+    public function __construct(
+        private HealthScoringService $health,
+        private SophosVpnBoard $vpnBoard,
+    ) {}
 
     public function dashboard()
     {
@@ -113,7 +117,7 @@ class NocController extends Controller
 
     // ── AJAX Heavy Data ──────────────────────────────────────────────
 
-    public function dashboardHeavyData()
+    public function dashboardHeavyData(Request $request)
     {
         // UCM PBX Stats (the N+1 loop that was slowing the page)
         $ucmServers = \App\Models\UcmServer::orderBy('name')->get();
@@ -184,34 +188,16 @@ class NocController extends Controller
                 'branch' => $t->branch?->name ?: 'No branch',
             ]);
 
-        // Sophos S2S VPN Tunnels — from SNMP sensors (sensor_group='VPN')
-        // Each tunnel has 2 sensors: "VPN: {name} - Active" and "VPN: {name} - Connection"
-        // Connection sensor value: 1.0 = connected, 0.0 = disconnected
-        $vpnSensors = \App\Models\SnmpSensor::with(['host.branch'])
-            ->where('sensor_group', 'VPN')
-            ->where('name', 'like', 'VPN:%- Connection')
-            ->get();
-
-        $sophosVpnTunnels = $vpnSensors->map(function ($sensor) {
-            // Extract tunnel name from "VPN: TunnelName - Connection"
-            $tunnelName = trim(str_replace(['VPN:', '- Connection'], '', $sensor->name));
-
-            // Get latest metric value for connection status
-            $latestMetric = $sensor->sensorMetrics()
-                ->orderByDesc('recorded_at')
-                ->first();
-
-            $isConnected = $latestMetric && $latestMetric->value >= 1.0;
-
-            return [
-                'name' => $tunnelName,
-                'status' => $isConnected ? 'up' : 'down',
-                'firewall' => $sensor->host?->name ?: '-',
-                'firewall_ip' => $sensor->host?->ip ?: '-',
-                'branch' => $sensor->host?->branch?->name ?: 'No branch',
-                'last_checked' => $latestMetric?->recorded_at?->diffForHumans() ?: ($sensor->last_recorded_at?->diffForHumans() ?: '-'),
-            ];
-        })->sortBy('status')->values();
+        // Sophos S2S VPN Tunnels.
+        //
+        // Assembled by SophosVpnBoard, which pairs each tunnel's "Connection"
+        // sensor with its "Active" one. Reading Connection alone -- as this used
+        // to -- rendered a tunnel deliberately switched off on the firewall as a
+        // red "down", indistinguishable from one that had failed. Retired
+        // sensors (tunnels deleted from the firewall) are hidden unless asked
+        // for, and an operator can mute a tunnel from the panel.
+        $showRetired = $request->boolean('show_retired');
+        $sophosVpnTunnels = $this->vpnBoard->tunnels(includeRetired: $showRetired);
 
         return response()->json([
             'ucm_stats' => $ucmStats,
@@ -223,9 +209,10 @@ class NocController extends Controller
                 'down' => $vpnTunnels->where('status', 'down')->count(),
             ],
             'sophos_vpn_tunnels' => $sophosVpnTunnels,
-            'sophos_vpn_summary' => [
-                'up' => $sophosVpnTunnels->where('status', 'up')->count(),
-                'down' => $sophosVpnTunnels->where('status', 'down')->count(),
+            'sophos_vpn_summary' => $this->vpnBoard->summary($sophosVpnTunnels) + [
+                // So the panel can offer "show N retired" without a second call.
+                'retired_hidden' => $showRetired ? 0 : $this->vpnBoard->retiredCount(),
+                'showing_retired' => $showRetired,
             ],
         ]);
     }
