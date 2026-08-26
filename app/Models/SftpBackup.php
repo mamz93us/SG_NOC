@@ -91,11 +91,23 @@ class SftpBackup extends Model
 
     public function humanSize(): string
     {
-        if (! $this->size) {
+        return self::formatBytes((int) $this->size);
+    }
+
+    /**
+     * Bytes as a human-readable string.
+     *
+     * Static so totals (which are plain integers, not model rows) format
+     * identically to the per-row sizes beside them.
+     */
+    public static function formatBytes(?int $bytes): string
+    {
+        if (! $bytes) {
             return '—';
         }
+
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $size = (float) $this->size;
+        $size = (float) $bytes;
         $i = 0;
         while ($size >= 1024 && $i < count($units) - 1) {
             $size /= 1024;
