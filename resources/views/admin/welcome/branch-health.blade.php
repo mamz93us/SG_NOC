@@ -25,9 +25,9 @@
     $t = $toneMap[$tone];
 
     $statusTone = [
-        'excellent' => 'bg-emerald-500',
-        'good'      => 'bg-emerald-500',
-        'degraded'  => 'bg-amber-500',
+        'healthy'  => 'bg-emerald-500',
+        'degraded' => 'bg-lime-600',
+        'at_risk'  => 'bg-amber-500',
         'critical'  => 'bg-red-500',
         'unknown'   => 'bg-slate-400',
     ];

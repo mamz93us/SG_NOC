@@ -1663,6 +1663,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── NOC Dashboard ────────────────────────────────────────
     Route::middleware('permission:view-noc')->prefix('noc')->name('noc.')->group(function () {
         Route::get('/', [NocController::class, 'dashboard'])->name('dashboard');
+        // Branch Health Index -- the fleet scoreboard over HealthScoringService.
+        Route::get('/health', [\App\Http\Controllers\Admin\BranchHealthIndexController::class, 'index'])->name('health');
         Route::get('/overview', [\App\Http\Controllers\Admin\NocOverviewController::class, 'index'])->name('overview.index');
         Route::get('/overview/chart', [\App\Http\Controllers\Admin\NocOverviewController::class, 'chart'])->name('overview.chart');
         // {branch}, not {id}: implicit model binding matches the URI segment name

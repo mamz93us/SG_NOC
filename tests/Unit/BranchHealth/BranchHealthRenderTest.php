@@ -96,7 +96,7 @@ it('renders a branch with no telemetry at all without erroring', function () {
     // rendering a blank or a misleading green.
     expect($html)->toContain('Unknown')
         ->toContain('unmonitored')
-        ->and($html)->not->toContain('Excellent');
+        ->and($html)->not->toContain('Healthy');
 });
 
 it('shows the degraded subnets behind a reachable firewall', function () {
@@ -133,7 +133,7 @@ it('renders the welcome branch-health widget from the score service', function (
     $html = view('admin.welcome.branch-health', ['health' => [
         'total' => $branches->count(),
         'critical' => $branches->filter(fn ($b) => $b->health['status'] === 'critical')->count(),
-        'healthy' => $branches->filter(fn ($b) => in_array($b->health['status'], ['excellent', 'good'], true))->count(),
+        'healthy' => $branches->filter(fn ($b) => in_array($b->health['status'], ['healthy', 'degraded'], true))->count(),
         'average' => (int) round($scored->avg(fn ($b) => $b->health['normalized_percent'])),
         'worst' => $branches->take(5)->map(fn ($b) => [
             'id' => $b->id, 'name' => $b->name,
@@ -158,7 +158,7 @@ it('escapes branch names before they reach the dashboard markup', function () {
         'total' => 1, 'critical' => 0, 'healthy' => 1, 'average' => 100,
         'worst' => collect([[
             'id' => 1, 'name' => '<script>alert(1)</script>',
-            'total' => 100, 'status' => 'excellent', 'capped' => false,
+            'total' => 100, 'status' => 'healthy', 'capped' => false,
         ]]),
     ]])->render();
 

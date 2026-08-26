@@ -165,12 +165,12 @@ class HealthScoringService
 
     public static function healthColorStatic(int $percent): string
     {
-        $t = config('branch_health.status_thresholds', ['excellent' => 90, 'good' => 75, 'degraded' => 60]);
+        $t = config('branch_health.status_thresholds', ['healthy' => 95, 'degraded' => 80, 'at_risk' => 60]);
 
         return match (true) {
-            $percent >= (int) $t['excellent'] => 'success',
-            $percent >= (int) $t['good'] => 'info',
-            $percent >= (int) $t['degraded'] => 'warning',
+            $percent >= (int) $t['healthy'] => 'success',
+            $percent >= (int) $t['degraded'] => 'info',
+            $percent >= (int) $t['at_risk'] => 'warning',
             default => 'danger',
         };
     }
@@ -179,9 +179,9 @@ class HealthScoringService
     public static function statusColor(string $status): string
     {
         return match ($status) {
-            'excellent' => 'success',
-            'good' => 'info',
-            'degraded' => 'warning',
+            'healthy' => 'success',
+            'degraded' => 'info',
+            'at_risk' => 'warning',
             'critical' => 'danger',
             default => 'secondary',
         };
@@ -190,9 +190,9 @@ class HealthScoringService
     public static function statusLabel(string $status): string
     {
         return match ($status) {
-            'excellent' => 'Excellent',
-            'good' => 'Good',
+            'healthy' => 'Healthy',
             'degraded' => 'Degraded',
+            'at_risk' => 'At risk',
             'critical' => 'Critical',
             default => 'Unknown',
         };
