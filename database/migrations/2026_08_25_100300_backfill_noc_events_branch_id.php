@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -22,6 +23,16 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    /** Rows per UPDATE. Small enough that each statement is over in microseconds. */
+    private const UPDATE_CHUNK = 200;
+
+    /** Owning-table ids per lookup query. */
+    private const LOOKUP_CHUNK = 500;
+
+    private const MAX_ATTEMPTS = 5;
+
+    private const RETRY_BASE_MICROSECONDS = 100_000;
+
     public function up(): void
     {
         if (! Schema::hasColumn('noc_events', 'branch_id')) {
@@ -74,10 +85,25 @@ return new class extends Migration
     }
 
     /**
-     * Push an id => branch_id map onto noc_events, grouped so it costs one
-     * UPDATE per branch rather than one per event. Written with whereIn instead
-     * of UPDATE..JOIN because the latter's syntax differs between MySQL and
-     * SQLite and this has to run on both.
+     * Push an id => branch_id map onto noc_events.
+     *
+     * Deliberately does NOT update by predicate. The obvious form --
+     * `WHERE branch_id IS NULL AND source_type = ? AND source_id IN (...)` --
+     * deadlocked against the live scheduler in production: before the backfill
+     * runs `branch_id IS NULL` matches essentially every row, so InnoDB locks a
+     * wide range while tunnel-health:watch and check-host-ping (both every
+     * minute) plus the printer and access-point monitors are inserting into the
+     * same table.
+     *
+     * Instead: resolve the target primary keys with a plain consistent read
+     * (which takes no locks), then update small batches BY PRIMARY KEY. Each
+     * statement then locks exactly the rows it changes and holds them for
+     * microseconds.
+     *
+     * The `branch_id IS NULL` guard stays in the UPDATE as well as the SELECT,
+     * so a producer that stamps a row between the two does not get overwritten,
+     * and re-running after a partial failure is still a no-op for rows already
+     * done.
      *
      * @param  \Illuminate\Support\Collection<int|string, int>  $map
      */
@@ -97,11 +123,55 @@ return new class extends Migration
                 $ids = array_map('strval', $ids);
             }
 
-            DB::table('noc_events')
-                ->whereNull('branch_id')
-                ->where($scope)
-                ->whereIn($key, $ids)
-                ->update(['branch_id' => (int) $branchId]);
+            // Owning-table ids are chunked too: `IN (...)` over a few thousand
+            // printers would make the read itself unwieldy.
+            foreach (array_chunk($ids, self::LOOKUP_CHUNK) as $idChunk) {
+                $eventIds = DB::table('noc_events')
+                    ->whereNull('branch_id')
+                    ->where($scope)
+                    ->whereIn($key, $idChunk)
+                    ->orderBy('id')
+                    ->pluck('id');
+
+                foreach ($eventIds->chunk(self::UPDATE_CHUNK) as $batch) {
+                    $this->updateBatch($batch->all(), (int) $branchId);
+                }
+            }
+        }
+    }
+
+    /**
+     * One short, primary-key-scoped UPDATE, retried if it loses a deadlock.
+     *
+     * A deadlock is not an error here -- it means a producer touched one of
+     * these rows at the same instant, and MySQL picked us as the victim. The
+     * work is idempotent, so the correct response is to try again rather than
+     * abort a migration that is already half applied.
+     */
+    private function updateBatch(array $eventIds, int $branchId): void
+    {
+        if ($eventIds === []) {
+            return;
+        }
+
+        for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
+            try {
+                DB::table('noc_events')
+                    ->whereIn('id', $eventIds)
+                    ->whereNull('branch_id')
+                    ->update(['branch_id' => $branchId]);
+
+                return;
+            } catch (QueryException $e) {
+                // 1213 deadlock, 1205 lock wait timeout. Anything else is a real
+                // failure and must surface.
+                if (! in_array((int) ($e->errorInfo[1] ?? 0), [1213, 1205], true)
+                    || $attempt === self::MAX_ATTEMPTS) {
+                    throw $e;
+                }
+
+                usleep(self::RETRY_BASE_MICROSECONDS * $attempt);
+            }
         }
     }
 
