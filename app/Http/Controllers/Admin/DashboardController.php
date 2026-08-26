@@ -280,7 +280,7 @@ class DashboardController extends Controller
         return [
             'total' => $branches->count(),
             'critical' => $branches->filter(fn ($b) => $b->health['status'] === 'critical')->count(),
-            'healthy' => $branches->filter(fn ($b) => in_array($b->health['status'], ['excellent', 'good'], true))->count(),
+            'healthy' => $branches->filter(fn ($b) => in_array($b->health['status'], ['healthy', 'degraded'], true))->count(),
             'average' => $scored->isEmpty() ? 0 : (int) round($scored->avg(fn ($b) => $b->health['normalized_percent'])),
             // allBranches() is already worst-first, so the head of the list is
             // exactly what someone opening the dashboard needs to see.

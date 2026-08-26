@@ -90,7 +90,7 @@ it('shapes each branch summary the dashboard JS expects', function () {
     $row = $payload->first();
     expect($row['total'])->toBe(100)
         ->and($row['coverage_percent'])->toBe(100)
-        ->and($row['status'])->toBe('excellent')
+        ->and($row['status'])->toBe('healthy')
         ->and($row['url'])->toEndWith('/admin/noc/branch/1')
         // Three categories, in the order the badges render.
         ->and($row['categories']->pluck('key')->all())->toBe(['voip', 'network', 'devices'])

@@ -173,9 +173,11 @@ class BranchHealthEvaluator
         $t = config('branch_health.status_thresholds');
 
         return match (true) {
-            $normalized >= (int) $t['excellent'] && $capReasons === [] => 'excellent',
-            $normalized >= (int) $t['good'] => 'good',
+            // A capped branch is never "healthy" no matter what it scored: the
+            // cap exists because something is on fire.
+            $normalized >= (int) $t['healthy'] && $capReasons === [] => 'healthy',
             $normalized >= (int) $t['degraded'] => 'degraded',
+            $normalized >= (int) $t['at_risk'] => 'at_risk',
             default => 'critical',
         };
     }

@@ -82,7 +82,7 @@ it('scores a fully healthy branch at 100', function () {
     expect($score['total'])->toBe(100)
         ->and($score['raw_total'])->toBe(100)
         ->and($score['coverage_percent'])->toBe(100)
-        ->and($score['status'])->toBe('excellent')
+        ->and($score['status'])->toBe('healthy')
         ->and($score['cap_reasons'])->toBe([]);
 });
 
@@ -466,7 +466,7 @@ it('refuses to call a barely-monitored branch healthy', function () {
     BranchHealthSchema::seedBranches([[1, 'Barely']]);
     // Only switches configured — 16 of 100 points measurable, and both of those
     // points earned. Coverage-normalizing alone would score this 100% and badge
-    // it Excellent, which is the exact "green because nothing is watched"
+    // it Healthy, which is the exact "green because nothing is watched"
     // failure the model exists to prevent.
     Fx::switches(1, up: 2, down: 0);
 
@@ -488,7 +488,7 @@ it('does call a mostly-monitored branch healthy', function () {
     // 100 - 6 (biometrics) - 10 (voice mesh) = 84 measurable, comfortably above
     // the floor, so the branch is judged on what IS monitored.
     expect($score['coverage_percent'])->toBe(84)
-        ->and($score['status'])->toBe('excellent');
+        ->and($score['status'])->toBe('healthy');
 });
 
 it('never lets a branch look healthy on missing telemetry', function () {
@@ -497,7 +497,7 @@ it('never lets a branch look healthy on missing telemetry', function () {
 
     $score = score();
 
-    expect($score['status'])->not->toBeIn(['excellent', 'good'])
+    expect($score['status'])->not->toBeIn(['healthy', 'degraded'])
         ->and($score['total'])->toBeLessThan(60);
 });
 

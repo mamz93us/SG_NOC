@@ -156,13 +156,17 @@ return [
     |
     | Lower bound of each band, evaluated against the coverage-normalized
     | score (earned / evaluable) so a branch is not marked down for gear it
-    | has not onboarded yet. Anything below `degraded` is critical.
+    | has not onboarded yet. Anything below `at_risk` is critical.
+    |
+    | Healthy is deliberately a high bar: on a 100-point scale where a single
+    | dead switch costs 8, "nearly everything is fine" is not the same claim as
+    | "fine", and the board is read by people deciding what to touch today.
     |
     */
     'status_thresholds' => [
-        'excellent' => 90,
-        'good' => 75,
-        'degraded' => 60,
+        'healthy' => 95,
+        'degraded' => 80,
+        'at_risk' => 60,
     ],
 
     // Coverage-normalizing stops a branch being marked down for kit it has not
