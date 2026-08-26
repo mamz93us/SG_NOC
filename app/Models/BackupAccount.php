@@ -101,6 +101,18 @@ class BackupAccount extends Model
         return $this->hasMany(SftpBackup::class, 'account_id')->latest();
     }
 
+    /**
+     * The most recent backup, for the size column on the index.
+     *
+     * latestOfMany() resolves to ONE correlated subquery for the whole page
+     * rather than a query per account, so the list stays flat no matter how many
+     * accounts exist.
+     */
+    public function latestBackup(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(SftpBackup::class, 'account_id')->latestOfMany('received_at');
+    }
+
     // ─── Scopes ───────────────────────────────────────────────────
 
     public function scopeActive(Builder $query): Builder

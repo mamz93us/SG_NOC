@@ -29,7 +29,9 @@ class BackupAccountController extends Controller
 
     public function index(Request $request)
     {
-        $query = BackupAccount::query()->with('device');
+        // latestBackup drives the "Last Size" column -- one correlated subquery
+        // for the page rather than a query per row.
+        $query = BackupAccount::query()->with(['device', 'latestBackup']);
 
         if ($request->filled('q')) {
             $term = $request->q;
@@ -46,10 +48,51 @@ class BackupAccountController extends Controller
             default => null,
         };
 
+        // Totals are computed over every account matching the current filter,
+        // NOT just the visible page -- a footer that silently only added up one
+        // page of 50 would understate storage the moment the estate grows.
+        $totals = $this->totalsFor((clone $query)->pluck('id'));
+
         $accounts = $query->orderByDesc('is_active')->orderBy('sftpgo_username')
             ->paginate(50)->withQueryString();
 
-        return view('admin.backups.index', compact('accounts'));
+        return view('admin.backups.index', compact('accounts', 'totals'));
+    }
+
+    /**
+     * Footer figures for the index.
+     *
+     * Two different questions, so two numbers:
+     *  - last_size:  the sum of the Last Size column, i.e. one backup per account
+     *  - stored:     everything still held in Azure, which is what actually costs
+     *                money. Pruned rows are excluded: prune nulls azure_path
+     *                after deleting the blob, so scopeLiveInAzure() is the
+     *                honest definition of "still stored".
+     *
+     * @param  \Illuminate\Support\Collection<int, int>  $accountIds
+     * @return array{last_size: int, stored: int, backups: int, accounts: int}
+     */
+    private function totalsFor($accountIds): array
+    {
+        if ($accountIds->isEmpty()) {
+            return ['last_size' => 0, 'stored' => 0, 'backups' => 0, 'accounts' => 0];
+        }
+
+        // MAX(id) is the newest row per account: ids are monotonic, and an
+        // aggregate-only GROUP BY is safe under MySQL's ONLY_FULL_GROUP_BY.
+        $latestIds = SftpBackup::whereIn('account_id', $accountIds)
+            ->selectRaw('MAX(id) AS id')
+            ->groupBy('account_id')
+            ->pluck('id');
+
+        $live = SftpBackup::liveInAzure()->whereIn('account_id', $accountIds);
+
+        return [
+            'last_size' => $latestIds->isEmpty() ? 0 : (int) SftpBackup::whereIn('id', $latestIds)->sum('size'),
+            'stored' => (int) (clone $live)->sum('size'),
+            'backups' => (int) (clone $live)->count(),
+            'accounts' => $accountIds->count(),
+        ];
     }
 
     public function create()
