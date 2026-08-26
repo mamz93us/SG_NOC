@@ -185,7 +185,7 @@ class BranchTelemetryLoader
             return $out;
         }
 
-        $cfg = config('branch_health.mos');
+        $cfg = BranchHealthConfig::get('mos');
         $threshold = (float) $cfg['threshold'];
         $cut24 = now()->subHours((int) $cfg['window_hours']);
         $cutExtended = now()->subDays((int) $cfg['extended_window_days']);
@@ -367,7 +367,7 @@ class BranchTelemetryLoader
             return collect();
         }
 
-        $cutoff = now()->subMinutes((int) config('branch_health.freshness.isp_link', 15));
+        $cutoff = now()->subMinutes(BranchHealthConfig::int('freshness.isp_link', 15));
 
         $latest = DB::table('link_checks')
             ->selectRaw('isp_id, MAX(checked_at) AS checked_at')
@@ -407,8 +407,8 @@ class BranchTelemetryLoader
             ->where('severity', 'critical')
             ->whereIn('status', ['open', 'acknowledged'])
             ->where(function ($q) {
-                $q->whereIn('source_type', (array) config('branch_health.critical_alert_source_types', []))
-                    ->orWhereIn('module', (array) config('branch_health.critical_alert_modules', []));
+                $q->whereIn('source_type', BranchHealthConfig::array('critical_alert_source_types'))
+                    ->orWhereIn('module', BranchHealthConfig::array('critical_alert_modules'));
             })
             ->orderByDesc('last_seen')
             ->get()
@@ -484,7 +484,7 @@ class BranchTelemetryLoader
             return collect();
         }
 
-        $cutoff = now()->subMinutes((int) config('branch_health.freshness.printer_supply', 30));
+        $cutoff = now()->subMinutes(BranchHealthConfig::int('freshness.printer_supply', 30));
 
         return PrinterSupply::query()
             ->select(['id', 'printer_id', 'supply_type', 'supply_color', 'supply_percent', 'last_updated_at'])
@@ -511,7 +511,7 @@ class BranchTelemetryLoader
             $interval = (int) (Setting::first()?->meraki_polling_interval ?: 0);
         }
 
-        $cfg = config('branch_health.freshness');
+        $cfg = BranchHealthConfig::get('freshness');
 
         return max(
             (int) ($cfg['meraki_switch_min'] ?? 15),
