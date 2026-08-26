@@ -18,6 +18,9 @@
                 <i class="bi bi-pencil"></i> Edit
             </a>
             @endcan
+            <a href="{{ route('admin.network.sophos.vpn-monitoring', $firewall) }}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-shield-lock"></i> VPN Monitoring
+            </a>
             <a href="{{ route('admin.network.sophos.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left"></i> Back
             </a>

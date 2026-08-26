@@ -68,6 +68,7 @@ use App\Http\Controllers\Admin\SlaController;
 use App\Http\Controllers\Admin\SmtpRelayController;
 use App\Http\Controllers\Admin\SnmpMonitoringController;
 use App\Http\Controllers\Admin\SophosFirewallController;
+use App\Http\Controllers\Admin\SophosVpnMonitorController;
 use App\Http\Controllers\Admin\SslCertificateController;
 use App\Http\Controllers\Admin\SubdomainController;
 use App\Http\Controllers\Admin\SupplierController;
@@ -1501,6 +1502,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/{firewall}', [SophosFirewallController::class, 'destroy'])->name('destroy')->middleware('permission:manage-sophos');
         Route::post('/{firewall}/sync', [SophosFirewallController::class, 'sync'])->name('sync')->middleware('permission:manage-sophos');
         Route::post('/{firewall}/test', [SophosFirewallController::class, 'testConnection'])->name('test')->middleware('permission:manage-sophos');
+
+        // Which of this firewall's IPsec tunnels are monitored. Viewing follows
+        // the firewall pages; changing it is a manage-noc action because it
+        // decides what the NOC dashboard reports on.
+        Route::get('/{firewall}/vpn-monitoring', [SophosVpnMonitorController::class, 'index'])
+            ->name('vpn-monitoring')->middleware('permission:view-sophos');
+    });
+
+    // Per-tunnel monitoring switches. Keyed by sensor rather than firewall
+    // because that is the row the dashboard panel renders.
+    Route::prefix('network/sophos-vpn')->name('network.sophos-vpn.')->middleware('permission:manage-noc')->group(function () {
+        Route::post('/{sensor}/toggle', [SophosVpnMonitorController::class, 'toggle'])->name('toggle');
+        Route::delete('/{sensor}', [SophosVpnMonitorController::class, 'forget'])->name('forget');
     });
 
     // ─── FortiGate Firewalls (REST API — DHCP leases) ───────────
