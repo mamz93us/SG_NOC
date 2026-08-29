@@ -218,6 +218,16 @@ class LicenseController extends Controller
             return response()->json(['error' => 'This license is not linked to a Microsoft/Azure SKU.'], 422);
         }
 
+        return response()->json($this->eligibleEmployeesFor($license, $identityLicense));
+    }
+
+    /**
+     * Same eligibility computation as autoAssignEligible(), for one SKU — kept
+     * separate so it can also be run in a loop across every Microsoft-linked
+     * license for the "all licenses" review below.
+     */
+    private function eligibleEmployeesFor(License $license, IdentityLicense $identityLicense): array
+    {
         $skuId = $identityLicense->sku_id;
         $itamAvailable = $license->availableSeats();
         $azureAvailable = max(0, (int) $identityLicense->available);
@@ -244,14 +254,41 @@ class LicenseController extends Controller
 
         $eligible = $candidates->reject(fn ($e) => $alreadyHoldingAzureIds->contains($e->azure_id))->values();
 
-        return response()->json([
+        return [
+            'license_id' => $license->id,
+            'license_name' => $license->license_name,
             'sku_part_number' => $identityLicense->sku_part_number,
             'itam_available' => $itamAvailable,
             'azure_available' => $azureAvailable,
             'capacity' => $capacity,
             'eligible_count' => $eligible->count(),
             'employees' => $eligible->map(fn ($e) => ['id' => $e->id, 'name' => $e->name, 'email' => $e->email])->values(),
-        ]);
+        ];
+    }
+
+    /**
+     * Review data for every Microsoft-linked license at once — powers the
+     * "Auto-Assign All Microsoft Licenses" button. Deliberately still a
+     * preview, not a one-click blind assign: several of these SKUs (Visio,
+     * Copilot, Defender) have only a seat or two of headroom, and handing the
+     * last spare seat to whichever active employee sorts first alphabetically
+     * is exactly the kind of mistake this review step exists to prevent.
+     * Licenses with zero eligible employees or zero capacity are omitted —
+     * nothing for the admin to decide on those.
+     */
+    public function autoAssignAllEligible()
+    {
+        $licenses = License::with('identityLicense')
+            ->whereHas('identityLicense')
+            ->orderBy('license_name')
+            ->get();
+
+        $results = $licenses
+            ->map(fn ($license) => $this->eligibleEmployeesFor($license, $license->identityLicense))
+            ->filter(fn ($row) => $row['capacity'] > 0 && $row['eligible_count'] > 0)
+            ->values();
+
+        return response()->json(['licenses' => $results]);
     }
 
     /**
@@ -273,14 +310,69 @@ class LicenseController extends Controller
         if (! $identityLicense) {
             return back()->with('error', 'This license is not linked to a Microsoft/Azure SKU.');
         }
-        $skuId = $identityLicense->sku_id;
 
+        ['assigned' => $assigned, 'skipped' => $skipped, 'errors' => $errors] =
+            $this->runBulkAssign($license, $identityLicense, $data['employee_ids']);
+
+        return back()->with($errors ? 'error' : 'success', $this->summarize($license->license_name, $assigned, $skipped, $errors));
+    }
+
+    /**
+     * Execute the review from autoAssignAllEligible() in one request: a map of
+     * license_id => [employee_ids] the admin left checked. Each license is
+     * processed independently with its own seat caps and its own Graph calls
+     * — one license failing (bad SKU state, a Graph error) does not stop the
+     * others from going through.
+     */
+    public function autoAssignAll(Request $request)
+    {
+        $data = $request->validate([
+            'assignments' => 'required|array|min:1',
+            'assignments.*' => 'array|min:1',
+            'assignments.*.*' => 'integer|exists:employees,id',
+        ]);
+
+        $summaries = [];
+
+        foreach ($data['assignments'] as $licenseId => $employeeIds) {
+            $license = License::with('identityLicense')->find($licenseId);
+            if (! $license || ! $license->identityLicense) {
+                continue;
+            }
+
+            ['assigned' => $assigned, 'skipped' => $skipped, 'errors' => $errors] =
+                $this->runBulkAssign($license, $license->identityLicense, $employeeIds);
+
+            if ($assigned || $skipped || $errors) {
+                $summaries[] = $this->summarize($license->license_name, $assigned, $skipped, $errors);
+            }
+        }
+
+        if (empty($summaries)) {
+            return back()->with('error', 'Nothing was assigned — no valid selections were submitted.');
+        }
+
+        return back()->with('success', implode(' | ', $summaries));
+    }
+
+    /**
+     * Shared execution loop for both the single-license and all-licenses auto-
+     * assign actions. Every step is re-verified here (not trusted from the
+     * preview) since Azure/local state can move between the review request and
+     * this one, and the loop stops the moment either seat count is exhausted
+     * rather than over-committing past what was actually purchased or licensed.
+     *
+     * @return array{assigned: string[], skipped: string[], errors: string[]}
+     */
+    private function runBulkAssign(License $license, IdentityLicense $identityLicense, array $employeeIds): array
+    {
+        $skuId = $identityLicense->sku_id;
         $graph = new GraphService;
         $assigned = [];
         $skipped = [];
         $errors = [];
 
-        foreach ($data['employee_ids'] as $employeeId) {
+        foreach ($employeeIds as $employeeId) {
             $license->refresh();
             $identityLicense->refresh();
 
@@ -329,15 +421,20 @@ class LicenseController extends Controller
             }
         }
 
-        ActivityLog::log(
-            "Auto-assigned license '{$license->license_name}' to ".count($assigned).' employee(s) via Graph'
-        );
+        if ($assigned) {
+            ActivityLog::log(
+                "Auto-assigned license '{$license->license_name}' to ".count($assigned).' employee(s) via Graph'
+            );
+        }
 
-        $summary = count($assigned).' assigned'.($assigned ? ' ('.implode(', ', $assigned).')' : '').'.'
+        return compact('assigned', 'skipped', 'errors');
+    }
+
+    private function summarize(string $licenseName, array $assigned, array $skipped, array $errors): string
+    {
+        return "{$licenseName}: ".count($assigned).' assigned'.($assigned ? ' ('.implode(', ', $assigned).')' : '').'.'
             .($skipped ? ' '.count($skipped).' skipped: '.implode(' / ', $skipped) : '')
             .($errors ? ' '.count($errors).' failed: '.implode(' / ', $errors) : '');
-
-        return back()->with($errors ? 'error' : 'success', $summary);
     }
 
     public function unassign(License $license, LicenseAssignment $assignment)
@@ -347,6 +444,25 @@ class LicenseController extends Controller
             $device = Device::find($assignment->assignable_id);
             if ($device) {
                 AssetHistory::record($device, 'license_removed', "License '{$license->license_name}' removed");
+            }
+        }
+
+        // Mirror of the assign() upgrade: unassigning an Azure-linked license
+        // from an employee must actually revoke it in Microsoft 365, or the
+        // seat stays consumed while ITAM shows it as free. Unlike granting, a
+        // Graph failure here does not block the local delete — the goal of
+        // this action is almost always "get this off an ex-employee", and
+        // leaving a stale local row behind is worse than a local/Azure
+        // mismatch that a future identity:sync will surface.
+        $identityLicense = $license->identityLicense;
+        if ($assignment->assignable_type === Employee::class && $identityLicense) {
+            $employee = Employee::find($assignment->assignable_id);
+            if ($employee?->azure_id) {
+                try {
+                    (new GraphService)->removeLicense($employee->azure_id, $identityLicense->sku_id);
+                } catch (\Throwable $e) {
+                    ActivityLog::log("Graph license revoke failed for '{$license->license_name}': {$e->getMessage()}");
+                }
             }
         }
 

@@ -6,9 +6,15 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4 class="mb-0"><i class="bi bi-key me-2"></i>Software Licenses</h4>
         @can('manage-licenses')
-        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addLicenseModal">
-            <i class="bi bi-plus-lg me-1"></i>Add License
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-info btn-sm" onclick="openAutoAssignAll()"
+                data-bs-toggle="modal" data-bs-target="#autoAssignAllModal">
+                <i class="bi bi-magic me-1"></i>Auto-Assign All Microsoft Licenses
+            </button>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addLicenseModal">
+                <i class="bi bi-plus-lg me-1"></i>Add License
+            </button>
+        </div>
         @endcan
     </div>
 
@@ -312,6 +318,37 @@
         </form>
     </div>
 </div>
+
+{{-- Auto-Assign ALL Microsoft Licenses Modal --}}
+<div class="modal fade" id="autoAssignAllModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <form id="autoAssignAllForm" method="POST" action="{{ route('admin.itam.licenses.auto-assign-all') }}">
+            @csrf
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold"><i class="bi bi-magic me-1"></i>Auto-Assign All Microsoft Licenses</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-2">
+                        Every checked employee will be granted the license next to their name <strong>live in Microsoft 365 via Graph</strong> — review carefully, especially SKUs with only a seat or two of headroom.
+                    </p>
+                    <div id="autoAssignAllBody" style="max-height:480px; overflow-y:auto">
+                        <div class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info" id="autoAssignAllSubmitBtn" disabled>
+                        <i class="bi bi-magic me-1"></i>Assign All Checked
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -414,6 +451,62 @@ document.getElementById('autoAssignForm').addEventListener('submit', function(e)
         return;
     }
     if (!confirm(`This will grant ${checked} Microsoft license(s) live via Graph API. Continue?`)) {
+        e.preventDefault();
+    }
+});
+
+function updateAutoAssignAllSubmit() {
+    const checked = document.querySelectorAll('.auto-assign-all-cb:checked').length;
+    document.getElementById('autoAssignAllSubmitBtn').disabled = checked === 0;
+}
+
+async function openAutoAssignAll() {
+    const body = document.getElementById('autoAssignAllBody');
+    document.getElementById('autoAssignAllSubmitBtn').disabled = true;
+    body.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm"></div></div>';
+
+    try {
+        const resp = await fetch(`/admin/itam/licenses/auto-assign-all/eligible`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await resp.json();
+
+        if (!data.licenses || data.licenses.length === 0) {
+            body.innerHTML = '<p class="text-muted small mb-0">No Microsoft licenses currently have both spare seats and an eligible employee. Everything is either fully assigned or already covered.</p>';
+            return;
+        }
+
+        body.innerHTML = data.licenses.map(lic => `
+            <div class="border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">${lic.license_name} <span class="text-muted small">(${lic.sku_part_number})</span></h6>
+                    <span class="badge bg-secondary">capacity: ${lic.capacity} — ITAM ${lic.itam_available} / Azure ${lic.azure_available}</span>
+                </div>
+                ${lic.employees.map((e, i) => `
+                    <div class="form-check">
+                        <input class="form-check-input auto-assign-all-cb" type="checkbox"
+                               name="assignments[${lic.license_id}][]" value="${e.id}"
+                               id="allEmp${lic.license_id}_${e.id}" onchange="updateAutoAssignAllSubmit()"
+                               ${i < lic.capacity ? 'checked' : ''}>
+                        <label class="form-check-label small" for="allEmp${lic.license_id}_${e.id}">${e.name} <span class="text-muted">${e.email ?? ''}</span></label>
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
+
+        updateAutoAssignAllSubmit();
+    } catch (e) {
+        body.innerHTML = '<p class="text-danger small mb-0">Failed to load eligible employees.</p>';
+    }
+}
+
+document.getElementById('autoAssignAllForm').addEventListener('submit', function(e) {
+    const checked = document.querySelectorAll('.auto-assign-all-cb:checked').length;
+    if (checked === 0) {
+        e.preventDefault();
+        return;
+    }
+    if (!confirm(`This will grant ${checked} Microsoft license(s) across multiple SKUs, live via Graph API. Continue?`)) {
         e.preventDefault();
     }
 });

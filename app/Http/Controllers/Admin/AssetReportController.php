@@ -23,12 +23,12 @@ class AssetReportController extends Controller
     public function index()
     {
         $stats = [
-            'total'     => Device::count(),
-            'assigned'  => Device::where('status', 'assigned')->count(),
+            'total' => Device::count(),
+            'assigned' => Device::where('status', 'assigned')->count(),
             'available' => Device::where('status', 'available')->count(),
-            'in_store'  => Device::inStorage()->count(),
-            'scrapped'  => Device::where('status', 'scrapped')->count(),
-            'retired'   => Device::where('status', 'retired')->count(),
+            'in_store' => Device::inStorage()->count(),
+            'scrapped' => Device::where('status', 'scrapped')->count(),
+            'retired' => Device::where('status', 'retired')->count(),
         ];
 
         return view('admin.itam.reports.index', compact('stats'));
@@ -41,7 +41,7 @@ class AssetReportController extends Controller
         $this->applyCommonFilters($query, $request);
 
         if ($request->boolean('csv')) {
-            return $this->streamCsv('all-assets-' . now()->format('Ymd-His'), $query->orderBy('asset_code')->get(), [
+            return $this->streamCsv('all-assets-'.now()->format('Ymd-His'), $query->orderBy('asset_code')->get(), [
                 'Asset Code', 'Name', 'Type', 'Status', 'Serial', 'Branch', 'Assigned To', 'Storage Location', 'Condition', 'Purchase Date', 'Purchase Cost',
             ], function ($d) {
                 return [
@@ -60,7 +60,7 @@ class AssetReportController extends Controller
             });
         }
 
-        $devices  = $query->orderBy('asset_code')->paginate(100)->withQueryString();
+        $devices = $query->orderBy('asset_code')->paginate(100)->withQueryString();
         $branches = Branch::orderBy('name')->get();
 
         return view('admin.itam.reports.all-assets', compact('devices', 'branches'));
@@ -80,7 +80,8 @@ class AssetReportController extends Controller
 
         if ($request->boolean('csv')) {
             $rows = $query->get();
-            return $this->streamCsv('assets-by-branch-' . now()->format('Ymd-His'), $rows, [
+
+            return $this->streamCsv('assets-by-branch-'.now()->format('Ymd-His'), $rows, [
                 'Branch', 'Asset Code', 'Name', 'Type', 'Status', 'Assigned To', 'Storage Location',
             ], function ($d) {
                 return [
@@ -100,7 +101,7 @@ class AssetReportController extends Controller
 
     public function byEmployee(Request $request)
     {
-        $employees  = Employee::active()->orderBy('name')->get(['id', 'name']);
+        $employees = Employee::active()->orderBy('name')->get(['id', 'name']);
         $employeeId = $request->integer('employee') ?: null;
 
         $current = collect();
@@ -109,12 +110,12 @@ class AssetReportController extends Controller
 
         if ($employeeId) {
             $employee = Employee::find($employeeId);
-            $current  = EmployeeAsset::with('device.branch')
+            $current = EmployeeAsset::with('device.branch')
                 ->where('employee_id', $employeeId)
                 ->whereNull('returned_date')
                 ->orderByDesc('assigned_date')
                 ->get();
-            $history  = EmployeeAsset::with('device.branch')
+            $history = EmployeeAsset::with('device.branch')
                 ->where('employee_id', $employeeId)
                 ->whereNotNull('returned_date')
                 ->orderByDesc('returned_date')
@@ -123,7 +124,8 @@ class AssetReportController extends Controller
 
         if ($request->boolean('csv') && $employee) {
             $rows = $current->concat($history);
-            return $this->streamCsv("assets-{$employee->name}-" . now()->format('Ymd-His'), $rows, [
+
+            return $this->streamCsv("assets-{$employee->name}-".now()->format('Ymd-His'), $rows, [
                 'Asset Code', 'Name', 'Assigned', 'Returned', 'Condition', 'Notes',
             ], function ($a) {
                 return [
@@ -150,26 +152,27 @@ class AssetReportController extends Controller
             $query->where('created_at', '>=', $request->from);
         }
         if ($request->filled('to')) {
-            $query->where('created_at', '<=', $request->to . ' 23:59:59');
+            $query->where('created_at', '<=', $request->to.' 23:59:59');
         }
         if ($request->filled('branch')) {
             $branchId = (int) $request->branch;
             $query->where(function ($w) use ($branchId) {
                 $w->where('meta->branch_id', $branchId)
-                  ->orWhereHas('device', fn ($d) => $d->where('branch_id', $branchId));
+                    ->orWhereHas('device', fn ($d) => $d->where('branch_id', $branchId));
             });
         }
         if ($request->filled('employee')) {
             $eid = (int) $request->employee;
             $query->where(function ($w) use ($eid) {
                 $w->where('meta->from_employee_id', $eid)
-                  ->orWhere('meta->to_employee_id', $eid);
+                    ->orWhere('meta->to_employee_id', $eid);
             });
         }
 
         if ($request->boolean('csv')) {
             $rows = $query->get();
-            return $this->streamCsv('transfer-history-' . now()->format('Ymd-His'), $rows, [
+
+            return $this->streamCsv('transfer-history-'.now()->format('Ymd-His'), $rows, [
                 'Date', 'Event', 'Asset Code', 'Asset Name', 'From Employee', 'To Employee', 'Branch', 'Storage Location', 'By',
             ], function ($e) {
                 return [
@@ -186,7 +189,7 @@ class AssetReportController extends Controller
             });
         }
 
-        $events   = $query->paginate(50)->withQueryString();
+        $events = $query->paginate(50)->withQueryString();
         $branches = Branch::orderBy('name')->get();
         $employees = Employee::active()->orderBy('name')->get(['id', 'name']);
 
@@ -196,7 +199,7 @@ class AssetReportController extends Controller
     public function scrapHistory(Request $request)
     {
         $from = $request->filled('from') ? $request->from : null;
-        $to = $request->filled('to') ? $request->to . ' 23:59:59' : null;
+        $to = $request->filled('to') ? $request->to.' 23:59:59' : null;
         $branchId = $request->filled('branch') ? (int) $request->branch : null;
 
         // ─── Device scrap events come from asset_histories ───────────────
@@ -311,6 +314,66 @@ class AssetReportController extends Controller
         return view('admin.itam.reports.scraps', compact('events', 'branches'));
     }
 
+    /**
+     * Licenses still held by an employee who is terminated (status='terminated')
+     * or whose Azure account has been disabled (azure_disabled_at set) — a
+     * paid seat quietly being wasted, or worse, access an ex-employee still
+     * technically has via a license the offboarding flow didn't touch.
+     *
+     * Deliberately checks both fields rather than just `status`: OffboardingScheduler
+     * disables the Azure account on the expected last day but only flips
+     * `status` to 'terminated' at that same moment too, and a manually-disabled
+     * account (outside the offboarding flow) may never get `status` updated at
+     * all — `azure_disabled_at` catches that case `status` alone would miss.
+     */
+    public function staleLicenses(Request $request)
+    {
+        $inactiveEmployeeIds = Employee::query()
+            ->where(function ($w) {
+                $w->where('status', 'terminated')->orWhereNotNull('azure_disabled_at');
+            })
+            ->pluck('id');
+
+        $query = LicenseAssignment::with(['license.identityLicense', 'assignable'])
+            ->where('assignable_type', Employee::class)
+            ->whereIn('assignable_id', $inactiveEmployeeIds)
+            ->orderByDesc('assigned_date');
+
+        if ($request->boolean('csv')) {
+            return $this->streamCsv('stale-licenses-'.now()->format('Ymd-His'), $query->get(), [
+                'Employee', 'Email', 'Status', 'Terminated', 'Azure Disabled', 'License', 'Vendor', 'Cost', 'Currency', 'Assigned Date',
+            ], function (LicenseAssignment $la) {
+                $emp = $la->assignable;
+
+                return [
+                    $emp?->name,
+                    $emp?->email,
+                    $emp?->status,
+                    optional($emp?->terminated_date)->format('Y-m-d'),
+                    optional($emp?->azure_disabled_at)->format('Y-m-d'),
+                    $la->license?->license_name,
+                    $la->license?->vendorDisplay(),
+                    $la->license?->cost,
+                    $la->license?->currency,
+                    optional($la->assigned_date)->format('Y-m-d'),
+                ];
+            });
+        }
+
+        // Wasted-cost total over the FULL filtered set (not just the current
+        // page) — same "full cost per seat" convention as the Cost Report
+        // above; not apportioned across shared seats.
+        $all = (clone $query)->get();
+        $wastedByCurrency = $all
+            ->filter(fn ($la) => $la->license?->cost)
+            ->groupBy(fn ($la) => $la->license->currency ?? 'USD')
+            ->map(fn ($rows) => $rows->sum(fn ($la) => (float) $la->license->cost));
+
+        $assignments = $query->paginate(50)->withQueryString();
+
+        return view('admin.itam.reports.stale-licenses', compact('assignments', 'wastedByCurrency'));
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Cost Report — by branch / by employee / by branch+employee
     // ─────────────────────────────────────────────────────────────
@@ -318,7 +381,7 @@ class AssetReportController extends Controller
     public function costs(Request $request)
     {
         $mode = $request->get('mode', 'branch');
-        if (!in_array($mode, ['branch', 'employee', 'branch_employee'])) {
+        if (! in_array($mode, ['branch', 'employee', 'branch_employee'])) {
             $mode = 'branch';
         }
 
@@ -328,17 +391,17 @@ class AssetReportController extends Controller
         $licenseCosts = License::select('id', 'cost', 'currency')->get()
             ->mapWithKeys(function ($l) {
                 return [$l->id => [
-                    'cost'     => (float) ($l->cost ?? 0),
+                    'cost' => (float) ($l->cost ?? 0),
                     'currency' => $l->currency ?? 'USD',
                 ]];
             });
 
-        $branches  = Branch::orderBy('name')->get();
+        $branches = Branch::orderBy('name')->get();
         $selectedBranchId = $request->integer('branch') ?: null;
 
         $rows = match ($mode) {
-            'branch'          => $this->costsByBranch($licenseCosts),
-            'employee'        => $this->costsByEmployee($licenseCosts, $selectedBranchId),
+            'branch' => $this->costsByBranch($licenseCosts),
+            'employee' => $this->costsByEmployee($licenseCosts, $selectedBranchId),
             'branch_employee' => $this->costsByBranchEmployee($licenseCosts, $selectedBranchId),
         };
 
@@ -347,7 +410,9 @@ class AssetReportController extends Controller
         // Skip the section headers so we don't double-count.
         $grand = $this->emptyTotals();
         foreach ($rows as $r) {
-            if (!empty($r['is_section'])) continue;
+            if (! empty($r['is_section'])) {
+                continue;
+            }
             foreach (['devices', 'accessories', 'licenses', 'total'] as $bucket) {
                 foreach ($r[$bucket] as $cur => $v) {
                     $grand[$bucket][$cur] = ($grand[$bucket][$cur] ?? 0) + $v;
@@ -386,11 +451,13 @@ class AssetReportController extends Controller
         $accByBranch = [];
         foreach ($accessoryRows as $a) {
             $branchId = $a->employee?->branch_id ?? $a->device?->branch_id;
-            if (!$branchId) continue;
+            if (! $branchId) {
+                continue;
+            }
             $cur = $a->accessory?->currency ?? 'USD';
             $cost = (float) ($a->accessory?->purchase_cost ?? 0);
             $accByBranch[$branchId][$cur]['total'] = ($accByBranch[$branchId][$cur]['total'] ?? 0) + $cost;
-            $accByBranch[$branchId][$cur]['cnt']   = ($accByBranch[$branchId][$cur]['cnt'] ?? 0) + 1;
+            $accByBranch[$branchId][$cur]['cnt'] = ($accByBranch[$branchId][$cur]['cnt'] ?? 0) + 1;
         }
 
         // License assignments via employee or device — map to branch.
@@ -399,9 +466,13 @@ class AssetReportController extends Controller
         $licByBranch = [];
         foreach ($licenseRows as $la) {
             $branchId = $this->branchOfAssignable($la);
-            if (!$branchId) continue;
+            if (! $branchId) {
+                continue;
+            }
             $info = $licenseCosts[$la->license_id] ?? null;
-            if (!$info) continue;
+            if (! $info) {
+                continue;
+            }
             $licByBranch[$branchId][$info['currency']]['total']
                 = ($licByBranch[$branchId][$info['currency']]['total'] ?? 0) + $info['cost'];
             $licByBranch[$branchId][$info['currency']]['cnt']
@@ -432,16 +503,16 @@ class AssetReportController extends Controller
             }
 
             $rows[] = [
-                'label'       => $b->name,
-                'sublabel'    => null,
-                'devices'     => $devices,
+                'label' => $b->name,
+                'sublabel' => null,
+                'devices' => $devices,
                 'accessories' => $accessories,
-                'licenses'    => $licenses,
-                'total'       => $this->sumBuckets($devices, $accessories, $licenses),
-                'counts'      => [
-                    'devices'     => $deviceCount,
+                'licenses' => $licenses,
+                'total' => $this->sumBuckets($devices, $accessories, $licenses),
+                'counts' => [
+                    'devices' => $deviceCount,
                     'accessories' => $accCount,
-                    'licenses'    => $licCount,
+                    'licenses' => $licCount,
                 ],
             ];
         }
@@ -464,13 +535,13 @@ class AssetReportController extends Controller
                 $deviceCount += (int) $u->cnt;
             }
             $rows[] = [
-                'label'       => 'Unassigned (no branch)',
-                'sublabel'    => 'Universal Store',
-                'devices'     => $devices,
+                'label' => 'Unassigned (no branch)',
+                'sublabel' => 'Universal Store',
+                'devices' => $devices,
                 'accessories' => $this->emptyBucket(),
-                'licenses'    => $this->emptyBucket(),
-                'total'       => $devices,
-                'counts'      => ['devices' => $deviceCount, 'accessories' => 0, 'licenses' => 0],
+                'licenses' => $this->emptyBucket(),
+                'total' => $devices,
+                'counts' => ['devices' => $deviceCount, 'accessories' => 0, 'licenses' => 0],
             ];
         }
 
@@ -515,22 +586,24 @@ class AssetReportController extends Controller
             $deviceCount = 0;
             $deviceList = [];
             foreach (($deviceAssignmentsByEmp[$emp->id] ?? collect()) as $ea) {
-                if (!$ea->device) continue;
-                $cur  = $ea->device->currency ?? 'USD';
+                if (! $ea->device) {
+                    continue;
+                }
+                $cur = $ea->device->currency ?? 'USD';
                 $cost = (float) ($ea->device->purchase_cost ?? 0);
                 if ($cost > 0) {
                     $devices[$cur] = ($devices[$cur] ?? 0) + $cost;
                 }
                 $deviceCount++;  // Count every assigned device, even without cost data.
                 $deviceList[] = [
-                    'name'       => $ea->device->name,
+                    'name' => $ea->device->name,
                     'asset_code' => $ea->device->asset_code,
-                    'type'       => $ea->device->type,
-                    'serial'     => $ea->device->serial_number,
-                    'cost'       => $cost,
-                    'currency'   => $cur,
-                    'assigned'   => $ea->assigned_date?->format('d M Y'),
-                    'device_id'  => $ea->device->id,
+                    'type' => $ea->device->type,
+                    'serial' => $ea->device->serial_number,
+                    'cost' => $cost,
+                    'currency' => $cur,
+                    'assigned' => $ea->assigned_date?->format('d M Y'),
+                    'device_id' => $ea->device->id,
                 ];
             }
 
@@ -539,16 +612,16 @@ class AssetReportController extends Controller
             $accCount = 0;
             $accessoryList = [];
             foreach (($accessoryAssignmentsByEmp[$emp->id] ?? collect()) as $aa) {
-                $cur  = $aa->accessory?->currency ?? 'USD';
+                $cur = $aa->accessory?->currency ?? 'USD';
                 $cost = (float) ($aa->accessory?->purchase_cost ?? 0);
                 if ($cost > 0) {
                     $accessories[$cur] = ($accessories[$cur] ?? 0) + $cost;
                 }
                 $accCount++;
                 $accessoryList[] = [
-                    'name'     => $aa->accessory?->name ?? '—',
+                    'name' => $aa->accessory?->name ?? '—',
                     'category' => $aa->accessory?->category ?? null,
-                    'cost'     => $cost,
+                    'cost' => $cost,
                     'currency' => $cur,
                     'assigned' => $aa->assigned_date?->format('d M Y'),
                 ];
@@ -560,40 +633,44 @@ class AssetReportController extends Controller
             $licenseList = [];
             foreach (($licenseAssignmentsByEmp[$emp->id] ?? collect()) as $la) {
                 $info = $licenseCosts[$la->license_id] ?? null;
-                if (!$info) continue;
+                if (! $info) {
+                    continue;
+                }
                 if ($info['cost'] > 0) {
                     $licenses[$info['currency']] = ($licenses[$info['currency']] ?? 0) + $info['cost'];
                 }
                 $licCount++;
                 $licenseList[] = [
-                    'name'     => $la->license?->license_name ?? '—',
-                    'vendor'   => $la->license?->vendor ?? null,
-                    'type'     => $la->license?->license_type ?? null,
-                    'cost'     => $info['cost'],
+                    'name' => $la->license?->license_name ?? '—',
+                    'vendor' => $la->license?->vendor ?? null,
+                    'type' => $la->license?->license_type ?? null,
+                    'cost' => $info['cost'],
                     'currency' => $info['currency'],
                     'assigned' => $la->assigned_date?->format('d M Y'),
                 ];
             }
 
             // Only include employees who actually have something
-            if ($deviceCount + $accCount + $licCount === 0) continue;
+            if ($deviceCount + $accCount + $licCount === 0) {
+                continue;
+            }
 
             $rows[] = [
-                'label'       => $emp->name,
-                'sublabel'    => $emp->branch?->name,
-                'devices'     => $devices,
+                'label' => $emp->name,
+                'sublabel' => $emp->branch?->name,
+                'devices' => $devices,
                 'accessories' => $accessories,
-                'licenses'    => $licenses,
-                'total'       => $this->sumBuckets($devices, $accessories, $licenses),
-                'counts'      => [
-                    'devices'     => $deviceCount,
+                'licenses' => $licenses,
+                'total' => $this->sumBuckets($devices, $accessories, $licenses),
+                'counts' => [
+                    'devices' => $deviceCount,
                     'accessories' => $accCount,
-                    'licenses'    => $licCount,
+                    'licenses' => $licCount,
                 ],
-                'details'     => [
-                    'devices'     => $deviceList,
+                'details' => [
+                    'devices' => $deviceList,
                     'accessories' => $accessoryList,
-                    'licenses'    => $licenseList,
+                    'licenses' => $licenseList,
                 ],
             ];
         }
@@ -628,8 +705,13 @@ class AssetReportController extends Controller
         unset($rows);
 
         uksort($grouped, function ($a, $b) {
-            if ($a === '(No branch)') return 1;
-            if ($b === '(No branch)') return -1;
+            if ($a === '(No branch)') {
+                return 1;
+            }
+            if ($b === '(No branch)') {
+                return -1;
+            }
+
             return strcasecmp($a, $b);
         });
 
@@ -644,25 +726,25 @@ class AssetReportController extends Controller
                         $sub[$k][$cur] = ($sub[$k][$cur] ?? 0) + $v;
                     }
                 }
-                $counts['devices']     += $r['counts']['devices'];
+                $counts['devices'] += $r['counts']['devices'];
                 $counts['accessories'] += $r['counts']['accessories'];
-                $counts['licenses']    += $r['counts']['licenses'];
+                $counts['licenses'] += $r['counts']['licenses'];
             }
 
             $out[] = [
-                'is_section'  => true,
-                'label'       => $branchName,
-                'sublabel'    => count($empRows) . ' ' . (count($empRows) === 1 ? 'employee' : 'employees'),
-                'devices'     => $sub['devices'],
+                'is_section' => true,
+                'label' => $branchName,
+                'sublabel' => count($empRows).' '.(count($empRows) === 1 ? 'employee' : 'employees'),
+                'devices' => $sub['devices'],
                 'accessories' => $sub['accessories'],
-                'licenses'    => $sub['licenses'],
-                'total'       => $sub['total'],
-                'counts'      => $counts,
+                'licenses' => $sub['licenses'],
+                'total' => $sub['total'],
+                'counts' => $counts,
             ];
 
             foreach ($empRows as $r) {
                 $r['is_section'] = false;
-                $r['indent']     = true;
+                $r['indent'] = true;
                 $out[] = $r;
             }
         }
@@ -678,18 +760,22 @@ class AssetReportController extends Controller
         if ($la->assignable_type === Device::class) {
             return Device::find($la->assignable_id)?->branch_id;
         }
+
         return null;
     }
 
-    private function emptyBucket(): array { return []; }
+    private function emptyBucket(): array
+    {
+        return [];
+    }
 
     private function emptyTotals(): array
     {
         return [
-            'devices'     => [],
+            'devices' => [],
             'accessories' => [],
-            'licenses'    => [],
-            'total'       => [],
+            'licenses' => [],
+            'total' => [],
         ];
     }
 
@@ -701,12 +787,14 @@ class AssetReportController extends Controller
                 $out[$cur] = ($out[$cur] ?? 0) + $v;
             }
         }
+
         return $out;
     }
 
     private function streamCostsCsv(string $mode, array $rows): StreamedResponse
     {
-        $filename = "costs-{$mode}-" . now()->format('Ymd-His');
+        $filename = "costs-{$mode}-".now()->format('Ymd-His');
+
         return response()->streamDownload(function () use ($rows) {
             $h = fopen('php://output', 'w');
             fputcsv($h, [
@@ -718,7 +806,7 @@ class AssetReportController extends Controller
             ]);
             foreach ($rows as $r) {
                 fputcsv($h, [
-                    !empty($r['is_section']) ? 'Branch Subtotal' : 'Row',
+                    ! empty($r['is_section']) ? 'Branch Subtotal' : 'Row',
                     $r['label'],
                     $r['sublabel'] ?? '',
                     $r['counts']['devices'],
@@ -731,16 +819,19 @@ class AssetReportController extends Controller
                 ]);
             }
             fclose($h);
-        }, $filename . '.csv', ['Content-Type' => 'text/csv']);
+        }, $filename.'.csv', ['Content-Type' => 'text/csv']);
     }
 
     private function bucketToString(array $bucket): string
     {
-        if (empty($bucket)) return '0';
+        if (empty($bucket)) {
+            return '0';
+        }
         $parts = [];
         foreach ($bucket as $cur => $v) {
-            $parts[] = $cur . ' ' . number_format($v, 2);
+            $parts[] = $cur.' '.number_format($v, 2);
         }
+
         return implode(' + ', $parts);
     }
 
@@ -766,8 +857,8 @@ class AssetReportController extends Controller
             $q = $request->q;
             $query->where(function ($w) use ($q) {
                 $w->where('asset_code', 'like', "%{$q}%")
-                  ->orWhere('name', 'like', "%{$q}%")
-                  ->orWhere('serial_number', 'like', "%{$q}%");
+                    ->orWhere('name', 'like', "%{$q}%")
+                    ->orWhere('serial_number', 'like', "%{$q}%");
             });
         }
     }
@@ -781,6 +872,6 @@ class AssetReportController extends Controller
                 fputcsv($h, $rowMap($row));
             }
             fclose($h);
-        }, $filename . '.csv', ['Content-Type' => 'text/csv']);
+        }, $filename.'.csv', ['Content-Type' => 'text/csv']);
     }
 }

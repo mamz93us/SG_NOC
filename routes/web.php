@@ -2019,6 +2019,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('transfer-history', [\App\Http\Controllers\Admin\AssetReportController::class, 'transferHistory'])->name('transfers');
             Route::get('scrap-history', [\App\Http\Controllers\Admin\AssetReportController::class, 'scrapHistory'])->name('scraps');
             Route::get('costs', [\App\Http\Controllers\Admin\AssetReportController::class, 'costs'])->name('costs');
+            Route::get('stale-licenses', [\App\Http\Controllers\Admin\AssetReportController::class, 'staleLicenses'])->name('stale-licenses');
         });
     });
 
@@ -2114,6 +2115,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/{license}', [LicenseController::class, 'destroy'])->name('destroy');
         Route::post('/{license}/assign', [LicenseController::class, 'assign'])->name('assign');
         Route::delete('/{license}/unassign/{assignment}', [LicenseController::class, 'unassign'])->name('unassign');
+        Route::get('/auto-assign-all/eligible', [LicenseController::class, 'autoAssignAllEligible'])->name('auto-assign-all.eligible');
+        Route::post('/auto-assign-all', [LicenseController::class, 'autoAssignAll'])->name('auto-assign-all');
         Route::get('/{license}/auto-assign/eligible', [LicenseController::class, 'autoAssignEligible'])->name('auto-assign.eligible');
         Route::post('/{license}/auto-assign', [LicenseController::class, 'autoAssign'])->name('auto-assign');
     });
