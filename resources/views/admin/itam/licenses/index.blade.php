@@ -106,6 +106,13 @@
                                 @if($lic->availableSeats() <= 0) disabled @endif>
                                 <i class="bi bi-person-plus"></i>
                             </button>
+                            @if($lic->identityLicense)
+                            <button class="btn btn-sm btn-outline-info" title="Auto-Assign via Graph (Microsoft/Azure licensed employees missing this SKU)"
+                                onclick="openAutoAssign({{ $lic->id }}, '{{ addslashes($lic->license_name) }}')"
+                                data-bs-toggle="modal" data-bs-target="#autoAssignModal">
+                                <i class="bi bi-magic"></i>
+                            </button>
+                            @endif
                             <button class="btn btn-sm btn-outline-secondary"
                                 onclick="editLicense({{ json_encode($lic) }})"
                                 data-bs-toggle="modal" data-bs-target="#editLicenseModal">
@@ -273,6 +280,38 @@
         </form>
     </div>
 </div>
+
+{{-- Auto-Assign Modal — Graph-backed bulk assign for Azure-linked licenses --}}
+<div class="modal fade" id="autoAssignModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <form id="autoAssignForm" method="POST">
+            @csrf
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold"><i class="bi bi-magic me-1"></i>Auto-Assign: <span id="autoAssignLicenseName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-2">
+                        Every checked employee will be granted this license <strong>live in Microsoft 365 via Graph</strong> — this is not a local-only record.
+                    </p>
+                    <div id="autoAssignSummary" class="alert alert-info py-2 small mb-3">Loading eligible employees…</div>
+                    <div id="autoAssignList" style="max-height:320px; overflow-y:auto">
+                        <div class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info" id="autoAssignSubmitBtn" disabled>
+                        <i class="bi bi-magic me-1"></i>Assign Selected
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -317,6 +356,66 @@ document.getElementById('licSearchInput').addEventListener('input', function() {
     if (!type) return;
     const q = this.value;
     licSearchTimer = setTimeout(() => loadAssignables(type, q), 300);
+});
+
+async function openAutoAssign(licenseId, name) {
+    document.getElementById('autoAssignLicenseName').textContent = name;
+    document.getElementById('autoAssignForm').action = `/admin/itam/licenses/${licenseId}/auto-assign`;
+    const summary = document.getElementById('autoAssignSummary');
+    const list = document.getElementById('autoAssignList');
+    const submitBtn = document.getElementById('autoAssignSubmitBtn');
+    submitBtn.disabled = true;
+    summary.className = 'alert alert-info py-2 small mb-3';
+    summary.textContent = 'Loading eligible employees…';
+    list.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm"></div></div>';
+
+    try {
+        const resp = await fetch(`/admin/itam/licenses/${licenseId}/auto-assign/eligible`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await resp.json();
+
+        if (data.error) {
+            summary.className = 'alert alert-danger py-2 small mb-3';
+            summary.textContent = data.error;
+            list.innerHTML = '';
+            return;
+        }
+
+        summary.className = data.capacity > 0 ? 'alert alert-info py-2 small mb-3' : 'alert alert-warning py-2 small mb-3';
+        summary.innerHTML = `SKU <strong>${data.sku_part_number}</strong> — `
+            + `${data.itam_available} ITAM seat(s) available, ${data.azure_available} Azure seat(s) available `
+            + `(capacity: <strong>${data.capacity}</strong>). ${data.eligible_count} eligible employee(s) found.`;
+
+        if (data.employees.length === 0) {
+            list.innerHTML = '<p class="text-muted small mb-0">No eligible employees — everyone active with an Azure account already holds this license, or there is no capacity.</p>';
+            return;
+        }
+
+        list.innerHTML = data.employees.map((e, i) => `
+            <div class="form-check">
+                <input class="form-check-input auto-assign-cb" type="checkbox" name="employee_ids[]" value="${e.id}" id="autoAssignEmp${e.id}" ${i < data.capacity ? 'checked' : ''}>
+                <label class="form-check-label small" for="autoAssignEmp${e.id}">${e.name} <span class="text-muted">${e.email ?? ''}</span></label>
+            </div>
+        `).join('');
+
+        submitBtn.disabled = data.capacity <= 0;
+    } catch (e) {
+        summary.className = 'alert alert-danger py-2 small mb-3';
+        summary.textContent = 'Failed to load eligible employees.';
+        list.innerHTML = '';
+    }
+}
+
+document.getElementById('autoAssignForm').addEventListener('submit', function(e) {
+    const checked = document.querySelectorAll('.auto-assign-cb:checked').length;
+    if (checked === 0) {
+        e.preventDefault();
+        return;
+    }
+    if (!confirm(`This will grant ${checked} Microsoft license(s) live via Graph API. Continue?`)) {
+        e.preventDefault();
+    }
 });
 
 function toggleLicAssignments(id) {

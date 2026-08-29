@@ -2114,6 +2114,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/{license}', [LicenseController::class, 'destroy'])->name('destroy');
         Route::post('/{license}/assign', [LicenseController::class, 'assign'])->name('assign');
         Route::delete('/{license}/unassign/{assignment}', [LicenseController::class, 'unassign'])->name('unassign');
+        Route::get('/{license}/auto-assign/eligible', [LicenseController::class, 'autoAssignEligible'])->name('auto-assign.eligible');
+        Route::post('/{license}/auto-assign', [LicenseController::class, 'autoAssign'])->name('auto-assign');
     });
 
     // ─── Accessories ──────────────────────────────────────────────
