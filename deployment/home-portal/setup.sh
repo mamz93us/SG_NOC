@@ -195,23 +195,90 @@ systemctl reload nginx
 log "nginx reloaded."
 
 # --- TLS ----------------------------------------------------------------------
+# HTTP-01 validation via a shared WEBROOT, not certbot's nginx plugin.
+#
+# Why: this box has a vhost that binds a SPECIFIC address (the firmware server,
+# `listen 172.16.8.11:80`) while every other vhost uses wildcard `listen 80`.
+# nginx selects a server block by listen specificity FIRST and only then by
+# server_name, and inbound internet traffic is NAT'd to that private address —
+# so every external port-80 request to this host lands on the firmware vhost
+# regardless of Host header. certbot --nginx edits the wildcard block, which
+# never sees the challenge, and validation fails with an opaque 403.
+#
+# The webroot approach sidesteps that entirely, provided the firmware vhost
+# serves /.well-known/acme-challenge/ from ACME_WEBROOT. This script provisions
+# the directory and PROVES it is reachable before calling certbot, so a missing
+# location block is reported clearly instead of as a certbot 403.
+ACME_WEBROOT="${ACME_WEBROOT:-/var/www/acme}"
+
+mkdir -p "${ACME_WEBROOT}/.well-known/acme-challenge"
+chown -R www-data:www-data "$ACME_WEBROOT" 2>/dev/null || true
+
+acme_reachable() {
+    local token="setup-probe-$$"
+    local file="${ACME_WEBROOT}/.well-known/acme-challenge/${token}"
+    echo ok > "$file"
+    chown www-data:www-data "$file" 2>/dev/null || true
+
+    # Probe over the address external traffic actually arrives on when one
+    # exists, falling back to loopback with the Host header.
+    local specific code
+    specific="$(grep -rhoP '^\s*listen\s+\K[0-9.]+(?=:80;)' /etc/nginx/sites-enabled/ 2>/dev/null | head -1 || true)"
+
+    if [[ -n "$specific" ]]; then
+        code="$(curl -s -o /dev/null -w '%{http_code}' "http://${specific}/.well-known/acme-challenge/${token}" || echo ERR)"
+    else
+        code="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${DOMAIN}" "http://127.0.0.1/.well-known/acme-challenge/${token}" || echo ERR)"
+    fi
+
+    rm -f "$file"
+    [[ "$code" == "200" ]]
+}
+
 if [[ "${SKIP_TLS:-0}" == "1" ]]; then
     warn "SKIP_TLS=1 — no certificate issued. Run later:"
-    warn "    sudo certbot --nginx -d $DOMAIN --redirect"
+    warn "    sudo certbot run -a webroot -w $ACME_WEBROOT -i nginx -d $DOMAIN --redirect"
 elif [[ -d "/etc/letsencrypt/live/${DOMAIN}" ]]; then
     log "Certificate already exists for $DOMAIN — skipping certbot."
 elif ! command -v certbot >/dev/null; then
     warn "certbot is not installed. Install it and run:"
-    warn "    sudo certbot --nginx -d $DOMAIN --redirect"
+    warn "    sudo certbot run -a webroot -w $ACME_WEBROOT -i nginx -d $DOMAIN --redirect"
 else
-    log "Obtaining certificate for $DOMAIN ..."
-    CERTBOT_ARGS=(--nginx -d "$DOMAIN" --non-interactive --agree-tos --redirect)
-    [[ -n "${CERTBOT_EMAIL:-}" ]] && CERTBOT_ARGS+=(-m "$CERTBOT_EMAIL")
-    if certbot "${CERTBOT_ARGS[@]}"; then
-        log "Certificate installed."
+    log "Checking the ACME challenge path is reachable ..."
+
+    # nginx reload is asynchronous — workers swap a moment after systemctl
+    # returns, and probing too early gives a false failure.
+    sleep 2
+
+    if ! acme_reachable; then
+        warn "The ACME challenge path is NOT being served."
+        warn "Add this to whichever vhost owns the specific-address :80 listen"
+        warn "(on this host that is the firmware vhost, /etc/nginx/sites-available/phone-firmware),"
+        warn "BEFORE its dotfile deny, then re-run:"
+        warn ""
+        warn "    location ^~ /.well-known/acme-challenge/ {"
+        warn "        root ${ACME_WEBROOT};"
+        warn "        default_type \"text/plain\";"
+        warn "        try_files \$uri =404;"
+        warn "    }"
+        warn ""
+        warn "Use ^~ so it beats the dotfile deny. Do NOT add a redirect there —"
+        warn "old phone firmware cannot do TLS and does not follow 302s."
     else
-        warn "certbot failed. The site is live over HTTP; fix DNS/firewall then re-run:"
-        warn "    sudo certbot --nginx -d $DOMAIN --redirect"
+        log "ACME path OK. Obtaining certificate for $DOMAIN ..."
+        CERTBOT_ARGS=(run -a webroot -w "$ACME_WEBROOT" -i nginx -d "$DOMAIN"
+                      --non-interactive --agree-tos --redirect)
+        if [[ -n "${CERTBOT_EMAIL:-}" ]]; then
+            CERTBOT_ARGS+=(-m "$CERTBOT_EMAIL")
+        else
+            CERTBOT_ARGS+=(--register-unsafely-without-email)
+        fi
+
+        if certbot "${CERTBOT_ARGS[@]}"; then
+            log "Certificate installed."
+        else
+            warn "certbot failed. The site is live over HTTP; see /var/log/letsencrypt/letsencrypt.log"
+        fi
     fi
 fi
 
