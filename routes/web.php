@@ -872,6 +872,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/itam', [SettingsController::class, 'updateItam'])->name('settings.itam');
         Route::post('settings/ticketing', [SettingsController::class, 'updateTicketing'])->name('settings.ticketing');
         Route::post('settings/noc-ticketing', [SettingsController::class, 'updateNocTicketing'])->name('settings.noc-ticketing');
+        // Re-pulls categories/sub-categories from the ticketing API's own lookup endpoints.
+        Route::post('settings/noc-ticketing/refresh-catalog', [SettingsController::class, 'refreshNocTicketCatalog'])->name('settings.noc-ticketing.refresh');
         Route::post('settings/smtp', [SettingsController::class, 'updateSmtp'])->name('settings.smtp');
         Route::post('settings/test-smtp', [SettingsController::class, 'testSmtp'])->name('settings.test-smtp');
 

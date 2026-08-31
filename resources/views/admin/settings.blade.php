@@ -796,7 +796,11 @@
 {{-- Create Ticket API (addTicketingRequestForNOC)          --}}
 {{-- ─────────────────────────────────────────────────────── --}}
 @php
+    $nocTicketCatalogApi = app(\App\Services\Ticketing\TicketCatalogApi::class);
     $nocTicketCatalog = \App\Services\Ticketing\TicketCatalog::fromSettings($settings);
+    $nocTicketCatalogError = $nocTicketCatalogApi->lastError($settings);
+    $nocTicketCatalogFetchedAt = $nocTicketCatalogApi->fetchedAt($settings);
+    $nocTicketLookupBase = $nocTicketCatalogApi->baseUrl($settings);
     $nocTicketCatalogJson = old('noc_ticket_catalog', $settings->noc_ticket_catalog
         ? json_encode($settings->noc_ticket_catalog, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
         : '');
@@ -823,6 +827,44 @@
             <code>addTicketingRequestForNOC</code> and posts
             <code>multipart/form-data</code> (a <code>data</code> JSON part, plus
             <code>email</code>, <code>azureUserId</code> and an optional <code>file</code>).
+        </div>
+
+        {{-- Category lookup: its own form, so it cannot be nested in the settings one. --}}
+        <div class="border rounded p-3 mb-3 d-flex flex-wrap gap-3 align-items-center justify-content-between">
+            <div class="small">
+                <div class="fw-semibold mb-1">
+                    <i class="bi bi-arrow-repeat me-1 text-primary"></i>Category lookup
+                    @if($nocTicketCatalog->isFromApi())
+                        <span class="badge bg-success ms-1">Live from API</span>
+                    @elseif($nocTicketCatalog->categories)
+                        <span class="badge bg-warning text-dark ms-1">Using the JSON below</span>
+                    @else
+                        <span class="badge bg-secondary ms-1">No categories</span>
+                    @endif
+                </div>
+                <div class="text-muted">
+                    @if($nocTicketLookupBase)
+                        <code>{{ $nocTicketLookupBase }}/getCategories</code>
+                    @else
+                        Set the endpoint URL below first &mdash; the lookup endpoints are its siblings.
+                    @endif
+                </div>
+                @if($nocTicketCatalogFetchedAt)
+                    <div class="text-muted mt-1">
+                        Cached {{ \Carbon\Carbon::parse($nocTicketCatalogFetchedAt)->diffForHumans() }},
+                        refreshed automatically every 6&nbsp;hours.
+                    </div>
+                @endif
+                @if($nocTicketCatalogError)
+                    <div class="text-danger mt-1 font-monospace">{{ $nocTicketCatalogError }}</div>
+                @endif
+            </div>
+            <form method="POST" action="{{ route('admin.settings.noc-ticketing.refresh') }}" class="ms-auto">
+                @csrf
+                <button type="submit" class="btn btn-outline-primary btn-sm" @disabled(! $nocTicketLookupBase)>
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh from API
+                </button>
+            </form>
         </div>
 
         <form method="POST" action="{{ route('admin.settings.noc-ticketing') }}">
@@ -867,16 +909,19 @@
                 </div>
 
                 <div class="col-md-12">
-                    <label class="form-label fw-semibold">Ticket catalog (JSON)</label>
+                    <label class="form-label fw-semibold">Ticket catalog (JSON) &mdash; fallback &amp; labels</label>
                     <textarea name="noc_ticket_catalog" rows="14"
                               class="form-control font-monospace small @error('noc_ticket_catalog') is-invalid @enderror"
                               spellcheck="false"
                               placeholder="{{ $nocTicketExampleJson }}">{{ $nocTicketCatalogJson }}</textarea>
                     @error('noc_ticket_catalog') <span class="invalid-feedback">{{ $message }}</span> @enderror
                     <div class="form-text">
-                        The API takes bare numeric IDs (<code>ticketCategory: 8</code>,
-                        <code>ticketSubCategory: 40</code>&hellip;) and publishes no endpoint to list them,
-                        so the ID&rarr;label map is maintained here. Anything under an optional
+                        <strong>Categories and sub-categories come from the API</strong>
+                        (<code>getCategories</code>) &mdash; anything under <code>categories</code> here is only
+                        used when that call fails. <strong>Types and priorities still live here</strong>: the API
+                        stamps each sub-category with a bare <code>typeId</code> / <code>priorityId</code> but
+                        publishes no list to turn those into names, so an id with no entry below shows up as
+                        &ldquo;Type 2&rdquo; / &ldquo;Priority 3&rdquo;. Anything under an optional
                         <code>extra</code> object is merged verbatim into the <code>data</code> payload &mdash;
                         the escape hatch for fields the API adds later.
                     </div>
@@ -887,6 +932,9 @@
                 <div class="border rounded p-3 mb-3 bg-body-tertiary">
                     <div class="small fw-semibold mb-2 text-muted">
                         <i class="bi bi-check2-circle me-1 text-success"></i>Parsed catalog &mdash; this is what the form will offer
+                        <span class="fw-normal">
+                            (categories {{ $nocTicketCatalog->isFromApi() ? 'from the API' : 'from the JSON below' }})
+                        </span>
                     </div>
                     <div class="row g-3 small">
                         <div class="col-md-6">
@@ -898,7 +946,15 @@
                                         @if($cat['subcategories'])
                                             <ul class="ps-3 text-muted">
                                                 @foreach($cat['subcategories'] as $sub)
-                                                    <li>{{ $sub['name'] }} ({{ $sub['id'] }})</li>
+                                                    <li>
+                                                        {{ $sub['name'] }} ({{ $sub['id'] }})
+                                                        @if($sub['type_id'] !== null || $sub['priority_id'] !== null)
+                                                            <span class="opacity-75">
+                                                                &rarr; {{ $nocTicketCatalog->typeName($sub['type_id']) ?? '—' }}
+                                                                / {{ $nocTicketCatalog->priorityName($sub['priority_id']) ?? '—' }}
+                                                            </span>
+                                                        @endif
+                                                    </li>
                                                 @endforeach
                                             </ul>
                                         @else

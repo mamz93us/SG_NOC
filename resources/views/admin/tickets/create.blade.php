@@ -48,14 +48,28 @@
         <i class="bi bi-list-ul fs-5"></i>
         <div class="small">
             The ticket catalog is empty, so there are no categories, types or priorities to choose from.
-            The ticketing API takes bare numeric IDs and offers no list endpoint, so the ID&rarr;label map
-            is maintained by hand.
+            Categories normally come straight from the ticketing API's <code>getCategories</code> endpoint;
+            when that call fails the hand-maintained JSON in Settings is used instead.
+            @if($catalogError)
+                <div class="mt-1 font-monospace">Last API error: {{ $catalogError }}</div>
+            @endif
             @can('manage-settings')
-                Fill it in under
+                Check it under
                 <a href="{{ route('admin.settings.index') }}#noc-ticketing" class="alert-link">Admin &rarr; Settings &rarr; Create Ticket API</a>.
             @else
-                Ask an administrator to fill it in.
+                Ask an administrator to check it.
             @endcan
+        </div>
+    </div>
+@elseif (! $catalog->isFromApi())
+    <div class="alert alert-secondary d-flex gap-2">
+        <i class="bi bi-hdd-network fs-5"></i>
+        <div class="small">
+            Showing the catalog saved in Settings &mdash; the ticketing API's category list could not be reached.
+            @if($catalogError)
+                <span class="font-monospace">({{ $catalogError }})</span>
+            @endif
+            The IDs below may be out of date.
         </div>
     </div>
 @endif
@@ -124,7 +138,7 @@
 
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
-                            <select name="type_id" required class="form-select @error('type_id') is-invalid @enderror">
+                            <select name="type_id" id="typeSelect" required class="form-select @error('type_id') is-invalid @enderror">
                                 <option value="">Choose…</option>
                                 @foreach($catalog->types as $type)
                                     <option value="{{ $type['id'] }}"
@@ -134,11 +148,14 @@
                                 @endforeach
                             </select>
                             @error('type_id') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                            <div class="form-text d-none" data-suggested="type">
+                                <i class="bi bi-magic me-1"></i>Set from the sub-category — change it if it is wrong.
+                            </div>
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Priority <span class="text-danger">*</span></label>
-                            <select name="priority_id" required class="form-select @error('priority_id') is-invalid @enderror">
+                            <select name="priority_id" id="prioritySelect" required class="form-select @error('priority_id') is-invalid @enderror">
                                 <option value="">Choose…</option>
                                 @foreach($catalog->priorities as $prio)
                                     <option value="{{ $prio['id'] }}"
@@ -148,6 +165,9 @@
                                 @endforeach
                             </select>
                             @error('priority_id') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                            <div class="form-text d-none" data-suggested="priority">
+                                <i class="bi bi-magic me-1"></i>Set from the sub-category — change it if it is wrong.
+                            </div>
                         </div>
                     </div>
 
@@ -229,8 +249,11 @@
 (function () {
     const subsByCategory = @json($subMap);
     const previousSub    = @json(old('subcategory_id'));
+    const hadOldInput    = @json(old('type_id') !== null);
     const categorySelect = document.getElementById('categorySelect');
     const subSelect      = document.getElementById('subcategorySelect');
+    const typeSelect     = document.getElementById('typeSelect');
+    const prioritySelect = document.getElementById('prioritySelect');
 
     if (!categorySelect || !subSelect) return;
 
@@ -249,13 +272,48 @@
             const option = document.createElement('option');
             option.value = sub.id;
             option.textContent = sub.name;
+            if (sub.type_id !== null && sub.type_id !== undefined) {
+                option.dataset.typeId = sub.type_id;
+            }
+            if (sub.priority_id !== null && sub.priority_id !== undefined) {
+                option.dataset.priorityId = sub.priority_id;
+            }
             if (String(previousSub) === String(sub.id)) option.selected = true;
             subSelect.appendChild(option);
         });
     }
 
-    categorySelect.addEventListener('change', fillSubcategories);
+    // The API pairs a type and a priority with every sub-category, so picking
+    // one answers both. Still editable — this is a default, not a lock.
+    function applySubcategoryDefaults() {
+        const chosen = subSelect.selectedOptions[0];
+
+        [[typeSelect, 'typeId', 'type'], [prioritySelect, 'priorityId', 'priority']]
+            .forEach(function ([select, key, hintName]) {
+                if (!select) return;
+
+                const hint = document.querySelector('[data-suggested="' + hintName + '"]');
+                const value = chosen ? chosen.dataset[key] : undefined;
+                const known = value !== undefined
+                    && Array.from(select.options).some(o => o.value === String(value));
+
+                if (known) {
+                    select.value = String(value);
+                }
+                if (hint) hint.classList.toggle('d-none', !known);
+            });
+    }
+
+    categorySelect.addEventListener('change', function () {
+        fillSubcategories();
+        applySubcategoryDefaults();
+    });
+    subSelect.addEventListener('change', applySubcategoryDefaults);
+
     fillSubcategories();
+    // A redisplayed form keeps whatever the user had chosen; a fresh one takes
+    // the defaults for the sub-category it opened with.
+    if (!hadOldInput) applySubcategoryDefaults();
 })();
 </script>
 @endsection

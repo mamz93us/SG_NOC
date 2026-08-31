@@ -8,6 +8,7 @@ use App\Models\NocTicket;
 use App\Models\Setting;
 use App\Services\Ticketing\NocTicketService;
 use App\Services\Ticketing\TicketCatalog;
+use App\Services\Ticketing\TicketCatalogApi;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,7 +29,10 @@ use Illuminate\View\View;
  */
 class NocTicketController extends Controller
 {
-    public function __construct(private NocTicketService $tickets) {}
+    public function __construct(
+        private NocTicketService $tickets,
+        private TicketCatalogApi $catalogApi,
+    ) {}
 
     public function create(): View
     {
@@ -50,6 +54,8 @@ class NocTicketController extends Controller
 
         return view('admin.tickets.create', [
             'catalog' => $catalog,
+            // Only worth surfacing when the form actually fell back to Settings.
+            'catalogError' => $catalog->isFromApi() ? null : $this->catalogApi->lastError($settings),
             'settings' => $settings,
             'myEmail' => $me?->email,
             'myIdentity' => $identity,

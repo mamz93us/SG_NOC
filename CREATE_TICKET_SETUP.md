@@ -62,9 +62,64 @@ paths, and often different hosts, so they cannot share a URL field.
 
 ## The ticket catalog
 
-The API takes bare numeric IDs and publishes **no endpoint to list them**, so
-the ID → label map is maintained by hand. Without it the form has nothing to
-offer and says so.
+The API takes bare numeric IDs (`ticketCategory: 8`, `ticketSubCategory: 40`,
+…). Where those ids come from is split in two:
+
+| Part | Source |
+|---|---|
+| Categories + sub-categories | The API's own lookup endpoints, cached |
+| Type + priority **labels** | The JSON in Settings |
+| `channel_id`, `extra` | The JSON in Settings |
+
+### Categories come from the API
+
+```
+GET {base}/getCategories                  → categories, subCategories nested
+GET {base}/getSubCategories?categoryId=N  → the flat list for one category
+Header: X-API-Key: <same key as the submit>
+```
+
+`{base}` is **derived from the submit URL** by dropping its last path segment
+— the three endpoints are siblings under `.../ticketing/api`, so one setting
+keeps everything pointed at test or production. There is no second URL field.
+
+`getCategories` returns the sub-categories nested, so one call is normally
+enough; `getSubCategories` is only called for a category whose payload omits the
+nested key entirely.
+
+```json
+[{
+  "categoryId": 1,
+  "categoryName": "User Accounts & Access",
+  "categoryNameAr": "حسابات المستخدمين والصلاحيات",
+  "departmentId": 1,
+  "subCategories": [{
+    "subCategoryId": 1, "subCategoryName": "Password reset",
+    "categoryId": 1, "typeId": 1, "priorityId": 3, "departmentId": 1
+  }]
+}]
+```
+
+Every sub-category carries its **own `typeId` and `priorityId`** — the
+ticketing system's opinion about what that kind of request is. The form
+pre-selects both when a sub-category is chosen; they stay editable, because the
+pairing is a default and not a rule.
+
+The tree is cached for **6 hours** (`TicketCatalogApi`, keyed on the derived
+base URL so a test↔production swap cannot serve one environment's ids against
+the other's endpoint). **Refresh from API** in the Settings card re-pulls it
+immediately and reports the error on screen if the endpoint is down; saving a
+new URL or key drops the cache on its own.
+
+If the lookup call fails the form falls back to the `categories` in the JSON
+below, says so in a banner, and keeps working.
+
+### The JSON in Settings
+
+Still needed for **type and priority names** — the API stamps sub-categories
+with bare `typeId` / `priorityId` and publishes no list to turn those into
+words. An id with no entry here is offered as "Type 2" / "Priority 3" rather
+than being dropped, so an incomplete map never blocks a submit.
 
 ```json
 {
@@ -85,18 +140,17 @@ offer and says so.
 }
 ```
 
+- `types` and `priorities` are the part that matters; `categories` is only the
+  fallback for a failed lookup call.
 - Sub-categories are nested under their category, and the form validates the
-  pairing server-side — a sub-category from a different category is rejected.
+  pairing server-side — a sub-category from a different category is rejected,
+  whichever source the tree came from.
 - `channel_id` is sent on every ticket; it defaults to `1` if omitted.
 - `extra` is merged verbatim into the `data` payload. It is the escape hatch for
   fields the API adds later — no code change needed.
-- Saving validates the JSON and shows the parsed result underneath, so a typo
-  surfaces immediately instead of emptying the form's dropdowns.
-
-The IDs must come from the ticketing system's own tables. Ask its owners for the
-category/sub-category/type/priority lists; the example above only reproduces the
-values seen in a working Postman call (category 8, sub-category 40, type 2,
-priority 4, channel 1).
+- Saving validates the JSON and shows the parsed result underneath (with the
+  type/priority each sub-category implies), so a typo surfaces immediately
+  instead of emptying the form's dropdowns.
 
 ## Requester identity
 

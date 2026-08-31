@@ -903,16 +903,19 @@ class SettingsController extends Controller
             if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
                 return back()
                     ->withInput()
-                    ->withErrors(['noc_ticket_catalog' => 'Not valid JSON: ' . json_last_error_msg()])
+                    ->withErrors(['noc_ticket_catalog' => 'Not valid JSON: '.json_last_error_msg()])
                     ->withFragment('noc-ticketing');
             }
 
             $parsed = \App\Services\Ticketing\TicketCatalog::fromArray($decoded);
 
-            if ($parsed->categories === []) {
+            // Categories come from the API now, so JSON that only carries type
+            // and priority labels is perfectly valid. What is not valid is JSON
+            // that yields nothing at all — that is a typo, not a choice.
+            if ($parsed->categories === [] && $parsed->types === [] && $parsed->priorities === []) {
                 return back()
                     ->withInput()
-                    ->withErrors(['noc_ticket_catalog' => 'No usable categories found — each entry needs an "id" and belongs under "categories".'])
+                    ->withErrors(['noc_ticket_catalog' => 'Nothing usable found — entries need an "id" and belong under "categories", "types" or "priorities".'])
                     ->withFragment('noc-ticketing');
             }
 
@@ -935,6 +938,15 @@ class SettingsController extends Controller
 
         $settings->save();
 
+        // The cached category tree belongs to the old URL/key. Dropping it here
+        // means a swap between test and production cannot serve one
+        // environment's ids against the other's endpoint.
+        if ($before['noc_ticket_api_url'] !== $settings->noc_ticket_api_url || $request->filled('noc_ticket_api_key')) {
+            $api = app(\App\Services\Ticketing\TicketCatalogApi::class);
+            $api->forgetForUrl($before['noc_ticket_api_url']);
+            $api->forget($settings);
+        }
+
         ActivityLog::create([
             'model_type' => 'Setting',
             'model_id' => 1,
@@ -954,6 +966,44 @@ class SettingsController extends Controller
         return redirect()
             ->route('admin.settings.index')
             ->with('success', 'Create Ticket API settings updated.')
+            ->withFragment('noc-ticketing');
+    }
+
+    /**
+     * Pull the category / sub-category tree from the ticketing API's own
+     * lookup endpoints and cache it, replacing whatever was cached before.
+     *
+     * The tree is fetched lazily on demand anyway; this button exists so an
+     * admin who has just added a category upstream does not have to wait out
+     * the cache, and so a broken lookup endpoint reports its error somewhere
+     * visible instead of only in the log.
+     */
+    public function refreshNocTicketCatalog(\App\Services\Ticketing\TicketCatalogApi $api)
+    {
+        $api->forget();
+
+        try {
+            $categories = $api->refresh();
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('admin.settings.index')
+                ->with('error', 'Could not load the ticket catalog from the API: '.$e->getMessage())
+                ->withFragment('noc-ticketing');
+        }
+
+        $subs = array_sum(array_map(fn ($c) => count($c['subcategories'] ?? []), $categories));
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id' => 1,
+            'action' => 'noc_ticket_catalog_refreshed',
+            'changes' => ['categories' => count($categories), 'subcategories' => $subs],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', "Ticket catalog refreshed from the API: {$subs} sub-categories across ".count($categories).' categories.')
             ->withFragment('noc-ticketing');
     }
 
@@ -1452,7 +1502,7 @@ class SettingsController extends Controller
                     'title' => 'SG NOC test message',
                     'message' => 'WhatsApp alerting is configured correctly.',
                     'severity' => 'INFO',
-                    'link' => rtrim((string) config('app.url'), '/') . '/admin/notifications/rules',
+                    'link' => rtrim((string) config('app.url'), '/').'/admin/notifications/rules',
                     'time' => now()->format('Y-m-d H:i'),
                 ],
                 notificationType: 'test',
@@ -1460,7 +1510,7 @@ class SettingsController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'detail' => 'Sent. Message id: ' . ($result['wamid'] ?? 'n/a'),
+                'detail' => 'Sent. Message id: '.($result['wamid'] ?? 'n/a'),
             ]);
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'detail' => $e->getMessage()]);
