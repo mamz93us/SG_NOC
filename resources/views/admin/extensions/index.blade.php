@@ -458,6 +458,7 @@
                         <p class="text-muted small mb-2">Scan with Grandstream Wave to register</p>
                         <div id="waveQr" class="d-inline-block p-2 border rounded bg-white"></div>
                         <br>
+                        <small class="text-muted d-block" id="waveQrNote"></small>
                         <small class="text-muted" id="waveSipUri"></small>
                     </div>
                 </div>
@@ -620,14 +621,30 @@ function loadWave(extension, ucmId) {
         const sipUri = data.sip_uri || ('sip:' + data.extension + '@' + data.server);
         document.getElementById('waveSipUri').textContent = sipUri;
 
-        new QRCode(document.getElementById('waveQr'), {
-            text:         sipUri,
-            width:        200,
-            height:       200,
-            colorDark:    '#000000',
-            colorLight:   '#ffffff',
-            correctLevel: QRCode.CorrectLevel.M,
-        });
+        // Show the UCM's OWN provisioning QR. It cannot be generated here: the
+        // payload is an opaque encrypted blob that only Grandstream's clients
+        // can read. This panel used to draw a QR of `sip:ext@host`, which looks
+        // right and scans fine but provisions nothing — Wave rejects it.
+        const qrBox = document.getElementById('waveQr');
+        const qrNote = document.getElementById('waveQrNote');
+
+        if (data.qr_base) {
+            const img = document.createElement('img');
+            img.src = 'data:image/png;base64,' + data.qr_base;
+            img.alt = 'Provisioning QR for extension ' + data.extension;
+            img.width = 200;
+            img.height = 200;
+            img.style.imageRendering = 'pixelated';  // upscaled from ~171px
+            qrBox.appendChild(img);
+            if (qrNote) qrNote.textContent = 'Scan with Grandstream Wave to set up this extension.';
+        } else {
+            // Older firmware without getSIPAccountQR. Say so rather than draw a
+            // QR that will not work.
+            qrBox.innerHTML = '<div class="text-muted small py-4 px-3">'
+                + 'This UCM did not return a provisioning QR.<br>Enter the details above manually.'
+                + '</div>';
+            if (qrNote) qrNote.textContent = '';
+        }
 
         document.getElementById('waveLoading').classList.add('d-none');
         document.getElementById('waveContent').classList.remove('d-none');

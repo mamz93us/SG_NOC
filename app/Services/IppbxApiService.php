@@ -395,6 +395,41 @@ class IppbxApiService
     }
 
     /**
+     * The UCM's own provisioning QR for an extension, as a base64 PNG.
+     *
+     * The UCM generates this itself and its payload is an OPAQUE ENCRYPTED
+     * BLOB — decoding one gives ~128 bytes of ciphertext, not a URI or JSON.
+     * Only Grandstream's clients can read it, so it cannot be reconstructed
+     * locally: a QR built from `sip:ext@host` (which this page used to draw
+     * client-side) is not a provisioning code and Wave will not accept it.
+     *
+     * Returns null rather than throwing — an older firmware without this
+     * action should cost us the QR, not the whole credentials panel.
+     */
+    public function getExtensionQr(string $extension): ?string
+    {
+        try {
+            $this->ensureCookie();
+
+            $resp = $this->post([
+                'action' => 'getSIPAccountQR',
+                'cookie' => $this->cookie,
+                'extension' => $extension,
+            ]);
+
+            if (($resp['status'] ?? -1) !== 0) {
+                return null;
+            }
+
+            $qr = $resp['response']['qr_base'] ?? null;
+
+            return is_string($qr) && $qr !== '' ? $qr : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
      * Get extension details for Wave / SIP client provisioning.
      * Returns extension, fullname, secret, email, and the UCM SIP domain.
      */
@@ -414,6 +449,9 @@ class IppbxApiService
             'server' => $host,
             'sip_uri' => 'sip:'.($details['extension'] ?? $extension).'@'.$host,
             'cloud_domain' => $this->cloudDomain !== null,
+            // The UCM's own provisioning QR. Null when the firmware does not
+            // support the action — the caller falls back to showing none.
+            'qr_base' => $this->getExtensionQr($extension),
         ];
     }
 
