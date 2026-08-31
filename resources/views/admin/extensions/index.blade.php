@@ -621,10 +621,14 @@ function loadWave(extension, ucmId) {
         const sipUri = data.sip_uri || ('sip:' + data.extension + '@' + data.server);
         document.getElementById('waveSipUri').textContent = sipUri;
 
-        // Show the UCM's OWN provisioning QR. It cannot be generated here: the
-        // payload is an opaque encrypted blob that only Grandstream's clients
-        // can read. This panel used to draw a QR of `sip:ext@host`, which looks
-        // right and scans fine but provisions nothing — Wave rejects it.
+        // The UCM's own SIP-account QR (getSIPAccountQR), an opaque encrypted
+        // blob only Grandstream's clients can read — so it cannot be built
+        // here. It replaces a QR this panel used to draw of `sip:ext@host`,
+        // which provisioned nothing at all.
+        //
+        // It is NOT the Wave login QR: Wave rejects it as invalid. The UCM
+        // HTTPS API has no Wave QR action — 12 plausible names were probed
+        // against a live UCM and only getSIPAccountQR answers.
         const qrBox = document.getElementById('waveQr');
         const qrNote = document.getElementById('waveQrNote');
 
@@ -636,7 +640,10 @@ function loadWave(extension, ucmId) {
             img.height = 200;
             img.style.imageRendering = 'pixelated';  // upscaled from ~171px
             qrBox.appendChild(img);
-            if (qrNote) qrNote.textContent = 'Scan with Grandstream Wave to set up this extension.';
+            // NOT a Wave QR. getSIPAccountQR is the SIP-account code — Wave
+            // rejects it ("invalid QR"). The UCM's HTTPS API exposes no Wave
+            // login QR: getSIPAccountQR is the only QR action it has.
+            if (qrNote) qrNote.textContent = 'SIP account QR — for a desk phone or SIP client. Wave does not accept this.';
         } else {
             // Older firmware without getSIPAccountQR. Say so rather than draw a
             // QR that will not work.
