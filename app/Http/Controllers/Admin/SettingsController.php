@@ -978,6 +978,8 @@ class SettingsController extends Controller
         $request->validate([
             'company_calendar_mailbox' => 'nullable|email|max:255',
             'knowbe4_api_token' => 'nullable|string|max:500',
+            'core_urls' => 'nullable|array',
+            'core_urls.*' => 'nullable|url|max:500',
             'knowbe4_region' => 'nullable|in:'.implode(',', array_keys(\App\Services\KnowBe4\KnowBe4Service::REGIONS)),
         ]);
 
@@ -988,6 +990,13 @@ class SettingsController extends Controller
             'knowbe4_enabled' => (bool) $settings->knowbe4_enabled,
             'knowbe4_region' => $settings->knowbe4_region,
         ];
+
+        // Blank means "hide this tile", so empties are dropped rather than
+        // stored — a null and an empty string should not mean different things.
+        $settings->home_portal_urls = collect($request->input('core_urls', []))
+            ->map(fn ($url) => trim((string) $url))
+            ->filter(fn ($url) => $url !== '')
+            ->all();
 
         $settings->company_calendar_enabled = $request->boolean('company_calendar_enabled');
         $settings->company_calendar_mailbox = $request->company_calendar_mailbox;
@@ -1012,6 +1021,7 @@ class SettingsController extends Controller
                     'knowbe4_enabled' => (bool) $settings->knowbe4_enabled,
                     'knowbe4_region' => $settings->knowbe4_region,
                 ],
+                'core_urls' => $settings->home_portal_urls,
                 'token_changed' => $request->filled('knowbe4_api_token'),
             ],
             'user_id' => Auth::id(),

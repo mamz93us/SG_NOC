@@ -270,6 +270,19 @@ if (\App\Support\HomePortal::enabled()) {
         Route::get('/login', [\App\Http\Controllers\Home\HomeController::class, 'login'])->name('login');
         Route::get('/sign-in', [\App\Http\Controllers\Home\HomeController::class, 'signIn'])->name('sign-in');
 
+        // The Wallet pass, fetched by a PHONE that has no session here — a
+        // .pkpass is useless on the Windows PC the portal is open on, so the
+        // page shows a QR and the handset that scans it arrives anonymous.
+        //
+        // Deliberately OUTSIDE the auth group and gated by `signed` instead:
+        // the link is minted only while the owner is signed in on the desktop,
+        // is tamper-proof and expires in minutes. Do not add `auth` here or the
+        // QR stops working, and do not drop `signed` or anyone can enumerate
+        // employee ids and pull their passes.
+        Route::get('/my-card/pass/{employee}', [\App\Http\Controllers\Home\HomeController::class, 'signedWalletPass'])
+            ->middleware('signed')
+            ->name('card.pass');
+
         Route::post('/logout', function (\Illuminate\Http\Request $request) {
             \Illuminate\Support\Facades\Auth::logout();
             $request->session()->invalidate();

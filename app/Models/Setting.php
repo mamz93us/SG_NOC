@@ -116,6 +116,7 @@ class Setting extends Model
         'company_calendar_enabled',
         'company_calendar_mailbox',
         'company_calendar_last_sync_at',
+        'home_portal_urls',
         // AvePoint Graph API
         'avepoint_enabled',
         'avepoint_base_url',
@@ -227,6 +228,7 @@ class Setting extends Model
         'knowbe4_last_sync_at' => 'datetime',
         'company_calendar_enabled' => 'boolean',
         'company_calendar_last_sync_at' => 'datetime',
+        'home_portal_urls' => 'array',
         'avepoint_enabled' => 'boolean',
         'azure_blob_enabled' => 'boolean',
         'offboarding_enabled' => 'boolean',

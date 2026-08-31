@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\Knowbe4Score;
 use App\Models\Setting;
 use App\Services\EmployeeCard\WalletPassService;
+use App\Services\Home\CoreSystems;
 use App\Services\Home\Greeter;
 use App\Services\Home\PaydayCalculator;
 use App\Support\HomePortal;
@@ -18,6 +19,7 @@ use App\Support\VCard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -113,6 +115,33 @@ class HomeController extends Controller
 
         abort_unless($employee && $employee->card_token, 404, 'No employee card is available for your account.');
 
+        return $this->streamPass($employee, $wallet);
+    }
+
+    /**
+     * The same pass, fetched by a phone that has no session here.
+     *
+     * A Wallet pass is useless on the Windows PC the portal is open on — it has
+     * to reach the handset. The page therefore shows a QR, and the phone that
+     * scans it arrives as an anonymous client.
+     *
+     * A short-lived SIGNED url rather than relaxing the auth gate: the signature
+     * is minted only while the owner is signed in on the desktop, is
+     * tamper-proof, names one employee, and expires in minutes. The existing
+     * `/card/{token}/wallet` route keeps its `auth` middleware untouched — that
+     * gate was added deliberately (see commit 1b8e13d).
+     */
+    public function signedWalletPass(Employee $employee, WalletPassService $wallet)
+    {
+        abort_unless($employee->status === 'active' && $employee->card_token, 404);
+
+        $employee->loadMissing(['identityUser', 'branch']);
+
+        return $this->streamPass($employee, $wallet);
+    }
+
+    private function streamPass(Employee $employee, WalletPassService $wallet)
+    {
         if (! $wallet->isConfigured()) {
             abort(503, 'Apple Wallet is not configured on this server.');
         }
@@ -151,6 +180,7 @@ class HomeController extends Controller
             ->first();
 
         $announcements = $this->announcements($employee);
+        $walletAvailable = app(WalletPassService::class)->isConfigured();
 
         return [
             'user' => $user,
@@ -167,7 +197,18 @@ class HomeController extends Controller
             // canonical public URL for a card (VCard::cardUrl falls back to the
             // current host when that subdomain is switched off).
             'cardUrl' => $employee?->card_token ? VCard::cardUrl($employee->card_token) : null,
-            'walletAvailable' => app(WalletPassService::class)->isConfigured(),
+            'walletAvailable' => $walletAvailable,
+            // Scanned from the phone, so it must survive having no session
+            // here. Short-lived on purpose: it is minted fresh on every page
+            // load, and this page sits open all day on an unattended desk.
+            'coreSystems' => app(CoreSystems::class)->visible($settings),
+            'walletQrUrl' => ($walletAvailable && $employee)
+                ? URL::temporarySignedRoute(
+                    'home.card.pass',
+                    now()->addMinutes(15),
+                    ['employee' => $employee->id],
+                )
+                : null,
         ];
     }
 

@@ -2,25 +2,6 @@
 
 @section('title', 'Samir Group | Employee Portal')
 
-@php
-    use App\Support\HrPortal;
-
-    $coreSystems = collect(config('home_portal.core_systems', []))
-        ->map(function ($sys) {
-            // `hr` has no configured URL — it resolves to the HR portal host.
-            if (($sys['key'] ?? null) === 'hr') {
-                $sys['url'] = HrPortal::enabled() ? HrPortal::url() : null;
-            }
-
-            return $sys;
-        })
-        // A tile with no destination is a dead tile. Hide it rather than ship a
-        // link that does nothing. The service desk is the exception: it opens
-        // the modal, so it never has a URL.
-        ->filter(fn ($sys) => ($sys['key'] ?? null) === 'servicedesk' || ! empty($sys['url']))
-        ->values();
-@endphp
-
 @section('content')
 
 {{-- ─── Greeting ─────────────────────────────────────────────── --}}
@@ -309,11 +290,17 @@
                 {{-- Apple Wallet: a direct .pkpass download. Hidden rather than
                      shown-and-broken when the pass certificates are not set up,
                      since a 503 from a big red button reads as a fault. --}}
-                @if($walletAvailable)
-                    <a class="wallet-btn" href="{{ route('home.card.wallet') }}">
+                {{-- A .pkpass is useless on the Windows PC this page is open on —
+                     the pass has to reach the handset. So this opens a QR the
+                     phone scans, rather than downloading here. The direct link
+                     is still offered inside the modal for anyone already on a
+                     Mac or iPhone. --}}
+                @if($walletAvailable && $walletQrUrl)
+                    <button type="button" class="wallet-btn" id="addToWalletBtn"
+                            aria-haspopup="dialog" aria-controls="walletQrModal">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M16.5 14.5h2" stroke-linecap="round"/></svg>
                         Add to Apple Wallet
-                    </a>
+                    </button>
                 @endif
 
                 {{-- The QR points at the business-card subdomain, which is the
@@ -341,7 +328,27 @@
 @include('home.partials.ticket-modal')
 
 @if($cardToken)
-    @include('home.partials.wallet-modal', ['cardUrl' => $cardUrl, 'employee' => $employee, 'user' => $user])
+    @include('home.partials.qr-modal', [
+        'id' => 'shareCardModal',
+        'triggerId' => 'showCardQrBtn',
+        'title' => 'My Digital Card',
+        'description' => 'Let someone scan this to open your business card — contact details, extension, and a one-tap save to their phone.',
+        'url' => $cardUrl,
+        'caption' => $employee?->name ?: $user->name,
+        'footnote' => preg_replace('#^https?://#', '', $cardUrl),
+    ])
+
+    @if($walletAvailable && $walletQrUrl)
+        @include('home.partials.qr-modal', [
+            'id' => 'walletQrModal',
+            'triggerId' => 'addToWalletBtn',
+            'title' => 'Add to Apple Wallet',
+            'description' => 'Scan this with your iPhone camera to add your employee card to Apple Wallet. The pass cannot be added from this computer — it has to go on the phone.',
+            'url' => $walletQrUrl,
+            'caption' => $employee?->name ?: $user->name,
+            'footnote' => 'This code is personal to you and expires in 15 minutes. Reload the page for a fresh one.',
+        ])
+    @endif
 @endif
 
 @endsection
@@ -367,6 +374,38 @@
       });
     });
   }
+
+  // ─── QR modals (share card + Apple Wallet) ───────────────────
+  // One handler for every .wallet-modal-overlay; each carries the id of the
+  // button that opens it, so adding another modal needs no new JS.
+  document.querySelectorAll('.wallet-modal-overlay').forEach(function (overlay) {
+    var trigger = document.getElementById(overlay.getAttribute('data-trigger'));
+    if (!trigger) return;
+
+    var lastFocused = null;
+
+    function open() {
+      lastFocused = document.activeElement;
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      overlay.querySelector('[data-close-modal]')?.focus();
+    }
+
+    function close() {
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+      if (lastFocused && lastFocused.focus) lastFocused.focus();
+    }
+
+    trigger.addEventListener('click', open);
+    overlay.querySelector('[data-close-modal]')?.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && overlay.classList.contains('open')) close();
+    });
+  });
 
   // ─── Announcement slider ─────────────────────────────────────
   var slider = document.getElementById('annSlider');

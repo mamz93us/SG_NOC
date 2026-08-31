@@ -1020,6 +1020,47 @@
         <form method="POST" action="{{ route('admin.settings.home-portal') }}">
             @csrf
 
+            {{-- ── Core system links ────────────────────────────── --}}
+            <h6 class="fw-semibold mb-2"><i class="bi bi-grid-3x3-gap me-1"></i>Core system links</h6>
+            <div class="alert alert-secondary py-2 small mb-3">
+                The big tiles at the top of the portal. <strong>A tile with no URL is hidden</strong>
+                rather than shown as a dead link, so clearing a field switches that tile off.
+                IT Service Desk opens the ticket form in-page and E-Services follows the HR
+                portal host, so neither takes an address here.
+            </div>
+            <div class="row g-3 mb-4">
+                @foreach(app(\App\Services\Home\CoreSystems::class)->all($settings) as $tile)
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">{{ $tile['name'] }}</label>
+                        @if($tile['special'])
+                            <input type="text" class="form-control" disabled
+                                   value="{{ $tile['key'] === 'servicedesk' ? 'Opens the ticket form in-page' : $tile['url'] }}">
+                            <div class="form-text">
+                                {{ $tile['key'] === 'servicedesk'
+                                    ? 'No URL — this tile opens the Create Ticket modal.'
+                                    : 'Follows HR_PORTAL_DOMAIN so it cannot drift out of step.' }}
+                            </div>
+                        @else
+                            <input type="url" name="core_urls[{{ $tile['key'] }}]"
+                                   class="form-control font-monospace @error('core_urls.'.$tile['key']) is-invalid @enderror"
+                                   value="{{ old('core_urls.'.$tile['key'], $tile['url']) }}"
+                                   placeholder="https://…">
+                            @error('core_urls.'.$tile['key'])
+                                <span class="invalid-feedback">{{ $message }}</span>
+                            @enderror
+                            <div class="form-text">
+                                {{ $tile['meta'] }}
+                                @if(! $tile['url'])
+                                    <span class="text-warning-emphasis">&mdash; not set, so this tile is hidden.</span>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+
+            <hr class="my-4">
+
             {{-- ── Company calendar ─────────────────────────────── --}}
             <h6 class="fw-semibold mb-2"><i class="bi bi-calendar-event me-1"></i>Company Calendar</h6>
             <div class="row g-3 mb-4">

@@ -36,6 +36,19 @@ class EnforceHomePortalHostIsolation
         'logout',
     ];
 
+    /**
+     * Route-name prefixes allowed here in addition to `home.`.
+     *
+     * The staff directory is linked from the portal's Employees Directory tile,
+     * so it has to answer on this host or that tile 404s. It is safe to admit:
+     * `/contacts` carries no auth middleware anywhere and already answers
+     * unauthenticated on every other host — allowing it here exposes nothing
+     * that was not already public.
+     */
+    private const ALLOWED_PREFIXES = [
+        'public.contacts',
+    ];
+
     public function handle(Request $request, Closure $next): Response
     {
         if (! HomePortal::enabled() || ! HomePortal::isHost($request)) {
@@ -59,6 +72,12 @@ class EnforceHomePortalHostIsolation
 
         if (in_array($name, self::ALLOWED_NAMES, true)) {
             return true;
+        }
+
+        foreach (self::ALLOWED_PREFIXES as $prefix) {
+            if (str_starts_with($name, $prefix)) {
+                return true;
+            }
         }
 
         // Unnamed routes still needed here: the SSO callback and the health probe.
