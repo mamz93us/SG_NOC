@@ -578,6 +578,63 @@ class GraphService
     // ─────────────────────────────────────────────────────────────
 
     /**
+     * Expanded calendar events for a shared mailbox or group calendar, between
+     * two instants. Feeds the home portal's Company Calendar card via
+     * `company-calendar:sync`.
+     *
+     * calendarView (not /events) on purpose: it expands recurring series into
+     * individual occurrences, which is what a "what is on this week" list needs.
+     * /events would return the recurrence master once and nothing else.
+     *
+     * Needs the Calendars.Read APPLICATION permission, admin-consented — this
+     * client is app-only, so a delegated grant does nothing here.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getCalendarView(
+        string $mailbox,
+        \DateTimeInterface $start,
+        \DateTimeInterface $end,
+        string $timezone = 'Africa/Cairo',
+    ): array {
+        $endpoint = '/users/'.rawurlencode($mailbox).'/calendarView';
+
+        $query = [
+            'startDateTime' => $start->format('Y-m-d\TH:i:s'),
+            'endDateTime' => $end->format('Y-m-d\TH:i:s'),
+            '$select' => 'id,subject,bodyPreview,location,start,end,isAllDay,organizer,webLink',
+            '$orderby' => 'start/dateTime',
+            '$top' => 100,
+        ];
+
+        // Without this header Graph returns UTC and the caller has to guess the
+        // calendar's own zone; asking for it explicitly keeps all-day events on
+        // the right date.
+        $headers = ['Prefer' => 'outlook.timezone="'.$timezone.'"'];
+
+        $events = [];
+        $response = $this->get($endpoint, $query, self::TIMEOUT_STANDARD, $headers);
+
+        while (true) {
+            foreach ($response['value'] ?? [] as $event) {
+                $events[] = $event;
+            }
+
+            $next = $response['@odata.nextLink'] ?? null;
+
+            if (! $next || count($events) >= 500) {
+                break;
+            }
+
+            // nextLink already carries the query string — pass no $query, or
+            // Guzzle replaces it and pagination restarts from page one.
+            $response = $this->get($next, [], self::TIMEOUT_STANDARD, $headers);
+        }
+
+        return $events;
+    }
+
+    /**
      * Get a single user's manager. Returns the manager user object or null.
      */
     public function getUserManager(string $userId): ?array

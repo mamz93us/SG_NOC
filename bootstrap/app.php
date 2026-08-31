@@ -51,6 +51,17 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\EnforceHrPortalHostIsolation::class,
         );
 
+        // And the employee home portal — the page every company PC opens on. It
+        // serves the start page and its ticket endpoints, nothing else. Before
+        // auth for the same reason as the others, and doubly so here: this host
+        // is probed by whatever the fleet's browsers happen to load, so a NOC
+        // route reached on it must 404 rather than start a login.
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnforceHomePortalHostIsolation::class);
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\EnforceHomePortalHostIsolation::class,
+        );
+
         // Guests hitting the isolated /portal/* routes — or anything on the
         // marketing subdomain — go to the portal's SSO-only login page, not the
         // admin login. Everyone else falls back to 'login'.
@@ -63,6 +74,9 @@ return Application::configure(basePath: dirname(__DIR__))
             }
             if (\App\Support\HrPortal::isHost($request)) {
                 return route('portal.hr.login');
+            }
+            if (\App\Support\HomePortal::isHost($request)) {
+                return route('home.login');
             }
             if ($request->is('portal') || $request->is('portal/*')) {
                 return route('portal.login');

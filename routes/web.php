@@ -245,6 +245,56 @@ Route::prefix('portal')->name('portal.')->group(function () {
 });
 
 // ──────────────────────────────────────────────────────────────────
+// Employee home portal — ISOLATED on its own subdomain
+// (home.samirgroup.net by default; set HOME_PORTAL_DOMAIN).
+//
+// This is the URL every company PC opens on. Sign-in is Microsoft SSO only and
+// completes SILENTLY: a guest is bounced once through Entra with prompt=none,
+// which an Entra-joined Windows machine satisfies from its Primary Refresh
+// Token without rendering anything, so the person arrives already signed in as
+// their Windows account. 2FA is skipped on this host (RequireTwoFactor), which
+// EnforceHomePortalHostIsolation contains by 404ing everything that is not
+// `home.*` here.
+//
+// Route names all start `home.` — the isolation middleware allows on that
+// prefix, so a new route here is reachable and a new route anywhere else is not.
+// ──────────────────────────────────────────────────────────────────
+if (\App\Support\HomePortal::enabled()) {
+    Route::domain(\App\Support\HomePortal::domain())->name('home.')->group(function () {
+
+        // The start page itself. Guests are NOT auth-middleware'd: the
+        // controller decides between a silent SSO attempt and the signed-out
+        // page, which is what keeps a browser out of a redirect loop.
+        Route::get('/', [\App\Http\Controllers\Home\HomeController::class, 'index'])->name('index');
+
+        Route::get('/login', [\App\Http\Controllers\Home\HomeController::class, 'login'])->name('login');
+        Route::get('/sign-in', [\App\Http\Controllers\Home\HomeController::class, 'signIn'])->name('sign-in');
+
+        Route::post('/logout', function (\Illuminate\Http\Request $request) {
+            \Illuminate\Support\Facades\Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('home.login');
+        })->name('logout');
+
+        Route::middleware(['auth', 'throttle:120,1'])->group(function () {
+            Route::get('/announcements', [\App\Http\Controllers\Home\HomeAnnouncementController::class, 'index'])
+                ->name('announcements');
+            Route::post('/announcements/read', [\App\Http\Controllers\Home\HomeAnnouncementController::class, 'markRead'])
+                ->name('announcements.read');
+
+            Route::get('/tickets/catalog', [\App\Http\Controllers\Home\HomeTicketController::class, 'catalog'])
+                ->name('tickets.catalog');
+            // Tighter throttle than the rest: this one leaves the building.
+            Route::post('/tickets', [\App\Http\Controllers\Home\HomeTicketController::class, 'store'])
+                ->middleware('throttle:10,1')
+                ->name('tickets.store');
+        });
+    });
+}
+
+// ──────────────────────────────────────────────────────────────────
 // HR portal — ISOLATED on its own subdomain (hr.samirgroup.net by default; set
 // HR_PORTAL_DOMAIN to change). Same app, domain-routed, served at the subdomain
 // ROOT. Sign-in is Microsoft SSO ONLY and 2FA is skipped on this host
@@ -872,6 +922,25 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/itam', [SettingsController::class, 'updateItam'])->name('settings.itam');
         Route::post('settings/ticketing', [SettingsController::class, 'updateTicketing'])->name('settings.ticketing');
         Route::post('settings/noc-ticketing', [SettingsController::class, 'updateNocTicketing'])->name('settings.noc-ticketing');
+        Route::post('settings/home-portal', [SettingsController::class, 'updateHomePortal'])->name('settings.home-portal');
+
+        // ── Employee home portal authoring ────────────────────────
+        // What the whole company reads on home.samirgroup.net each morning.
+        Route::middleware('permission:manage-announcements')->group(function () {
+            Route::get('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'index'])->name('announcements.index');
+            Route::get('announcements/create', [\App\Http\Controllers\Admin\AnnouncementController::class, 'create'])->name('announcements.create');
+            Route::post('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'store'])->name('announcements.store');
+            Route::get('announcements/{announcement}/edit', [\App\Http\Controllers\Admin\AnnouncementController::class, 'edit'])->name('announcements.edit');
+            Route::put('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'update'])->name('announcements.update');
+            Route::delete('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
+        });
+
+        Route::middleware('permission:manage-greeting-lines')->group(function () {
+            Route::get('greeting-lines', [\App\Http\Controllers\Admin\GreetingLineController::class, 'index'])->name('greeting-lines.index');
+            Route::post('greeting-lines', [\App\Http\Controllers\Admin\GreetingLineController::class, 'store'])->name('greeting-lines.store');
+            Route::put('greeting-lines/{greetingLine}', [\App\Http\Controllers\Admin\GreetingLineController::class, 'update'])->name('greeting-lines.update');
+            Route::delete('greeting-lines/{greetingLine}', [\App\Http\Controllers\Admin\GreetingLineController::class, 'destroy'])->name('greeting-lines.destroy');
+        });
         // Re-pulls categories/sub-categories from the ticketing API's own lookup endpoints.
         Route::post('settings/noc-ticketing/refresh-catalog', [SettingsController::class, 'refreshNocTicketCatalog'])->name('settings.noc-ticketing.refresh');
         Route::post('settings/smtp', [SettingsController::class, 'updateSmtp'])->name('settings.smtp');

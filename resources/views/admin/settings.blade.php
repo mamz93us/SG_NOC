@@ -995,6 +995,137 @@
 </div>
 
 {{-- ─────────────────────────────────────────────────────── --}}
+{{-- Employee Home Portal integrations                      --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="home-portal">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-house-heart-fill text-primary fs-5"></i>
+        <h5 class="mb-0">Employee Home Portal</h5>
+        <span class="badge bg-secondary ms-auto font-monospace">{{ \App\Support\HomePortal::domain() }}</span>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            The start page every company PC opens on. These two settings feed the
+            <strong>Company Calendar</strong> and <strong>Security Score</strong> cards.
+            Both are read by scheduled syncs, never on a page load &mdash; the whole company
+            opens that page within minutes of 9am.
+            @can('manage-announcements')
+                Content is edited under
+                <a href="{{ route('admin.announcements.index') }}" class="alert-link">Announcements</a>
+                and <a href="{{ route('admin.greeting-lines.index') }}" class="alert-link">Greeting Lines</a>.
+            @endcan
+        </div>
+
+        <form method="POST" action="{{ route('admin.settings.home-portal') }}">
+            @csrf
+
+            {{-- ── Company calendar ─────────────────────────────── --}}
+            <h6 class="fw-semibold mb-2"><i class="bi bi-calendar-event me-1"></i>Company Calendar</h6>
+            <div class="row g-3 mb-4">
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Shared calendar mailbox</label>
+                    <input type="text" name="company_calendar_mailbox"
+                           class="form-control font-monospace @error('company_calendar_mailbox') is-invalid @enderror"
+                           value="{{ old('company_calendar_mailbox', $settings->company_calendar_mailbox) }}"
+                           placeholder="calendar@samirgroup.com">
+                    @error('company_calendar_mailbox') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                    <div class="form-text">
+                        The shared mailbox or group whose calendar is the company calendar.
+                        Needs the <code>Calendars.Read</code> <strong>application</strong> permission,
+                        admin-consented on the app registration &mdash; a delegated grant does nothing,
+                        because this client is app-only. A 403 in the sync log is almost always this.
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Last sync</label>
+                    <div class="form-control-plaintext small">
+                        @if($settings->company_calendar_last_sync_at)
+                            {{ $settings->company_calendar_last_sync_at->diffForHumans() }}
+                            <div class="text-muted">{{ $settings->company_calendar_last_sync_at->format('d M Y H:i') }}</div>
+                        @else
+                            <span class="text-muted">Never</span>
+                        @endif
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="company_calendar_enabled" name="company_calendar_enabled" value="1"
+                               {{ old('company_calendar_enabled', $settings->company_calendar_enabled) ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="company_calendar_enabled">
+                            Enable &mdash; sync hourly and show the Company Calendar card
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            {{-- ── KnowBe4 ──────────────────────────────────────── --}}
+            <h6 class="fw-semibold mb-2"><i class="bi bi-shield-check me-1"></i>KnowBe4 (Security Score)</h6>
+            <div class="row g-3 mb-3">
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">API token</label>
+                    <input type="password" name="knowbe4_api_token" class="form-control"
+                           placeholder="{{ $settings->knowbe4_api_token ? '•••••• (leave blank to keep current)' : 'Paste the KnowBe4 API token' }}">
+                    <div class="form-text">Stored encrypted at rest. Sent as a bearer token.</div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Region</label>
+                    <select name="knowbe4_region" class="form-select">
+                        @foreach(\App\Services\KnowBe4\KnowBe4Service::REGIONS as $code => $url)
+                            <option value="{{ $code }}"
+                                    @selected(old('knowbe4_region', $settings->knowbe4_region ?: 'us') === $code)>
+                                {{ strtoupper($code) }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">
+                        <strong>Must match your tenant.</strong> A token from another region
+                        fails with a 401 that looks exactly like a bad token.
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="knowbe4_enabled" name="knowbe4_enabled" value="1"
+                               {{ old('knowbe4_enabled', $settings->knowbe4_enabled) ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="knowbe4_enabled">
+                            Enable &mdash; sync daily and show each person their own Security Score
+                        </label>
+                    </div>
+                    <div class="form-text">
+                        Everyone sees only their own risk score and phishing count. There is no
+                        cross-employee view, by design.
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="small text-muted">
+                        Last sync:
+                        @if($settings->knowbe4_last_sync_at)
+                            {{ $settings->knowbe4_last_sync_at->diffForHumans() }}
+                            ({{ $settings->knowbe4_last_sync_at->format('d M Y H:i') }})
+                        @else
+                            never
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <button type="submit" name="test" value="1" class="btn btn-outline-secondary">
+                    <i class="bi bi-plug me-1"></i>Save &amp; Test KnowBe4
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1"></i>Save Home Portal Settings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- ─────────────────────────────────────────────────────── --}}
 {{-- Transactional Email (Outgoing Mail) Section            --}}
 {{-- ─────────────────────────────────────────────────────── --}}
 @php

@@ -108,6 +108,14 @@ class Setting extends Model
         'noc_ticket_api_key',
         'noc_ticket_api_enabled',
         'noc_ticket_catalog',
+        // Home portal integrations (Security Score + Company Calendar cards)
+        'knowbe4_enabled',
+        'knowbe4_api_token',
+        'knowbe4_region',
+        'knowbe4_last_sync_at',
+        'company_calendar_enabled',
+        'company_calendar_mailbox',
+        'company_calendar_last_sync_at',
         // AvePoint Graph API
         'avepoint_enabled',
         'avepoint_base_url',
@@ -215,6 +223,10 @@ class Setting extends Model
         'ticketing_api_enabled' => 'boolean',
         'noc_ticket_api_enabled' => 'boolean',
         'noc_ticket_catalog' => 'array',
+        'knowbe4_enabled' => 'boolean',
+        'knowbe4_last_sync_at' => 'datetime',
+        'company_calendar_enabled' => 'boolean',
+        'company_calendar_last_sync_at' => 'datetime',
         'avepoint_enabled' => 'boolean',
         'azure_blob_enabled' => 'boolean',
         'offboarding_enabled' => 'boolean',
@@ -453,6 +465,25 @@ class Setting extends Model
     public function nocTicketApiKey(): ?string
     {
         return $this->noc_ticket_api_key ?: $this->ticketing_api_key;
+    }
+
+    // ─── KnowBe4 API token — encrypted at rest ────────────────────
+
+    public function setKnowbe4ApiTokenAttribute(?string $value): void
+    {
+        $this->attributes['knowbe4_api_token'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getKnowbe4ApiTokenAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     // ─── AvePoint client secret — encrypted at rest ───────────────

@@ -969,6 +969,74 @@ class SettingsController extends Controller
             ->withFragment('noc-ticketing');
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Employee home portal — Company Calendar (Graph) + KnowBe4
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateHomePortal(Request $request)
+    {
+        $request->validate([
+            'company_calendar_mailbox' => 'nullable|email|max:255',
+            'knowbe4_api_token' => 'nullable|string|max:500',
+            'knowbe4_region' => 'nullable|in:'.implode(',', array_keys(\App\Services\KnowBe4\KnowBe4Service::REGIONS)),
+        ]);
+
+        $settings = Setting::get();
+        $before = [
+            'company_calendar_enabled' => (bool) $settings->company_calendar_enabled,
+            'company_calendar_mailbox' => $settings->company_calendar_mailbox,
+            'knowbe4_enabled' => (bool) $settings->knowbe4_enabled,
+            'knowbe4_region' => $settings->knowbe4_region,
+        ];
+
+        $settings->company_calendar_enabled = $request->boolean('company_calendar_enabled');
+        $settings->company_calendar_mailbox = $request->company_calendar_mailbox;
+        $settings->knowbe4_enabled = $request->boolean('knowbe4_enabled');
+        $settings->knowbe4_region = $request->knowbe4_region ?: 'us';
+
+        if ($request->filled('knowbe4_api_token')) {
+            $settings->knowbe4_api_token = $request->knowbe4_api_token;
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id' => 1,
+            'action' => 'home_portal_updated',
+            'changes' => [
+                'before' => $before,
+                'after' => [
+                    'company_calendar_enabled' => (bool) $settings->company_calendar_enabled,
+                    'company_calendar_mailbox' => $settings->company_calendar_mailbox,
+                    'knowbe4_enabled' => (bool) $settings->knowbe4_enabled,
+                    'knowbe4_region' => $settings->knowbe4_region,
+                ],
+                'token_changed' => $request->filled('knowbe4_api_token'),
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        $redirect = redirect()
+            ->route('admin.settings.index')
+            ->withFragment('home-portal');
+
+        // "Save & Test" — verifying the token AND the region together is the
+        // point: a token from the wrong region 401s exactly like a bad one, and
+        // that is the failure people lose an afternoon to.
+        if ($request->input('test')) {
+            try {
+                $message = app(\App\Services\KnowBe4\KnowBe4Service::class)->testConnection($settings);
+
+                return $redirect->with('success', 'Settings saved. '.$message);
+            } catch (\Throwable $e) {
+                return $redirect->with('error', 'Settings saved, but the KnowBe4 test failed: '.$e->getMessage());
+            }
+        }
+
+        return $redirect->with('success', 'Home portal settings updated.');
+    }
+
     /**
      * Pull the category / sub-category tree from the ticketing API's own
      * lookup endpoints and cache it, replacing whatever was cached before.

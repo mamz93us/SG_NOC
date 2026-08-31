@@ -855,3 +855,26 @@ Schedule::command('noc:snapshot-availability')
     ->withoutOverlapping(10)
     ->runInBackground()
     ->name('noc-snapshot-availability');
+
+// ── Employee home portal ──────────────────────────────────────────
+// Both feed cards on home.samirgroup.net, the page every company PC opens on.
+// They exist so that page never calls an external API on request: the whole
+// company loads it within minutes of 9am, and a Graph or KnowBe4 round trip per
+// visit would be slow and a good way to get throttled.
+
+// Company calendar from the shared M365 mailbox. Hourly is plenty — these are
+// holidays and company events, not meeting invites. No-ops when disabled.
+Schedule::command('company-calendar:sync')
+    ->hourly()
+    ->withoutOverlapping(20)
+    ->runInBackground()
+    ->name('company-calendar-sync');
+
+// KnowBe4 risk scores. Daily and early: the figures move on training and
+// phishing campaigns, neither of which changes hour to hour, and the API is
+// rate limited. Deliberately before the morning rush so the card is fresh.
+Schedule::command('knowbe4:sync')
+    ->dailyAt('05:30')
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('knowbe4-sync');

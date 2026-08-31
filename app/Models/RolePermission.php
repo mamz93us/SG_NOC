@@ -169,6 +169,11 @@ class RolePermission extends Model
             'Email Signatures' => [
                 'manage-signatures' => 'Create / Edit / Delete Email Signature Templates',
             ],
+            'Employee Home Portal' => [
+                'view-announcements' => 'View Announcements',
+                'manage-announcements' => 'Create / Edit / Delete Announcements',
+                'manage-greeting-lines' => 'Edit Home Portal Greeting Lines',
+            ],
             'Ticketing' => [
                 'create-tickets' => 'Raise Tickets in the IT Ticketing System',
                 'create-tickets-for-others' => 'Raise Tickets on Behalf of Another Employee',
@@ -226,6 +231,8 @@ class RolePermission extends Model
             'manage-offboarding',
             'create-tickets',
             'view-tickets',
+            'view-announcements',
+            'manage-announcements',
         ];
         $marketingPerms = ['view-email-marketing', 'view-courses', 'manage-courses'];
 

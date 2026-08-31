@@ -56,6 +56,21 @@ class RequireTwoFactor
                 return $next($request);
             }
 
+            // The employee home portal skips 2FA too — it is the page every
+            // company PC opens on unattended, and a 2FA challenge there would
+            // defeat the entire point of signing in silently from the Windows
+            // account. EnforceHomePortalHostIsolation 404s everything on that
+            // host except the start page and its ticket form, so a session
+            // established here reaches nothing privileged.
+            //
+            // Scoped to the HOST, not the session, for the same reason as the
+            // two above: the session is never marked `2fa_verified`, so the
+            // same user hitting any NOC route is still challenged. Do not
+            // "optimise" this into a session flag.
+            if (\App\Support\HomePortal::enabled() && \App\Support\HomePortal::isHost($request)) {
+                return $next($request);
+            }
+
             // Browser-only users bypass 2FA entirely — low-privilege role,
             // kept frictionless for SSO-first remote-browser access.
             if (method_exists($user, 'isBrowserUser') && $user->isBrowserUser()) {
