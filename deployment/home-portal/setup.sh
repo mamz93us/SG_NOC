@@ -211,6 +211,12 @@ log "nginx reloaded."
 # location block is reported clearly instead of as a certbot 403.
 ACME_WEBROOT="${ACME_WEBROOT:-/var/www/acme}"
 
+# The address of any vhost that binds a SPECIFIC :80 (rather than wildcard).
+# Empty on a normal host; on this one it is the firmware vhost's internal IP,
+# and it is what makes both the ACME probe and the HTTP entry point necessary.
+SPECIFIC_LISTEN="$(grep -rhoP '^\s*listen\s+\K[0-9.]+(?=:80;)' /etc/nginx/sites-enabled/ 2>/dev/null | head -1 || true)"
+[[ -n "$SPECIFIC_LISTEN" ]] && log "Specific :80 listener detected: $SPECIFIC_LISTEN"
+
 mkdir -p "${ACME_WEBROOT}/.well-known/acme-challenge"
 chown -R www-data:www-data "$ACME_WEBROOT" 2>/dev/null || true
 
@@ -222,11 +228,10 @@ acme_reachable() {
 
     # Probe over the address external traffic actually arrives on when one
     # exists, falling back to loopback with the Host header.
-    local specific code
-    specific="$(grep -rhoP '^\s*listen\s+\K[0-9.]+(?=:80;)' /etc/nginx/sites-enabled/ 2>/dev/null | head -1 || true)"
+    local code
 
-    if [[ -n "$specific" ]]; then
-        code="$(curl -s -o /dev/null -w '%{http_code}' "http://${specific}/.well-known/acme-challenge/${token}" || echo ERR)"
+    if [[ -n "$SPECIFIC_LISTEN" ]]; then
+        code="$(curl -s -o /dev/null -w '%{http_code}' "http://${SPECIFIC_LISTEN}/.well-known/acme-challenge/${token}" || echo ERR)"
     else
         code="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${DOMAIN}" "http://127.0.0.1/.well-known/acme-challenge/${token}" || echo ERR)"
     fi
@@ -279,6 +284,59 @@ else
         else
             warn "certbot failed. The site is live over HTTP; see /var/log/letsencrypt/letsencrypt.log"
         fi
+    fi
+fi
+
+# --- Plain-HTTP entry point ----------------------------------------------------
+# certbot writes its HTTP->HTTPS redirect into the wildcard `listen 80` block,
+# which on this host never receives external traffic (see the TLS section above).
+# Result: someone typing the bare hostname — which every browser resolves to
+# http:// first — gets the firmware vhost's 404 instead of the site.
+#
+# Binding the SAME specific address restores Host-based selection for this one
+# name. Scoped to a single server_name and deliberately NOT default_server: the
+# phones fetch by bare IP or fw.<domain> and must never be redirected, because
+# old handsets cannot do modern TLS and do not follow 302s.
+#
+# The zz- filename is load-bearing: sites-enabled/* is globbed alphabetically and
+# the FIRST block for a listen address becomes its default_server. The firmware
+# vhost has to keep that role.
+if [[ -n "$SPECIFIC_LISTEN" && -d "/etc/letsencrypt/live/${DOMAIN}" ]]; then
+    HTTP_VHOST="/etc/nginx/sites-available/zz-${DOMAIN}-http"
+    log "Writing plain-HTTP entry point for ${SPECIFIC_LISTEN}:80 -> $HTTP_VHOST"
+
+    cat > "$HTTP_VHOST" <<NGINX
+# Plain-HTTP entry point for ${DOMAIN} — managed by deployment/home-portal/setup.sh
+# See the "Plain-HTTP entry point" section of that script for why this is needed.
+server {
+    listen ${SPECIFIC_LISTEN}:80;
+    server_name ${DOMAIN};
+
+    access_log /var/log/nginx/${DOMAIN}.access.log;
+    error_log  /var/log/nginx/${DOMAIN}.error.log;
+
+    # Must stay on plain HTTP and must NOT be redirected. This block wins Host
+    # selection for this name, so any ACME location elsewhere is no longer
+    # consulted for it — without this, renewal fails silently in 90 days.
+    location ^~ /.well-known/acme-challenge/ {
+        root ${ACME_WEBROOT};
+        default_type "text/plain";
+        try_files \$uri =404;
+    }
+
+    location / { return 301 https://\$host\$request_uri; }
+}
+NGINX
+
+    ln -sfn "$HTTP_VHOST" "/etc/nginx/sites-enabled/zz-${DOMAIN}-http"
+
+    if nginx -t >/dev/null 2>&1; then
+        systemctl reload nginx
+        log "Plain-HTTP entry point enabled."
+    else
+        warn "nginx rejected the HTTP entry point — removing it."
+        rm -f "/etc/nginx/sites-enabled/zz-${DOMAIN}-http"
+        nginx -t || true
     fi
 fi
 
