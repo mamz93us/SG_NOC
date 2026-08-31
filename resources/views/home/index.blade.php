@@ -196,7 +196,7 @@
             </p>
         </a>
 
-        <a class="card span-1" href="{{ route('public.contacts') }}" aria-label="Open Employees Directory">
+        <a class="card span-1" href="{{ route('home.directory') }}" aria-label="Open Employees Directory">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="9" cy="8.5" r="2.6"/><path d="M4 18.2c.7-3 2.6-4.6 5-4.6s4.3 1.6 5 4.6" stroke-linecap="round"/><path d="M15.5 8.5h4.5M15.5 12h4.5M15.5 15.5h3" stroke-linecap="round"/></svg>
             </div>

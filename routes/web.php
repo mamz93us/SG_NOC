@@ -131,6 +131,16 @@ Route::get('/phonebook.xml', [PhonebookController::class, 'generate'])
     ->withoutMiddleware(['web'])
     ->name('phonebook.xml');
 
+// On the home portal host, /contacts is the portal's own styled directory.
+// Registered BEFORE the shared route below because route order decides the
+// match and the shared one carries no domain constraint — it would otherwise
+// win on every host, including this one.
+if (\App\Support\HomePortal::enabled()) {
+    Route::domain(\App\Support\HomePortal::domain())
+        ->get('/contacts', fn () => redirect()->route('home.directory', request()->query()))
+        ->name('home.contacts');
+}
+
 Route::get('/contacts', [PublicContactController::class, 'index'])
     ->name('public.contacts');
 
@@ -308,6 +318,12 @@ if (\App\Support\HomePortal::enabled()) {
 
             // Read-only, and scoped to the signed-in employee — there is no id
             // in the URL to tamper with.
+            // The staff directory in the portal's own styling — the shared
+            // /contacts view is used by the NOC and the print layouts, so it
+            // is left alone rather than bent to a second design.
+            Route::get('/directory', [\App\Http\Controllers\Home\HomeDirectoryController::class, 'index'])
+                ->name('directory');
+
             Route::get('/my-assets', [\App\Http\Controllers\Home\HomeAssetsController::class, 'index'])
                 ->name('assets');
 

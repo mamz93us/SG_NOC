@@ -39,15 +39,12 @@ class EnforceHomePortalHostIsolation
     /**
      * Route-name prefixes allowed here in addition to `home.`.
      *
-     * The staff directory is linked from the portal's Employees Directory tile,
-     * so it has to answer on this host or that tile 404s. It is safe to admit:
-     * `/contacts` carries no auth middleware anywhere and already answers
-     * unauthenticated on every other host — allowing it here exposes nothing
-     * that was not already public.
+     * Empty on purpose. The directory used to be admitted here so the portal's
+     * tile would work; it now has its own `home.directory` page in the portal's
+     * styling, and /contacts on this host redirects to it, so nothing outside
+     * the `home.` namespace needs to answer any more.
      */
-    private const ALLOWED_PREFIXES = [
-        'public.contacts',
-    ];
+    private const ALLOWED_PREFIXES = [];
 
     public function handle(Request $request, Closure $next): Response
     {
