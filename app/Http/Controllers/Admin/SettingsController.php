@@ -880,6 +880,83 @@ class SettingsController extends Controller
             ->withFragment('ticketing');
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Create Ticket API (addTicketingRequestForNOC) — /admin/tickets
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateNocTicketing(Request $request)
+    {
+        $request->validate([
+            'noc_ticket_api_url' => 'nullable|url|max:500',
+            'noc_ticket_api_key' => 'nullable|string|max:500',
+            'noc_ticket_catalog' => 'nullable|string|max:60000',
+        ]);
+
+        // The catalog is hand-maintained JSON — reject a broken paste here
+        // rather than letting the Create Ticket form silently lose its options.
+        $catalog = null;
+        $raw = trim((string) $request->input('noc_ticket_catalog'));
+
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['noc_ticket_catalog' => 'Not valid JSON: ' . json_last_error_msg()])
+                    ->withFragment('noc-ticketing');
+            }
+
+            $parsed = \App\Services\Ticketing\TicketCatalog::fromArray($decoded);
+
+            if ($parsed->categories === []) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['noc_ticket_catalog' => 'No usable categories found — each entry needs an "id" and belongs under "categories".'])
+                    ->withFragment('noc-ticketing');
+            }
+
+            $catalog = $decoded;
+        }
+
+        $settings = Setting::get();
+        $before = [
+            'noc_ticket_api_enabled' => (bool) $settings->noc_ticket_api_enabled,
+            'noc_ticket_api_url' => $settings->noc_ticket_api_url,
+        ];
+
+        $settings->noc_ticket_api_enabled = $request->boolean('noc_ticket_api_enabled');
+        $settings->noc_ticket_api_url = $request->noc_ticket_api_url;
+        $settings->noc_ticket_catalog = $catalog;
+
+        if ($request->filled('noc_ticket_api_key')) {
+            $settings->noc_ticket_api_key = $request->noc_ticket_api_key;
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id' => 1,
+            'action' => 'noc_ticketing_updated',
+            'changes' => [
+                'before' => $before,
+                'after' => [
+                    'noc_ticket_api_enabled' => (bool) $settings->noc_ticket_api_enabled,
+                    'noc_ticket_api_url' => $settings->noc_ticket_api_url,
+                ],
+                'key_changed' => $request->filled('noc_ticket_api_key'),
+                'catalog_categories' => is_array($catalog) ? count($catalog['categories'] ?? []) : 0,
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'Create Ticket API settings updated.')
+            ->withFragment('noc-ticketing');
+    }
+
     public function updateItam(Request $request)
     {
         $request->validate([

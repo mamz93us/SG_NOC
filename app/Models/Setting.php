@@ -103,6 +103,11 @@ class Setting extends Model
         'ticketing_api_url',
         'ticketing_api_key',
         'ticketing_api_enabled',
+        // Ticketing API — /admin/tickets "Create Ticket" page (addTicketingRequestForNOC)
+        'noc_ticket_api_url',
+        'noc_ticket_api_key',
+        'noc_ticket_api_enabled',
+        'noc_ticket_catalog',
         // AvePoint Graph API
         'avepoint_enabled',
         'avepoint_base_url',
@@ -208,6 +213,8 @@ class Setting extends Model
         'cups_enabled' => 'boolean',
         'cups_refresh_interval' => 'integer',
         'ticketing_api_enabled' => 'boolean',
+        'noc_ticket_api_enabled' => 'boolean',
+        'noc_ticket_catalog' => 'array',
         'avepoint_enabled' => 'boolean',
         'azure_blob_enabled' => 'boolean',
         'offboarding_enabled' => 'boolean',
@@ -417,6 +424,35 @@ class Setting extends Model
         } catch (\Exception) {
             return null;
         }
+    }
+
+    // ─── NOC ticket API key — encrypted at rest ───────────────────
+
+    public function setNocTicketApiKeyAttribute(?string $value): void
+    {
+        $this->attributes['noc_ticket_api_key'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getNocTicketApiKeyAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    /**
+     * X-API-Key for the Create Ticket endpoint, falling back to the onboarding
+     * ticketing key — same ticketing system, normally the same key, and making
+     * people paste it twice is how one of them ends up stale.
+     */
+    public function nocTicketApiKey(): ?string
+    {
+        return $this->noc_ticket_api_key ?: $this->ticketing_api_key;
     }
 
     // ─── AvePoint client secret — encrypted at rest ───────────────

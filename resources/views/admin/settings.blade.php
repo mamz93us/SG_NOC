@@ -793,6 +793,152 @@
 </div>
 
 {{-- ─────────────────────────────────────────────────────── --}}
+{{-- Create Ticket API (addTicketingRequestForNOC)          --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+@php
+    $nocTicketCatalog = \App\Services\Ticketing\TicketCatalog::fromSettings($settings);
+    $nocTicketCatalogJson = old('noc_ticket_catalog', $settings->noc_ticket_catalog
+        ? json_encode($settings->noc_ticket_catalog, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+        : '');
+    $nocTicketExampleJson = json_encode(\App\Services\Ticketing\TicketCatalog::example(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+@endphp
+<div class="card mt-4" id="noc-ticketing">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-ticket-perforated-fill text-primary fs-5"></i>
+        <h5 class="mb-0">Create Ticket API (NOC &rarr; Ticketing)</h5>
+        @if($settings->noc_ticket_api_enabled && $settings->noc_ticket_api_url)
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @elseif($settings->noc_ticket_api_url)
+            <span class="badge bg-warning text-dark ms-auto">Configured (disabled)</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Not Configured</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Powers <a href="{{ route('admin.tickets.create') }}" class="alert-link">Create Ticket</a>.
+            Separate from the onboarding endpoint above: that one calls
+            <code>provisionNewEmployee</code>, this one calls
+            <code>addTicketingRequestForNOC</code> and posts
+            <code>multipart/form-data</code> (a <code>data</code> JSON part, plus
+            <code>email</code>, <code>azureUserId</code> and an optional <code>file</code>).
+        </div>
+
+        <form method="POST" action="{{ route('admin.settings.noc-ticketing') }}">
+            @csrf
+            <div class="row g-3 mb-3">
+                <div class="col-md-12">
+                    <label class="form-label fw-semibold">API Endpoint URL</label>
+                    <input type="url" name="noc_ticket_api_url"
+                           class="form-control font-monospace @error('noc_ticket_api_url') is-invalid @enderror"
+                           value="{{ old('noc_ticket_api_url', $settings->noc_ticket_api_url) }}"
+                           placeholder="https://sgapps-test.samirgroup.com/SamirTicketingAPIs/ticketing/api/addTicketingRequestForNOC">
+                    @error('noc_ticket_api_url') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                    <div class="form-text">Full URL including the endpoint path. Switch the host to move between test and production.</div>
+                </div>
+
+                <div class="col-md-12">
+                    <label class="form-label fw-semibold">X-API-Key</label>
+                    <input type="password" name="noc_ticket_api_key" class="form-control"
+                           placeholder="{{ $settings->noc_ticket_api_key ? '•••••• (leave blank to keep current)' : 'Paste X-API-Key here' }}">
+                    <div class="form-text">
+                        Stored encrypted at rest.
+                        @unless($settings->noc_ticket_api_key)
+                            Leave blank to reuse the key from the onboarding Ticketing API above
+                            @if($settings->ticketing_api_key)
+                                <span class="text-success">(one is set)</span>.
+                            @else
+                                <span class="text-danger">(none is set &mdash; this one is required)</span>.
+                            @endif
+                        @endunless
+                    </div>
+                </div>
+
+                <div class="col-md-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="noc_ticket_api_enabled" name="noc_ticket_api_enabled" value="1"
+                               {{ old('noc_ticket_api_enabled', $settings->noc_ticket_api_enabled) ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="noc_ticket_api_enabled">
+                            Enable &mdash; allow tickets to be raised from the NOC
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-md-12">
+                    <label class="form-label fw-semibold">Ticket catalog (JSON)</label>
+                    <textarea name="noc_ticket_catalog" rows="14"
+                              class="form-control font-monospace small @error('noc_ticket_catalog') is-invalid @enderror"
+                              spellcheck="false"
+                              placeholder="{{ $nocTicketExampleJson }}">{{ $nocTicketCatalogJson }}</textarea>
+                    @error('noc_ticket_catalog') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                    <div class="form-text">
+                        The API takes bare numeric IDs (<code>ticketCategory: 8</code>,
+                        <code>ticketSubCategory: 40</code>&hellip;) and publishes no endpoint to list them,
+                        so the ID&rarr;label map is maintained here. Anything under an optional
+                        <code>extra</code> object is merged verbatim into the <code>data</code> payload &mdash;
+                        the escape hatch for fields the API adds later.
+                    </div>
+                </div>
+            </div>
+
+            @if($nocTicketCatalog->isConfigured())
+                <div class="border rounded p-3 mb-3 bg-body-tertiary">
+                    <div class="small fw-semibold mb-2 text-muted">
+                        <i class="bi bi-check2-circle me-1 text-success"></i>Parsed catalog &mdash; this is what the form will offer
+                    </div>
+                    <div class="row g-3 small">
+                        <div class="col-md-6">
+                            <div class="fw-semibold mb-1">Categories</div>
+                            <ul class="mb-0 ps-3">
+                                @foreach($nocTicketCatalog->categories as $cat)
+                                    <li>
+                                        {{ $cat['name'] }} <span class="text-muted">({{ $cat['id'] }})</span>
+                                        @if($cat['subcategories'])
+                                            <ul class="ps-3 text-muted">
+                                                @foreach($cat['subcategories'] as $sub)
+                                                    <li>{{ $sub['name'] }} ({{ $sub['id'] }})</li>
+                                                @endforeach
+                                            </ul>
+                                        @else
+                                            <span class="badge bg-warning text-dark">no sub-categories</span>
+                                        @endif
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="fw-semibold mb-1">Types</div>
+                            <ul class="mb-0 ps-3">
+                                @foreach($nocTicketCatalog->types as $type)
+                                    <li>{{ $type['name'] }} <span class="text-muted">({{ $type['id'] }})</span></li>
+                                @endforeach
+                            </ul>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="fw-semibold mb-1">Priorities</div>
+                            <ul class="mb-0 ps-3">
+                                @foreach($nocTicketCatalog->priorities as $prio)
+                                    <li>{{ $prio['name'] }} <span class="text-muted">({{ $prio['id'] }})</span></li>
+                                @endforeach
+                            </ul>
+                            <div class="mt-2 text-muted">Channel id: <strong>{{ $nocTicketCatalog->channelId }}</strong></div>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1"></i>Save Create Ticket Settings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- ─────────────────────────────────────────────────────── --}}
 {{-- Transactional Email (Outgoing Mail) Section            --}}
 {{-- ─────────────────────────────────────────────────────── --}}
 @php

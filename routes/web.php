@@ -500,6 +500,30 @@ Route::middleware(['auth', 'permission:manage-settings'])
 Route::middleware(['auth', 'permission:manage-settings'])
     ->get('api/ticket-stats', [TicketStatsController::class, 'data'])->name('api.ticket-stats');
 
+// ──────────────────────────────────────────────────────────────────
+// Create Ticket — raise a ticket in the external ticketing system
+// (addTicketingRequestForNOC) without leaving the NOC.
+//
+// `create-tickets` covers filing for yourself; `create-tickets-for-others`
+// is checked inside the controller and unlocks choosing a different
+// requester and seeing everyone's submissions rather than only your own.
+// ──────────────────────────────────────────────────────────────────
+Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
+    Route::middleware('permission:create-tickets')->group(function () {
+        Route::get('tickets/create', [\App\Http\Controllers\Admin\NocTicketController::class, 'create'])
+            ->name('tickets.create');
+        Route::post('tickets', [\App\Http\Controllers\Admin\NocTicketController::class, 'store'])
+            ->name('tickets.store');
+    });
+
+    Route::middleware('permission:view-tickets')->group(function () {
+        Route::get('tickets', [\App\Http\Controllers\Admin\NocTicketController::class, 'index'])
+            ->name('tickets.index');
+        Route::get('tickets/{ticket}', [\App\Http\Controllers\Admin\NocTicketController::class, 'show'])
+            ->name('tickets.show');
+    });
+});
+
 // Access Analytics — who's signing in to / using NOC, EM and the Portal.
 // Gated by view-activity-logs (access-audit data, alongside the Audit Log).
 Route::middleware(['auth', 'permission:view-activity-logs'])
@@ -847,6 +871,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/cups', [SettingsController::class, 'updateCups'])->name('settings.cups');
         Route::post('settings/itam', [SettingsController::class, 'updateItam'])->name('settings.itam');
         Route::post('settings/ticketing', [SettingsController::class, 'updateTicketing'])->name('settings.ticketing');
+        Route::post('settings/noc-ticketing', [SettingsController::class, 'updateNocTicketing'])->name('settings.noc-ticketing');
         Route::post('settings/smtp', [SettingsController::class, 'updateSmtp'])->name('settings.smtp');
         Route::post('settings/test-smtp', [SettingsController::class, 'testSmtp'])->name('settings.test-smtp');
 

@@ -1103,10 +1103,20 @@
 
                     {{-- Documentation, Marketing, Teamtailor & Admin Tools folded into the Admin menu below --}}
 
+                    {{-- ── Create Ticket (top level: available to every role that can raise one) ── --}}
+                    @can('create-tickets')
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->routeIs('admin.tickets.create') ? 'active' : '' }}"
+                           href="{{ route('admin.tickets.create') }}">
+                            <i class="bi bi-ticket-perforated-fill me-1"></i>Create Ticket
+                        </a>
+                    </li>
+                    @endcan
+
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
-                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay'])
+                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/email-templates*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*','admin/smtp-relay*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/email-templates*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*','admin/smtp-relay*','admin/tickets*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-gear-fill me-1"></i>Admin
                         </a>
@@ -1144,6 +1154,14 @@
                                     <i class="bi bi-ticket-detailed me-2"></i>Ticket Portal Stats
                                 </a>
                             </li>
+                            @can('view-tickets')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.tickets.index') || request()->routeIs('admin.tickets.show') ? 'active' : '' }}"
+                                   href="{{ route('admin.tickets.index') }}">
+                                    <i class="bi bi-clock-history me-2"></i>Ticket Submissions
+                                </a>
+                            </li>
+                            @endcan
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-building me-1"></i>Organisation</h6></li>
                             <li>

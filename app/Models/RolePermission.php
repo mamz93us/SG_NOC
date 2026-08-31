@@ -169,6 +169,11 @@ class RolePermission extends Model
             'Email Signatures' => [
                 'manage-signatures' => 'Create / Edit / Delete Email Signature Templates',
             ],
+            'Ticketing' => [
+                'create-tickets' => 'Raise Tickets in the IT Ticketing System',
+                'create-tickets-for-others' => 'Raise Tickets on Behalf of Another Employee',
+                'view-tickets' => 'View Ticket Submission History',
+            ],
             'Access Gateway' => [
                 'view-agw-audit' => 'View Access Gateway Audit Log',
                 'manage-agw-allowlist' => 'Manage Access Gateway IP Allowlist',
@@ -206,6 +211,7 @@ class RolePermission extends Model
             'view-workflows', 'view-employees', 'view-noc',
             'view-dhcp-leases', 'view-sophos', 'view-fortigate', 'view-access-points', 'view-dns', 'view-admin-links',
             'view-syslog', 'view-agw-audit',
+            'create-tickets', 'view-tickets',
         ];
         $hrPerms = [
             'manage-hr-portal',
@@ -218,6 +224,8 @@ class RolePermission extends Model
             'view-browser-portal',
             'view-offboarding',
             'manage-offboarding',
+            'create-tickets',
+            'view-tickets',
         ];
         $marketingPerms = ['view-email-marketing', 'view-courses', 'manage-courses'];
 
