@@ -287,7 +287,10 @@ if (\App\Support\HomePortal::enabled()) {
             // The signed-in employee's own Apple Wallet pass. Home-scoped
             // rather than reusing employee.card.wallet, which would have to be
             // allow-listed through host isolation and can serve ANY token.
-            Route::get('/card/wallet', [\App\Http\Controllers\Home\HomeController::class, 'walletPass'])
+            // Path is /my-card/, NOT /card/: the global `/card/{token}` route is
+            // registered earlier in this file with no domain constraint, so it
+            // matches on every host and would capture this as token="wallet".
+            Route::get('/my-card/wallet', [\App\Http\Controllers\Home\HomeController::class, 'walletPass'])
                 ->name('card.wallet');
 
             Route::get('/tickets/catalog', [\App\Http\Controllers\Home\HomeTicketController::class, 'catalog'])
