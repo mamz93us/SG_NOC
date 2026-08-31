@@ -980,6 +980,7 @@ class SettingsController extends Controller
             'knowbe4_api_token' => 'nullable|string|max:500',
             'core_urls' => 'nullable|array',
             'core_urls.*' => 'nullable|url|max:500',
+            'knowbe4_training_url' => 'nullable|url|max:500',
             'knowbe4_region' => 'nullable|in:'.implode(',', array_keys(\App\Services\KnowBe4\KnowBe4Service::REGIONS)),
         ]);
 
@@ -1002,6 +1003,7 @@ class SettingsController extends Controller
         $settings->company_calendar_mailbox = $request->company_calendar_mailbox;
         $settings->knowbe4_enabled = $request->boolean('knowbe4_enabled');
         $settings->knowbe4_region = $request->knowbe4_region ?: 'us';
+        $settings->knowbe4_training_url = $request->knowbe4_training_url;
 
         if ($request->filled('knowbe4_api_token')) {
             $settings->knowbe4_api_token = $request->knowbe4_api_token;

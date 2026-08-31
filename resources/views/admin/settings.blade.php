@@ -1142,7 +1142,25 @@
                     </div>
                 </div>
                 <div class="col-md-12">
+                    <label class="form-label fw-semibold">Training portal URL</label>
+                    <input type="url" name="knowbe4_training_url"
+                           class="form-control font-monospace @error('knowbe4_training_url') is-invalid @enderror"
+                           value="{{ old('knowbe4_training_url', $settings->knowbe4_training_url) }}"
+                           placeholder="https://training.knowbe4.com">
+                    @error('knowbe4_training_url') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                    <div class="form-text">
+                        Where the portal sends someone with training outstanding. The learner
+                        portal address differs per tenant, so there is no safe default &mdash;
+                        left blank the warning still shows, it just points people at their
+                        KnowBe4 email instead of a button that might go nowhere.
+                    </div>
+                </div>
+                <div class="col-md-12">
                     <div class="small text-muted">
+                        @can('view-knowbe4-scores')
+                            <a href="{{ route('admin.knowbe4.index') }}">View everyone&rsquo;s scores &rarr;</a>
+                            &nbsp;·&nbsp;
+                        @endcan
                         Last sync:
                         @if($settings->knowbe4_last_sync_at)
                             {{ $settings->knowbe4_last_sync_at->diffForHumans() }}

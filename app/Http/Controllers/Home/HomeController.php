@@ -202,6 +202,8 @@ class HomeController extends Controller
             // here. Short-lived on purpose: it is minted fresh on every page
             // load, and this page sits open all day on an unattended desk.
             'coreSystems' => app(CoreSystems::class)->visible($settings),
+            'assetCount' => HomeAssetsController::activeCountFor($employee),
+            'trainingUrl' => $settings->knowbe4_training_url ?: null,
             'walletQrUrl' => ($walletAvailable && $employee)
                 ? URL::temporarySignedRoute(
                     'home.card.pass',

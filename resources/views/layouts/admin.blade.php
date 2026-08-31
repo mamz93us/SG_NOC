@@ -1114,9 +1114,9 @@
                     @endcan
 
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
-                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines'])
+                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines','view-knowbe4-scores'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/email-templates*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*','admin/smtp-relay*','admin/tickets*','admin/announcements*','admin/greeting-lines*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/email-templates*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*','admin/smtp-relay*','admin/tickets*','admin/announcements*','admin/greeting-lines*','admin/knowbe4*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-gear-fill me-1"></i>Admin
                         </a>
@@ -1175,6 +1175,14 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.greeting-lines.*') ? 'active' : '' }}"
                                    href="{{ route('admin.greeting-lines.index') }}">
                                     <i class="bi bi-chat-heart-fill me-2"></i>Greeting Lines
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-knowbe4-scores')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.knowbe4.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.knowbe4.index') }}">
+                                    <i class="bi bi-shield-check me-2"></i>Security Awareness
                                 </a>
                             </li>
                             @endcan

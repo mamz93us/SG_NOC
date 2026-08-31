@@ -306,6 +306,11 @@ if (\App\Support\HomePortal::enabled()) {
             Route::get('/my-card/wallet', [\App\Http\Controllers\Home\HomeController::class, 'walletPass'])
                 ->name('card.wallet');
 
+            // Read-only, and scoped to the signed-in employee — there is no id
+            // in the URL to tamper with.
+            Route::get('/my-assets', [\App\Http\Controllers\Home\HomeAssetsController::class, 'index'])
+                ->name('assets');
+
             Route::get('/tickets/catalog', [\App\Http\Controllers\Home\HomeTicketController::class, 'catalog'])
                 ->name('tickets.catalog');
             // Tighter throttle than the rest: this one leaves the building.
@@ -945,6 +950,17 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/ticketing', [SettingsController::class, 'updateTicketing'])->name('settings.ticketing');
         Route::post('settings/noc-ticketing', [SettingsController::class, 'updateNocTicketing'])->name('settings.noc-ticketing');
         Route::post('settings/home-portal', [SettingsController::class, 'updateHomePortal'])->name('settings.home-portal');
+
+        // ── Security Awareness (KnowBe4) ──────────────────────────
+        // Its own permission: this shows every colleague's risk score and
+        // phishing history, which someone who can merely edit settings does
+        // not automatically need. The employee portal still shows a person
+        // only their own score.
+        Route::middleware('permission:view-knowbe4-scores')->group(function () {
+            Route::get('knowbe4', [\App\Http\Controllers\Admin\Knowbe4Controller::class, 'index'])->name('knowbe4.index');
+            Route::get('knowbe4/export', [\App\Http\Controllers\Admin\Knowbe4Controller::class, 'export'])->name('knowbe4.export');
+            Route::post('knowbe4/sync', [\App\Http\Controllers\Admin\Knowbe4Controller::class, 'sync'])->name('knowbe4.sync');
+        });
 
         // ── Employee home portal authoring ────────────────────────
         // What the whole company reads on home.samirgroup.net each morning.

@@ -361,6 +361,14 @@
   .stat-lbl{ font-size:10.5px; letter-spacing:.4px; text-transform:uppercase; color:var(--ink-soft); }
   .card p.meta.small{ font-size:11.5px; color:var(--ink-soft); margin-top:-6px; }
   .security-icon{ color:var(--red-600); }
+  .training-due{
+    display:flex; align-items:flex-start; gap:8px;
+    width:100%; margin-top:-2px;
+    background:#FFF7E6; border:1px solid #F5D9A0; border-radius:10px;
+    padding:9px 11px; font-size:12.5px; line-height:1.45; color:#7A5B00;
+  }
+  .training-due svg{ width:16px; height:16px; flex-shrink:0; margin-top:1px; }
+  .training-due a{ font-weight:700; color:#7A5B00; text-decoration:underline; }
 
   /* ===== Payroll card ===== */
   .payroll-card{

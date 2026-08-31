@@ -113,6 +113,7 @@ class Setting extends Model
         'knowbe4_api_token',
         'knowbe4_region',
         'knowbe4_last_sync_at',
+        'knowbe4_training_url',
         'company_calendar_enabled',
         'company_calendar_mailbox',
         'company_calendar_last_sync_at',

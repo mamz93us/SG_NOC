@@ -177,6 +177,25 @@
             @endif
         </a>
 
+        <a class="card span-1" href="{{ route('home.assets') }}" aria-label="View My Assets">
+            <div class="icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="12" rx="2"/><path d="M2 19.5h20" stroke-linecap="round"/></svg>
+                @if($assetCount > 0)
+                    <span class="badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" aria-hidden="true"><path d="M5 12.5 10 17 19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                @endif
+            </div>
+            <h3>My Assets</h3>
+            <p class="meta">
+                @if($assetCount > 0)
+                    {{ $assetCount }} {{ \Illuminate\Support\Str::plural('item', $assetCount) }} assigned to you
+                @else
+                    Devices &amp; equipment assigned to you
+                @endif
+            </p>
+        </a>
+
         <a class="card span-1" href="{{ route('public.contacts') }}" aria-label="Open Employees Directory">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="9" cy="8.5" r="2.6"/><path d="M4 18.2c.7-3 2.6-4.6 5-4.6s4.3 1.6 5 4.6" stroke-linecap="round"/><path d="M15.5 8.5h4.5M15.5 12h4.5M15.5 15.5h3" stroke-linecap="round"/></svg>
@@ -228,6 +247,20 @@
                         </div>
                     @endif
                 </div>
+                @if($security->trainings_outstanding > 0)
+                    <div class="training-due">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 8.5v4.5M12 16.2v.05" stroke-linecap="round"/><path d="M10.3 4.3 2.9 17.1A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.9L13.7 4.3a2 2 0 0 0-3.4 0Z" stroke-linejoin="round"/></svg>
+                        <span>
+                            You have <strong>{{ $security->trainings_outstanding }}</strong>
+                            security {{ \Illuminate\Support\Str::plural('course', $security->trainings_outstanding) }} outstanding.
+                            @if($trainingUrl)
+                                <a href="{{ $trainingUrl }}" target="_blank" rel="noopener noreferrer">Start now &rarr;</a>
+                            @else
+                                Check your KnowBe4 email for the link.
+                            @endif
+                        </span>
+                    </div>
+                @endif
                 <p class="meta small">Source: KnowBe4 · only you can see this</p>
             </div>
         @endif
