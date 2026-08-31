@@ -1,12 +1,14 @@
 @php
     // The QR is rendered server-side with the QR library already in the project
-    // (chillerlan/php-qrcode, same helper EmployeeCardController uses).
+    // (chillerlan/php-qrcode, the same helper EmployeeCardController uses).
     //
     // The design called api.qrserver.com. That would send every employee's card
     // URL to a third party on every open, and would fail whenever the internet
     // is down but the NOC is reachable — which on a branch VPN is a real state.
     // Inline SVG costs nothing and leaves the building never.
-    $cardUrl = url('/card/'.$cardToken);
+    //
+    // $cardUrl comes from VCard::cardUrl(), i.e. the business-card subdomain —
+    // the canonical public address for a card, and the one worth handing out.
     $qrSvg = null;
 
     try {
@@ -26,11 +28,12 @@
   <div class="wallet-modal" role="dialog" aria-modal="true"
        aria-labelledby="walletModalTitle" aria-describedby="walletModalDescription">
     <div class="wallet-modal-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M16.5 14.5h2" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M13.5 13.5h3v3M20.5 13.5v3M17 20.5h3.5V17M13.5 20.5h.01" stroke-linecap="round"/></svg>
     </div>
-    <h2 id="walletModalTitle">Add Employee Card</h2>
+    <h2 id="walletModalTitle">My Digital Card</h2>
     <p class="wallet-modal-copy" id="walletModalDescription">
-      Scan this QR code with your phone to open your digital employee card, then add it to your wallet.
+      Let someone scan this to open your business card &mdash; contact details,
+      extension, and a one-tap save to their phone.
     </p>
 
     <div class="wallet-qr-wrap">
@@ -44,7 +47,7 @@
     </div>
 
     <p class="wallet-employee">{{ $displayName }}</p>
-    <p class="wallet-instruction">Open your phone camera and scan the code.</p>
+    <p class="wallet-card-url">{{ preg_replace('#^https?://#', '', $cardUrl) }}</p>
     <button type="button" class="wallet-close-btn" id="closeWalletModal">Close</button>
   </div>
 </div>
@@ -55,7 +58,7 @@
   'use strict';
 
   var overlay = document.getElementById('walletModalOverlay');
-  var openBtn = document.getElementById('addToWalletBtn');
+  var openBtn = document.getElementById('showCardQrBtn');
   var closeBtn = document.getElementById('closeWalletModal');
   if (!overlay || !openBtn) return;
 

@@ -306,10 +306,22 @@
 
         @if($cardToken)
             <div class="wallet-section">
-                <button type="button" class="wallet-btn" id="addToWalletBtn"
+                {{-- Apple Wallet: a direct .pkpass download. Hidden rather than
+                     shown-and-broken when the pass certificates are not set up,
+                     since a 503 from a big red button reads as a fault. --}}
+                @if($walletAvailable)
+                    <a class="wallet-btn" href="{{ route('home.card.wallet') }}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M16.5 14.5h2" stroke-linecap="round"/></svg>
+                        Add to Apple Wallet
+                    </a>
+                @endif
+
+                {{-- The QR points at the business-card subdomain, which is the
+                     canonical public URL for a card and the one to hand out. --}}
+                <button type="button" class="wallet-btn wallet-btn-secondary" id="showCardQrBtn"
                         aria-haspopup="dialog" aria-controls="walletModalOverlay">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M16.5 14.5h2" stroke-linecap="round"/></svg>
-                    Add to Wallet
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M13.5 13.5h3v3M20.5 13.5v3M17 20.5h3.5V17M13.5 20.5h.01" stroke-linecap="round"/></svg>
+                    Share My Card (QR)
                 </button>
             </div>
         @endif
@@ -329,7 +341,7 @@
 @include('home.partials.ticket-modal')
 
 @if($cardToken)
-    @include('home.partials.wallet-modal', ['cardToken' => $cardToken, 'employee' => $employee, 'user' => $user])
+    @include('home.partials.wallet-modal', ['cardUrl' => $cardUrl, 'employee' => $employee, 'user' => $user])
 @endif
 
 @endsection

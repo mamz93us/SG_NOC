@@ -9,13 +9,16 @@ use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\Knowbe4Score;
 use App\Models\Setting;
+use App\Services\EmployeeCard\WalletPassService;
 use App\Services\Home\Greeter;
 use App\Services\Home\PaydayCalculator;
 use App\Support\HomePortal;
 use App\Support\HrPortal;
+use App\Support\VCard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -92,6 +95,49 @@ class HomeController extends Controller
             ->withoutCookie(HomePortal::SILENT_OFF_COOKIE);
     }
 
+    /**
+     * The signed-in employee's own Apple Wallet pass.
+     *
+     * A home-scoped route rather than the existing `employee.card.wallet`:
+     * EnforceHomePortalHostIsolation only admits the `home.*` namespace, and
+     * widening that to a route which serves ANY token's pass would be a poor
+     * trade on the one host that sits open on unattended desks. This one can
+     * only ever return the pass belonging to whoever is signed in.
+     */
+    public function walletPass(Request $request, WalletPassService $wallet)
+    {
+        $employee = Employee::with(['identityUser', 'branch'])
+            ->where('email', $request->user()->email)
+            ->where('status', 'active')
+            ->first();
+
+        abort_unless($employee && $employee->card_token, 404, 'No employee card is available for your account.');
+
+        if (! $wallet->isConfigured()) {
+            abort(503, 'Apple Wallet is not configured on this server.');
+        }
+
+        $path = $wallet->generate($employee);
+        $filename = Str::slug($employee->name).'.pkpass';
+
+        $response = response()->file($path, [
+            'Content-Type' => 'application/vnd.apple.pkpass',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+
+        // The pass and its extracted PEMs live in a temp dir — clear it once the
+        // response is on the wire, or every download leaks key material to disk.
+        $tmpDir = dirname($path);
+        register_shutdown_function(function () use ($tmpDir) {
+            if (is_dir($tmpDir)) {
+                array_map('unlink', glob("$tmpDir/*") ?: []);
+                @rmdir($tmpDir);
+            }
+        });
+
+        return $response;
+    }
+
     private function pageData(Request $request): array
     {
         $user = $request->user();
@@ -117,6 +163,11 @@ class HomeController extends Controller
             'payday' => $this->payday->next(),
             'payrollUrl' => config('home_portal.payday.url') ?: HrPortal::url(),
             'cardToken' => $employee?->card_token,
+            // The QR points at the business-card subdomain, which is the
+            // canonical public URL for a card (VCard::cardUrl falls back to the
+            // current host when that subdomain is switched off).
+            'cardUrl' => $employee?->card_token ? VCard::cardUrl($employee->card_token) : null,
+            'walletAvailable' => app(WalletPassService::class)->isConfigured(),
         ];
     }
 

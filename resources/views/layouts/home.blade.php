@@ -591,6 +591,16 @@
     transition:background .2s ease, transform .2s ease, box-shadow .2s ease;
   }
   .wallet-btn:hover{ background:var(--red-700); transform:translateY(-1px); box-shadow:0 10px 24px rgba(236,32,36,.32); }
+  .wallet-btn + .wallet-btn{ margin-top:10px; }
+  .wallet-btn-secondary{
+    background:rgba(255,255,255,.10);
+    border-color:rgba(255,255,255,.24);
+    box-shadow:none;
+  }
+  .wallet-btn-secondary:hover{
+    background:rgba(255,255,255,.20);
+    box-shadow:none;
+  }
   .wallet-btn:focus-visible{ outline:2px solid #fff; outline-offset:3px; }
   .wallet-btn svg{ width:19px; height:19px; flex-shrink:0; }
   .wallet-modal-overlay{
@@ -622,6 +632,13 @@
   .wallet-qr-wrap img{ width:100%; height:auto; aspect-ratio:1; display:block; border-radius:8px; }
   .wallet-employee{ font-size:13px; font-weight:700; color:var(--ink); margin-bottom:3px; }
   .wallet-instruction{ font-size:11.5px; color:var(--ink-soft); margin-bottom:18px; }
+  .wallet-card-url{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-bottom:18px;
+    word-break:break-all;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
   .wallet-close-btn{
     width:100%; border:0; border-radius:10px; padding:11px 16px;
     background:var(--gray-700); color:#fff;

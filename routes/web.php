@@ -284,6 +284,12 @@ if (\App\Support\HomePortal::enabled()) {
             Route::post('/announcements/read', [\App\Http\Controllers\Home\HomeAnnouncementController::class, 'markRead'])
                 ->name('announcements.read');
 
+            // The signed-in employee's own Apple Wallet pass. Home-scoped
+            // rather than reusing employee.card.wallet, which would have to be
+            // allow-listed through host isolation and can serve ANY token.
+            Route::get('/card/wallet', [\App\Http\Controllers\Home\HomeController::class, 'walletPass'])
+                ->name('card.wallet');
+
             Route::get('/tickets/catalog', [\App\Http\Controllers\Home\HomeTicketController::class, 'catalog'])
                 ->name('tickets.catalog');
             // Tighter throttle than the rest: this one leaves the building.
