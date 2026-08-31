@@ -79,14 +79,15 @@ return [
     | Core systems
     |--------------------------------------------------------------------------
     |
-    | The big tiles at the top of the page. These live in config rather than in
-    | the admin_links table on purpose: they are five fixed enterprise systems,
-    | and config cannot be empty on first boot — a table-driven grid would
-    | render blank on day one, on the page every PC opens on.
+    | The big tiles at the top of the page. The LIST lives here rather than in the
+    | database on purpose: config cannot be empty on first boot, and a
+    | table-driven grid would render blank on day one — on the page every PC
+    | opens on. The ADDRESSES live in settings (`home_portal_urls`) so changing
+    | where a tile points is not a deploy; see App\Services\Home\CoreSystems.
     |
-    | `key` drives the icon and any special behaviour (`servicedesk` opens the
-    | ticket modal instead of navigating; `hr` resolves to the HR portal host).
-    | An entry with no URL is hidden rather than rendered as a dead tile.
+    | `key` drives the icon and any special behaviour — `servicedesk` opens the
+    | ticket modal instead of navigating. An entry with no URL is hidden rather
+    | than rendered as a dead tile, so leaving one blank switches it off.
     |
     */
 
@@ -102,12 +103,6 @@ return [
             'name' => 'Oracle ERP',
             'meta' => 'Finance, procurement & operations',
             'url' => env('HOME_PORTAL_URL_ORACLE'),
-        ],
-        [
-            'key' => 'hr',
-            'name' => 'E-Services (HR)',
-            'meta' => 'Requests, documents & profile',
-            'url' => null, // resolves to the HR portal host
         ],
         [
             'key' => 'salesforce',

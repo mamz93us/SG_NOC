@@ -3,7 +3,6 @@
 namespace App\Services\Home;
 
 use App\Models\Setting;
-use App\Support\HrPortal;
 
 /**
  * The "Core systems" tiles on the employee home portal.
@@ -17,8 +16,8 @@ use App\Support\HrPortal;
  */
 class CoreSystems
 {
-    /** Tiles whose destination is not a plain URL. */
-    private const SPECIAL = ['servicedesk', 'hr'];
+    /** Tiles whose destination is not a plain URL, so Settings offers no field. */
+    private const SPECIAL = ['servicedesk'];
 
     /**
      * Every configured tile, with its resolved URL — including ones with no
@@ -74,12 +73,6 @@ class CoreSystems
         // The service desk opens a modal in-page and never navigates.
         if ($key === 'servicedesk') {
             return null;
-        }
-
-        // HR resolves to the HR portal host rather than a stored address, so it
-        // follows HR_PORTAL_DOMAIN and cannot drift out of step with it.
-        if ($key === 'hr') {
-            return HrPortal::enabled() ? HrPortal::url() : null;
         }
 
         $override = trim((string) ($overrides[$key] ?? ''));
