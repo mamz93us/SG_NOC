@@ -74,8 +74,8 @@ The API takes bare numeric IDs (`ticketCategory: 8`, `ticketSubCategory: 40`,
 ### Categories come from the API
 
 ```
-GET {base}/getCategories                  → categories, subCategories nested
-GET {base}/getSubCategories?categoryId=N  → the flat list for one category
+GET {base}/getCategoriesForNOC                  → categories, subCategories nested
+GET {base}/getSubCategoriesForNOC?categoryId=N  → the flat list for one category
 Header: X-API-Key: <same key as the submit>
 ```
 
@@ -83,9 +83,16 @@ Header: X-API-Key: <same key as the submit>
 — the three endpoints are siblings under `.../ticketing/api`, so one setting
 keeps everything pointed at test or production. There is no second URL field.
 
-`getCategories` returns the sub-categories nested, so one call is normally
-enough; `getSubCategories` is only called for a category whose payload omits the
-nested key entirely.
+**The `ForNOC` suffix is not optional.** There is also a plain
+`getCategories` / `getSubCategories` pair on the same base. Those are guarded by
+a **JWT bearer token** and answer our X-API-Key with
+`401 No authorization token provided` — send the key as `Authorization: Bearer`
+and they get as far as *"Invalid JWT serialization: Missing dot delimiter(s)"*.
+Only the ForNOC variants take the same key as `addTicketingRequestForNOC`.
+
+`getCategoriesForNOC` returns the sub-categories nested, so one call is normally
+enough; `getSubCategoriesForNOC` is only called for a category whose payload
+omits the nested key entirely.
 
 ```json
 [{

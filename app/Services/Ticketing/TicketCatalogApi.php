@@ -12,9 +12,14 @@ use RuntimeException;
  * Pulls the category / sub-category tree from the ticketing API instead of the
  * hand-maintained JSON in Admin → Settings.
  *
- *   GET {base}/getCategories                  → categories, each with a nested
- *                                               subCategories array
- *   GET {base}/getSubCategories?categoryId=N  → the flat list for one category
+ *   GET {base}/getCategoriesForNOC                  → categories, each with a
+ *                                                     nested subCategories array
+ *   GET {base}/getSubCategoriesForNOC?categoryId=N  → the flat list for one category
+ *
+ * The **ForNOC** suffix matters. The plain `getCategories` /
+ * `getSubCategories` are a different pair guarded by a JWT bearer token; they
+ * answer an X-API-Key with 401 "No authorization token provided". Only the
+ * ForNOC variants take the same X-API-Key as `addTicketingRequestForNOC`.
  *
  * `{base}` is derived from the configured submit URL by dropping its last path
  * segment — the three endpoints are siblings under `.../ticketing/api`, so one
@@ -31,6 +36,11 @@ use RuntimeException;
 class TicketCatalogApi
 {
     public const CACHE_PREFIX = 'noc_ticket_catalog_api:';
+
+    /** Siblings of the submit endpoint. The ForNOC suffix is not optional — see the class docblock. */
+    public const ENDPOINT_CATEGORIES = '/getCategoriesForNOC';
+
+    public const ENDPOINT_SUBCATEGORIES = '/getSubCategoriesForNOC';
 
     /** Long enough that the form never waits on the API, short enough to pick up edits the same day. */
     public const TTL_SECONDS = 21600; // 6 hours
@@ -110,10 +120,10 @@ class TicketCatalogApi
             throw new RuntimeException('No API endpoint URL is configured, so there is nothing to fetch from.');
         }
 
-        $categories = $this->normalizeCategories($this->get($settings, $base.'/getCategories'));
+        $categories = $this->normalizeCategories($this->get($settings, $base.self::ENDPOINT_CATEGORIES));
 
         if ($categories === []) {
-            throw new RuntimeException('getCategories returned no usable categories.');
+            throw new RuntimeException('getCategoriesForNOC returned no usable categories.');
         }
 
         // A payload that omits the nested list entirely means this deployment
@@ -122,7 +132,7 @@ class TicketCatalogApi
         foreach ($categories as $i => $category) {
             if ($category['subcategories'] === null) {
                 $categories[$i]['subcategories'] = $this->normalizeSubcategories(
-                    $this->get($settings, $base.'/getSubCategories', ['categoryId' => $category['id']]),
+                    $this->get($settings, $base.self::ENDPOINT_SUBCATEGORIES, ['categoryId' => $category['id']]),
                     $category['id'],
                 );
             }

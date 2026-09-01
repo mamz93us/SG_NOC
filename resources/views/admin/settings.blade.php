@@ -844,7 +844,7 @@
                 </div>
                 <div class="text-muted">
                     @if($nocTicketLookupBase)
-                        <code>{{ $nocTicketLookupBase }}/getCategories</code>
+                        <code>{{ $nocTicketLookupBase.\App\Services\Ticketing\TicketCatalogApi::ENDPOINT_CATEGORIES }}</code>
                     @else
                         Set the endpoint URL below first &mdash; the lookup endpoints are its siblings.
                     @endif
@@ -917,7 +917,7 @@
                     @error('noc_ticket_catalog') <span class="invalid-feedback">{{ $message }}</span> @enderror
                     <div class="form-text">
                         <strong>Categories and sub-categories come from the API</strong>
-                        (<code>getCategories</code>) &mdash; anything under <code>categories</code> here is only
+                        (<code>getCategoriesForNOC</code>) &mdash; anything under <code>categories</code> here is only
                         used when that call fails. <strong>Types and priorities still live here</strong>: the API
                         stamps each sub-category with a bare <code>typeId</code> / <code>priorityId</code> but
                         publishes no list to turn those into names, so an id with no entry below shows up as

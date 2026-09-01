@@ -48,7 +48,7 @@
         <i class="bi bi-list-ul fs-5"></i>
         <div class="small">
             The ticket catalog is empty, so there are no categories, types or priorities to choose from.
-            Categories normally come straight from the ticketing API's <code>getCategories</code> endpoint;
+            Categories normally come straight from the ticketing API's <code>getCategoriesForNOC</code> endpoint;
             when that call fails the hand-maintained JSON in Settings is used instead.
             @if($catalogError)
                 <div class="mt-1 font-monospace">Last API error: {{ $catalogError }}</div>
