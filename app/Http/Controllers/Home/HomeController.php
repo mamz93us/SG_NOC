@@ -209,6 +209,9 @@ class HomeController extends Controller
             // being slow must not be felt here.
             'openTicketCount' => app(TicketRequestService::class)->liveCountFor((string) $user->email),
             'trainingUrl' => $settings->knowbe4_training_url ?: null,
+            // Outlook on the web. Blank in config hides the card rather than
+            // shipping a tile that goes nowhere.
+            'webmailUrl' => trim((string) config('home_portal.webmail_url')) ?: null,
             'walletQrUrl' => ($walletAvailable && $employee)
                 ? URL::temporarySignedRoute(
                     'home.card.pass',

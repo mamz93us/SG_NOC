@@ -90,25 +90,19 @@
 <div class="portal-main">
 
     {{-- ─── Core systems ──────────────────────────────────────── --}}
-    <p class="section-label">Core systems</p>
-    <div class="grid-primary">
-        @foreach($coreSystems as $sys)
-            {{-- The service desk opens a modal, so it is a <button>; every other
-                 tile navigates, so it is an <a>. Written out twice rather than
-                 interpolating the tag name — a dynamic closing tag is the kind
-                 of thing that renders fine until someone edits one half of it. --}}
-            @if($sys['key'] === 'servicedesk')
-                <button type="button" class="card" id="itServiceDeskCard"
-                        aria-label="Open {{ $sys['name'] }}">
-                    <div class="icon-wrap">
-                        @include('home.partials.system-icon', ['key' => $sys['key']])
-                    </div>
-                    <h3>{{ $sys['name'] }}</h3>
-                    @if(! empty($sys['meta']))
-                        <p class="meta">{{ $sys['meta'] }}</p>
-                    @endif
-                </button>
-            @else
+    @php
+        // The service desk is rendered by the combined card in Quick access
+        // instead — raising a ticket and tracking one belong together — so it
+        // is filtered out here rather than removed from config, which the
+        // Settings screen also reads.
+        $serviceDesk = collect($coreSystems)->firstWhere('key', 'servicedesk');
+        $otherSystems = collect($coreSystems)->reject(fn ($s) => $s['key'] === 'servicedesk');
+    @endphp
+
+    @if($otherSystems->isNotEmpty())
+        <p class="section-label">Core systems</p>
+        <div class="grid-primary">
+            @foreach($otherSystems as $sys)
                 <a class="card" href="{{ $sys['url'] }}" target="_blank" rel="noopener noreferrer"
                    aria-label="Open {{ $sys['name'] }}">
                     <div class="icon-wrap">
@@ -119,13 +113,120 @@
                         <p class="meta">{{ $sys['meta'] }}</p>
                     @endif
                 </a>
-            @endif
-        @endforeach
-    </div>
+            @endforeach
+        </div>
+    @endif
 
     {{-- ─── Quick access ──────────────────────────────────────── --}}
     <p class="section-label" style="margin-top:34px;">Quick access</p>
     <div class="grid-secondary">
+
+        {{-- Raising a ticket and tracking one are the same errand, so they share
+             a card. A <div>, not a link: it holds two separate actions, and
+             nesting a button inside an anchor is invalid and breaks keyboard
+             use. The modal binds to #itServiceDeskCard, which is the button. --}}
+        <div class="svc-card">
+            <a class="svc-count" href="{{ route('home.tickets.index') }}"
+               aria-label="View my tickets">
+                <span class="n {{ $openTicketCount > 0 ? 'has-open' : '' }}">{{ $openTicketCount }}</span>
+                <span class="l">{{ $openTicketCount === 1 ? 'Open ticket' : 'Open tickets' }}</span>
+            </a>
+            <div class="svc-body">
+                <h3>IT Service Desk</h3>
+                <p>
+                    @if($openTicketCount > 0)
+                        {{ $openTicketCount }} {{ \Illuminate\Support\Str::plural('request', $openTicketCount) }}
+                        still with IT. Raise another, or see where yours stand.
+                    @else
+                        Nothing open right now. Raise a ticket and track it here.
+                    @endif
+                </p>
+                <div class="svc-actions">
+                    @if($serviceDesk)
+                        <button type="button" class="svc-btn primary" id="itServiceDeskCard">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+                            Raise a ticket
+                        </button>
+                    @endif
+                    <a class="svc-btn" href="{{ route('home.tickets.index') }}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" stroke-linecap="round"/></svg>
+                        My tickets
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {{-- Security score, next to the service desk: both are "how am I doing
+             with IT" rather than a place to go. --}}
+        @if($security)
+            @php
+                // KnowBe4 risk is 0–100 and HIGHER IS WORSE, so the arc fills as
+                // the score worsens. r=44 → circumference 2πr ≈ 276.5.
+                $riskScore = $security->risk_score;
+                $riskPct = $riskScore === null ? 0 : max(0, min(100, $riskScore)) / 100;
+                $riskDash = round(276.5 * $riskPct, 1);
+            @endphp
+            <div class="risk-card" tabindex="0" role="group" aria-label="Your security score">
+                <div class="risk-head">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3.5 19 6v5.4c0 4.3-2.9 7.5-7 8.6-4.1-1.1-7-4.3-7-8.6V6l7-2.5Z" stroke-linejoin="round"/><path d="M9 12.2l2 2 4-4.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <h3>Security Score</h3>
+                    <span class="src">KnowBe4 · only you see this</span>
+                </div>
+
+                <div class="risk-main">
+                    <div class="risk-gauge">
+                        <svg width="104" height="104" viewBox="0 0 104 104" aria-hidden="true">
+                            <circle class="g-bg" cx="52" cy="52" r="44"></circle>
+                            <circle class="g-fg {{ $security->riskClass() }}" cx="52" cy="52" r="44"
+                                    stroke-dasharray="{{ $riskDash }} 276.5"></circle>
+                        </svg>
+                        <div class="g-center">
+                            <span class="v {{ $security->riskClass() }}">{{ $security->riskLabel() }}</span>
+                            <span class="u">risk</span>
+                        </div>
+                    </div>
+
+                    <div class="risk-side">
+                        <div class="risk-band {{ $security->riskClass() }}">
+                            {{ ucfirst($security->riskBand()) }} risk
+                            <span class="hint">
+                                @switch($security->riskBand())
+                                    @case('low') Nothing to do — keep it up. @break
+                                    @case('medium') A few habits to tighten up. @break
+                                    @case('high') Worth some attention. Lower is better. @break
+                                    @default Not scored yet.
+                                @endswitch
+                            </span>
+                        </div>
+                        <div class="risk-figs">
+                            <div class="stat">
+                                <span class="stat-num">{{ $security->phish_fail_count }}</span>
+                                <span class="stat-lbl">Phishing Fails</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-num {{ $security->trainings_outstanding > 0 ? 'risk-medium' : '' }}">{{ $security->trainings_outstanding }}</span>
+                                <span class="stat-lbl">Training Due</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @if($security->trainings_outstanding > 0)
+                    <div class="training-due">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 8.5v4.5M12 16.2v.05" stroke-linecap="round"/><path d="M10.3 4.3 2.9 17.1A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.9L13.7 4.3a2 2 0 0 0-3.4 0Z" stroke-linejoin="round"/></svg>
+                        <span>
+                            You have <strong>{{ $security->trainings_outstanding }}</strong>
+                            security {{ \Illuminate\Support\Str::plural('course', $security->trainings_outstanding) }} outstanding.
+                            @if($trainingUrl)
+                                <a href="{{ $trainingUrl }}" target="_blank" rel="noopener noreferrer">Start now &rarr;</a>
+                            @else
+                                Check your KnowBe4 email for the link.
+                            @endif
+                        </span>
+                    </div>
+                @endif
+            </div>
+        @endif
 
         <a class="card payroll-card span-2" href="{{ $payrollUrl }}" target="_blank" rel="noopener noreferrer"
            aria-label="View payroll details">
@@ -157,6 +258,17 @@
                 </div>
             </div>
         </a>
+
+        @if($webmailUrl)
+            <a class="card span-1" href="{{ $webmailUrl }}" target="_blank" rel="noopener noreferrer"
+               aria-label="Open Outlook Mail on the web">
+                <div class="icon-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="M3.2 6.6 12 12.8l8.8-6.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <h3>Outlook Mail</h3>
+                <p class="meta">Your inbox in the browser</p>
+            </a>
+        @endif
 
         <a class="card span-1" href="{{ route('home.announcements') }}" aria-label="Open Company Calendar">
             <div class="icon-wrap">
@@ -196,23 +308,6 @@
             </p>
         </a>
 
-        <a class="card span-1" href="{{ route('home.tickets.index') }}" aria-label="View My Tickets">
-            <div class="icon-wrap">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 9.2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2.2a2.3 2.3 0 0 0 0 4.6V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3.2a2.3 2.3 0 0 0 0-4.6Z" stroke-linejoin="round"/><path d="M14 5v14" stroke-linecap="round" stroke-dasharray="2 3"/></svg>
-                @if($openTicketCount > 0)
-                    <span class="badge red">{{ $openTicketCount }}</span>
-                @endif
-            </div>
-            <h3>My Tickets</h3>
-            <p class="meta">
-                @if($openTicketCount > 0)
-                    {{ $openTicketCount }} still open with IT
-                @else
-                    Track what you have raised with IT
-                @endif
-            </p>
-        </a>
-
         <a class="card span-1" href="{{ route('home.directory') }}" aria-label="Open Employees Directory">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="9" cy="8.5" r="2.6"/><path d="M4 18.2c.7-3 2.6-4.6 5-4.6s4.3 1.6 5 4.6" stroke-linecap="round"/><path d="M15.5 8.5h4.5M15.5 12h4.5M15.5 15.5h3" stroke-linecap="round"/></svg>
@@ -241,46 +336,6 @@
                 </p>
             </div>
         </a>
-
-        @if($security)
-            <div class="card span-2 security-card" tabindex="0" role="group" aria-label="Your security score">
-                <div class="icon-wrap security-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3.5 19 6v5.4c0 4.3-2.9 7.5-7 8.6-4.1-1.1-7-4.3-7-8.6V6l7-2.5Z" stroke-linejoin="round"/><path d="M9 12.2l2 2 4-4.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </div>
-                <h3>Security Score</h3>
-                <div class="security-stats">
-                    <div class="stat">
-                        <span class="stat-num {{ $security->riskClass() }}">{{ $security->riskLabel() }}</span>
-                        <span class="stat-lbl">Risk Score</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-num">{{ $security->phish_fail_count }}</span>
-                        <span class="stat-lbl">Phishing Fails</span>
-                    </div>
-                    @if($security->trainings_outstanding > 0)
-                        <div class="stat">
-                            <span class="stat-num risk-medium">{{ $security->trainings_outstanding }}</span>
-                            <span class="stat-lbl">Training Due</span>
-                        </div>
-                    @endif
-                </div>
-                @if($security->trainings_outstanding > 0)
-                    <div class="training-due">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 8.5v4.5M12 16.2v.05" stroke-linecap="round"/><path d="M10.3 4.3 2.9 17.1A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.9L13.7 4.3a2 2 0 0 0-3.4 0Z" stroke-linejoin="round"/></svg>
-                        <span>
-                            You have <strong>{{ $security->trainings_outstanding }}</strong>
-                            security {{ \Illuminate\Support\Str::plural('course', $security->trainings_outstanding) }} outstanding.
-                            @if($trainingUrl)
-                                <a href="{{ $trainingUrl }}" target="_blank" rel="noopener noreferrer">Start now &rarr;</a>
-                            @else
-                                Check your KnowBe4 email for the link.
-                            @endif
-                        </span>
-                    </div>
-                @endif
-                <p class="meta small">Source: KnowBe4 · only you can see this</p>
-            </div>
-        @endif
 
     </div>
 </div>

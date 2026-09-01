@@ -91,8 +91,26 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Webmail
+    |--------------------------------------------------------------------------
+    |
+    | Outlook on the web, in Quick access. Not a core-system tile: those are
+    | line-of-business applications, and mail is the one thing everybody opens
+    | every day regardless of what they do. Blank hides the card.
+    |
+    */
+
+    'webmail_url' => env('HOME_PORTAL_WEBMAIL_URL', 'https://outlook.office.com/mail/'),
+
     'core_systems' => [
         [
+            // Rendered by the combined "IT Service Desk" card in Quick access —
+            // raising a ticket and tracking one belong together — so this entry
+            // is skipped in the Core systems grid. It stays here because
+            // CoreSystems::visible() and the Settings screen both read this
+            // list, and because the card is only built when the tile exists.
             'key' => 'servicedesk',
             'name' => 'IT Service Desk',
             'meta' => 'Raise or track a support ticket',

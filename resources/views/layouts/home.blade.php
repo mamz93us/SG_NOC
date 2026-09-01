@@ -371,6 +371,88 @@
   .training-due a{ font-weight:700; color:#7A5B00; text-decoration:underline; }
 
   /* ===== Payroll card ===== */
+  /* ── IT Service Desk: raise + track in one card ──────────────────
+     A plain <div>, not a card-wide link: it holds two separate actions
+     (a modal trigger and a link), and nesting those inside an anchor is
+     invalid and unusable by keyboard. */
+  .svc-card{
+    grid-column:span 2;
+    background:var(--card); border:1px solid var(--line); border-radius:18px;
+    box-shadow:var(--shadow); padding:22px 24px;
+    display:flex; align-items:center; gap:22px; min-height:150px;
+  }
+  .svc-card:hover{ box-shadow:var(--shadow-hover); }
+  .svc-count{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-decoration:none; color:inherit; flex:0 0 auto;
+    min-width:104px; padding:12px 14px; border-radius:14px; background:var(--bg);
+  }
+  .svc-count:hover{ background:#EDEDEF; }
+  .svc-count .n{ font-size:38px; font-weight:800; line-height:1; color:var(--ink); }
+  .svc-count .n.has-open{ color:var(--red-600); }
+  .svc-count .l{
+    font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase;
+    color:var(--ink-soft); margin-top:6px; text-align:center;
+  }
+  .svc-body{ flex:1; min-width:0; }
+  .svc-body h3{ font-size:16.5px; font-weight:600; color:var(--ink); }
+  .svc-body p{ font-size:13px; color:var(--ink-soft); margin-top:5px; }
+  .svc-actions{ display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .svc-btn{
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:13px; font-weight:600; font-family:inherit;
+    border-radius:10px; padding:9px 15px; cursor:pointer;
+    border:1px solid var(--line); background:#fff; color:var(--ink); text-decoration:none;
+  }
+  .svc-btn:hover{ border-color:var(--gray-500); }
+  .svc-btn.primary{ background:var(--red-600); border-color:var(--red-600); color:#fff; }
+  .svc-btn.primary:hover{ filter:brightness(1.07); }
+  .svc-btn svg{ width:15px; height:15px; }
+  @media (max-width:560px){
+    .svc-card{ flex-direction:column; align-items:flex-start; }
+    .svc-count{ flex-direction:row; gap:10px; min-width:0; }
+    .svc-count .l{ margin-top:0; }
+  }
+
+  /* ── Security score: a gauge, not a footnote ─────────────────────
+     KnowBe4 risk is 0–100 and HIGHER IS WORSE, so the arc fills as the
+     score gets worse and the colour bands match Knowbe4Score::riskBand(). */
+  .risk-card{
+    grid-column:span 2;
+    background:var(--card); border:1px solid var(--line); border-radius:18px;
+    box-shadow:var(--shadow); padding:22px 24px; min-height:150px;
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .risk-head{ display:flex; align-items:center; gap:10px; }
+  .risk-head h3{ font-size:16.5px; font-weight:600; color:var(--ink); }
+  .risk-head svg{ width:20px; height:20px; color:var(--red-600); }
+  .risk-head .src{ margin-left:auto; font-size:11px; color:var(--ink-soft); }
+  .risk-main{ display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
+  .risk-gauge{ position:relative; width:104px; height:104px; flex:0 0 auto; }
+  .risk-gauge svg{ transform:rotate(-90deg); }
+  .risk-gauge .g-bg{ fill:none; stroke:var(--bg); stroke-width:9; }
+  .risk-gauge .g-fg{ fill:none; stroke-width:9; stroke-linecap:round; transition:stroke-dashoffset .6s ease; }
+  .risk-gauge .g-fg.risk-low{ stroke:var(--green); }
+  .risk-gauge .g-fg.risk-medium{ stroke:var(--amber); }
+  .risk-gauge .g-fg.risk-high{ stroke:var(--red-600); }
+  .risk-gauge .g-center{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:1px;
+  }
+  .risk-gauge .g-center .v{ font-size:26px; font-weight:800; line-height:1; }
+  .risk-gauge .g-center .v.risk-low{ color:var(--green); }
+  .risk-gauge .g-center .v.risk-medium{ color:var(--amber); }
+  .risk-gauge .g-center .v.risk-high{ color:var(--red-600); }
+  .risk-gauge .g-center .u{ font-size:10px; color:var(--ink-soft); }
+  .risk-side{ flex:1; min-width:170px; display:flex; flex-direction:column; gap:12px; }
+  .risk-band{ font-size:14px; font-weight:700; }
+  .risk-band.risk-low{ color:var(--green); }
+  .risk-band.risk-medium{ color:var(--amber); }
+  .risk-band.risk-high{ color:var(--red-600); }
+  .risk-band .hint{ display:block; font-size:12px; font-weight:400; color:var(--ink-soft); margin-top:3px; }
+  .risk-figs{ display:flex; gap:24px; }
+  .risk-figs .stat{ display:flex; flex-direction:column; gap:2px; }
+
   .payroll-card{
     background:linear-gradient(150deg, var(--gray-800) 0%, var(--gray-700) 55%, var(--gray-600) 100%);
     border:none;
@@ -669,6 +751,7 @@
     .grid-primary{ grid-template-columns:repeat(2,1fr); }
     .grid-secondary{ grid-template-columns:repeat(2,1fr); }
     .card.span-2{ grid-column:span 2; }
+    .svc-card, .risk-card{ grid-column:span 2; }
     .portal-layout{ flex-direction:column; }
     .id-card-aside{ width:100%; max-width:380px; position:static; padding-top:0; }
   }
@@ -679,6 +762,7 @@
     .grid-primary{ grid-template-columns:1fr; }
     .grid-secondary{ grid-template-columns:1fr; }
     .card.span-2{ grid-column:span 1; }
+    .svc-card, .risk-card{ grid-column:span 1; }
     .id-card-aside{ max-width:none; }
     .payroll-card{ flex-direction:column; align-items:flex-start; }
     .ann-slide{ padding-right:clamp(22px,3vw,30px); padding-bottom:40px; }
