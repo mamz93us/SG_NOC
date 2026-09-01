@@ -214,10 +214,11 @@ Two things sit between the NOC and this API, and both bite silently.
 **DNS.** The NOC resolves through the internal AD DNS, which is authoritative
 for `samirgroup.com` and holds no `sgprd` / `sgapps-test` records — those live
 only in the public zone. Without a fix every call dies as
-`cURL error 6: Could not resolve host`. A systemd-resolved routing domain sends
-just those two names to Azure's resolver: see
-[deployment/dns/README.md](deployment/dns/README.md). The real fix is records in
-the internal zone.
+`cURL error 6: Could not resolve host`. A dnsmasq forwarder sends just those two
+names to a public resolver and leaves everything else on the AD servers: see
+[deployment/dns/README.md](deployment/dns/README.md), which also records why the
+obvious systemd-resolved routing-domain approach fails intermittently. The real
+fix is records in the internal zone.
 
 **WAF.** `sgprd` is behind Oracle Cloud (Zenedge) and currently answers the NOC
 with `403 Access Rules-403 — "Access blocked by website owner"`, naming

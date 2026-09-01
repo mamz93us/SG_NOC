@@ -1,4 +1,0 @@
-# Dummy link that exists only to carry a DNS scope — see 10-dnsalt.network.
-[NetDev]
-Name=dnsalt
-Kind=dummy
