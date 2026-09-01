@@ -17,13 +17,15 @@ class Knowbe4Score extends Model
 
     protected $fillable = [
         'kb4_user_id', 'email', 'employee_id',
-        'risk_score', 'phish_fail_count', 'phish_sent_count',
+        'risk_score', 'phish_prone_percentage',
+        'phish_fail_count', 'phish_sent_count',
         'trainings_completed', 'trainings_outstanding',
         'status', 'last_phish_failed_at', 'synced_at',
     ];
 
     protected $casts = [
         'risk_score' => 'float',
+        'phish_prone_percentage' => 'float',
         'phish_fail_count' => 'integer',
         'phish_sent_count' => 'integer',
         'trainings_completed' => 'integer',
@@ -72,5 +74,59 @@ class Knowbe4Score extends Model
         return $this->risk_score === null
             ? '—'
             : rtrim(rtrim(number_format($this->risk_score, 1), '0'), '.');
+    }
+
+    /**
+     * Phish-Prone Percentage — the share of simulated phishing emails this
+     * person failed, 0–100, straight from KnowBe4.
+     *
+     * This is what the portal leads with rather than the risk score: it says
+     * one concrete thing ("you clicked 2 of 6") where the risk score is an
+     * opaque composite. Like risk, HIGHER IS WORSE.
+     *
+     * KnowBe4's own published benchmarks put an untrained organisation around
+     * 34%, ~18% after 90 days of training and ~5% after a year, which is where
+     * the bands below come from.
+     */
+    public function pppBand(): string
+    {
+        $ppp = $this->phish_prone_percentage;
+
+        if ($ppp === null) {
+            return 'unknown';
+        }
+
+        return match (true) {
+            $ppp < 10 => 'low',
+            $ppp < 30 => 'medium',
+            default => 'high',
+        };
+    }
+
+    public function pppClass(): string
+    {
+        return match ($this->pppBand()) {
+            'low' => 'risk-low',
+            'medium' => 'risk-medium',
+            'high' => 'risk-high',
+            default => '',
+        };
+    }
+
+    /** "12.5" rather than "12.50" — trailing zeros read as false precision. */
+    public function pppLabel(): string
+    {
+        return $this->phish_prone_percentage === null
+            ? '—'
+            : rtrim(rtrim(number_format($this->phish_prone_percentage, 1), '0'), '.');
+    }
+
+    /**
+     * Never phished, so a percentage would be meaningless. Distinct from a
+     * genuine 0%, which is a good result worth showing.
+     */
+    public function hasBeenPhished(): bool
+    {
+        return $this->phish_prone_percentage !== null && $this->phish_sent_count > 0;
     }
 }

@@ -160,16 +160,18 @@
              with IT" rather than a place to go. --}}
         @if($security)
             @php
-                // KnowBe4 risk is 0–100 and HIGHER IS WORSE, so the arc fills as
-                // the score worsens. r=44 → circumference 2πr ≈ 276.5.
-                $riskScore = $security->risk_score;
-                $riskPct = $riskScore === null ? 0 : max(0, min(100, $riskScore)) / 100;
-                $riskDash = round(276.5 * $riskPct, 1);
+                // Phish-Prone Percentage: the share of simulated phishing
+                // emails this person failed, 0–100 straight from KnowBe4.
+                // HIGHER IS WORSE, so the arc fills as it worsens.
+                // r=44 → circumference 2πr ≈ 276.5.
+                $ppp = $security->phish_prone_percentage;
+                $pppDash = round(276.5 * (($ppp === null ? 0 : max(0, min(100, $ppp))) / 100), 1);
+                $phished = $security->hasBeenPhished();
             @endphp
-            <div class="risk-card" tabindex="0" role="group" aria-label="Your security score">
+            <div class="risk-card" tabindex="0" role="group" aria-label="Your phishing test results">
                 <div class="risk-head">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3.5 19 6v5.4c0 4.3-2.9 7.5-7 8.6-4.1-1.1-7-4.3-7-8.6V6l7-2.5Z" stroke-linejoin="round"/><path d="M9 12.2l2 2 4-4.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    <h3>Security Score</h3>
+                    <h3>Phish-Prone Score</h3>
                     <span class="src">KnowBe4 · only you see this</span>
                 </div>
 
@@ -177,30 +179,37 @@
                     <div class="risk-gauge">
                         <svg width="104" height="104" viewBox="0 0 104 104" aria-hidden="true">
                             <circle class="g-bg" cx="52" cy="52" r="44"></circle>
-                            <circle class="g-fg {{ $security->riskClass() }}" cx="52" cy="52" r="44"
-                                    stroke-dasharray="{{ $riskDash }} 276.5"></circle>
+                            <circle class="g-fg {{ $security->pppClass() }}" cx="52" cy="52" r="44"
+                                    stroke-dasharray="{{ $pppDash }} 276.5"></circle>
                         </svg>
                         <div class="g-center">
-                            <span class="v {{ $security->riskClass() }}">{{ $security->riskLabel() }}</span>
-                            <span class="u">risk</span>
+                            <span class="v {{ $security->pppClass() }}">{{ $security->pppLabel() }}@if($ppp !== null)<span style="font-size:15px">%</span>@endif</span>
+                            <span class="u">phish-prone</span>
                         </div>
                     </div>
 
                     <div class="risk-side">
-                        <div class="risk-band {{ $security->riskClass() }}">
-                            {{ ucfirst($security->riskBand()) }} risk
+                        <div class="risk-band {{ $security->pppClass() }}">
+                            @switch($security->pppBand())
+                                @case('low') Low @break
+                                @case('medium') Room to improve @break
+                                @case('high') Needs attention @break
+                                @default Not tested yet
+                            @endswitch
                             <span class="hint">
-                                @switch($security->riskBand())
-                                    @case('low') Nothing to do — keep it up. @break
-                                    @case('medium') A few habits to tighten up. @break
-                                    @case('high') Worth some attention. Lower is better. @break
-                                    @default Not scored yet.
-                                @endswitch
+                                @if(! $phished)
+                                    You have not been sent a simulated phishing email yet.
+                                @else
+                                    You clicked, replied to or entered details on
+                                    <strong>{{ $security->phish_fail_count }}</strong>
+                                    of <strong>{{ $security->phish_sent_count }}</strong>
+                                    simulated phishing {{ \Illuminate\Support\Str::plural('email', $security->phish_sent_count) }}.
+                                @endif
                             </span>
                         </div>
                         <div class="risk-figs">
                             <div class="stat">
-                                <span class="stat-num">{{ $security->phish_fail_count }}</span>
+                                <span class="stat-num {{ $security->phish_fail_count > 0 ? 'risk-high' : '' }}">{{ $security->phish_fail_count }}</span>
                                 <span class="stat-lbl">Phishing Fails</span>
                             </div>
                             <div class="stat">

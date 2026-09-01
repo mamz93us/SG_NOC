@@ -79,7 +79,7 @@ class Knowbe4Controller extends Controller
         return response()->streamDownload(function () use ($request) {
             $out = fopen('php://output', 'w');
             fputcsv($out, [
-                'Name', 'Email', 'Department', 'Branch', 'Risk Score', 'Risk Band',
+                'Name', 'Email', 'Department', 'Branch', 'Phish-Prone %', 'PPP Band', 'Risk Score',
                 'Phishing Fails', 'Phishing Sent', 'Training Completed',
                 'Training Outstanding', 'Status', 'Last Phish Failed', 'Synced At',
             ]);
@@ -94,8 +94,9 @@ class Knowbe4Controller extends Controller
                             $s->email,
                             $s->employee?->department?->name ?? '',
                             $s->employee?->branch?->name ?? '',
+                            $s->phish_prone_percentage,
+                            $s->pppBand(),
                             $s->risk_score,
-                            $s->riskBand(),
                             $s->phish_fail_count,
                             $s->phish_sent_count,
                             $s->trainings_completed,
@@ -122,11 +123,15 @@ class Knowbe4Controller extends Controller
             });
         }
 
-        // Higher is worse, so the bands read the same way round as the card.
+        // Phish-Prone Percentage, matching Knowbe4Score::pppBand() and the
+        // portal card. Higher is worse. `risk_score` is still synced and still
+        // in the CSV, it just is not what this page leads with any more: PPP
+        // says one concrete thing (share of tests failed) where risk is an
+        // opaque composite.
         match ($request->input('band')) {
-            'high' => $query->where('risk_score', '>=', 50),
-            'medium' => $query->whereBetween('risk_score', [25, 49.99]),
-            'low' => $query->where('risk_score', '<', 25),
+            'high' => $query->where('phish_prone_percentage', '>=', 30),
+            'medium' => $query->whereBetween('phish_prone_percentage', [10, 29.99]),
+            'low' => $query->where('phish_prone_percentage', '<', 10),
             default => null,
         };
 
@@ -138,7 +143,7 @@ class Knowbe4Controller extends Controller
 
         // Worst first — this page exists to find people at risk, so the useful
         // rows should be on screen without sorting.
-        return $query->orderByDesc('risk_score')->orderBy('email');
+        return $query->orderByDesc('phish_prone_percentage')->orderBy('email');
     }
 
     private function stats(): array
@@ -147,11 +152,11 @@ class Knowbe4Controller extends Controller
             'total' => Knowbe4Score::count(),
             'matched' => Knowbe4Score::whereNotNull('employee_id')->count(),
             'unmatched' => Knowbe4Score::whereNull('employee_id')->count(),
-            'high' => Knowbe4Score::where('risk_score', '>=', 50)->count(),
-            'medium' => Knowbe4Score::whereBetween('risk_score', [25, 49.99])->count(),
-            'low' => Knowbe4Score::where('risk_score', '<', 25)->count(),
+            'high' => Knowbe4Score::where('phish_prone_percentage', '>=', 30)->count(),
+            'medium' => Knowbe4Score::whereBetween('phish_prone_percentage', [10, 29.99])->count(),
+            'low' => Knowbe4Score::where('phish_prone_percentage', '<', 10)->count(),
             'training_due' => Knowbe4Score::where('trainings_outstanding', '>', 0)->count(),
-            'avg' => round((float) Knowbe4Score::avg('risk_score'), 1),
+            'avg' => round((float) Knowbe4Score::avg('phish_prone_percentage'), 1),
         ];
     }
 }

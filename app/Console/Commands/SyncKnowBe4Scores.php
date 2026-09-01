@@ -178,9 +178,10 @@ class SyncKnowBe4Scores extends Command
                 [
                     'kb4_user_id' => $user['id'] ?? null,
                     'employee_id' => $employeeId,
-                    // The one figure /v1/users actually carries. (It also has
-                    // phish_prone_percentage, which has no column here yet.)
+                    // The two figures /v1/users actually carries. PPP is on a
+                    // 0–100 scale and is what the portal card leads with.
                     'risk_score' => $this->numeric($user['current_risk_score'] ?? null),
+                    'phish_prone_percentage' => $this->numeric($user['phish_prone_percentage'] ?? null),
                     // Everything below is aggregated above, not read off the user.
                     'phish_fail_count' => $failCount[$email] ?? 0,
                     'phish_sent_count' => $sentCount[$email] ?? 0,

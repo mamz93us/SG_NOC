@@ -7,7 +7,8 @@
     <div>
         <h4 class="mb-0 fw-bold"><i class="bi bi-shield-check me-2 text-primary"></i>Security Awareness</h4>
         <small class="text-muted">
-            KnowBe4 risk scores across the company.
+            KnowBe4 Phish-Prone Percentage across the company — the share of simulated
+            phishing emails each person failed.
             @if($settings->knowbe4_last_sync_at)
                 Last synced {{ $settings->knowbe4_last_sync_at->diffForHumans() }}.
             @else
@@ -59,10 +60,10 @@
     @php
         $tiles = [
             ['label' => 'People',        'value' => $stats['total'],        'cls' => 'text-body'],
-            ['label' => 'Average risk',  'value' => $stats['avg'],          'cls' => 'text-body'],
-            ['label' => 'High risk',     'value' => $stats['high'],         'cls' => 'text-danger'],
-            ['label' => 'Medium risk',   'value' => $stats['medium'],       'cls' => 'text-warning-emphasis'],
-            ['label' => 'Low risk',      'value' => $stats['low'],          'cls' => 'text-success'],
+            ['label' => 'Average PPP',   'value' => $stats['avg'] . '%',    'cls' => 'text-body'],
+            ['label' => 'High (30%+)',   'value' => $stats['high'],         'cls' => 'text-danger'],
+            ['label' => 'Medium (10-30%)', 'value' => $stats['medium'],     'cls' => 'text-warning-emphasis'],
+            ['label' => 'Low (<10%)',    'value' => $stats['low'],          'cls' => 'text-success'],
             ['label' => 'Training due',  'value' => $stats['training_due'], 'cls' => 'text-warning-emphasis'],
             ['label' => 'Unmatched',     'value' => $stats['unmatched'],    'cls' => 'text-muted'],
         ];
@@ -101,10 +102,10 @@
             </div>
             <div class="col-md-3">
                 <select name="band" class="form-select form-select-sm">
-                    <option value="">All risk levels</option>
-                    <option value="high" @selected($band === 'high')>High (50+)</option>
-                    <option value="medium" @selected($band === 'medium')>Medium (25–49)</option>
-                    <option value="low" @selected($band === 'low')>Low (under 25)</option>
+                    <option value="">All phish-prone levels</option>
+                    <option value="high" @selected($band === 'high')>High (30%+)</option>
+                    <option value="medium" @selected($band === 'medium')>Medium (10–30%)</option>
+                    <option value="low" @selected($band === 'low')>Low (under 10%)</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -134,7 +135,7 @@
                 <tr>
                     <th>Person</th>
                     <th style="min-width:170px">Department</th>
-                    <th style="width:110px">Risk score</th>
+                    <th style="width:120px">Phish-prone</th>
                     <th style="width:120px" class="text-center">Phishing</th>
                     <th style="width:120px" class="text-center">Training due</th>
                     <th style="width:130px">Last failed</th>
@@ -160,14 +161,14 @@
                         </td>
                         <td>
                             @php
-                                $badge = match($s->riskBand()) {
+                                $badge = match($s->pppBand()) {
                                     'high' => 'bg-danger',
                                     'medium' => 'bg-warning text-dark',
                                     'low' => 'bg-success',
                                     default => 'bg-secondary',
                                 };
                             @endphp
-                            <span class="badge {{ $badge }}">{{ $s->riskLabel() }}</span>
+                            <span class="badge {{ $badge }}">{{ $s->pppLabel() }}@if($s->phish_prone_percentage !== null)%@endif</span>
                         </td>
                         <td class="text-center small">
                             @if($s->phish_fail_count > 0)
