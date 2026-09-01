@@ -192,7 +192,9 @@ class HomeController extends Controller
             'events' => $this->events($settings),
             'security' => $this->securityScore($settings, $employee, $user->email),
             'payday' => $this->payday->next(),
-            'payrollUrl' => config('home_portal.payday.url') ?: HrPortal::url(),
+            // Settings first, then the config/env default, then the HR portal.
+            'payrollUrl' => $settings->home_portal_payroll_url
+                ?: (config('home_portal.payday.url') ?: HrPortal::url()),
             'cardToken' => $employee?->card_token,
             // The QR points at the business-card subdomain, which is the
             // canonical public URL for a card (VCard::cardUrl falls back to the

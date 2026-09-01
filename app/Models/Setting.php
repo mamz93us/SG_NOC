@@ -118,6 +118,9 @@ class Setting extends Model
         'company_calendar_mailbox',
         'company_calendar_last_sync_at',
         'home_portal_urls',
+        'home_portal_payday_day',
+        'home_portal_payday_last_working_day',
+        'home_portal_payroll_url',
         // AvePoint Graph API
         'avepoint_enabled',
         'avepoint_base_url',
@@ -230,6 +233,8 @@ class Setting extends Model
         'company_calendar_enabled' => 'boolean',
         'company_calendar_last_sync_at' => 'datetime',
         'home_portal_urls' => 'array',
+        'home_portal_payday_day' => 'integer',
+        'home_portal_payday_last_working_day' => 'boolean',
         'avepoint_enabled' => 'boolean',
         'azure_blob_enabled' => 'boolean',
         'offboarding_enabled' => 'boolean',

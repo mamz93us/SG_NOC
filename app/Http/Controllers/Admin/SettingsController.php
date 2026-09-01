@@ -982,6 +982,10 @@ class SettingsController extends Controller
             'core_urls.*' => 'nullable|url|max:500',
             'knowbe4_training_url' => 'nullable|url|max:500',
             'knowbe4_region' => 'nullable|in:'.implode(',', array_keys(\App\Services\KnowBe4\KnowBe4Service::REGIONS)),
+            'home_portal_payday_day' => 'nullable|integer|min:1|max:31',
+            'home_portal_payroll_url' => 'nullable|url|max:500',
+        ], [
+            'home_portal_payday_day.max' => 'Payday must be a day of the month (1-31). A 31st payday lands on the last day of shorter months.',
         ]);
 
         $settings = Setting::get();
@@ -990,6 +994,8 @@ class SettingsController extends Controller
             'company_calendar_mailbox' => $settings->company_calendar_mailbox,
             'knowbe4_enabled' => (bool) $settings->knowbe4_enabled,
             'knowbe4_region' => $settings->knowbe4_region,
+            'payday_day' => $settings->home_portal_payday_day,
+            'payday_last_working_day' => $settings->home_portal_payday_last_working_day,
         ];
 
         // Blank means "hide this tile", so empties are dropped rather than
@@ -998,6 +1004,14 @@ class SettingsController extends Controller
             ->map(fn ($url) => trim((string) $url))
             ->filter(fn ($url) => $url !== '')
             ->all();
+
+        // Payday. Blank means "fall back to config", which is why this is
+        // stored as null rather than coerced to a number.
+        $settings->home_portal_payday_last_working_day = $request->boolean('home_portal_payday_last_working_day');
+        $settings->home_portal_payday_day = $request->filled('home_portal_payday_day')
+            ? (int) $request->input('home_portal_payday_day')
+            : null;
+        $settings->home_portal_payroll_url = trim((string) $request->input('home_portal_payroll_url')) ?: null;
 
         $settings->company_calendar_enabled = $request->boolean('company_calendar_enabled');
         $settings->company_calendar_mailbox = $request->company_calendar_mailbox;

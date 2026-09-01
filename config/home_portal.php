@@ -65,6 +65,10 @@ return [
     | month salaries land; set `last_working_day` to true to use the last
     | Sun–Thu of the month instead (Egypt/KSA working week).
     |
+    | These are the FALLBACK. Admin → Settings → Employee Home Portal owns the
+    | live values so HR can move payday without a deploy; the columns there are
+    | nullable and null means "use what is below".
+    |
     */
 
     'payday' => [
@@ -73,6 +77,19 @@ return [
         // Where the "My Payroll" card sends people. Defaults to the HR portal.
         'url' => env('HOME_PORTAL_PAYROLL_URL'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Webmail
+    |--------------------------------------------------------------------------
+    |
+    | Outlook on the web, in Quick access. Not a core-system tile: those are
+    | line-of-business applications, and mail is the one thing everybody opens
+    | every day regardless of what they do. Blank hides the card.
+    |
+    */
+
+    'webmail_url' => env('HOME_PORTAL_WEBMAIL_URL', 'https://outlook.office.com/mail/'),
 
     /*
     |--------------------------------------------------------------------------
@@ -90,19 +107,6 @@ return [
     | than rendered as a dead tile, so leaving one blank switches it off.
     |
     */
-
-    /*
-    |--------------------------------------------------------------------------
-    | Webmail
-    |--------------------------------------------------------------------------
-    |
-    | Outlook on the web, in Quick access. Not a core-system tile: those are
-    | line-of-business applications, and mail is the one thing everybody opens
-    | every day regardless of what they do. Blank hides the card.
-    |
-    */
-
-    'webmail_url' => env('HOME_PORTAL_WEBMAIL_URL', 'https://outlook.office.com/mail/'),
 
     'core_systems' => [
         [

@@ -1061,6 +1061,81 @@
 
             <hr class="my-4">
 
+            {{-- ── Payday ───────────────────────────────────────── --}}
+            @php
+                $paydayCalc = app(\App\Services\Home\PaydayCalculator::class);
+                $paydayNext = $paydayCalc->next();
+                $paydayFixed = ! $paydayCalc->usesLastWorkingDay();
+            @endphp
+            <h6 class="fw-semibold mb-2"><i class="bi bi-cash-coin me-1"></i>Payday countdown</h6>
+            <div class="alert alert-secondary py-2 small mb-3">
+                Drives the ring on the portal's <strong>My Payroll</strong> card. It is a
+                <strong>countdown only</strong> &mdash; no salary figure is read, shown or stored
+                anywhere. Leave the day blank to fall back to the value in
+                <code>config/home_portal.php</code>.
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Day of the month</label>
+                    <input type="number" name="home_portal_payday_day" min="1" max="31"
+                           class="form-control @error('home_portal_payday_day') is-invalid @enderror"
+                           value="{{ old('home_portal_payday_day', $settings->home_portal_payday_day) }}"
+                           placeholder="{{ config('home_portal.payday.day', 25) }}">
+                    @error('home_portal_payday_day') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                    <div class="form-text">
+                        A 31st payday lands on the last day of shorter months.
+                        Ignored while the switch below is on.
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Payroll link</label>
+                    <input type="url" name="home_portal_payroll_url"
+                           class="form-control font-monospace @error('home_portal_payroll_url') is-invalid @enderror"
+                           value="{{ old('home_portal_payroll_url', $settings->home_portal_payroll_url) }}"
+                           placeholder="{{ \App\Support\HrPortal::url() }}">
+                    @error('home_portal_payroll_url') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                    <div class="form-text">Where the card sends people. Blank uses the HR portal.</div>
+                </div>
+
+                <div class="col-md-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="home_portal_payday_last_working_day"
+                               name="home_portal_payday_last_working_day" value="1"
+                               {{ old('home_portal_payday_last_working_day', $settings->home_portal_payday_last_working_day) ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="home_portal_payday_last_working_day">
+                            Pay on the last working day of the month instead
+                        </label>
+                    </div>
+                    <div class="form-text">
+                        Last Sunday&ndash;Thursday, so salaries land before the Friday&ndash;Saturday weekend.
+                        Overrides the day above.
+                    </div>
+                </div>
+
+                <div class="col-md-12">
+                    <div class="border rounded p-3 bg-body-tertiary small">
+                        <i class="bi bi-check2-circle text-success me-1"></i>
+                        As configured, the next payday is
+                        <strong>{{ $paydayNext['date']->format('l, j F Y') }}</strong>
+                        &mdash;
+                        @if($paydayNext['days_left'] === 0)
+                            today.
+                        @elseif($paydayNext['days_left'] === 1)
+                            tomorrow.
+                        @else
+                            {{ $paydayNext['days_left'] }} days away.
+                        @endif
+                        <span class="text-muted">
+                            ({{ $paydayFixed ? 'day ' . $paydayCalc->paydayDay() . ' of the month' : 'last working day' }})
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
             {{-- ── Company calendar ─────────────────────────────── --}}
             <h6 class="fw-semibold mb-2"><i class="bi bi-calendar-event me-1"></i>Company Calendar</h6>
             <div class="row g-3 mb-4">

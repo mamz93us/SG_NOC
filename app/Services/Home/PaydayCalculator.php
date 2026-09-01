@@ -2,17 +2,62 @@
 
 namespace App\Services\Home;
 
+use App\Models\Setting;
 use Carbon\CarbonImmutable;
 
 /**
  * Days until the next payday, for the ring on the "My Payroll" card.
  *
  * This is a countdown and nothing more — no salary figure is read, shown or
- * stored. The rule comes from config/home_portal.php: either a fixed day of the
- * month, or the last working day (Sun–Thu, the Egypt/KSA week).
+ * stored. The rule is either a fixed day of the month, or the last working day
+ * (Sun–Thu, the Egypt/KSA week).
+ *
+ * Admin → Settings owns it, so HR can move payday without a deploy. The values
+ * in config/home_portal.php are the fallback for when Settings has never been
+ * touched — null there means "use the config default" rather than "day zero".
  */
 class PaydayCalculator
 {
+    private ?Setting $settings = null;
+
+    /** Read once per instance: this runs on the page every PC opens on. */
+    private function settings(): ?Setting
+    {
+        if ($this->settings === null) {
+            try {
+                $this->settings = Setting::get();
+            } catch (\Throwable) {
+                // A countdown is not worth a 500 on the start page if the
+                // settings row cannot be read; fall through to config.
+                return null;
+            }
+        }
+
+        return $this->settings;
+    }
+
+    /** The configured day of the month, Settings first then config. */
+    public function paydayDay(): int
+    {
+        $day = $this->settings()?->home_portal_payday_day;
+
+        if (! $day) {
+            $day = (int) config('home_portal.payday.day', 25);
+        }
+
+        return max(1, min(31, (int) $day));
+    }
+
+    /** Whether payday is the last working day rather than a fixed date. */
+    public function usesLastWorkingDay(): bool
+    {
+        $setting = $this->settings()?->home_portal_payday_last_working_day;
+
+        return $setting === null
+            ? (bool) config('home_portal.payday.last_working_day', false)
+            : (bool) $setting;
+    }
+
     /**
      * @return array{date:CarbonImmutable, days_left:int, cycle_days:int, progress:float}
      */
@@ -46,12 +91,11 @@ class PaydayCalculator
     /** The payday falling in the month of $ref. */
     private function paydayIn(CarbonImmutable $ref): CarbonImmutable
     {
-        if ((bool) config('home_portal.payday.last_working_day', false)) {
+        if ($this->usesLastWorkingDay()) {
             return $this->lastWorkingDay($ref);
         }
 
-        $day = (int) config('home_portal.payday.day', 25);
-        $day = max(1, min(31, $day));
+        $day = $this->paydayDay();
 
         // A 31st payday in February has to land somewhere — the last day of
         // that month is the only sensible reading.
