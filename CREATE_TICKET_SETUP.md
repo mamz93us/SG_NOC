@@ -159,6 +159,54 @@ than being dropped, so an incomplete map never blocks a submit.
   type/priority each sub-category implies), so a typo surfaces immediately
   instead of emptying the form's dropdowns.
 
+## Reading tickets back
+
+Raising a ticket is half of it; people also want to know where theirs stand.
+Two more sibling endpoints cover that, on the same base URL and the same
+`X-API-Key`:
+
+```
+GET {base}/getTicketingRequestsByStatusForNOC?email=…&requestStatus=…
+GET {base}/getTicketingRequestDetailsForNOC?requestId=…
+```
+
+`requestStatus` is a filter, not only a state:
+
+| Value | Means |
+|---|---|
+| `-1` | Open **and** In Progress |
+| `0` | All |
+| `1`…`7` | Open, In Progress, Waiting for user's action, Completed, Cancelled, Closed, Rejected |
+
+**The list endpoint returns whole ticket objects**, not summaries — the same
+shape `getTicketingRequestDetailsForNOC` gives, timeline and attachments
+included. So the per-status counts come from **one** `requestStatus=0` call
+grouped locally rather than eight calls (`TicketRequestService::summaryFor`).
+An unknown email is a clean `200 []`.
+
+> **Priority is spelled two different ways.** The list says `ticketPriotity`
+> (as the submit payload does) and the details say `ticketPriotiry`. Both are
+> the API's own typos, in different directions; the service reads either.
+
+### Where it shows up
+
+| Page | Who | Notes |
+|---|---|---|
+| `/admin/tickets/tracker` | `create-tickets` **or** `view-tickets` | Counts, status filter, detail page. `create-tickets-for-others` unlocks looking up another address. |
+| home portal `/tickets` | any signed-in employee | Their own only. The start page badges the live count. |
+
+Distinct from `/admin/tickets` (**Ticket Submissions**), which is the NOC's own
+log of submit *attempts* and knows nothing about what happened after.
+
+> **The details endpoint does not check who is asking** — it takes a bare
+> `requestId`. Both controllers therefore confirm the id appears in that
+> person's own list before rendering. Do not remove that check, or either route
+> becomes an enumeration of everyone's tickets.
+
+Lists are cached 60 seconds (people refresh these while waiting); the portal's
+badge count is cached 5 minutes and never throws, because that page is opened
+unattended on every company PC.
+
 ## Network prerequisites (NOC → ticketing)
 
 Two things sit between the NOC and this API, and both bite silently.
