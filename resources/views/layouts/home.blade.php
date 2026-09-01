@@ -52,15 +52,19 @@
   }
   a{color:inherit;}
 
-  /* ===== Header ===== */
-  header{
+  /* ===== Header =====
+     Scoped to the page chrome with `body >`. A bare `header` selector also
+     matches every <header> a page uses for a card or section title, and this
+     rule paints a dark gradient — which is exactly how the ticket page and My
+     Assets ended up with unreadable dark bars where their titles should be. */
+  body > header{
     position:relative;
     flex-shrink:0;
     background:linear-gradient(120deg, var(--gray-900) 0%, var(--gray-800) 55%, var(--gray-700) 100%);
     overflow:hidden;
     padding:22px clamp(20px, 4vw, 56px);
   }
-  header::before{
+  body > header::before{
     content:"";
     position:absolute; inset:0;
     background:
