@@ -159,6 +159,27 @@ than being dropped, so an incomplete map never blocks a submit.
   type/priority each sub-category implies), so a typo surfaces immediately
   instead of emptying the form's dropdowns.
 
+## Network prerequisites (NOC → ticketing)
+
+Two things sit between the NOC and this API, and both bite silently.
+
+**DNS.** The NOC resolves through the internal AD DNS, which is authoritative
+for `samirgroup.com` and holds no `sgprd` / `sgapps-test` records — those live
+only in the public zone. Without a fix every call dies as
+`cURL error 6: Could not resolve host`. A systemd-resolved routing domain sends
+just those two names to Azure's resolver: see
+[deployment/dns/README.md](deployment/dns/README.md). The real fix is records in
+the internal zone.
+
+**WAF.** `sgprd` is behind Oracle Cloud (Zenedge) and currently answers the NOC
+with `403 Access Rules-403 — "Access blocked by website owner"`, naming
+`Your IP address: 20.13.145.161`. The **whole host** is blocked, site root
+included, regardless of path or user agent — a plain IP access rule, nothing to
+do with the API. The NOC's public IP has to be allow-listed at the WAF before
+production answers at all. `sgapps-test` is not blocked.
+
+So: DNS alone gets **test** working end to end; production needs both.
+
 ## Requester identity
 
 The API identifies the requester by **Azure object id**, not by email, so the

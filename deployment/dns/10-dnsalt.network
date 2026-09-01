@@ -1,0 +1,28 @@
+# Split-brain DNS escape hatch. The internal AD DNS (172.16.8.4/.5, set globally
+# in resolved.conf.d/sg-dns.conf with "Domains=~.") is authoritative for
+# samirgroup.com and does not hold the public sgprd / sgapps-test records. The
+# routing domains below are more specific than "~.", so resolved sends just
+# those two names to Azure's resolver and leaves every other query on the AD
+# servers.
+#
+# Two non-obvious requirements:
+#   Address=            without one, resolved treats the link as unroutable and
+#                       silently ignores DNS= (Current Scopes: none). It must be
+#                       a routable address, not 169.254.x — link-local leaves the
+#                       link "degraded" and the scope is still dropped.
+#                       192.0.2.0/24 is TEST-NET-1, reserved and never routed.
+#   RequiredForOnline=no  otherwise systemd-networkd-wait-online blocks on this
+#                       carrier-less dummy at every boot.
+[Match]
+Name=dnsalt
+
+[Link]
+RequiredForOnline=no
+
+[Network]
+Address=192.0.2.1/32
+DNS=168.63.129.16
+Domains=~sgprd.samirgroup.com ~sgapps-test.samirgroup.com
+LinkLocalAddressing=no
+IPv6AcceptRA=no
+ConfigureWithoutCarrier=yes
