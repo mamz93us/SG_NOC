@@ -4,7 +4,6 @@ namespace App\Services\Ticketing;
 
 use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -44,6 +43,8 @@ class TicketCatalogApi
 
     /** Long enough that the form never waits on the API, short enough to pick up edits the same day. */
     public const TTL_SECONDS = 21600; // 6 hours
+
+    public function __construct(private TicketingApiClient $client = new TicketingApiClient) {}
 
     /**
      * The cached category tree, in the shape TicketCatalog::fromArray() eats.
@@ -120,7 +121,7 @@ class TicketCatalogApi
             throw new RuntimeException('No API endpoint URL is configured, so there is nothing to fetch from.');
         }
 
-        $categories = $this->normalizeCategories($this->get($settings, $base.self::ENDPOINT_CATEGORIES));
+        $categories = $this->normalizeCategories($this->get($settings, self::ENDPOINT_CATEGORIES));
 
         if ($categories === []) {
             throw new RuntimeException('getCategoriesForNOC returned no usable categories.');
@@ -132,7 +133,7 @@ class TicketCatalogApi
         foreach ($categories as $i => $category) {
             if ($category['subcategories'] === null) {
                 $categories[$i]['subcategories'] = $this->normalizeSubcategories(
-                    $this->get($settings, $base.self::ENDPOINT_SUBCATEGORIES, ['categoryId' => $category['id']]),
+                    $this->get($settings, self::ENDPOINT_SUBCATEGORIES, ['categoryId' => $category['id']]),
                     $category['id'],
                 );
             }
@@ -184,21 +185,7 @@ class TicketCatalogApi
 
     public static function baseUrlFor(?string $submitUrl): ?string
     {
-        $url = trim((string) $submitUrl);
-
-        if ($url === '') {
-            return null;
-        }
-
-        $trimmed = rtrim($url, '/');
-        $lastSlash = strrpos($trimmed, '/');
-
-        // 8 keeps the "https://" double slash from being mistaken for the path.
-        if ($lastSlash === false || $lastSlash < 8) {
-            return null;
-        }
-
-        return substr($trimmed, 0, $lastSlash);
+        return TicketingApiClient::baseUrlFor($submitUrl);
     }
 
     private function cacheKey(string $base): string
@@ -208,35 +195,9 @@ class TicketCatalogApi
         return self::CACHE_PREFIX.md5($base);
     }
 
-    private function get(Setting $settings, string $url, array $query = []): array
+    private function get(Setting $settings, string $endpoint, array $query = []): array
     {
-        $key = $settings->nocTicketApiKey();
-
-        if (! $key) {
-            throw new RuntimeException('No X-API-Key is configured.');
-        }
-
-        $response = Http::withHeaders([
-            'X-API-Key' => $key,
-            'Accept' => 'application/json',
-        ])->timeout(20)->get($url, $query);
-
-        if (! $response->successful()) {
-            throw new RuntimeException('HTTP '.$response->status().' from '.$url.': '.mb_substr($response->body(), 0, 300));
-        }
-
-        $body = $response->json();
-
-        if (! is_array($body)) {
-            throw new RuntimeException('Expected a JSON array from '.$url.', got: '.mb_substr($response->body(), 0, 200));
-        }
-
-        // Tolerate both a bare array and one wrapped in {"data": [...]}.
-        if (isset($body['data']) && is_array($body['data'])) {
-            $body = $body['data'];
-        }
-
-        return $body;
+        return $this->client->get($endpoint, $query, $settings);
     }
 
     /**

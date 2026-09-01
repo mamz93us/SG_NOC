@@ -329,6 +329,15 @@ if (\App\Support\HomePortal::enabled()) {
 
             Route::get('/tickets/catalog', [\App\Http\Controllers\Home\HomeTicketController::class, 'catalog'])
                 ->name('tickets.catalog');
+
+            // The employee's own tickets, read back from the ticketing system.
+            // Scoped to the session's email inside the controller — `catalog`
+            // is registered above so the {ticket} wildcard cannot swallow it.
+            Route::get('/tickets', [\App\Http\Controllers\Home\HomeTicketController::class, 'index'])
+                ->name('tickets.index');
+            Route::get('/tickets/{ticket}', [\App\Http\Controllers\Home\HomeTicketController::class, 'show'])
+                ->whereNumber('ticket')
+                ->name('tickets.show');
             // Tighter throttle than the rest: this one leaves the building.
             Route::post('/tickets', [\App\Http\Controllers\Home\HomeTicketController::class, 'store'])
                 ->middleware('throttle:10,1')
@@ -607,6 +616,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('tickets.create');
         Route::post('tickets', [\App\Http\Controllers\Admin\NocTicketController::class, 'store'])
             ->name('tickets.store');
+    });
+
+    // My Tickets — read live from the ticketing system, as opposed to
+    // tickets.index below, which is the NOC's own log of submit attempts.
+    // Anyone who may raise a ticket may read their own back, so this is an OR
+    // of the two permissions. Registered BEFORE `tickets/{ticket}` or the
+    // wildcard swallows `tracker`.
+    Route::middleware('permission:create-tickets,view-tickets')->group(function () {
+        Route::get('tickets/tracker', [\App\Http\Controllers\Admin\TicketTrackerController::class, 'index'])
+            ->name('tickets.tracker');
+        Route::get('tickets/tracker/{ticket}', [\App\Http\Controllers\Admin\TicketTrackerController::class, 'show'])
+            ->whereNumber('ticket')
+            ->name('tickets.tracker.show');
     });
 
     Route::middleware('permission:view-tickets')->group(function () {

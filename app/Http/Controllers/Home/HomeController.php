@@ -13,6 +13,7 @@ use App\Services\EmployeeCard\WalletPassService;
 use App\Services\Home\CoreSystems;
 use App\Services\Home\Greeter;
 use App\Services\Home\PaydayCalculator;
+use App\Services\Ticketing\TicketRequestService;
 use App\Support\HomePortal;
 use App\Support\HrPortal;
 use App\Support\VCard;
@@ -203,6 +204,10 @@ class HomeController extends Controller
             // load, and this page sits open all day on an unattended desk.
             'coreSystems' => app(CoreSystems::class)->visible($settings),
             'assetCount' => HomeAssetsController::activeCountFor($employee),
+            // Cached for 5 minutes and never throws — this page is opened
+            // unattended on every company PC, so the ticketing system
+            // being slow must not be felt here.
+            'openTicketCount' => app(TicketRequestService::class)->liveCountFor((string) $user->email),
             'trainingUrl' => $settings->knowbe4_training_url ?: null,
             'walletQrUrl' => ($walletAvailable && $employee)
                 ? URL::temporarySignedRoute(

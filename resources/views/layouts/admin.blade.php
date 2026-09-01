@@ -1113,6 +1113,18 @@
                     </li>
                     @endcan
 
+                    {{-- ── My Tickets: live status from the ticketing system, next to
+                         the form that raises them. Not in the Admin dropdown — this
+                         one is for everybody, not for administrators. ── --}}
+                    @canany(['create-tickets','view-tickets'])
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->routeIs('admin.tickets.tracker*') ? 'active' : '' }}"
+                           href="{{ route('admin.tickets.tracker') }}">
+                            <i class="bi bi-life-preserver me-1"></i>My Tickets
+                        </a>
+                    </li>
+                    @endcanany
+
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
                     @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines','view-knowbe4-scores'])
                     <li class="nav-item dropdown">

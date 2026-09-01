@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\IdentityUser;
 use App\Services\Ticketing\NocTicketService;
 use App\Services\Ticketing\TicketCatalog;
+use App\Services\Ticketing\TicketRequestService;
+use App\Services\Ticketing\TicketStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
 /**
  * The IT Service Desk modal on the home portal.
@@ -24,7 +27,92 @@ use Illuminate\Validation\Rule;
  */
 class HomeTicketController extends Controller
 {
-    public function __construct(private NocTicketService $tickets) {}
+    public function __construct(
+        private NocTicketService $tickets,
+        private TicketRequestService $requests,
+    ) {}
+
+    /**
+     * "My Tickets" — what the ticketing system says about the signed-in
+     * employee's own tickets, with a count of the ones still live.
+     *
+     * Always scoped to the session's own email. There is no id or address in
+     * the URL to tamper with, which is the security model on this host.
+     */
+    public function index(Request $request): View
+    {
+        $email = (string) $request->user()->email;
+
+        $status = (int) $request->input('status', TicketStatus::ALL);
+        if (! in_array($status, TicketStatus::filterable(), true)) {
+            $status = TicketStatus::ALL;
+        }
+
+        $error = null;
+        $tickets = [];
+        $summary = ['total' => 0, 'live' => 0, 'by_status' => [], 'error' => null];
+
+        if (! $this->requests->isConfigured()) {
+            $error = 'The ticketing system is not available right now.';
+        } else {
+            $summary = $this->requests->summaryFor($email);
+            $error = $summary['error'] ? 'The ticketing system did not answer. Please try again shortly.' : null;
+
+            if (! $error) {
+                try {
+                    $tickets = $this->requests->listFor($email, $status);
+                } catch (\Throwable) {
+                    $error = 'The ticketing system did not answer. Please try again shortly.';
+                }
+            }
+        }
+
+        return view('home.tickets', [
+            'tickets' => $tickets,
+            'summary' => $summary,
+            'status' => $status,
+            'error' => $error,
+        ]);
+    }
+
+    /**
+     * One ticket in full.
+     *
+     * The details endpoint takes a bare `requestId` and does not care who is
+     * asking, so ownership is checked here against the employee's own list.
+     * Without that this route would hand anyone's ticket to anyone.
+     */
+    public function show(Request $request, int $ticket): View
+    {
+        abort_unless($this->requests->isConfigured(), 503);
+
+        $email = (string) $request->user()->email;
+
+        try {
+            $owned = false;
+            foreach ($this->requests->listFor($email, TicketStatus::ALL) as $t) {
+                if ($t['id'] === $ticket) {
+                    $owned = true;
+                    break;
+                }
+            }
+        } catch (\Throwable) {
+            // Cannot prove it is theirs -> do not show it.
+            abort(503);
+        }
+
+        abort_unless($owned, 404);
+
+        try {
+            $detail = $this->requests->details($ticket);
+        } catch (\Throwable) {
+            abort(503);
+        }
+
+        abort_if($detail === null, 404);
+
+        return view('home.ticket', ['ticket' => $detail]);
+    }
 
     /**
      * The category tree for the modal's two dropdowns.

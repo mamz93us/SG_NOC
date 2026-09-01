@@ -196,6 +196,23 @@
             </p>
         </a>
 
+        <a class="card span-1" href="{{ route('home.tickets.index') }}" aria-label="View My Tickets">
+            <div class="icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 9.2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2.2a2.3 2.3 0 0 0 0 4.6V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3.2a2.3 2.3 0 0 0 0-4.6Z" stroke-linejoin="round"/><path d="M14 5v14" stroke-linecap="round" stroke-dasharray="2 3"/></svg>
+                @if($openTicketCount > 0)
+                    <span class="badge red">{{ $openTicketCount }}</span>
+                @endif
+            </div>
+            <h3>My Tickets</h3>
+            <p class="meta">
+                @if($openTicketCount > 0)
+                    {{ $openTicketCount }} still open with IT
+                @else
+                    Track what you have raised with IT
+                @endif
+            </p>
+        </a>
+
         <a class="card span-1" href="{{ route('home.directory') }}" aria-label="Open Employees Directory">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="9" cy="8.5" r="2.6"/><path d="M4 18.2c.7-3 2.6-4.6 5-4.6s4.3 1.6 5 4.6" stroke-linecap="round"/><path d="M15.5 8.5h4.5M15.5 12h4.5M15.5 15.5h3" stroke-linecap="round"/></svg>
