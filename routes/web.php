@@ -1963,6 +1963,55 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             });
         });
 
+    // ─── Deployment Servers (SSH terminal + per-server deploy buttons) ──
+    // View is gated by view-deploy-servers, pressing buttons / opening a shell
+    // by run-deploy-commands, and registering a server (which means storing a
+    // private key and defining arbitrary remote shell) by manage-deploy-servers.
+    Route::prefix('deploy')
+        ->name('deploy.')
+        ->group(function () {
+            Route::middleware('permission:view-deploy-servers')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Admin\DeployServerController::class, 'index'])->name('index');
+                Route::get('/runs', [\App\Http\Controllers\Admin\DeployRunController::class, 'index'])->name('runs.index');
+                Route::get('/runs/{run}', [\App\Http\Controllers\Admin\DeployRunController::class, 'show'])
+                    ->whereNumber('run')->name('runs.show');
+                Route::get('/runs/{run}/status', [\App\Http\Controllers\Admin\DeployRunController::class, 'status'])
+                    ->whereNumber('run')->name('runs.status');
+                Route::get('/servers/{server}', [\App\Http\Controllers\Admin\DeployServerController::class, 'show'])
+                    ->whereNumber('server')->name('servers.show');
+            });
+
+            // Launching a session is rate-limited the same way device SSH is.
+            Route::middleware(['permission:run-deploy-commands', 'throttle:60,1'])->group(function () {
+                Route::post('/servers/{server}/terminal', [\App\Http\Controllers\Admin\DeployConsoleController::class, 'shell'])
+                    ->whereNumber('server')->name('terminal');
+                Route::post('/servers/{server}/test', [\App\Http\Controllers\Admin\DeployConsoleController::class, 'test'])
+                    ->whereNumber('server')->name('test');
+                Route::post('/servers/{server}/commands/{command}/run', [\App\Http\Controllers\Admin\DeployConsoleController::class, 'run'])
+                    ->whereNumber('server')->whereNumber('command')->name('run');
+                Route::post('/servers/{server}/runs/{run}/disconnect', [\App\Http\Controllers\Admin\DeployConsoleController::class, 'disconnect'])
+                    ->whereNumber('server')->whereNumber('run')->name('disconnect');
+            });
+
+            Route::middleware('permission:manage-deploy-servers')->group(function () {
+                Route::get('/servers/create', [\App\Http\Controllers\Admin\DeployServerController::class, 'create'])->name('servers.create');
+                Route::post('/servers', [\App\Http\Controllers\Admin\DeployServerController::class, 'store'])->name('servers.store');
+                Route::get('/servers/{server}/edit', [\App\Http\Controllers\Admin\DeployServerController::class, 'edit'])
+                    ->whereNumber('server')->name('servers.edit');
+                Route::put('/servers/{server}', [\App\Http\Controllers\Admin\DeployServerController::class, 'update'])
+                    ->whereNumber('server')->name('servers.update');
+                Route::delete('/servers/{server}', [\App\Http\Controllers\Admin\DeployServerController::class, 'destroy'])
+                    ->whereNumber('server')->name('servers.destroy');
+
+                Route::post('/servers/{server}/commands', [\App\Http\Controllers\Admin\DeployCommandController::class, 'store'])
+                    ->whereNumber('server')->name('commands.store');
+                Route::put('/servers/{server}/commands/{command}', [\App\Http\Controllers\Admin\DeployCommandController::class, 'update'])
+                    ->whereNumber('server')->whereNumber('command')->name('commands.update');
+                Route::delete('/servers/{server}/commands/{command}', [\App\Http\Controllers\Admin\DeployCommandController::class, 'destroy'])
+                    ->whereNumber('server')->whereNumber('command')->name('commands.destroy');
+            });
+        });
+
     // ─── SNMP Devices (per-branch, polled by Telegraf) ──────────
     Route::middleware('permission:manage-syslog')
         ->prefix('snmp-devices')
@@ -2844,6 +2893,18 @@ Route::prefix('api/hr')
 Route::get('/internal/telnet-token/{token}',
     [\App\Http\Controllers\Internal\TelnetTokenController::class, 'show']
 )->middleware('internal.ip')->name('internal.telnet-token');
+
+/*
+|--------------------------------------------------------------------------
+| Internal — Deploy run report-back (called only by the Node.js proxy)
+| The proxy, not the browser, reports the transcript and exit code, so a
+| deploy that outlives the tab still lands a complete record.
+| Protected by: localhost-only + X-Telnet-Secret header check in controller.
+|--------------------------------------------------------------------------
+*/
+Route::post('/internal/deploy-run/{run}/complete',
+    [\App\Http\Controllers\Internal\DeployRunReportController::class, 'store']
+)->middleware('internal.ip')->whereNumber('run')->name('internal.deploy-run.complete');
 
 /*
 |--------------------------------------------------------------------------

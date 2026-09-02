@@ -130,6 +130,41 @@ function fetchSession(token) {
     });
 }
 
+// ─── Deploy run report-back ───────────────────────────────────────────────
+// The proxy reports an exec run's result, not the browser: a deploy that
+// outlives the tab still lands a complete transcript and a trustworthy exit
+// code, and neither can be forged from the client.
+function reportRun(reportUrl, payload) {
+    return new Promise((resolve) => {
+        if (!reportUrl) { resolve(false); return; }
+
+        const endpoint = `${LARAVEL_URL}${reportUrl}`;
+        const body     = JSON.stringify(payload);
+        const lib      = endpoint.startsWith('https') ? https : http;
+
+        const req = lib.request(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type':    'application/json',
+                'Content-Length':  Buffer.byteLength(body),
+                'Accept':          'application/json',
+                'X-Telnet-Secret': SECRET,
+            },
+        }, (res) => {
+            res.resume();                       // drain so the socket frees
+            res.on('end', () => resolve(res.statusCode === 200));
+        });
+
+        req.on('error', (err) => {
+            console.error('[SG-NOC Telnet Proxy] Run report failed:', err.message);
+            resolve(false);
+        });
+
+        req.write(body);
+        req.end();
+    });
+}
+
 // ─── WebSocket server ─────────────────────────────────────────────────────
 const wss = new WebSocketServer({ port: WS_PORT, host: '127.0.0.1' });
 
@@ -153,57 +188,155 @@ wss.on('connection', async (ws, req) => {
         return;
     }
 
-    const { host, port, protocol = 'telnet', username = null, password = null } = session;
+    const {
+        host, port, protocol = 'telnet',
+        username = null, password = null,
+        // Deployment servers add these: key auth, and a one-shot command whose
+        // output is streamed AND reported back to Laravel when it exits.
+        privateKey = null, passphrase = null,
+        exec = null, reportUrl = null, timeout = null,
+    } = session;
     const effectivePort = port || (protocol === 'ssh' ? 22 : 23);
 
     ws.send(JSON.stringify({ type: 'status', message: `Connecting to ${host}:${effectivePort} via ${protocol.toUpperCase()}…` }));
 
     if (protocol === 'ssh') {
         // ── SSH connection ────────────────────────────────────────────────
-        const ssh = new SshClient();
-        let stream = null;
+        // Two shapes off one branch:
+        //   exec === null  → interactive shell (devices, telnet client, and the
+        //                    deployment "SSH Terminal" button).
+        //   exec is a cmd  → one-shot run: output is streamed to the browser
+        //                    AND buffered, then reported to Laravel with the
+        //                    exit code. The run deliberately survives the tab
+        //                    being closed, so ws close does NOT tear it down.
+        const ssh      = new SshClient();
+        const isExec   = typeof exec === 'string' && exec.length > 0;
+        const MAX_BUF  = 2 * 1024 * 1024;
 
-        const cleanup = () => { try { ssh.end(); } catch (_) {} };
+        let stream    = null;
+        let chunks    = [];
+        let bufLen    = 0;
+        let truncated = false;
+        let reported  = false;
+        let timer     = null;
+        const startedAt = Date.now();
+
+        const cleanup = () => {
+            if (timer) { clearTimeout(timer); timer = null; }
+            try { ssh.end(); } catch (_) {}
+        };
+
+        const capture = (data) => {
+            if (!isExec || truncated) return;
+            if (bufLen + data.length > MAX_BUF) {
+                chunks.push(Buffer.from('\n\n… output truncated at ' + MAX_BUF + ' bytes …\n'));
+                truncated = true;
+                return;
+            }
+            chunks.push(data);
+            bufLen += data.length;
+        };
+
+        // Report exactly once, whatever path we exit through.
+        const finish = async (status, code) => {
+            if (!isExec || reported) return;
+            reported = true;
+
+            await reportRun(reportUrl, {
+                status:      status,
+                exit_code:   typeof code === 'number' ? code : null,
+                output:      Buffer.concat(chunks).toString('utf8'),
+                duration_ms: Date.now() - startedAt,
+            });
+        };
 
         ssh.on('ready', () => {
             ws.send(JSON.stringify({ type: 'connected', message: `SSH connected to ${host}:${effectivePort}` }));
 
-            ssh.shell({ term: 'xterm-256color', cols: 220, rows: 50 }, (err, s) => {
+            const onStream = (err, s) => {
                 if (err) {
                     if (ws.readyState === OPEN)
-                        ws.send(JSON.stringify({ type: 'error', message: `SSH shell error: ${err.message}` }));
-                    cleanup();
+                        ws.send(JSON.stringify({ type: 'error', message: `SSH ${isExec ? 'exec' : 'shell'} error: ${err.message}` }));
+                    finish('failed', null).finally(cleanup);
                     ws.close();
                     return;
                 }
                 stream = s;
 
-                stream.on('data',  (data) => { if (ws.readyState === OPEN) ws.send(data); });
-                stream.stderr.on('data', (data) => { if (ws.readyState === OPEN) ws.send(data); });
-                stream.on('close', () => {
+                stream.on('data', (data) => {
+                    capture(data);
+                    if (ws.readyState === OPEN) ws.send(data);
+                });
+
+                // With pty:true ssh2 folds stderr into the main stream, but the
+                // shell path has no pty option set here, so keep both wired.
+                if (stream.stderr) {
+                    stream.stderr.on('data', (data) => {
+                        capture(data);
+                        if (ws.readyState === OPEN) ws.send(data);
+                    });
+                }
+
+                stream.on('close', (code) => {
+                    const exitCode = typeof code === 'number' ? code : null;
+
                     if (ws.readyState === OPEN) {
+                        if (isExec) ws.send(JSON.stringify({ type: 'exit', code: exitCode }));
                         ws.send(JSON.stringify({ type: 'disconnected', message: 'SSH session closed.' }));
                         ws.close();
                     }
-                    cleanup();
+
+                    finish(exitCode === 0 ? 'success' : 'failed', exitCode).finally(cleanup);
                 });
-            });
+            };
+
+            if (isExec) {
+                // pty so git/composer render progress and colour the way they
+                // would in a real terminal.
+                ssh.exec(exec, { pty: { term: 'xterm-256color', cols: 220, rows: 50 } }, onStream);
+
+                const limitSeconds = Number(timeout) > 0 ? Number(timeout) : 600;
+                timer = setTimeout(() => {
+                    if (ws.readyState === OPEN)
+                        ws.send(JSON.stringify({ type: 'error', message: `Command exceeded its ${limitSeconds}s timeout.` }));
+                    finish('timeout', null).finally(() => {
+                        try { ssh.end(); } catch (_) {}
+                        try { ws.close(); } catch (_) {}
+                    });
+                }, limitSeconds * 1000);
+            } else {
+                ssh.shell({ term: 'xterm-256color', cols: 220, rows: 50 }, onStream);
+            }
         });
 
         ssh.on('error', (err) => {
             if (ws.readyState === OPEN)
                 ws.send(JSON.stringify({ type: 'error', message: `SSH error: ${err.message}` }));
+            finish('failed', null).finally(cleanup);
             ws.close();
         });
 
-        ssh.connect({
+        // Only one credential is offered: a key when we have one, otherwise the
+        // password. Passing an empty string for the other makes ssh2 attempt a
+        // method the server may then count against MaxAuthTries.
+        const connectOpts = {
             host:              host,
             port:              effectivePort,
             username:          username || '',
-            password:          password || '',
             readyTimeout:      15000,
             keepaliveInterval: 10000,
-        });
+        };
+
+        if (privateKey) {
+            // ssh2 parses OpenSSH, classic PEM and PuTTY .ppk natively, so an
+            // uploaded .ppk needs no conversion.
+            connectOpts.privateKey = privateKey;
+            if (passphrase) connectOpts.passphrase = passphrase;
+        } else {
+            connectOpts.password = password || '';
+        }
+
+        ssh.connect(connectOpts);
 
         // ── WebSocket → SSH ───────────────────────────────────────────────
         ws.on('message', (msg, isBinary) => {
@@ -217,11 +350,18 @@ wss.on('connection', async (ws, req) => {
                     }
                 } catch (_) {}
             }
+            // A deploy button is not an input shell — drop keystrokes.
+            if (isExec) return;
             stream.write(isBinary ? msg : msg.toString());
         });
 
-        ws.on('close', cleanup);
-        ws.on('error', cleanup);
+        // An exec run must outlive the browser tab: closing the socket here
+        // would kill the deploy halfway and lose the report. The timeout, and
+        // the command exiting, are what end it.
+        if (!isExec) {
+            ws.on('close', cleanup);
+            ws.on('error', cleanup);
+        }
 
     } else {
         // ── Telnet connection ─────────────────────────────────────────────

@@ -61,6 +61,11 @@ class RolePermission extends Model
                 'view-credentials' => 'View Credentials (masked)',
                 'manage-credentials' => 'Create / Edit / Delete / Reveal Credentials',
             ],
+            'Deployment' => [
+                'view-deploy-servers' => 'View Deployment Servers & Run History',
+                'run-deploy-commands' => 'Open SSH Terminal & Run Deploy Commands',
+                'manage-deploy-servers' => 'Create / Edit / Delete Deployment Servers (SSH keys, commands)',
+            ],
             'Device Backups' => [
                 'view-backups' => 'View Device Backup Accounts & Status',
                 'manage-backups' => 'Create / Edit / Rotate / Delete Backup Accounts',
@@ -207,6 +212,7 @@ class RolePermission extends Model
         $adminPerms = array_values(array_diff($all, [
             'manage-users', 'manage-permissions',
             'manage-credentials', 'manage-identity-settings',
+            'manage-deploy-servers',
             'manage-email-marketing-settings',
         ]));
         $viewerPerms = [
@@ -216,7 +222,7 @@ class RolePermission extends Model
             'view-network', 'view-assets', 'view-printers',
             'view-workflows', 'view-employees', 'view-noc',
             'view-dhcp-leases', 'view-sophos', 'view-fortigate', 'view-access-points', 'view-dns', 'view-admin-links',
-            'view-syslog', 'view-agw-audit',
+            'view-syslog', 'view-agw-audit', 'view-deploy-servers',
             'create-tickets', 'view-tickets',
         ];
         $hrPerms = [

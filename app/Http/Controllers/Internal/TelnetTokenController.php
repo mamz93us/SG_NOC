@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\Cache;
  *  1. Caller must be 127.0.0.1 (enforced in routes/web.php middleware).
  *  2. X-Telnet-Secret header must match config('telnet.internal_secret').
  *
- * The token is consumed (deleted from cache) on the first successful read,
- * so it cannot be replayed.
+ * Tokens flagged `singleUse` (deployment servers, which carry a private key)
+ * are deleted from the cache on the first successful read. All others are
+ * re-stored with a fresh TTL so the terminal's Reconnect button works.
  */
 class TelnetTokenController extends Controller
 {
@@ -38,9 +39,18 @@ class TelnetTokenController extends Controller
             return response()->json(['error' => 'Token not found or expired'], 404);
         }
 
-        // Keep the token alive for reconnects within the same session window.
-        // Re-store it with a fresh 30-minute TTL so the Reconnect button works
-        // without having to go back to the connect form.
+        // Deployment-server tokens carry a private key, so they are burnt on
+        // first read — the console page mints a fresh one (and a fresh run row)
+        // when the operator reconnects.
+        if (! empty($session['singleUse'])) {
+            Cache::forget($key);
+
+            return response()->json($session);
+        }
+
+        // Everything else: keep the token alive for reconnects within the same
+        // session window. Re-store it with a fresh 30-minute TTL so the
+        // Reconnect button works without having to go back to the connect form.
         Cache::put($key, $session, now()->addMinutes(30));
 
         return response()->json($session);

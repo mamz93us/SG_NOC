@@ -239,6 +239,14 @@
                                     <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet / SSH Client
                                 </a>
                             </li>
+                            @can('view-deploy-servers')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.deploy.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.deploy.index') }}">
+                                    <i class="bi bi-rocket-takeoff-fill me-2 text-primary"></i>Deployment Servers
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-browser-portal')
                             <li>
                                 <a class="dropdown-item" href="{{ route('portal.browser') }}" target="_blank">

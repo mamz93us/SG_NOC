@@ -848,6 +848,15 @@ Schedule::command('access-points:ping')
     ->runInBackground()
     ->name('access-points-ping');
 
+// Deploy runs are closed by the Node proxy POSTing back, so a proxy restart or
+// a hung command would leave a row `running` forever — and that row blocks the
+// "one deploy at a time" guard on its server. Reap the stragglers.
+Schedule::command('deploy-runs:reap')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('deploy-runs-reap');
+
 // NOC overview uptime snapshots — hourly up/down capture for APs, VPN tunnels
 // and hosts so the overview dashboard can chart uptime over time.
 Schedule::command('noc:snapshot-availability')
