@@ -49,10 +49,21 @@ class DeployRunner
         return [$run, $this->mintToken($server, $run, 'echo ok; uname -a; whoami; pwd', $user, 60)];
     }
 
-    /** Is something already in flight against this server? */
+    /**
+     * Is something genuinely still in flight against this server?
+     *
+     * A row past its own deadline is dead whether or not deploy-runs:reap has
+     * caught up yet, so it must not hold the lock — otherwise a report that
+     * never arrives locks the server out of deploying for the command's whole
+     * timeout plus the reaper's grace, which is exactly what a stuck run did.
+     */
     public function hasRunInFlight(DeployServer $server): bool
     {
-        return $server->runs()->running()->where('mode', 'exec')->exists();
+        return $server->runs()
+            ->running()
+            ->where('mode', 'exec')
+            ->get()
+            ->contains(fn (DeployRun $run) => ! $run->isPastDeadline());
     }
 
     // ─── Internals ────────────────────────────────────────────────

@@ -1991,6 +1991,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
                     ->whereNumber('server')->whereNumber('command')->name('run');
                 Route::post('/servers/{server}/runs/{run}/disconnect', [\App\Http\Controllers\Admin\DeployConsoleController::class, 'disconnect'])
                     ->whereNumber('server')->whereNumber('run')->name('disconnect');
+                Route::post('/servers/{server}/runs/{run}/abort', [\App\Http\Controllers\Admin\DeployConsoleController::class, 'abort'])
+                    ->whereNumber('server')->whereNumber('run')->name('abort');
             });
 
             Route::middleware('permission:manage-deploy-servers')->group(function () {

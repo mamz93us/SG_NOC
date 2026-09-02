@@ -63,9 +63,29 @@ class DeployRun extends Model
 
     // ─── Helpers ──────────────────────────────────────────────────
 
+    /** Grace on top of the run's own timeout, covering the proxy round-trip. */
+    public const REAP_GRACE_SECONDS = 120;
+
     public function isRunning(): bool
     {
         return $this->status === 'running';
+    }
+
+    /**
+     * Past the point where the proxy could still legitimately report.
+     *
+     * Shared by the reaper and by the "one deploy at a time" guard so the two
+     * agree: a row nobody is going to close must not keep holding the lock.
+     */
+    public function isPastDeadline(): bool
+    {
+        if (! $this->isRunning() || ! $this->started_at) {
+            return false;
+        }
+
+        return $this->started_at
+            ->addSeconds(($this->timeout_seconds ?: 600) + self::REAP_GRACE_SECONDS)
+            ->isPast();
     }
 
     public function label(): string

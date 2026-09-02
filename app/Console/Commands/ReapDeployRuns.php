@@ -21,9 +21,6 @@ class ReapDeployRuns extends Command
 
     protected $description = 'Mark deploy runs that never reported back as timed out';
 
-    /** Grace on top of the run's own timeout, to cover proxy round-trip. */
-    private const GRACE_SECONDS = 120;
-
     public function handle(): int
     {
         $reaped = 0;
@@ -33,9 +30,9 @@ class ReapDeployRuns extends Command
             ->orderBy('id')
             ->chunkById(100, function ($runs) use (&$reaped) {
                 foreach ($runs as $run) {
-                    $deadline = $run->started_at->addSeconds(($run->timeout_seconds ?: 600) + self::GRACE_SECONDS);
-
-                    if ($deadline->isFuture()) {
+                    // Same deadline the in-flight guard uses, so the two can't
+                    // disagree about whether a row is still alive.
+                    if (! $run->isPastDeadline()) {
                         continue;
                     }
 

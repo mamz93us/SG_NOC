@@ -100,6 +100,32 @@ class DeployConsoleController extends Controller
         return response()->json(['ok' => true, 'duration' => $run->fresh()->durationLabel()]);
     }
 
+    /**
+     * Force a stuck run closed.
+     *
+     * Normally the proxy closes an exec run and the reaper catches the strays,
+     * but if a report never lands the operator shouldn't have to wait out the
+     * timeout to try again. Marks it aborted rather than inventing a result.
+     */
+    public function abort(Request $request, DeployServer $server, DeployRun $run): RedirectResponse
+    {
+        abort_unless($run->deploy_server_id === $server->id, 404);
+
+        if (! $run->isRunning()) {
+            return back()->with('error', "Run #{$run->id} has already finished.");
+        }
+
+        $run->finish(
+            'aborted',
+            null,
+            trim(($run->output ?? '')."\n\n… force-closed by ".$request->user()->name." …\n")
+        );
+
+        $this->audit("Force-closed run #{$run->id} on '{$server->name}'", $server);
+
+        return back()->with('success', "Run #{$run->id} marked aborted. You can start a new one.");
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────
 
     private function console(DeployServer $server, DeployRun $run, string $token, string $label): View

@@ -106,6 +106,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/wallpapers/checkin',
             'api/sns/email-events',
             'email/unsubscribe/*',
+            // The telnet-proxy POSTs a finished deploy run's transcript and exit
+            // code here. It has no session and no token, so CSRF would 419 it and
+            // the run would hang in `running` until the reaper called it a
+            // timeout. Authenticated by internal.ip + X-Telnet-Secret instead.
+            'internal/deploy-run/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

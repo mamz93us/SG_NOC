@@ -40,6 +40,34 @@
         </div>
     @endunless
 
+    @php
+        $stuck = $runs->first(fn ($r) => $r->isRunning() && $r->mode === 'exec');
+    @endphp
+    @if($stuck)
+        <div class="alert alert-info py-2 small d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-hourglass-split me-1"></i>
+                Run #{{ $stuck->id }} ({{ $stuck->label() }}) is still marked running since
+                {{ $stuck->started_at?->diffForHumans() }}.
+                @if($stuck->isPastDeadline())
+                    It is past its {{ $stuck->timeout_seconds }}s timeout, so it no longer blocks new runs —
+                    close it to tidy the history.
+                @else
+                    New commands are blocked until it finishes.
+                @endif
+            </div>
+            @can('run-deploy-commands')
+            <form action="{{ route('admin.deploy.abort', [$server, $stuck]) }}" method="POST" class="ms-2"
+                  onsubmit="return confirm('Force-close run #{{ $stuck->id }}? This does not stop anything already running on the server.');">
+                @csrf
+                <button class="btn btn-sm btn-outline-secondary text-nowrap">
+                    <i class="bi bi-x-circle me-1"></i>Force close
+                </button>
+            </form>
+            @endcan
+        </div>
+    @endif
+
     {{-- ── Actions ─────────────────────────────────────────────── --}}
     @can('run-deploy-commands')
     <div class="card border-0 shadow-sm mb-3">

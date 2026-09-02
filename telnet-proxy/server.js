@@ -151,8 +151,24 @@ function reportRun(reportUrl, payload) {
                 'X-Telnet-Secret': SECRET,
             },
         }, (res) => {
-            res.resume();                       // drain so the socket frees
-            res.on('end', () => resolve(res.statusCode === 200));
+            // Read the body rather than just draining: a failed report is
+            // invisible from the browser (the run simply hangs in `running`
+            // until the reaper calls it a timeout), so the reason has to reach
+            // the log. A 419 here means the route is missing from the CSRF
+            // exception list in bootstrap/app.php.
+            let body = '';
+            res.setEncoding('utf8');
+            res.on('data', (chunk) => { if (body.length < 500) body += chunk; });
+            res.on('end', () => {
+                const ok = res.statusCode === 200;
+                if (!ok) {
+                    console.error(
+                        `[SG-NOC Telnet Proxy] Run report rejected: HTTP ${res.statusCode} ` +
+                        `for ${endpoint} — ${body.slice(0, 300).replace(/\s+/g, ' ')}`
+                    );
+                }
+                resolve(ok);
+            });
         });
 
         req.on('error', (err) => {
