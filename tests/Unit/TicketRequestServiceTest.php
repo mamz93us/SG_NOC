@@ -147,3 +147,55 @@ it('builds the timeline oldest first and keeps attachment-only rows', function (
         // The nameless attachment is dropped — there is nothing to show for it.
         ->and($ticket['attachments'])->toHaveCount(1);
 });
+
+// The write endpoint takes multipart with a JSON `data` part, not a JSON body.
+// This pins the exact shape observed working in Postman.
+it('posts a comment as multipart with a JSON data part', function () {
+    Http::fake(['*/addTicketingRequestDetailMobileForNOC' => Http::response([
+        'detailId' => 631,
+        'statusName' => 'In Progress',
+        'comments' => 'TEST',
+        'createdBy' => 'alaa.sakr@sssegypt.com',
+        'createdDate' => '2026-09-02T09:10:34',
+    ])]);
+
+    $created = $this->service->addComment(620, 'TEST', 'alaa.sakr@sssegypt.com');
+
+    expect($created['detailId'])->toBe(631);
+
+    Http::assertSent(function ($request) {
+        $parts = collect($request->data())->keyBy('name');
+
+        return str_ends_with($request->url(), '/addTicketingRequestDetailMobileForNOC')
+            && $request->method() === 'POST'
+            && $request->hasHeader('X-API-Key', 'test-key')
+            && str_contains($request->header('Content-Type')[0] ?? '', 'multipart/form-data')
+            && $parts['data']['contents'] === '{"ticketId":620,"comments":"TEST"}'
+            && $parts['email']['contents'] === 'alaa.sakr@sssegypt.com';
+    });
+});
+
+it('busts the cached ticket and lists after commenting', function () {
+    Http::fake([
+        '*/getTicketingRequestsByStatusForNOC*' => Http::response([ticketRow(['ticketId' => 620])]),
+        '*/getTicketingRequestDetailsForNOC*' => Http::response(ticketRow(['ticketId' => 620])),
+        '*/addTicketingRequestDetailMobileForNOC' => Http::response(['detailId' => 1]),
+    ]);
+
+    $this->service->listFor('a@b.com');
+    $this->service->details(620);
+    $this->service->addComment(620, 'hello', 'a@b.com');
+
+    // Both were cached; both must be re-fetched, or the reply appears to vanish.
+    $this->service->listFor('a@b.com');
+    $this->service->details(620);
+
+    Http::assertSentCount(5);
+});
+
+it('refuses to comment when the API rejects it', function () {
+    Http::fake(['*/addTicketingRequestDetailMobileForNOC' => Http::response('nope', 500)]);
+
+    expect(fn () => $this->service->addComment(620, 'hi', 'a@b.com'))
+        ->toThrow(RuntimeException::class);
+});

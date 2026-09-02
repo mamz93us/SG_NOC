@@ -9,7 +9,9 @@ use App\Services\Ticketing\TicketCatalog;
 use App\Services\Ticketing\TicketRequestService;
 use App\Services\Ticketing\TicketStatus;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -88,20 +90,7 @@ class HomeTicketController extends Controller
 
         $email = (string) $request->user()->email;
 
-        try {
-            $owned = false;
-            foreach ($this->requests->listFor($email, TicketStatus::ALL) as $t) {
-                if ($t['id'] === $ticket) {
-                    $owned = true;
-                    break;
-                }
-            }
-        } catch (\Throwable) {
-            // Cannot prove it is theirs -> do not show it.
-            abort(503);
-        }
-
-        abort_unless($owned, 404);
+        $this->assertOwns($ticket, $email);
 
         try {
             $detail = $this->requests->details($ticket);
@@ -112,6 +101,70 @@ class HomeTicketController extends Controller
         abort_if($detail === null, 404);
 
         return view('home.ticket', ['ticket' => $detail]);
+    }
+
+    /**
+     * Add a comment, with an optional attachment, to one of the employee's own
+     * tickets.
+     *
+     * Ownership is re-checked here, not merely on the page that rendered the
+     * form: the API takes a bare ticketId and does not care who is asking, so
+     * a hand-made POST would otherwise comment on anyone's ticket.
+     */
+    public function comment(Request $request, int $ticket): RedirectResponse
+    {
+        abort_unless($this->requests->isConfigured(), 503);
+
+        $validated = $request->validate([
+            'comment' => 'required|string|max:5000',
+            // One file: the proven API call takes a single `file` part.
+            'attachment' => 'nullable|file|max:20480',
+        ], [
+            'comment.required' => 'Type something before sending.',
+        ]);
+
+        $email = (string) $request->user()->email;
+
+        $this->assertOwns($ticket, $email);
+
+        try {
+            $this->requests->addComment(
+                $ticket,
+                $validated['comment'],
+                $email,
+                $request->file('attachment'),
+            );
+        } catch (\Throwable $e) {
+            Log::warning('HomeTicketController: comment failed', [
+                'ticket' => $ticket,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withInput()->with('ticketError',
+                'Your reply could not be sent. Please try again shortly, or email IT directly.');
+        }
+
+        return back()->with('ticketSuccess', 'Your reply has been added to the ticket.');
+    }
+
+    /**
+     * 404 unless this ticket appears in that person's own list. Shared by the
+     * detail page and the comment form so the two cannot drift apart.
+     */
+    private function assertOwns(int $ticket, string $email): void
+    {
+        try {
+            foreach ($this->requests->listFor($email, TicketStatus::ALL) as $t) {
+                if ($t['id'] === $ticket) {
+                    return;
+                }
+            }
+        } catch (\Throwable) {
+            // Cannot prove it is theirs -> do not act on it.
+            abort(503);
+        }
+
+        abort(404);
     }
 
     /**

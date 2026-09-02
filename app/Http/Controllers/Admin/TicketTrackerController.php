@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\IdentityUser;
 use App\Services\Ticketing\TicketRequestService;
 use App\Services\Ticketing\TicketStatus;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 /**
@@ -105,6 +107,51 @@ class TicketTrackerController extends Controller
             'ticket' => $detail,
             'backUrl' => route('admin.tickets.tracker', $request->only('email', 'status')),
         ]);
+    }
+
+    /**
+     * Add a comment, with an optional attachment, to a ticket.
+     *
+     * Ownership is re-checked here rather than trusted from the page that
+     * rendered the form — the API takes a bare ticketId and does not check who
+     * is asking. Helpdesk users (create-tickets-for-others) may comment on
+     * anyone's; everyone else only on their own.
+     */
+    public function comment(Request $request, int $ticket): RedirectResponse
+    {
+        abort_unless($this->tickets->isConfigured(), 503, 'The ticketing API is not configured.');
+
+        $me = $request->user();
+        $canViewOthers = (bool) $me->can('create-tickets-for-others');
+
+        $validated = $request->validate([
+            'comment' => 'required|string|max:5000',
+            'attachment' => 'nullable|file|max:20480',
+        ]);
+
+        if (! $canViewOthers && ! $this->belongsTo($ticket, $me->email)) {
+            abort(404);
+        }
+
+        // The comment is attributed to the signed-in user, not to whoever the
+        // page happens to be showing: this is their reply, not the requester's.
+        try {
+            $this->tickets->addComment(
+                $ticket,
+                $validated['comment'],
+                (string) $me->email,
+                $request->file('attachment'),
+            );
+        } catch (\Throwable $e) {
+            Log::warning('TicketTrackerController: comment failed', [
+                'ticket' => $ticket,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withInput()->with('error', 'The comment was not added: '.$e->getMessage());
+        }
+
+        return back()->with('success', 'Comment added to ticket #'.$ticket.'.');
     }
 
     private function belongsTo(int $ticketId, ?string $email): bool

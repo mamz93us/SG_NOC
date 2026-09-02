@@ -171,6 +171,34 @@
   .tk-file svg{ width:15px; height:15px; color:var(--ink-soft); flex:0 0 auto; }
   .tk-file span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .tk-note{ padding:11px 20px; font-size:12px; color:var(--ink-soft); border-top:1px solid var(--line); background:var(--bg); }
+  /* ── Reply box ───────────────────────────────────────────── */
+  .tk-reply{ padding:16px 20px; border-top:1px solid var(--line); }
+  .tk-reply textarea{
+    width:100%; min-height:84px; resize:vertical; font:inherit; font-size:13.5px;
+    border:1px solid var(--line); border-radius:10px; padding:11px 13px; color:var(--ink);
+    background:#fff;
+  }
+  .tk-reply textarea:focus{ outline:2px solid var(--red-600); outline-offset:-1px; border-color:transparent; }
+  .tk-reply-row{ display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .tk-attach{
+    display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+    font-size:12.5px; font-weight:600; color:var(--ink-soft);
+    border:1px solid var(--line); border-radius:10px; padding:8px 13px; background:#fff;
+  }
+  .tk-attach:hover{ border-color:var(--gray-500); color:var(--ink); }
+  .tk-attach svg{ width:14px; height:14px; }
+  .tk-attach input{ display:none; }
+  .tk-attach-name{ font-size:12.5px; color:var(--ink-soft); }
+  .tk-send{
+    margin-left:auto; font:inherit; font-size:13px; font-weight:600; cursor:pointer;
+    background:var(--red-600); border:1px solid var(--red-600); color:#fff;
+    border-radius:10px; padding:9px 18px;
+  }
+  .tk-send:hover{ filter:brightness(1.07); }
+  .tk-flash{ border-radius:10px; padding:11px 14px; font-size:13px; margin-bottom:12px; }
+  .tk-flash.ok{ background:#E9F8EF; border:1px solid #BFE8CF; color:#14532D; }
+  .tk-flash.bad{ background:#FDECEC; border:1px solid #F7CFCF; color:#8C1A1D; }
+  .tk-err{ font-size:12.5px; color:var(--red-600); margin-top:6px; }
 </style>
 @endpush
 
@@ -307,6 +335,41 @@
                     updates here as IT work on it.
                 </div>
             @endif
+
+            {{-- A reply is a timeline entry, so the box lives at the foot of
+                 the history rather than in a card of its own. Closed tickets
+                 get no box: the comment would land somewhere nobody reads. --}}
+            @if(! $isDone && ! $isDead)
+                <div class="tk-reply">
+                    @if(session('ticketSuccess'))
+                        <div class="tk-flash ok">{{ session('ticketSuccess') }}</div>
+                    @endif
+                    @if(session('ticketError'))
+                        <div class="tk-flash bad">{{ session('ticketError') }}</div>
+                    @endif
+
+                    <form method="POST" action="{{ route('home.tickets.comment', $ticket['id']) }}"
+                          enctype="multipart/form-data" id="tkReplyForm">
+                        @csrf
+                        <label for="tkComment" class="sr-only" style="position:absolute;left:-9999px;">Your reply</label>
+                        <textarea name="comment" id="tkComment" maxlength="5000" required
+                                  placeholder="Add a reply for IT — what changed, what you have tried, or an answer to their question.">{{ old('comment') }}</textarea>
+                        @error('comment') <div class="tk-err">{{ $message }}</div> @enderror
+
+                        <div class="tk-reply-row">
+                            <label class="tk-attach">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M19 11.5 12.5 18a4 4 0 0 1-5.6-5.6l7-7a2.8 2.8 0 0 1 4 4l-7 7a1.6 1.6 0 0 1-2.2-2.2l6.3-6.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                Attach a file
+                                <input type="file" name="attachment" id="tkAttach">
+                            </label>
+                            <span class="tk-attach-name" id="tkAttachName"></span>
+                            <button type="submit" class="tk-send">Send reply</button>
+                        </div>
+                        @error('attachment') <div class="tk-err">{{ $message }}</div> @enderror
+                        <div class="tk-attach-name" style="margin-top:8px;">One file, up to 20&nbsp;MB.</div>
+                    </form>
+                </div>
+            @endif
         </section>
     </div>
 
@@ -349,3 +412,25 @@
     </aside>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+  var input = document.getElementById('tkAttach');
+  var name  = document.getElementById('tkAttachName');
+  var form  = document.getElementById('tkReplyForm');
+  if (input && name) {
+    input.addEventListener('change', function () {
+      name.textContent = input.files && input.files[0] ? input.files[0].name : '';
+    });
+  }
+  // The API call can take a few seconds; a second click would post twice.
+  if (form) {
+    form.addEventListener('submit', function () {
+      var btn = form.querySelector('.tk-send');
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+    });
+  }
+})();
+</script>
+@endpush

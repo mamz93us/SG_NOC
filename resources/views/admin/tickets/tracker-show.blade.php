@@ -101,6 +101,42 @@
                     <p class="text-muted mb-0">Nothing has been logged on this ticket yet.</p>
                 @endforelse
             </div>
+
+            {{-- A reply is a timeline entry, so the box sits at the foot of the
+                 history. Closed and cancelled tickets get none — the comment
+                 would land somewhere nobody reads. --}}
+            @if(! in_array($ticket['status_id'], [
+                \App\Services\Ticketing\TicketStatus::COMPLETED,
+                \App\Services\Ticketing\TicketStatus::CLOSED,
+                \App\Services\Ticketing\TicketStatus::CANCELLED,
+                \App\Services\Ticketing\TicketStatus::REJECTED,
+            ], true))
+                <div class="card-footer bg-white border-top">
+                    <form method="POST" action="{{ route('admin.tickets.tracker.comment', $ticket['id']) }}"
+                          enctype="multipart/form-data" id="trackerCommentForm">
+                        @csrf
+                        <label class="form-label fw-semibold small">Add a comment</label>
+                        <textarea name="comment" rows="3" maxlength="5000" required
+                                  class="form-control @error('comment') is-invalid @enderror"
+                                  placeholder="Visible to the requester and to whoever picks this ticket up.">{{ old('comment') }}</textarea>
+                        @error('comment') <span class="invalid-feedback">{{ $message }}</span> @enderror
+
+                        <div class="d-flex gap-2 align-items-center mt-2 flex-wrap">
+                            <input type="file" name="attachment"
+                                   class="form-control form-control-sm @error('attachment') is-invalid @enderror"
+                                   style="max-width:320px">
+                            <small class="text-muted">Optional, one file up to 20&nbsp;MB.</small>
+                            <button type="submit" class="btn btn-primary btn-sm ms-auto">
+                                <i class="bi bi-send-fill me-1"></i>Add comment
+                            </button>
+                        </div>
+                        @error('attachment') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
+                        <div class="form-text mt-2">
+                            Posted as <strong>{{ auth()->user()->email }}</strong>.
+                        </div>
+                    </form>
+                </div>
+            @endif
         </div>
     </div>
 
@@ -157,3 +193,16 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+  var form = document.getElementById('trackerCommentForm');
+  if (!form) return;
+  form.addEventListener('submit', function () {
+    var btn = form.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Sending…'; }
+  });
+})();
+</script>
+@endpush

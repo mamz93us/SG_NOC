@@ -3,6 +3,7 @@
 namespace App\Services\Ticketing;
 
 use App\Models\Setting;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -28,6 +29,9 @@ class TicketRequestService
     public const ENDPOINT_LIST = '/getTicketingRequestsByStatusForNOC';
 
     public const ENDPOINT_DETAILS = '/getTicketingRequestDetailsForNOC';
+
+    /** Adds a comment (and optionally one file) to an existing ticket. */
+    public const ENDPOINT_ADD_DETAIL = '/addTicketingRequestDetailMobileForNOC';
 
     /** Short: this page is refreshed by people waiting for an answer. */
     public const TTL_SECONDS = 60;
@@ -126,6 +130,49 @@ class TicketRequestService
         Cache::put($key, $ticket, self::TTL_SECONDS);
 
         return $ticket;
+    }
+
+    /**
+     * Add a comment — and optionally one attachment — to an existing ticket.
+     *
+     *   POST {base}/addTicketingRequestDetailMobileForNOC   (multipart)
+     *     data   {"ticketId": 620, "comments": "…"}
+     *     email  the person the comment is from
+     *     file   optional attachment
+     *
+     * Returns the created timeline row, which is the same shape the details
+     * endpoint nests under `ticketingRequestDetails`.
+     *
+     * **This is a write that other people see**, so callers must satisfy
+     * themselves the person owns the ticket first — the API takes a bare
+     * ticketId and does not check.
+     *
+     * @throws RuntimeException when the API refuses or cannot be reached
+     */
+    public function addComment(
+        int $ticketId,
+        string $comment,
+        string $email,
+        ?UploadedFile $attachment = null,
+    ): array {
+        $created = $this->client->postMultipart(
+            self::ENDPOINT_ADD_DETAIL,
+            [
+                'data' => json_encode(
+                    ['ticketId' => $ticketId, 'comments' => $comment],
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                ),
+                'email' => $email,
+            ],
+            $attachment,
+            $this->settings(),
+        );
+
+        // The ticket and this person's lists are now stale by definition.
+        Cache::forget('noc_ticket_details:'.$ticketId);
+        $this->forget($email);
+
+        return $created;
     }
 
     /**

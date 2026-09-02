@@ -3,6 +3,7 @@
 namespace App\Services\Ticketing;
 
 use App\Models\Setting;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -48,6 +49,69 @@ class TicketingApiClient
     public function baseUrl(?Setting $settings = null): ?string
     {
         return self::baseUrlFor(($settings ?? Setting::get())->noc_ticket_api_url);
+    }
+
+    /**
+     * POST a multipart form to one endpoint, relative to the base.
+     *
+     * The write endpoints on this API are all multipart with a JSON `data`
+     * part rather than a JSON body — see `addTicketingRequestForNOC` and
+     * `addTicketingRequestDetailMobileForNOC`.
+     *
+     * @param  array<string,scalar|null>  $fields  the non-file parts
+     *
+     * @throws RuntimeException on any non-2xx or a body that is not JSON
+     */
+    public function postMultipart(
+        string $endpoint,
+        array $fields,
+        ?UploadedFile $file = null,
+        ?Setting $settings = null,
+    ): array {
+        $settings ??= Setting::get();
+        $base = $this->baseUrl($settings);
+
+        if (! $base) {
+            throw new RuntimeException('No API endpoint URL is configured in Admin → Settings.');
+        }
+
+        $key = $settings->nocTicketApiKey();
+
+        if (! $key) {
+            throw new RuntimeException('No X-API-Key is configured.');
+        }
+
+        $url = $base.'/'.ltrim($endpoint, '/');
+
+        // No explicit Content-Type: Guzzle has to set the multipart boundary.
+        $request = Http::withHeaders([
+            'X-API-Key' => $key,
+            'Accept' => 'application/json',
+        ])->timeout(60)->asMultipart();
+
+        if ($file) {
+            $request = $request->attach(
+                'file',
+                file_get_contents($file->getRealPath()),
+                $file->getClientOriginalName(),
+                ['Content-Type' => $file->getMimeType() ?: 'application/octet-stream'],
+            );
+        }
+
+        $response = $request->post($url, $fields);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('HTTP '.$response->status().' from '.$url.': '
+                .mb_substr($response->body(), 0, 300));
+        }
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            throw new RuntimeException('Expected JSON from '.$url.', got: '.mb_substr($response->body(), 0, 200));
+        }
+
+        return $body;
     }
 
     /**

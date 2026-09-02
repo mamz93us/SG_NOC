@@ -338,6 +338,11 @@ if (\App\Support\HomePortal::enabled()) {
             Route::get('/tickets/{ticket}', [\App\Http\Controllers\Home\HomeTicketController::class, 'show'])
                 ->whereNumber('ticket')
                 ->name('tickets.show');
+            // Leaves the building, so a tighter throttle than the read routes.
+            Route::post('/tickets/{ticket}/comment', [\App\Http\Controllers\Home\HomeTicketController::class, 'comment'])
+                ->whereNumber('ticket')
+                ->middleware('throttle:10,1')
+                ->name('tickets.comment');
             // Tighter throttle than the rest: this one leaves the building.
             Route::post('/tickets', [\App\Http\Controllers\Home\HomeTicketController::class, 'store'])
                 ->middleware('throttle:10,1')
@@ -629,6 +634,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('tickets/tracker/{ticket}', [\App\Http\Controllers\Admin\TicketTrackerController::class, 'show'])
             ->whereNumber('ticket')
             ->name('tickets.tracker.show');
+        // Leaves the building, so a tighter throttle than the read routes.
+        Route::post('tickets/tracker/{ticket}/comment', [\App\Http\Controllers\Admin\TicketTrackerController::class, 'comment'])
+            ->whereNumber('ticket')
+            ->middleware('throttle:20,1')
+            ->name('tickets.tracker.comment');
     });
 
     Route::middleware('permission:view-tickets')->group(function () {
