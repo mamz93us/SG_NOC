@@ -36,6 +36,7 @@ class MailDeliveryController extends Controller
             })
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($request->filled('source'), fn ($q) => $q->where('source', $request->string('source')))
+            ->when($request->filled('sender'), fn ($q) => $q->where('from_email', $request->string('sender')))
             ->when($request->filled('opened'), fn ($q) => $q->where('open_count', '>', 0))
             ->when($request->filled('from_date'), fn ($q) => $q->whereDate('sent_at', '>=', $request->date('from_date')))
             ->when($request->filled('to_date'), fn ($q) => $q->whereDate('sent_at', '<=', $request->date('to_date')))
@@ -48,6 +49,7 @@ class MailDeliveryController extends Controller
             'messages' => $messages,
             'stats' => $this->stats(),
             'senders' => $this->senders(),
+            'coverage' => $this->coverage(),
         ]);
     }
 
@@ -106,6 +108,38 @@ class MailDeliveryController extends Controller
             'bounced' => (int) ($byStatus['bounced'] ?? 0),
             'complained' => (int) ($byStatus['complained'] ?? 0),
             'pending' => (int) ($byStatus['sent'] ?? 0),
+        ];
+    }
+
+    /**
+     * How much of the account's mail this log actually sees.
+     *
+     * SES only publishes events for messages sent WITH a configuration set, so
+     * any service sending without one (Salesforce, Sophos, anything using SES
+     * SMTP directly) is invisible here. SES's own 24h counter is the only
+     * number that includes those, so comparing the two is the one honest way to
+     * show the gap rather than implying the log is complete.
+     *
+     * GetSendQuota is cached by SesService and wrapped here: the IAM user is
+     * send-only, and a permissions or network failure must not break the page.
+     */
+    private function coverage(): array
+    {
+        $logged = EmailMessage::where('sent_at', '>=', now()->subDay())->count();
+
+        try {
+            $quota = app(\App\Services\EmailMarketing\SesService::class)->getSendQuota();
+            $sesTotal = (int) ($quota['SentLast24Hours'] ?? 0);
+        } catch (\Throwable) {
+            return ['known' => false, 'logged' => $logged, 'ses_total' => null, 'missing' => null];
+        }
+
+        return [
+            'known' => true,
+            'logged' => $logged,
+            'ses_total' => $sesTotal,
+            'missing' => max(0, $sesTotal - $logged),
+            'percent' => $sesTotal > 0 ? (int) round($logged / $sesTotal * 100) : 100,
         ];
     }
 

@@ -26,6 +26,36 @@
         </div>
     </div>
 
+    {{-- ── Coverage ──
+        SES only publishes events for mail sent WITH a configuration set, so any
+        service sending without one is invisible here. Say so plainly rather
+        than letting the page imply it is complete. --}}
+    @if($coverage['known'] && $coverage['missing'] > 0 && $coverage['ses_total'] > 0)
+        <div class="alert alert-warning py-2 small">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    <strong>This log is not seeing all of your SES mail.</strong>
+                    In the last 24 hours SES sent <strong>{{ number_format($coverage['ses_total']) }}</strong>
+                    messages for this account, but only <strong>{{ number_format($coverage['logged']) }}</strong>
+                    ({{ $coverage['percent'] }}%) appear here —
+                    <strong>{{ number_format($coverage['missing']) }}</strong> are missing.
+                    <div class="mt-1">
+                        SES publishes events only for mail sent <em>with a configuration set</em>. Senders that
+                        don't set one — Salesforce, Sophos, anything using SES SMTP directly — send nothing to
+                        report. Fixing it is an AWS-side change: give each verified identity a
+                        <em>default configuration set</em>. See <code>SES_MAIL_LOG_SETUP.md</code>.
+                    </div>
+                </div>
+            </div>
+        </div>
+    @elseif(! $coverage['known'])
+        <div class="alert alert-secondary py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Couldn't read SES's own 24-hour counter, so there is no way to tell whether this log is complete.
+        </div>
+    @endif
+
     {{-- ── Last 30 days ── --}}
     <div class="row g-2 mb-3">
         @foreach([
@@ -73,6 +103,17 @@
                         <option value="">Any</option>
                         <option value="transactional" @selected(request('source') === 'transactional')>Transactional</option>
                         <option value="marketing" @selected(request('source') === 'marketing')>Marketing</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    {{-- The practical way to slice by service: each app sends
+                         from its own address (crm@…, donotreply@…, it@…). --}}
+                    <label class="form-label small mb-1">Sender</label>
+                    <select name="sender" class="form-select form-select-sm">
+                        <option value="">Any sender</option>
+                        @foreach($senders as $sender)
+                            <option value="{{ $sender }}" @selected(request('sender') === $sender)>{{ $sender }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="col-md-2">
