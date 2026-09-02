@@ -16,78 +16,167 @@ Measured on 2026-09-02:
 
 | | 24-hour count |
 |---|---|
-| Sent by SES (`GetSendQuota.SentLast24Hours`) | **610** |
+| Sent by SES (`GetSendQuota.SentLast24Hours`) | **606** |
 | Visible in the NOC log | **48** |
 
-About 92% of the account's mail was unlogged. The page now shows this gap itself
+About 92% of the account's mail was unlogged. The log page shows this gap itself
 rather than implying it is complete.
 
 There is **no way to recover history**. SES has no API that lists messages it
 already sent; you only ever get what event publishing captured. Fix this and the
 log starts filling from that moment.
 
-## The fix: a default configuration set per identity
+## The fix: a default configuration set on every identity
 
 Every verified identity can carry a *default configuration set*, which SES
 applies to any message sent from that identity that doesn't name one itself.
-That is what catches third-party senders — they need no changes at all.
+That is what catches third-party senders — Salesforce and Sophos need no changes
+at all.
 
-### Step 1 — make a dedicated configuration set
+Everything below is in the **eu-north-1 (Stockholm)** region. Check the region
+selector top-right before you start; SES identities and configuration sets are
+per-region and the account's are all in eu-north-1.
 
-**Do not reuse `sg-noc-email-marketing` as the account default.** It has open and
-click tracking on, which is right for campaigns and wrong for everything else:
-as a default it would inject a tracking pixel into, and rewrite the links of,
-Salesforce and Sophos mail. Rewritten links in a password-reset or alert email
-are a real problem.
+---
 
-Create a second set with event publishing on and tracking off:
+### Step 0 — copy the existing SNS topic ARN
+
+The NOC already receives SES events on an SNS topic. Reuse it, so nothing on the
+NOC side has to change.
+
+1. AWS console → **Amazon SES**.
+2. Left nav → **Configuration → Configuration sets**.
+3. Click **`sg-noc-email-marketing`**.
+4. Open the **Event destinations** tab.
+5. Click the existing destination and copy the **SNS topic ARN**
+   (`arn:aws:sns:eu-north-1:068799539687:…`). Keep it on the clipboard.
+
+---
+
+### Step 1 — create a second configuration set
+
+**Do not reuse `sg-noc-email-marketing` as the account-wide default.** It
+captures Open and Click events, and that is what makes SES inject a tracking
+pixel and **rewrite every link** in the message. Right for campaigns; actively
+harmful on a Salesforce password-reset or a Sophos alert.
+
+1. Left nav → **Configuration → Configuration sets** → **Create set**.
+2. **Configuration set name**: `sg-all-mail`
+3. Leave everything else at its default — no sending IP pool, no custom redirect
+   domain, no suppression-list override.
+4. **Create set**.
+
+> The "Custom redirect domain" field does **not** control tracking. What controls
+> it is which event types you select in Step 2.
+
+---
+
+### Step 2 — publish its events to the same SNS topic
+
+1. Open the new **`sg-all-mail`** set → **Event destinations** tab →
+   **Add destination**.
+2. **Event types** — tick exactly these:
+   - ✅ Sends
+   - ✅ Deliveries
+   - ✅ Hard bounces
+   - ✅ Complaints
+   - ✅ Rejects
+   - ✅ Rendering failures
+   - ✅ Delivery delays
+   - ❌ **Opens** — leave unticked
+   - ❌ **Clicks** — leave unticked
+
+   Leaving Opens and Clicks off is the whole safeguard: with them off, SES does
+   not modify the message body, so no tracking pixel is inserted and no links are
+   rewritten.
+3. **Next** → **Destination type**: **Amazon SNS**.
+4. **SNS topic**: pick the topic whose ARN you copied in Step 0.
+5. **Name**: `noc-sns`
+6. **Next** → **Add destination**.
+
+---
+
+### Step 3 — make it the default on all ten identities
+
+SES matches the **most specific** identity for a send. Setting the default only
+on the domain `samirgroup.net` would *not* cover the separate email identity
+`crm@samirgroup.net` — which is exactly where Salesforce sends from. So this has
+to be done on every identity, one at a time.
+
+For **each** identity below:
+
+1. Left nav → **Configuration → Identities**.
+2. Click the identity.
+3. Open the **Configuration set** tab.
+4. **Edit**.
+5. Tick **Assign a default configuration set**.
+6. Choose **`sg-all-mail`**.
+7. **Save changes**.
+
+The ten identities on this account:
+
+| Identity | Type | Notes |
+|---|---|---|
+| `samirgroup.com` | domain | |
+| `samirgroup.net` | domain | |
+| `samirgroup.org` | domain | |
+| `samirgroup.info` | domain | |
+| `sssegypt.com` | domain | |
+| `sssegypt.net` | domain | |
+| `crm@samirgroup.net` | email | **Salesforce** — do not skip |
+| `donotreply@samirgroup.net` | email | |
+| `marketing@sssegypt.com` | email | |
+| `mohammad.salameh@samirgroup.net` | email | |
+
+Marketing is unaffected: `SesService` names `sg-noc-email-marketing` explicitly
+on every campaign send, and an explicit configuration set always beats the
+identity default.
+
+---
+
+### Step 4 — confirm
+
+1. Trigger any mail from a newly-covered service (a Salesforce test email, a
+   Sophos alert, a scan-to-email from a Ricoh).
+2. Open **`/admin/mail-delivery`** — it should appear within seconds.
+3. The orange coverage banner at the top of that page compares SES's own
+   24-hour counter against what was logged. It should fall towards 0% missing
+   over the following 24 hours as the old, unlogged sends age out of the window.
+4. Use the **Sender** filter to confirm each service is arriving:
+   `crm@samirgroup.net`, `donotreply@samirgroup.net`, and so on.
+
+If a service still doesn't appear, it is sending from an identity that didn't get
+the default set — check the From address on one of its messages against the table
+above.
+
+---
+
+## Required IAM permissions
+
+The NOC's own IAM user (`sg-noc-ses-sender`) is **send-only** — it is denied
+`ses:GetAccount` and `ses:ListConfigurationSets`, so it cannot read or make any
+of these changes, and the NOC deliberately does not try. Do the steps above as an
+admin user. Granting the NOC user more is not required and not recommended.
+
+## Appendix — the same thing on the CLI
 
 ```bash
-aws sesv2 create-configuration-set \
-  --configuration-set-name sg-all-mail \
-  --region eu-north-1 \
-  --tracking-options '{"CustomRedirectDomain":""}' \
-  --no-cli-pager
-```
+REGION=eu-north-1
+TOPIC=$(aws sesv2 get-configuration-set-event-destinations \
+          --configuration-set-name sg-noc-email-marketing --region $REGION \
+          --query 'EventDestinations[0].SnsDestination.TopicArn' --output text)
 
-If the CLI rejects the empty tracking domain, create it in the console instead
-and leave **open tracking** and **click tracking** unchecked.
+aws sesv2 create-configuration-set --configuration-set-name sg-all-mail --region $REGION
 
-### Step 2 — point it at the same SNS topic the NOC already receives
-
-Reuse the existing topic — the NOC webhook (`/api/sns/email-events`) and its
-signature verification already handle it, so nothing on the NOC side changes.
-
-```bash
 aws sesv2 create-configuration-set-event-destination \
-  --configuration-set-name sg-all-mail \
+  --configuration-set-name sg-all-mail --region $REGION \
   --event-destination-name noc-sns \
-  --region eu-north-1 \
-  --event-destination '{
-    "Enabled": true,
-    "MatchingEventTypes": ["SEND","DELIVERY","BOUNCE","COMPLAINT","REJECT","RENDERING_FAILURE"],
-    "SnsDestination": {"TopicArn": "<the topic sg-noc-email-marketing already publishes to>"}
-  }'
-```
+  --event-destination "{
+    \"Enabled\": true,
+    \"MatchingEventTypes\": [\"SEND\",\"DELIVERY\",\"BOUNCE\",\"COMPLAINT\",\"REJECT\",\"RENDERING_FAILURE\",\"DELIVERY_DELAY\"],
+    \"SnsDestination\": {\"TopicArn\": \"$TOPIC\"}
+  }"
 
-Find that ARN under the existing set:
-
-```bash
-aws sesv2 get-configuration-set-event-destinations \
-  --configuration-set-name sg-noc-email-marketing --region eu-north-1
-```
-
-`OPEN` and `CLICK` are omitted on purpose — without tracking enabled they never
-fire, and you do not want them firing on third-party mail anyway.
-
-### Step 3 — set it as the default on every identity
-
-The account has ten verified identities. **All of them need it**: SES matches the
-most specific identity for a send, so setting the default only on the domain
-`samirgroup.net` would *not* cover the separate email identity
-`crm@samirgroup.net` — which is exactly where Salesforce sends from.
-
-```bash
 for identity in \
   samirgroup.com samirgroup.net samirgroup.org samirgroup.info \
   sssegypt.com sssegypt.net \
@@ -95,31 +184,12 @@ for identity in \
   donotreply@samirgroup.net mohammad.salameh@samirgroup.net
 do
   aws sesv2 put-email-identity-configuration-set-attributes \
-    --email-identity "$identity" \
-    --configuration-set-name sg-all-mail \
-    --region eu-north-1
+    --email-identity "$identity" --configuration-set-name sg-all-mail --region $REGION
 done
 ```
 
-Console equivalent: **SES → Identities → *identity* → Configuration set →
-Edit → Default configuration set**.
-
-Marketing is unaffected: `SesService` names `sg-noc-email-marketing` explicitly
-on every campaign send, and an explicit configuration set always beats the
-identity default.
-
-### Step 4 — confirm
-
-Send anything from one of the newly-covered services, then reload
-`/admin/mail-delivery`. It should appear within seconds, and the coverage warning
-at the top of the page should shrink towards zero over the following 24 hours.
-
-## Required IAM permissions
-
-The NOC's own IAM user (`sg-noc-ses-sender`) is **send-only** — it is denied
-`ses:GetAccount` and `ses:ListConfigurationSets`, so it cannot read or make any
-of these changes, and the NOC deliberately does not try. Run the steps above as
-an admin user. Granting the NOC user more is not required and not recommended.
+`OPEN` and `CLICK` are omitted deliberately — including them is what turns on
+body rewriting.
 
 ## Volume note
 
