@@ -61,6 +61,9 @@ class RolePermission extends Model
                 'view-credentials' => 'View Credentials (masked)',
                 'manage-credentials' => 'Create / Edit / Delete / Reveal Credentials',
             ],
+            'Mail Delivery' => [
+                'view-mail-delivery' => 'View SES Mail Delivery Log (every message the AWS account sent)',
+            ],
             'Deployment' => [
                 'view-deploy-servers' => 'View Deployment Servers & Run History',
                 'run-deploy-commands' => 'Open SSH Terminal & Run Deploy Commands',

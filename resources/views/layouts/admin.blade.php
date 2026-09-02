@@ -1134,7 +1134,7 @@
                     @endcanany
 
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
-                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines','view-knowbe4-scores'])
+                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','view-mail-delivery','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines','view-knowbe4-scores'])
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/email-templates*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*','admin/smtp-relay*','admin/tickets*','admin/announcements*','admin/greeting-lines*','admin/knowbe4*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -1295,7 +1295,7 @@
                                 </a>
                             </li>
                             @endcan
-                            @canany(['manage-notification-rules','view-email-logs','manage-license-monitors','manage-allowed-domains','view-server-status'])
+                            @canany(['manage-notification-rules','view-email-logs','view-mail-delivery','manage-license-monitors','manage-allowed-domains','view-server-status'])
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-layers me-1"></i>Platform</h6></li>
                             @can('view-server-status')
@@ -1325,6 +1325,14 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.email-log.index') ? 'active' : '' }}"
                                    href="{{ route('admin.email-log.index') }}">
                                     <i class="bi bi-envelope-check me-2"></i>Email Log
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-mail-delivery')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.mail-delivery.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.mail-delivery.index') }}">
+                                    <i class="bi bi-send-check me-2 text-primary"></i>Mail Delivery (SES)
                                 </a>
                             </li>
                             @endcan

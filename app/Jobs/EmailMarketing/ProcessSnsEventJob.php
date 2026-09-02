@@ -113,6 +113,17 @@ class ProcessSnsEventJob implements ShouldQueue
         // so the counter logic can read the inserted row's real id.
         $persistedEvent = EmailEvent::create($eventRow);
 
+        // Fold the event into the account-wide sent-mail log (/admin/email-log).
+        // Wrapped because this is a projection, not the source of truth: if it
+        // fails, the event row and the campaign counters below must still be
+        // correct, and SNS must not be told to retry a notification we already
+        // stored.
+        try {
+            app(\App\Services\EmailLog\EmailMessageRecorder::class)->record($payload, $send?->id);
+        } catch (\Throwable $e) {
+            Log::warning('Email log projection failed: '.$e->getMessage(), ['msg_id' => $messageId]);
+        }
+
         if (! $send) {
             Log::info('SNS event for unknown SES message id', ['msg_id' => $messageId, 'type' => $eventType]);
 

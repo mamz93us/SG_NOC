@@ -2170,6 +2170,21 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::delete('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'destroy'])->name('workflow-templates.trigger.clear');
 
     // ── Email Logs ────────────────────────────────────────────────
+    // ─── SES Mail Delivery Log ────────────────────────────────
+    // Every message the AWS account sent, as SES reported it. Distinct from
+    // the email-log above, which records what THIS app handed to the mailer;
+    // this is the delivery outcome, and covers marketing and any other sender
+    // on the account too. Read-only projection of email_events.
+    Route::middleware('permission:view-mail-delivery')
+        ->prefix('mail-delivery')
+        ->name('mail-delivery.')
+        ->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\MailDeliveryController::class, 'index'])->name('index');
+            Route::get('/events', [\App\Http\Controllers\Admin\MailDeliveryController::class, 'events'])->name('events');
+            Route::get('/{message}', [\App\Http\Controllers\Admin\MailDeliveryController::class, 'show'])
+                ->whereNumber('message')->name('show');
+        });
+
     Route::get('/notifications/email-log', [EmailLogController::class, 'index'])->name('email-log.index');
     Route::delete('/notifications/email-log', [EmailLogController::class, 'clearAll'])->name('email-log.clear');
 
