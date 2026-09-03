@@ -469,6 +469,16 @@
                     </button>
                 @endif
 
+                {{-- Samsung, on the same terms as Apple: the card only means
+                     anything on the handset, so this opens a QR too. --}}
+                @if($samsungAvailable && $samsungQrUrl)
+                    <button type="button" class="wallet-btn" id="addToSamsungBtn"
+                            aria-haspopup="dialog" aria-controls="samsungQrModal">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M16.5 14.5h2" stroke-linecap="round"/></svg>
+                        Add to Samsung Wallet
+                    </button>
+                @endif
+
                 {{-- The QR points at the business-card subdomain, which is the
                      canonical public URL for a card and the one to hand out. --}}
                 <button type="button" class="wallet-btn wallet-btn-secondary" id="showCardQrBtn"
@@ -511,6 +521,18 @@
             'title' => 'Add to Apple Wallet',
             'description' => 'Scan this with your iPhone camera to add your employee card to Apple Wallet. The pass cannot be added from this computer — it has to go on the phone.',
             'url' => $walletQrUrl,
+            'caption' => $employee?->name ?: $user->name,
+            'footnote' => 'This code is personal to you and expires in 15 minutes. Reload the page for a fresh one.',
+        ])
+    @endif
+
+    @if($samsungAvailable && $samsungQrUrl)
+        @include('home.partials.qr-modal', [
+            'id' => 'samsungQrModal',
+            'triggerId' => 'addToSamsungBtn',
+            'title' => 'Add to Samsung Wallet',
+            'description' => 'Scan this with your Samsung phone to add your employee card to Samsung Wallet. It cannot be added from this computer — the card has to go on the phone.',
+            'url' => $samsungQrUrl,
             'caption' => $employee?->name ?: $user->name,
             'footnote' => 'This code is personal to you and expires in 15 minutes. Reload the page for a fresh one.',
         ])

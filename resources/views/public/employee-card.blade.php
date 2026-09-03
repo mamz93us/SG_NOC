@@ -325,11 +325,18 @@
                     data-url="{{ $card_url }}" data-name="{{ $name }}">
                 <i class="bi bi-share"></i> <span id="shareLabel">Share</span>
             </button>
-            {{-- Wallet download requires a logged-in session; hide it from public viewers --}}
+            {{-- Wallet actions require a logged-in session; hide them from public viewers --}}
             @auth
                 @if($wallet_ready)
                 <a href="{{ $wallet_url }}" class="btn-action btn-wallet">
                     <i class="bi bi-wallet2"></i> Add to Apple Wallet
+                </a>
+                @endif
+                @if($samsung_ready ?? false)
+                {{-- A redirect to Samsung's add-to-wallet link, not a download —
+                     the card itself travels inside the URL. --}}
+                <a href="{{ $samsung_url }}" class="btn-action btn-wallet">
+                    <i class="bi bi-wallet2"></i> Add to Samsung Wallet
                 </a>
                 @endif
             @endauth

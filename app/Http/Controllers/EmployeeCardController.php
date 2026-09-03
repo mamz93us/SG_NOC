@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\Setting;
+use App\Services\EmployeeCard\SamsungWalletService;
 use App\Services\EmployeeCard\VCardService;
 use App\Services\EmployeeCard\WalletPassService;
 use App\Support\VCard;
@@ -18,6 +19,7 @@ class EmployeeCardController extends Controller
     public function __construct(
         private readonly VCardService $vcard,
         private readonly WalletPassService $wallet,
+        private readonly SamsungWalletService $samsung,
     ) {}
 
     // ─── Public digital card ─────────────────────────────────────────────────
@@ -51,6 +53,8 @@ class EmployeeCardController extends Controller
             'vcard_url' => url("/card/{$token}/vcard"),
             'wallet_url' => url("/card/{$token}/wallet"),
             'wallet_ready' => $this->wallet->isConfigured(),
+            'samsung_url' => url("/card/{$token}/samsung"),
+            'samsung_ready' => $this->samsung->isConfigured(),
             // The owner viewing their own card gets the Wallet + Share actions.
             'is_owner' => Auth::check() && Auth::user()->email === $employee->email,
             'token' => $token,
@@ -76,6 +80,29 @@ class EmployeeCardController extends Controller
             'Content-Type' => 'text/vcard; charset=utf-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
+    }
+
+    // ─── Samsung Wallet ──────────────────────────────────────────────────────
+
+    /**
+     * Send the employee to Samsung's "Add to Wallet" link.
+     *
+     * A redirect rather than a download: Samsung's card is not a file — the
+     * whole thing is a signed JWS in the URL, which the Wallet app on the phone
+     * verifies against the public key in our Partner Portal account.
+     */
+    public function samsungWallet(string $token): \Illuminate\Http\RedirectResponse
+    {
+        $employee = Employee::where('card_token', $token)
+            ->where('status', 'active')
+            ->with(['identityUser', 'branch', 'department'])
+            ->firstOrFail();
+
+        if (! $this->samsung->isConfigured()) {
+            abort(503, 'Samsung Wallet is not configured on this server.');
+        }
+
+        return redirect()->away($this->samsung->addToWalletUrl($employee));
     }
 
     // ─── Apple Wallet pass download ──────────────────────────────────────────
@@ -133,6 +160,8 @@ class EmployeeCardController extends Controller
             'vcard_url' => url("/card/{$employee->card_token}/vcard"),
             'wallet_url' => url("/card/{$employee->card_token}/wallet"),
             'wallet_ready' => $this->wallet->isConfigured(),
+            'samsung_url' => url("/card/{$employee->card_token}/samsung"),
+            'samsung_ready' => $this->samsung->isConfigured(),
         ]);
     }
 
@@ -149,6 +178,7 @@ class EmployeeCardController extends Controller
             'qr_svg' => $this->makeQr($cardUrl),
             'vcard_url' => url("/card/{$employee->card_token}/vcard"),
             'wallet_url' => url("/card/{$employee->card_token}/wallet"),
+            'samsung_url' => url("/card/{$employee->card_token}/samsung"),
         ]);
     }
 

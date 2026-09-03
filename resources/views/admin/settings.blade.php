@@ -2492,6 +2492,128 @@ document.getElementById('whatsapp-test-btn')?.addEventListener('click', function
     </div>
 </div>
 
+{{-- ── Samsung Wallet ────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="samsung-wallet">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-wallet2 text-primary fs-5"></i>
+        <h5 class="mb-0">Samsung Wallet</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-warning small d-flex gap-2 align-items-start">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            <div>
+                <strong>Needs an approved Samsung Wallet partner account.</strong>
+                Unlike Apple &mdash; where a developer account gives you a Pass Type ID the same
+                afternoon &mdash; Samsung onboarding is a business agreement at
+                <a href="https://partner.walletsvc.samsung.com/" target="_blank" rel="noopener">partner.walletsvc.samsung.com</a>.
+                You publish a <strong>Generic</strong> wallet card template, upload the
+                <strong>public</strong> half of an RSA key pair, and Samsung issues the three
+                identifiers below. Until all four values are set the buttons stay hidden
+                everywhere &mdash; nothing half-configured is ever shown to an employee.
+            </div>
+        </div>
+
+        <p class="text-muted small mb-3">
+            Adds an <em>Add to Samsung Wallet</em> button beside the Apple one, on the employee
+            home portal and on the digital card. Samsung's card is a signed <strong>link</strong>,
+            not a downloaded file, so the portal shows a QR the phone scans.
+        </p>
+
+        <form method="POST" action="{{ route('admin.settings.samsung-wallet') }}" enctype="multipart/form-data">
+            @csrf
+
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" name="samsung_wallet_enabled"
+                       id="samsungWalletEnabled" value="1"
+                       {{ $settings->samsung_wallet_enabled ? 'checked' : '' }}>
+                <label class="form-check-label" for="samsungWalletEnabled">
+                    Enable Samsung Wallet (<code>GET /card/{token}/samsung</code>)
+                </label>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Organization Name</label>
+                    <input type="text" name="samsung_wallet_org_name" class="form-control form-control-sm"
+                           value="{{ $settings->samsung_wallet_org_name ?: $settings->company_name }}"
+                           placeholder="{{ $settings->company_name ?: 'Samir Group' }}">
+                    <div class="form-text">Shown as the card's provider name.</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Card Background Color</label>
+                    <input type="color" name="samsung_wallet_bg_color" class="form-control form-control-color form-control-sm"
+                           value="{{ $settings->samsung_wallet_bg_color ?: '#c8102e' }}">
+                    <div class="form-text">
+                        Brand red by default. The text colour flips between Samsung's
+                        <code>dark</code> and <code>light</code> automatically.
+                    </div>
+                </div>
+            </div>
+
+            <div class="card bg-light border mb-3">
+                <div class="card-body py-3">
+                    <h6 class="mb-3 text-secondary"><i class="bi bi-key me-1"></i>Partner Portal Credentials</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Partner ID <span class="text-danger">*</span></label>
+                            <input type="text" name="samsung_wallet_partner_id" class="form-control form-control-sm font-monospace"
+                                   value="{{ $settings->samsung_wallet_partner_id }}" maxlength="64">
+                            <div class="form-text">Your partner identifier from the Portal.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Card ID <span class="text-danger">*</span></label>
+                            <input type="text" name="samsung_wallet_card_id" class="form-control form-control-sm font-monospace"
+                                   value="{{ $settings->samsung_wallet_card_id }}" maxlength="64">
+                            <div class="form-text">The published <strong>Generic</strong> wallet card template.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Certificate ID <span class="text-danger">*</span></label>
+                            <input type="text" name="samsung_wallet_certificate_id" class="form-control form-control-sm font-monospace"
+                                   value="{{ $settings->samsung_wallet_certificate_id }}" maxlength="64">
+                            <div class="form-text">Issued when you upload your public key.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Private Key (PEM) <span class="text-danger">*</span></label>
+                            <input type="file" name="samsung_wallet_private_key_file" class="form-control form-control-sm"
+                                   accept=".pem,.key,.txt">
+                            <div class="form-text">
+                                @if($settings->samsung_wallet_private_key)
+                                    <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Key stored (encrypted).</span>
+                                    Upload a new file to replace it.
+                                @else
+                                    <span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>No key stored.</span>
+                                @endif
+                                The <strong>private</strong> half of the pair whose public half is in the
+                                Portal. Must be <strong>unencrypted</strong> PEM. It is validated on save
+                                and encrypted at rest.
+                            </div>
+                            @error('samsung_wallet_private_key_file')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-info small mb-3">
+                <i class="bi bi-info-circle me-1"></i>
+                <strong>Label the template fields in this order</strong>, or the card will read
+                &ldquo;Field 3: ext. 214&rdquo;. The portal template owns the labels; the NOC only
+                sends values:
+                <code>text1</code> = Department,
+                <code>text2</code> = Office,
+                <code>text3</code> = Extension,
+                <code>text4</code> = Email.
+                The QR (<code>serial1</code>) carries the employee's digital card URL.
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-floppy me-1"></i>Save Samsung Wallet Settings
+            </button>
+        </form>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')

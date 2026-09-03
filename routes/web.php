@@ -161,6 +161,12 @@ Route::get('/card/{token}/vcard', [\App\Http\Controllers\EmployeeCardController:
 Route::get('/card/{token}/wallet', [\App\Http\Controllers\EmployeeCardController::class, 'walletPass'])
     ->middleware('auth')
     ->name('employee.card.wallet');
+// Samsung's equivalent is a redirect, not a download: the whole card travels
+// inside the `cdata` JWS in the URL, so there is no file to stream. Gated the
+// same way as the Apple pass — that link is personal to the employee.
+Route::get('/card/{token}/samsung', [\App\Http\Controllers\EmployeeCardController::class, 'samsungWallet'])
+    ->middleware('auth')
+    ->name('employee.card.samsung');
 
 // ──────────────────────────────────────────────────────────────────
 // Digital business card subdomain (vcard.samirgroup.net by default; set
@@ -292,6 +298,17 @@ if (\App\Support\HomePortal::enabled()) {
         Route::get('/my-card/pass/{employee}', [\App\Http\Controllers\Home\HomeController::class, 'signedWalletPass'])
             ->middleware('signed')
             ->name('card.pass');
+
+        // Samsung's half of the same arrangement, and for the same reason: the
+        // add-to-wallet link has to be opened ON THE PHONE, so the desktop shows
+        // a QR and the handset that scans it arrives with no session here.
+        // `signed` is what stands in for auth — minted while the owner was
+        // signed in, tamper-proof, one employee, expires in minutes. Do not swap
+        // it for `auth` (the QR stops working) or drop it (anyone can enumerate
+        // employee ids and mint their card).
+        Route::get('/my-card/samsung/{employee}', [\App\Http\Controllers\Home\HomeController::class, 'signedSamsungWallet'])
+            ->middleware('signed')
+            ->name('card.samsung');
 
         Route::post('/logout', function (\Illuminate\Http\Request $request) {
             \Illuminate\Support\Facades\Auth::logout();
@@ -968,6 +985,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/sophos-central', [SettingsController::class, 'updateSophosCentral'])->name('settings.sophos-central');
         Route::post('settings/sophos-central/test', [SettingsController::class, 'testSophosCentral'])->name('settings.sophos-central.test');
         Route::post('settings/employee-cards', [SettingsController::class, 'updateEmployeeCards'])->name('settings.employee-cards');
+        // Samsung Wallet keeps its own form: independent credentials, and one
+        // "save" must not be able to wipe the other vendor's key.
+        Route::post('settings/samsung-wallet', [SettingsController::class, 'updateSamsungWallet'])->name('settings.samsung-wallet');
         Route::post('settings/whatsapp', [SettingsController::class, 'updateWhatsapp'])->name('settings.whatsapp');
         Route::post('settings/whatsapp/test', [SettingsController::class, 'testWhatsapp'])->name('settings.whatsapp.test');
 

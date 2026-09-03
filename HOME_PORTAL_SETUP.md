@@ -81,7 +81,7 @@ support**, and **Company**.
 | Company | Company Calendar | `company_events`, synced hourly from Microsoft Graph |
 | Company | Employees Directory | The existing public phonebook |
 | Company | Announcements | `announcements` table, full-width slider + archive |
-| Sidebar | ID card + Add to Wallet | `Employee.card_token`, the existing `/card/{token}` + `.pkpass` |
+| Sidebar | ID card + Add to Apple / Samsung Wallet | `Employee.card_token`; see [EMPLOYEE_CARD_SETUP.md](EMPLOYEE_CARD_SETUP.md) |
 
 Tiles with no URL configured are **hidden**, not rendered as dead links. Cards
 whose integration is off hide themselves rather than showing dashes.

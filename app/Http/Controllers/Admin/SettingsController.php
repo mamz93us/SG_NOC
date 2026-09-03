@@ -1503,6 +1503,69 @@ class SettingsController extends Controller
             ->withFragment('employee-cards');
     }
 
+    /**
+     * Update Samsung Wallet settings.
+     *
+     * Its own form and its own action rather than more fields on the Apple one:
+     * the two are independent integrations with independent credentials, and a
+     * single "save" that wipes Samsung's key because an admin was editing the
+     * Apple background colour would be a nasty surprise.
+     *
+     * The private key is validated at save time — openssl has to be able to
+     * read it. A key that only fails when the first employee taps the button
+     * would be discovered by the employee, not the admin.
+     */
+    public function updateSamsungWallet(Request $request)
+    {
+        $request->validate([
+            'samsung_wallet_org_name' => 'nullable|string|max:100',
+            'samsung_wallet_partner_id' => 'nullable|string|max:64',
+            'samsung_wallet_card_id' => 'nullable|string|max:64',
+            'samsung_wallet_certificate_id' => 'nullable|string|max:64',
+            'samsung_wallet_private_key_file' => 'nullable|file|max:32',
+            'samsung_wallet_bg_color' => 'nullable|regex:/^#[0-9a-fA-F]{3,8}$/',
+        ]);
+
+        $settings = Setting::get();
+
+        $settings->samsung_wallet_enabled = $request->boolean('samsung_wallet_enabled');
+        $settings->samsung_wallet_org_name = $request->samsung_wallet_org_name;
+        $settings->samsung_wallet_partner_id = $request->samsung_wallet_partner_id;
+        $settings->samsung_wallet_card_id = $request->samsung_wallet_card_id;
+        $settings->samsung_wallet_certificate_id = $request->samsung_wallet_certificate_id;
+        $settings->samsung_wallet_bg_color = $request->samsung_wallet_bg_color ?: '#c8102e';
+
+        if ($request->hasFile('samsung_wallet_private_key_file')
+            && $request->file('samsung_wallet_private_key_file')->isValid()) {
+            $pem = trim(file_get_contents($request->file('samsung_wallet_private_key_file')->getPathname()));
+
+            if (openssl_pkey_get_private($pem) === false) {
+                return back()
+                    ->withErrors(['samsung_wallet_private_key_file' => 'That file is not a readable private key. Export an UNENCRYPTED RSA key in '
+                        .'PEM form — it starts with "-----BEGIN PRIVATE KEY-----" or '
+                        .'"-----BEGIN RSA PRIVATE KEY-----".'])
+                    ->withFragment('samsung-wallet');
+            }
+
+            $settings->samsung_wallet_private_key = $pem;
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'Setting',
+            'model_id' => 1,
+            'action' => 'samsung_wallet_updated',
+            'changes' => ['samsung_wallet_enabled' => $settings->samsung_wallet_enabled],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'Samsung Wallet settings updated.')
+            ->withFragment('samsung-wallet');
+    }
+
     // ─────────────────────────────────────────────────────────────
     // WhatsApp Cloud API (Meta) — alert delivery channel
     // ─────────────────────────────────────────────────────────────

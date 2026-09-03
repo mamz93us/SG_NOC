@@ -189,6 +189,13 @@ class Setting extends Model
         'wallet_pass_cert_password',
         'wallet_pass_wwdr_cert',
         'wallet_pass_bg_color',
+        'samsung_wallet_enabled',
+        'samsung_wallet_org_name',
+        'samsung_wallet_partner_id',
+        'samsung_wallet_card_id',
+        'samsung_wallet_certificate_id',
+        'samsung_wallet_private_key',
+        'samsung_wallet_bg_color',
         // NOC-AGW Access Gateway (read by the noc-agw FastAPI service)
         'agw_backend_url',
         'agw_enforce_ip_acl',
@@ -255,6 +262,7 @@ class Setting extends Model
         'sftpgo_default_quota_mb' => 'integer',
         // Apple Wallet
         'wallet_pass_enabled' => 'boolean',
+        'samsung_wallet_enabled' => 'boolean',
         // NOC-AGW Access Gateway
         'agw_enforce_ip_acl' => 'boolean',
         // Voice Mesh
@@ -673,6 +681,25 @@ class Setting extends Model
     }
 
     public function getWalletPassCertPasswordAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    // ─── Samsung Wallet signing key — encrypted at rest ───────────
+
+    public function setSamsungWalletPrivateKeyAttribute(?string $value): void
+    {
+        $this->attributes['samsung_wallet_private_key'] = $value ? Crypt::encryptString($value) : null;
+    }
+
+    public function getSamsungWalletPrivateKeyAttribute(?string $value): ?string
     {
         if (! $value) {
             return null;

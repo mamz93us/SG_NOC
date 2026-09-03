@@ -9,6 +9,7 @@ use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\Knowbe4Score;
 use App\Models\Setting;
+use App\Services\EmployeeCard\SamsungWalletService;
 use App\Services\EmployeeCard\WalletPassService;
 use App\Services\Home\CoreSystems;
 use App\Services\Home\Greeter;
@@ -141,6 +142,28 @@ class HomeController extends Controller
         return $this->streamPass($employee, $wallet);
     }
 
+    /**
+     * The same idea for Samsung, reached by the phone that scanned the QR.
+     *
+     * There is nothing to stream: Samsung's card is a signed link, so this
+     * redirects to it. The link is minted here rather than encoded in the QR
+     * directly because the `cdata` token runs to well over a thousand
+     * characters — a QR carrying it would be dense enough to fail scanning on
+     * an ordinary phone camera across a desk.
+     */
+    public function signedSamsungWallet(Employee $employee, SamsungWalletService $samsung): RedirectResponse
+    {
+        abort_unless($employee->status === 'active' && $employee->card_token, 404);
+
+        if (! $samsung->isConfigured()) {
+            abort(503, 'Samsung Wallet is not configured on this server.');
+        }
+
+        $employee->loadMissing(['identityUser', 'branch', 'department']);
+
+        return redirect()->away($samsung->addToWalletUrl($employee));
+    }
+
     private function streamPass(Employee $employee, WalletPassService $wallet)
     {
         if (! $wallet->isConfigured()) {
@@ -182,6 +205,7 @@ class HomeController extends Controller
 
         $announcements = $this->announcements($employee);
         $walletAvailable = app(WalletPassService::class)->isConfigured();
+        $samsungAvailable = app(SamsungWalletService::class)->isConfigured();
 
         return [
             'user' => $user,
@@ -221,6 +245,17 @@ class HomeController extends Controller
             'walletQrUrl' => ($walletAvailable && $employee)
                 ? URL::temporarySignedRoute(
                     'home.card.pass',
+                    now()->addMinutes(15),
+                    ['employee' => $employee->id],
+                )
+                : null,
+            // Samsung's link is minted on the phone side too, for the same
+            // reason: adding a card to a wallet only means anything on the
+            // handset, and this page is open on a Windows PC.
+            'samsungAvailable' => $samsungAvailable,
+            'samsungQrUrl' => ($samsungAvailable && $employee)
+                ? URL::temporarySignedRoute(
+                    'home.card.samsung',
                     now()->addMinutes(15),
                     ['employee' => $employee->id],
                 )
