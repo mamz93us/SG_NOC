@@ -206,6 +206,10 @@ class HomeController extends Controller
             // load, and this page sits open all day on an unattended desk.
             'coreSystems' => app(CoreSystems::class)->visible($settings),
             'assetCount' => HomeAssetsController::activeCountFor($employee),
+            // Drives the two IT cards. Cached per audience and never throws —
+            // an empty library shows the cards with their static wording
+            // rather than hiding the shelf people are told to go and read.
+            'docCounts' => HomeDocumentController::tileCounts($employee),
             // Cached for 5 minutes and never throws — this page is opened
             // unattended on every company PC, so the ticketing system
             // being slow must not be felt here.

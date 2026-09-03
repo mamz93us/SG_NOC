@@ -83,9 +83,11 @@ return [
     | Webmail
     |--------------------------------------------------------------------------
     |
-    | Outlook on the web, in Quick access. Not a core-system tile: those are
-    | line-of-business applications, and mail is the one thing everybody opens
-    | every day regardless of what they do. Blank hides the card.
+    | Outlook on the web. Rendered in the top Quick access grid alongside the
+    | line-of-business systems (next to ArcMate), because mail is the one thing
+    | everybody opens every day regardless of what they do. It is NOT a
+    | `core_systems` entry — its address comes from here, not from Settings.
+    | Blank hides the card rather than shipping a tile that goes nowhere.
     |
     */
 
@@ -93,7 +95,7 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Core systems
+    | Core systems (the top "Quick access" grid)
     |--------------------------------------------------------------------------
     |
     | The big tiles at the top of the page. The LIST lives here rather than in the
@@ -110,9 +112,9 @@ return [
 
     'core_systems' => [
         [
-            // Rendered by the combined "IT Service Desk" card in Quick access —
+            // Rendered by the combined "IT Service Desk" card in IT & support —
             // raising a ticket and tracking one belong together — so this entry
-            // is skipped in the Core systems grid. It stays here because
+            // is skipped in the top Quick access grid. It stays here because
             // CoreSystems::visible() and the Settings screen both read this
             // list, and because the card is only built when the tile exists.
             'key' => 'servicedesk',

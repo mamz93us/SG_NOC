@@ -1190,6 +1190,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('manage-portal-documents')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.portal-documents.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.portal-documents.index') }}">
+                                    <i class="bi bi-folder2-open me-2"></i>Employee Documents
+                                </a>
+                            </li>
+                            @endcan
                             @can('manage-greeting-lines')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.greeting-lines.*') ? 'active' : '' }}"

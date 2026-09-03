@@ -99,8 +99,8 @@
         $otherSystems = collect($coreSystems)->reject(fn ($s) => $s['key'] === 'servicedesk');
     @endphp
 
-    @if($otherSystems->isNotEmpty())
-        <p class="section-label">Core systems</p>
+    @if($otherSystems->isNotEmpty() || $webmailUrl)
+        <p class="section-label">Quick access</p>
         <div class="grid-primary">
             @foreach($otherSystems as $sys)
                 <a class="card" href="{{ $sys['url'] }}" target="_blank" rel="noopener noreferrer"
@@ -114,11 +114,28 @@
                     @endif
                 </a>
             @endforeach
+
+            {{-- Mail sits with the line-of-business systems rather than further
+                 down: it is the one application everybody opens every day,
+                 whatever they do. Blank in config hides it rather than
+                 shipping a tile that goes nowhere. --}}
+            @if($webmailUrl)
+                <a class="card" href="{{ $webmailUrl }}" target="_blank" rel="noopener noreferrer"
+                   aria-label="Open Outlook Mail on the web">
+                    <div class="icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="M3.2 6.6 12 12.8l8.8-6.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3>Outlook Mail</h3>
+                    <p class="meta">Your inbox in the browser</p>
+                </a>
+            @endif
         </div>
     @endif
 
-    {{-- ─── Quick access ──────────────────────────────────────── --}}
-    <p class="section-label" style="margin-top:34px;">Quick access</p>
+    {{-- ─── IT & Support ──────────────────────────────────────────
+         Everything IT owns, in one place: raise a ticket, read the policy you
+         are held to, find the manual, and see what is signed out to you. --}}
+    <p class="section-label" style="margin-top:34px;">IT &amp; support</p>
     <div class="grid-secondary">
 
         {{-- Raising a ticket and tracking one are the same errand, so they share
@@ -237,6 +254,71 @@
             </div>
         @endif
 
+        {{-- Documentation, manuals and the IT policies. Same page, same
+             library — the two cards differ only by the category they open,
+             because "where is the manual" and "what am I allowed to do" are
+             two different errands even when the shelf is one. --}}
+        <a class="card span-1" href="{{ route('home.documents') }}" aria-label="Open Documentation and Manuals">
+            <div class="icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10l1.6 2H19a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 19 19H5.5A1.5 1.5 0 0 1 4 17.5Z" stroke-linejoin="round"/><path d="M8 11.5h8M8 14.5h5" stroke-linecap="round"/></svg>
+            </div>
+            <h3>Documentation &amp; Manuals</h3>
+            <p class="meta">
+                @if($docCounts['documents'] > 0)
+                    {{ $docCounts['documents'] }} {{ \Illuminate\Support\Str::plural('document', $docCounts['documents']) }} — guides, manuals &amp; forms
+                @else
+                    How-to guides, manuals &amp; forms
+                @endif
+            </p>
+        </a>
+
+        <a class="card span-1" href="{{ route('home.documents', ['category' => 'policy']) }}"
+           aria-label="Open IT Policies">
+            <div class="icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3.5 19 6v5.4c0 4.3-2.9 7.5-7 8.6-4.1-1.1-7-4.3-7-8.6V6l7-2.5Z" stroke-linejoin="round"/><path d="M9.2 11.8h5.6M9.2 14.4h3.6" stroke-linecap="round"/></svg>
+                @if($docCounts['policies'] > 0)
+                    <span class="badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" aria-hidden="true"><path d="M5 12.5 10 17 19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                @endif
+            </div>
+            <h3>IT Policy</h3>
+            <p class="meta">
+                @if($docCounts['policies'] > 0)
+                    {{ $docCounts['policies'] }} {{ \Illuminate\Support\Str::plural('policy', $docCounts['policies']) }} that apply to you
+                @else
+                    Acceptable use &amp; security rules
+                @endif
+            </p>
+        </a>
+
+        <a class="card span-2" href="{{ route('home.assets') }}" aria-label="View My Assets">
+            <div class="icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="12" rx="2"/><path d="M2 19.5h20" stroke-linecap="round"/></svg>
+                @if($assetCount > 0)
+                    <span class="badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" aria-hidden="true"><path d="M5 12.5 10 17 19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                @endif
+            </div>
+            <h3>My Assets</h3>
+            <p class="meta">
+                @if($assetCount > 0)
+                    {{ $assetCount }} {{ \Illuminate\Support\Str::plural('item', $assetCount) }} assigned to you — laptops, phones, accessories &amp; licences
+                @else
+                    Devices &amp; equipment assigned to you
+                @endif
+            </p>
+        </a>
+
+    </div>
+
+    {{-- ─── Company ───────────────────────────────────────────────
+         The people-and-place half of the portal: what is being announced,
+         when payday is, what is on the calendar, and who to call. --}}
+    <p class="section-label" style="margin-top:34px;">Company</p>
+    <div class="grid-secondary">
+
         <a class="card payroll-card span-2" href="{{ $payrollUrl }}" target="_blank" rel="noopener noreferrer"
            aria-label="View payroll details">
             <div class="payroll-left">
@@ -268,18 +350,7 @@
             </div>
         </a>
 
-        @if($webmailUrl)
-            <a class="card span-1" href="{{ $webmailUrl }}" target="_blank" rel="noopener noreferrer"
-               aria-label="Open Outlook Mail on the web">
-                <div class="icon-wrap">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="M3.2 6.6 12 12.8l8.8-6.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </div>
-                <h3>Outlook Mail</h3>
-                <p class="meta">Your inbox in the browser</p>
-            </a>
-        @endif
-
-        <a class="card span-1" href="{{ route('home.announcements') }}" aria-label="Open Company Calendar">
+        <a class="card span-2" href="{{ route('home.announcements') }}" aria-label="Open Company Calendar">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" stroke-linecap="round"/></svg>
             </div>
@@ -298,26 +369,7 @@
             @endif
         </a>
 
-        <a class="card span-1" href="{{ route('home.assets') }}" aria-label="View My Assets">
-            <div class="icon-wrap">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="12" rx="2"/><path d="M2 19.5h20" stroke-linecap="round"/></svg>
-                @if($assetCount > 0)
-                    <span class="badge">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" aria-hidden="true"><path d="M5 12.5 10 17 19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </span>
-                @endif
-            </div>
-            <h3>My Assets</h3>
-            <p class="meta">
-                @if($assetCount > 0)
-                    {{ $assetCount }} {{ \Illuminate\Support\Str::plural('item', $assetCount) }} assigned to you
-                @else
-                    Devices &amp; equipment assigned to you
-                @endif
-            </p>
-        </a>
-
-        <a class="card span-1" href="{{ route('home.directory') }}" aria-label="Open Employees Directory">
+        <a class="card span-2" href="{{ route('home.directory') }}" aria-label="Open Employees Directory">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="9" cy="8.5" r="2.6"/><path d="M4 18.2c.7-3 2.6-4.6 5-4.6s4.3 1.6 5 4.6" stroke-linecap="round"/><path d="M15.5 8.5h4.5M15.5 12h4.5M15.5 15.5h3" stroke-linecap="round"/></svg>
             </div>

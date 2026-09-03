@@ -65,17 +65,23 @@ route is still challenged normally. Do not "optimise" that into a session flag.
 
 ## What is on the page
 
-| Card | Backed by |
-|---|---|
-| IT Service Desk | The Create Ticket service (`NocTicketService`), in a modal |
-| Oracle ERP / Salesforce / ArcMate | `config/home_portal.php` → `core_systems` |
-| E-Services (HR) | `hr.samirgroup.net` |
-| Employees Directory | The existing public phonebook |
-| ID card + Add to Wallet | `Employee.card_token`, the existing `/card/{token}` + `.pkpass` |
-| Announcements | `announcements` table, full-width slider + archive |
-| Company Calendar | `company_events`, synced hourly from Microsoft Graph |
-| My Payroll | Countdown only — `config/home_portal.php` → `payday` |
-| Security Score | `knowbe4_scores`, synced daily |
+The page is in three bands: **Quick access** (the applications), **IT &
+support**, and **Company**.
+
+| Section | Card | Backed by |
+|---|---|---|
+| Quick access | Oracle ERP / Salesforce / ArcMate | `config/home_portal.php` → `core_systems` |
+| Quick access | Outlook Mail | `config/home_portal.php` → `webmail_url` (not a `core_systems` entry) |
+| IT & support | IT Service Desk | The Create Ticket service (`NocTicketService`), in a modal |
+| IT & support | Phish-Prone Score | `knowbe4_scores`, synced daily |
+| IT & support | Documentation & Manuals | `portal_documents`, every category but `policy` |
+| IT & support | IT Policy | `portal_documents`, category `policy` |
+| IT & support | My Assets | ITAM assignments for the signed-in employee |
+| Company | My Payroll | Countdown only — `config/home_portal.php` → `payday` |
+| Company | Company Calendar | `company_events`, synced hourly from Microsoft Graph |
+| Company | Employees Directory | The existing public phonebook |
+| Company | Announcements | `announcements` table, full-width slider + archive |
+| Sidebar | ID card + Add to Wallet | `Employee.card_token`, the existing `/card/{token}` + `.pkpass` |
 
 Tiles with no URL configured are **hidden**, not rendered as dead links. Cards
 whose integration is off hide themselves rather than showing dashes.
@@ -126,6 +132,28 @@ the region correctly, and use **Save & Test** to confirm both at once.
 
 Everyone sees only their own risk score and phishing count. There is no
 cross-employee view, deliberately.
+
+### Documents (manuals & IT policies)
+
+Admin → **Employee Documents** (`manage-portal-documents`). One library feeds
+both IT cards; the **category** decides which — `policy` lands behind *IT
+Policy*, everything else behind *Documentation & Manuals*.
+
+A document is **either an upload or a link**, never both — a card can only do
+one thing, and an upload wins if you supply both. Uploads go to the **`private`
+disk** (`storage/app/private/portal-documents/`) under a generated UUID name,
+and are reachable only through `/documents/{id}/download`, which re-checks
+publication **and** audience on every request. They are never a public URL, and
+nginx cannot serve them: do not "fix" a download by moving them to the public
+disk.
+
+Audience is the same triple as announcements (everyone / one branch / one
+department), and someone with no HR record still sees the "everyone" documents —
+a missing `employees` row must never hide the IT policy from them.
+
+Tile counts are cached per audience for 5 minutes and flushed on save. The two
+cards are always shown, with static wording, even when the library is empty:
+they are where people are told to go.
 
 ### Announcements
 

@@ -327,6 +327,17 @@ if (\App\Support\HomePortal::enabled()) {
             Route::get('/my-assets', [\App\Http\Controllers\Home\HomeAssetsController::class, 'index'])
                 ->name('assets');
 
+            // Documentation, manuals and the IT policies. One page serves both
+            // IT cards — they differ only by the ?category= they arrive with.
+            Route::get('/documents', [\App\Http\Controllers\Home\HomeDocumentController::class, 'index'])
+                ->name('documents');
+            // Uploads live on the `private` disk, so this is the only way to
+            // reach one; it re-checks publication and audience per request
+            // because a download URL gets shared, forwarded and bookmarked.
+            Route::get('/documents/{document}/download', [\App\Http\Controllers\Home\HomeDocumentController::class, 'download'])
+                ->whereNumber('document')
+                ->name('documents.download');
+
             Route::get('/tickets/catalog', [\App\Http\Controllers\Home\HomeTicketController::class, 'catalog'])
                 ->name('tickets.catalog');
 
@@ -1019,6 +1030,20 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('announcements/{announcement}/edit', [\App\Http\Controllers\Admin\AnnouncementController::class, 'edit'])->name('announcements.edit');
             Route::put('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'update'])->name('announcements.update');
             Route::delete('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
+        });
+
+        // The employee document library — manuals, guides, forms and IT
+        // policies read on the home portal. Uploads are on the `private` disk
+        // and are never served by nginx; `download` here is the author's own
+        // copy so a draft can be checked before it is published.
+        Route::middleware('permission:manage-portal-documents')->group(function () {
+            Route::get('portal-documents', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'index'])->name('portal-documents.index');
+            Route::get('portal-documents/create', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'create'])->name('portal-documents.create');
+            Route::post('portal-documents', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'store'])->name('portal-documents.store');
+            Route::get('portal-documents/{portalDocument}/edit', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'edit'])->name('portal-documents.edit');
+            Route::get('portal-documents/{portalDocument}/download', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'download'])->name('portal-documents.download');
+            Route::put('portal-documents/{portalDocument}', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'update'])->name('portal-documents.update');
+            Route::delete('portal-documents/{portalDocument}', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'destroy'])->name('portal-documents.destroy');
         });
 
         Route::middleware('permission:manage-greeting-lines')->group(function () {

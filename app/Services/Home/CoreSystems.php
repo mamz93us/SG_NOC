@@ -5,7 +5,7 @@ namespace App\Services\Home;
 use App\Models\Setting;
 
 /**
- * The "Core systems" tiles on the employee home portal.
+ * The line-of-business tiles in the home portal's top "Quick access" grid.
  *
  * config/home_portal.php owns the LIST — key, name, description, icon — because
  * it cannot be empty on first boot, and this page is the one every PC opens on.

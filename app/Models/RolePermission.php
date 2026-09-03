@@ -181,6 +181,7 @@ class RolePermission extends Model
                 'view-announcements' => 'View Announcements',
                 'manage-announcements' => 'Create / Edit / Delete Announcements',
                 'manage-greeting-lines' => 'Edit Home Portal Greeting Lines',
+                'manage-portal-documents' => 'Publish / Edit / Delete Employee Documents (manuals, IT policies)',
                 'view-knowbe4-scores' => 'View All KnowBe4 Security Scores',
             ],
             'Ticketing' => [
