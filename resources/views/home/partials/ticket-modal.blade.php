@@ -6,9 +6,10 @@
     home.tickets.catalog on first open — the tree comes from the ticketing
     API's own getCategories, so it is never a hardcoded list here.
 
-    One attachment, not three: the proven API call takes a single `file` part,
-    and accepting more would silently drop everything after the first while the
-    ticket still reported success.
+    Up to three attachments, sent as repeated `file` parts. Multipart allows a
+    duplicate part name and Guzzle emits one per attach(). If a deployment reads
+    only the first, the extras vanish SILENTLY while the ticket still succeeds —
+    so verify a real submit lists every file back before trusting it.
 --}}
 <div class="modal-overlay" id="ticketModalOverlay" aria-hidden="true">
   <div class="ticket-modal" role="dialog" aria-modal="true" aria-labelledby="ticketModalTitle">
@@ -55,16 +56,16 @@
       <div class="field-error" id="ticketFormError"></div>
 
       <div class="attachments-panel">
-        <h3>Attachment</h3>
+        <h3>Attachments</h3>
         <div class="upload-zone" id="uploadZone">
-          <p class="upload-title">Upload a Supporting Document</p>
-          <p class="upload-sub">Click below to select one file, up to 20 MB</p>
+          <p class="upload-title">Upload Supporting Documents</p>
+          <p class="upload-sub">Up to 3 files, 20 MB each</p>
           <p class="upload-sub">Allowed files [Images · Videos · PDF · Word · Excel]</p>
           <div class="upload-control">
             <button type="button" class="choose-file-btn" id="chooseFileBtn">Choose File</button>
             <span id="chooseFileLabel">No file chosen</span>
           </div>
-          <input type="file" id="ticketFileInput" hidden
+          <input type="file" id="ticketFileInput" hidden multiple
                  accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.pdf,.doc,.docx,.xls,.xlsx">
         </div>
         <ul class="file-list" id="fileList"></ul>
@@ -97,6 +98,10 @@
   var catalogUrl = @json(route('home.tickets.catalog'));
   var storeUrl = @json(route('home.tickets.store'));
   var MAX_BYTES = 20 * 1024 * 1024;
+  var MAX_FILES = 3;
+  // Held here rather than read from the input at submit time: the input is
+  // replaced on every pick, so removing one file has to rebuild the set.
+  var chosen = [];
 
   var categorySelect = document.getElementById('ticketCategory');
   var subSelect = document.getElementById('ticketSubCategory');
@@ -173,42 +178,63 @@
   // ─── File ──────────────────────────────────────────────────
   document.getElementById('chooseFileBtn').addEventListener('click', function () { fileInput.click(); });
 
-  fileInput.addEventListener('change', function () {
+  function humanTotal() {
+    return chosen.reduce(function (n, f) { return n + f.size; }, 0);
+  }
+
+  function renderFiles() {
     fileList.innerHTML = '';
-    var file = fileInput.files && fileInput.files[0];
 
-    if (!file) { fileLabel.textContent = 'No file chosen'; return; }
-
-    if (file.size > MAX_BYTES) {
-      setError('That file is ' + humanSize(file.size) + '. The limit is 20 MB.');
-      fileInput.value = '';
-      fileLabel.textContent = 'No file chosen';
-      return;
-    }
-
-    setError('');
-    fileLabel.textContent = file.name;
-
-    var li = document.createElement('li');
-    var name = document.createElement('span');
-    name.textContent = file.name;
-    var size = document.createElement('span');
-    size.className = 'file-size';
-    size.textContent = humanSize(file.size);
-    var remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'file-remove';
-    remove.setAttribute('aria-label', 'Remove ' + file.name);
-    remove.textContent = '×';
-    remove.addEventListener('click', function () {
-      fileInput.value = '';
-      fileList.innerHTML = '';
-      fileLabel.textContent = 'No file chosen';
+    chosen.forEach(function (file, idx) {
+      var li = document.createElement('li');
+      var name = document.createElement('span');
+      name.textContent = file.name;
+      var size = document.createElement('span');
+      size.className = 'file-size';
+      size.textContent = humanSize(file.size);
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'file-remove';
+      remove.setAttribute('aria-label', 'Remove ' + file.name);
+      remove.textContent = '×';
+      remove.addEventListener('click', function () {
+        chosen.splice(idx, 1);
+        renderFiles();
+      });
+      li.appendChild(name);
+      li.appendChild(size);
+      li.appendChild(remove);
+      fileList.appendChild(li);
     });
-    li.appendChild(name);
-    li.appendChild(size);
-    li.appendChild(remove);
-    fileList.appendChild(li);
+
+    fileLabel.textContent = chosen.length
+      ? chosen.length + ' of ' + MAX_FILES + ' selected (' + humanSize(humanTotal()) + ')'
+      : 'No file chosen';
+  }
+
+  fileInput.addEventListener('change', function () {
+    var picked = Array.prototype.slice.call(fileInput.files || []);
+    var rejected = [];
+
+    picked.forEach(function (file) {
+      if (file.size > MAX_BYTES) {
+        rejected.push(file.name + ' is ' + humanSize(file.size));
+        return;
+      }
+      if (chosen.length >= MAX_FILES) {
+        rejected.push(file.name + ' (limit is ' + MAX_FILES + ')');
+        return;
+      }
+      // Same file picked twice in a row is almost always a mis-click.
+      var dup = chosen.some(function (f) { return f.name === file.name && f.size === file.size; });
+      if (!dup) chosen.push(file);
+    });
+
+    // Clear the input so re-picking the same file still fires `change`.
+    fileInput.value = '';
+
+    setError(rejected.length ? 'Not added: ' + rejected.join('; ') + '.' : '');
+    renderFiles();
   });
 
   // ─── Open / close ──────────────────────────────────────────
@@ -235,8 +261,8 @@
     titleInput.value = '';
     descInput.value = '';
     fileInput.value = '';
-    fileList.innerHTML = '';
-    fileLabel.textContent = 'No file chosen';
+    chosen = [];
+    renderFiles();
     setError('');
     submitBtn.disabled = false;
     submitBtn.textContent = 'Submit Ticket';
@@ -266,9 +292,9 @@
     body.append('subcategory_id', subSelect.value);
     body.append('title', titleInput.value.trim());
     body.append('description', descInput.value.trim());
-    if (fileInput.files && fileInput.files[0]) {
-      body.append('attachment', fileInput.files[0]);
-    }
+    chosen.forEach(function (file) {
+      body.append('attachments[]', file);
+    });
 
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting…';

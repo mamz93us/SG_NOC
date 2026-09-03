@@ -31,6 +31,7 @@ class NocTicket extends Model
         'requester_azure_id',
         'attachment_name',
         'attachment_size',
+        'attachments',
         'submitted_by_user_id',
         'submitted_by_name',
         'status',
@@ -41,6 +42,7 @@ class NocTicket extends Model
 
     protected $casts = [
         'response' => 'array',
+        'attachments' => 'array',
         'ticket_id' => 'integer',
         'category_id' => 'integer',
         'subcategory_id' => 'integer',

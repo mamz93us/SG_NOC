@@ -174,11 +174,15 @@
                     <hr class="my-4">
 
                     <div>
-                        <label class="form-label fw-semibold">Attachment</label>
-                        <input type="file" name="attachment"
-                               class="form-control @error('attachment') is-invalid @enderror">
-                        <div class="form-text">Optional. One file, up to 20&nbsp;MB — screenshot, photo or log.</div>
-                        @error('attachment') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                        <label class="form-label fw-semibold">Attachments</label>
+                        <input type="file" name="attachments[]" multiple
+                               class="form-control @error('attachments') is-invalid @enderror @error('attachments.*') is-invalid @enderror">
+                        <div class="form-text">
+                            Optional. Up to {{ \App\Services\Ticketing\NocTicketService::MAX_ATTACHMENTS }}
+                            files, 20&nbsp;MB each — screenshots, photos or logs.
+                        </div>
+                        @error('attachments') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                        @error('attachments.*') <span class="invalid-feedback">{{ $message }}</span> @enderror
                     </div>
                 </div>
             </div>

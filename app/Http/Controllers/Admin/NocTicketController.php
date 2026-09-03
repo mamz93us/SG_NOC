@@ -80,7 +80,8 @@ class NocTicketController extends Controller
             'type_id' => ['required', 'integer', Rule::in($catalog->typeIds())],
             'priority_id' => ['required', 'integer', Rule::in($catalog->priorityIds())],
             'requester_email' => 'required|email|max:255',
-            'attachment' => 'nullable|file|max:20480', // 20 MB
+            'attachments' => 'nullable|array|max:'.NocTicketService::MAX_ATTACHMENTS,
+            'attachments.*' => 'file|max:'.NocTicketService::MAX_ATTACHMENT_KB,
         ], [
             'category_id.in' => 'Unknown category — check the ticket catalog in Admin → Settings.',
             'subcategory_id.in' => 'That sub-category does not belong to the selected category.',

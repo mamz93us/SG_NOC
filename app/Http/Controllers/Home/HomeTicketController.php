@@ -204,13 +204,12 @@ class HomeTicketController extends Controller
                 'integer',
                 Rule::in($catalog->subcategoryIdsFor((int) $request->input('category_id'))),
             ],
-            // One file: the proven API call takes a single `file` part. Whether
-            // it accepts a repeated part is an open question with the ticketing
-            // team — until they answer, accepting more here would silently drop
-            // everything after the first while the ticket still succeeds.
-            'attachment' => 'nullable|file|max:20480',
+            'attachments' => 'nullable|array|max:'.NocTicketService::MAX_ATTACHMENTS,
+            'attachments.*' => 'file|max:'.NocTicketService::MAX_ATTACHMENT_KB,
         ], [
             'subcategory_id.in' => 'That sub-category does not belong to the selected category.',
+            'attachments.max' => 'You can attach at most '.NocTicketService::MAX_ATTACHMENTS.' files.',
+            'attachments.*.max' => 'Each file must be 20 MB or smaller.',
         ]);
 
         $user = $request->user();
