@@ -74,6 +74,15 @@
                                     <i class="bi bi-file-earmark-arrow-down me-1"></i>{{ $doc->typeTag() }}
                                 </a>
                                 <span class="text-muted">{{ $doc->humanSize() }}</span>
+                                @if($doc->isPdf() || $doc->isImage())
+                                    <span class="badge bg-light text-secondary border ms-1">in-app</span>
+                                @endif
+                            @elseif($doc->isVideo())
+                                <a href="{{ $doc->youtubeWatchUrl() }}" target="_blank" rel="noopener noreferrer"
+                                   class="text-decoration-none">
+                                    <i class="bi bi-youtube me-1 text-danger"></i>Video
+                                </a>
+                                <span class="badge bg-light text-secondary border ms-1">embedded</span>
                             @else
                                 <a href="{{ $doc->link_url }}" target="_blank" rel="noopener noreferrer"
                                    class="text-decoration-none text-truncate d-inline-block" style="max-width:140px">

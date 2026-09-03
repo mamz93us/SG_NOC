@@ -98,10 +98,12 @@
                 </div>
                 <div class="card-body">
                     <div class="alert alert-light border small mb-3">
-                        A document is <strong>either an upload or a link</strong>. Uploads are stored
-                        privately and can only be fetched by a signed-in employee the document is
-                        published to — they are never a public URL. Give a link instead when the file
-                        already lives somewhere the company can reach.
+                        A document is <strong>an upload, a YouTube video, or a link</strong> &mdash;
+                        one of the three, and an upload wins if you fill in more than one.
+                        Uploads are stored privately and can only be fetched by a signed-in employee
+                        the document is published to; they are never a public URL.
+                        <strong>PDFs, images and videos open inside the portal</strong>; anything else
+                        downloads.
                     </div>
 
                     @if($document->isFile())
@@ -133,13 +135,35 @@
                         @error('file') <span class="invalid-feedback">{{ $message }}</span> @enderror
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">…or a YouTube video</label>
+                        <input type="url" name="video_url" maxlength="500"
+                               class="form-control @error('video_url') is-invalid @enderror"
+                               value="{{ old('video_url', $document->video_url) }}"
+                               placeholder="https://www.youtube.com/watch?v=…">
+                        <div class="form-text">
+                            Paste whatever the Share button gave you — watch, <code>youtu.be</code>,
+                            embed and shorts links all work. It plays embedded on the portal page.
+                            Video is <strong>not uploaded</strong>: a large MP4 served by this server
+                            to the whole company is the wrong trade when YouTube already does it.
+                            @if($document->isVideo())
+                                <br><span class="text-success">Currently embeds video id
+                                <code>{{ $document->youtubeId() }}</code>.</span>
+                            @endif
+                        </div>
+                        @error('video_url') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                    </div>
+
                     <div>
                         <label class="form-label fw-semibold">…or a link</label>
                         <input type="url" name="link_url" maxlength="500"
                                class="form-control @error('link_url') is-invalid @enderror"
                                value="{{ old('link_url', $document->link_url) }}"
                                placeholder="https://…">
-                        <div class="form-text">Ignored when a file is uploaded — a card can only do one thing.</div>
+                        <div class="form-text">
+                            For anything hosted elsewhere — SharePoint, a vendor manual, a
+                            non-YouTube video. Opens in a new tab rather than in the portal.
+                        </div>
                         @error('link_url') <span class="invalid-feedback">{{ $message }}</span> @enderror
                     </div>
                 </div>

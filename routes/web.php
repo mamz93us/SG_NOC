@@ -331,9 +331,18 @@ if (\App\Support\HomePortal::enabled()) {
             // IT cards — they differ only by the ?category= they arrive with.
             Route::get('/documents', [\App\Http\Controllers\Home\HomeDocumentController::class, 'index'])
                 ->name('documents');
-            // Uploads live on the `private` disk, so this is the only way to
-            // reach one; it re-checks publication and audience per request
-            // because a download URL gets shared, forwarded and bookmarked.
+            // The in-app viewer — a PDF or an embedded video inside the portal's
+            // own chrome, rather than a download the person has to go and find.
+            Route::get('/documents/{document}', [\App\Http\Controllers\Home\HomeDocumentController::class, 'show'])
+                ->whereNumber('document')
+                ->name('documents.show');
+            // The bytes the viewer's iframe loads, served INLINE.
+            Route::get('/documents/{document}/file', [\App\Http\Controllers\Home\HomeDocumentController::class, 'stream'])
+                ->whereNumber('document')
+                ->name('documents.file');
+            // Uploads live on the `private` disk, so these are the only way to
+            // reach one; all three re-check publication and audience per request
+            // because such a URL gets shared, forwarded and bookmarked.
             Route::get('/documents/{document}/download', [\App\Http\Controllers\Home\HomeDocumentController::class, 'download'])
                 ->whereNumber('document')
                 ->name('documents.download');

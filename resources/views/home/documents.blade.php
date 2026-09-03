@@ -65,6 +65,10 @@
   }
   .doc-type.pdf{ background:var(--red-100); border-color:#F6C9CA; color:var(--red-700); }
   .doc-type.link{ background:#EAF2FE; border-color:#CCDFFB; color:#1B4FA0; }
+  /* A play triangle rather than the word VIDEO, and drawn rather than fetched:
+     a YouTube thumbnail would be one external request per card. */
+  .doc-type.video{ background:#1C1C1E; border-color:#1C1C1E; color:#fff; }
+  .doc-type.video svg{ width:20px; height:20px; }
 
   .doc-body{ min-width:0; flex:1; }
   .doc-body h3{ font-size:15px; font-weight:600; line-height:1.35; }
@@ -168,12 +172,34 @@
 
             <div class="doc-grid">
                 @foreach($groupDocs as $doc)
+                    @php
+                        // A PDF, an image or a video opens in the portal's own
+                        // viewer; a plain link leaves; anything else (Word,
+                        // Excel, a zip) has no in-browser rendering worth a
+                        // page, so it downloads straight from the card.
+                        $external = $doc->sourceType() === 'link';
+                        $href = match (true) {
+                            $doc->isPreviewable() => route('home.documents.show', $doc),
+                            $external => $doc->link_url,
+                            default => route('home.documents.download', $doc),
+                        };
+                        $verb = match (true) {
+                            $doc->isVideo() => 'Watch',
+                            $doc->isPreviewable() => 'Open',
+                            $external => 'Open',
+                            default => 'Download',
+                        };
+                    @endphp
                     <a class="doc-card"
-                       href="{{ route('home.documents.download', $doc) }}"
-                       @if(! $doc->isFile()) target="_blank" rel="noopener noreferrer" @endif
-                       aria-label="{{ $doc->isFile() ? 'Download' : 'Open' }} {{ $doc->title }}">
-                        <div class="doc-type {{ strtolower($doc->typeTag()) === 'pdf' ? 'pdf' : (! $doc->isFile() ? 'link' : '') }}">
-                            {{ $doc->typeTag() }}
+                       href="{{ $href }}"
+                       @if($external) target="_blank" rel="noopener noreferrer" @endif
+                       aria-label="{{ $verb }} {{ $doc->title }}">
+                        <div class="doc-type {{ $doc->isVideo() ? 'video' : ($doc->isPdf() ? 'pdf' : ($external ? 'link' : '')) }}">
+                            @if($doc->isVideo())
+                                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.2v13.6L19 12 8 5.2Z"/></svg>
+                            @else
+                                {{ $doc->typeTag() }}
+                            @endif
                         </div>
                         <div class="doc-body">
                             <h3>{{ $doc->title }}</h3>
@@ -186,6 +212,9 @@
                             <div class="doc-meta">
                                 @if($doc->pinned)
                                     <span class="tag pin">Must read</span>
+                                @endif
+                                @if($doc->isVideo())
+                                    <span class="tag">Video</span>
                                 @endif
                                 @if($doc->version)
                                     <span class="tag">v{{ $doc->version }}</span>

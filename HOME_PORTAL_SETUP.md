@@ -139,13 +139,36 @@ Admin → **Employee Documents** (`manage-portal-documents`). One library feeds
 both IT cards; the **category** decides which — `policy` lands behind *IT
 Policy*, everything else behind *Documentation & Manuals*.
 
-A document is **either an upload or a link**, never both — a card can only do
-one thing, and an upload wins if you supply both. Uploads go to the **`private`
-disk** (`storage/app/private/portal-documents/`) under a generated UUID name,
-and are reachable only through `/documents/{id}/download`, which re-checks
-publication **and** audience on every request. They are never a public URL, and
-nginx cannot serve them: do not "fix" a download by moving them to the public
-disk.
+A document has **one source of three** — an upload, a **YouTube video**, or a
+plain link. An upload wins if more than one is filled in, and filling in a video
+or link on a document that had a file converts it and deletes the old blob.
+
+Uploads go to the **`private` disk** (`storage/app/private/portal-documents/`)
+under a generated UUID name, and are reachable only through the three routes
+below, **each of which re-checks publication and audience on every request**.
+They are never a public URL, and nginx cannot serve them: do not "fix" a
+download by moving them to the public disk.
+
+| Route | What it does |
+|---|---|
+| `/documents/{id}` | The in-app viewer — PDF, image or embedded video in the portal's own chrome. A link redirects away; a Word file or zip redirects to the download. |
+| `/documents/{id}/file` | The bytes, `Content-Disposition: inline`, so the viewer's iframe renders them. Same-origin, which `X-Frame-Options: SAMEORIGIN` permits. |
+| `/documents/{id}/download` | The bytes as an attachment. Bumps `download_count`. |
+
+**PDFs open in the page, not as a download.** The Content-Type is sent
+explicitly from `file_mime` rather than sniffed, because the app also sends
+`X-Content-Type-Options: nosniff` — a missing type there means the browser
+refuses to render the PDF instead of guessing. The viewer keeps an "open in a
+new tab" link underneath: a few mobile browsers still will not frame a PDF.
+
+**Videos are embedded, never uploaded.** Paste any YouTube URL — watch,
+`youtu.be`, embed, shorts or live — and `PortalDocument::youtubeId()` reduces it
+to the 11-character id. **Only an id that came out of that method is ever put in
+an iframe src**, so a pasted `javascript:` or an arbitrary host cannot become an
+embed; anything that is not YouTube is refused at save time with a message
+pointing at the Link field. The player is `youtube-nocookie.com`. A 200 MB MP4
+on the NOC's disk, streamed by PHP to the whole company at 9am, is the wrong
+trade when the content already sits on a CDN built for it.
 
 Audience is the same triple as announcements (everyone / one branch / one
 department), and someone with no HR record still sees the "everyone" documents —

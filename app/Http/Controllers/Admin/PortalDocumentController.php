@@ -149,6 +149,7 @@ class PortalDocumentController extends Controller
             'description' => 'nullable|string|max:500',
             'category' => ['required', Rule::in(array_keys(PortalDocument::CATEGORIES))],
             'link_url' => 'nullable|url|max:500',
+            'video_url' => 'nullable|url|max:500',
             'file' => 'nullable|file|mimes:'.self::ALLOWED.'|max:51200',
             'version' => 'nullable|string|max:32',
             'effective_date' => 'nullable|date',
@@ -162,15 +163,26 @@ class PortalDocumentController extends Controller
         $data['pinned'] = $request->boolean('pinned');
         $data['sort_order'] = (int) ($data['sort_order'] ?? 0);
 
-        // A document is either a file or a link. Neither means a card that goes
-        // nowhere, which is worse than a validation error.
+        // A document is a file, a video or a link. None of the three means a
+        // card that goes nowhere, which is worse than a validation error.
         $hasUpload = $request->hasFile('file');
         $hasExistingFile = (bool) $existing?->file_path;
         $hasLink = ! empty($data['link_url']);
+        $hasVideo = ! empty($data['video_url']);
 
-        if (! $hasUpload && ! $hasExistingFile && ! $hasLink) {
+        // Checked here rather than with a regex rule so the message can say what
+        // is wrong: a Vimeo or SharePoint link belongs in the Link field, and
+        // silently storing it would render an empty player.
+        if ($hasVideo && (new PortalDocument(['video_url' => $data['video_url']]))->youtubeId() === null) {
             throw ValidationException::withMessages([
-                'file' => 'Upload a file or give a link — a document needs one of the two.',
+                'video_url' => 'That is not a YouTube link. Paste a youtube.com or youtu.be URL, '
+                    .'or use the Link field for video hosted anywhere else.',
+            ]);
+        }
+
+        if (! $hasUpload && ! $hasExistingFile && ! $hasLink && ! $hasVideo) {
+            throw ValidationException::withMessages([
+                'file' => 'Upload a file, paste a YouTube link, or give a link — a document needs one of the three.',
             ]);
         }
 
@@ -192,13 +204,21 @@ class PortalDocumentController extends Controller
             $data['file_mime'] = $file->getClientMimeType();
             $data['file_size'] = $file->getSize();
 
-            // An upload wins over a link — the card can only do one thing.
+            // An upload wins — a card can only do one thing.
             $data['link_url'] = null;
-        } elseif ($hasLink && ! $hasExistingFile) {
-            $data['file_path'] = null;
-            $data['file_name'] = null;
-            $data['file_mime'] = null;
-            $data['file_size'] = null;
+            $data['video_url'] = null;
+        } elseif ($hasVideo) {
+            // Filling in a video on a document that had a file converts it;
+            // update() then deletes the orphaned blob.
+            $data = array_merge($data, $this->clearedFileFields());
+            $data['link_url'] = null;
+        } elseif ($hasLink) {
+            $data = array_merge($data, $this->clearedFileFields());
+            $data['video_url'] = null;
+        } else {
+            // Neither given, so an existing upload is being kept as-is.
+            $data['link_url'] = null;
+            $data['video_url'] = null;
         }
 
         // Clear the audience id that no longer applies, so switching from
@@ -213,6 +233,17 @@ class PortalDocumentController extends Controller
         unset($data['file']);
 
         return $data;
+    }
+
+    /** @return array{file_path:null, file_name:null, file_mime:null, file_size:null} */
+    private function clearedFileFields(): array
+    {
+        return [
+            'file_path' => null,
+            'file_name' => null,
+            'file_mime' => null,
+            'file_size' => null,
+        ];
     }
 
     private function deleteFile(?string $path): void

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Home;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\PortalDocument;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -14,13 +15,15 @@ use Illuminate\View\View;
 /**
  * "Documentation & Manuals" and "IT Policy" on the employee home portal.
  *
- * One page and one download route serve both cards; the cards differ only by
- * the `category` they arrive with. Everything is scoped by the employee
- * resolved from the session, so there is no id in the URL to widen.
+ * One library serves both cards; they differ only by the `category` they arrive
+ * with. Everything is scoped by the employee resolved from the session, so
+ * there is no id in the URL to widen.
  *
- * The download route re-checks publication AND audience on every hit rather
- * than trusting that the link came from the list — a URL is shared, forwarded
- * and bookmarked, and a document restricted to one branch has to stay that way.
+ * Four routes: the list, the in-app viewer (`show`), the inline bytes the
+ * viewer's iframe loads (`stream`), and the download. EVERY one of them
+ * re-checks publication AND audience rather than trusting that the link came
+ * from the list — a URL is shared, forwarded and bookmarked, and a document
+ * restricted to one branch has to stay that way.
  */
 class HomeDocumentController extends Controller
 {
@@ -63,27 +66,69 @@ class HomeDocumentController extends Controller
     }
 
     /**
-     * Stream one document. Links are redirected; uploads are served from the
-     * `private` disk, which nginx cannot reach on its own.
+     * The in-app viewer: a PDF, an image or an embedded video, inside the
+     * portal's own chrome.
+     *
+     * A link, a Word file or a zip has nothing to render, so those leave from
+     * here rather than being shown a viewer with an empty frame in it. The
+     * cards already send people straight to the right place; this only catches
+     * a bookmarked or typed URL.
+     */
+    public function show(Request $request, PortalDocument $document): View|RedirectResponse
+    {
+        $this->authorizeDocument($request, $document);
+
+        if ($document->sourceType() === 'link') {
+            return redirect()->away($document->link_url);
+        }
+
+        if (! $document->isPreviewable()) {
+            return redirect()->route('home.documents.download', $document);
+        }
+
+        return view('home.document', [
+            'user' => $request->user(),
+            'doc' => $document,
+        ]);
+    }
+
+    /**
+     * The bytes, served INLINE so the browser renders them in the viewer's
+     * iframe instead of saving them.
+     *
+     * Same gate as every other route here; the iframe is same-origin, so this
+     * is a normal authenticated request and not a hole around it.
+     */
+    public function stream(Request $request, PortalDocument $document)
+    {
+        $this->authorizeDocument($request, $document);
+
+        abort_unless($document->isFile() && Storage::disk('private')->exists($document->file_path), 404);
+
+        return Storage::disk('private')->response(
+            $document->file_path,
+            $document->file_name ?: basename($document->file_path),
+            // Explicit rather than sniffed: the app sends X-Content-Type-Options
+            // nosniff, so a wrong or missing type means the browser refuses to
+            // render the PDF instead of quietly guessing.
+            ['Content-Type' => $document->file_mime ?: 'application/octet-stream'],
+        );
+    }
+
+    /**
+     * Stream one document as a download. Links are redirected; uploads are
+     * served from the `private` disk, which nginx cannot reach on its own.
      */
     public function download(Request $request, PortalDocument $document)
     {
-        $employee = $this->employee($request);
-
-        // Re-run the exact visibility query for this one row. Cheaper and far
-        // safer than re-implementing the audience rules here, where they could
-        // drift from the list page.
-        $visible = PortalDocument::liveFor($employee)
-            ->reorder()
-            ->whereKey($document->getKey())
-            ->exists();
-
-        abort_unless($visible, 404);
+        $this->authorizeDocument($request, $document);
 
         if (! $document->isFile()) {
-            abort_unless($document->link_url, 404);
+            $away = $document->link_url ?: $document->youtubeWatchUrl();
 
-            return redirect()->away($document->link_url);
+            abort_unless($away, 404);
+
+            return redirect()->away($away);
         }
 
         abort_unless(Storage::disk('private')->exists($document->file_path), 404);
@@ -98,6 +143,23 @@ class HomeDocumentController extends Controller
             $document->file_path,
             $document->file_name ?: basename($document->file_path),
         );
+    }
+
+    /**
+     * Re-run the exact visibility query for one row.
+     *
+     * Cheaper and far safer than re-implementing the audience rules per route,
+     * where they could drift from the list page — and it has to happen on every
+     * hit, because these URLs get shared, forwarded and bookmarked.
+     */
+    private function authorizeDocument(Request $request, PortalDocument $document): void
+    {
+        $visible = PortalDocument::liveFor($this->employee($request))
+            ->reorder()
+            ->whereKey($document->getKey())
+            ->exists();
+
+        abort_unless($visible, 404);
     }
 
     private function employee(Request $request): ?Employee
