@@ -117,6 +117,17 @@ class License extends Model
 
     public function usedSeats(): int
     {
+        // Prefer a count that is already in hand. The licences index calls this
+        // three times per row (progress bar, label, available seats), so without
+        // this it fires ~75 COUNT queries to render one page.
+        if (array_key_exists('assignments_count', $this->attributes)) {
+            return (int) $this->attributes['assignments_count'];
+        }
+
+        if ($this->relationLoaded('assignments')) {
+            return $this->assignments->count();
+        }
+
         return $this->assignments()->count();
     }
 

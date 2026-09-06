@@ -141,8 +141,15 @@
                                 <i class="bi bi-magic"></i>
                             </button>
                             @endif
+                            {{-- Only the fields the edit form writes. Passing the whole
+                                 model here dumped every eager-loaded assignment into an
+                                 HTML attribute — megabytes per page. --}}
                             <button class="btn btn-sm btn-outline-secondary"
-                                onclick="editLicense({{ json_encode($lic) }})"
+                                onclick="editLicense({{ Js::from($lic->only([
+                                    'id', 'license_name', 'supplier_id', 'license_type', 'billing_cycle',
+                                    'purchase_date', 'expiry_date', 'cost', 'currency',
+                                    'payment_method', 'payment_account', 'seats', 'notes',
+                                ])) }})"
                                 data-bs-toggle="modal" data-bs-target="#editLicenseModal">
                                 <i class="bi bi-pencil"></i>
                             </button>
@@ -154,59 +161,16 @@
                             @endcan
                         </td>
                     </tr>
-                    {{-- Expandable assignment detail row --}}
+                    {{-- Assignment detail — fetched on first expand, not rendered
+                         up front. The Microsoft SKUs hold hundreds of seats each;
+                         inlining them all is what froze this page. --}}
                     <tr id="licAssignRow{{ $lic->id }}" class="d-none">
                         <td colspan="8" class="bg-light p-0">
-                            <div class="p-3">
-                                <h6 class="fw-semibold small mb-2"><i class="bi bi-people me-1"></i>Assignments for {{ $lic->license_name }}</h6>
-                                @if($lic->assignments->count() > 0)
-                                <table class="table table-sm table-bordered mb-0 bg-white">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Assigned To</th>
-                                            <th>Type</th>
-                                            <th>Date</th>
-                                            <th>Notes</th>
-                                            <th class="text-end">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($lic->assignments as $asgn)
-                                        <tr>
-                                            <td>
-                                                @if($asgn->assignable instanceof \App\Models\Employee)
-                                                    <a href="{{ route('admin.employees.show', $asgn->assignable) }}">{{ $asgn->assignable->name }}</a>
-                                                @elseif($asgn->assignable instanceof \App\Models\Device)
-                                                    <a href="{{ route('admin.devices.show', $asgn->assignable) }}">{{ $asgn->assignable->name }}</a>
-                                                @else
-                                                    <span class="text-muted">— (deleted)</span>
-                                                @endif
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-secondary">
-                                                    {{ $asgn->assignable instanceof \App\Models\Employee ? 'Employee' : 'Device' }}
-                                                </span>
-                                            </td>
-                                            <td class="small">{{ $asgn->assigned_date?->format('d M Y') }}</td>
-                                            <td class="small text-muted">{{ $asgn->notes ?: '—' }}</td>
-                                            <td class="text-end">
-                                                @can('manage-licenses')
-                                                <form action="{{ route('admin.itam.licenses.unassign', [$lic, $asgn]) }}" method="POST" class="d-inline"
-                                                      onsubmit="return confirm('Unassign this license?')">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Unassign">
-                                                        <i class="bi bi-x-lg"></i> Unassign
-                                                    </button>
-                                                </form>
-                                                @endcan
-                                            </td>
-                                        </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                                @else
-                                <p class="text-muted small mb-0">No assignments.</p>
-                                @endif
+                            <div class="p-3" id="licAssignBody{{ $lic->id }}"
+                                 data-url="{{ route('admin.itam.licenses.assignments', $lic) }}"
+                                 data-name="{{ $lic->license_name }}"
+                                 data-loaded="0">
+                                <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading assignments…</div>
                             </div>
                         </td>
                     </tr>
@@ -533,9 +497,82 @@ document.getElementById('autoAssignAllForm').addEventListener('submit', function
     }
 });
 
+const LIC_CAN_MANAGE = @json(auth()->user()?->can('manage-licenses') ?? false);
+
+function escapeHtml(value) {
+    const d = document.createElement('div');
+    d.textContent = value ?? '';
+    return d.innerHTML;
+}
+
+// Assignments are fetched the first time a row is expanded and then kept.
+// Rendering every licence's seats up front is what made this page unusable:
+// the Microsoft SKUs alone carry ~3,500 rows between them.
 function toggleLicAssignments(id) {
     const row = document.getElementById('licAssignRow' + id);
-    if (row) row.classList.toggle('d-none');
+    if (!row) return;
+    row.classList.toggle('d-none');
+
+    const body = document.getElementById('licAssignBody' + id);
+    if (!body || row.classList.contains('d-none') || body.dataset.loaded === '1') return;
+
+    body.dataset.loaded = '1';
+    loadLicAssignments(id, body);
+}
+
+async function loadLicAssignments(id, body) {
+    try {
+        const resp = await fetch(body.dataset.url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+
+        const heading = `<h6 class="fw-semibold small mb-2"><i class="bi bi-people me-1"></i>`
+            + `Assignments for ${escapeHtml(data.license_name)} `
+            + `<span class="text-muted">(${data.assignments.length})</span></h6>`;
+
+        if (!data.assignments.length) {
+            body.innerHTML = heading + '<p class="text-muted small mb-0">No assignments.</p>';
+            return;
+        }
+
+        const confirmText = data.is_azure_linked
+            ? 'Release this license — this also revokes it live via Microsoft Graph?'
+            : 'Unassign this license?';
+
+        const rows = data.assignments.map(a => {
+            const who = a.url
+                ? `<a href="${a.url}">${escapeHtml(a.name)}</a>`
+                : `<span class="text-muted">${escapeHtml(a.name)}</span>`;
+            const action = LIC_CAN_MANAGE
+                ? `<form action="/admin/itam/licenses/${id}/unassign/${a.id}" method="POST" class="d-inline"
+                         onsubmit="return confirm('${confirmText.replace(/'/g, "\'")}')">
+                       <input type="hidden" name="_token" value="${document.querySelector('meta[name=csrf-token]').content}">
+                       <input type="hidden" name="_method" value="DELETE">
+                       <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i> Unassign</button>
+                   </form>`
+                : '';
+            return `<tr>
+                <td>${who}</td>
+                <td><span class="badge bg-secondary">${escapeHtml(a.type)}</span></td>
+                <td class="small">${escapeHtml(a.assigned_date || '—')}</td>
+                <td class="small text-muted">${escapeHtml(a.notes || '—')}</td>
+                <td class="text-end">${action}</td>
+            </tr>`;
+        }).join('');
+
+        body.innerHTML = heading + `
+            <div class="table-responsive" style="max-height:420px; overflow-y:auto">
+            <table class="table table-sm table-bordered mb-0 bg-white">
+                <thead class="table-light"><tr>
+                    <th>Assigned To</th><th>Type</th><th>Date</th><th>Notes</th><th class="text-end">Action</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+            </div>`;
+    } catch (e) {
+        body.dataset.loaded = '0';
+        body.innerHTML = '<p class="text-danger small mb-0">Could not load assignments. Try again.</p>';
+    }
 }
 
 function editLicense(lic) {

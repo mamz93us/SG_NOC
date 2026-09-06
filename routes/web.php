@@ -2422,6 +2422,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // ─── Software Licenses ────────────────────────────────────────
     Route::middleware('permission:view-licenses')->prefix('itam/licenses')->name('itam.licenses.')->group(function () {
         Route::get('/', [LicenseController::class, 'index'])->name('index');
+        // Assignment rows are fetched per licence rather than rendered into the
+        // index — see LicenseController::index().
+        Route::get('/{license}/assignments', [LicenseController::class, 'assignments'])->whereNumber('license')->name('assignments');
     });
     Route::middleware('permission:manage-licenses')->prefix('itam/licenses')->name('itam.licenses.')->group(function () {
         Route::post('/', [LicenseController::class, 'store'])->name('store');

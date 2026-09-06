@@ -21,7 +21,13 @@ class LicenseController extends Controller
 {
     public function index(Request $request)
     {
-        $query = License::with(['supplier', 'assignments.assignable', 'identityLicense'])->withCount('assignments');
+        // Assignments are deliberately NOT eager-loaded here. Between them the
+        // Microsoft SKUs hold thousands of rows (one licence alone has 669), and
+        // loading them turned this page into ~1.6 MB of JSON before HTML
+        // escaping — enough to lock up the browser. The count comes from
+        // withCount; the rows themselves are fetched per licence, on demand, by
+        // assignments() below.
+        $query = License::with(['supplier', 'identityLicense'])->withCount('assignments');
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -141,6 +147,42 @@ class LicenseController extends Controller
         ActivityLog::log('Deleted license', 'License', 'deleted', $license->id ?? 0);
 
         return back()->with('success', "License '{$name}' deleted.");
+    }
+
+    /**
+     * One licence's assignments, for the expandable row on the index.
+     *
+     * Exists so the index can stop shipping every assignment of every licence
+     * in the initial HTML. Returns only what that panel renders — no model
+     * dumps — so a licence with hundreds of seats stays a small response.
+     */
+    public function assignments(License $license)
+    {
+        $rows = $license->assignments()->with('assignable')->orderByDesc('assigned_date')->get()
+            ->map(function (LicenseAssignment $a) {
+                $assignable = $a->assignable;
+                $isEmployee = $assignable instanceof Employee;
+
+                return [
+                    'id' => $a->id,
+                    'name' => $assignable?->name ?? '— (deleted)',
+                    'type' => $assignable === null ? '—' : ($isEmployee ? 'Employee' : 'Device'),
+                    'url' => $assignable === null ? null : ($isEmployee
+                        ? route('admin.employees.show', $assignable)
+                        : route('admin.devices.show', $assignable)),
+                    'assigned_date' => $a->assigned_date?->format('d M Y'),
+                    'notes' => $a->notes,
+                ];
+            });
+
+        return response()->json([
+            'license_id' => $license->id,
+            'license_name' => $license->license_name,
+            // Revoking an Azure-linked licence also revokes it in M365, and the
+            // confirm text has to say so.
+            'is_azure_linked' => (bool) $license->identityLicense,
+            'assignments' => $rows,
+        ]);
     }
 
     public function assign(Request $request, License $license)
