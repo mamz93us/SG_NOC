@@ -866,16 +866,34 @@
      one movement. Transform + opacity only: this runs on every PC in the
      company, including branch machines that are not fast. */
   body.sg-intro-lock{ overflow:hidden; }
-  body.sg-reveal main > *,
+
+  /* TWO RULES HERE ARE LOAD-BEARING. Both were learned the hard way, by
+     shipping the modals open over the portal for everyone:
+
+     1. NEVER animate a fixed overlay. The ticket modal and the wallet QR
+        modals are direct children of <main> and hide themselves with
+        `opacity:0`, so a blanket `main > *` sweeps them in with everything
+        else. New overlays must be excluded here too.
+     2. `backwards`, NEVER `both`. `both` includes `forwards`, which pins the
+        final keyframe permanently — and a CSS animation outranks a normal
+        declaration, so an element whose own rule says `opacity:0` is left
+        stuck at `opacity:1` for the life of the page. `backwards` applies the
+        from-state during the delay and then hands the element back to its own
+        stylesheet, which is the only safe fill mode for a selector this wide. */
+  body.sg-reveal main > *:not(.modal-overlay):not(.wallet-modal-overlay),
   body.sg-reveal .grid-primary > *,
   body.sg-reveal .grid-secondary > *,
   body.sg-reveal .id-card-aside{
-    animation:sgRise .5s cubic-bezier(.2,.75,.28,1) both;
+    animation:sgRise .5s cubic-bezier(.2,.75,.28,1) backwards;
   }
   body.sg-reveal main > *:nth-child(1){ animation-delay:.02s; }
   body.sg-reveal main > *:nth-child(2){ animation-delay:.08s; }
   body.sg-reveal main > *:nth-child(3){ animation-delay:.13s; }
   body.sg-reveal main > *:nth-child(n+4){ animation-delay:.17s; }
+  /* Belt and braces: even if a future overlay slips past the exclusions above,
+     it must never be handed an animation that touches its opacity. */
+  body.sg-reveal .modal-overlay,
+  body.sg-reveal .wallet-modal-overlay{ animation:none !important; }
   /* Cards ripple in behind their section, hence the offset baseline. */
   body.sg-reveal .grid-primary > *:nth-child(1),
   body.sg-reveal .grid-secondary > *:nth-child(1){ animation-delay:.16s; }
