@@ -101,13 +101,25 @@ The seeder reports these rather than silently picking a side:
   case-insensitive on email, so this resolves as long as the employee record
   carries that address.
 
-## Payment methods are deliberately unset after seeding
+## Payment method
 
-Nobody specified which card or account pays these, and inventing that would put
-a wrong instruction in front of finance. Every seeded subscription therefore has
-no payment method, and the payments report flags them in red until someone sets
-it at **/admin/itam/licenses** (edit the licence → *Payment Method* +
-*Paid From*).
+IT confirmed the whole AI basket — and Adobe — is paid by **company credit
+card**, so the seeder sets `payment_method = credit_card` on all seven. They
+land in the payments report's self-charging group: visible to finance for the
+month's spend, but needing no payment raised.
+
+**Which** card is not recorded. `payment_account` stays empty until somebody
+says, because a wrong card in front of finance is worse than a blank one. Fill
+it in per licence at **/admin/itam/licenses** (*Paid From*) — but note that
+re-running the seeder rewrites the fields it owns, so treat the seeder as the
+source of truth for cost, seats, renewal date and payment method.
+
+Adobe is **not** part of the AI sheet, so the seeder never creates it — its
+cost, seats and renewal date are not ours to invent. It only flips an existing
+Adobe licence to Credit Card, matched by name (`ALSO_CARD_PAID`). If no Adobe
+licence exists yet the seeder says so and moves on; create it at
+**/admin/itam/licenses** with its real figures, then re-run the seeder (or just
+set the method in the form).
 
 ---
 

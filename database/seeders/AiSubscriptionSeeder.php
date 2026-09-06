@@ -17,13 +17,25 @@ use Illuminate\Database\Seeder;
  * one price for one seat — Claude's Standard and Premium seats are different
  * prices and so are two rows, not one row of seven seats.
  *
- * `payment_method` is deliberately left unset. Nobody told us which card or
- * account pays these, and inventing that would put a wrong instruction in front
- * of finance. The payments report flags every unset one until it is filled in
- * from Software Licences.
+ * Every one of these is paid by company credit card (confirmed by IT), so they
+ * land in the payments report's self-charging group — visible to finance, but
+ * needing no payment raised. The card itself is not recorded: `payment_account`
+ * stays empty until somebody says which card, because a wrong card number in
+ * front of finance is worse than a blank one.
  */
 class AiSubscriptionSeeder extends Seeder
 {
+    /** Confirmed by IT: the whole AI basket is on a company card. */
+    private const DEFAULT_PAYMENT_METHOD = 'credit_card';
+
+    /**
+     * Licences outside the AI sheet that IT has confirmed are card-paid too.
+     * Matched by name against what is already in the system — this pass only
+     * ever UPDATES an existing licence, it never creates one, because the cost,
+     * seat count and renewal date of these are not ours to invent.
+     */
+    private const ALSO_CARD_PAID = ['Adobe'];
+
     /**
      * Renewal dates are the anchor the reports project forward from — a monthly
      * subscription anchored on the 20th is charged on the 20th of every month.
@@ -127,6 +139,7 @@ class AiSubscriptionSeeder extends Seeder
                 'billing_cycle' => 'monthly',
                 'cost' => $spec['cost'],
                 'currency' => $spec['currency'],
+                'payment_method' => $spec['payment_method'] ?? self::DEFAULT_PAYMENT_METHOD,
                 'expiry_date' => $spec['renews_on'],
                 'seats' => count($spec['holders']),
                 'notes' => $spec['notes'] ?? null,
@@ -180,8 +193,38 @@ class AiSubscriptionSeeder extends Seeder
             }
         }
 
-        $this->report('warn', 'Payment method is NOT set on any of these — set Credit Card or Wire Transfer on each '
-            .'licence at /admin/itam/licenses, or the payments report will flag them as unactionable.');
+        $this->report('info', 'Payment method set to Credit Card on all '.count(self::SUBSCRIPTIONS)
+            .' — they appear on the payments report as self-charging, needing no payment raised.');
+
+        $this->markAlsoCardPaid();
+    }
+
+    /**
+     * Set Credit Card on non-AI licences IT has confirmed are card-paid.
+     *
+     * Update-only by design: if no such licence exists yet this reports it and
+     * moves on, rather than inventing a row whose cost, seats and renewal date
+     * nobody has given us — a made-up amount on a payments report is worse than
+     * a missing one.
+     */
+    private function markAlsoCardPaid(): void
+    {
+        foreach (self::ALSO_CARD_PAID as $name) {
+            $matches = License::where('license_name', 'like', "%{$name}%")->get();
+
+            if ($matches->isEmpty()) {
+                $this->report('warn', "No licence matching '{$name}' exists yet — nothing to mark as card-paid. "
+                    .'Add it at /admin/itam/licenses with its cost, seats, billing cycle and renewal date, '
+                    .'then set Payment Method to Credit Card.');
+
+                continue;
+            }
+
+            foreach ($matches as $license) {
+                $license->update(['payment_method' => 'credit_card']);
+                $this->report('info', "  {$license->license_name} — marked Credit Card.");
+            }
+        }
     }
 
     /**
