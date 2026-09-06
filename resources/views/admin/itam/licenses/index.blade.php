@@ -11,6 +11,9 @@
                 data-bs-toggle="modal" data-bs-target="#autoAssignAllModal">
                 <i class="bi bi-magic me-1"></i>Auto-Assign All Microsoft Licenses
             </button>
+            <a href="{{ route('admin.itam.reports.subscriptions') }}" class="btn btn-outline-dark btn-sm">
+                <i class="bi bi-robot me-1"></i>Subscription Reports
+            </a>
             <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addLicenseModal">
                 <i class="bi bi-plus-lg me-1"></i>Add License
             </button>
@@ -28,7 +31,7 @@
             <select name="type" class="form-select form-select-sm" style="max-width:150px">
                 <option value="">All Types</option>
                 @foreach($licenseTypes as $t)
-                <option value="{{ $t }}" {{ request('type')===$t ? 'selected' : '' }}>{{ ucfirst($t) }}</option>
+                <option value="{{ $t }}" {{ request('type')===$t ? 'selected' : '' }}>{{ \App\Models\License::TYPE_LABELS[$t] ?? ucfirst($t) }}</option>
                 @endforeach
             </select>
             <select name="status" class="form-select form-select-sm" style="max-width:150px">
@@ -64,7 +67,12 @@
                     <tr>
                         <td class="fw-semibold">{{ $lic->license_name }}</td>
                         <td>{{ $lic->vendorDisplay() ?: '—' }}</td>
-                        <td><span class="badge bg-secondary">{{ ucfirst($lic->license_type) }}</span></td>
+                        <td>
+                            <span class="badge bg-{{ $lic->license_type === 'ai' ? 'dark' : 'secondary' }}">{{ $lic->typeLabel() }}</span>
+                            @if($lic->isRecurring())
+                            <div><span class="badge bg-light text-dark border mt-1">{{ $lic->billingCycleLabel() }}</span></div>
+                            @endif
+                        </td>
                         <td style="min-width:150px">
                             <div class="d-flex align-items-center gap-2">
                                 <div class="progress flex-grow-1" style="height:8px">
@@ -99,9 +107,23 @@
                                 <div class="small">
                                     <span class="text-muted">{{ $lic->seats }} seats:</span>
                                     <strong>{{ $cur }} {{ number_format($lic->totalCost(), 2) }}</strong>
+                                    @if($lic->isRecurring())<span class="text-muted">/{{ strtolower($lic->billingCycleLabel()) }}</span>@endif
                                 </div>
+                                @if($lic->isRecurring() && $lic->billing_cycle !== 'monthly')
+                                <div class="small text-muted">≈ {{ $cur }} {{ number_format($lic->monthlyRunRate(), 2) }}/month</div>
+                                @endif
                             @else
                                 —
+                            @endif
+                            @if($lic->isRecurring())
+                                <div class="small mt-1">
+                                    @if($lic->payment_method)
+                                        <span class="badge bg-{{ $lic->isAutoCharged() ? 'success' : 'warning text-dark' }}">{{ $lic->paymentMethodLabel() }}</span>
+                                        @if($lic->payment_account)<span class="text-muted">{{ $lic->payment_account }}</span>@endif
+                                    @else
+                                        <span class="badge bg-danger" title="Finance cannot action this renewal without a payment method">No payment method</span>
+                                    @endif
+                                </div>
                             @endif
                         </td>
                         <td class="text-end">
@@ -522,6 +544,9 @@ function editLicense(lic) {
     form.querySelector('[name=license_name]').value = lic.license_name || '';
     form.querySelector('[name=supplier_id]').value = lic.supplier_id || '';
     form.querySelector('[name=license_type]').value = lic.license_type || '';
+    form.querySelector('[name=billing_cycle]').value = lic.billing_cycle || 'one_time';
+    form.querySelector('[name=payment_method]').value = lic.payment_method || '';
+    form.querySelector('[name=payment_account]').value = lic.payment_account || '';
     form.querySelector('[name=purchase_date]').value = lic.purchase_date ? lic.purchase_date.substring(0, 10) : '';
     form.querySelector('[name=expiry_date]').value = lic.expiry_date ? lic.expiry_date.substring(0, 10) : '';
     form.querySelector('[name=cost]').value = lic.cost || '';

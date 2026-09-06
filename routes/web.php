@@ -2322,6 +2322,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('scrap-history', [\App\Http\Controllers\Admin\AssetReportController::class, 'scrapHistory'])->name('scraps');
             Route::get('costs', [\App\Http\Controllers\Admin\AssetReportController::class, 'costs'])->name('costs');
             Route::get('stale-licenses', [\App\Http\Controllers\Admin\AssetReportController::class, 'staleLicenses'])->name('stale-licenses');
+
+            // Recurring-subscription finance reports (AI tools and any other
+            // recurring licence). Usage = monthly run rate; payments = payable.
+            Route::get('subscriptions', [\App\Http\Controllers\Admin\SubscriptionReportController::class, 'usage'])->name('subscriptions');
+            Route::get('subscription-payments', [\App\Http\Controllers\Admin\SubscriptionReportController::class, 'payments'])->name('subscription-payments');
         });
     });
 

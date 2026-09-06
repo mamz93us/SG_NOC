@@ -37,6 +37,8 @@
             ['transfers', 'bi-arrow-left-right', 'Transfer History', 'Every transfer between employees or to a branch store.', 'warning'],
             ['scraps', 'bi-trash3', 'Scrap History', 'All assets that have been formally scrapped.', 'danger'],
             ['stale-licenses', 'bi-exclamation-triangle', 'Stale Licenses', 'Licenses still held by a terminated or Azure-disabled employee.', 'danger'],
+            ['subscriptions', 'bi-robot', 'AI Subscription Usage', 'Who holds a seat on each AI tool and what it costs per month.', 'dark'],
+            ['subscription-payments', 'bi-cash-coin', 'Subscription Payments Due', 'What renews this month, split by card vs wire transfer — for finance.', 'success'],
         ] as [$route, $icon, $title, $desc, $color])
             <div class="col-md-6 col-lg-4">
                 <a href="{{ route('admin.itam.reports.' . $route) }}" class="text-decoration-none">
