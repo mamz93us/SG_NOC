@@ -934,14 +934,25 @@
     launch would be the most hated thing in the building. Storage is wrapped
     because a locked-down profile or a private window makes it throw, and the
     right answer when we cannot remember is to stay quiet, not to replay.
+
+    `?intro=1` forces a replay, because "once a day" is right for three
+    thousand employees and useless for the one person reviewing the thing:
+    without it the only way to see the intro again is to clear site data. A
+    forced play deliberately does NOT write the day stamp, so it can be
+    repeated and does not consume that device's real play for the day. It does
+    not override reduced motion — that is an accessibility setting, not a
+    preference to be argued with.
 --}}
 <script>
 (function () {
   try {
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    var today = new Date().toISOString().slice(0, 10);
-    if (window.localStorage.getItem('sg.intro.day') === today) return;
-    window.localStorage.setItem('sg.intro.day', today);
+
+    if (!/[?&]intro=1(&|$)/.test(window.location.search)) {
+      var today = new Date().toISOString().slice(0, 10);
+      if (window.localStorage.getItem('sg.intro.day') === today) return;
+      window.localStorage.setItem('sg.intro.day', today);
+    }
   } catch (e) {
     return; // Cannot remember whether it has played, so do not play it.
   }
