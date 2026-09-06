@@ -45,6 +45,15 @@
                 <option value="subscription" {{ $type === 'subscription' ? 'selected' : '' }}>Other Subscriptions</option>
                 <option value="all" {{ $type === 'all' ? 'selected' : '' }}>All Recurring</option>
             </select>
+            <label class="small text-muted mb-0 ms-2">Total in</label>
+            <select name="display" class="form-select form-select-sm" style="max-width:110px" onchange="this.form.submit()">
+                @foreach($displayOptions as $code)
+                <option value="{{ $code }}" {{ $display === $code ? 'selected' : '' }}>{{ $code }}</option>
+                @endforeach
+            </select>
+            <a href="{{ route('admin.itam.exchange-rates.index') }}" class="btn btn-sm btn-outline-secondary" title="Exchange rates">
+                <i class="bi bi-currency-exchange"></i>
+            </a>
             <noscript><button class="btn btn-sm btn-outline-secondary">Apply</button></noscript>
         </div>
     </form>
@@ -70,21 +79,20 @@
             </div></div>
         </div>
         @foreach($runRateByCurrency as $currency => $total)
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm text-center"><div class="card-body py-3">
-                <div class="h3 fw-bold text-dark mb-0">{{ $currency }} {{ number_format($total, 2) }}</div>
-                <div class="small text-muted">Monthly run rate ({{ $currency }})</div>
+        <div class="col-6 col-md-2">
+            <div class="card border-0 shadow-sm text-center h-100"><div class="card-body py-3">
+                <div class="h4 fw-bold text-dark mb-0">{{ $currency }} {{ number_format($total, 2) }}</div>
+                <div class="small text-muted">Run rate ({{ $currency }})</div>
             </div></div>
         </div>
         @endforeach
+        <div class="col-12 col-md-4">
+            @include('admin.itam.reports._combined-total', ['label' => 'Monthly run rate'])
+        </div>
     </div>
 
-    @if(count($runRateByCurrency) > 1)
-    <div class="alert alert-light border small py-2">
-        <i class="bi bi-info-circle me-1"></i>Totals are kept per currency. The NOC holds no exchange rates, so no
-        combined figure is shown — finance converts at the rate that applies on the payment date.
-    </div>
-    @endif
+    @include('admin.itam.reports._fx-notice', ['id' => 'fxUsage'])
+
 
     {{-- Seat detail --}}
     <div class="card border-0 shadow-sm mb-4">
@@ -163,6 +171,7 @@
                         <th>Email</th>
                         <th>Services</th>
                         <th class="text-end">Monthly Cost</th>
+                        <th class="text-end">≈ {{ $display }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -179,6 +188,13 @@
                             @foreach($u['by_currency'] as $currency => $total)
                             <div>{{ $currency }} {{ number_format($total, 2) }}</div>
                             @endforeach
+                        </td>
+                        @php $userTotal = $converter->totalIn($u['by_currency'], $display); @endphp
+                        <td class="text-end font-monospace {{ $userTotal['all_reviewed'] ? '' : 'text-muted' }}">
+                            @if($userTotal['missing'])
+                                <span class="text-danger" title="No rate for {{ implode(', ', $userTotal['missing']) }}">partial</span>
+                            @endif
+                            {{ number_format($userTotal['total'], 2) }}
                         </td>
                     </tr>
                     @endforeach

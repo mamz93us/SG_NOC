@@ -5,7 +5,12 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4 class="mb-0"><i class="bi bi-file-earmark-bar-graph me-2"></i>Asset Reports</h4>
-        <a href="{{ route('admin.itam.dashboard') }}" class="btn btn-sm btn-outline-secondary">ITAM Dashboard</a>
+        <div class="d-flex gap-2">
+            <a href="{{ route('admin.itam.exchange-rates.index') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-currency-exchange me-1"></i>Exchange Rates
+            </a>
+            <a href="{{ route('admin.itam.dashboard') }}" class="btn btn-sm btn-outline-secondary">ITAM Dashboard</a>
+        </div>
     </div>
 
     <div class="row g-3 mb-4">

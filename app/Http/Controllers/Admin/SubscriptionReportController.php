@@ -7,6 +7,7 @@ use App\Models\Device;
 use App\Models\Employee;
 use App\Models\License;
 use App\Models\LicenseAssignment;
+use App\Services\Finance\CurrencyConverter;
 use App\Support\Currency;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -30,12 +31,17 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * Adding a run rate to a payable would double-count, so the two never share a
  * total, and each page says which of the two it is showing.
  *
- * Amounts are never converted between currencies. There is no rate source in
- * this system, and a wrong rate silently applied to a payment run is worse
- * than four honest subtotals — so every total is grouped by currency.
+ * Per-currency subtotals are the fact and are always shown. A combined total in
+ * one chosen currency is shown ALONGSIDE them, never instead: it is an estimate
+ * at one rate on one day. The rate is a stored decision with a date and an owner
+ * (see CurrencyConverter) — nothing fetches a live rate, because a report that
+ * returns a different total on Tuesday than on Monday cannot be reconciled. Any
+ * total resting on a rate nobody has reviewed says so, on screen and in the CSV.
  */
 class SubscriptionReportController extends Controller
 {
+    public function __construct(private readonly CurrencyConverter $converter) {}
+
     /**
      * Seat-level usage and monthly run rate.
      */
@@ -43,6 +49,7 @@ class SubscriptionReportController extends Controller
     {
         $month = $this->resolveMonth($request);
         $type = $this->resolveType($request);
+        $display = $this->resolveDisplayCurrency($request);
 
         $licenses = $this->recurringLicenses($type);
         $rows = $this->seatRows($licenses, $month);
@@ -52,11 +59,14 @@ class SubscriptionReportController extends Controller
                 'ai-subscription-usage-'.$month->format('Y-m'),
                 $rows,
                 ['Service', 'Vendor', 'Plan', 'User', 'Email', 'Seat Status', 'Currency',
-                    'Cost / Seat / Cycle', 'Billing Cycle', 'Monthly Cost / Seat', 'Renews This Month',
+                    'Cost / Seat / Cycle', 'Billing Cycle', 'Monthly Cost / Seat',
+                    "Monthly Cost / Seat ({$display})", 'Rate Basis', 'Renews This Month',
                     'Payment Method', 'Paid From'],
                 fn (array $r) => [
                     $r['service'], $r['vendor'], $r['plan'], $r['user'], $r['email'], $r['seat_status'],
                     $r['currency'], $r['cost_per_seat'], $r['billing_cycle'], $r['monthly_per_seat'],
+                    $this->converter->convert((float) $r['monthly_per_seat'], $r['currency'], $display),
+                    $this->rateBasis($r['currency'], $display),
                     $r['renewal_date']?->format('Y-m-d'), $r['payment_method'], $r['payment_account'],
                 ]
             );
@@ -94,6 +104,10 @@ class SubscriptionReportController extends Controller
             'runRateByCurrency' => $runRateByCurrency,
             'summary' => $summary,
             'monthOptions' => $this->monthOptions($month),
+            'display' => $display,
+            'displayOptions' => Currency::CODES,
+            'combined' => $this->converter->totalIn($runRateByCurrency, $display),
+            'converter' => $this->converter,
         ]);
     }
 
@@ -104,6 +118,7 @@ class SubscriptionReportController extends Controller
     {
         $month = $this->resolveMonth($request);
         $type = $this->resolveType($request, default: 'all');
+        $display = $this->resolveDisplayCurrency($request);
 
         $licenses = $this->recurringLicenses($type);
 
@@ -144,11 +159,14 @@ class SubscriptionReportController extends Controller
                 'subscription-payments-'.$month->format('Y-m'),
                 $due,
                 ['Due Date', 'Service', 'Vendor', 'Type', 'Billing Cycle', 'Seats',
-                    'Cost / Seat', 'Currency', 'Amount Due', 'Payment Method', 'Paid From', 'Action Needed'],
+                    'Cost / Seat', 'Currency', 'Amount Due', "Amount Due ({$display})", 'Rate Basis',
+                    'Payment Method', 'Paid From', 'Action Needed'],
                 fn (array $r) => [
                     $r['due_date']->format('Y-m-d'), $r['service'], $r['vendor'], $r['type'],
                     $r['billing_cycle'], $r['seats'], $r['cost_per_seat'], $r['currency'],
                     number_format($r['amount'], 2, '.', ''),
+                    $this->converter->convert((float) $r['amount'], $r['currency'], $display),
+                    $this->rateBasis($r['currency'], $display),
                     $r['payment_method'] ?? 'NOT SET',
                     $r['payment_account'] ?? '',
                     $r['payment_method'] === null ? 'Set payment method' : ($r['auto_charged'] ? 'No — card auto-charges' : 'Yes — raise payment'),
@@ -167,6 +185,7 @@ class SubscriptionReportController extends Controller
                 'auto_charged' => $key !== '__unset' && $g->first()['auto_charged'],
                 'rows' => $g->values(),
                 'by_currency' => $this->sumByCurrency($g, 'amount'),
+                'combined' => $this->converter->totalIn($this->sumByCurrency($g, 'amount'), $display),
             ])
             ->sortBy(fn ($g) => $g['key'] === '__unset' ? 0 : ($g['auto_charged'] ? 2 : 1))
             ->values();
@@ -176,8 +195,13 @@ class SubscriptionReportController extends Controller
             'type' => $type,
             'due' => $due,
             'groups' => $groups,
-            'totalByCurrency' => $this->sumByCurrency($due, 'amount'),
-            'actionByCurrency' => $this->sumByCurrency($due->reject(fn ($r) => $r['auto_charged']), 'amount'),
+            'totalByCurrency' => $totalByCurrency = $this->sumByCurrency($due, 'amount'),
+            'actionByCurrency' => $actionByCurrency = $this->sumByCurrency($due->reject(fn ($r) => $r['auto_charged']), 'amount'),
+            'display' => $display,
+            'displayOptions' => Currency::CODES,
+            'combined' => $this->converter->totalIn($totalByCurrency, $display),
+            'combinedAction' => $this->converter->totalIn($actionByCurrency, $display),
+            'converter' => $this->converter,
             'missingMethod' => $due->whereNull('payment_method_key')->values(),
             'unscheduled' => $unscheduled,
             'monthOptions' => $this->monthOptions($month),
@@ -285,6 +309,39 @@ class SubscriptionReportController extends Controller
         });
 
         return $sums;
+    }
+
+    /** Which currency the combined totals are expressed in. */
+    private function resolveDisplayCurrency(Request $request): string
+    {
+        $code = strtoupper((string) $request->query('display', ''));
+
+        if (in_array($code, Currency::CODES, true)) {
+            return $code;
+        }
+
+        $default = strtoupper((string) config('currency.display_default', Currency::DEFAULT));
+
+        return in_array($default, Currency::CODES, true) ? $default : Currency::DEFAULT;
+    }
+
+    /**
+     * Says, per row, whether its converted figure rests on a rate a human
+     * entered. Goes into the CSV so the distinction survives the export —
+     * finance reads the spreadsheet, not the screen it came from.
+     */
+    private function rateBasis(string $from, string $to): string
+    {
+        if (strtoupper($from) === strtoupper($to)) {
+            return 'No conversion';
+        }
+        if (! $this->converter->has($from) || ! $this->converter->has($to)) {
+            return 'NO RATE — not converted';
+        }
+
+        return $this->converter->isReviewed($from) && $this->converter->isReviewed($to)
+            ? 'Reviewed rate'
+            : 'INDICATIVE rate — not reviewed';
     }
 
     private function resolveMonth(Request $request): CarbonImmutable

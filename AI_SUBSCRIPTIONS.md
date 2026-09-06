@@ -55,14 +55,37 @@ A run rate and a payable are different numbers and adding them double-counts.
 An annual £1,200 licence is £100/month of run rate every month, and a £1,200
 payable in exactly one of them. Each page states which one it is showing.
 
-### Currencies
+### Currencies and the combined total
 
 `EUR` was added to `App\Support\Currency` (Magnific invoices in euros). The AI
 basket spans USD, EGP, SAR and EUR.
 
-**Totals are never combined across currencies.** The NOC holds no FX rates, and
-a wrong rate silently applied to a payment run is worse than four honest
-subtotals. Finance converts at the rate on the payment date.
+Both reports have a **Total in** selector. The per-currency subtotals are always
+shown and are the fact — those are the amounts actually charged. The combined
+figure sits **alongside** them and is an estimate at one rate on one day.
+
+### Where the rate comes from
+
+`exchange_rates`, edited at **/admin/itam/exchange-rates** (`manage-itam` to
+save, `view-itam` to read). One row per currency: *units of that currency per 1
+USD*, plus the date it applies to, the source, and who entered it. Cross-rates
+go through the base, so EGP→SAR is derived from the two USD rates rather than
+being a third number that can drift.
+
+**Nothing fetches a live rate, deliberately.** The NOC cannot resolve most
+public hosts (split-brain DNS), and a report that returns a different total on
+Tuesday than it did on Monday is not something finance can reconcile. The rate
+is a stored decision with a date and an owner.
+
+Until a currency is entered, `config/currency.php` supplies an indicative
+fallback and **every total built on it is labelled "indicative — not reviewed"**
+— on the screen, in the drill-down, and as a *Rate Basis* column in the CSV. SAR
+is pegged at 3.75 and safe; EGP and EUR need a human before anything goes to
+finance.
+
+A currency with no rate at all is **excluded from the combined total and named
+in red**, because a total that quietly dropped a currency would understate what
+is owed.
 
 ---
 
@@ -137,3 +160,10 @@ set the method in the form).
   in February and the 30th in November.
 - **Seat count is the billed quantity, not the assigned count.** Reducing a
   vendor seat means editing `seats` on the licence, not just unassigning a user.
+- **Exchange rates live in their own table, not in `settings`.** That table is a
+  single wide row already at ~64.7 KB of InnoDB's 65,535-byte limit, so it has
+  no room — and a rate that produces a number finance acts on needs a date, a
+  source and an owner, which a settings column cannot carry.
+- **Blanking a rate is a real action**, not a no-op: it deletes the row and
+  drops that currency back to the indicative default, which re-flags every total
+  using it as unreviewed.

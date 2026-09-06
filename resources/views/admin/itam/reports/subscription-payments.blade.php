@@ -41,6 +41,15 @@
                 <option value="ai" {{ $type === 'ai' ? 'selected' : '' }}>AI Subscriptions</option>
                 <option value="subscription" {{ $type === 'subscription' ? 'selected' : '' }}>Other Subscriptions</option>
             </select>
+            <label class="small text-muted mb-0 ms-2">Total in</label>
+            <select name="display" class="form-select form-select-sm" style="max-width:110px" onchange="this.form.submit()">
+                @foreach($displayOptions as $code)
+                <option value="{{ $code }}" {{ $display === $code ? 'selected' : '' }}>{{ $code }}</option>
+                @endforeach
+            </select>
+            <a href="{{ route('admin.itam.exchange-rates.index') }}" class="btn btn-sm btn-outline-secondary" title="Exchange rates">
+                <i class="bi bi-currency-exchange"></i>
+            </a>
             <noscript><button class="btn btn-sm btn-outline-secondary">Apply</button></noscript>
         </div>
     </form>
@@ -54,10 +63,10 @@
             </div></div>
         </div>
         @forelse($totalByCurrency as $currency => $total)
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm text-center"><div class="card-body py-3">
-                <div class="h3 fw-bold text-dark mb-0">{{ $currency }} {{ number_format($total, 2) }}</div>
-                <div class="small text-muted">Total due ({{ $currency }})</div>
+        <div class="col-6 col-md-2">
+            <div class="card border-0 shadow-sm text-center h-100"><div class="card-body py-3">
+                <div class="h4 fw-bold text-dark mb-0">{{ $currency }} {{ number_format($total, 2) }}</div>
+                <div class="small text-muted">Due ({{ $currency }})</div>
                 @if(isset($actionByCurrency[$currency]))
                 <div class="small text-warning mt-1">{{ number_format($actionByCurrency[$currency], 2) }} needs action</div>
                 @endif
@@ -70,7 +79,27 @@
             </div></div>
         </div>
         @endforelse
+
+        @if($due->isNotEmpty())
+        <div class="col-12 col-md-4">
+            @include('admin.itam.reports._combined-total', ['label' => 'Total due in '.$month->format('M Y')])
+            @if($combinedAction['total'] > 0)
+            <div class="small text-warning text-center mt-2">
+                of which <strong>{{ $combinedAction['currency'] }} {{ number_format($combinedAction['total'], 2) }}</strong>
+                needs a payment raised
+            </div>
+            @else
+            <div class="small text-success text-center mt-2">
+                <i class="bi bi-check-circle me-1"></i>nothing to raise — all self-charging
+            </div>
+            @endif
+        </div>
+        @endif
     </div>
+
+    @if($due->isNotEmpty())
+    @include('admin.itam.reports._fx-notice', ['id' => 'fxPayments'])
+    @endif
 
     {{-- Blockers --}}
     @if($missingMethod->isNotEmpty())
@@ -93,12 +122,10 @@
     </div>
     @endif
 
-    @if(count($totalByCurrency) > 1)
-    <div class="alert alert-light border small py-2">
-        <i class="bi bi-info-circle me-1"></i>Amounts are shown in the currency each vendor invoices. The NOC applies
-        no exchange rate — convert at the rate on the payment date.
-    </div>
-    @endif
+    <p class="text-muted small d-print-block">
+        <i class="bi bi-info-circle me-1"></i>Each amount is in the currency its vendor invoices — those are the
+        figures actually charged. The combined total is an estimate at the rates shown above.
+    </p>
 
     {{-- Grouped by how it is paid --}}
     @foreach($groups as $group)
@@ -121,6 +148,9 @@
                 @foreach($group['by_currency'] as $currency => $total)
                 <span class="ms-2">{{ $currency }} <strong>{{ number_format($total, 2) }}</strong></span>
                 @endforeach
+                @if(count($group['by_currency']) > 1 || ! array_key_exists($display, $group['by_currency']))
+                <span class="ms-3 text-muted">≈ {{ $display }} {{ number_format($group['combined']['total'], 2) }}</span>
+                @endif
             </span>
         </div>
         <div class="card-body p-0">
@@ -135,6 +165,7 @@
                         <th class="text-center">Seats</th>
                         <th class="text-end">Cost / Seat</th>
                         <th class="text-end">Amount Due</th>
+                        <th class="text-end">≈ {{ $display }}</th>
                         <th>Paid From</th>
                     </tr>
                 </thead>
@@ -153,6 +184,10 @@
                             {{ $r['cost_per_seat'] !== null ? number_format($r['cost_per_seat'], 2) : '—' }}
                         </td>
                         <td class="text-end font-monospace fw-semibold">{{ $r['currency'] }} {{ number_format($r['amount'], 2) }}</td>
+                        @php $conv = $converter->convert((float) $r['amount'], $r['currency'], $display); @endphp
+                        <td class="text-end font-monospace text-muted small">
+                            {{ $conv !== null ? number_format($conv, 2) : '—' }}
+                        </td>
                         <td class="small text-muted">{{ $r['payment_account'] ?: '—' }}</td>
                     </tr>
                     @endforeach

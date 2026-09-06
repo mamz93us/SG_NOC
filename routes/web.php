@@ -2328,6 +2328,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('subscriptions', [\App\Http\Controllers\Admin\SubscriptionReportController::class, 'usage'])->name('subscriptions');
             Route::get('subscription-payments', [\App\Http\Controllers\Admin\SubscriptionReportController::class, 'payments'])->name('subscription-payments');
         });
+
+        // Rates behind those reports' combined totals. Keyed in, never fetched.
+        Route::get('exchange-rates', [\App\Http\Controllers\Admin\ExchangeRateController::class, 'index'])->name('exchange-rates.index');
+    });
+
+    Route::middleware('permission:manage-itam')->prefix('itam')->name('itam.')->group(function () {
+        Route::put('exchange-rates', [\App\Http\Controllers\Admin\ExchangeRateController::class, 'update'])->name('exchange-rates.update');
     });
 
     // ─── Asset Transfer ───────────────────────────────────────────
