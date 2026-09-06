@@ -547,6 +547,55 @@
   'use strict';
 
   var csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  var reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  // ─── Dials and counters ──────────────────────────────────────
+  // Held at their empty state in markup would be wrong — if the animation never
+  // runs, a payday ring stuck at zero is a LIE. So the server renders the true
+  // value, and this rewinds it for one frame and lets it settle. Nothing here
+  // is load-bearing: skip it and the page is simply already correct.
+  function animateDials() {
+    if (reduceMotionQuery.matches) return;
+
+    document.querySelectorAll('.ring-fg, .risk-gauge .g-fg').forEach(function (arc) {
+      var isRing = arc.classList.contains('ring-fg');
+      var attr = isRing ? 'stroke-dashoffset' : 'stroke-dasharray';
+      var target = arc.getAttribute(attr);
+      if (target === null) return;
+
+      // Empty = the whole circumference offset for the ring, a zero-length
+      // dash for the gauge.
+      arc.setAttribute(attr, isRing ? (arc.getAttribute('stroke-dasharray') || '251.2') : '0 276.5');
+      arc.style.transition = 'stroke-dashoffset .9s cubic-bezier(.2,.75,.28,1), stroke-dasharray .9s cubic-bezier(.2,.75,.28,1)';
+
+      window.requestAnimationFrame(function () {
+        window.requestAnimationFrame(function () { arc.setAttribute(attr, target); });
+      });
+    });
+
+    document.querySelectorAll('.svc-count .n, .ring-center .num').forEach(function (el) {
+      var target = parseInt(el.textContent.trim(), 10);
+      // Only whole numbers count up; anything else is left exactly as rendered.
+      if (!isFinite(target) || target < 1 || String(target) !== el.textContent.trim()) return;
+
+      var steps = Math.min(target, 24);
+      var i = 0;
+      el.textContent = '0';
+
+      var timer = window.setInterval(function () {
+        i++;
+        el.textContent = String(Math.round((target * i) / steps));
+        if (i >= steps) window.clearInterval(timer);
+      }, Math.max(18, 520 / steps));
+    });
+  }
+
+  // Fires once the intro has handed over — or immediately when there is none.
+  if (document.body.classList.contains('sg-reveal')) {
+    animateDials();
+  } else {
+    document.addEventListener('sg:reveal', animateDials, { once: true });
+  }
 
   // ─── ID card reveal ──────────────────────────────────────────
   // Blurred by default: this page sits open on unattended desks, and the card

@@ -210,7 +210,15 @@ class HomeController extends Controller
         return [
             'user' => $user,
             'employee' => $employee,
-            'greeting' => $this->greeter->for($employee?->name ?: $user->name),
+            'greeting' => $greeting = $this->greeter->for($employee?->name ?: $user->name),
+            // The brand intro. Whether it actually PLAYS is decided in the
+            // browser, not here — at most once a day per device — because the
+            // server has no idea how many times this person has already opened
+            // their home page today. All this does is put the overlay and its
+            // decision script on the page at all.
+            'showIntro' => (bool) config('home_portal.intro.enabled', true),
+            'introGreeting' => trim($greeting['greeting'].', '.$greeting['name']),
+            'introHoldMs' => (int) config('home_portal.intro.hold_ms', 1750),
             'announcements' => $announcements,
             'unreadCount' => $this->unreadCount($user->id, $announcements),
             'events' => $this->events($settings),

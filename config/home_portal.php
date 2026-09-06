@@ -80,6 +80,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Brand intro
+    |--------------------------------------------------------------------------
+    |
+    | The short brand animation over the start page.
+    |
+    | Config rather than Settings on purpose — twice over. The `settings` table
+    | is one wide row already at InnoDB's 65,535-byte limit (see the Samsung
+    | Wallet migration), and this is a taste decision that is set once and left,
+    | not something HR changes on a Tuesday.
+    |
+    | How often it plays is NOT decided here: the browser allows it at most once
+    | a day per device. This page is the home page on every company PC and
+    | people open it dozens of times a day — an intro on every launch would be
+    | the most hated thing in the building. Set `enabled` to false to switch it
+    | off entirely; `hold_ms` is how long the brand holds before it lifts, and
+    | anything much past two seconds starts to feel like being made to wait.
+    |
+    | It is skipped outright for anyone whose system asks for reduced motion.
+    |
+    */
+
+    'intro' => [
+        'enabled' => (bool) env('HOME_PORTAL_INTRO', true),
+        'hold_ms' => (int) env('HOME_PORTAL_INTRO_HOLD_MS', 1750),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Webmail
     |--------------------------------------------------------------------------
     |

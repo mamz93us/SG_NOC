@@ -773,14 +773,179 @@
     .ann-nav{ top:auto; bottom:12px; transform:none; }
   }
 
+  /* ===== Brand intro =====
+     Hidden by default and revealed ONLY by the script in the head below. That
+     is deliberate: with JavaScript off, or if that script throws, the overlay
+     never appears and the portal is simply the portal — it can never leave
+     someone staring at a black screen that will not lift. */
+  .sg-intro{
+    display:none;
+    position:fixed; inset:0; z-index:9999;
+    align-items:center; justify-content:center; flex-direction:column;
+    background:linear-gradient(120deg, var(--gray-900) 0%, var(--gray-800) 55%, var(--gray-700) 100%);
+    cursor:pointer;
+  }
+  html[data-intro="on"] .sg-intro{ display:flex; }
+  .sg-intro::before{
+    content:"";
+    position:absolute; inset:0;
+    background:
+      radial-gradient(700px 300px at 82% -10%, rgba(236,32,36,.20), transparent 62%),
+      radial-gradient(520px 260px at 14% 112%, rgba(236,32,36,.12), transparent 62%);
+    pointer-events:none;
+  }
+  .sg-intro-inner{
+    position:relative;
+    display:flex; flex-direction:column; align-items:center;
+    padding:0 24px; text-align:center;
+  }
+
+  /* The swoosh, in its true red on the dark ground. */
+  .sg-intro-mark{ position:relative; padding:6px; display:flex; }
+  .sg-intro-mark img{
+    position:relative; z-index:1;
+    display:block; height:74px; width:auto;
+    animation:sgMark .62s cubic-bezier(.2,.75,.28,1) .04s both;
+  }
+  /* A soft red bloom that swells behind the mark once and dies away.
+     NOT a shine sweep: a translating light streak needs a light or metallic
+     surface to read as shine, and over this dark ground it renders as a grey
+     rectangle sliding past. A radial bloom has no edges to give itself away
+     and matches the red glow already in the page header. */
+  .sg-intro-glow{
+    position:absolute; left:50%; top:50%;
+    width:280px; height:280px; margin:-140px 0 0 -140px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(236,32,36,.5) 0%, rgba(236,32,36,.16) 42%, transparent 68%);
+    animation:sgGlow 1.15s cubic-bezier(.3,.6,.3,1) .1s both;
+    pointer-events:none;
+  }
+
+  .sg-intro-wordmark{
+    display:block; height:34px; width:auto; margin-top:22px;
+    filter:brightness(0) invert(1);
+    animation:sgRise .55s cubic-bezier(.2,.75,.28,1) .5s both;
+  }
+  .sg-intro-rule{
+    display:block; width:132px; height:2px; margin-top:22px; border-radius:2px;
+    background:linear-gradient(90deg, var(--red-600), var(--red-500));
+    transform-origin:center;
+    animation:sgRule .5s cubic-bezier(.2,.75,.28,1) .72s both;
+  }
+  .sg-intro-greeting{
+    margin-top:18px; color:#fff; font-size:clamp(17px,2.4vw,21px); font-weight:600; letter-spacing:.2px;
+    animation:sgRise .5s cubic-bezier(.2,.75,.28,1) .88s both;
+  }
+  .sg-intro-sub{
+    margin-top:6px; font-family:var(--font-ar); font-size:13px; color:rgba(255,255,255,.55);
+    animation:sgRise .5s cubic-bezier(.2,.75,.28,1) 1s both;
+  }
+  .sg-intro-skip{
+    position:absolute; bottom:26px; left:0; right:0;
+    text-align:center;
+    font-size:11.5px; letter-spacing:.8px; text-transform:uppercase;
+    color:rgba(255,255,255,.3);
+    animation:sgFade .5s ease 1.15s both;
+  }
+  /* Lifts away rather than simply vanishing, so it hands over to the page. */
+  .sg-intro.sg-intro-out{
+    animation:sgIntroOut .48s cubic-bezier(.4,0,.2,1) both;
+    pointer-events:none;
+  }
+
+  @keyframes sgIntroOut{ to{ opacity:0; transform:scale(1.035); } }
+  @keyframes sgMark{ from{ opacity:0; transform:scale(.84); } to{ opacity:1; transform:scale(1); } }
+  @keyframes sgGlow{ 0%{ opacity:0; transform:scale(.45); } 45%{ opacity:1; } 100%{ opacity:0; transform:scale(1.5); } }
+  @keyframes sgRule{ from{ opacity:0; transform:scaleX(0); } to{ opacity:1; transform:scaleX(1); } }
+  @keyframes sgFade{ from{opacity:0} to{opacity:1} }
+  @keyframes sgRise{ from{ opacity:0; transform:translateY(13px); } to{ opacity:1; transform:none; } }
+
+  /* ===== Content entrance =====
+     `sg-reveal` is added by the intro script — immediately when there is no
+     intro, and as the overlay starts fading when there is, so the two read as
+     one movement. Transform + opacity only: this runs on every PC in the
+     company, including branch machines that are not fast. */
+  body.sg-intro-lock{ overflow:hidden; }
+  body.sg-reveal main > *,
+  body.sg-reveal .grid-primary > *,
+  body.sg-reveal .grid-secondary > *,
+  body.sg-reveal .id-card-aside{
+    animation:sgRise .5s cubic-bezier(.2,.75,.28,1) both;
+  }
+  body.sg-reveal main > *:nth-child(1){ animation-delay:.02s; }
+  body.sg-reveal main > *:nth-child(2){ animation-delay:.08s; }
+  body.sg-reveal main > *:nth-child(3){ animation-delay:.13s; }
+  body.sg-reveal main > *:nth-child(n+4){ animation-delay:.17s; }
+  /* Cards ripple in behind their section, hence the offset baseline. */
+  body.sg-reveal .grid-primary > *:nth-child(1),
+  body.sg-reveal .grid-secondary > *:nth-child(1){ animation-delay:.16s; }
+  body.sg-reveal .grid-primary > *:nth-child(2),
+  body.sg-reveal .grid-secondary > *:nth-child(2){ animation-delay:.21s; }
+  body.sg-reveal .grid-primary > *:nth-child(3),
+  body.sg-reveal .grid-secondary > *:nth-child(3){ animation-delay:.26s; }
+  body.sg-reveal .grid-primary > *:nth-child(4),
+  body.sg-reveal .grid-secondary > *:nth-child(4){ animation-delay:.31s; }
+  body.sg-reveal .grid-primary > *:nth-child(n+5),
+  body.sg-reveal .grid-secondary > *:nth-child(n+5){ animation-delay:.36s; }
+  body.sg-reveal .id-card-aside{ animation-delay:.3s; }
+
   @media (prefers-reduced-motion:reduce){
     .card, .ring-fg, .ann-slide{ transition:none; }
     .bell-badge.pulse::before{ animation:none; }
+    /* No splash, no stagger, no ring sweep. Nothing here is load-bearing. */
+    .sg-intro{ display:none !important; }
+    body.sg-reveal main > *,
+    body.sg-reveal .grid-primary > *,
+    body.sg-reveal .grid-secondary > *,
+    body.sg-reveal .id-card-aside,
+    .sg-intro-mark img, .sg-intro-glow, .sg-intro-wordmark,
+    .sg-intro-rule, .sg-intro-greeting, .sg-intro-sub, .sg-intro-skip{
+      animation:none !important;
+    }
   }
 </style>
 @stack('head')
+@if($showIntro ?? false)
+{{--
+    Runs BEFORE the body paints, so the overlay is either on screen for the very
+    first frame or never rendered at all — deciding after paint would flash the
+    page and then cover it.
+
+    At most once a day per device. This page is the browser home page on every
+    company PC: people open it dozens of times a day, and an intro on every
+    launch would be the most hated thing in the building. Storage is wrapped
+    because a locked-down profile or a private window makes it throw, and the
+    right answer when we cannot remember is to stay quiet, not to replay.
+--}}
+<script>
+(function () {
+  try {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var today = new Date().toISOString().slice(0, 10);
+    if (window.localStorage.getItem('sg.intro.day') === today) return;
+    window.localStorage.setItem('sg.intro.day', today);
+  } catch (e) {
+    return; // Cannot remember whether it has played, so do not play it.
+  }
+  document.documentElement.setAttribute('data-intro', 'on');
+})();
+</script>
+@endif
 </head>
 <body>
+@if($showIntro ?? false)
+    @include('home.partials.intro')
+@endif
+<script>
+// The intro script owns the reveal on the start page. Everywhere else — the
+// document library, My Assets, the directory — the content still arrives with
+// the same short stagger, so the portal moves as one thing.
+(function () {
+  if (document.getElementById('sgIntro')) return;
+  document.body.classList.add('sg-reveal');
+  document.dispatchEvent(new CustomEvent('sg:reveal'));
+})();
+</script>
 
 <header>
   <div class="header-inner">
