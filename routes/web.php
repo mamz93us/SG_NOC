@@ -2327,6 +2327,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             // recurring licence). Usage = monthly run rate; payments = payable.
             Route::get('subscriptions', [\App\Http\Controllers\Admin\SubscriptionReportController::class, 'usage'])->name('subscriptions');
             Route::get('subscription-payments', [\App\Http\Controllers\Admin\SubscriptionReportController::class, 'payments'])->name('subscription-payments');
+            Route::get('subscriptions-by-department', [\App\Http\Controllers\Admin\SubscriptionReportController::class, 'byDepartment'])->name('subscriptions-by-department');
         });
 
         // Rates behind those reports' combined totals. Keyed in, never fetched.

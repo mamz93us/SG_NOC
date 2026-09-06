@@ -208,6 +208,157 @@ class SubscriptionReportController extends Controller
         ]);
     }
 
+    /**
+     * Cost and payments due, split by the department that holds each seat.
+     *
+     * Two figures per department, answering the same two different questions
+     * the other reports keep apart:
+     *
+     *  - monthly cost: every seat's run rate, charged this month or not. What
+     *    the department costs to keep running.
+     *  - due this month: only seats on a licence renewing in this month, at
+     *    their share of that charge.
+     *
+     * The second is an ALLOCATION, not a set of payments. A licence is one
+     * indivisible charge on one card; splitting it across departments is a
+     * bookkeeping view of that charge, and finance still pays it once. Because
+     * a licence's charge is cost x seats, one seat's share is exactly the
+     * per-seat cost — so department shares always add back up to the payment
+     * total, which is what makes the split safe to publish.
+     */
+    public function byDepartment(Request $request)
+    {
+        $month = $this->resolveMonth($request);
+        $type = $this->resolveType($request);
+        $display = $this->resolveDisplayCurrency($request);
+
+        $licenses = $this->recurringLicenses($type);
+        $rows = $this->seatRows($licenses, $month);
+
+        $groups = $rows
+            ->groupBy('department_key')
+            ->map(function (Collection $g, string $key) use ($display) {
+                $runRate = $this->sumByCurrency($g, 'monthly_per_seat');
+                $due = $this->dueByCurrency($g);
+
+                return [
+                    'key' => $key,
+                    'department' => $g->first()['department'],
+                    'is_bucket' => str_starts_with($key, '__'),
+                    'seats' => $g->count(),
+                    'people' => $g->pluck('email')->filter()->unique()->count(),
+                    'services' => $g->pluck('service')->unique()->sort()->values()->all(),
+                    'run_rate' => $runRate,
+                    'run_rate_combined' => $this->converter->totalIn($runRate, $display),
+                    'due' => $due,
+                    'due_combined' => $this->converter->totalIn($due, $display),
+                ];
+            })
+            // Biggest spender first; the catch-all buckets sink to the bottom
+            // where they read as exceptions to chase, not as departments.
+            ->sortBy(fn ($g) => [$g['is_bucket'] ? 1 : 0, -$g['run_rate_combined']['total']])
+            ->values();
+
+        if ($request->query('csv') === 'detail') {
+            return $this->departmentSeatCsv($rows, $month, $display);
+        }
+
+        if ($request->boolean('csv')) {
+            return $this->departmentSummaryCsv($groups, $month, $display);
+        }
+
+        $runRateByCurrency = $this->sumByCurrency($rows, 'monthly_per_seat');
+        $dueByCurrency = $this->dueByCurrency($rows);
+
+        return view('admin.itam.reports.subscriptions-by-department', [
+            'month' => $month,
+            'type' => $type,
+            'groups' => $groups,
+            'display' => $display,
+            'displayOptions' => Currency::CODES,
+            'runRateByCurrency' => $runRateByCurrency,
+            'dueByCurrency' => $dueByCurrency,
+            'combinedRunRate' => $this->converter->totalIn($runRateByCurrency, $display),
+            'combinedDue' => $this->converter->totalIn($dueByCurrency, $display),
+            'departmentCount' => $groups->reject(fn ($g) => $g['is_bucket'])->count(),
+            'monthOptions' => $this->monthOptions($month),
+        ]);
+    }
+
+    /**
+     * A seat's share of this month's charge, per currency.
+     *
+     * The share IS the per-seat cost: a licence charges cost x seats, so
+     * dividing that back across its seats returns the same number. Seats whose
+     * licence does not renew this month contribute nothing.
+     *
+     * @return array<string, float>
+     */
+    private function dueByCurrency(Collection $rows): array
+    {
+        return $rows
+            ->filter(fn ($r) => $r['renewal_date'] !== null)
+            ->groupBy('currency')
+            ->map(fn (Collection $c) => round($c->sum(fn ($r) => (float) ($r['cost_per_seat'] ?? 0)), 2))
+            ->filter(fn ($v) => $v > 0)
+            ->all();
+    }
+
+    private function departmentSummaryCsv(Collection $groups, CarbonImmutable $month, string $display): StreamedResponse
+    {
+        return $this->streamCsv(
+            'subscription-cost-by-department-'.$month->format('Y-m'),
+            $groups,
+            ['Department', 'Seats', 'People', 'Services', 'Monthly Cost (as invoiced)',
+                "Monthly Cost ({$display})", 'Due This Month (as invoiced)', "Due This Month ({$display})"],
+            fn (array $g) => [
+                $g['department'],
+                $g['seats'],
+                $g['people'],
+                implode(' / ', $g['services']),
+                $this->currencyList($g['run_rate']),
+                number_format($g['run_rate_combined']['total'], 2, '.', ''),
+                $this->currencyList($g['due']),
+                number_format($g['due_combined']['total'], 2, '.', ''),
+            ]
+        );
+    }
+
+    private function departmentSeatCsv(Collection $rows, CarbonImmutable $month, string $display): StreamedResponse
+    {
+        return $this->streamCsv(
+            'subscription-seats-by-department-'.$month->format('Y-m'),
+            $rows->sortBy([['department', 'asc'], ['user', 'asc'], ['service', 'asc']])->values(),
+            ['Department', 'User', 'Email', 'Seat Status', 'Service', 'Currency',
+                'Monthly Cost', "Monthly Cost ({$display})", 'Due This Month', "Due This Month ({$display})",
+                'Renewal Date', 'Rate Basis'],
+            function (array $r) use ($display) {
+                $due = $r['renewal_date'] ? (float) ($r['cost_per_seat'] ?? 0) : 0.0;
+
+                return [
+                    $r['department'], $r['user'], $r['email'], $r['seat_status'], $r['service'], $r['currency'],
+                    $r['monthly_per_seat'],
+                    $this->converter->convert((float) $r['monthly_per_seat'], $r['currency'], $display),
+                    $due ?: '',
+                    $due ? $this->converter->convert($due, $r['currency'], $display) : '',
+                    $r['renewal_date']?->format('Y-m-d'),
+                    $this->rateBasis($r['currency'], $display),
+                ];
+            }
+        );
+    }
+
+    /** "USD 25.00 + EGP 1150.00" — keeps a CSV cell honest about mixed currencies. */
+    private function currencyList(array $byCurrency): string
+    {
+        $parts = [];
+        foreach ($byCurrency as $currency => $amount) {
+            $parts[] = $currency.' '.number_format($amount, 2, '.', '');
+        }
+
+        return implode(' + ', $parts);
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Shared
     // ─────────────────────────────────────────────────────────────
@@ -218,7 +369,9 @@ class SubscriptionReportController extends Controller
         return License::query()
             ->recurring()
             ->when($type !== 'all', fn ($q) => $q->where('license_type', $type))
-            ->with(['supplier', 'assignments.assignable'])
+            // assignable.department feeds the by-department report; loading it
+            // here keeps that grouping from firing a query per seat.
+            ->with(['supplier', 'assignments.assignable' => fn ($m) => $m->morphWith([Employee::class => ['department']])])
             ->orderBy('license_name')
             ->get();
     }
@@ -254,7 +407,7 @@ class SubscriptionReportController extends Controller
                     'email' => $this->assigneeEmail($assignment),
                     'seat_status' => 'Assigned',
                     'assigned_date' => $assignment->assigned_date,
-                ]);
+                ] + $this->departmentOf($assignment));
             }
 
             $spare = max(0, (int) $license->seats - $license->assignments->count());
@@ -264,11 +417,47 @@ class SubscriptionReportController extends Controller
                     'email' => '',
                     'seat_status' => 'Unassigned',
                     'assigned_date' => null,
+                    // A seat nobody holds is still invoiced, so it needs a bucket
+                    // of its own rather than being dropped from the department
+                    // split — otherwise the parts stop summing to the whole.
+                    'department_key' => '__unassigned',
+                    'department' => 'Unassigned seats',
                 ]);
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * Which department carries a seat's cost.
+     *
+     * Everything that is not an employee in a department gets a named bucket
+     * rather than being left out: a device-held seat, an employee nobody has
+     * filed under a department (65 of them in production), and a deleted record
+     * are all still being invoiced. Dropping any of them would make the
+     * department split quietly stop adding up to the licence total, which is
+     * the one property this report has to keep.
+     *
+     * @return array{department_key: string, department: string}
+     */
+    private function departmentOf(LicenseAssignment $assignment): array
+    {
+        $assignable = $assignment->assignable;
+
+        if ($assignable instanceof Employee) {
+            $department = $assignable->department;
+
+            return $department
+                ? ['department_key' => 'dept:'.$department->id, 'department' => $department->name]
+                : ['department_key' => '__no_department', 'department' => 'No department set'];
+        }
+
+        if ($assignable instanceof Device) {
+            return ['department_key' => '__device', 'department' => 'Devices (no employee)'];
+        }
+
+        return ['department_key' => '__deleted', 'department' => 'Deleted records'];
     }
 
     private function assigneeName(LicenseAssignment $assignment): string

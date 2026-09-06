@@ -9,6 +9,9 @@
             <a href="{{ route('admin.itam.reports.subscriptions', ['month' => $month->format('Y-m')]) }}" class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-robot me-1"></i>Usage Report
             </a>
+            <a href="{{ route('admin.itam.reports.subscriptions-by-department', ['month' => $month->format('Y-m'), 'display' => $display]) }}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-diagram-3 me-1"></i>By Department
+            </a>
             <a href="{{ route('admin.itam.reports.subscription-payments', array_merge(request()->query(), ['csv' => 1])) }}" class="btn btn-sm btn-outline-success">
                 <i class="bi bi-filetype-csv me-1"></i>Export CSV
             </a>

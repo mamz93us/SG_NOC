@@ -49,6 +49,19 @@ amount charged that day. This is the **payable**. Grouped by how it is paid:
 - *Wire Transfer / Cash / Other* — somebody has to raise a payment.
 - *Credit Card* — charges itself, listed for visibility only.
 
+**`/admin/itam/reports/subscriptions-by-department` — Cost by Department**
+Each seat charged to the department of the person holding it, showing both the
+monthly run rate and this month's share of what renews. The unattributable seats
+get named buckets — *No department set*, *Devices (no employee)*, *Unassigned
+seats*, *Deleted records* — rather than being dropped, so the parts always add
+up to the whole. Two CSVs: department summary, and per-seat detail.
+
+The department split of what is due is an **allocation, not a set of payments**.
+A licence is one indivisible charge on one card and finance still pays it once,
+from the Payments Due report. Because a licence charges `cost × seats`, one
+seat's share is exactly the per-seat cost, so the department shares always sum
+back to the payment total — which is what makes them safe to recharge against.
+
 ### Why two reports and not one
 
 A run rate and a payable are different numbers and adding them double-counts.
