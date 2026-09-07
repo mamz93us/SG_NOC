@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <meta name="robots" content="noindex, nofollow">
-<title>@yield('title', 'Samir Group | Employee Portal')</title>
+<title>@yield('title', __('home_layout.default_title'))</title>
 <link rel="icon" href="{{ asset('images/brand/samir-mark.png') }}">
 {{--
     Fonts are self-hosted deliberately. This page opens on every browser launch
@@ -111,6 +111,23 @@
     transition:background .18s ease, color .18s ease;
   }
   .header-signout:hover{ background:rgba(255,255,255,.16); color:#fff; }
+  .lang-switch{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.16);
+    color:rgba(255,255,255,.85);
+    border-radius:10px;
+    padding:8px 14px;
+    font-family:var(--font-sans);
+    font-size:12.5px;
+    font-weight:600;
+    text-decoration:none;
+    transition:background .18s ease, color .18s ease;
+  }
+  .lang-switch svg{ flex-shrink:0; width:16px; height:16px; }
+  .lang-switch:hover{ background:rgba(255,255,255,.16); color:#fff; }
 
   /* ===== Main ===== */
   main{
@@ -457,33 +474,6 @@
   .risk-figs{ display:flex; gap:24px; }
   .risk-figs .stat{ display:flex; flex-direction:column; gap:2px; }
 
-  .payroll-card{
-    background:linear-gradient(150deg, var(--gray-800) 0%, var(--gray-700) 55%, var(--gray-600) 100%);
-    border:none;
-    color:#fff;
-    flex-direction:row;
-    align-items:center;
-    justify-content:space-between;
-    gap:18px;
-  }
-  .payroll-card::after{ display:none; }
-  .payroll-card:hover{ box-shadow:0 10px 30px rgba(14,27,59,.28), 0 2px 8px rgba(14,27,59,.2); }
-  .payroll-left h3{ color:#fff; }
-  .payroll-left p.meta{ color:rgba(255,255,255,.55); margin-top:4px; }
-  .payroll-left .sub{ font-size:12.5px; color:rgba(255,255,255,.5); margin-top:10px; }
-  .ring-wrap{ position:relative; width:96px; height:96px; flex-shrink:0; }
-  .ring-wrap svg{ transform:rotate(-90deg); }
-  .ring-bg{ stroke:rgba(255,255,255,.14); fill:none; stroke-width:8; }
-  .ring-fg{
-    stroke:var(--red-500);
-    fill:none;
-    stroke-width:8;
-    stroke-linecap:round;
-    transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1);
-  }
-  .ring-center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  .ring-center .num{ font-weight:700; font-size:24px; line-height:1; }
-  .ring-center .lbl{ font-size:9.5px; letter-spacing:.6px; text-transform:uppercase; color:rgba(255,255,255,.55); margin-top:3px; }
 
   /* ===== Events list on the calendar card ===== */
   .event-list{ list-style:none; width:100%; display:flex; flex-direction:column; gap:7px; margin-top:-4px; }
@@ -768,7 +758,6 @@
     .card.span-2{ grid-column:span 1; }
     .svc-card, .risk-card{ grid-column:span 1; }
     .id-card-aside{ max-width:none; }
-    .payroll-card{ flex-direction:column; align-items:flex-start; }
     .ann-slide{ padding-right:clamp(22px,3vw,30px); padding-bottom:40px; }
     .ann-nav{ top:auto; bottom:12px; transform:none; }
   }
@@ -908,7 +897,7 @@
   body.sg-reveal .id-card-aside{ animation-delay:.3s; }
 
   @media (prefers-reduced-motion:reduce){
-    .card, .ring-fg, .ann-slide{ transition:none; }
+    .card, .ann-slide{ transition:none; }
     .bell-badge.pulse::before{ animation:none; }
     /* No splash, no stagger, no ring sweep. Nothing here is load-bearing. */
     .sg-intro{ display:none !important; }
@@ -920,6 +909,29 @@
     .sg-intro-rule, .sg-intro-greeting, .sg-intro-sub, .sg-intro-skip{
       animation:none !important;
     }
+  }
+
+  /* ===== RTL (Arabic) =====
+     `dir` lives on <html>, set from the resolved portal locale — see
+     SetHomePortalLocale. Flexbox and most of this layout already mirror for
+     free once `dir="rtl"` is set (row-direction flex/grid flip automatically
+     per the CSS spec); what's below is only the handful of rules that use an
+     explicit physical left/right instead of a logical/flow-relative one. */
+  html[dir="rtl"] body{ font-family:var(--font-ar); }
+  html[dir="rtl"] .header-clock{ text-align:left; }
+  html[dir="rtl"] .card{ text-align:right; }
+  html[dir="rtl"] .card::after{ transform-origin:right; }
+  html[dir="rtl"] .badge{ right:auto; left:-4px; }
+  html[dir="rtl"] .ann-prev{ right:auto; left:calc(clamp(22px, 3vw, 30px) + 42px); }
+  html[dir="rtl"] .ann-next{ right:auto; left:clamp(22px, 3vw, 30px); }
+  html[dir="rtl"] .ann-dots{ left:auto; right:clamp(22px, 3vw, 30px); }
+  html[dir="rtl"] .ann-nav svg,
+  html[dir="rtl"] .lang-switch svg{ transform:scaleX(-1); }
+  html[dir="rtl"] .risk-head .src{ margin-left:0; margin-right:auto; }
+  html[dir="rtl"] .file-list li .file-size{ margin-left:10px; margin-right:auto; }
+  @media (max-width:640px){
+    html[dir="rtl"] .header-clock{ text-align:right; }
+    html[dir="rtl"] .ann-slide{ padding-right:0; padding-left:clamp(22px,3vw,30px); }
   }
 </style>
 @stack('head')
@@ -982,11 +994,16 @@
       <img src="{{ asset('images/brand/samir-logo.png') }}" alt="Samir Group">
       <div class="brand-divider"></div>
       <div class="brand-title">
-        <h1>EMPLOYEE PORTAL</h1>
-        <p>بوابة الموظفين — Samir Group</p>
+        <h1>{{ __('home_layout.brand_title') }}</h1>
+        <p>{{ __('home_layout.brand_subtitle') }}</p>
       </div>
     </div>
     <div class="header-right">
+      <a class="lang-switch" href="{{ route('home.locale', ['locale' => app()->getLocale() === 'ar' ? 'en' : 'ar']) }}"
+         aria-label="{{ app()->getLocale() === 'ar' ? 'Switch to English' : 'التبديل إلى العربية' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.6 3.7 5.7 3.7 9s-1.3 6.4-3.7 9c-2.4-2.6-3.7-5.7-3.7-9S9.6 5.6 12 3Z"/></svg>
+        {{ __('home_layout.switch_to') }}
+      </a>
       <div class="header-clock">
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9.25"/><path d="M12 7v5.2l3.4 2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <div>
@@ -997,7 +1014,7 @@
       @auth
         <form method="POST" action="{{ route('home.logout') }}">
           @csrf
-          <button type="submit" class="header-signout">Sign out</button>
+          <button type="submit" class="header-signout">{{ __('home_layout.sign_out') }}</button>
         </form>
       @endauth
     </div>
@@ -1009,7 +1026,7 @@
 </main>
 
 <footer>
-  Samir Group &copy; <span id="yearNow">{{ now()->year }}</span> — Internal use only &nbsp;·&nbsp; <span class="ar">للاستخدام الداخلي فقط</span>
+  {{ __('home_layout.footer', ['year' => now()->year]) }}
 </footer>
 
 <script>

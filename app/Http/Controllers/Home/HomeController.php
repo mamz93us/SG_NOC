@@ -11,12 +11,11 @@ use App\Models\Knowbe4Score;
 use App\Models\Setting;
 use App\Services\EmployeeCard\SamsungWalletService;
 use App\Services\EmployeeCard\WalletPassService;
+use App\Http\Middleware\SetHomePortalLocale;
 use App\Services\Home\CoreSystems;
 use App\Services\Home\Greeter;
-use App\Services\Home\PaydayCalculator;
 use App\Services\Ticketing\TicketRequestService;
 use App\Support\HomePortal;
-use App\Support\HrPortal;
 use App\Support\VCard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -47,7 +46,6 @@ class HomeController extends Controller
 {
     public function __construct(
         private Greeter $greeter,
-        private PaydayCalculator $payday,
     ) {}
 
     public function index(Request $request): View|RedirectResponse
@@ -97,6 +95,32 @@ class HomeController extends Controller
         return redirect()
             ->route('auth.microsoft', ['from' => 'home'])
             ->withoutCookie(HomePortal::SILENT_OFF_COOKIE);
+    }
+
+    /**
+     * Switches the portal's language and sends the visitor back where they
+     * were. The `where('locale', 'en|ar')` route constraint has already
+     * rejected anything else, so this is just remembering the choice.
+     *
+     * Redirects to the referring page rather than always to the start page —
+     * switching language from the ticket list, say, should not also navigate
+     * away from it. Only trusted when it points back at this same host;
+     * anything else (or no referrer at all) falls back to the start page,
+     * since a Referer header is client-supplied and not meant to be trusted
+     * as a redirect target on its own.
+     */
+    public function setLocale(Request $request, string $locale): RedirectResponse
+    {
+        $back = route('home.index');
+        $referer = $request->headers->get('referer');
+
+        if ($referer && parse_url($referer, PHP_URL_HOST) === $request->getHost()) {
+            $back = $referer;
+        }
+
+        return redirect($back)->withCookie(
+            cookie(SetHomePortalLocale::COOKIE, $locale, 60 * 24 * 365)
+        );
     }
 
     /**
@@ -223,10 +247,6 @@ class HomeController extends Controller
             'unreadCount' => $this->unreadCount($user->id, $announcements),
             'events' => $this->events($settings),
             'security' => $this->securityScore($settings, $employee, $user->email),
-            'payday' => $this->payday->next(),
-            // Settings first, then the config/env default, then the HR portal.
-            'payrollUrl' => $settings->home_portal_payroll_url
-                ?: (config('home_portal.payday.url') ?: HrPortal::url()),
             'cardToken' => $employee?->card_token,
             // The QR points at the business-card subdomain, which is the
             // canonical public URL for a card (VCard::cardUrl falls back to the

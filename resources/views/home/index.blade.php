@@ -1,22 +1,23 @@
 @extends('layouts.home')
 
-@section('title', 'Samir Group | Employee Portal')
+@section('title', __('home_layout.default_title'))
 
 @section('content')
 
 {{-- ─── Greeting ─────────────────────────────────────────────── --}}
 <div class="greeting">
-    <h2>{{ $greeting['greeting'] }}, <span class="greet-name">{{ $greeting['name'] }}</span></h2>
+    <h2>{{ __('home_index.greeting.'.$greeting['time_of_day']) }}, <span class="greet-name">{{ $greeting['name'] === 'there' ? __('home_index.greeting.fallback_name') : $greeting['name'] }}</span></h2>
     <p class="greet-line">
-        {{ $greeting['line'] }}
-        @if($greeting['line_ar'])
-            <span class="ar"> — {{ $greeting['line_ar'] }}</span>
+        @if(app()->getLocale() === 'ar' && $greeting['line_ar'])
+            {{ $greeting['line_ar'] }}
+        @else
+            {{ $greeting['line'] }}
         @endif
     </p>
     <div class="greet-meta">
         <span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" stroke-linecap="round"/></svg>
-            {{ now()->format('l, j F Y') }}
+            {{ now()->locale(app()->getLocale())->translatedFormat(__('home_index.date_format')) }}
         </span>
         @if($employee?->branch)
             <span>
@@ -37,7 +38,7 @@
 @if($announcements->isNotEmpty())
     <section class="ann-slider {{ $announcements->count() === 1 ? 'ann-single' : '' }}"
              id="annSlider"
-             aria-label="Company announcements"
+             aria-label="{{ __('home_index.announcements.aria_label') }}"
              aria-roledescription="carousel">
         <div class="ann-track" id="annTrack">
             @foreach($announcements as $i => $ann)
@@ -49,37 +50,37 @@
                          @if($i !== 0) aria-hidden="true" @endif>
                     <div class="ann-slide-top">
                         <span class="ann-pill {{ $ann->severityBadgeClass() }}">
-                            {{ $ann->isUrgent() ? 'Important' : 'Announcement' }}
+                            {{ $ann->isUrgent() ? __('home_index.announcements.important') : __('home_index.announcements.announcement') }}
                         </span>
                         @if($ann->published_at)
-                            <span class="ann-date">{{ $ann->published_at->format('j M Y') }}</span>
+                            <span class="ann-date">{{ $ann->published_at->locale(app()->getLocale())->translatedFormat('j M Y') }}</span>
                         @endif
                     </div>
                     <h3>{{ $ann->title }}</h3>
                     <p>{{ $ann->excerpt(220) }}</p>
                     @if($ann->link_url)
                         <a class="ann-link" href="{{ $ann->link_url }}" target="_blank" rel="noopener noreferrer">
-                            {{ $ann->link_label ?: 'Read more' }} &rarr;
+                            {{ $ann->link_label ?: __('home_index.announcements.read_more') }} &rarr;
                         </a>
                     @endif
                 </article>
             @endforeach
         </div>
 
-        <button type="button" class="ann-nav ann-prev" id="annPrev" aria-label="Previous announcement">
+        <button type="button" class="ann-nav ann-prev" id="annPrev" aria-label="{{ __('home_index.announcements.prev') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <button type="button" class="ann-nav ann-next" id="annNext" aria-label="Next announcement">
+        <button type="button" class="ann-nav ann-next" id="annNext" aria-label="{{ __('home_index.announcements.next') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 5 7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
 
-        <div class="ann-dots" id="annDots" role="tablist" aria-label="Choose announcement">
+        <div class="ann-dots" id="annDots" role="tablist" aria-label="{{ __('home_index.announcements.choose') }}">
             @foreach($announcements as $i => $ann)
                 <button type="button"
                         class="ann-dot {{ $i === 0 ? 'active' : '' }}"
                         role="tab"
                         data-index="{{ $i }}"
-                        aria-label="Announcement {{ $i + 1 }}"
+                        aria-label="{{ __('home_index.announcements.nth', ['n' => $i + 1]) }}"
                         @if($i === 0) aria-selected="true" @endif></button>
             @endforeach
         </div>
@@ -100,11 +101,11 @@
     @endphp
 
     @if($otherSystems->isNotEmpty() || $webmailUrl)
-        <p class="section-label">Quick access</p>
+        <p class="section-label">{{ __('home_index.quick_access.label') }}</p>
         <div class="grid-primary">
             @foreach($otherSystems as $sys)
                 <a class="card" href="{{ $sys['url'] }}" target="_blank" rel="noopener noreferrer"
-                   aria-label="Open {{ $sys['name'] }}">
+                   aria-label="{{ __('home_index.quick_access.open', ['name' => $sys['name']]) }}">
                     <div class="icon-wrap">
                         @include('home.partials.system-icon', ['key' => $sys['key']])
                     </div>
@@ -121,12 +122,12 @@
                  shipping a tile that goes nowhere. --}}
             @if($webmailUrl)
                 <a class="card" href="{{ $webmailUrl }}" target="_blank" rel="noopener noreferrer"
-                   aria-label="Open Outlook Mail on the web">
+                   aria-label="{{ __('home_index.quick_access.mail_aria') }}">
                     <div class="icon-wrap">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="M3.2 6.6 12 12.8l8.8-6.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </div>
-                    <h3>Outlook Mail</h3>
-                    <p class="meta">Your inbox in the browser</p>
+                    <h3>{{ __('home_index.quick_access.mail_name') }}</h3>
+                    <p class="meta">{{ __('home_index.quick_access.mail_meta') }}</p>
                 </a>
             @endif
         </div>
@@ -135,7 +136,7 @@
     {{-- ─── IT & Support ──────────────────────────────────────────
          Everything IT owns, in one place: raise a ticket, read the policy you
          are held to, find the manual, and see what is signed out to you. --}}
-    <p class="section-label" style="margin-top:34px;">IT &amp; support</p>
+    <p class="section-label" style="margin-top:34px;">{{ __('home_index.support.label') }}</p>
     <div class="grid-secondary">
 
         {{-- Raising a ticket and tracking one are the same errand, so they share
@@ -144,30 +145,31 @@
              use. The modal binds to #itServiceDeskCard, which is the button. --}}
         <div class="svc-card">
             <a class="svc-count" href="{{ route('home.tickets.index') }}"
-               aria-label="View my tickets">
+               aria-label="{{ __('home_index.support.view_my_tickets') }}">
                 <span class="n {{ $openTicketCount > 0 ? 'has-open' : '' }}">{{ $openTicketCount }}</span>
-                <span class="l">{{ $openTicketCount === 1 ? 'Open ticket' : 'Open tickets' }}</span>
+                <span class="l">{{ $openTicketCount === 1 ? __('home_index.support.open_ticket') : __('home_index.support.open_tickets') }}</span>
             </a>
             <div class="svc-body">
-                <h3>IT Service Desk</h3>
+                <h3>{{ __('home_index.support.title') }}</h3>
                 <p>
                     @if($openTicketCount > 0)
-                        {{ $openTicketCount }} {{ \Illuminate\Support\Str::plural('request', $openTicketCount) }}
-                        still with IT. Raise another, or see where yours stand.
+                        {{ __('home_index.support.body_open', [
+                            'count' => $openTicketCount.' '.($openTicketCount === 1 ? __('home_index.support.request') : __('home_index.support.requests')),
+                        ]) }}
                     @else
-                        Nothing open right now. Raise a ticket and track it here.
+                        {{ __('home_index.support.body_none') }}
                     @endif
                 </p>
                 <div class="svc-actions">
                     @if($serviceDesk)
                         <button type="button" class="svc-btn primary" id="itServiceDeskCard">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
-                            Raise a ticket
+                            {{ __('home_index.support.raise_ticket') }}
                         </button>
                     @endif
                     <a class="svc-btn" href="{{ route('home.tickets.index') }}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" stroke-linecap="round"/></svg>
-                        My tickets
+                        {{ __('home_index.support.my_tickets') }}
                     </a>
                 </div>
             </div>
@@ -185,11 +187,11 @@
                 $pppDash = round(276.5 * (($ppp === null ? 0 : max(0, min(100, $ppp))) / 100), 1);
                 $phished = $security->hasBeenPhished();
             @endphp
-            <div class="risk-card" tabindex="0" role="group" aria-label="Your phishing test results">
+            <div class="risk-card" tabindex="0" role="group" aria-label="{{ __('home_index.security.aria_label') }}">
                 <div class="risk-head">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3.5 19 6v5.4c0 4.3-2.9 7.5-7 8.6-4.1-1.1-7-4.3-7-8.6V6l7-2.5Z" stroke-linejoin="round"/><path d="M9 12.2l2 2 4-4.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    <h3>Phish-Prone Score</h3>
-                    <span class="src">KnowBe4 · only you see this</span>
+                    <h3>{{ __('home_index.security.title') }}</h3>
+                    <span class="src">{{ __('home_index.security.source') }}</span>
                 </div>
 
                 <div class="risk-main">
@@ -201,37 +203,38 @@
                         </svg>
                         <div class="g-center">
                             <span class="v {{ $security->pppClass() }}">{{ $security->pppLabel() }}@if($ppp !== null)<span style="font-size:15px">%</span>@endif</span>
-                            <span class="u">phish-prone</span>
+                            <span class="u">{{ __('home_index.security.unit') }}</span>
                         </div>
                     </div>
 
                     <div class="risk-side">
                         <div class="risk-band {{ $security->pppClass() }}">
                             @switch($security->pppBand())
-                                @case('low') Low @break
-                                @case('medium') Room to improve @break
-                                @case('high') Needs attention @break
-                                @default Not tested yet
+                                @case('low') {{ __('home_index.security.band_low') }} @break
+                                @case('medium') {{ __('home_index.security.band_medium') }} @break
+                                @case('high') {{ __('home_index.security.band_high') }} @break
+                                @default {{ __('home_index.security.band_none') }}
                             @endswitch
                             <span class="hint">
                                 @if(! $phished)
-                                    You have not been sent a simulated phishing email yet.
+                                    {{ __('home_index.security.hint_none') }}
                                 @else
-                                    You clicked, replied to or entered details on
-                                    <strong>{{ $security->phish_fail_count }}</strong>
-                                    of <strong>{{ $security->phish_sent_count }}</strong>
-                                    simulated phishing {{ \Illuminate\Support\Str::plural('email', $security->phish_sent_count) }}.
+                                    {!! __('home_index.security.hint_result', [
+                                        'fail' => '<strong>'.$security->phish_fail_count.'</strong>',
+                                        'sent' => '<strong>'.$security->phish_sent_count.'</strong>',
+                                        'emails' => $security->phish_sent_count === 1 ? __('home_index.security.email') : __('home_index.security.emails'),
+                                    ]) !!}
                                 @endif
                             </span>
                         </div>
                         <div class="risk-figs">
                             <div class="stat">
                                 <span class="stat-num {{ $security->phish_fail_count > 0 ? 'risk-high' : '' }}">{{ $security->phish_fail_count }}</span>
-                                <span class="stat-lbl">Phishing Fails</span>
+                                <span class="stat-lbl">{{ __('home_index.security.stat_fails') }}</span>
                             </div>
                             <div class="stat">
                                 <span class="stat-num {{ $security->trainings_outstanding > 0 ? 'risk-medium' : '' }}">{{ $security->trainings_outstanding }}</span>
-                                <span class="stat-lbl">Training Due</span>
+                                <span class="stat-lbl">{{ __('home_index.security.stat_training') }}</span>
                             </div>
                         </div>
                     </div>
@@ -241,12 +244,14 @@
                     <div class="training-due">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 8.5v4.5M12 16.2v.05" stroke-linecap="round"/><path d="M10.3 4.3 2.9 17.1A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.9L13.7 4.3a2 2 0 0 0-3.4 0Z" stroke-linejoin="round"/></svg>
                         <span>
-                            You have <strong>{{ $security->trainings_outstanding }}</strong>
-                            security {{ \Illuminate\Support\Str::plural('course', $security->trainings_outstanding) }} outstanding.
+                            {!! __('home_index.security.training_due', [
+                                'count' => '<strong>'.$security->trainings_outstanding.'</strong>',
+                                'courses' => $security->trainings_outstanding === 1 ? __('home_index.security.course') : __('home_index.security.courses'),
+                            ]) !!}
                             @if($trainingUrl)
-                                <a href="{{ $trainingUrl }}" target="_blank" rel="noopener noreferrer">Start now &rarr;</a>
+                                <a href="{{ $trainingUrl }}" target="_blank" rel="noopener noreferrer">{{ __('home_index.security.start_now') }} &rarr;</a>
                             @else
-                                Check your KnowBe4 email for the link.
+                                {{ __('home_index.security.check_email') }}
                             @endif
                         </span>
                     </div>
@@ -258,22 +263,25 @@
              library — the two cards differ only by the category they open,
              because "where is the manual" and "what am I allowed to do" are
              two different errands even when the shelf is one. --}}
-        <a class="card span-1" href="{{ route('home.documents') }}" aria-label="Open Documentation and Manuals">
+        <a class="card span-1" href="{{ route('home.documents') }}" aria-label="{{ __('home_index.docs.manuals_aria') }}">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10l1.6 2H19a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 19 19H5.5A1.5 1.5 0 0 1 4 17.5Z" stroke-linejoin="round"/><path d="M8 11.5h8M8 14.5h5" stroke-linecap="round"/></svg>
             </div>
-            <h3>Documentation &amp; Manuals</h3>
+            <h3>{{ __('home_index.docs.manuals_title') }}</h3>
             <p class="meta">
                 @if($docCounts['documents'] > 0)
-                    {{ $docCounts['documents'] }} {{ \Illuminate\Support\Str::plural('document', $docCounts['documents']) }} — guides, manuals &amp; forms
+                    {{ __('home_index.docs.manuals_meta_count', [
+                        'count' => $docCounts['documents'],
+                        'items' => $docCounts['documents'] === 1 ? __('home_index.docs.document') : __('home_index.docs.documents'),
+                    ]) }}
                 @else
-                    How-to guides, manuals &amp; forms
+                    {{ __('home_index.docs.manuals_meta_empty') }}
                 @endif
             </p>
         </a>
 
         <a class="card span-1" href="{{ route('home.documents', ['category' => 'policy']) }}"
-           aria-label="Open IT Policies">
+           aria-label="{{ __('home_index.docs.policy_aria') }}">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3.5 19 6v5.4c0 4.3-2.9 7.5-7 8.6-4.1-1.1-7-4.3-7-8.6V6l7-2.5Z" stroke-linejoin="round"/><path d="M9.2 11.8h5.6M9.2 14.4h3.6" stroke-linecap="round"/></svg>
                 @if($docCounts['policies'] > 0)
@@ -282,17 +290,20 @@
                     </span>
                 @endif
             </div>
-            <h3>IT Policy</h3>
+            <h3>{{ __('home_index.docs.policy_title') }}</h3>
             <p class="meta">
                 @if($docCounts['policies'] > 0)
-                    {{ $docCounts['policies'] }} {{ \Illuminate\Support\Str::plural('policy', $docCounts['policies']) }} that apply to you
+                    {{ __('home_index.docs.policy_meta_count', [
+                        'count' => $docCounts['policies'],
+                        'items' => $docCounts['policies'] === 1 ? __('home_index.docs.policy') : __('home_index.docs.policies'),
+                    ]) }}
                 @else
-                    Acceptable use &amp; security rules
+                    {{ __('home_index.docs.policy_meta_empty') }}
                 @endif
             </p>
         </a>
 
-        <a class="card span-2" href="{{ route('home.assets') }}" aria-label="View My Assets">
+        <a class="card span-2" href="{{ route('home.assets') }}" aria-label="{{ __('home_index.docs.assets_aria') }}">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="12" rx="2"/><path d="M2 19.5h20" stroke-linecap="round"/></svg>
                 @if($assetCount > 0)
@@ -301,12 +312,15 @@
                     </span>
                 @endif
             </div>
-            <h3>My Assets</h3>
+            <h3>{{ __('home_index.docs.assets_title') }}</h3>
             <p class="meta">
                 @if($assetCount > 0)
-                    {{ $assetCount }} {{ \Illuminate\Support\Str::plural('item', $assetCount) }} assigned to you — laptops, phones, accessories &amp; licences
+                    {{ __('home_index.docs.assets_meta_count', [
+                        'count' => $assetCount,
+                        'items' => $assetCount === 1 ? __('home_index.docs.item') : __('home_index.docs.items'),
+                    ]) }}
                 @else
-                    Devices &amp; equipment assigned to you
+                    {{ __('home_index.docs.assets_meta_empty') }}
                 @endif
             </p>
         </a>
@@ -315,70 +329,39 @@
 
     {{-- ─── Company ───────────────────────────────────────────────
          The people-and-place half of the portal: what is being announced,
-         when payday is, what is on the calendar, and who to call. --}}
-    <p class="section-label" style="margin-top:34px;">Company</p>
+         what is on the calendar, and who to call. --}}
+    <p class="section-label" style="margin-top:34px;">{{ __('home_index.company.label') }}</p>
     <div class="grid-secondary">
 
-        <a class="card payroll-card span-2" href="{{ $payrollUrl }}" target="_blank" rel="noopener noreferrer"
-           aria-label="View payroll details">
-            <div class="payroll-left">
-                <h3>My Payroll</h3>
-                <p class="meta">
-                    @if($payday['days_left'] === 0)
-                        Payday is today
-                    @elseif($payday['days_left'] === 1)
-                        Payday is tomorrow
-                    @else
-                        {{ $payday['days_left'] }} days until payday
-                    @endif
-                </p>
-                <p class="sub">{{ $payday['date']->format('l, j F') }}</p>
-            </div>
-            <div class="ring-wrap">
-                <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true">
-                    <circle class="ring-bg" cx="48" cy="48" r="40"></circle>
-                    {{-- 2πr ≈ 251.2. Offset is the REMAINING arc, so a full ring
-                         means payday has arrived. --}}
-                    <circle class="ring-fg" cx="48" cy="48" r="40"
-                            stroke-dasharray="251.2"
-                            stroke-dashoffset="{{ round(251.2 * (1 - $payday['progress']), 1) }}"></circle>
-                </svg>
-                <div class="ring-center">
-                    <span class="num">{{ $payday['days_left'] }}</span>
-                    <span class="lbl">days left</span>
-                </div>
-            </div>
-        </a>
-
-        <a class="card span-2" href="{{ route('home.announcements') }}" aria-label="Open Company Calendar">
+        <a class="card span-2" href="{{ route('home.announcements') }}" aria-label="{{ __('home_index.company.calendar_aria') }}">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" stroke-linecap="round"/></svg>
             </div>
-            <h3>Company Calendar</h3>
+            <h3>{{ __('home_index.company.calendar_title') }}</h3>
             @if($events->isNotEmpty())
                 <ul class="event-list">
                     @foreach($events->take(3) as $event)
                         <li>
-                            <span class="ev-when">{{ $event->isToday() ? 'Today' : $event->starts_at->format('j M') }}</span>
+                            <span class="ev-when">{{ $event->isToday() ? __('home_index.company.calendar_today') : $event->starts_at->locale(app()->getLocale())->translatedFormat('j M') }}</span>
                             <span class="ev-what">{{ $event->subject }}</span>
                         </li>
                     @endforeach
                 </ul>
             @else
-                <p class="meta">Company events &amp; holidays</p>
+                <p class="meta">{{ __('home_index.company.calendar_empty') }}</p>
             @endif
         </a>
 
-        <a class="card span-2" href="{{ route('home.directory') }}" aria-label="Open Employees Directory">
+        <a class="card span-2" href="{{ route('home.directory') }}" aria-label="{{ __('home_index.company.directory_aria') }}">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="9" cy="8.5" r="2.6"/><path d="M4 18.2c.7-3 2.6-4.6 5-4.6s4.3 1.6 5 4.6" stroke-linecap="round"/><path d="M15.5 8.5h4.5M15.5 12h4.5M15.5 15.5h3" stroke-linecap="round"/></svg>
             </div>
-            <h3>Employees Directory</h3>
-            <p class="meta">Search staff &amp; extensions</p>
+            <h3>{{ __('home_index.company.directory_title') }}</h3>
+            <p class="meta">{{ __('home_index.company.directory_meta') }}</p>
         </a>
 
         <a class="card span-2 announcement-card" href="{{ route('home.announcements') }}"
-           aria-label="View Announcements">
+           aria-label="{{ __('home_index.company.announcements_aria') }}">
             <div class="icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 10v4a1.4 1.4 0 0 0 1.4 1.4H6l4.4 3.4V5.2L6 8.6H4.4A1.4 1.4 0 0 0 3 10Z" stroke-linejoin="round"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" stroke-linecap="round"/></svg>
                 @if($unreadCount > 0)
@@ -387,13 +370,13 @@
                     </span>
                 @endif
             </div>
-            <h3>Announcements</h3>
+            <h3>{{ __('home_index.company.announcements_title') }}</h3>
             <div class="announcement-preview">
                 @if($unreadCount > 0)
-                    <span class="new-pill">{{ $unreadCount }} NEW</span>
+                    <span class="new-pill">{{ __('home_index.company.new_pill', ['count' => $unreadCount]) }}</span>
                 @endif
                 <p class="meta" style="margin-top:0;">
-                    {{ $announcements->first()?->title ?: 'Nothing new right now' }}
+                    {{ $announcements->first()?->title ?: __('home_index.company.announcements_empty') }}
                 </p>
             </div>
         </a>
@@ -407,25 +390,25 @@
         <div class="id-card-top">
             <img src="{{ asset('images/brand/samir-logo.png') }}" alt="Samir Group" class="id-card-logo">
             <button type="button" class="eye-toggle" id="idCardEyeToggle" aria-pressed="false"
-                    aria-label="Reveal ID card details">
+                    aria-label="{{ __('home_index.id_card.reveal') }}">
                 <svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.8"/></svg>
                 <svg class="eye-icon eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 3l18 18" stroke-linecap="round"/><path d="M10.6 6.1A9.7 9.7 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-3.4 4M6.4 8.1A17 17 0 0 0 2.5 12S6 18 12 18a9.4 9.4 0 0 0 3.3-.6"/></svg>
             </button>
         </div>
 
-        <div class="id-card-label">NAME</div>
+        <div class="id-card-label">{{ __('home_index.id_card.name') }}</div>
         <div class="id-card-name id-blur">{{ $employee?->name ?: $user->name }}</div>
 
         @if($employee?->job_title)
             <div class="id-card-field">
-                <div class="id-card-label">TITLE</div>
+                <div class="id-card-label">{{ __('home_index.id_card.title') }}</div>
                 <div class="id-card-value id-blur">{{ $employee->job_title }}</div>
             </div>
         @endif
 
         @if($employee?->department || $employee?->branch)
             <div class="id-card-field">
-                <div class="id-card-label">DEPT</div>
+                <div class="id-card-label">{{ __('home_index.id_card.dept') }}</div>
                 <div class="id-card-value id-blur">
                     {{ collect([$employee->department?->name, $employee->branch?->name])->filter()->implode(' — ') }}
                 </div>
@@ -433,20 +416,20 @@
         @endif
 
         <div class="id-card-field">
-            <div class="id-card-label">EMAIL</div>
+            <div class="id-card-label">{{ __('home_index.id_card.email') }}</div>
             <div class="id-card-value id-blur">{{ $employee?->email ?: $user->email }}</div>
         </div>
 
         @if($employee?->office_location)
             <div class="id-card-field">
-                <div class="id-card-label">OFFICE</div>
+                <div class="id-card-label">{{ __('home_index.id_card.office') }}</div>
                 <div class="id-card-value id-blur">{{ $employee->office_location }}</div>
             </div>
         @endif
 
         @if($employee?->extension_number)
             <div class="id-card-field">
-                <div class="id-card-label">EXTENSION</div>
+                <div class="id-card-label">{{ __('home_index.id_card.extension') }}</div>
                 <div class="id-card-value id-blur">{{ $employee->extension_number }}</div>
             </div>
         @endif
@@ -465,7 +448,7 @@
                     <button type="button" class="wallet-btn" id="addToWalletBtn"
                             aria-haspopup="dialog" aria-controls="walletQrModal">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M16.5 14.5h2" stroke-linecap="round"/></svg>
-                        Add to Apple Wallet
+                        {{ __('home_index.id_card.add_apple_wallet') }}
                     </button>
                 @endif
 
@@ -475,7 +458,7 @@
                     <button type="button" class="wallet-btn" id="addToSamsungBtn"
                             aria-haspopup="dialog" aria-controls="samsungQrModal">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M16.5 14.5h2" stroke-linecap="round"/></svg>
-                        Add to Samsung Wallet
+                        {{ __('home_index.id_card.add_samsung_wallet') }}
                     </button>
                 @endif
 
@@ -484,16 +467,16 @@
                 <button type="button" class="wallet-btn wallet-btn-secondary" id="showCardQrBtn"
                         aria-haspopup="dialog" aria-controls="walletModalOverlay">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M13.5 13.5h3v3M20.5 13.5v3M17 20.5h3.5V17M13.5 20.5h.01" stroke-linecap="round"/></svg>
-                    Share My Card (QR)
+                    {{ __('home_index.id_card.share_card') }}
                 </button>
             </div>
         @endif
 
         <p class="id-card-hint">
             @if($employee)
-                Tap the eye icon to reveal your ID
+                {{ __('home_index.id_card.hint_known') }}
             @else
-                We could not find your HR record yet — showing your sign-in details
+                {{ __('home_index.id_card.hint_unknown') }}
             @endif
         </p>
     </div>
@@ -507,8 +490,8 @@
     @include('home.partials.qr-modal', [
         'id' => 'shareCardModal',
         'triggerId' => 'showCardQrBtn',
-        'title' => 'My Digital Card',
-        'description' => 'Let someone scan this to open your business card — contact details, extension, and a one-tap save to their phone.',
+        'title' => __('home_index.modals.share_title'),
+        'description' => __('home_index.modals.share_description'),
         'url' => $cardUrl,
         'caption' => $employee?->name ?: $user->name,
         'footnote' => preg_replace('#^https?://#', '', $cardUrl),
@@ -518,11 +501,11 @@
         @include('home.partials.qr-modal', [
             'id' => 'walletQrModal',
             'triggerId' => 'addToWalletBtn',
-            'title' => 'Add to Apple Wallet',
-            'description' => 'Scan this with your iPhone camera to add your employee card to Apple Wallet. The pass cannot be added from this computer — it has to go on the phone.',
+            'title' => __('home_index.modals.apple_title'),
+            'description' => __('home_index.modals.apple_description'),
             'url' => $walletQrUrl,
             'caption' => $employee?->name ?: $user->name,
-            'footnote' => 'This code is personal to you and expires in 15 minutes. Reload the page for a fresh one.',
+            'footnote' => __('home_index.modals.expiry_footnote'),
         ])
     @endif
 
@@ -530,11 +513,11 @@
         @include('home.partials.qr-modal', [
             'id' => 'samsungQrModal',
             'triggerId' => 'addToSamsungBtn',
-            'title' => 'Add to Samsung Wallet',
-            'description' => 'Scan this with your Samsung phone to add your employee card to Samsung Wallet. It cannot be added from this computer — the card has to go on the phone.',
+            'title' => __('home_index.modals.samsung_title'),
+            'description' => __('home_index.modals.samsung_description'),
             'url' => $samsungQrUrl,
             'caption' => $employee?->name ?: $user->name,
-            'footnote' => 'This code is personal to you and expires in 15 minutes. Reload the page for a fresh one.',
+            'footnote' => __('home_index.modals.expiry_footnote'),
         ])
     @endif
 @endif
@@ -551,29 +534,26 @@
 
   // ─── Dials and counters ──────────────────────────────────────
   // Held at their empty state in markup would be wrong — if the animation never
-  // runs, a payday ring stuck at zero is a LIE. So the server renders the true
-  // value, and this rewinds it for one frame and lets it settle. Nothing here
-  // is load-bearing: skip it and the page is simply already correct.
+  // runs, a gauge stuck at zero is a LIE. So the server renders the true value,
+  // and this rewinds it for one frame and lets it settle. Nothing here is
+  // load-bearing: skip it and the page is simply already correct.
   function animateDials() {
     if (reduceMotionQuery.matches) return;
 
-    document.querySelectorAll('.ring-fg, .risk-gauge .g-fg').forEach(function (arc) {
-      var isRing = arc.classList.contains('ring-fg');
-      var attr = isRing ? 'stroke-dashoffset' : 'stroke-dasharray';
-      var target = arc.getAttribute(attr);
+    document.querySelectorAll('.risk-gauge .g-fg').forEach(function (arc) {
+      var target = arc.getAttribute('stroke-dasharray');
       if (target === null) return;
 
-      // Empty = the whole circumference offset for the ring, a zero-length
-      // dash for the gauge.
-      arc.setAttribute(attr, isRing ? (arc.getAttribute('stroke-dasharray') || '251.2') : '0 276.5');
-      arc.style.transition = 'stroke-dashoffset .9s cubic-bezier(.2,.75,.28,1), stroke-dasharray .9s cubic-bezier(.2,.75,.28,1)';
+      // Empty = a zero-length dash, so the gauge sweeps in from nothing.
+      arc.setAttribute('stroke-dasharray', '0 276.5');
+      arc.style.transition = 'stroke-dasharray .9s cubic-bezier(.2,.75,.28,1)';
 
       window.requestAnimationFrame(function () {
-        window.requestAnimationFrame(function () { arc.setAttribute(attr, target); });
+        window.requestAnimationFrame(function () { arc.setAttribute('stroke-dasharray', target); });
       });
     });
 
-    document.querySelectorAll('.svc-count .n, .ring-center .num').forEach(function (el) {
+    document.querySelectorAll('.svc-count .n').forEach(function (el) {
       var target = parseInt(el.textContent.trim(), 10);
       // Only whole numbers count up; anything else is left exactly as rendered.
       if (!isFinite(target) || target < 1 || String(target) !== el.textContent.trim()) return;

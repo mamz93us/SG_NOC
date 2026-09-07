@@ -16,54 +16,54 @@
 
     <div class="ticket-modal-header">
       <div class="ticket-modal-header-left">
-        <button type="button" class="icon-btn" id="ticketBackBtn" aria-label="Close">
+        <button type="button" class="icon-btn" id="ticketBackBtn" aria-label="{{ __('home_ticket_modal.close') }}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <h2 id="ticketModalTitle">Add Ticketing Request</h2>
+        <h2 id="ticketModalTitle">{{ __('home_ticket_modal.title') }}</h2>
       </div>
       <div class="ticket-modal-header-right">
-        <button type="button" class="btn btn-primary" id="ticketSubmitBtn">Submit Ticket</button>
-        <button type="button" class="btn btn-ghost" id="ticketCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="ticketSubmitBtn">{{ __('home_ticket_modal.submit') }}</button>
+        <button type="button" class="btn btn-ghost" id="ticketCancelBtn">{{ __('home_ticket_modal.cancel') }}</button>
       </div>
     </div>
 
     <div class="ticket-modal-body" id="ticketFormView">
 
       <div class="field">
-        <label for="ticketCategory">Category</label>
+        <label for="ticketCategory">{{ __('home_ticket_modal.fields.category') }}</label>
         <select id="ticketCategory">
-          <option value="">Loading…</option>
+          <option value="">{{ __('home_ticket_modal.category_options.loading') }}</option>
         </select>
       </div>
 
       <div class="field">
-        <label for="ticketSubCategory">Sub Category</label>
+        <label for="ticketSubCategory">{{ __('home_ticket_modal.fields.subcategory') }}</label>
         <select id="ticketSubCategory" disabled>
-          <option value="">-- Choose a category first --</option>
+          <option value="">{{ __('home_ticket_modal.category_options.choose_category_first') }}</option>
         </select>
       </div>
 
       <div class="field">
-        <label for="ticketTitle">Ticket Title</label>
-        <input type="text" id="ticketTitle" placeholder="Briefly describe the issue" maxlength="120">
+        <label for="ticketTitle">{{ __('home_ticket_modal.fields.title') }}</label>
+        <input type="text" id="ticketTitle" placeholder="{{ __('home_ticket_modal.fields.title_placeholder') }}" maxlength="120">
       </div>
 
       <div class="field">
-        <label for="ticketDescription">Ticket Description</label>
-        <textarea id="ticketDescription" rows="5" placeholder="Provide as much detail as possible…" maxlength="5000"></textarea>
+        <label for="ticketDescription">{{ __('home_ticket_modal.fields.description') }}</label>
+        <textarea id="ticketDescription" rows="5" placeholder="{{ __('home_ticket_modal.fields.description_placeholder') }}" maxlength="5000"></textarea>
       </div>
 
       <div class="field-error" id="ticketFormError"></div>
 
       <div class="attachments-panel">
-        <h3>Attachments</h3>
+        <h3>{{ __('home_ticket_modal.attachments.heading') }}</h3>
         <div class="upload-zone" id="uploadZone">
-          <p class="upload-title">Upload Supporting Documents</p>
-          <p class="upload-sub">Up to 3 files, 20 MB each</p>
-          <p class="upload-sub">Allowed files [Images · Videos · PDF · Word · Excel]</p>
+          <p class="upload-title">{{ __('home_ticket_modal.attachments.upload_title') }}</p>
+          <p class="upload-sub">{{ __('home_ticket_modal.attachments.limit') }}</p>
+          <p class="upload-sub">{{ __('home_ticket_modal.attachments.allowed') }}</p>
           <div class="upload-control">
-            <button type="button" class="choose-file-btn" id="chooseFileBtn">Choose File</button>
-            <span id="chooseFileLabel">No file chosen</span>
+            <button type="button" class="choose-file-btn" id="chooseFileBtn">{{ __('home_ticket_modal.attachments.choose_file') }}</button>
+            <span id="chooseFileLabel">{{ __('home_ticket_modal.attachments.no_file_chosen') }}</span>
           </div>
           <input type="file" id="ticketFileInput" hidden multiple
                  accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.pdf,.doc,.docx,.xls,.xlsx">
@@ -77,9 +77,9 @@
       <div class="success-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M7.5 12.5 10.3 15.3 16.5 9" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <h3>Ticket submitted</h3>
-      <p>Reference number <strong id="ticketRefNum">—</strong>. The IT team will follow up shortly.</p>
-      <button type="button" class="btn btn-primary" id="ticketDoneBtn">Done</button>
+      <h3>{{ __('home_ticket_modal.success.heading') }}</h3>
+      <p>{{ __('home_ticket_modal.success.reference_label') }} <strong id="ticketRefNum">—</strong>. {{ __('home_ticket_modal.success.follow_up') }}</p>
+      <button type="button" class="btn btn-primary" id="ticketDoneBtn">{{ __('home_ticket_modal.done') }}</button>
     </div>
 
   </div>
@@ -99,6 +99,34 @@
   var storeUrl = @json(route('home.tickets.store'));
   var MAX_BYTES = 20 * 1024 * 1024;
   var MAX_FILES = 3;
+
+  // Client-side UI copy, translated server-side once at page render — the
+  // portal's locale is fixed for the request (cookie-driven), so there is no
+  // need to re-fetch these per interaction.
+  var i18n = {
+    chooseCategory: @json(__('home_ticket_modal.category_options.choose_category')),
+    noCategories: @json(__('home_ticket_modal.category_options.no_categories')),
+    loadFailed: @json(__('home_ticket_modal.category_options.load_failed')),
+    chooseSubcategory: @json(__('home_ticket_modal.category_options.choose_subcategory')),
+    noSubcategories: @json(__('home_ticket_modal.category_options.no_subcategories')),
+    chooseCategoryFirst: @json(__('home_ticket_modal.category_options.choose_category_first')),
+    systemUnavailable: @json(__('home_ticket_modal.errors.system_unavailable')),
+    removeFile: @json(__('home_ticket_modal.attachments.remove')),
+    noFileChosen: @json(__('home_ticket_modal.attachments.no_file_chosen')),
+    filesSelected: @json(__('home_ticket_modal.attachments.files_selected')),
+    notAddedPrefix: @json(__('home_ticket_modal.errors.not_added_prefix')),
+    fileTooLarge: @json(__('home_ticket_modal.errors.file_too_large')),
+    fileLimit: @json(__('home_ticket_modal.errors.file_limit')),
+    listSeparator: @json(__('home_ticket_modal.errors.list_separator')),
+    chooseCategoryError: @json(__('home_ticket_modal.errors.choose_category')),
+    chooseSubcategoryError: @json(__('home_ticket_modal.errors.choose_subcategory')),
+    enterTitle: @json(__('home_ticket_modal.errors.enter_title')),
+    enterDescription: @json(__('home_ticket_modal.errors.enter_description')),
+    submitFailedRetry: @json(__('home_ticket_modal.errors.submit_failed_retry')),
+    submitLabel: @json(__('home_ticket_modal.submit')),
+    submittingLabel: @json(__('home_ticket_modal.submitting')),
+    referencePending: @json(__('home_ticket_modal.success.reference_pending')),
+  };
   // Held here rather than read from the input at submit time: the input is
   // replaced on every pick, so removing one file has to rebuild the set.
   var chosen = [];
@@ -139,7 +167,7 @@
         catalogLoaded = true;
         categorySelect.innerHTML = '';
         var placeholder = new Option(
-          categories.length ? '-- Choose Category --' : 'No categories available',
+          categories.length ? i18n.chooseCategory : i18n.noCategories,
           ''
         );
         categorySelect.appendChild(placeholder);
@@ -147,13 +175,13 @@
           categorySelect.appendChild(new Option(cat.name, cat.id));
         });
         if (!data.configured) {
-          setError('The ticketing system is not reachable right now. Please contact IT directly.');
+          setError(i18n.systemUnavailable);
         }
       })
       .catch(function () {
         categorySelect.innerHTML = '';
-        categorySelect.appendChild(new Option('Could not load categories', ''));
-        setError('The ticketing system is not reachable right now. Please contact IT directly.');
+        categorySelect.appendChild(new Option(i18n.loadFailed, ''));
+        setError(i18n.systemUnavailable);
       });
   }
 
@@ -164,7 +192,7 @@
 
     subSelect.innerHTML = '';
     subSelect.appendChild(new Option(
-      id ? (subs.length ? '-- Choose Sub Category --' : 'No sub-categories') : '-- Choose a category first --',
+      id ? (subs.length ? i18n.chooseSubcategory : i18n.noSubcategories) : i18n.chooseCategoryFirst,
       ''
     ));
     subs.forEach(function (sub) {
@@ -195,7 +223,7 @@
       var remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'file-remove';
-      remove.setAttribute('aria-label', 'Remove ' + file.name);
+      remove.setAttribute('aria-label', i18n.removeFile.replace(':name', file.name));
       remove.textContent = '×';
       remove.addEventListener('click', function () {
         chosen.splice(idx, 1);
@@ -208,8 +236,8 @@
     });
 
     fileLabel.textContent = chosen.length
-      ? chosen.length + ' of ' + MAX_FILES + ' selected (' + humanSize(humanTotal()) + ')'
-      : 'No file chosen';
+      ? i18n.filesSelected.replace(':count', chosen.length).replace(':max', MAX_FILES).replace(':size', humanSize(humanTotal()))
+      : i18n.noFileChosen;
   }
 
   fileInput.addEventListener('change', function () {
@@ -218,11 +246,11 @@
 
     picked.forEach(function (file) {
       if (file.size > MAX_BYTES) {
-        rejected.push(file.name + ' is ' + humanSize(file.size));
+        rejected.push(i18n.fileTooLarge.replace(':name', file.name).replace(':size', humanSize(file.size)));
         return;
       }
       if (chosen.length >= MAX_FILES) {
-        rejected.push(file.name + ' (limit is ' + MAX_FILES + ')');
+        rejected.push(i18n.fileLimit.replace(':name', file.name).replace(':max', MAX_FILES));
         return;
       }
       // Same file picked twice in a row is almost always a mis-click.
@@ -233,7 +261,7 @@
     // Clear the input so re-picking the same file still fires `change`.
     fileInput.value = '';
 
-    setError(rejected.length ? 'Not added: ' + rejected.join('; ') + '.' : '');
+    setError(rejected.length ? i18n.notAddedPrefix.replace(':list', rejected.join(i18n.listSeparator)) : '');
     renderFiles();
   });
 
@@ -265,7 +293,7 @@
     renderFiles();
     setError('');
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Submit Ticket';
+    submitBtn.textContent = i18n.submitLabel;
   }
 
   openBtn.addEventListener('click', open);
@@ -282,10 +310,10 @@
   submitBtn.addEventListener('click', function () {
     setError('');
 
-    if (!categorySelect.value) { setError('Please choose a category.'); categorySelect.focus(); return; }
-    if (!subSelect.value) { setError('Please choose a sub category.'); subSelect.focus(); return; }
-    if (!titleInput.value.trim()) { setError('Please give the ticket a title.'); titleInput.focus(); return; }
-    if (!descInput.value.trim()) { setError('Please describe the issue.'); descInput.focus(); return; }
+    if (!categorySelect.value) { setError(i18n.chooseCategoryError); categorySelect.focus(); return; }
+    if (!subSelect.value) { setError(i18n.chooseSubcategoryError); subSelect.focus(); return; }
+    if (!titleInput.value.trim()) { setError(i18n.enterTitle); titleInput.focus(); return; }
+    if (!descInput.value.trim()) { setError(i18n.enterDescription); descInput.focus(); return; }
 
     var body = new FormData();
     body.append('category_id', categorySelect.value);
@@ -297,7 +325,7 @@
     });
 
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting…';
+    submitBtn.textContent = i18n.submittingLabel;
 
     fetch(storeUrl, {
       method: 'POST',
@@ -307,22 +335,24 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
         if (!res.ok) {
-          // Laravel validation comes back as {errors: {field: [msg]}}.
-          var msg = res.data.message || 'The ticket could not be submitted.';
+          // Laravel validation comes back as {errors: {field: [msg]}} — these
+          // messages are server-generated (HomeTicketController's own copy),
+          // so they are shown verbatim rather than routed through __() here.
+          var msg = res.data.message || i18n.submitFailedRetry;
           if (res.data.errors) {
             var first = Object.keys(res.data.errors)[0];
             if (first) msg = res.data.errors[first][0];
           }
           throw new Error(msg);
         }
-        document.getElementById('ticketRefNum').textContent = res.data.reference || 'pending';
+        document.getElementById('ticketRefNum').textContent = res.data.reference || i18n.referencePending;
         formView.hidden = true;
         successView.hidden = false;
       })
       .catch(function (err) {
-        setError(err.message || 'The ticket could not be submitted. Please try again.');
+        setError(err.message || i18n.submitFailedRetry);
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit Ticket';
+        submitBtn.textContent = i18n.submitLabel;
       });
   });
 })();

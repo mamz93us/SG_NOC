@@ -276,7 +276,7 @@ Route::prefix('portal')->name('portal.')->group(function () {
 // prefix, so a new route here is reachable and a new route anywhere else is not.
 // ──────────────────────────────────────────────────────────────────
 if (\App\Support\HomePortal::enabled()) {
-    Route::domain(\App\Support\HomePortal::domain())->name('home.')->group(function () {
+    Route::domain(\App\Support\HomePortal::domain())->name('home.')->middleware('home.locale')->group(function () {
 
         // The start page itself. Guests are NOT auth-middleware'd: the
         // controller decides between a silent SSO attempt and the signed-out
@@ -285,6 +285,14 @@ if (\App\Support\HomePortal::enabled()) {
 
         Route::get('/login', [\App\Http\Controllers\Home\HomeController::class, 'login'])->name('login');
         Route::get('/sign-in', [\App\Http\Controllers\Home\HomeController::class, 'signIn'])->name('sign-in');
+
+        // English/Arabic toggle for the whole portal. A cookie rather than the
+        // session — it has to survive the silent-SSO guest hop and the
+        // signed-out page, both of which start with no session. Redirects back
+        // to wherever the switch was clicked from.
+        Route::get('/locale/{locale}', [\App\Http\Controllers\Home\HomeController::class, 'setLocale'])
+            ->where('locale', 'en|ar')
+            ->name('locale');
 
         // The Wallet pass, fetched by a PHONE that has no session here — a
         // .pkpass is useless on the Windows PC the portal is open on, so the

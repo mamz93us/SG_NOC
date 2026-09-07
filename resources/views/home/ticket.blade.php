@@ -1,6 +1,6 @@
 @extends('layouts.home')
 
-@section('title', 'Ticket #' . $ticket['id'] . ' | Samir Group Employee Portal')
+@section('title', __('home_ticket.title_ticket', ['id' => $ticket['id']]) . ' | ' . __('home_ticket.title_suffix'))
 
 @php
     use App\Services\Ticketing\TicketStatus;
@@ -10,7 +10,7 @@
             return null;
         }
         try {
-            return \Illuminate\Support\Carbon::parse($d)->format('j M Y, H:i');
+            return \Illuminate\Support\Carbon::parse($d)->locale(app()->getLocale())->translatedFormat('j M Y, H:i');
         } catch (\Throwable) {
             // The API sends no timezone and its format is not guaranteed —
             // show whatever it gave rather than swallowing the field.
@@ -28,10 +28,10 @@
     $needsYou = $status === TicketStatus::WAITING_FOR_USER;
 
     $steps = [
-        ['label' => 'Raised', 'state' => 'done'],
-        ['label' => $needsYou ? 'Waiting on you' : 'With IT',
+        ['label' => __('home_ticket.steps.raised'), 'state' => 'done'],
+        ['label' => $needsYou ? __('home_ticket.steps.waiting_on_you') : __('home_ticket.steps.with_it'),
          'state' => $isDone || $isDead ? 'done' : 'current'],
-        ['label' => $isDead ? ($ticket['status_name'] ?? 'Closed') : 'Done',
+        ['label' => $isDead ? ($ticket['status_name'] ?? __('home_ticket.steps.closed')) : __('home_ticket.steps.done'),
          'state' => $isDone ? 'done' : ($isDead ? 'dead' : 'todo')],
     ];
 
@@ -199,6 +199,13 @@
   .tk-flash.ok{ background:#E9F8EF; border:1px solid #BFE8CF; color:#14532D; }
   .tk-flash.bad{ background:#FDECEC; border:1px solid #F7CFCF; color:#8C1A1D; }
   .tk-err{ font-size:12.5px; color:var(--red-600); margin-top:6px; }
+
+  /* ── RTL mirrors ─────────────────────────────────────────── */
+  html[dir="rtl"] .tk-step::before{ left:50%; right:0; margin-right:0; margin-left:11px; }
+  html[dir="rtl"] .tk-step::after{ left:0; right:50%; margin-left:0; margin-right:11px; }
+  html[dir="rtl"] .tk-card > header .n{ margin-left:0; margin-right:auto; }
+  html[dir="rtl"] .tk-step-row::before{ left:auto; right:5px; }
+  html[dir="rtl"] .tk-send{ margin-left:0; margin-right:auto; }
 </style>
 @endpush
 
@@ -207,11 +214,11 @@
 <div class="tk-top">
     <div>
         <div class="tk-id">#{{ $ticket['id'] }}</div>
-        <h2>{{ $ticket['title'] ?: 'Untitled ticket' }}</h2>
+        <h2>{{ $ticket['title'] ?: __('home_ticket.untitled') }}</h2>
         <div class="tk-pills">
             <span class="tk-pill {{ $pill }}">{{ $ticket['status_name'] ?? '—' }}</span>
             @if($ticket['priority_name'])
-                <span class="tk-pill">{{ $ticket['priority_name'] }} priority</span>
+                <span class="tk-pill">{{ __('home_ticket.priority_suffix', ['priority' => $ticket['priority_name']]) }}</span>
             @endif
             @if($ticket['type_name'])
                 <span class="tk-pill">{{ $ticket['type_name'] }}</span>
@@ -220,11 +227,11 @@
     </div>
     <a href="{{ route('home.tickets.index') }}" class="back-link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        All my tickets
+        {{ __('home_ticket.back_link') }}
     </a>
 </div>
 
-<div class="tk-steps" role="group" aria-label="Ticket progress">
+<div class="tk-steps" role="group" aria-label="{{ __('home_ticket.progress_aria') }}">
     @foreach($steps as $step)
         <div class="tk-step {{ $step['state'] }}">
             <span class="dot">
@@ -240,12 +247,12 @@
 @if($needsYou)
     <div class="tk-callout warn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 8.5v4.5M12 16.2v.05" stroke-linecap="round"/><path d="M10.3 4.3 2.9 17.1A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.9L13.7 4.3a2 2 0 0 0-3.4 0Z" stroke-linejoin="round"/></svg>
-        <span><strong>This one is waiting on you.</strong> IT need something back before they can carry on — reply to their last message or email them directly.</span>
+        <span><strong>{{ __('home_ticket.callout.waiting_title') }}</strong> {{ __('home_ticket.callout.waiting_body') }}</span>
     </div>
 @elseif($isDead)
     <div class="tk-callout bad">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6" stroke-linecap="round"/></svg>
-        <span>This ticket was <strong>{{ mb_strtolower($ticket['status_name'] ?? 'closed') }}</strong> and is no longer being worked on. Raise a new one if you still need help.</span>
+        <span>{!! __('home_ticket.callout.dead', ['status' => '<strong>'.e(mb_strtolower($ticket['status_name'] ?? __('home_ticket.steps.closed'))).'</strong>']) !!}</span>
     </div>
 @endif
 
@@ -254,10 +261,10 @@
         <section class="tk-card">
             <header>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 4.5h14v15l-4-3H5z" stroke-linejoin="round"/></svg>
-                <h3>What you asked for</h3>
+                <h3>{{ __('home_ticket.sections.description') }}</h3>
             </header>
             <div class="body {{ $ticket['description'] ? '' : 'empty' }}">
-                <p>{{ $ticket['description'] ?: 'No description was given when this ticket was raised.' }}</p>
+                <p>{{ $ticket['description'] ?: __('home_ticket.description_empty') }}</p>
             </div>
         </section>
 
@@ -265,7 +272,7 @@
             <section class="tk-card">
                 <header>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6.5h16M4 12h16M4 17.5h10" stroke-linecap="round"/></svg>
-                    <h3>Note from IT</h3>
+                    <h3>{{ __('home_ticket.sections.it_note') }}</h3>
                 </header>
                 <div class="body"><p>{{ $ticket['assigned_task_desc'] }}</p></div>
             </section>
@@ -275,7 +282,7 @@
             <section class="tk-card">
                 <header>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M19 11.5 12.5 18a4 4 0 0 1-5.6-5.6l7-7a2.8 2.8 0 0 1 4 4l-7 7a1.6 1.6 0 0 1-2.2-2.2l6.3-6.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    <h3>Attachments</h3>
+                    <h3>{{ __('home_ticket.sections.attachments') }}</h3>
                     <span class="n">{{ count($ticket['attachments']) }}</span>
                 </header>
                 <div class="tk-files">
@@ -288,14 +295,14 @@
                 </div>
                 {{-- The API returns an attachmentApiId but publishes no endpoint
                      to fetch the bytes, so these are named, not linked. --}}
-                <div class="tk-note">Files stay in the ticketing system — ask IT if you need a copy.</div>
+                <div class="tk-note">{{ __('home_ticket.attachments_note') }}</div>
             </section>
         @endif
 
         <section class="tk-card">
             <header>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <h3>Progress</h3>
+                <h3>{{ __('home_ticket.sections.progress') }}</h3>
                 @if($ticket['timeline'])
                     <span class="n">{{ count($ticket['timeline']) }}</span>
                 @endif
@@ -307,7 +314,7 @@
                             <span class="marker"></span>
                             <div class="content">
                                 <div class="sh">
-                                    <span class="sn">{{ $step['status_name'] ?? 'Update' }}</span>
+                                    <span class="sn">{{ $step['status_name'] ?? __('home_ticket.timeline_update_fallback') }}</span>
                                     <span class="sd">{{ $fmt($step['created_at']) ?? '' }}</span>
                                 </div>
                                 @if($step['comments'])
@@ -321,7 +328,7 @@
                                         @endif
                                         @if($step['attachment_name'] && $step['assigned_to']) &middot; @endif
                                         @if($step['assigned_to'])
-                                            <span>With {{ $step['assigned_to'] }}</span>
+                                            <span>{{ __('home_ticket.with_prefix', ['name' => $step['assigned_to']]) }}</span>
                                         @endif
                                     </div>
                                 @endif
@@ -331,8 +338,7 @@
                 </div>
             @else
                 <div class="body empty">
-                    Nothing has been logged on this ticket yet. It is in the queue — you will see
-                    updates here as IT work on it.
+                    {{ __('home_ticket.timeline_empty') }}
                 </div>
             @endif
 
@@ -351,22 +357,22 @@
                     <form method="POST" action="{{ route('home.tickets.comment', $ticket['id']) }}"
                           enctype="multipart/form-data" id="tkReplyForm">
                         @csrf
-                        <label for="tkComment" class="sr-only" style="position:absolute;left:-9999px;">Your reply</label>
+                        <label for="tkComment" class="sr-only" style="position:absolute;left:-9999px;">{{ __('home_ticket.reply.label') }}</label>
                         <textarea name="comment" id="tkComment" maxlength="5000" required
-                                  placeholder="Add a reply for IT — what changed, what you have tried, or an answer to their question.">{{ old('comment') }}</textarea>
+                                  placeholder="{{ __('home_ticket.reply.placeholder') }}">{{ old('comment') }}</textarea>
                         @error('comment') <div class="tk-err">{{ $message }}</div> @enderror
 
                         <div class="tk-reply-row">
                             <label class="tk-attach">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M19 11.5 12.5 18a4 4 0 0 1-5.6-5.6l7-7a2.8 2.8 0 0 1 4 4l-7 7a1.6 1.6 0 0 1-2.2-2.2l6.3-6.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                Attach a file
+                                {{ __('home_ticket.reply.attach_file') }}
                                 <input type="file" name="attachment" id="tkAttach">
                             </label>
                             <span class="tk-attach-name" id="tkAttachName"></span>
-                            <button type="submit" class="tk-send">Send reply</button>
+                            <button type="submit" class="tk-send">{{ __('home_ticket.reply.send') }}</button>
                         </div>
                         @error('attachment') <div class="tk-err">{{ $message }}</div> @enderror
-                        <div class="tk-attach-name" style="margin-top:8px;">One file, up to 20&nbsp;MB.</div>
+                        <div class="tk-attach-name" style="margin-top:8px;">{{ __('home_ticket.reply.attach_hint') }}</div>
                     </form>
                 </div>
             @endif
@@ -377,35 +383,35 @@
         <section class="tk-card">
             <header>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.05" stroke-linecap="round"/></svg>
-                <h3>Details</h3>
+                <h3>{{ __('home_ticket.sections.details') }}</h3>
             </header>
             <div class="tk-facts">
-                <div class="row"><span class="k">Category</span><span class="v">{{ $ticket['category_name'] ?? '—' }}</span></div>
-                <div class="row"><span class="k">Sub-category</span><span class="v">{{ $ticket['subcategory_name'] ?? '—' }}</span></div>
-                <div class="row"><span class="k">Raised</span><span class="v">{{ $fmt($ticket['created_at']) ?? '—' }}</span></div>
+                <div class="row"><span class="k">{{ __('home_ticket.facts.category') }}</span><span class="v">{{ $ticket['category_name'] ?? '—' }}</span></div>
+                <div class="row"><span class="k">{{ __('home_ticket.facts.subcategory') }}</span><span class="v">{{ $ticket['subcategory_name'] ?? '—' }}</span></div>
+                <div class="row"><span class="k">{{ __('home_ticket.facts.raised') }}</span><span class="v">{{ $fmt($ticket['created_at']) ?? '—' }}</span></div>
                 <div class="row">
-                    <span class="k">Last update</span>
+                    <span class="k">{{ __('home_ticket.facts.last_update') }}</span>
                     <span class="v {{ $fmt($ticket['updated_at']) ? '' : 'muted' }}">
-                        {{ $fmt($ticket['updated_at']) ?? 'No updates yet' }}
+                        {{ $fmt($ticket['updated_at']) ?? __('home_ticket.facts.no_updates_yet') }}
                     </span>
                 </div>
                 <div class="row">
-                    <span class="k">Handled by</span>
+                    <span class="k">{{ __('home_ticket.facts.handled_by') }}</span>
                     <span class="v {{ $ticket['engineer_name'] ? '' : 'muted' }}">
-                        {{ $ticket['engineer_name'] ?? 'Not yet assigned' }}
+                        {{ $ticket['engineer_name'] ?? __('home_ticket.facts.not_assigned') }}
                     </span>
                 </div>
                 @if($ticket['department_name'])
-                    <div class="row"><span class="k">Team</span><span class="v">{{ $ticket['department_name'] }}</span></div>
+                    <div class="row"><span class="k">{{ __('home_ticket.facts.team') }}</span><span class="v">{{ $ticket['department_name'] }}</span></div>
                 @endif
                 @if($ticket['estimated_finish_at'] && ! $isDone && ! $isDead)
-                    <div class="row"><span class="k">Target date</span><span class="v">{{ $fmt($ticket['estimated_finish_at']) }}</span></div>
+                    <div class="row"><span class="k">{{ __('home_ticket.facts.target_date') }}</span><span class="v">{{ $fmt($ticket['estimated_finish_at']) }}</span></div>
                 @endif
                 @if($ticket['completed_at'])
-                    <div class="row"><span class="k">Completed</span><span class="v">{{ $fmt($ticket['completed_at']) }}</span></div>
+                    <div class="row"><span class="k">{{ __('home_ticket.facts.completed') }}</span><span class="v">{{ $fmt($ticket['completed_at']) }}</span></div>
                 @endif
                 @if($ticket['closed_at'])
-                    <div class="row"><span class="k">Closed</span><span class="v">{{ $fmt($ticket['closed_at']) }}</span></div>
+                    <div class="row"><span class="k">{{ __('home_ticket.facts.closed') }}</span><span class="v">{{ $fmt($ticket['closed_at']) }}</span></div>
                 @endif
             </div>
         </section>
@@ -428,7 +434,7 @@
   if (form) {
     form.addEventListener('submit', function () {
       var btn = form.querySelector('.tk-send');
-      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+      if (btn) { btn.disabled = true; btn.textContent = @json(__('home_ticket.reply.sending')); }
     });
   }
 })();

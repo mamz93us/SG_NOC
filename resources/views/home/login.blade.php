@@ -1,6 +1,6 @@
 @extends('layouts.home')
 
-@section('title', 'Sign in | Samir Group Employee Portal')
+@section('title', __('home_login.title'))
 
 @section('content')
 @php
@@ -16,21 +16,20 @@
         <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="4" y="10" width="16" height="10.5" rx="2.4"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10" stroke-linecap="round"/><circle cx="12" cy="15.2" r="1.5"/></svg>
     </div>
 
-    <h2 style="font-size:24px;font-weight:700;margin-bottom:10px;">Employee Portal</h2>
+    <h2 style="font-size:24px;font-weight:700;margin-bottom:10px;">{{ __('home_login.heading') }}</h2>
 
     @if(session('error'))
         <div style="background:var(--red-100);color:var(--red-700);border-radius:12px;
-                    padding:12px 16px;font-size:13.5px;text-align:left;margin-bottom:18px;">
+                    padding:12px 16px;font-size:13.5px;text-align:start;margin-bottom:18px;">
             {{ session('error') }}
         </div>
     @endif
 
     <p style="color:var(--ink-soft);font-size:14.5px;line-height:1.6;margin-bottom:26px;">
         @if($silentDeclined)
-            We could not sign you in automatically from your Windows account on this device.
-            Sign in with your work account to continue.
+            {{ __('home_login.declined') }}
         @else
-            Sign in with your Samir Group work account to continue.
+            {{ __('home_login.default') }}
         @endif
     </p>
 
@@ -42,12 +41,11 @@
             <rect x="0" y="12.5" width="10.5" height="10.5" fill="#00A4EF"/>
             <rect x="12.5" y="12.5" width="10.5" height="10.5" fill="#FFB900"/>
         </svg>
-        Sign in with Microsoft
+        {{ __('home_login.sign_in_microsoft') }}
     </a>
 
     <p style="margin-top:28px;font-size:12px;color:var(--gray-500);line-height:1.6;">
-        On a company computer this page normally signs you in by itself, using the
-        account you logged into Windows with.
+        {{ __('home_login.footnote') }}
     </p>
 </div>
 @endsection

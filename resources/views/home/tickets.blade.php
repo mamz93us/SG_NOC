@@ -1,6 +1,6 @@
 @extends('layouts.home')
 
-@section('title', 'My Tickets | Samir Group Employee Portal')
+@section('title', __('home_tickets.page_title'))
 
 @php
     use App\Services\Ticketing\TicketStatus;
@@ -69,6 +69,10 @@
     padding:60px 24px; text-align:center; color:var(--ink-soft);
   }
   .tk-empty svg{ width:38px; height:38px; opacity:.35; margin-bottom:12px; }
+
+  html[dir="rtl"] .tk-pill{ margin-left:0; margin-right:auto; }
+  html[dir="rtl"] .tk-filter .c{ margin-left:0; margin-right:4px; }
+  html[dir="rtl"] .back-link svg{ transform:scaleX(-1); }
 </style>
 @endpush
 
@@ -88,14 +92,14 @@
 
 <div class="tk-head">
     <div>
-        <h2>My Tickets</h2>
+        <h2>{{ __('home_tickets.heading') }}</h2>
         <p style="color:var(--ink-soft);font-size:14px;margin-top:4px;">
-            Everything you have raised with IT, and where each one stands.
+            {{ __('home_tickets.subheading') }}
         </p>
     </div>
     <a href="{{ route('home.index') }}" class="back-link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Back to portal
+        {{ __('home_tickets.back_to_portal') }}
     </a>
 </div>
 
@@ -108,20 +112,20 @@
 
 <div class="tk-stats">
     <div class="tk-stat">
-        <div class="l">Still open</div>
+        <div class="l">{{ __('home_tickets.stats.still_open') }}</div>
         <div class="n live">{{ $summary['live'] }}</div>
-        <div class="s">Being worked on, or waiting for you</div>
+        <div class="s">{{ __('home_tickets.stats.still_open_sub') }}</div>
     </div>
     <div class="tk-stat">
-        <div class="l">All time</div>
+        <div class="l">{{ __('home_tickets.stats.all_time') }}</div>
         <div class="n">{{ $summary['total'] }}</div>
-        <div class="s">Tickets you have raised</div>
+        <div class="s">{{ __('home_tickets.stats.all_time_sub') }}</div>
     </div>
-    @foreach([TicketStatus::WAITING_FOR_USER => 'Needs you', TicketStatus::COMPLETED => 'Completed'] as $sid => $lab)
+    @foreach([TicketStatus::WAITING_FOR_USER => __('home_tickets.stats.needs_you'), TicketStatus::COMPLETED => __('home_tickets.stats.completed')] as $sid => $lab)
         <div class="tk-stat">
             <div class="l">{{ $lab }}</div>
             <div class="n">{{ $summary['by_status'][$sid] ?? 0 }}</div>
-            <div class="s">{{ $labels[$sid] }}</div>
+            <div class="s">{{ __('home_tickets.status.'.$sid) }}</div>
         </div>
     @endforeach
 </div>
@@ -129,12 +133,12 @@
 <div class="tk-filters">
     <a href="{{ route('home.tickets.index') }}"
        class="tk-filter {{ $status === TicketStatus::ALL ? 'on' : '' }}">
-        All <span class="c">{{ $summary['total'] }}</span>
+        {{ __('home_tickets.filters.all') }} <span class="c">{{ $summary['total'] }}</span>
     </a>
     @foreach($labels as $id => $label)
         <a href="{{ route('home.tickets.index', ['status' => $id]) }}"
            class="tk-filter {{ $status === $id ? 'on' : '' }}">
-            {{ $label }} <span class="c">{{ $summary['by_status'][$id] ?? 0 }}</span>
+            {{ __('home_tickets.status.'.$id) }} <span class="c">{{ $summary['by_status'][$id] ?? 0 }}</span>
         </a>
     @endforeach
 </div>
@@ -144,9 +148,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18" stroke-linecap="round"/></svg>
         <p>
             @if($status === TicketStatus::ALL)
-                You have not raised any tickets yet.
+                {{ __('home_tickets.empty.none_raised') }}
             @else
-                Nothing with this status.
+                {{ __('home_tickets.empty.none_with_status') }}
             @endif
         </p>
     </div>
@@ -161,9 +165,9 @@
                 </div>
                 <div class="meta">
                     <span>{{ $t['category_name'] ?? '—' }}@if($t['subcategory_name']) &middot; {{ $t['subcategory_name'] }}@endif</span>
-                    <span>Raised {{ $fmt($t['created_at']) }}</span>
+                    <span>{{ __('home_tickets.item.raised', ['date' => $fmt($t['created_at'])]) }}</span>
                     @if($t['engineer_name'])
-                        <span>With {{ $t['engineer_name'] }}</span>
+                        <span>{{ __('home_tickets.item.with_engineer', ['name' => $t['engineer_name']]) }}</span>
                     @endif
                 </div>
             </a>

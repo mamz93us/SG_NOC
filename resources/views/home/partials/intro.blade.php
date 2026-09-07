@@ -30,11 +30,11 @@
 
         <span class="sg-intro-rule" aria-hidden="true"></span>
 
-        <p class="sg-intro-greeting">{{ $introGreeting ?? 'Welcome' }}</p>
-        <p class="sg-intro-sub">بوابة الموظفين &middot; Employee Portal</p>
+        <p class="sg-intro-greeting">{{ $introGreeting ?? __('home_intro.welcome') }}</p>
+        <p class="sg-intro-sub">{{ __('home_intro.subtitle') }}</p>
     </div>
 
-    <p class="sg-intro-skip">Click anywhere to skip</p>
+    <p class="sg-intro-skip">{{ __('home_intro.skip') }}</p>
 </div>
 
 <script>

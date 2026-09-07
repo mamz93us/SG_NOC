@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
             '2fa' => \App\Http\Middleware\RequireTwoFactor::class,
             'hr.api_key' => \App\Http\Middleware\HrApiKeyMiddleware::class,
             'internal.ip' => \App\Http\Middleware\InternalIpOnly::class,
+            'home.locale' => \App\Http\Middleware\SetHomePortalLocale::class,
         ]);
 
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);

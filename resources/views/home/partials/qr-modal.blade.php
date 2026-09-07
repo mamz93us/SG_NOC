@@ -43,7 +43,7 @@
         {!! $qrSvg !!}
       @else
         <p class="wallet-instruction" style="margin:0;">
-          <a href="{{ $url }}">Open the link</a>
+          <a href="{{ $url }}">{{ __('home_qr_modal.open_link') }}</a>
         </p>
       @endif
     </div>
@@ -54,6 +54,6 @@
       <p class="wallet-instruction">{{ $footnote }}</p>
     @endif
 
-    <button type="button" class="wallet-close-btn" data-close-modal>Close</button>
+    <button type="button" class="wallet-close-btn" data-close-modal>{{ __('home_qr_modal.close') }}</button>
   </div>
 </div>

@@ -1,6 +1,6 @@
 @extends('layouts.home')
 
-@section('title', $doc->title.' | Samir Group Employee Portal')
+@section('title', $doc->title.' | '.__('home_document.title_suffix'))
 
 @push('head')
 <style>
@@ -59,15 +59,15 @@
             <div class="ar">{{ $doc->title_ar }}</div>
         @endif
         <div class="viewer-meta">
-            <span class="tag cat">{{ $doc->categoryLabel() }}</span>
+            <span class="tag cat">{{ __('home_document.categories.'.$doc->category) }}</span>
             @if($doc->pinned)
-                <span class="tag pin">Must read</span>
+                <span class="tag pin">{{ __('home_document.must_read') }}</span>
             @endif
             @if($doc->version)
                 <span class="tag">v{{ $doc->version }}</span>
             @endif
             @if($doc->effective_date)
-                <span>Effective {{ $doc->effective_date->format('j M Y') }}</span>
+                <span>{{ __('home_document.effective', ['date' => $doc->effective_date->locale(app()->getLocale())->translatedFormat('j M Y')]) }}</span>
             @endif
             @if($doc->humanSize())
                 <span>{{ $doc->typeTag() }} · {{ $doc->humanSize() }}</span>
@@ -81,21 +81,21 @@
     <div class="viewer-actions">
         <a href="{{ route('home.documents', ['category' => $doc->category]) }}" class="vbtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Back
+            {{ __('home_document.back') }}
         </a>
         @if($doc->isVideo())
             <a href="{{ $doc->youtubeWatchUrl() }}" target="_blank" rel="noopener noreferrer" class="vbtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 4.5h5.5V10M19 5l-7.5 7.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 14v4.5a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 18.5V7A1.5 1.5 0 0 1 5.5 5.5H10" stroke-linecap="round"/></svg>
-                Watch on YouTube
+                {{ __('home_document.watch_on_youtube') }}
             </a>
         @else
             <a href="{{ route('home.documents.file', $doc) }}" target="_blank" rel="noopener noreferrer" class="vbtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 4.5h5.5V10M19 5l-7.5 7.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 14v4.5a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 18.5V7A1.5 1.5 0 0 1 5.5 5.5H10" stroke-linecap="round"/></svg>
-                Open in a new tab
+                {{ __('home_document.open_new_tab') }}
             </a>
             <a href="{{ route('home.documents.download', $doc) }}" class="vbtn primary">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v10.5M7.5 10.5 12 15l4.5-4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 19h14" stroke-linecap="round"/></svg>
-                Download
+                {{ __('home_document.download') }}
             </a>
         @endif
     </div>
@@ -128,10 +128,9 @@
         <div class="viewer-fallback">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8.2v.05" stroke-linecap="round"/></svg>
             <span>
-                Nothing showing above? Some phone browsers will not display a PDF in
-                a page —
-                <a href="{{ route('home.documents.file', $doc) }}" target="_blank" rel="noopener noreferrer">open it in a new tab</a>
-                instead.
+                {{ __('home_document.fallback.intro') }}
+                <a href="{{ route('home.documents.file', $doc) }}" target="_blank" rel="noopener noreferrer">{{ __('home_document.fallback.link') }}</a>
+                {{ __('home_document.fallback.outro') }}
             </span>
         </div>
     @endif

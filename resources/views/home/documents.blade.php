@@ -1,6 +1,6 @@
 @extends('layouts.home')
 
-@section('title', ($category === 'policy' ? 'IT Policies' : 'Documentation & Manuals').' | Samir Group Employee Portal')
+@section('title', ($category === 'policy' ? __('home_documents.heading.policy') : __('home_documents.heading.documents')).' | '.__('home_documents.title_suffix'))
 
 @push('head')
 <style>
@@ -90,6 +90,9 @@
     .docs-search{ margin-left:0; width:100%; }
     .docs-search input{ flex:1; min-width:0; }
   }
+
+  /* ── RTL mirrors ─────────────────────────────────────────── */
+  html[dir="rtl"] .docs-search{ margin-left:0; margin-right:auto; }
 </style>
 @endpush
 
@@ -101,32 +104,32 @@
 
 <div class="docs-head">
     <div>
-        <h2>{{ $isPolicy ? 'IT Policies' : 'Documentation &amp; Manuals' }}</h2>
+        <h2>{{ $isPolicy ? __('home_documents.heading.policy') : __('home_documents.heading.documents') }}</h2>
         <p>
             @if($isPolicy)
-                The rules for using company IT — read these, they apply to everyone.
+                {{ __('home_documents.subtitle.policy') }}
             @else
-                Manuals, how-to guides and forms published by IT and HR.
+                {{ __('home_documents.subtitle.documents') }}
             @endif
         </p>
     </div>
     <a href="{{ route('home.index') }}" class="back-link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Back to portal
+        {{ __('home_documents.back_to_portal') }}
     </a>
 </div>
 
 <div class="docs-toolbar">
     <a class="chip {{ $category === null ? 'active' : '' }}"
        href="{{ route('home.documents', $search !== '' ? ['q' => $search] : []) }}">
-        Everything
+        {{ __('home_documents.everything') }}
         <span class="n">{{ $counts->sum() }}</span>
     </a>
     @foreach(\App\Models\PortalDocument::CATEGORIES as $key => $label)
         @if(($counts[$key] ?? 0) > 0)
             <a class="chip {{ $category === $key ? 'active' : '' }}"
                href="{{ route('home.documents', array_filter(['category' => $key, 'q' => $search ?: null])) }}">
-                {{ $label }}
+                {{ __('home_documents.categories.'.$key) }}
                 <span class="n">{{ $counts[$key] }}</span>
             </a>
         @endif
@@ -136,9 +139,9 @@
         @if($category)
             <input type="hidden" name="category" value="{{ $category }}">
         @endif
-        <input type="search" name="q" value="{{ $search }}" placeholder="Search documents…"
-               aria-label="Search documents">
-        <button type="submit">Search</button>
+        <input type="search" name="q" value="{{ $search }}" placeholder="{{ __('home_documents.search_placeholder') }}"
+               aria-label="{{ __('home_documents.search_aria') }}">
+        <button type="submit">{{ __('home_documents.search_button') }}</button>
     </form>
 </div>
 
@@ -147,9 +150,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 3.5h7.5L19 9v11.5H6z" stroke-linejoin="round"/><path d="M13.5 3.5V9H19" stroke-linejoin="round"/></svg>
         <p>
             @if($search !== '')
-                Nothing matches &ldquo;{{ $search }}&rdquo;.
+                {{ __('home_documents.empty_search', ['query' => $search]) }}
             @else
-                Nothing published here yet.
+                {{ __('home_documents.empty_none') }}
             @endif
         </p>
     </div>
@@ -166,7 +169,7 @@
         <div class="doc-group">
             @if(! $category)
                 <p class="section-label">
-                    {{ \Illuminate\Support\Str::plural(\App\Models\PortalDocument::CATEGORIES[$groupKey] ?? ucfirst($groupKey)) }}
+                    {{ __('home_documents.categories_plural.'.$groupKey) }}
                 </p>
             @endif
 
@@ -184,16 +187,16 @@
                             default => route('home.documents.download', $doc),
                         };
                         $verb = match (true) {
-                            $doc->isVideo() => 'Watch',
-                            $doc->isPreviewable() => 'Open',
-                            $external => 'Open',
-                            default => 'Download',
+                            $doc->isVideo() => __('home_documents.action.watch'),
+                            $doc->isPreviewable() => __('home_documents.action.open'),
+                            $external => __('home_documents.action.open'),
+                            default => __('home_documents.action.download'),
                         };
                     @endphp
                     <a class="doc-card"
                        href="{{ $href }}"
                        @if($external) target="_blank" rel="noopener noreferrer" @endif
-                       aria-label="{{ $verb }} {{ $doc->title }}">
+                       aria-label="{{ __('home_documents.card_aria', ['action' => $verb, 'title' => $doc->title]) }}">
                         <div class="doc-type {{ $doc->isVideo() ? 'video' : ($doc->isPdf() ? 'pdf' : ($external ? 'link' : '')) }}">
                             @if($doc->isVideo())
                                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.2v13.6L19 12 8 5.2Z"/></svg>
@@ -211,16 +214,16 @@
                             @endif
                             <div class="doc-meta">
                                 @if($doc->pinned)
-                                    <span class="tag pin">Must read</span>
+                                    <span class="tag pin">{{ __('home_documents.must_read') }}</span>
                                 @endif
                                 @if($doc->isVideo())
-                                    <span class="tag">Video</span>
+                                    <span class="tag">{{ __('home_documents.video_tag') }}</span>
                                 @endif
                                 @if($doc->version)
                                     <span class="tag">v{{ $doc->version }}</span>
                                 @endif
                                 @if($doc->effective_date)
-                                    <span>Effective {{ $doc->effective_date->format('j M Y') }}</span>
+                                    <span>{{ __('home_documents.effective', ['date' => $doc->effective_date->locale(app()->getLocale())->translatedFormat('j M Y')]) }}</span>
                                 @endif
                                 @if($doc->humanSize())
                                     <span>{{ $doc->humanSize() }}</span>

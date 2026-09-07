@@ -1,6 +1,6 @@
 @extends('layouts.home')
 
-@section('title', 'Employees Directory | Samir Group Employee Portal')
+@section('title', __('home_directory.title'))
 
 @push('head')
 <style>
@@ -79,41 +79,41 @@
 
 <div class="dir-head">
     <div>
-        <h2>Employees Directory</h2>
-        <p>Search staff, extensions and email across the group.</p>
+        <h2>{{ __('home_directory.heading') }}</h2>
+        <p>{{ __('home_directory.subheading') }}</p>
     </div>
     <a href="{{ route('home.index') }}" class="back-link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Back to portal
+        {{ __('home_directory.back_to_portal') }}
     </a>
 </div>
 
 <div class="dir-filters">
     <form method="GET" action="{{ route('home.directory') }}">
-        <input type="search" name="q" value="{{ $q }}" placeholder="Name, job title, extension or email…" autofocus>
+        <input type="search" name="q" value="{{ $q }}" placeholder="{{ __('home_directory.search_placeholder') }}" autofocus>
         <select name="branch">
-            <option value="">All branches</option>
+            <option value="">{{ __('home_directory.all_branches') }}</option>
             @foreach($branches as $b)
                 <option value="{{ $b->id }}" @selected((string) $branchId === (string) $b->id)>{{ $b->name }}</option>
             @endforeach
         </select>
-        <button type="submit" class="btn btn-primary">Search</button>
+        <button type="submit" class="btn btn-primary">{{ __('home_directory.search') }}</button>
         @if($q !== '' || ($branchId !== null && $branchId !== ''))
-            <a href="{{ route('home.directory') }}" class="back-link">Clear</a>
+            <a href="{{ route('home.directory') }}" class="back-link">{{ __('home_directory.clear') }}</a>
         @endif
     </form>
 </div>
 
 <p class="dir-count">
     {{ number_format($contacts->total()) }}
-    {{ \Illuminate\Support\Str::plural('person', $contacts->total()) }}
-    @if($q !== '') matching &ldquo;{{ $q }}&rdquo; @endif
+    {{ $contacts->total() === 1 ? __('home_directory.person') : __('home_directory.people') }}
+    @if($q !== '') {{ __('home_directory.matching', ['query' => $q]) }} @endif
 </p>
 
 @if($contacts->isEmpty())
     <div class="dir-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
-        <p>Nobody matches that search.</p>
+        <p>{{ __('home_directory.empty') }}</p>
     </div>
 @else
     <div class="dir-grid">
@@ -123,9 +123,9 @@
                 $initials = strtoupper(mb_substr($contact->first_name ?? '', 0, 1).mb_substr($contact->last_name ?? '', 0, 1));
             @endphp
             <article class="person">
-                <div class="avatar">{{ $initials ?: '?' }}</div>
+                <div class="avatar">{{ $initials ?: __('home_directory.unknown_initials') }}</div>
                 <div class="person-body">
-                    <div class="person-name">{{ $name ?: '—' }}</div>
+                    <div class="person-name">{{ $name ?: __('home_directory.no_name') }}</div>
                     @if($contact->job_title)
                         <div class="person-title">{{ $contact->job_title }}</div>
                     @endif

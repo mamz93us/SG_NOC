@@ -1,6 +1,6 @@
 @extends('layouts.home')
 
-@section('title', 'Announcements | Samir Group Employee Portal')
+@section('title', __('home_announcements.title'))
 
 @push('head')
 <style>
@@ -45,16 +45,21 @@
     padding:60px 24px; text-align:center; color:var(--ink-soft);
   }
   .ann-empty svg{ width:38px; height:38px; opacity:.35; margin-bottom:12px; }
+
+  html[dir="rtl"] .ann-item{ border-left:1px solid var(--line); border-right:4px solid var(--gray-500); }
+  html[dir="rtl"] .ann-item.is-urgent{ border-right-color:var(--red-600); }
+  html[dir="rtl"] .ann-item.is-success{ border-right-color:var(--green); }
+  html[dir="rtl"] .ann-when{ margin-left:0; margin-right:auto; }
 </style>
 @endpush
 
 @section('content')
 
 <div class="ann-page-head">
-    <h2>Announcements</h2>
+    <h2>{{ __('home_announcements.heading') }}</h2>
     <a href="{{ route('home.index') }}" class="back-link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Back to portal
+        {{ __('home_announcements.back_to_portal') }}
     </a>
 </div>
 
@@ -63,16 +68,16 @@
     <article class="ann-item {{ $ann->severity === 'urgent' ? 'is-urgent' : ($ann->severity === 'success' ? 'is-success' : '') }} {{ $isUnread ? 'is-unread' : '' }}">
         <div class="ann-item-top">
             @if($ann->isUrgent())
-                <span class="ann-tag is-urgent">Important</span>
+                <span class="ann-tag is-urgent">{{ __('home_announcements.important') }}</span>
             @endif
             @if($isUnread)
-                <span class="ann-tag is-new">New</span>
+                <span class="ann-tag is-new">{{ __('home_announcements.new') }}</span>
             @endif
             @if($ann->pinned)
-                <span class="ann-tag">Pinned</span>
+                <span class="ann-tag">{{ __('home_announcements.pinned') }}</span>
             @endif
             @if($ann->published_at)
-                <span class="ann-when">{{ $ann->published_at->format('j M Y') }}</span>
+                <span class="ann-when">{{ $ann->published_at->locale(app()->getLocale())->translatedFormat('j M Y') }}</span>
             @endif
         </div>
 
@@ -81,14 +86,14 @@
 
         @if($ann->link_url)
             <a class="ann-link" href="{{ $ann->link_url }}" target="_blank" rel="noopener noreferrer">
-                {{ $ann->link_label ?: 'Read more' }} &rarr;
+                {{ $ann->link_label ?: __('home_announcements.read_more') }} &rarr;
             </a>
         @endif
     </article>
 @empty
     <div class="ann-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 10v4a1.4 1.4 0 0 0 1.4 1.4H6l4.4 3.4V5.2L6 8.6H4.4A1.4 1.4 0 0 0 3 10Z" stroke-linejoin="round"/><path d="M15.5 9a4 4 0 0 1 0 6" stroke-linecap="round"/></svg>
-        <p>No announcements right now.</p>
+        <p>{{ __('home_announcements.empty') }}</p>
     </div>
 @endforelse
 
