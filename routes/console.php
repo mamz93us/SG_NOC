@@ -887,3 +887,19 @@ Schedule::command('knowbe4:sync')
     ->withoutOverlapping(60)
     ->runInBackground()
     ->name('knowbe4-sync');
+
+// ─── AI IT Assistant — knowledge indexing and retention ──────────
+// PDF text extraction + embedding is too slow for an admin's publish click,
+// so new/changed employee-library PDFs are picked up here instead of inline.
+Schedule::command('ai:index-documents')
+    ->hourly()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('ai-index-documents');
+
+// Conversations (and their messages, via cascade) older than
+// ai_settings.retention_days — a chat is not an audit record.
+Schedule::command('ai:prune-conversations')
+    ->dailyAt('03:15')
+    ->withoutOverlapping(10)
+    ->name('ai-prune-conversations');

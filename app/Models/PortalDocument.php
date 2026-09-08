@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A document in the employee library — a manual, a guide, an IT policy, a form
@@ -68,6 +69,12 @@ class PortalDocument extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'audience_department_id');
+    }
+
+    /** This document's extracted-and-embedded chunks, for the AI Assistant's knowledge search. */
+    public function chunks(): HasMany
+    {
+        return $this->hasMany(AiKnowledgeChunk::class, 'portal_document_id');
     }
 
     public function scopePublished(Builder $query): Builder

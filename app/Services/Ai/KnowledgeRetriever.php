@@ -34,7 +34,7 @@ class KnowledgeRetriever
 
     public function __construct(private AzureOpenAiClient $client) {}
 
-    /** @return Collection<int, array{article_id:int, title:string, heading:?string, content:string, score:float}> */
+    /** @return Collection<int, array{title:string, heading:?string, content:string, score:float}> */
     public function search(string $query, ?Employee $employee, int $k = 6): Collection
     {
         $query = trim($query);
@@ -49,11 +49,17 @@ class KnowledgeRetriever
             return collect();
         }
 
+        // Two sources, one chunk table: a hand-written article, or a PDF
+        // extracted from the employee document library — both denormalise
+        // audience onto the chunk row, so one query and one score covers
+        // either kind without the caller needing to know which is which.
         $candidates = AiKnowledgeChunk::query()
-            ->whereNotNull('article_id')
-            ->whereHas('article', fn ($q) => $q->published())
+            ->where(function ($q) {
+                $q->where(fn ($a) => $a->whereNotNull('article_id')->whereHas('article', fn ($x) => $x->published()))
+                    ->orWhere(fn ($d) => $d->whereNotNull('portal_document_id')->whereHas('portalDocument', fn ($x) => $x->where('is_published', true)));
+            })
             ->forEmployee($employee)
-            ->with('article:id,title,title_ar')
+            ->with(['article:id,title,title_ar', 'portalDocument:id,title,title_ar'])
             ->get();
 
         $scored = $candidates
@@ -64,8 +70,7 @@ class KnowledgeRetriever
                 }
 
                 return [
-                    'article_id' => $chunk->article_id,
-                    'title' => $chunk->article?->title ?? '',
+                    'title' => $chunk->article?->title ?? $chunk->portalDocument?->title ?? '',
                     'heading' => $chunk->heading,
                     'content' => $chunk->content,
                     'score' => self::cosineSimilarity($queryVector, $vector),
