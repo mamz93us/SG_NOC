@@ -151,7 +151,6 @@ class AssistantToolbox
                 'title' => $r['title'],
                 'heading' => $r['heading'],
                 'content' => mb_substr($r['content'], 0, 1200),
-                'article_id' => $r['article_id'],
             ])->values()->all(),
         ];
     }
