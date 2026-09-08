@@ -325,6 +325,21 @@
             </p>
         </a>
 
+        @if($assistantEnabled)
+        <a class="card span-1" href="{{ route('home.assistant.index') }}" aria-label="{{ __('home_ai.widget.launcher_label') }}">
+            <div class="icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                    <path d="M12 3a7 7 0 0 0-7 7v3.6L3.6 17a1 1 0 0 0 .9 1.5H12a7 7 0 0 0 0-14Z" stroke-linejoin="round"/>
+                    <circle cx="9" cy="10" r=".9" fill="currentColor" stroke="none"/>
+                    <circle cx="12" cy="10" r=".9" fill="currentColor" stroke="none"/>
+                    <circle cx="15" cy="10" r=".9" fill="currentColor" stroke="none"/>
+                </svg>
+            </div>
+            <h3>{{ __('home_ai.widget.title') }}</h3>
+            <p class="meta">{{ __('home_ai.widget.launcher_label') }}</p>
+        </a>
+        @endif
+
     </div>
 
     {{-- ─── Company ───────────────────────────────────────────────
@@ -485,6 +500,10 @@
 </div>
 
 @include('home.partials.ticket-modal')
+
+@if($assistantEnabled)
+    @include('home.partials.assistant-widget')
+@endif
 
 @if($cardToken)
     @include('home.partials.qr-modal', [

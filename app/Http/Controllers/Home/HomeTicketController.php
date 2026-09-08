@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Home;
 
 use App\Http\Controllers\Controller;
-use App\Models\IdentityUser;
+use App\Services\Ticketing\HomeTicketSubmissionException;
+use App\Services\Ticketing\HomeTicketSubmitter;
 use App\Services\Ticketing\NocTicketService;
 use App\Services\Ticketing\TicketCatalog;
 use App\Services\Ticketing\TicketRequestService;
@@ -32,6 +33,7 @@ class HomeTicketController extends Controller
     public function __construct(
         private NocTicketService $tickets,
         private TicketRequestService $requests,
+        private HomeTicketSubmitter $submitter,
     ) {}
 
     /**
@@ -148,16 +150,17 @@ class HomeTicketController extends Controller
     }
 
     /**
-     * 404 unless this ticket appears in that person's own list. Shared by the
-     * detail page and the comment form so the two cannot drift apart.
+     * 404 unless this ticket appears in that person's own list.
+     *
+     * Delegates to TicketRequestService::ownedBy() — the one ownership check,
+     * shared with the AI assistant's get_ticket_details tool, so the rule
+     * cannot drift between the two callers.
      */
     private function assertOwns(int $ticket, string $email): void
     {
         try {
-            foreach ($this->requests->listFor($email, TicketStatus::ALL) as $t) {
-                if ($t['id'] === $ticket) {
-                    return;
-                }
+            if ($this->requests->ownedBy($ticket, $email)) {
+                return;
             }
         } catch (\Throwable) {
             // Cannot prove it is theirs -> do not act on it.
@@ -212,53 +215,17 @@ class HomeTicketController extends Controller
             'attachments.*.max' => 'Each file must be 20 MB or smaller.',
         ]);
 
-        $user = $request->user();
-
-        // The API identifies the requester by Azure object id, not email.
-        $identity = IdentityUser::where('mail', $user->email)
-            ->orWhere('user_principal_name', $user->email)
-            ->first();
-
-        if (! $identity) {
-            return response()->json([
-                'message' => 'We could not match your account in the directory, so the ticket cannot be raised from here. Please contact IT directly.',
-            ], 422);
-        }
-
-        // The sub-category tells us which type and priority the ticketing
-        // system expects; the modal deliberately does not ask the employee.
-        $sub = $catalog->subcategory((int) $validated['category_id'], (int) $validated['subcategory_id']);
-        $typeId = $sub['type_id'] ?? ($catalog->typeIds()[0] ?? null);
-        $priorityId = $sub['priority_id'] ?? ($catalog->priorityIds()[0] ?? null);
-
-        if (! $typeId || ! $priorityId) {
-            return response()->json([
-                'message' => 'The ticketing system did not supply a type or priority for that sub-category. Please contact IT directly.',
-            ], 422);
-        }
-
         try {
-            $ticket = $this->tickets->submit(
+            $ticket = $this->submitter->submit(
+                user: $request->user(),
                 title: $validated['title'],
                 description: $validated['description'],
                 categoryId: (int) $validated['category_id'],
-                subCategoryId: (int) $validated['subcategory_id'],
-                typeId: (int) $typeId,
-                priorityId: (int) $priorityId,
-                requesterEmail: $identity->mail ?: $identity->user_principal_name,
-                requesterAzureId: $identity->azure_id,
-                requesterName: $identity->display_name,
+                subcategoryId: (int) $validated['subcategory_id'],
                 attachments: $request->file('attachments', []),
-                submittedBy: $user,
             );
-        } catch (\Throwable $e) {
-            // The attempt is already recorded as a failed row by the service,
-            // so IT can see what happened. The employee gets something they can
-            // act on rather than an API error string.
-            return response()->json([
-                'message' => 'The ticket could not be submitted. IT has a record of the attempt — please try again shortly.',
-                'detail' => $e->getMessage(),
-            ], 502);
+        } catch (HomeTicketSubmissionException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->status);
         }
 
         return response()->json([

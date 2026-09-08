@@ -1198,6 +1198,22 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('manage-ai-assistant')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.knowledge.index') }}">
+                                    <i class="bi bi-robot me-2"></i>AI Assistant Knowledge
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-ai-conversations')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.conversations.*') || request()->routeIs('admin.ai-assistant.usage') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.conversations.index') }}">
+                                    <i class="bi bi-chat-dots me-2"></i>AI Assistant Conversations
+                                </a>
+                            </li>
+                            @endcan
                             @can('manage-greeting-lines')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.greeting-lines.*') ? 'active' : '' }}"
