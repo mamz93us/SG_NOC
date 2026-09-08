@@ -5,9 +5,10 @@ namespace App\Services\Ai;
 use App\Http\Controllers\Home\HomeAssetsController;
 use App\Models\Announcement;
 use App\Models\CompanyEvent;
-use App\Models\Contact;
 use App\Models\Employee;
 use App\Models\IdentityUser;
+use App\Models\Knowbe4Score;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\Home\PaydayCalculator;
 use App\Services\Ticketing\TicketCatalog;
@@ -57,13 +58,19 @@ class AssistantToolbox
                 ['ticket_id' => ['type' => 'integer', 'description' => 'The ticket id, from get_my_tickets.']],
                 ['ticket_id']),
             $this->def('lookup_colleague',
-                'Look up a colleague\'s work contact details (name, job title, phone, email, branch) by name.',
-                ['name' => ['type' => 'string', 'description' => 'Full or partial name to search for.']],
-                ['name']),
+                'Search the employee directory for a colleague\'s work contact details — name, job title, department, branch, extension, work/mobile phone, email. Matches on name, email, phone or extension; can also filter to one branch.',
+                [
+                    'query' => ['type' => 'string', 'description' => 'Name, email, phone number or extension to search for. Leave blank (empty string) to only filter by branch.'],
+                    'branch' => ['type' => 'string', 'description' => 'Optional — a branch name to narrow the search to (e.g. "Cairo", "ABH").'],
+                ],
+                []),
             $this->def('get_company_info',
                 'Get company info: upcoming events/holidays, recent announcements, or the next payday date.',
                 ['topic' => ['type' => 'string', 'description' => 'One of: events, announcements, payday.']],
                 ['topic']),
+            $this->def('get_my_security_score',
+                'Get the signed-in employee\'s own KnowBe4 security-awareness score: phishing test results and outstanding security training.',
+                [], []),
             $this->def('list_ticket_categories',
                 'List the IT ticketing system\'s categories and sub-categories, for drafting a ticket.',
                 [], []),
@@ -89,8 +96,12 @@ class AssistantToolbox
             'get_my_assets' => $this->getMyAssets(),
             'get_my_tickets' => $this->getMyTickets((string) ($args['status'] ?? 'all')),
             'get_ticket_details' => $this->getTicketDetails((int) ($args['ticket_id'] ?? 0)),
-            'lookup_colleague' => $this->lookupColleague((string) ($args['name'] ?? '')),
+            'lookup_colleague' => $this->lookupColleague(
+                (string) ($args['query'] ?? $args['name'] ?? ''),
+                $args['branch'] ?? null,
+            ),
             'get_company_info' => $this->getCompanyInfo((string) ($args['topic'] ?? '')),
+            'get_my_security_score' => $this->getMySecurityScore(),
             'list_ticket_categories' => $this->listTicketCategories(),
             'draft_ticket' => $this->draftTicket($args),
             default => ['error' => "Unknown tool: {$name}"],
@@ -257,28 +268,54 @@ class AssistantToolbox
         ];
     }
 
-    private function lookupColleague(string $name): array
+    /**
+     * Searches the HR directory (Employee), not the public Contact table —
+     * this is the source get_my_profile itself reads from, so it is the one
+     * place extension/department/branch actually live. Work contact fields
+     * only: nothing here is more sensitive than what the printed phonebook
+     * already put on every desk.
+     */
+    private function lookupColleague(string $query, ?string $branch = null): array
     {
-        $name = trim($name);
-        if ($name === '') {
-            return ['error' => 'name is required'];
+        $query = trim($query);
+        $branch = trim((string) $branch);
+
+        if ($query === '' && $branch === '') {
+            return ['error' => 'query or branch is required'];
         }
 
-        $contacts = Contact::with('branch')
-            ->where(function ($q) use ($name) {
-                $q->where('first_name', 'like', "%{$name}%")
-                    ->orWhere('last_name', 'like', "%{$name}%");
+        $employees = Employee::query()
+            ->with(['branch', 'department'])
+            ->where('status', 'active')
+            ->when($query !== '', function ($q) use ($query) {
+                $q->where(function ($w) use ($query) {
+                    $w->where('name', 'like', "%{$query}%")
+                        ->orWhere('email', 'like', "%{$query}%")
+                        ->orWhere('work_phone', 'like', "%{$query}%")
+                        ->orWhere('mobile_phone', 'like', "%{$query}%")
+                        ->orWhere('extension_number', 'like', "%{$query}%");
+                });
+            })
+            ->when($branch !== '', function ($q) use ($branch) {
+                $q->whereHas('branch', fn ($b) => $b->where('name', 'like', "%{$branch}%"));
             })
             ->limit(10)
             ->get();
 
+        if ($employees->isEmpty()) {
+            return ['colleagues' => [], 'message' => 'No matching colleague found in the directory.'];
+        }
+
         return [
-            'colleagues' => $contacts->map(fn (Contact $c) => [
-                'name' => trim($c->first_name.' '.$c->last_name),
-                'job_title' => $c->job_title,
-                'phone' => $c->phone,
-                'email' => $c->email,
-                'branch' => $c->branch?->name,
+            'colleagues' => $employees->map(fn (Employee $e) => [
+                'name' => $e->name,
+                'job_title' => $e->job_title,
+                'department' => $e->department?->name,
+                'branch' => $e->branch?->name,
+                'extension' => $e->extension_number,
+                'work_phone' => $e->work_phone,
+                'mobile_phone' => $e->mobile_phone,
+                'email' => $e->email,
             ])->values()->all(),
         ];
     }
@@ -306,6 +343,44 @@ class AssistantToolbox
             })(),
             default => ['error' => 'topic must be one of: events, announcements, payday'],
         };
+    }
+
+    /**
+     * The signed-in employee's own KnowBe4 figures, and only ever their own —
+     * same query shape as HomeController::securityScore(), which is the one
+     * other place this table is ever read from a request.
+     */
+    private function getMySecurityScore(): array
+    {
+        if (! Setting::get()->knowbe4_enabled) {
+            return ['error' => 'Security awareness scoring is not enabled for this company.'];
+        }
+
+        $email = (string) $this->user->email;
+
+        $score = Knowbe4Score::query()
+            ->where(function ($q) use ($email) {
+                $q->where('email', $email);
+
+                if ($this->employee) {
+                    $q->orWhere('employee_id', $this->employee->id);
+                }
+            })
+            ->first();
+
+        if (! $score) {
+            return ['error' => 'No security awareness score has synced for you yet.'];
+        }
+
+        return [
+            'phish_prone_percentage' => $score->phish_prone_percentage,
+            'phish_prone_band' => $score->pppBand(), // low | medium | high | unknown
+            'has_been_phished' => $score->hasBeenPhished(),
+            'phishing_emails_failed' => $score->phish_fail_count,
+            'phishing_emails_sent' => $score->phish_sent_count,
+            'trainings_outstanding' => $score->trainings_outstanding,
+            'trainings_completed' => $score->trainings_completed,
+        ];
     }
 
     private function listTicketCategories(): array
