@@ -17,8 +17,20 @@ use Illuminate\Support\Collection;
  */
 class KnowledgeRetriever
 {
-    /** Cosine scores below this are treated as "did not find it", not a weak match. */
-    public const RELEVANCE_FLOOR = 0.72;
+    /**
+     * Cosine scores below this are treated as "did not find it", not a weak
+     * match.
+     *
+     * 0.5, not something closer to 1.0: text-embedding-3-small's cosine
+     * scores for a genuinely correct query-to-document match commonly land
+     * around 0.5-0.7, not 0.8+ — a naive higher floor rejects real answers.
+     * Measured directly against a real published article: a well-formed
+     * query ("steps to apply for vacation in Oracle HRMS") scored 0.71
+     * against its correct chunk, which the previous floor of 0.72 rejected
+     * by 0.01, sending the employee to a needless ticket draft instead of
+     * the article that already answered the question.
+     */
+    public const RELEVANCE_FLOOR = 0.5;
 
     public function __construct(private AzureOpenAiClient $client) {}
 
