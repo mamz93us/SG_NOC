@@ -106,7 +106,13 @@ class AssistantToolbox
                 'description' => $description,
                 'parameters' => [
                     'type' => 'object',
-                    'properties' => $properties,
+                    // Cast, not just pass through: PHP's json_encode cannot
+                    // tell an empty associative array from an empty indexed
+                    // one, so a tool with no parameters (get_my_profile, etc.)
+                    // would serialize `properties` as `[]` — Azure's function
+                    // schema validation requires a JSON object here even when
+                    // empty, and rejects `[]` with a 400.
+                    'properties' => (object) $properties,
                     'required' => $required,
                 ],
             ],
