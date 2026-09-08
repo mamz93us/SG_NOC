@@ -194,6 +194,10 @@ class RolePermission extends Model
                 'manage-agw-allowlist' => 'Manage Access Gateway IP Allowlist',
                 'manage-agw-settings' => 'Edit Access Gateway Settings (app URL, ACL toggle)',
             ],
+            'AI Assistant' => [
+                'manage-ai-assistant' => 'Manage AI Assistant (Settings, Knowledge Articles)',
+                'view-ai-conversations' => 'View AI Assistant Conversations & Usage',
+            ],
         ];
     }
 

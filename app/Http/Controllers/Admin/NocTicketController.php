@@ -115,7 +115,7 @@ class NocTicketController extends Controller
                 requesterEmail: $identity->mail ?: $identity->user_principal_name,
                 requesterAzureId: $identity->azure_id,
                 requesterName: $identity->display_name,
-                attachment: $request->file('attachment'),
+                attachments: $request->file('attachments', []),
                 submittedBy: $me,
             );
         } catch (\Throwable $e) {

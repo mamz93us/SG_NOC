@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\AiSetting;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Setting;
 use App\Models\UcmServer;
+use App\Services\Ai\AzureOpenAiClient;
 use App\Services\AvePoint\AvePointApiService;
 use App\Services\Backup\SftpgoApiService;
 use App\Services\Identity\GraphService;
@@ -28,8 +30,9 @@ class SettingsController extends Controller
     {
         $settings = Setting::get();
         $ucmServers = UcmServer::orderBy('name')->get();
+        $aiSettings = AiSetting::get();
 
-        return view('admin.settings', compact('settings', 'ucmServers'));
+        return view('admin.settings', compact('settings', 'ucmServers', 'aiSettings'));
     }
 
     /**
@@ -1672,5 +1675,81 @@ class SettingsController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'detail' => $e->getMessage()]);
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // AI IT Assistant (Azure OpenAI)
+    // ─────────────────────────────────────────────────────────────
+
+    public function updateAi(Request $request)
+    {
+        $request->validate([
+            'azure_endpoint' => 'nullable|url|max:500',
+            'azure_api_version' => 'nullable|string|max:32',
+            'chat_deployment' => 'nullable|string|max:128',
+            'embedding_deployment' => 'nullable|string|max:128',
+            'max_output_tokens' => 'nullable|integer|min:64|max:4000',
+            'temperature' => 'nullable|numeric|min:0|max:2',
+            'max_tool_turns' => 'nullable|integer|min:1|max:20',
+            'daily_message_cap' => 'nullable|integer|min:1|max:1000',
+            'retention_days' => 'nullable|integer|min:1|max:3650',
+            'system_prompt_extra' => 'nullable|string|max:4000',
+        ]);
+
+        $settings = AiSetting::get();
+        $before = [
+            'enabled' => (bool) $settings->enabled,
+            'azure_endpoint' => $settings->azure_endpoint,
+            'chat_deployment' => $settings->chat_deployment,
+            'ticket_drafting_enabled' => (bool) $settings->ticket_drafting_enabled,
+        ];
+
+        $settings->enabled = $request->boolean('enabled');
+        $settings->azure_endpoint = rtrim((string) $request->azure_endpoint, '/') ?: null;
+        $settings->azure_api_version = $request->azure_api_version ?: '2024-08-01-preview';
+        $settings->chat_deployment = $request->chat_deployment;
+        $settings->embedding_deployment = $request->embedding_deployment;
+        $settings->max_output_tokens = (int) ($request->max_output_tokens ?: 800);
+        $settings->temperature = (float) ($request->temperature ?? 0.20);
+        $settings->max_tool_turns = (int) ($request->max_tool_turns ?: 6);
+        $settings->daily_message_cap = (int) ($request->daily_message_cap ?: 60);
+        $settings->retention_days = (int) ($request->retention_days ?: 180);
+        $settings->system_prompt_extra = $request->system_prompt_extra;
+        $settings->ticket_drafting_enabled = $request->boolean('ticket_drafting_enabled');
+
+        // Blank means "keep the stored key" — the field never renders the
+        // current value, so saving the form must not wipe it.
+        if ($request->filled('azure_api_key')) {
+            $settings->azure_api_key = trim($request->azure_api_key);
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'AiSetting',
+            'model_id' => 1,
+            'action' => 'ai_assistant_updated',
+            'changes' => [
+                'before' => $before,
+                'after' => [
+                    'enabled' => (bool) $settings->enabled,
+                    'azure_endpoint' => $settings->azure_endpoint,
+                    'chat_deployment' => $settings->chat_deployment,
+                    'ticket_drafting_enabled' => (bool) $settings->ticket_drafting_enabled,
+                ],
+                'key_replaced' => $request->filled('azure_api_key'),
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'AI Assistant settings updated.')
+            ->withFragment('ai-assistant');
+    }
+
+    public function testAi(AzureOpenAiClient $client)
+    {
+        return response()->json($client->testConnection());
     }
 }

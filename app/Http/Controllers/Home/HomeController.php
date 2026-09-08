@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Home;
 
 use App\Http\Controllers\Controller;
+use App\Models\AiSetting;
 use App\Models\Announcement;
 use App\Models\AnnouncementRead;
 use App\Models\CompanyEvent;
@@ -266,6 +267,15 @@ class HomeController extends Controller
             // unattended on every company PC, so the ticketing system
             // being slow must not be felt here.
             'openTicketCount' => app(TicketRequestService::class)->liveCountFor((string) $user->email),
+            // Hides the launcher rather than shipping a button that 503s —
+            // same rule as walletAvailable/samsungAvailable below.
+            'assistantEnabled' => (function () {
+                try {
+                    return AiSetting::get()->isConfigured();
+                } catch (\Throwable) {
+                    return false;
+                }
+            })(),
             'trainingUrl' => $settings->knowbe4_training_url ?: null,
             // Outlook on the web. Blank in config hides the card rather than
             // shipping a tile that goes nowhere.

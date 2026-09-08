@@ -1875,6 +1875,172 @@ document.getElementById('whatsapp-test-btn')?.addEventListener('click', function
 </script>
 @endpush
 
+{{-- ─────────────────────────────────────────────────────── --}}
+{{-- AI IT Assistant (Azure OpenAI) — home portal chat        --}}
+{{-- ─────────────────────────────────────────────────────── --}}
+<div class="card mt-4" id="ai-assistant">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-robot text-primary fs-5"></i>
+        <h5 class="mb-0">AI IT Assistant</h5>
+        @if($aiSettings->enabled && $aiSettings->isConfigured())
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @elseif($aiSettings->azure_endpoint)
+            <span class="badge bg-warning text-dark ms-auto">Configured (Disabled)</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Not configured</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <p class="text-muted small">
+            Powers the chat assistant on the home portal (Ask IT Assistant) — answers IT/HR
+            questions from <a href="{{ route('admin.ai-assistant.knowledge.index') }}">Knowledge Articles</a>,
+            reads the employee's own data, and drafts (never submits) a ticket only once the
+            knowledge base has failed to answer. Uses the company's own Azure OpenAI tenancy, so
+            content never leaves it for a third-party API.
+        </p>
+
+        @if($aiSettings->enabled && ! $aiSettings->configurationIssue() && ! $aiSettings->embedding_deployment)
+        <div class="alert alert-warning py-2 small">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            No embedding deployment is set — the assistant can chat but cannot search the knowledge base.
+        </div>
+        @endif
+
+        <form method="POST" action="{{ route('admin.settings.ai-assistant') }}">
+            @csrf
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="enabled"
+                               id="ai_enabled" value="1" {{ $aiSettings->enabled ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="ai_enabled">Enable AI Assistant</label>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Azure OpenAI endpoint</label>
+                    <input type="text" name="azure_endpoint" class="form-control font-monospace"
+                           value="{{ old('azure_endpoint', $aiSettings->azure_endpoint) }}"
+                           placeholder="https://your-resource.openai.azure.com">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">API version</label>
+                    <input type="text" name="azure_api_version" class="form-control font-monospace"
+                           value="{{ old('azure_api_version', $aiSettings->azure_api_version) }}">
+                </div>
+                <div class="col-md-3"></div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Chat deployment name</label>
+                    <input type="text" name="chat_deployment" class="form-control font-monospace"
+                           value="{{ old('chat_deployment', $aiSettings->chat_deployment) }}"
+                           placeholder="gpt-4o">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Embedding deployment name</label>
+                    <input type="text" name="embedding_deployment" class="form-control font-monospace"
+                           value="{{ old('embedding_deployment', $aiSettings->embedding_deployment) }}"
+                           placeholder="text-embedding-3-small">
+                    <div class="form-text">Needed for knowledge base search.</div>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">API key</label>
+                    <input type="password" name="azure_api_key" class="form-control" autocomplete="off"
+                           placeholder="{{ $aiSettings->azure_api_key ? '•••••• (leave blank to keep current)' : 'Azure OpenAI resource key' }}">
+                    <div class="form-text">Stored encrypted.</div>
+                </div>
+
+                <div class="col-12"><hr class="my-1"></div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Max output tokens</label>
+                    <input type="number" name="max_output_tokens" class="form-control"
+                           value="{{ old('max_output_tokens', $aiSettings->max_output_tokens) }}" min="64" max="4000">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Temperature</label>
+                    <input type="number" step="0.05" name="temperature" class="form-control"
+                           value="{{ old('temperature', $aiSettings->temperature) }}" min="0" max="2">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Max tool turns</label>
+                    <input type="number" name="max_tool_turns" class="form-control"
+                           value="{{ old('max_tool_turns', $aiSettings->max_tool_turns) }}" min="1" max="20">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Daily message cap / user</label>
+                    <input type="number" name="daily_message_cap" class="form-control"
+                           value="{{ old('daily_message_cap', $aiSettings->daily_message_cap) }}" min="1" max="1000">
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Conversation retention (days)</label>
+                    <input type="number" name="retention_days" class="form-control"
+                           value="{{ old('retention_days', $aiSettings->retention_days) }}" min="1" max="3650">
+                </div>
+                <div class="col-md-8 d-flex align-items-end">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="ticket_drafting_enabled"
+                               id="ai_ticket_drafting" value="1" {{ $aiSettings->ticket_drafting_enabled ? 'checked' : '' }}>
+                        <label class="form-check-label" for="ai_ticket_drafting">Allow the assistant to draft tickets</label>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Extra system prompt instructions</label>
+                    <textarea name="system_prompt_extra" class="form-control" rows="3"
+                              placeholder="Optional — appended to the base system prompt, e.g. seasonal notices.">{{ old('system_prompt_extra', $aiSettings->system_prompt_extra) }}</textarea>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 mt-3 flex-wrap">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-save me-1"></i>Save AI Assistant Settings
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="ai-test-btn">
+                    <i class="bi bi-plug me-1"></i>Test Connection
+                </button>
+            </div>
+            <div id="ai-test-result" class="small mt-2"></div>
+        </form>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+document.getElementById('ai-test-btn')?.addEventListener('click', function () {
+    const btn = this;
+    const result = document.getElementById('ai-test-result');
+
+    btn.disabled = true;
+    result.innerHTML = '<span class="text-muted">Contacting Azure OpenAI…</span>';
+
+    fetch('{{ route('admin.settings.ai-assistant.test') }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        }
+    })
+    .then(r => r.json())
+    .then(d => {
+        result.innerHTML = d.ok
+            ? '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>' + d.detail + '</span>'
+            : '<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>' + d.detail + '</span>';
+    })
+    .catch(() => {
+        result.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>Request failed</span>';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-plug me-1"></i>Test Connection';
+    });
+});
+</script>
+@endpush
+
 {{-- SFTPGo — device backup ingestion (SFTP / FTPS)          --}}
 {{-- ─────────────────────────────────────────────────────── --}}
 <div class="card mt-4" id="sftpgo">

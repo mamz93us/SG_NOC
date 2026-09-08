@@ -392,6 +392,25 @@ if (\App\Support\HomePortal::enabled()) {
             Route::post('/tickets', [\App\Http\Controllers\Home\HomeTicketController::class, 'store'])
                 ->middleware('throttle:10,1')
                 ->name('tickets.store');
+
+            // The AI IT Assistant. Every tool it can call is scoped
+            // server-side to whoever is signed in (AssistantToolbox) — the
+            // model itself never sees an email, employee id or Azure id.
+            Route::get('/assistant', [\App\Http\Controllers\Home\AssistantController::class, 'index'])
+                ->name('assistant.index');
+            Route::post('/assistant/message', [\App\Http\Controllers\Home\AssistantController::class, 'message'])
+                ->middleware('throttle:20,1')
+                ->name('assistant.message');
+            // Leaves the building, same as the ticket modal's own submit route.
+            Route::post('/assistant/ticket', [\App\Http\Controllers\Home\AssistantController::class, 'ticket'])
+                ->middleware('throttle:10,1')
+                ->name('assistant.ticket');
+            Route::post('/assistant/{message}/rate', [\App\Http\Controllers\Home\AssistantController::class, 'rate'])
+                ->whereNumber('message')
+                ->name('assistant.rate');
+            Route::get('/assistant/{conversation}', [\App\Http\Controllers\Home\AssistantController::class, 'show'])
+                ->whereNumber('conversation')
+                ->name('assistant.show');
         });
     });
 }
@@ -998,6 +1017,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/samsung-wallet', [SettingsController::class, 'updateSamsungWallet'])->name('settings.samsung-wallet');
         Route::post('settings/whatsapp', [SettingsController::class, 'updateWhatsapp'])->name('settings.whatsapp');
         Route::post('settings/whatsapp/test', [SettingsController::class, 'testWhatsapp'])->name('settings.whatsapp.test');
+        Route::post('settings/ai-assistant', [SettingsController::class, 'updateAi'])->name('settings.ai-assistant');
+        Route::post('settings/ai-assistant/test', [SettingsController::class, 'testAi'])->name('settings.ai-assistant.test');
 
         // ── Sync Status Dashboard ────────────────────────────────────
         Route::get('sync-status', [\App\Http\Controllers\Admin\SyncStatusController::class, 'index'])->name('sync-status');
@@ -1081,6 +1102,24 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('portal-documents/{portalDocument}/download', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'download'])->name('portal-documents.download');
             Route::put('portal-documents/{portalDocument}', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'update'])->name('portal-documents.update');
             Route::delete('portal-documents/{portalDocument}', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'destroy'])->name('portal-documents.destroy');
+        });
+
+        // ── AI IT Assistant ───────────────────────────────────────────
+        // Knowledge article authoring + settings live under manage-ai-assistant;
+        // the transcript/usage viewer is a separate, narrower permission — a
+        // conversation can contain whatever an employee typed into it.
+        Route::middleware('permission:manage-ai-assistant')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
+            Route::get('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'index'])->name('knowledge.index');
+            Route::get('knowledge/create', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'create'])->name('knowledge.create');
+            Route::post('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'store'])->name('knowledge.store');
+            Route::get('knowledge/{aiKnowledgeArticle}/edit', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'edit'])->name('knowledge.edit');
+            Route::put('knowledge/{aiKnowledgeArticle}', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'update'])->name('knowledge.update');
+            Route::delete('knowledge/{aiKnowledgeArticle}', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'destroy'])->name('knowledge.destroy');
+        });
+        Route::middleware('permission:view-ai-conversations')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
+            Route::get('conversations', [\App\Http\Controllers\Admin\AiConversationController::class, 'index'])->name('conversations.index');
+            Route::get('conversations/{aiConversation}', [\App\Http\Controllers\Admin\AiConversationController::class, 'show'])->name('conversations.show');
+            Route::get('usage', [\App\Http\Controllers\Admin\AiConversationController::class, 'usage'])->name('usage');
         });
 
         Route::middleware('permission:manage-greeting-lines')->group(function () {

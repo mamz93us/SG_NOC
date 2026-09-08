@@ -253,6 +253,29 @@ class TicketRequestService
         );
     }
 
+    /**
+     * Whether this ticket is in the given person's own list.
+     *
+     * The details endpoint takes a bare `requestId` and does not check who is
+     * asking, so this is the ONE ownership check — shared by HomeTicketController
+     * (which aborts 404 on false) and the AI assistant's get_ticket_details tool
+     * (which returns a tool error instead) — so the rule cannot drift between
+     * the two callers.
+     *
+     * @throws RuntimeException when the API cannot be reached, so a caller
+     *                           never treats "could not check" as "not owned"
+     */
+    public function ownedBy(int $ticketId, string $email): bool
+    {
+        foreach ($this->listFor($email, TicketStatus::ALL) as $t) {
+            if ($t['id'] === $ticketId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function forget(string $email): void
     {
         $hash = md5(mb_strtolower(trim($email)));
