@@ -1693,7 +1693,6 @@ class SettingsController extends Controller
             'max_tool_turns' => 'nullable|integer|min:1|max:20',
             'daily_message_cap' => 'nullable|integer|min:1|max:1000',
             'retention_days' => 'nullable|integer|min:1|max:3650',
-            'system_prompt_extra' => 'nullable|string|max:4000',
         ]);
 
         $settings = AiSetting::get();
@@ -1714,7 +1713,9 @@ class SettingsController extends Controller
         $settings->max_tool_turns = (int) ($request->max_tool_turns ?: 6);
         $settings->daily_message_cap = (int) ($request->daily_message_cap ?: 60);
         $settings->retention_days = (int) ($request->retention_days ?: 180);
-        $settings->system_prompt_extra = $request->system_prompt_extra;
+        // system_prompt_extra is edited on its own page — Admin -> AI
+        // Assistant Knowledge -> Instructions — not here, so this form
+        // cannot blank it out from under that page.
         $settings->ticket_drafting_enabled = $request->boolean('ticket_drafting_enabled');
 
         // Blank means "keep the stored key" — the field never renders the

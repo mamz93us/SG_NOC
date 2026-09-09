@@ -1112,9 +1112,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'index'])->name('knowledge.index');
             Route::get('knowledge/create', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'create'])->name('knowledge.create');
             Route::post('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'store'])->name('knowledge.store');
+            Route::post('knowledge/reindex-all', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexAll'])->name('knowledge.reindex-all');
             Route::get('knowledge/{aiKnowledgeArticle}/edit', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'edit'])->name('knowledge.edit');
             Route::put('knowledge/{aiKnowledgeArticle}', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'update'])->name('knowledge.update');
             Route::delete('knowledge/{aiKnowledgeArticle}', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'destroy'])->name('knowledge.destroy');
+
+            Route::get('instructions', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'edit'])->name('instructions.edit');
+            Route::post('instructions', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'update'])->name('instructions.update');
         });
         Route::middleware('permission:view-ai-conversations')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
             Route::get('conversations', [\App\Http\Controllers\Admin\AiConversationController::class, 'index'])->name('conversations.index');

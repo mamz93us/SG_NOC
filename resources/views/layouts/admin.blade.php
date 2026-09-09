@@ -1205,6 +1205,12 @@
                                     <i class="bi bi-robot me-2"></i>AI Assistant Knowledge
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.instructions.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.instructions.edit') }}">
+                                    <i class="bi bi-card-text me-2"></i>AI Assistant Instructions
+                                </a>
+                            </li>
                             @endcan
                             @can('view-ai-conversations')
                             <li>

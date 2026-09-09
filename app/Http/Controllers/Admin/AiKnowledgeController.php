@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ReindexAiKnowledgeJob;
 use App\Models\AiKnowledgeArticle;
+use App\Models\AiSetting;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Services\Ai\KnowledgeIndexer;
@@ -38,6 +40,7 @@ class AiKnowledgeController extends Controller
                 ->paginate(30)
                 ->withQueryString(),
             'category' => $category,
+            'aiSettings' => AiSetting::get(),
         ]);
     }
 
@@ -65,21 +68,38 @@ class AiKnowledgeController extends Controller
         $data['created_by'] = Auth::id();
 
         $article = AiKnowledgeArticle::create($data);
-        $this->indexer->indexArticle($article);
+        $indexed = $this->indexer->indexArticle($article);
 
         return redirect()
             ->route('admin.ai-assistant.knowledge.index')
-            ->with('success', 'Article created.');
+            ->with(...$this->saveFlash('created', $article, $indexed));
     }
 
     public function update(Request $request, AiKnowledgeArticle $aiKnowledgeArticle): RedirectResponse
     {
         $aiKnowledgeArticle->update($this->validated($request));
-        $this->indexer->indexArticle($aiKnowledgeArticle);
+        $indexed = $this->indexer->indexArticle($aiKnowledgeArticle);
 
         return redirect()
             ->route('admin.ai-assistant.knowledge.index')
-            ->with('success', 'Article updated.');
+            ->with(...$this->saveFlash('updated', $aiKnowledgeArticle, $indexed));
+    }
+
+    /**
+     * @return array{0:string,1:string} a single ['key' => 'message'] pair for
+     *                                  redirect()->with(...) — success unless
+     *                                  the article is published and embedding
+     *                                  just failed, which is the "the AI
+     *                                  doesn't work" symptom this surfaces
+     *                                  immediately instead of a silent log line.
+     */
+    private function saveFlash(string $verb, AiKnowledgeArticle $article, bool $indexed): array
+    {
+        if ($article->is_published && ! $indexed) {
+            return ['error', "Article {$verb}, but indexing failed — check the Azure OpenAI settings and use Reindex All once fixed."];
+        }
+
+        return ['success', "Article {$verb}."];
     }
 
     public function destroy(AiKnowledgeArticle $aiKnowledgeArticle): RedirectResponse
@@ -89,6 +109,22 @@ class AiKnowledgeController extends Controller
         return redirect()
             ->route('admin.ai-assistant.knowledge.index')
             ->with('success', 'Article deleted.');
+    }
+
+    /**
+     * "Reindex All" — re-chunks and re-embeds every published article.
+     *
+     * Recovers articles whose embedding failed silently (e.g. saved before
+     * Azure OpenAI was configured, or during an outage) without having to
+     * open and re-save each one. Queued: see ReindexAiKnowledgeJob.
+     */
+    public function reindexAll(): RedirectResponse
+    {
+        ReindexAiKnowledgeJob::dispatch(Auth::id());
+
+        return redirect()
+            ->route('admin.ai-assistant.knowledge.index')
+            ->with('success', 'Reindexing all articles in the background — refresh in a minute or two to see updated chunk counts.');
     }
 
     private function validated(Request $request): array

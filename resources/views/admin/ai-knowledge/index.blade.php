@@ -11,15 +11,46 @@
             see <a href="{{ route('admin.ai-assistant.usage') }}">Usage &amp; Gaps</a> for what employees ask that this library cannot yet answer.
         </small>
     </div>
-    <a href="{{ route('admin.ai-assistant.knowledge.create') }}" class="btn btn-primary btn-sm">
-        <i class="bi bi-plus-lg me-1"></i>New Article
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{{ route('admin.ai-assistant.instructions.edit') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-card-text me-1"></i>Instructions
+        </a>
+        <form method="POST" action="{{ route('admin.ai-assistant.knowledge.reindex-all') }}" class="d-inline"
+              onsubmit="return confirm('Re-chunk and re-embed every published article? This runs in the background.');">
+            @csrf
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-arrow-repeat me-1"></i>Reindex All
+            </button>
+        </form>
+        <a href="{{ route('admin.ai-assistant.knowledge.create') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>New Article
+        </a>
+    </div>
 </div>
 
 @if (session('success'))
     <div class="alert alert-success d-flex gap-2 align-items-start">
         <i class="bi bi-check-circle-fill fs-5"></i>
         <div>{{ session('success') }}</div>
+    </div>
+@endif
+
+@if (session('error'))
+    <div class="alert alert-danger d-flex gap-2 align-items-start">
+        <i class="bi bi-x-circle-fill fs-5"></i>
+        <div>{{ session('error') }}</div>
+    </div>
+@endif
+
+@if(! $aiSettings->embeddingsConfigured())
+    <div class="alert alert-warning d-flex gap-2 align-items-start">
+        <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+        <div>
+            {{ $aiSettings->configurationIssue() ?? 'No embedding deployment is configured.' }}
+            Articles will publish but the assistant cannot search them until this is fixed — see
+            <a href="{{ route('admin.settings.index') }}#ai-assistant">AI Assistant settings</a>.
+            Once fixed, use <strong>Reindex All</strong> to catch up articles saved while it was broken.
+        </div>
     </div>
 @endif
 
@@ -57,7 +88,11 @@
                         </td>
                         <td class="text-center small text-muted">{{ $article->chunks_count }}</td>
                         <td class="text-center">
-                            @if($article->is_published)
+                            @if($article->is_published && (int) $article->chunks_count === 0)
+                                <span class="badge bg-danger" title="Published but not searchable — embedding never succeeded. Try Reindex All.">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Not indexed
+                                </span>
+                            @elseif($article->is_published)
                                 <span class="badge bg-success">Live</span>
                             @else
                                 <span class="badge bg-secondary">Draft</span>

@@ -1988,9 +1988,12 @@ document.getElementById('whatsapp-test-btn')?.addEventListener('click', function
                 </div>
 
                 <div class="col-12">
-                    <label class="form-label">Extra system prompt instructions</label>
-                    <textarea name="system_prompt_extra" class="form-control" rows="3"
-                              placeholder="Optional — appended to the base system prompt, e.g. seasonal notices.">{{ old('system_prompt_extra', $aiSettings->system_prompt_extra) }}</textarea>
+                    <div class="alert alert-light border small mb-0 d-flex justify-content-between align-items-center">
+                        <span>What the assistant is told to do lives on its own page now.</span>
+                        <a href="{{ route('admin.ai-assistant.instructions.edit') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-card-text me-1"></i>Edit Assistant Instructions
+                        </a>
+                    </div>
                 </div>
             </div>
 
