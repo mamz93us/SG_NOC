@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AiKnowledgeChunk extends Model
 {
     protected $fillable = [
-        'article_id', 'portal_document_id', 'heading', 'content', 'content_hash',
+        'article_id', 'portal_document_id', 'heading', 'content', 'content_hash', 'locale',
         'embedding', 'token_count', 'audience', 'audience_branch_id', 'audience_department_id',
     ];
 

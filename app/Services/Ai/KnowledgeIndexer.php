@@ -34,15 +34,32 @@ class KnowledgeIndexer
             return true;
         }
 
-        $locale = $article->body_ar ? 'ar' : 'en';
-        $pieces = AiChunker::chunk($article->bodyFor($locale));
+        // Index every language the article actually has, not just one —
+        // embedding similarity drops noticeably across languages even on the
+        // same topic, so an English chunk is what an English question needs
+        // to match well, and likewise for Arabic. Confirmed live: an
+        // English-only question about a topic the English body covered in
+        // detail scored well under the relevance floor against Arabic-only
+        // chunks of the same article.
+        $bodies = array_filter([
+            'en' => (string) $article->body,
+            'ar' => (string) $article->body_ar,
+        ], fn ($body) => trim($body) !== '');
+
+        $pieces = [];
+        foreach ($bodies as $locale => $body) {
+            foreach (AiChunker::chunk($body) as $piece) {
+                $piece['locale'] = $locale;
+                $pieces[] = $piece;
+            }
+        }
 
         $existing = $article->chunks()->get()->keyBy('content_hash');
         $keepHashes = [];
 
         $toEmbed = [];
         foreach ($pieces as $piece) {
-            $hash = hash('sha256', $piece['heading'].'|'.$piece['content']);
+            $hash = hash('sha256', $piece['locale'].'|'.$piece['heading'].'|'.$piece['content']);
             $keepHashes[] = $hash;
 
             if ($existing->has($hash)) {
@@ -71,6 +88,7 @@ class KnowledgeIndexer
                     'heading' => $piece['heading'],
                     'content' => $piece['content'],
                     'content_hash' => $hashes[$i],
+                    'locale' => $piece['locale'],
                     'token_count' => (int) ceil(mb_strlen($piece['content']) / 4),
                     'audience' => $article->audience,
                     'audience_branch_id' => $article->audience_branch_id,
