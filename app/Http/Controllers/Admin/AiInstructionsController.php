@@ -56,4 +56,35 @@ class AiInstructionsController extends Controller
             ->route('admin.ai-assistant.instructions.edit')
             ->with('success', 'Assistant instructions updated.');
     }
+
+    /**
+     * How strict search_knowledge is before it treats a chunk as a real
+     * answer versus reporting "not found" (see KnowledgeRetriever). Split
+     * from update() above because it changes on a completely different
+     * signal — measured retrieval scores as the knowledge base grows — not
+     * on a whim the way the prompt text does.
+     */
+    public function updateMatchThreshold(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'knowledge_match_threshold' => 'required|numeric|min:0|max:1',
+        ]);
+
+        $settings = AiSetting::get();
+        $before = $settings->knowledge_match_threshold;
+        $settings->knowledge_match_threshold = $data['knowledge_match_threshold'];
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'AiSetting',
+            'model_id' => 1,
+            'action' => 'ai_match_threshold_updated',
+            'changes' => ['before' => $before, 'after' => $settings->knowledge_match_threshold],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.ai-assistant.instructions.edit')
+            ->with('success', 'Knowledge match threshold updated.');
+    }
 }

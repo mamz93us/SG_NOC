@@ -21,6 +21,7 @@ class AiSetting extends Model
         'azure_api_version',
         'chat_deployment',
         'embedding_deployment',
+        'knowledge_match_threshold',
         'max_output_tokens',
         'temperature',
         'max_tool_turns',
@@ -28,23 +29,42 @@ class AiSetting extends Model
         'retention_days',
         'system_prompt_extra',
         'ticket_drafting_enabled',
+        'last_reindex_started_at',
+        'last_reindex_finished_at',
+        'last_reindex_result',
     ];
 
     protected $casts = [
         'enabled' => 'boolean',
+        'knowledge_match_threshold' => 'float',
         'max_output_tokens' => 'integer',
         'temperature' => 'float',
         'max_tool_turns' => 'integer',
         'daily_message_cap' => 'integer',
         'retention_days' => 'integer',
         'ticket_drafting_enabled' => 'boolean',
+        'last_reindex_started_at' => 'datetime',
+        'last_reindex_finished_at' => 'datetime',
+        'last_reindex_result' => 'array',
     ];
+
+    /** Still running (or never finished — e.g. the worker died) since the last dispatch. */
+    public function reindexRunning(): bool
+    {
+        if (! $this->last_reindex_started_at) {
+            return false;
+        }
+
+        return ! $this->last_reindex_finished_at
+            || $this->last_reindex_finished_at->lt($this->last_reindex_started_at);
+    }
 
     public static function get(): static
     {
         return static::first() ?? static::create([
             'enabled' => false,
             'azure_api_version' => '2024-08-01-preview',
+            'knowledge_match_threshold' => 0.40,
             'max_output_tokens' => 800,
             'temperature' => 0.20,
             'max_tool_turns' => 6,

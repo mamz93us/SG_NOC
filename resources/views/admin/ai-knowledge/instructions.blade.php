@@ -51,6 +51,40 @@
     </div>
 </div>
 
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header">
+        <h6 class="mb-0 fw-semibold">Knowledge search sensitivity</h6>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small">
+            How closely a question has to match an article before the assistant treats it as a real
+            answer instead of reporting "not found" and logging a gap. Lower = finds more, but risks
+            citing a loosely related article; higher = safer, but sends more genuinely answered
+            questions into a ticket draft. <strong>0.40</strong> is the current default — measured
+            directly against real employee questions and this knowledge base: correct matches scored
+            0.43-0.46, unrelated articles scored under 0.19. Retune this if the
+            <a href="{{ route('admin.ai-assistant.usage') }}">Usage &amp; Gaps</a> log keeps showing
+            questions that a published article already answers.
+        </p>
+
+        <form method="POST" action="{{ route('admin.ai-assistant.instructions.match-threshold') }}" class="d-flex align-items-end gap-2">
+            @csrf
+            <div>
+                <label class="form-label small mb-1">Match threshold (0-1)</label>
+                <input type="number" name="knowledge_match_threshold" class="form-control form-control-sm @error('knowledge_match_threshold') is-invalid @enderror"
+                       style="width:120px" step="0.01" min="0" max="1"
+                       value="{{ old('knowledge_match_threshold', $settings->knowledge_match_threshold) }}">
+                @error('knowledge_match_threshold')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-save me-1"></i>Save Threshold
+            </button>
+        </form>
+    </div>
+</div>
+
 <div class="card shadow-sm border-0">
     <div class="card-header">
         <h6 class="mb-0 fw-semibold">Additional instructions</h6>

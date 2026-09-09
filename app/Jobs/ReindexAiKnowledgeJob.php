@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\ActivityLog;
+use App\Models\AiSetting;
 use App\Services\Ai\KnowledgeIndexer;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -39,7 +40,19 @@ class ReindexAiKnowledgeJob implements ShouldQueue
 
     public function handle(KnowledgeIndexer $indexer): void
     {
-        $result = $indexer->reindexAll();
+        try {
+            $result = $indexer->reindexAll();
+        } catch (\Throwable $e) {
+            // Still mark finished — otherwise the page reports "still
+            // running" forever for a sweep that actually crashed.
+            $result = ['indexed' => 0, 'failed' => 0, 'failed_titles' => [], 'error' => $e->getMessage()];
+
+            $this->markFinished($result);
+
+            throw $e; // let the queue log the failure too
+        }
+
+        $this->markFinished($result);
 
         ActivityLog::create([
             'model_type' => 'AiKnowledgeArticle',
@@ -47,6 +60,14 @@ class ReindexAiKnowledgeJob implements ShouldQueue
             'action' => 'reindexed_all',
             'changes' => $result,
             'user_id' => $this->userId,
+        ]);
+    }
+
+    private function markFinished(array $result): void
+    {
+        AiSetting::get()->update([
+            'last_reindex_finished_at' => now(),
+            'last_reindex_result' => $result,
         ]);
     }
 }

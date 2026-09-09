@@ -9,6 +9,7 @@ use App\Models\AiSetting;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Services\Ai\KnowledgeIndexer;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -120,11 +121,30 @@ class AiKnowledgeController extends Controller
      */
     public function reindexAll(): RedirectResponse
     {
+        AiSetting::get()->update([
+            'last_reindex_started_at' => now(),
+            'last_reindex_finished_at' => null,
+            'last_reindex_result' => null,
+        ]);
+
         ReindexAiKnowledgeJob::dispatch(Auth::id());
 
         return redirect()
             ->route('admin.ai-assistant.knowledge.index')
-            ->with('success', 'Reindexing all articles in the background — refresh in a minute or two to see updated chunk counts.');
+            ->with('success', 'Reindexing all articles in the background — this page will show when it finishes.');
+    }
+
+    /** Polled by the "Reindex All" status banner so the page can tell you when it's done. */
+    public function reindexStatus(): JsonResponse
+    {
+        $settings = AiSetting::get();
+
+        return response()->json([
+            'running' => $settings->reindexRunning(),
+            'started_at' => $settings->last_reindex_started_at?->toIso8601String(),
+            'finished_at' => $settings->last_reindex_finished_at?->toIso8601String(),
+            'result' => $settings->last_reindex_result,
+        ]);
     }
 
     private function validated(Request $request): array

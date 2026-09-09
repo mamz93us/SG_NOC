@@ -54,6 +54,29 @@
     </div>
 @endif
 
+<div id="reindex-status"
+     data-poll-url="{{ route('admin.ai-assistant.knowledge.reindex-status') }}"
+     data-running="{{ $aiSettings->reindexRunning() ? '1' : '0' }}"
+     class="alert {{ $aiSettings->reindexRunning() ? 'alert-info' : 'alert-secondary' }} d-flex gap-2 align-items-start small"
+     @if(! $aiSettings->last_reindex_started_at) hidden @endif>
+    <i class="bi bi-arrow-repeat me-1" id="reindex-status-icon"></i>
+    <div id="reindex-status-text">
+        @if($aiSettings->reindexRunning())
+            Reindexing since {{ $aiSettings->last_reindex_started_at->diffForHumans() }} — this banner updates itself when it's done.
+        @elseif($aiSettings->last_reindex_finished_at)
+            Last reindex finished {{ $aiSettings->last_reindex_finished_at->diffForHumans() }}:
+            {{ $aiSettings->last_reindex_result['indexed'] ?? 0 }} indexed,
+            {{ $aiSettings->last_reindex_result['failed'] ?? 0 }} failed.
+            @if(!empty($aiSettings->last_reindex_result['failed_titles']))
+                <span class="text-danger">Failed: {{ implode(', ', $aiSettings->last_reindex_result['failed_titles']) }}</span>
+            @endif
+            @if(!empty($aiSettings->last_reindex_result['error']))
+                <span class="text-danger">Crashed: {{ $aiSettings->last_reindex_result['error'] }}</span>
+            @endif
+        @endif
+    </div>
+</div>
+
 <div class="card shadow-sm border-0">
     <div class="table-responsive">
         <table class="table align-middle mb-0">
@@ -127,4 +150,41 @@
 @if($articles->hasPages())
     <div class="mt-3">{{ $articles->links() }}</div>
 @endif
+
+@push('scripts')
+<script>
+(function () {
+    const banner = document.getElementById('reindex-status');
+    if (!banner || banner.dataset.running !== '1') {
+        return; // nothing to poll — already finished (or never run) as of page load
+    }
+
+    const text = document.getElementById('reindex-status-text');
+    const url = banner.dataset.pollUrl;
+
+    const poll = setInterval(function () {
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(function (data) {
+                if (data.running) {
+                    return; // still going — check again next tick
+                }
+
+                clearInterval(poll);
+
+                const result = data.result || {};
+                const failed = result.failed || 0;
+                text.textContent = 'Finished — ' + (result.indexed || 0) + ' indexed, ' + failed + ' failed. Reloading…';
+                banner.classList.remove('alert-info');
+                banner.classList.add(failed > 0 || result.error ? 'alert-danger' : 'alert-success');
+
+                setTimeout(() => window.location.reload(), 1200);
+            })
+            .catch(function () {
+                clearInterval(poll); // don't hammer a failing endpoint forever
+            });
+    }, 5000);
+})();
+</script>
+@endpush
 @endsection
