@@ -11,6 +11,7 @@ use App\Models\IdentityUser;
 use App\Services\Ai\AssistantAgent;
 use App\Services\Ai\AssistantToolbox;
 use App\Services\Ai\KnowledgeRetriever;
+use App\Services\Identity\GraphService;
 use App\Services\Ticketing\HomeTicketSubmissionException;
 use App\Services\Ticketing\HomeTicketSubmitter;
 use App\Services\Ticketing\TicketRequestService;
@@ -34,6 +35,7 @@ class AssistantController extends Controller
     public function __construct(
         private AssistantAgent $agent,
         private HomeTicketSubmitter $submitter,
+        private GraphService $graph,
     ) {}
 
     public function index(Request $request): View
@@ -162,11 +164,14 @@ class AssistantController extends Controller
                 'role' => $reply->role,
                 'content' => $reply->content,
             ],
-            'draft_ticket' => $this->extractDraft($conversation, $beforeId),
+            // Generic — carries a 'type' of ticket/email/calendar_event so the
+            // widget can render and confirm the right kind. See AssistantToolbox:
+            // every draft_* tool only ever shapes this, never submits it.
+            'draft' => $this->extractDraft($conversation, $beforeId),
         ]);
     }
 
-    /** The most recent draft_ticket result produced by this turn, if any. */
+    /** The most recent draft_* tool result produced by this turn, if any. */
     private function extractDraft(AiConversation $conversation, int $sinceMessageId): ?array
     {
         $toolMessages = $conversation->messages()
@@ -236,6 +241,75 @@ class AssistantController extends Controller
         return response()->json([
             'ticket_id' => $ticket->ticket_id,
             'reference' => $ticket->ticket_id ? '#'.$ticket->ticket_id : null,
+        ], 201);
+    }
+
+    /**
+     * Confirms and sends an email the assistant drafted (draft_email) —
+     * always as the signed-in employee's own mailbox. $request->user()
+     * resolves that; the client never gets to say whose mailbox to use.
+     */
+    public function email(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'to' => 'required|array|min:1',
+            'to.*' => 'required|email',
+            'subject' => 'required|string|max:255',
+            'body' => 'required|string|max:10000',
+        ]);
+
+        try {
+            $this->graph->sendMailAsUser(
+                mailbox: (string) $request->user()->email,
+                subject: $validated['subject'],
+                body: $validated['body'],
+                to: $validated['to'],
+            );
+        } catch (\Throwable $e) {
+            Log::warning('AssistantController: sendMailAsUser failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => __('home_ai.email_draft.send_failed')], 502);
+        }
+
+        return response()->json(['ok' => true], 201);
+    }
+
+    /**
+     * Confirms and creates a calendar event (draft_calendar_event) — a plain
+     * reminder, or a Teams meeting when is_teams_meeting is true — always on
+     * the signed-in employee's own calendar, as organiser.
+     */
+    public function calendarEvent(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'subject' => 'required|string|max:255',
+            'start' => 'required|date',
+            'end' => 'required|date|after:start',
+            'attendees' => 'nullable|array',
+            'attendees.*' => 'email',
+            'body' => 'nullable|string|max:5000',
+            'is_teams_meeting' => 'nullable|boolean',
+        ]);
+
+        try {
+            $event = $this->graph->createCalendarEvent(
+                mailbox: (string) $request->user()->email,
+                subject: $validated['subject'],
+                start: new \DateTimeImmutable($validated['start']),
+                end: new \DateTimeImmutable($validated['end']),
+                attendeeEmails: $validated['attendees'] ?? [],
+                body: $validated['body'] ?? '',
+                isOnlineMeeting: (bool) ($validated['is_teams_meeting'] ?? false),
+            );
+        } catch (\Throwable $e) {
+            Log::warning('AssistantController: createCalendarEvent failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => __('home_ai.calendar_draft.create_failed')], 502);
+        }
+
+        return response()->json([
+            'join_url' => $event['onlineMeeting']['joinUrl'] ?? null,
+            'web_link' => $event['webLink'] ?? null,
         ], 201);
     }
 }

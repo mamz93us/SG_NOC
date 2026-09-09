@@ -651,6 +651,80 @@ class GraphService
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Mail / Calendar / Teams — on behalf of one user (AI Assistant)
+    // ─────────────────────────────────────────────────────────────
+    // Both act as a specific employee's own mailbox/calendar, but this client
+    // is app-only (client_credentials) — there is no per-user delegated
+    // token. Application-scope Mail.Send and Calendars.ReadWrite
+    // (admin-consented) let the app act as ANY mailbox in the tenant, so
+    // $mailbox must always come from server-side identity resolution (the
+    // signed-in employee's own email), never from client input or a
+    // model-provided argument — see AssistantToolbox.
+    //
+    // A Teams meeting is just a calendar event with isOnlineMeeting=true and
+    // onlineMeetingProvider="teamsForBusiness" — Graph provisions the Teams
+    // meeting and returns its joinUrl as part of the event. This only needs
+    // Calendars.ReadWrite; it deliberately does NOT use the separate
+    // /onlineMeetings (Cloud Communications) API, which needs its own
+    // OnlineMeetings.ReadWrite.All consent and wouldn't show up on the
+    // organiser's calendar anyway.
+
+    /**
+     * Sends an email as the given mailbox. Needs the Mail.Send APPLICATION
+     * permission, admin-consented.
+     *
+     * @param  array<int,string>  $to
+     */
+    public function sendMailAsUser(string $mailbox, string $subject, string $body, array $to): void
+    {
+        $this->post('/users/'.rawurlencode($mailbox).'/sendMail', [
+            'message' => [
+                'subject' => $subject,
+                'body' => ['contentType' => 'Text', 'content' => $body],
+                'toRecipients' => array_map(fn (string $email) => ['emailAddress' => ['address' => $email]], $to),
+            ],
+            'saveToSentItems' => true,
+        ]);
+    }
+
+    /**
+     * Creates a calendar event (optionally a Teams meeting, via isOnlineMeeting)
+     * on the given mailbox's own calendar. Needs the Calendars.ReadWrite
+     * APPLICATION permission, admin-consented.
+     *
+     * @param  array<int,string>  $attendeeEmails
+     * @return array<string,mixed> the created event, including onlineMeeting.joinUrl when isOnlineMeeting is true
+     */
+    public function createCalendarEvent(
+        string $mailbox,
+        string $subject,
+        \DateTimeInterface $start,
+        \DateTimeInterface $end,
+        array $attendeeEmails = [],
+        string $body = '',
+        bool $isOnlineMeeting = false,
+        string $timezone = 'Africa/Cairo',
+    ): array {
+        $payload = [
+            'subject' => $subject,
+            'body' => ['contentType' => 'Text', 'content' => $body],
+            'start' => ['dateTime' => $start->format('Y-m-d\TH:i:s'), 'timeZone' => $timezone],
+            'end' => ['dateTime' => $end->format('Y-m-d\TH:i:s'), 'timeZone' => $timezone],
+            'attendees' => array_map(fn (string $email) => [
+                'emailAddress' => ['address' => $email],
+                'type' => 'required',
+            ], $attendeeEmails),
+        ];
+
+        if ($isOnlineMeeting) {
+            $payload['isOnlineMeeting'] = true;
+            $payload['onlineMeetingProvider'] = 'teamsForBusiness';
+        }
+
+        return $this->post('/users/'.rawurlencode($mailbox).'/events', $payload);
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // Groups — Extended
     // ─────────────────────────────────────────────────────────────
 

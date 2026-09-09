@@ -142,6 +142,12 @@ class AssistantAgent
         $locale = app()->getLocale();
         $base = trans('home_ai.system_prompt', [], $locale);
 
+        // Chat completions have no built-in notion of "now" — without this,
+        // "schedule it for tomorrow at 3pm" (draft_calendar_event) has
+        // nothing to resolve "tomorrow" against.
+        $now = now('Africa/Cairo');
+        $base .= "\n\nCurrent date and time: {$now->format('l, Y-m-d H:i')} (Africa/Cairo).";
+
         $extra = trim((string) $settings->system_prompt_extra);
 
         return $extra !== '' ? $base."\n\n".$extra : $base;

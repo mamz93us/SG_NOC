@@ -24,6 +24,14 @@ use App\Services\Ticketing\TicketStatus;
  * `call()` never throws for an expected "not found" — it returns
  * `['error' => '...']` so the model can read the reason and tell the
  * employee, rather than the turn failing outright.
+ *
+ * draft_ticket, draft_email and draft_calendar_event all follow the same
+ * rule: this class only ever *shapes* a draft (`'draft' => true`) — nothing
+ * is submitted, sent or created here. The real write happens in
+ * AssistantController (ticket()/email()/calendarEvent()), only once the
+ * employee explicitly confirms in the chat UI, and always against the
+ * signed-in employee's own identity resolved server-side — never an id or
+ * address the model supplied.
  */
 class AssistantToolbox
 {
@@ -84,6 +92,25 @@ class AssistantToolbox
                     'reason_not_solved' => ['type' => 'string', 'description' => 'Why this could not be resolved from search_knowledge / the employee\'s own data.'],
                 ],
                 ['title', 'description', 'category_id', 'subcategory_id', 'reason_not_solved']),
+            $this->def('draft_email',
+                'Draft an email to be sent from the employee\'s own mailbox. This does NOT send anything — the employee reviews and confirms in the chat before it goes out. Use lookup_colleague first to resolve a colleague\'s name to their exact email address; never guess an address.',
+                [
+                    'to' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Recipient email addresses.'],
+                    'subject' => ['type' => 'string', 'description' => 'Email subject line.'],
+                    'body' => ['type' => 'string', 'description' => 'Plain-text email body.'],
+                ],
+                ['to', 'subject', 'body']),
+            $this->def('draft_calendar_event',
+                'Draft a calendar event on the employee\'s own calendar — a meeting, a Teams meeting, or a plain reminder with no attendees. This does NOT create anything — the employee reviews and confirms in the chat before it\'s added. Use lookup_colleague first to resolve any attendee\'s name to their exact email address. Ask the employee for a specific date and time if they were not given — never guess one.',
+                [
+                    'subject' => ['type' => 'string', 'description' => 'Event title.'],
+                    'start' => ['type' => 'string', 'description' => 'Start date/time, ISO 8601 (e.g. 2026-09-10T14:00:00), in the employee\'s own Africa/Cairo timezone.'],
+                    'end' => ['type' => 'string', 'description' => 'End date/time, ISO 8601, same timezone. For a reminder with no real duration, use start + 15 minutes.'],
+                    'attendees' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Attendee email addresses. Leave empty for a personal reminder.'],
+                    'body' => ['type' => 'string', 'description' => 'Optional description/agenda.'],
+                    'is_teams_meeting' => ['type' => 'boolean', 'description' => 'True to make this a Teams meeting with a join link. False for a plain calendar entry/reminder.'],
+                ],
+                ['subject', 'start', 'end']),
         ];
     }
 
@@ -104,6 +131,8 @@ class AssistantToolbox
             'get_my_security_score' => $this->getMySecurityScore(),
             'list_ticket_categories' => $this->listTicketCategories(),
             'draft_ticket' => $this->draftTicket($args),
+            'draft_email' => $this->draftEmail($args),
+            'draft_calendar_event' => $this->draftCalendarEvent($args),
             default => ['error' => "Unknown tool: {$name}"],
         };
     }
@@ -417,6 +446,7 @@ class AssistantToolbox
 
         return [
             'draft' => true,
+            'type' => 'ticket',
             'title' => (string) ($args['title'] ?? ''),
             'description' => (string) ($args['description'] ?? ''),
             'category_id' => $categoryId,
@@ -425,6 +455,53 @@ class AssistantToolbox
             'subcategory_name' => $catalog->subcategoryName($categoryId, $subcategoryId),
             'reason_not_solved' => (string) ($args['reason_not_solved'] ?? ''),
             'message' => 'Draft ready. Show this to the employee for review; nothing is submitted until they confirm.',
+        ];
+    }
+
+    /**
+     * Draft only — see the class docblock. AssistantController::email() does
+     * the real Graph call, strictly as the signed-in employee's own mailbox,
+     * only once they confirm.
+     */
+    private function draftEmail(array $args): array
+    {
+        $to = array_values(array_filter(array_map(
+            fn ($e) => trim((string) $e),
+            is_array($args['to'] ?? null) ? $args['to'] : [],
+        )));
+
+        return [
+            'draft' => true,
+            'type' => 'email',
+            'to' => $to,
+            'subject' => (string) ($args['subject'] ?? ''),
+            'body' => (string) ($args['body'] ?? ''),
+            'message' => 'Draft ready. Show this to the employee for review; nothing is sent until they confirm.',
+        ];
+    }
+
+    /**
+     * Draft only — see the class docblock. AssistantController::calendarEvent()
+     * does the real Graph call, strictly on the signed-in employee's own
+     * calendar, only once they confirm.
+     */
+    private function draftCalendarEvent(array $args): array
+    {
+        $attendees = array_values(array_filter(array_map(
+            fn ($e) => trim((string) $e),
+            is_array($args['attendees'] ?? null) ? $args['attendees'] : [],
+        )));
+
+        return [
+            'draft' => true,
+            'type' => 'calendar_event',
+            'subject' => (string) ($args['subject'] ?? ''),
+            'start' => (string) ($args['start'] ?? ''),
+            'end' => (string) ($args['end'] ?? ''),
+            'attendees' => $attendees,
+            'body' => (string) ($args['body'] ?? ''),
+            'is_teams_meeting' => (bool) ($args['is_teams_meeting'] ?? false),
+            'message' => 'Draft ready. Show this to the employee for review; nothing is created until they confirm.',
         ];
     }
 }

@@ -405,6 +405,14 @@ if (\App\Support\HomePortal::enabled()) {
             Route::post('/assistant/ticket', [\App\Http\Controllers\Home\AssistantController::class, 'ticket'])
                 ->middleware('throttle:10,1')
                 ->name('assistant.ticket');
+            // Also leave the building: a real email / calendar write via
+            // Graph, only once the employee confirms the drafted card.
+            Route::post('/assistant/email', [\App\Http\Controllers\Home\AssistantController::class, 'email'])
+                ->middleware('throttle:10,1')
+                ->name('assistant.email');
+            Route::post('/assistant/calendar-event', [\App\Http\Controllers\Home\AssistantController::class, 'calendarEvent'])
+                ->middleware('throttle:10,1')
+                ->name('assistant.calendar-event');
             Route::post('/assistant/{message}/rate', [\App\Http\Controllers\Home\AssistantController::class, 'rate'])
                 ->whereNumber('message')
                 ->name('assistant.rate');

@@ -93,6 +93,8 @@
   var csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   var messageUrl = @json(route('home.assistant.message'));
   var ticketUrl = @json(route('home.assistant.ticket'));
+  var emailUrl = @json(route('home.assistant.email'));
+  var calendarEventUrl = @json(route('home.assistant.calendar-event'));
   var rateUrlTemplate = @json(route('home.assistant.rate', ['message' => '__ID__']));
   var conversationId = @json($conversation?->id);
 
@@ -112,6 +114,28 @@
     sendFailedTicket: @json(__('home_ai.ticket_draft.send_failed')),
     helpful: @json(__('home_ai.rating.helpful')),
     notHelpful: @json(__('home_ai.rating.not_helpful')),
+    emailHeading: @json(__('home_ai.email_draft.heading')),
+    emailFieldTo: @json(__('home_ai.email_draft.fields.to')),
+    emailFieldSubject: @json(__('home_ai.email_draft.fields.subject')),
+    emailFieldBody: @json(__('home_ai.email_draft.fields.body')),
+    emailSend: @json(__('home_ai.email_draft.send')),
+    emailSending: @json(__('home_ai.email_draft.sending')),
+    emailCancel: @json(__('home_ai.email_draft.cancel')),
+    emailSent: @json(__('home_ai.email_draft.sent')),
+    emailSendFailed: @json(__('home_ai.email_draft.send_failed')),
+    calHeadingEvent: @json(__('home_ai.calendar_draft.heading_event')),
+    calHeadingMeeting: @json(__('home_ai.calendar_draft.heading_meeting')),
+    calFieldSubject: @json(__('home_ai.calendar_draft.fields.subject')),
+    calFieldWhen: @json(__('home_ai.calendar_draft.fields.when')),
+    calFieldAttendees: @json(__('home_ai.calendar_draft.fields.attendees')),
+    calFieldBody: @json(__('home_ai.calendar_draft.fields.body')),
+    calCreate: @json(__('home_ai.calendar_draft.create')),
+    calCreating: @json(__('home_ai.calendar_draft.creating')),
+    calCancel: @json(__('home_ai.calendar_draft.cancel')),
+    calCreatedEvent: @json(__('home_ai.calendar_draft.created_event')),
+    calCreatedMeeting: @json(__('home_ai.calendar_draft.created_meeting')),
+    calJoinLink: @json(__('home_ai.calendar_draft.join_link')),
+    calCreateFailed: @json(__('home_ai.calendar_draft.create_failed')),
   };
 
   var messages = document.getElementById('assistantMessages');
@@ -169,27 +193,29 @@
     row.appendChild(wrap);
   }
 
-  function addDraftCard(draft) {
+  // One row + card + confirm/cancel actions, shared by every draft type —
+  // only what's inside the card (fields shown, confirm request/response)
+  // differs per type. Nothing here is real until the confirm button's
+  // fetch() succeeds; see the AssistantToolbox / AssistantController
+  // docblocks for why that split exists.
+  function buildDraftCard() {
     var row = document.createElement('div');
     row.className = 'assistant-msg assistant-msg-bot';
     var card = document.createElement('div');
     card.className = 'assistant-draft-card';
-    card.innerHTML =
-      '<h4>' + i18n.ticketDraftHeading + '</h4>' +
-      '<div class="reason">' + i18n.checkedLabel + ' ' + escapeHtml(draft.reason_not_solved || '') + '</div>' +
-      '<dl>' +
-        '<dt>' + i18n.fieldTitle + '</dt><dd>' + escapeHtml(draft.title || '') + '</dd>' +
-        '<dt>' + i18n.fieldCategory + '</dt><dd>' + escapeHtml(draft.category_name || '') + '</dd>' +
-        '<dt>' + i18n.fieldSubcategory + '</dt><dd>' + escapeHtml(draft.subcategory_name || '') + '</dd>' +
-        '<dt>' + i18n.fieldDescription + '</dt><dd>' + escapeHtml(draft.description || '') + '</dd>' +
-      '</dl>';
-
     var actions = document.createElement('div');
     actions.className = 'assistant-draft-actions';
-    var sendTicketBtn = document.createElement('button');
-    sendTicketBtn.type = 'button';
-    sendTicketBtn.className = 'btn btn-primary';
-    sendTicketBtn.textContent = i18n.send;
+    card.appendChild(actions);
+    row.appendChild(card);
+    messages.appendChild(row);
+    return { row: row, card: card, actions: actions };
+  }
+
+  function addConfirmActions(card, actions, confirmLabel, confirmingLabel, onConfirm) {
+    var confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'btn btn-primary';
+    confirmBtn.textContent = confirmLabel;
     var cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'btn btn-ghost';
@@ -197,11 +223,46 @@
 
     cancelBtn.addEventListener('click', function () { actions.remove(); });
 
-    sendTicketBtn.addEventListener('click', function () {
-      sendTicketBtn.disabled = true;
+    confirmBtn.addEventListener('click', function () {
+      confirmBtn.disabled = true;
       cancelBtn.disabled = true;
-      sendTicketBtn.textContent = i18n.sending;
+      confirmBtn.textContent = confirmingLabel;
+      onConfirm(
+        function (successText) {
+          actions.remove();
+          var confirmEl = document.createElement('div');
+          confirmEl.className = 'reason';
+          confirmEl.style.marginTop = '8px';
+          confirmEl.textContent = successText;
+          card.appendChild(confirmEl);
+        },
+        function (errorMessage) {
+          confirmBtn.disabled = false;
+          cancelBtn.disabled = false;
+          confirmBtn.textContent = confirmLabel;
+          setError(errorMessage);
+        }
+      );
+    });
 
+    actions.appendChild(confirmBtn);
+    actions.appendChild(cancelBtn);
+  }
+
+  function addTicketDraftCard(draft) {
+    var built = buildDraftCard();
+    built.card.insertAdjacentHTML('afterbegin',
+      '<h4>' + i18n.ticketDraftHeading + '</h4>' +
+      '<div class="reason">' + i18n.checkedLabel + ' ' + escapeHtml(draft.reason_not_solved || '') + '</div>' +
+      '<dl>' +
+        '<dt>' + i18n.fieldTitle + '</dt><dd>' + escapeHtml(draft.title || '') + '</dd>' +
+        '<dt>' + i18n.fieldCategory + '</dt><dd>' + escapeHtml(draft.category_name || '') + '</dd>' +
+        '<dt>' + i18n.fieldSubcategory + '</dt><dd>' + escapeHtml(draft.subcategory_name || '') + '</dd>' +
+        '<dt>' + i18n.fieldDescription + '</dt><dd>' + escapeHtml(draft.description || '') + '</dd>' +
+      '</dl>'
+    );
+
+    addConfirmActions(built.card, built.actions, i18n.send, i18n.sending, function (onOk, onErr) {
       fetch(ticketUrl, {
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -215,27 +276,89 @@
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
         .then(function (res) {
           if (!res.ok) { throw new Error(res.data.message || i18n.sendFailedTicket); }
-          actions.remove();
-          var confirmEl = document.createElement('div');
-          confirmEl.className = 'reason';
-          confirmEl.style.marginTop = '8px';
-          confirmEl.textContent = i18n.sentHeading + ' — ' + i18n.sentBody.replace(':reference', res.data.reference || '—');
-          card.appendChild(confirmEl);
+          onOk(i18n.sentHeading + ' — ' + i18n.sentBody.replace(':reference', res.data.reference || '—'));
         })
-        .catch(function (err) {
-          sendTicketBtn.disabled = false;
-          cancelBtn.disabled = false;
-          sendTicketBtn.textContent = i18n.send;
-          setError(err.message || i18n.sendFailedTicket);
-        });
+        .catch(function (err) { onErr(err.message || i18n.sendFailedTicket); });
     });
 
-    actions.appendChild(sendTicketBtn);
-    actions.appendChild(cancelBtn);
-    card.appendChild(actions);
-    row.appendChild(card);
-    messages.appendChild(row);
     scrollToBottom();
+  }
+
+  function addEmailDraftCard(draft) {
+    var built = buildDraftCard();
+    var to = Array.isArray(draft.to) ? draft.to.join(', ') : '';
+    built.card.insertAdjacentHTML('afterbegin',
+      '<h4>' + i18n.emailHeading + '</h4>' +
+      '<dl>' +
+        '<dt>' + i18n.emailFieldTo + '</dt><dd>' + escapeHtml(to) + '</dd>' +
+        '<dt>' + i18n.emailFieldSubject + '</dt><dd>' + escapeHtml(draft.subject || '') + '</dd>' +
+        '<dt>' + i18n.emailFieldBody + '</dt><dd>' + escapeHtml(draft.body || '') + '</dd>' +
+      '</dl>'
+    );
+
+    addConfirmActions(built.card, built.actions, i18n.emailSend, i18n.emailSending, function (onOk, onErr) {
+      fetch(emailUrl, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ to: draft.to, subject: draft.subject, body: draft.body })
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) { throw new Error(res.data.message || i18n.emailSendFailed); }
+          onOk(i18n.emailSent);
+        })
+        .catch(function (err) { onErr(err.message || i18n.emailSendFailed); });
+    });
+
+    scrollToBottom();
+  }
+
+  function addCalendarDraftCard(draft) {
+    var built = buildDraftCard();
+    var isTeams = !!draft.is_teams_meeting;
+    var attendees = Array.isArray(draft.attendees) ? draft.attendees.join(', ') : '';
+    var when = escapeHtml(draft.start || '') + ' — ' + escapeHtml(draft.end || '');
+
+    built.card.insertAdjacentHTML('afterbegin',
+      '<h4>' + (isTeams ? i18n.calHeadingMeeting : i18n.calHeadingEvent) + '</h4>' +
+      '<dl>' +
+        '<dt>' + i18n.calFieldSubject + '</dt><dd>' + escapeHtml(draft.subject || '') + '</dd>' +
+        '<dt>' + i18n.calFieldWhen + '</dt><dd>' + when + '</dd>' +
+        (attendees ? '<dt>' + i18n.calFieldAttendees + '</dt><dd>' + escapeHtml(attendees) + '</dd>' : '') +
+        (draft.body ? '<dt>' + i18n.calFieldBody + '</dt><dd>' + escapeHtml(draft.body) + '</dd>' : '') +
+      '</dl>'
+    );
+
+    addConfirmActions(built.card, built.actions, i18n.calCreate, i18n.calCreating, function (onOk, onErr) {
+      fetch(calendarEventUrl, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          subject: draft.subject,
+          start: draft.start,
+          end: draft.end,
+          attendees: draft.attendees,
+          body: draft.body,
+          is_teams_meeting: isTeams,
+        })
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) { throw new Error(res.data.message || i18n.calCreateFailed); }
+          var text = isTeams ? i18n.calCreatedMeeting : i18n.calCreatedEvent;
+          if (res.data.join_url) { text += ' ' + i18n.calJoinLink + ': ' + res.data.join_url; }
+          onOk(text);
+        })
+        .catch(function (err) { onErr(err.message || i18n.calCreateFailed); });
+    });
+
+    scrollToBottom();
+  }
+
+  function addDraftCard(draft) {
+    if (draft.type === 'email') { return addEmailDraftCard(draft); }
+    if (draft.type === 'calendar_event') { return addCalendarDraftCard(draft); }
+    return addTicketDraftCard(draft);
   }
 
   function send() {
@@ -263,7 +386,7 @@
         conversationId = res.data.conversation_id;
         var row = addBubble('bot', res.data.message.content || '');
         if (res.data.message.id) addRating(row, res.data.message.id);
-        if (res.data.draft_ticket) addDraftCard(res.data.draft_ticket);
+        if (res.data.draft) addDraftCard(res.data.draft);
       })
       .catch(function (err) {
         typing.hidden = true;
