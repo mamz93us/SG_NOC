@@ -398,6 +398,57 @@
                     </li>
                     @endcanany
 
+                    {{-- ── Attendance dropdown ── --}}
+                    @can('view-attendance')
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/attendance*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-fingerprint me-1"></i>Attendance
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.attendance.days.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.attendance.days.index') }}">
+                                    <i class="bi bi-calendar-check me-2"></i>Check-in / Check-out
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.attendance.employees.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.attendance.employees.index') }}">
+                                    <i class="bi bi-person-lines-fill me-2"></i>Employee Mapping
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.attendance.areas.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.attendance.areas.index') }}">
+                                    <i class="bi bi-geo-alt me-2"></i>Areas &amp; Terminals
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.attendance.shifts.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.attendance.shifts.index') }}">
+                                    <i class="bi bi-clock-history me-2"></i>Shifts
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.attendance.holidays.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.attendance.holidays.index') }}">
+                                    <i class="bi bi-calendar-heart me-2"></i>Holidays
+                                </a>
+                            </li>
+                            @can('manage-attendance')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.attendance.sources.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.attendance.sources.index') }}">
+                                    <i class="bi bi-database-gear me-2"></i>BioTime Sources
+                                </a>
+                            </li>
+                            @endcan
+                        </ul>
+                    </li>
+                    @endcan
+
                     {{-- ── Network dropdown ── --}}
                     @can('view-network')
                     <li class="nav-item dropdown">

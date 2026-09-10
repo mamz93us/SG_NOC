@@ -198,6 +198,10 @@ class RolePermission extends Model
                 'manage-ai-assistant' => 'Manage AI Assistant (Settings, Knowledge Articles)',
                 'view-ai-conversations' => 'View AI Assistant Conversations & Usage',
             ],
+            'Attendance' => [
+                'view-attendance' => 'View Attendance (BioTime check-in / check-out, employee mapping)',
+                'manage-attendance' => 'Manage Attendance (BioTime sources, employee links, rebuild days)',
+            ],
         ];
     }
 
@@ -248,6 +252,8 @@ class RolePermission extends Model
             'view-tickets',
             'view-announcements',
             'manage-announcements',
+            'view-attendance',
+            'manage-attendance',
         ];
         $marketingPerms = ['view-email-marketing', 'view-courses', 'manage-courses'];
 

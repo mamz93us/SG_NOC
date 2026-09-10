@@ -903,3 +903,36 @@ Schedule::command('ai:prune-conversations')
     ->dailyAt('03:15')
     ->withoutOverlapping(10)
     ->name('ai-prune-conversations');
+
+// ─── Attendance (ZKTeco BioTime) ──────────────────────────────────
+// Incremental by iclock_transaction.id, so each run reads only what arrived
+// since the last one; a big first backfill is capped per run and carries on.
+// No-ops when no source is configured.
+Schedule::command('biotime:sync')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('biotime-sync');
+
+// Per-day counts against BioTime for the last week: re-reads short days,
+// reports punches deleted at the source, retries unmapped codes.
+Schedule::command('biotime:reconcile --fix')
+    ->dailyAt('02:30')
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('biotime-reconcile');
+
+// Absences: nobody punched, so no sync touched the day — this records them
+// once each shift is over. Hourly for today and yesterday; nightly for the
+// week, so a shift or holiday change reaches recent days too.
+Schedule::command('attendance:process --days=2')
+    ->hourlyAt(15)
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('attendance-process-recent');
+
+Schedule::command('attendance:process --days=7')
+    ->dailyAt('01:30')
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('attendance-process-week');
