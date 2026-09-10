@@ -1087,6 +1087,48 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('knowbe4/sync', [\App\Http\Controllers\Admin\Knowbe4Controller::class, 'sync'])->name('knowbe4.sync');
         });
 
+        // ── Attendance (ZKTeco BioTime) ───────────────────────────
+        // Punches are copied read-only from one or more BioTime SQL Server
+        // databases by biotime:sync. See BIOTIME_ATTENDANCE_SETUP.md.
+        Route::prefix('attendance')->name('attendance.')->group(function () {
+            Route::middleware('permission:view-attendance')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'index'])->name('days.index');
+                Route::get('export', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'export'])->name('days.export');
+                Route::get('days/{day}', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'show'])->name('days.show');
+                Route::get('employees', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'index'])->name('employees.index');
+                Route::get('areas', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'index'])->name('areas.index');
+                Route::get('shifts', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'index'])->name('shifts.index');
+                Route::get('holidays', [\App\Http\Controllers\Admin\Attendance\AttendanceHolidayController::class, 'index'])->name('holidays.index');
+            });
+
+            // Connections hold SQL credentials; links decide whose punches are whose.
+            Route::middleware('permission:manage-attendance')->group(function () {
+                Route::post('reprocess', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'reprocess'])->name('days.reprocess');
+                Route::post('employees/automatch', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'automatch'])->name('employees.automatch');
+                Route::post('employees/{biotimeEmployee}/link', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'link'])->name('employees.link');
+                Route::post('employees/{biotimeEmployee}/no-employee', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'noEmployee'])->name('employees.no-employee');
+                Route::post('employees/{biotimeEmployee}/reset', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'reset'])->name('employees.reset');
+                Route::put('areas/{area}', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'update'])->name('areas.update');
+                Route::get('sources', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'index'])->name('sources.index');
+                Route::get('sources/create', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'create'])->name('sources.create');
+                Route::post('sources', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'store'])->name('sources.store');
+                Route::get('sources/{source}/edit', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'edit'])->name('sources.edit');
+                Route::put('sources/{source}', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'update'])->name('sources.update');
+                Route::post('sources/{source}/test', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'test'])->name('sources.test');
+                Route::post('sources/{source}/sync', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'sync'])->name('sources.sync');
+                Route::post('shifts', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'store'])->name('shifts.store');
+                Route::put('shifts/{shift}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'update'])->name('shifts.update');
+                Route::delete('shifts/{shift}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'destroy'])->name('shifts.destroy');
+                Route::post('shift-assignments', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'assign'])->name('shifts.assign');
+                Route::delete('shift-assignments/{assignment}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'unassign'])->name('shifts.unassign');
+                Route::post('holidays', [\App\Http\Controllers\Admin\Attendance\AttendanceHolidayController::class, 'store'])->name('holidays.store');
+                Route::delete('holidays/{holiday}', [\App\Http\Controllers\Admin\Attendance\AttendanceHolidayController::class, 'destroy'])->name('holidays.destroy');
+                // Corrections: never edit punches, always leave a reason and a history.
+                Route::post('days/{day}/adjustments', [\App\Http\Controllers\Admin\Attendance\AttendanceAdjustmentController::class, 'store'])->name('days.adjust');
+                Route::post('adjustments/{adjustment}/revoke', [\App\Http\Controllers\Admin\Attendance\AttendanceAdjustmentController::class, 'revoke'])->name('adjustments.revoke');
+            });
+        });
+
         // ── Employee home portal authoring ────────────────────────
         // What the whole company reads on home.samirgroup.net each morning.
         Route::middleware('permission:manage-announcements')->group(function () {

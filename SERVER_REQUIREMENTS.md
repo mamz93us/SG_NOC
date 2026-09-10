@@ -64,6 +64,7 @@ php -m | grep -iE '^(openssl|gd|zip|sockets|curl|mbstring|json|fileinfo|bcmath|i
 | `fileinfo` | bundled | upload MIME detection |
 | `sodium` | bundled | Laravel encryption / hashing |
 | `xml`, `dom` | `php8.3-xml` | Excel, SOAP, RSS/feed parsing |
+| `sqlsrv`, `pdo_sqlsrv` | Microsoft PECL + `msodbcsql18` — **not in apt**, run `sudo bash deployment/biotime/install-sqlsrv.sh` | Attendance: reading ZKTeco BioTime's SQL Server (`biotime:sync`). See [BIOTIME_ATTENDANCE_SETUP.md](BIOTIME_ATTENDANCE_SETUP.md). |
 
 ---
 
