@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Admin\Attendance;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Attendance\AttendanceTask;
 use App\Models\Attendance\BiotimeArea;
 use App\Models\Attendance\BiotimeSource;
 use App\Models\Attendance\BiotimeTerminal;
 use App\Models\Branch;
-use App\Services\Attendance\EmployeeLinker;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -33,30 +33,29 @@ class BiotimeAreaController extends Controller
         ]);
     }
 
-    public function update(Request $request, BiotimeArea $area, EmployeeLinker $linker): RedirectResponse
+    public function update(Request $request, BiotimeArea $area): RedirectResponse
     {
         $data = $this->validated($request);
         $old = $area->only(['branch_id', 'timezone']);
         $area->update($data);
         $this->log('BiotimeArea', $area->id, ['area_alias' => $area->area_alias, 'old' => $old, 'new' => $data]);
 
-        $linked = $this->relink($linker, $area->source);
+        $this->queueRelink($area->source);
 
-        return back()->with('success', "Area \"{$area->area_alias}\" saved."
-            .($linked ? " {$linked} previously ambiguous code(s) are now linked." : ''));
+        return back()->with('success', "Area \"{$area->area_alias}\" saved. Codes that match two employees are being re-checked in the background.");
     }
 
-    public function updateTerminal(Request $request, BiotimeTerminal $terminal, EmployeeLinker $linker): RedirectResponse
+    public function updateTerminal(Request $request, BiotimeTerminal $terminal): RedirectResponse
     {
         $data = $this->validated($request);
         $old = $terminal->only(['branch_id', 'timezone']);
         $terminal->update($data);
         $this->log('BiotimeTerminal', $terminal->id, ['terminal_sn' => $terminal->terminal_sn, 'old' => $old, 'new' => $data]);
 
-        $linked = $this->relink($linker, $terminal->source);
+        $this->queueRelink($terminal->source);
 
         return back()->with('success', 'Terminal "'.($terminal->terminal_alias ?: $terminal->terminal_sn).'" saved.'
-            .($linked ? " {$linked} previously ambiguous code(s) are now linked." : ''));
+            .' Codes that match two employees are being re-checked in the background.');
     }
 
     private function validated(Request $request): array
@@ -67,12 +66,13 @@ class BiotimeAreaController extends Controller
         ]);
     }
 
-    /** A branch settles codes matching two employees, so ambiguous ones may resolve now. */
-    private function relink(EmployeeLinker $linker, ?BiotimeSource $source): int
+    /**
+     * A branch settles codes matching two employees, so ambiguous ones may
+     * resolve now. Queued: relinking rebuilds every day those codes touch.
+     */
+    private function queueRelink(?BiotimeSource $source): void
     {
-        @set_time_limit(300);
-
-        return $linker->retryUnlinked($source);
+        AttendanceTask::queue('relink', ['source_id' => $source?->id], 'Re-match unmapped codes'.($source ? " of {$source->name}" : ''), Auth::id());
     }
 
     private function log(string $type, int $id, array $changes): void

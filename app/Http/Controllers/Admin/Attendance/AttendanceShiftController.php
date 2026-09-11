@@ -6,10 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Attendance\AttendanceShift;
 use App\Models\Attendance\AttendanceShiftAssignment;
+use App\Models\Attendance\AttendanceTask;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
-use App\Services\Attendance\AttendanceDayProcessor;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,12 +19,16 @@ use Illuminate\View\View;
 
 /**
  * Admin → Attendance → Shifts: the shifts themselves, and who works which.
+ *
+ * A change queues a recalculation of the recent days for the people it
+ * covers (AttendanceTask, run by `attendance:work`). Doing it inline — 14
+ * days for everyone — held a PHP-FPM worker past nginx's timeout: a 504.
  */
 class AttendanceShiftController extends Controller
 {
     /**
-     * A change rebuilds this many days back straight away. Older days follow
-     * with `php artisan attendance:process --from=…`.
+     * A change recalculates this many days back. Older days follow with
+     * `php artisan attendance:process --from=…`.
      */
     public const REBUILD_DAYS = 14;
 
@@ -57,15 +61,15 @@ class AttendanceShiftController extends Controller
         return back()->with('success', "Shift \"{$shift->name}\" created. Assign it below to put it to use.");
     }
 
-    public function update(Request $request, AttendanceShift $shift, AttendanceDayProcessor $processor): RedirectResponse
+    public function update(Request $request, AttendanceShift $shift): RedirectResponse
     {
         $old = $shift->only($shift->getFillable());
         $shift->update($this->validated($request));
         $this->log('AttendanceShift', $shift->id, 'updated', ['old' => $old, 'new' => $shift->only($shift->getFillable())]);
 
-        $days = $this->rebuild($processor, $shift->assignments()->get());
+        $queued = $this->queueRebuild($shift->assignments()->get(), "shift \"{$shift->name}\" changed");
 
-        return back()->with('success', "Shift \"{$shift->name}\" saved.".$this->rebuiltNote($days));
+        return back()->with('success', "Shift \"{$shift->name}\" saved.".$this->queuedNote($queued));
     }
 
     public function destroy(AttendanceShift $shift): RedirectResponse
@@ -80,7 +84,7 @@ class AttendanceShiftController extends Controller
         return back()->with('success', "Shift \"{$shift->name}\" deleted.");
     }
 
-    public function assign(Request $request, AttendanceDayProcessor $processor): RedirectResponse
+    public function assign(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'attendance_shift_id' => 'required|integer|exists:attendance_shifts,id',
@@ -113,31 +117,28 @@ class AttendanceShiftController extends Controller
         ]);
         $this->log('AttendanceShiftAssignment', $assignment->id, 'created', $assignment->only($assignment->getFillable()));
 
-        $days = $this->rebuild($processor, collect([$assignment]));
+        $queued = $this->queueRebuild(collect([$assignment]), 'shift assigned');
 
-        return back()->with('success', 'Shift assigned.'.$this->rebuiltNote($days));
+        return back()->with('success', 'Shift assigned.'.$this->queuedNote($queued));
     }
 
-    public function unassign(AttendanceShiftAssignment $assignment, AttendanceDayProcessor $processor): RedirectResponse
+    public function unassign(AttendanceShiftAssignment $assignment): RedirectResponse
     {
         $removed = clone $assignment;
         $assignment->delete();
         $this->log('AttendanceShiftAssignment', $removed->id, 'deleted', $removed->only($removed->getFillable()));
 
-        $days = $this->rebuild($processor, collect([$removed]));
+        $queued = $this->queueRebuild(collect([$removed]), 'shift assignment removed');
 
-        return back()->with('success', 'Assignment removed.'.$this->rebuiltNote($days));
+        return back()->with('success', 'Assignment removed.'.$this->queuedNote($queued));
     }
 
-    /** Rebuilds the recent days of everyone the assignments cover. */
-    private function rebuild(AttendanceDayProcessor $processor, Collection $assignments): int
+    /** Queues a recalculation of the recent days of everyone the assignments cover. */
+    private function queueRebuild(Collection $assignments, string $why): int
     {
-        $processor->shifts()->forget();
-        @set_time_limit(300);
-
         $today = CarbonImmutable::today();
         $floor = $today->subDays(self::REBUILD_DAYS - 1);
-        $days = 0;
+        $queued = 0;
 
         foreach ($assignments as $assignment) {
             $from = CarbonImmutable::parse($assignment->effective_from->toDateString());
@@ -150,10 +151,15 @@ class AttendanceShiftController extends Controller
                 continue;
             }
 
-            $days += $processor->rebuildRange($from->toDateString(), $to->toDateString(), $this->employeeIds($assignment));
+            AttendanceTask::queue('rebuild', [
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString(),
+                'employee_ids' => $this->employeeIds($assignment),
+            ], "Recalculate {$from->format('d M')} – {$to->format('d M')} ({$why})", Auth::id());
+            $queued++;
         }
 
-        return $days;
+        return $queued;
     }
 
     /** @return list<int>|null null = everyone */
@@ -167,10 +173,10 @@ class AttendanceShiftController extends Controller
         };
     }
 
-    private function rebuiltNote(int $days): string
+    private function queuedNote(int $queued): string
     {
-        return $days
-            ? " {$days} day(s) from the last ".self::REBUILD_DAYS.' days were recalculated.'
+        return $queued
+            ? ' The last '.self::REBUILD_DAYS.' days are being recalculated in the background — the banner above shows when it is done.'
             : '';
     }
 

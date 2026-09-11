@@ -6,6 +6,7 @@ use App\Models\Attendance\AttendanceHoliday;
 use App\Models\Attendance\AttendancePunch;
 use App\Models\Attendance\AttendanceShift;
 use App\Models\Attendance\AttendanceShiftAssignment;
+use App\Models\Attendance\AttendanceTask;
 use App\Models\Attendance\BiotimeEmployee;
 use App\Models\Attendance\BiotimeSource;
 use App\Models\Attendance\BiotimeTerminal;
@@ -68,7 +69,7 @@ beforeEach(function () {
         $t->string('pin')->nullable();
     });
 
-    foreach (['attendance_adjustments', 'attendance_holidays', 'attendance_shift_assignments', 'attendance_shifts',
+    foreach (['attendance_tasks', 'attendance_adjustments', 'attendance_holidays', 'attendance_shift_assignments', 'attendance_shifts',
         'attendance_days', 'attendance_punches', 'biotime_employees', 'biotime_terminals', 'biotime_areas',
         'biotime_sources', 'noc_events', 'azure_branch_mappings', 'employees', 'branches'] as $table) {
         Schema::dropIfExists($table);
@@ -691,4 +692,54 @@ it('counts access-control punches per day the same on both sides for reconcile',
 
     expect($remote)->toBe(['2025-06-11' => 2, '2025-06-12' => 1])
         ->and($sync->localDailyCounts($source, '2025-06-10'))->toBe($remote);
+});
+
+// ── Background work (attendance:work) ────────────────────────────────
+
+it('runs a queued recalculation in the background', function () {
+    assignShift();
+    linkedEmployeeWithTuesday();
+    AttendanceTask::queue('rebuild', ['from' => '2026-09-09', 'to' => '2026-09-09', 'employee_ids' => null], 'Recalculate 9 Sep');
+
+    $this->artisan('attendance:work')->assertSuccessful();
+
+    expect(AttendanceTask::sole()->status)->toBe(AttendanceTask::DONE)
+        ->and(AttendanceTask::sole()->result)->toContain('day(s) recalculated')
+        ->and(AttendanceDay::where('work_date', '2026-09-09')->value('status'))->toBe('absent');
+});
+
+it('queues the same work only once however often it is asked for', function () {
+    AttendanceTask::queue('sync', ['source_id' => 1], 'Sync A');
+    AttendanceTask::queue('sync', ['source_id' => 1], 'Sync A');
+    AttendanceTask::queue('sync', ['source_id' => 2], 'Sync B');
+
+    expect(AttendanceTask::count())->toBe(2);
+});
+
+it('runs a queued sync against the source', function () {
+    app()->instance(BioTimeConnection::class, bioTimeOn('biotime_fake'));
+    app()->instance(PunchReaders::class, testReaders());
+    attendanceEmployee(10, 'Ahmed', '1001', 1);
+    biotimePunch(1, '1001', '2026-09-09 08:55:00');
+    $source = biotimeSource();
+    AttendanceTask::queue('sync', ['source_id' => $source->id], 'Sync BioTime KSA');
+
+    $this->artisan('attendance:work')->assertSuccessful();
+
+    expect(AttendanceTask::sole()->status)->toBe(AttendanceTask::DONE)
+        ->and(AttendancePunch::count())->toBe(1);
+});
+
+it('records a failed task and still runs the next one', function () {
+    assignShift();
+    linkedEmployeeWithTuesday();
+    AttendanceTask::queue('sync', ['source_id' => 999], 'Sync a deleted source');
+    AttendanceTask::queue('rebuild', ['from' => '2026-09-09', 'to' => '2026-09-09', 'employee_ids' => null], 'Recalculate 9 Sep');
+
+    $this->artisan('attendance:work')->assertSuccessful();
+
+    $tasks = AttendanceTask::orderBy('id')->get();
+    expect($tasks[0]->status)->toBe(AttendanceTask::FAILED)
+        ->and($tasks[0]->result)->toBe('That source no longer exists.')
+        ->and($tasks[1]->status)->toBe(AttendanceTask::DONE);
 });

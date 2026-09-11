@@ -908,11 +908,21 @@ Schedule::command('ai:prune-conversations')
 // Incremental by iclock_transaction.id, so each run reads only what arrived
 // since the last one; a big first backfill is capped per run and carries on.
 // No-ops when no source is configured.
-Schedule::command('biotime:sync')
+// --max-seconds keeps each run inside its 5-minute slot, so runs never pile up.
+Schedule::command('biotime:sync --max-seconds=240')
     ->everyFiveMinutes()
     ->withoutOverlapping(30)
     ->runInBackground()
     ->name('biotime-sync');
+
+// Work the attendance pages queue instead of doing inline (a web request that
+// ran it held a PHP-FPM worker for minutes and ended in a 504): "Sync now",
+// recalculations after shift / holiday changes, re-matching codes.
+Schedule::command('attendance:work')
+    ->everyMinute()
+    ->withoutOverlapping(120)
+    ->runInBackground()
+    ->name('attendance-work');
 
 // Per-day counts against BioTime for the last week: re-reads short days,
 // reports punches deleted at the source, retries unmapped codes.

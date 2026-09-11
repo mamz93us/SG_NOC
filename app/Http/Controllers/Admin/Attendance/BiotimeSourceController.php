@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\Attendance;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Attendance\AttendanceTask;
 use App\Models\Attendance\BiotimeSource;
 use App\Models\Branch;
 use App\Services\Attendance\BioTimeConnection;
@@ -12,7 +13,6 @@ use App\Services\Attendance\Readers\AccessTransactionReader;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -115,24 +115,16 @@ class BiotimeSourceController extends Controller
     }
 
     /**
-     * Runs inline: production has no queue worker, and the operator wants to
-     * see what happened. Capped at 20k rows so a first backfill cannot 504 —
-     * the scheduler picks up the rest.
+     * Queued, never inline: a sync can take minutes, and doing it in the
+     * request held a PHP-FPM worker until nginx gave up with a 504.
+     * `attendance:work` starts it within a minute; the banner shows progress.
      */
     public function sync(BiotimeSource $source): RedirectResponse
     {
-        @set_time_limit(300);
-
-        try {
-            $exit = Artisan::call('biotime:sync', ['--source' => $source->id, '--max-rows' => 20000]);
-            $output = trim(Artisan::output());
-        } catch (\Throwable $e) {
-            return redirect()->route('admin.attendance.sources.index')
-                ->with('error', 'Sync failed: '.BioTimeConnection::cleanError($e));
-        }
+        AttendanceTask::queue('sync', ['source_id' => $source->id], "Sync {$source->name}", Auth::id());
 
         return redirect()->route('admin.attendance.sources.index')
-            ->with($exit === 0 ? 'success' : 'error', $output ?: 'Sync finished.');
+            ->with('success', "Sync of \"{$source->name}\" queued — it starts within a minute. The banner above shows when it is done.");
     }
 
     private function form(BiotimeSource $source): View

@@ -202,8 +202,8 @@
 
 <p class="small text-muted mt-3 mb-0">
     New punches are pulled every 5 minutes by <code>biotime:sync</code> — BioTime by id, so punches a terminal uploads late
-    are still picked up; access control by time and id. "Sync now" reads at most 20,000 rows; a first backfill continues
-    on the schedule.
+    are still picked up; access control by time and id. "Sync now" queues a sync that starts within a minute; a first
+    backfill continues on the schedule.
 </p>
 
 <script>

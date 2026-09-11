@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Admin\Attendance;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Attendance\AttendanceHoliday;
+use App\Models\Attendance\AttendanceTask;
 use App\Models\Branch;
 use App\Models\Employee;
-use App\Services\Attendance\AttendanceDayProcessor;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,8 +15,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 /**
- * Admin → Attendance → Holidays. Adding or removing one recalculates the
- * affected days at once, so an absence on a new holiday disappears.
+ * Admin → Attendance → Holidays. Adding or removing one queues a
+ * recalculation of those days, so an absence on a new holiday disappears.
  */
 class AttendanceHolidayController extends Controller
 {
@@ -34,7 +34,7 @@ class AttendanceHolidayController extends Controller
         ]);
     }
 
-    public function store(Request $request, AttendanceDayProcessor $processor): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'holiday_date' => 'required|date',
@@ -62,38 +62,39 @@ class AttendanceHolidayController extends Controller
         }
 
         $this->log(0, 'created', $data);
-        $days = $this->rebuild($processor, $from, $to, $branchId);
+        $queued = $this->queueRebuild($from, $to, $branchId, "holiday \"{$data['name']}\" added");
 
-        return back()->with('success', "{$added} holiday day(s) added.".($days ? " {$days} day(s) recalculated." : ''));
+        return back()->with('success', "{$added} holiday day(s) added.".($queued ? ' Those days are being recalculated in the background.' : ''));
     }
 
-    public function destroy(AttendanceHoliday $holiday, AttendanceDayProcessor $processor): RedirectResponse
+    public function destroy(AttendanceHoliday $holiday): RedirectResponse
     {
         $date = CarbonImmutable::parse($holiday->holiday_date->toDateString());
         $branchId = $holiday->branch_id;
         $holiday->delete();
         $this->log($holiday->id, 'deleted', ['holiday_date' => $date->toDateString(), 'name' => $holiday->name, 'branch_id' => $branchId]);
 
-        $days = $this->rebuild($processor, $date, $date, $branchId);
+        $queued = $this->queueRebuild($date, $date, $branchId, "holiday \"{$holiday->name}\" removed");
 
-        return back()->with('success', "Holiday \"{$holiday->name}\" removed.".($days ? " {$days} day(s) recalculated." : ''));
+        return back()->with('success', "Holiday \"{$holiday->name}\" removed.".($queued ? ' That day is being recalculated in the background.' : ''));
     }
 
-    private function rebuild(AttendanceDayProcessor $processor, CarbonImmutable $from, CarbonImmutable $to, ?int $branchId): int
+    /** Future holidays need nothing: no day has been recorded for them yet. */
+    private function queueRebuild(CarbonImmutable $from, CarbonImmutable $to, ?int $branchId, string $why): bool
     {
         $today = CarbonImmutable::today();
         if ($from->greaterThan($today)) {
-            return 0;
+            return false;
         }
+        $to = $to->greaterThan($today) ? $today : $to;
 
-        $processor->shifts()->forget();
-        @set_time_limit(300);
+        AttendanceTask::queue('rebuild', [
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+            'employee_ids' => $branchId ? Employee::where('branch_id', $branchId)->pluck('id')->all() : null,
+        ], "Recalculate {$from->format('d M')} – {$to->format('d M')} ({$why})", Auth::id());
 
-        return $processor->rebuildRange(
-            $from->toDateString(),
-            ($to->greaterThan($today) ? $today : $to)->toDateString(),
-            $branchId ? Employee::where('branch_id', $branchId)->pluck('id')->all() : null,
-        );
+        return true;
     }
 
     private function log(int $id, string $action, array $changes): void

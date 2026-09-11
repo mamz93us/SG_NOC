@@ -18,7 +18,8 @@ class BioTimeSync extends Command
     protected $signature = 'biotime:sync
         {--source= : Only this source id (runs even if the source is disabled)}
         {--since= : Re-read punches from this date (Y-m-d) instead of the watermark}
-        {--max-rows=200000 : Stop after this many rows per source; the next run carries on}';
+        {--max-rows=200000 : Stop after this many rows per source; the next run carries on}
+        {--max-seconds= : Stop each source after about this many seconds; the next run carries on}';
 
     protected $description = 'Copy new ZKTeco BioTime punches into attendance_punches and rebuild the affected days';
 
@@ -42,11 +43,12 @@ class BioTimeSync extends Command
         }
 
         $maxRows = max(1, (int) $this->option('max-rows'));
+        $maxSeconds = $this->option('max-seconds') !== null ? max(1, (int) $this->option('max-seconds')) : null;
         $failed = 0;
 
         foreach ($sources as $source) {
             try {
-                $r = $sync->sync($source, $since, $maxRows);
+                $r = $sync->sync($source, $since, $maxRows, $maxSeconds);
             } catch (\Throwable $e) {
                 $failed++;
                 $this->error("{$source->name}: ".BioTimeConnection::cleanError($e));
