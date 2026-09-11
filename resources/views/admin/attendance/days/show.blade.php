@@ -141,10 +141,12 @@
                         @php
                             $firstIn = $day->first_in?->format('Y-m-d H:i:s');
                             $lastOut = $day->last_out?->format('Y-m-d H:i:s');
+                            // The check-out is the LAST punch at that time, even inside a burst of repeats.
+                            $outIndex = $punches->filter(fn ($p) => $p->punch_time->format('Y-m-d H:i:s') === $lastOut)->keys()->last();
                             $previous = null;
                             $inMarked = false;
                         @endphp
-                        @forelse ($punches as $punch)
+                        @forelse ($punches as $index => $punch)
                             @php
                                 $time = $punch->punch_time->format('Y-m-d H:i:s');
                                 $isDuplicate = $previous !== null
@@ -156,7 +158,7 @@
                                 if (! $inMarked && $time === $firstIn) {
                                     $role = 'in';
                                     $inMarked = true;
-                                } elseif (! $isDuplicate && $time === $lastOut) {
+                                } elseif ($index === $outIndex) {
                                     $role = 'out';
                                 }
                             @endphp
