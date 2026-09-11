@@ -49,6 +49,28 @@ $everyN = function (int $n): string {
     return "0 */{$h} * * *";
 };
 
+// ─── Attendance: the frequent jobs, registered FIRST ────────────────
+// schedule:run launches due events in the order they are defined, and
+// foreground jobs further down (pings, SNMP discovery) hold each minute's run
+// for many minutes. Defined at the end, these background jobs only launched
+// once the run got past them — syncs fell behind and queued work waited.
+// Incremental by each source's watermark; --max-seconds keeps a run inside its
+// 5-minute slot. No-ops when no source is configured.
+Schedule::command('biotime:sync --max-seconds=240')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('biotime-sync');
+
+// Work the attendance pages queue instead of doing inline (in the request it
+// held a PHP-FPM worker for minutes and ended in a 504): "Sync now",
+// recalculations after shift / holiday changes, re-matching codes.
+Schedule::command('attendance:work')
+    ->everyMinute()
+    ->withoutOverlapping(120)
+    ->runInBackground()
+    ->name('attendance-work');
+
 // GDMS Contact Sync
 Schedule::command('gdms:sync-contacts')
     ->cron($everyN($gdmsInterval))
@@ -905,24 +927,7 @@ Schedule::command('ai:prune-conversations')
     ->name('ai-prune-conversations');
 
 // ─── Attendance (ZKTeco BioTime) ──────────────────────────────────
-// Incremental by iclock_transaction.id, so each run reads only what arrived
-// since the last one; a big first backfill is capped per run and carries on.
-// No-ops when no source is configured.
-// --max-seconds keeps each run inside its 5-minute slot, so runs never pile up.
-Schedule::command('biotime:sync --max-seconds=240')
-    ->everyFiveMinutes()
-    ->withoutOverlapping(30)
-    ->runInBackground()
-    ->name('biotime-sync');
-
-// Work the attendance pages queue instead of doing inline (a web request that
-// ran it held a PHP-FPM worker for minutes and ended in a 504): "Sync now",
-// recalculations after shift / holiday changes, re-matching codes.
-Schedule::command('attendance:work')
-    ->everyMinute()
-    ->withoutOverlapping(120)
-    ->runInBackground()
-    ->name('attendance-work');
+// biotime:sync and attendance:work are registered at the top of this file.
 
 // Per-day counts against BioTime for the last week: re-reads short days,
 // reports punches deleted at the source, retries unmapped codes.
