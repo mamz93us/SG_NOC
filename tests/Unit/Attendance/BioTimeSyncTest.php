@@ -3,6 +3,7 @@
 use App\Models\Attendance\AttendanceAdjustment;
 use App\Models\Attendance\AttendanceDay;
 use App\Models\Attendance\AttendanceHoliday;
+use App\Models\Attendance\AttendancePeriod;
 use App\Models\Attendance\AttendancePunch;
 use App\Models\Attendance\AttendanceShift;
 use App\Models\Attendance\AttendanceShiftAssignment;
@@ -14,6 +15,7 @@ use App\Models\Employee;
 use App\Models\NocEvent;
 use App\Services\Attendance\AttendanceDayBuilder;
 use App\Services\Attendance\AttendanceDayProcessor;
+use App\Services\Attendance\AttendancePeriodService;
 use App\Services\Attendance\BioTimeConnection;
 use App\Services\Attendance\BioTimeSyncService;
 use App\Services\Attendance\EmployeeLinker;
@@ -69,7 +71,7 @@ beforeEach(function () {
         $t->string('pin')->nullable();
     });
 
-    foreach (['attendance_tasks', 'attendance_adjustments', 'attendance_holidays', 'attendance_shift_assignments', 'attendance_shifts',
+    foreach (['attendance_exports', 'attendance_periods', 'attendance_tasks', 'attendance_adjustments', 'attendance_holidays', 'attendance_shift_assignments', 'attendance_shifts',
         'attendance_days', 'attendance_punches', 'biotime_employees', 'biotime_terminals', 'biotime_areas',
         'biotime_sources', 'noc_events', 'azure_branch_mappings', 'employees', 'branches'] as $table) {
         Schema::dropIfExists($table);
@@ -742,4 +744,125 @@ it('records a failed task and still runs the next one', function () {
     expect($tasks[0]->status)->toBe(AttendanceTask::FAILED)
         ->and($tasks[0]->result)->toBe('That source no longer exists.')
         ->and($tasks[1]->status)->toBe(AttendanceTask::DONE);
+});
+
+// ── Phase 3: periods, approval, lock, Oracle export ──────────────────
+
+function attendancePeriod(string $from = '2026-09-08', string $to = '2026-09-09', ?int $branchId = null): AttendancePeriod
+{
+    return AttendancePeriod::create([
+        'name' => 'Test period', 'branch_id' => $branchId, 'date_from' => $from, 'date_to' => $to, 'status' => AttendancePeriod::OPEN,
+    ]);
+}
+
+/** Employee 10 with a clean 9 Sep: 08:55 to 17:05. */
+function cleanNinthOfSeptember(): BiotimeSource
+{
+    attendanceEmployee(10, 'Ahmed', '1001', 1);
+    biotimePunch(1, '1001', '2026-09-09 08:55:00');
+    biotimePunch(2, '1001', '2026-09-09 17:05:00');
+    $source = biotimeSource();
+    bioTimeSync()->sync($source);
+
+    return $source;
+}
+
+it('will not approve a period while a day in it has a data error', function () {
+    attendanceEmployee(10, 'Ahmed', '1001', 1);
+    biotimePunch(1, '1001', '2026-09-09 08:55:00'); // a lone punch: missing check-out
+    bioTimeSync()->sync(biotimeSource());
+    $period = attendancePeriod();
+    $service = new AttendancePeriodService;
+
+    $readiness = $service->readiness($period);
+    expect($readiness['errors'])->toBe(1)
+        ->and($readiness['by_flag'])->toBe([AttendanceDayBuilder::FLAG_MISSING_CHECK_OUT => 1])
+        ->and($readiness['blockers'])->not->toBeEmpty();
+
+    expect(fn () => $service->approve($period, null))->toThrow(RuntimeException::class);
+    expect($period->fresh()->status)->toBe(AttendancePeriod::OPEN)
+        ->and(AttendanceDay::sole()->locked)->toBeFalse();
+});
+
+it('will not approve a period whose last day is not over', function () {
+    cleanNinthOfSeptember();
+    $period = attendancePeriod('2026-09-08', '2026-09-10'); // "today" in these tests
+
+    expect((new AttendancePeriodService)->readiness($period)['blockers'])->toHaveCount(1);
+});
+
+it('locks approved days: later punches and rebuilds leave them as approved, reopening applies them', function () {
+    $source = cleanNinthOfSeptember();
+    $period = attendancePeriod();
+    $service = new AttendancePeriodService;
+
+    $service->approve($period, null);
+
+    expect(AttendanceDay::sole()->locked)->toBeTrue()
+        ->and($period->fresh()->status)->toBe(AttendancePeriod::APPROVED)
+        ->and(AttendanceTask::where('type', 'export')->count())->toBe(1);
+
+    // A terminal uploads a late punch after approval (the clock moves on).
+    Carbon::setTestNow('2026-09-10 12:05:00');
+    CarbonImmutable::setTestNow('2026-09-10 12:05:00');
+    biotimePunch(3, '1001', '2026-09-09 19:30:00');
+    bioTimeSync()->sync($source);
+    attendanceProcessor()->rebuildRange('2026-09-08', '2026-09-09');
+
+    expect(AttendancePunch::count())->toBe(3)
+        ->and(AttendanceDay::sole()->last_out->format('H:i'))->toBe('17:05')
+        ->and($service->punchesAfterApproval($period->fresh()))->toBe(1);
+
+    $service->reopen($period->fresh(), null, 'Late upload from the IN terminal');
+    attendanceProcessor()->rebuildRange('2026-09-08', '2026-09-09');
+
+    expect($period->fresh()->status)->toBe(AttendancePeriod::OPEN)
+        ->and(AttendanceDay::sole()->locked)->toBeFalse()
+        ->and(AttendanceDay::sole()->last_out->format('H:i'))->toBe('19:30');
+});
+
+it('prepares the Oracle payload for an approved period without sending it', function () {
+    cleanNinthOfSeptember();
+    $period = attendancePeriod();
+    $service = new AttendancePeriodService;
+    $service->approve($period, null);
+
+    $export = $service->export($period->fresh(), null);
+
+    expect($export->status)->toBe('prepared')
+        ->and($export->sender)->toBe('StubOracleAttendanceSender')
+        ->and($export->record_count)->toBe(1)
+        ->and($period->fresh()->status)->toBe(AttendancePeriod::APPROVED);
+
+    expect(json_decode($export->payload, true)['records'][0])->toMatchArray([
+        'oracle_emp_no' => '1001',
+        'employee_name' => 'Ahmed',
+        'date' => '2026-09-09',
+        'status' => 'present',
+        'check_in' => '2026-09-09 08:55:00',
+        'check_out' => '2026-09-09 17:05:00',
+        'worked_minutes' => 490,
+        'corrected' => false,
+    ]);
+});
+
+it('runs a queued export in the background', function () {
+    cleanNinthOfSeptember();
+    $period = attendancePeriod();
+    (new AttendancePeriodService)->approve($period, null);
+
+    $this->artisan('attendance:work')->assertSuccessful();
+
+    expect(AttendanceTask::where('type', 'export')->sole()->status)->toBe(AttendanceTask::DONE)
+        ->and($period->exports()->count())->toBe(1);
+});
+
+it('finds periods that would cover the same people on the same days', function () {
+    DB::table('branches')->insert(['id' => 3, 'name' => 'Riyadh']);
+    AttendancePeriod::create(['name' => 'Jeddah Sep', 'branch_id' => 1, 'date_from' => '2026-09-01', 'date_to' => '2026-09-30']);
+
+    expect(AttendancePeriod::overlapping('2026-09-15', '2026-10-15', 1)->exists())->toBeTrue()   // same branch
+        ->and(AttendancePeriod::overlapping('2026-09-15', '2026-10-15', null)->exists())->toBeTrue() // all branches
+        ->and(AttendancePeriod::overlapping('2026-09-15', '2026-10-15', 3)->exists())->toBeFalse()   // another branch
+        ->and(AttendancePeriod::overlapping('2026-10-01', '2026-10-31', 1)->exists())->toBeFalse();  // next month
 });

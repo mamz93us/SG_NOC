@@ -64,6 +64,12 @@
         </a>
     </li>
     <li class="nav-item">
+        <a class="nav-link {{ request()->routeIs('admin.attendance.periods.*') ? 'active' : '' }}"
+           href="{{ route('admin.attendance.periods.index') }}">
+            <i class="bi bi-journal-check me-1"></i>Periods
+        </a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link {{ request()->routeIs('admin.attendance.areas.*') ? 'active' : '' }}"
            href="{{ route('admin.attendance.areas.index') }}">
             <i class="bi bi-geo-alt me-1"></i>Areas &amp; Terminals

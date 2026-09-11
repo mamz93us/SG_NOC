@@ -6,7 +6,7 @@
 @include('admin.attendance._tabs')
 
 @php
-    $canAdjust = $day->employee_id && auth()->user()?->can('manage-attendance');
+    $canAdjust = $day->employee_id && ! $day->locked && auth()->user()?->can('manage-attendance');
     $defaultIn = $day->first_in?->format('Y-m-d\TH:i')
         ?? $day->scheduled_start?->format('Y-m-d\TH:i')
         ?? $day->work_date->format('Y-m-d').'T09:00';
@@ -48,6 +48,19 @@
            class="btn btn-sm btn-outline-primary"><i class="bi bi-link-45deg me-1"></i>Link this code to an employee</a>
     @endif
 </div>
+
+@if ($day->locked)
+    <div class="alert alert-primary small d-flex gap-2">
+        <i class="bi bi-lock-fill"></i>
+        <div>
+            This day is in an approved period
+            @if ($day->period)
+                — <a href="{{ route('admin.attendance.periods.show', $day->period) }}" class="alert-link">{{ $day->period->name }}</a>
+            @endif
+            — and is locked. Reopen the period to change it.
+        </div>
+    </div>
+@endif
 
 <div class="row g-3 mb-3">
     <div class="col-6 col-md-3">

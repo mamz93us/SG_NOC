@@ -436,6 +436,12 @@
                                     <i class="bi bi-calendar-heart me-2"></i>Holidays
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.attendance.periods.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.attendance.periods.index') }}">
+                                    <i class="bi bi-journal-check me-2"></i>Periods
+                                </a>
+                            </li>
                             @can('manage-attendance')
                             <li><hr class="dropdown-divider"></li>
                             <li>

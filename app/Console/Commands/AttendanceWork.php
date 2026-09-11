@@ -2,9 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Attendance\AttendancePeriod;
 use App\Models\Attendance\AttendanceTask;
 use App\Models\Attendance\BiotimeSource;
 use App\Services\Attendance\AttendanceDayProcessor;
+use App\Services\Attendance\AttendancePeriodService;
 use App\Services\Attendance\BioTimeConnection;
 use App\Services\Attendance\BioTimeSyncService;
 use App\Services\Attendance\EmployeeLinker;
@@ -54,8 +56,8 @@ class AttendanceWork extends Command
             $ran++;
             $this->line("#{$task->id} {$task->label}");
 
-            // Shifts, holidays and links may have changed since the last task.
-            $processor->shifts()->forget();
+            // Shifts, holidays, links and approvals may have changed since the last task.
+            $processor->forget();
 
             try {
                 $result = $this->perform($task, $sync, $processor, $linker);
@@ -102,6 +104,13 @@ class AttendanceWork extends Command
                 $linked = $linker->retryUnlinked($source);
 
                 return $linked ? "{$linked} code(s) linked to an employee." : 'No new matches.';
+
+            case 'export':
+                $period = AttendancePeriod::find($payload['period_id'] ?? 0)
+                    ?? throw new \RuntimeException('That period no longer exists.');
+                $export = app(AttendancePeriodService::class)->export($period, $task->requested_by);
+
+                return ucfirst($export->status).": {$export->record_count} record(s). {$export->message}";
 
             default:
                 throw new \RuntimeException("Unknown task type \"{$task->type}\".");

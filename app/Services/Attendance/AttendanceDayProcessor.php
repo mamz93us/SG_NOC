@@ -33,6 +33,8 @@ class AttendanceDayProcessor
     /** @var array<string, AttendanceAdjustment>|null preloaded for the range being rebuilt */
     private ?array $adjustments = null;
 
+    private ?PeriodLocks $locks = null;
+
     public function __construct(private AttendanceDayBuilder $builder, ?ShiftResolver $shifts = null)
     {
         $this->shifts = $shifts ?? new ShiftResolver;
@@ -41,6 +43,14 @@ class AttendanceDayProcessor
     public function shifts(): ShiftResolver
     {
         return $this->shifts;
+    }
+
+    /** Drops everything cached — shifts, holidays, links, locations, approved periods. */
+    public function forget(): void
+    {
+        $this->shifts->forget();
+        $this->locations = [];
+        $this->locks = null;
     }
 
     /**
@@ -108,6 +118,7 @@ class AttendanceDayProcessor
         AttendanceDay::query()
             ->whereBetween('work_date', [$from, $to])
             ->when($employeeIds !== null, fn ($q) => $q->whereIn('employee_id', $employeeIds))
+            ->where('locked', false)
             ->select(['id', 'subject_key', 'work_date'])
             ->chunkById(1000, function ($rows) use (&$stale, $written) {
                 foreach ($rows as $row) {
@@ -199,6 +210,12 @@ class AttendanceDayProcessor
             : ['branch_id' => null, 'timezone' => null];
         $employeeBranch = $employee?->branch_id ? (int) $employee->branch_id : null;
 
+        // An approved period is frozen: what was approved is what Oracle gets.
+        // Leave the day — existing or not — exactly as it is.
+        if ($isEmployee && $this->locks()->covers($employeeBranch ?? $location['branch_id'], $date)) {
+            return true;
+        }
+
         $extraFlags = $isEmployee
             ? $this->employeeFlags($employee, $date, $punches)
             : [BiotimeEmployee::find($id)?->isConfirmedNotEmployee()
@@ -224,7 +241,7 @@ class AttendanceDayProcessor
 
         if ($result->status === AttendanceDayBuilder::STATUS_NONE) {
             if (! $knownEmpty) {
-                AttendanceDay::where('subject_key', $subjectKey)->where('work_date', $date)->delete();
+                AttendanceDay::where('subject_key', $subjectKey)->where('work_date', $date)->where('locked', false)->delete();
             }
 
             return false;
@@ -234,33 +251,38 @@ class AttendanceDayProcessor
             ? $punches->pluck('emp_code')->unique()->implode(', ')
             : ($isEmployee ? $this->shifts->codesFor($id) : '');
 
-        AttendanceDay::updateOrCreate(
-            ['subject_key' => $subjectKey, 'work_date' => $date],
-            [
-                'status' => $result->status,
-                'employee_id' => $isEmployee ? $id : null,
-                'biotime_employee_id' => $isEmployee ? null : $id,
-                'branch_id' => $employeeBranch ?? $location['branch_id'],
-                'attendance_shift_id' => $shift?->id,
-                'emp_codes' => mb_substr($codes, 0, 150) ?: null,
-                'scheduled_start' => $result->scheduledStart,
-                'scheduled_end' => $result->scheduledEnd,
-                'window_start' => $windowStart,
-                'window_end' => $windowEnd,
-                'first_in' => $result->firstIn,
-                'last_out' => $result->lastOut,
-                'punch_count' => min($result->punchCount, 65535),
-                'worked_minutes' => $result->workedMinutes,
-                'late_minutes' => $result->lateMinutes,
-                'early_leave_minutes' => $result->earlyLeaveMinutes,
-                'overtime_minutes' => $result->overtimeMinutes,
-                'excuse' => $result->excuse,
-                'attendance_adjustment_id' => $adjustment?->id,
-                'flags' => $result->flags,
-                'has_error' => $result->hasError(),
-                'computed_at' => now(),
-            ]
-        );
+        $row = AttendanceDay::firstOrNew(['subject_key' => $subjectKey, 'work_date' => $date]);
+
+        // The row's own flag is the final guard: a run that loaded the approved
+        // periods before an approval still never rewrites a locked day.
+        if ($row->locked) {
+            return true;
+        }
+
+        $row->fill([
+            'status' => $result->status,
+            'employee_id' => $isEmployee ? $id : null,
+            'biotime_employee_id' => $isEmployee ? null : $id,
+            'branch_id' => $employeeBranch ?? $location['branch_id'],
+            'attendance_shift_id' => $shift?->id,
+            'emp_codes' => mb_substr($codes, 0, 150) ?: null,
+            'scheduled_start' => $result->scheduledStart,
+            'scheduled_end' => $result->scheduledEnd,
+            'window_start' => $windowStart,
+            'window_end' => $windowEnd,
+            'first_in' => $result->firstIn,
+            'last_out' => $result->lastOut,
+            'punch_count' => min($result->punchCount, 65535),
+            'worked_minutes' => $result->workedMinutes,
+            'late_minutes' => $result->lateMinutes,
+            'early_leave_minutes' => $result->earlyLeaveMinutes,
+            'overtime_minutes' => $result->overtimeMinutes,
+            'excuse' => $result->excuse,
+            'attendance_adjustment_id' => $adjustment?->id,
+            'flags' => $result->flags,
+            'has_error' => $result->hasError(),
+            'computed_at' => now(),
+        ])->save();
 
         return true;
     }
@@ -390,6 +412,15 @@ class AttendanceDayProcessor
             ->whereNull('revoked_at')
             ->latest('id')
             ->first();
+    }
+
+    private function locks(): PeriodLocks
+    {
+        if ($this->locks === null || $this->locks->isStale()) {
+            $this->locks = PeriodLocks::load();
+        }
+
+        return $this->locks;
     }
 
     /**

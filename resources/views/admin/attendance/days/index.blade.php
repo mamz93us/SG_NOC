@@ -152,7 +152,12 @@
             <tbody>
                 @forelse ($days as $d)
                     <tr style="cursor:pointer" onclick="window.location='{{ route('admin.attendance.days.show', $d) }}'">
-                        <td class="small text-nowrap">{{ $d->work_date->format('D d M') }}</td>
+                        <td class="small text-nowrap">
+                            {{ $d->work_date->format('D d M') }}
+                            @if ($d->locked)
+                                <i class="bi bi-lock-fill text-muted ms-1" title="In an approved period — locked"></i>
+                            @endif
+                        </td>
                         <td>
                             @if ($d->employee)
                                 <a href="{{ route('admin.attendance.days.show', $d) }}" class="fw-semibold text-decoration-none">{{ $d->employee->name }}</a>

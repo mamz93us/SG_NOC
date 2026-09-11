@@ -27,6 +27,10 @@ class AttendanceAdjustmentController extends Controller
             return back()->with('error', 'Link this BioTime code to an employee first — a correction belongs to a person.');
         }
 
+        if ($day->locked) {
+            return back()->with('error', 'This day is in an approved period and is locked. Reopen the period to correct it.');
+        }
+
         $data = $request->validate([
             'action' => 'required|in:times,excuse',
             'check_in' => 'nullable|date',
@@ -93,6 +97,13 @@ class AttendanceAdjustmentController extends Controller
     {
         if (! $adjustment->isActive()) {
             return back()->with('error', 'That correction was already revoked.');
+        }
+
+        $locked = AttendanceDay::where('subject_key', 'emp:'.$adjustment->employee_id)
+            ->where('work_date', $adjustment->work_date->toDateString())
+            ->value('locked');
+        if ($locked) {
+            return back()->with('error', 'This day is in an approved period and is locked. Reopen the period to change it.');
         }
 
         $adjustment->forceFill(['revoked_at' => now(), 'revoked_by' => Auth::id()])->save();
