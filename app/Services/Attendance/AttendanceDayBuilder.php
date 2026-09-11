@@ -149,8 +149,12 @@ final class AttendanceDayBuilder
             $flags[] = self::FLAG_DUPLICATES;
         }
 
-        $firstIn = $distinct[0] ?? null;
-        $lastOut = count($distinct) > 1 ? $distinct[count($distinct) - 1] : null;
+        // Check-in is the earliest punch and check-out the LATEST — the last
+        // touch of the final burst, not its first (17:00:20 then 17:01:22 at
+        // two terminals is out at 17:01:22). Collapsing repeats only decides
+        // whether there was more than one real punch at all.
+        $firstIn = $times[0] ?? null;
+        $lastOut = count($distinct) > 1 ? $times[count($times) - 1] : null;
 
         // An HR correction replaces the device's times; the punches stay as recorded.
         if ($context->checkIn !== null) {

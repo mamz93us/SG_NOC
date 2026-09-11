@@ -50,6 +50,16 @@ it('collapses a repeat touch within two minutes into one punch', function () {
         ->and($day->hasError())->toBeFalse();
 });
 
+it('uses the latest touch of the final burst as check-out, across both databases', function () {
+    // Taghreed, 2 Aug 2026: biosec IN, Bio1 IN, Bio1 OUT, then biosec Out a minute later.
+    $day = attendanceDay(['2026-09-10 07:49:50', '2026-09-10 07:49:52', '2026-09-10 17:00:20', '2026-09-10 17:01:22']);
+
+    expect($day->firstIn)->toBe('2026-09-10 07:49:50')
+        ->and($day->lastOut)->toBe('2026-09-10 17:01:22')
+        ->and($day->workedMinutes)->toBe(551)
+        ->and($day->flags)->toBe([AttendanceDayBuilder::FLAG_DUPLICATES]);
+});
+
 it('treats two touches seconds apart as one punch, so the check-out is missing', function () {
     $day = attendanceDay(['2026-09-10 08:55:00', '2026-09-10 08:56:30']);
 

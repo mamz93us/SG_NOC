@@ -19,7 +19,10 @@
                         <span><strong>{{ $task->label }}</strong> — running since {{ $task->started_at?->format('H:i') }}</span>
                     @else
                         <i class="bi bi-hourglass-split text-muted"></i>
-                        <span><strong>{{ $task->label }}</strong> — queued {{ $task->created_at?->diffForHumans() }}, starts within a minute</span>
+                        <span>
+                            <strong>{{ $task->label }}</strong> — queued {{ $task->created_at?->diffForHumans() }},
+                            {{ $openTasks->contains('status', 'running') ? 'runs after the task above' : 'starts in a minute or two' }}
+                        </span>
                     @endif
                 </li>
             @endforeach
