@@ -194,13 +194,13 @@ if [ -f "${APP_DIR}/deployment/supervisor/vq-collector.conf" ]; then
 else
     warn "deployment/supervisor/vq-collector.conf missing"
 fi
-# scheduler-as-worker — only add switch-poll if a schedule:run cron isn't already doing the job
+# scheduler-as-worker — the supervisor 'switch-poll' unit runs `schedule:work`; a schedule:run cron as well double-fires every task
 if { crontab -l -u "$APP_USER" 2>/dev/null; cat /etc/crontab /etc/cron.d/* 2>/dev/null; } | grep -q 'schedule:run'; then
     warn "a 'schedule:run' cron already exists — NOT installing switch-poll (would double-run the scheduler)"
-    note "Scheduler: schedule:run is driven by cron. Production canonically uses the supervisor 'switch-poll' unit instead — pick ONE. Running both double-fires every scheduled task (double syncs, double notifications)."
+    note "Scheduler: production uses the supervisor 'switch-poll' unit (php artisan schedule:work), not cron. Remove the schedule:run line ('crontab -e -u $APP_USER') and re-run this script. Running both double-fires every scheduled task (double syncs, double notifications)."
 elif [ -f "${APP_DIR}/deployment/supervisor/switch-poll.conf" ]; then
     install -m 0644 "${APP_DIR}/deployment/supervisor/switch-poll.conf" /etc/supervisor/conf.d/switch-poll.conf
-    ok "switch-poll unit installed (keeps 'php artisan schedule:run' alive)"
+    ok "switch-poll unit installed (php artisan schedule:work — the scheduler)"
 fi
 systemctl enable --now supervisor >/dev/null 2>&1 || true
 supervisorctl reread >/dev/null 2>&1 || true

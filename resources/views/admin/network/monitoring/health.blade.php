@@ -197,10 +197,10 @@
         </div>
         <div class="alert alert-info border-0 mt-3 mb-0 py-2 small">
             <i class="bi bi-info-circle me-1"></i>
-            <strong>Tip:</strong> If hosts show stale data, ensure the Laravel scheduler is running:
-            <code class="ms-1">* * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1</code>
+            <strong>Tip:</strong> If hosts show stale data, check the Laravel scheduler is running:
+            <code class="ms-1">sudo supervisorctl status switch-poll</code>
             <br>
-            <span class="ms-4">Also ensure a queue worker is running: <code>php artisan queue:work --daemon</code></span>
+            <span class="ms-4">Host checks run from the scheduler itself — there is no separate queue worker.</span>
         </div>
     </div>
 </div>

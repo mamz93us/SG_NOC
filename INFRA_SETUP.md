@@ -42,11 +42,7 @@ sudo service php8.2-fpm restart  # or your PHP version
 
 ## 4. Background Jobs
 
-Ensure your Laravel scheduler is running in `crontab -e`:
-
-```text
-* * * * * cd /path/to/phonebook2 && php artisan schedule:run >> /dev/null 2>&1
-```
+The Laravel scheduler runs under supervisor, not cron: `deployment/supervisor/switch-poll.conf` runs `php artisan schedule:work`. Do **not** add a `schedule:run` crontab entry as well — running both double-fires every task.
 
 The following jobs have been scheduled:
 - `CheckVpnStatusJob`: Every minute (Checks tunnel status via `swanctl`)

@@ -43,7 +43,7 @@ Lint:
 Operational (mostly used in production, but valid locally):
 
 ```sh
-php artisan schedule:run       # production runs this every minute via supervisor
+php artisan schedule:run       # one pass over due tasks; production runs schedule:work under supervisor, never cron
 php artisan queue:work         # dev-only — production does NOT run a dedicated worker
 ```
 
@@ -57,7 +57,7 @@ The pieces below need multiple files read together to make sense — start here 
 
 **Auth model.** Microsoft SSO via `laravel/socialite` + `socialiteproviders/microsoft`. The `/portal/*` route group is employee-facing and isolated: guests there are redirected to `route('portal.login')`, everyone else falls back to `route('login')`. Admin pages enforce **fine-grained permissions** (`permission:view-*`, `manage-*`, `export-*`) — not just roles. When adding admin endpoints, gate them with the same scheme.
 
-**Scheduler-as-worker.** Production does not run `queue:work`. Instead, `routes/console.php` registers ~30 scheduled tasks at 1-, 5-, 60-min, daily, and weekly intervals, and `deployment/supervisor/` keeps `php artisan schedule:run` alive. Anything that *must* execute reliably should be a scheduled command, not a queued job. Existing jobs (e.g. `CollectSnmpMetricsJob`, `MatchSyslogAlertsJob`, identity sync jobs) are dispatched from inside scheduled commands rather than relied on through a long-running worker.
+**Scheduler-as-worker.** Production does not run `queue:work`. Instead, `routes/console.php` registers ~80 scheduled tasks, from every 15 s to weekly. The supervisor unit `deployment/supervisor/switch-poll.conf` (the name is historical) runs `php artisan schedule:work`, which starts one `schedule:run` at the top of each minute. **There is no crontab entry — never add one.** Until 2026-09-11 there was a cron line *and* supervisor pointed straight at `schedule:run`, which it restarts the moment it exits, so ~11% of minutes ran their tasks twice. Anything that *must* execute reliably should be a scheduled command, not a queued job. Existing jobs (e.g. `CollectSnmpMetricsJob`, `MatchSyslogAlertsJob`, identity sync jobs) are called from inside scheduled commands rather than relied on through a long-running worker. **Slow tasks must run in the background.** An event without `->runInBackground()` runs *inside* that minute's `schedule:run`, one after another. A slow one delays every event below it and keeps the process alive while the next minute starts another. On 2026-09-11 twelve were stacked, because host pings (2–4 min), printer SNMP (15 min) and SNMP metrics (8 min) ran inline. So anything that touches the network or can take more than a couple of seconds gets `->runInBackground()` plus `withoutOverlapping(N)`, where N minutes is longer than its worst run. A lock that expires mid-run lets a second copy start. `->runInBackground()` on a `Schedule::call()` closure throws, so wrap a slow closure in `Artisan::command()` in `routes/console.php` and schedule that. Each foreground task's measured duration is in `/var/log/supervisor/switch-poll.out.log`.
 
 **Subsystem map** — where to look first when touching a feature:
 
@@ -104,7 +104,7 @@ The Laravel app does not run alone — these run alongside it in production:
 - **`deployment/voice-mesh/`** — Python/pjsua prober for the voice mesh, under its own systemd timer on the NOC host. Pulls the branch list (with SIP credentials) from `/api/voice-mesh/config` and POSTs one combined report per sweep. The timer wakes every 5 minutes and the prober gates itself on the NOC-configured interval, so the interval is changeable from the admin UI. `pjsua` is **not** packaged for Ubuntu — `install.sh` builds it from pjproject. `selftest.py` checks everything but the calls themselves. See [VOICE_MESH_SETUP.md](VOICE_MESH_SETUP.md).
 - **`deployment/branch-vm/`** — Ansible playbooks for branch VM provisioning.
 - **`deployment/browser-portal/`** — nginx snippet template + Chromium/Neko supervisor.
-- **`deployment/supervisor/`** — `switch-poll.conf` keeps `php artisan schedule:run` alive.
+- **`deployment/supervisor/`** — `switch-poll.conf` runs `php artisan schedule:work`, the scheduler (the name is historical). Never add a `schedule:run` cron as well.
 - **`deployment/sftp/`** — chrooted, SFTP-only inbox network devices push backups into (`setup-sftp.sh` + sshd `Match` snippet). The scheduled `sftp-backups:sweep` command streams each stable file to Azure Blob (the `azure_backups` disk) and deletes the local copy; `sftp-backups:prune` enforces Azure retention. Tracked in `sftp_backups`. See [deployment/sftp/README.md](deployment/sftp/README.md).
 
 VPN: branch tunnels terminate on the **Azure VPN gateway**, not on the NOC VM — since the NOC2 migration there is no local strongSwan, so `swanctl --list-sas` is empty and there are no `10.x` routes in `ip route`. The app therefore *watches* tunnels rather than controlling them (see Branch tunnel watchdog above); the old `VpnHubController` / `VpnControlService` / `sg-vpn-control.sh` control plane has been removed. The `VpnTunnel` model survives only as a passive record that `MonitoredHost.vpn_id`, `BranchAgent.vpn_id`, `VpnLog` and `TopologyService` still reference. Historical strongSwan notes: [INFRA_SETUP.md](INFRA_SETUP.md).

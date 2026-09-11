@@ -115,7 +115,7 @@ php artisan migrate          # creates the sftp_backups audit table
 ```
 
 Make sure the scheduler is alive (it already is, via
-`deployment/supervisor/` running `php artisan schedule:run`). The two new jobs:
+`deployment/supervisor/` running `php artisan schedule:work`). The two new jobs:
 
 | Command | Schedule | Purpose |
 |---|---|---|

@@ -49,11 +49,26 @@ $everyN = function (int $n): string {
     return "0 */{$h} * * *";
 };
 
+// ─── Foreground vs background ───────────────────────────────────────
+// schedule:run works through the due events one after another, in the order
+// they are defined. An event without runInBackground() runs INSIDE that
+// process, so a slow one delays every event below it and keeps that minute's
+// schedule:run alive — and the next minute starts another one regardless.
+// On 2026-09-11 twelve were stacked (~100 MB each): host pings took 2-4 min
+// every minute, printer SNMP 15 min every 5, SNMP metrics 8 min every 2.
+//
+// So anything that touches the network or can take more than a couple of
+// seconds runs in the background, with withoutOverlapping(N) where N minutes
+// is longer than its worst run — a lock that expires mid-run lets a second
+// copy start. Closures cannot run in the background, so slow ones are
+// registered with Artisan::command() and scheduled with Schedule::command().
+// Only quick, database-only work stays in the foreground. Per-event durations
+// are in /var/log/supervisor/switch-poll.out.log.
+
 // ─── Attendance: the frequent jobs, registered FIRST ────────────────
-// schedule:run launches due events in the order they are defined, and
-// foreground jobs further down (pings, SNMP discovery) hold each minute's run
-// for many minutes. Defined at the end, these background jobs only launched
-// once the run got past them — syncs fell behind and queued work waited.
+// Background launches follow file order too. Defined at the end, these waited
+// for every foreground event above them — syncs fell behind and queued work
+// waited.
 // Incremental by each source's watermark; --max-seconds keeps a run inside its
 // 5-minute slot. No-ops when no source is configured.
 Schedule::command('biotime:sync --max-seconds=240')
@@ -195,7 +210,9 @@ Schedule::command('voice-mesh:check-stale --prune')
     ->runInBackground()
     ->name('voice-mesh-prune');
 
-Schedule::call(function () {
+// Host ping sweep — hosts are pinged one at a time (3 packets each), so a
+// sweep takes 2-4 minutes; hosts pinged within their own interval are skipped.
+Artisan::command('hosts:ping', function () {
     $service = app(\App\Services\PingService::class);
     $hosts = \App\Models\MonitoredHost::where('ping_enabled', true)->get();
     foreach ($hosts as $host) {
@@ -237,11 +254,18 @@ Schedule::call(function () {
         } catch (\Throwable $e) {
         }
     }
-})->name('check-host-ping')->withoutOverlapping(2)->everyMinute();
+})->purpose('Ping every ping-enabled monitored host that is due');
 
-// SNMP Metrics Collection — runs inline (NOT queued) to avoid flooding the queue
-// Each host takes ~40-50s, so we run them sequentially every 2 minutes
-Schedule::call(function () {
+Schedule::command('hosts:ping')
+    ->everyMinute()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('check-host-ping');
+
+// SNMP Metrics Collection — not queued, which would flood the queue. Hosts are
+// polled one after another, ~40-50 s each, so a sweep takes ~8 min; "every 2
+// minutes" in practice means start again as soon as the last sweep ends.
+Artisan::command('snmp:collect-metrics', function () {
     $hosts = \App\Models\MonitoredHost::where('snmp_enabled', true)
         ->where('status', '!=', 'down')
         ->get();
@@ -252,7 +276,13 @@ Schedule::call(function () {
             \Illuminate\Support\Facades\Log::error("SNMP metrics failed for {$host->ip}: ".$e->getMessage());
         }
     }
-})->name('collect-snmp-metrics')->withoutOverlapping(5)->everyTwoMinutes();
+})->purpose('Collect SNMP sensor metrics from every SNMP host that is not down');
+
+Schedule::command('snmp:collect-metrics')
+    ->everyTwoMinutes()
+    ->withoutOverlapping(120)
+    ->runInBackground()
+    ->name('collect-snmp-metrics');
 
 // ISP SLA Link Checks — every 5 minutes (runs inline)
 Schedule::call(function () {
@@ -267,8 +297,9 @@ Schedule::call(function () {
     }
 })->name('check-isp-sla')->withoutOverlapping(5)->everyFiveMinutes();
 
-// SNMP Device Discovery — once per day (runs inline)
-Schedule::call(function () {
+// SNMP Device Discovery — once per day. Host by host, and every unreachable
+// host costs a full SNMP timeout, so a run takes 5-7 minutes.
+Artisan::command('snmp:discover-devices', function () {
     $hosts = \App\Models\MonitoredHost::where('snmp_enabled', true)->get();
     foreach ($hosts as $host) {
         try {
@@ -277,10 +308,16 @@ Schedule::call(function () {
             \Illuminate\Support\Facades\Log::error("SNMP discover failed for {$host->ip}: ".$e->getMessage());
         }
     }
-})->name('discover-snmp-devices')->withoutOverlapping(30)->daily();
+})->purpose('Discover SNMP device details for every SNMP host');
 
-// SNMP Interface Discovery — once per day (runs inline)
-Schedule::call(function () {
+Schedule::command('snmp:discover-devices')
+    ->daily()
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('discover-snmp-devices');
+
+// SNMP Interface Discovery — once per day, 8-12 minutes for the same reason.
+Artisan::command('snmp:discover-interfaces', function () {
     $hosts = \App\Models\MonitoredHost::where('snmp_enabled', true)->get();
     foreach ($hosts as $host) {
         try {
@@ -289,45 +326,45 @@ Schedule::call(function () {
             \Illuminate\Support\Facades\Log::error("SNMP interface discover failed for {$host->ip}: ".$e->getMessage());
         }
     }
-})->name('discover-snmp-interfaces')->withoutOverlapping(30)->daily();
+})->purpose('Discover SNMP interfaces for every SNMP host');
+
+Schedule::command('snmp:discover-interfaces')
+    ->daily()
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('discover-snmp-interfaces');
 
 // ──────────────────────────────────────────────────────────────────────
-// Sophos Firewall Sync — configurable interval (runs inline)
+// Sophos Firewall Sync — configurable interval. A firewall that does not
+// answer on its API port costs a full timeout (up to ~1.5 min a run).
+// sophos:sync is the same loop, and SyncSophosDataJob logs its own failures.
 // ──────────────────────────────────────────────────────────────────────
 $sophosInterval = max(5, (int) ($settings?->sophos_sync_interval ?: 15));
-Schedule::call(function () {
-    $firewalls = \App\Models\SophosFirewall::where('sync_enabled', true)->get();
-    foreach ($firewalls as $fw) {
-        try {
-            (new \App\Jobs\SyncSophosDataJob($fw))->handle();
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("Sophos sync failed for {$fw->name}: ".$e->getMessage());
-        }
-    }
-})->name('sync-sophos-data')->withoutOverlapping(10)->cron($everyN($sophosInterval));
+Schedule::command('sophos:sync')
+    ->cron($everyN($sophosInterval))
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('sync-sophos-data');
 
 // Sophos Central Sync (cloud — APs, firewall fleet, alerts) — configurable interval.
-// The command no-ops when the integration is disabled in Settings.
+// The command no-ops when the integration is disabled in Settings. Up to 1.5 min.
 $sophosCentralInterval = max(5, (int) ($settings?->sophos_central_sync_interval ?: 15));
 Schedule::command('sophos-central:sync')
-    ->name('sync-sophos-central')->withoutOverlapping(10)->cron($everyN($sophosCentralInterval));
+    ->name('sync-sophos-central')->withoutOverlapping(10)->runInBackground()->cron($everyN($sophosCentralInterval));
 
 // ──────────────────────────────────────────────────────────────────────
-// FortiGate DHCP Lease Sync — every 10 minutes (runs inline)
+// FortiGate DHCP Lease Sync — every 10 minutes, a REST call per firewall.
+// fortigate:sync-dhcp is the same loop (sync-enabled firewalls only), and
+// SyncFortiGateDhcpJob logs its own failures.
 // ──────────────────────────────────────────────────────────────────────
-Schedule::call(function () {
-    $firewalls = \App\Models\FortigateFirewall::where('sync_enabled', true)->get();
-    foreach ($firewalls as $fw) {
-        try {
-            (new \App\Jobs\SyncFortiGateDhcpJob($fw))->handle();
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("FortiGate DHCP sync failed for {$fw->name}: ".$e->getMessage());
-        }
-    }
-})->name('sync-fortigate-dhcp')->withoutOverlapping(10)->everyTenMinutes();
+Schedule::command('fortigate:sync-dhcp')
+    ->everyTenMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('sync-fortigate-dhcp');
 
-// ARP Table Collection (Sophos hosts) — every 10 minutes
-Schedule::call(function () {
+// ARP Table Collection (Sophos hosts) — every 10 minutes, up to ~2 min a run.
+Artisan::command('snmp:collect-arp', function () {
     $hosts = \App\Models\MonitoredHost::where('snmp_enabled', true)
         ->where('discovered_type', 'sophos')
         ->get();
@@ -338,7 +375,13 @@ Schedule::call(function () {
             \Illuminate\Support\Facades\Log::error("ARP collection failed for {$host->ip}: ".$e->getMessage());
         }
     }
-})->name('collect-arp-tables')->withoutOverlapping(10)->everyTenMinutes();
+})->purpose('Collect ARP tables from Sophos hosts over SNMP');
+
+Schedule::command('snmp:collect-arp')
+    ->everyTenMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('collect-arp-tables');
 
 // DHCP Conflict Detection — every 10 minutes
 Schedule::call(function () {
@@ -353,32 +396,55 @@ Schedule::call(function () {
 // UCM Extension / Trunk / Active Call Sync + Phone-Port Correlation
 // ──────────────────────────────────────────────────────────────────────
 
-// UCM Extensions + Trunks — every 20 seconds (runs inline to avoid queue dependency)
-Schedule::call(function () {
+// Sub-minute events repeat inside each schedule:run until its minute ends, so
+// run inline they also held up the rest of the minute: the extension sync
+// takes ~25 s (up to 2.5 min) against a 15-second cadence. Not queued — there
+// is no worker.
+
+// UCM Extensions + Trunks — every 15 seconds
+Artisan::command('ucm:sync-extensions', function () {
     try {
         (new \App\Jobs\SyncUcmExtensionsJob)->handle();
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('UCM extension sync failed: '.$e->getMessage());
     }
-})->name('sync-ucm-extensions')->withoutOverlapping(15)->everyFifteenSeconds();
+})->purpose('Sync UCM extensions and trunks');
 
-// UCM Active Calls — every 15 seconds (runs inline)
-Schedule::call(function () {
+Schedule::command('ucm:sync-extensions')
+    ->everyFifteenSeconds()
+    ->withoutOverlapping(15)
+    ->runInBackground()
+    ->name('sync-ucm-extensions');
+
+// UCM Active Calls — every 15 seconds, ~9 s (up to ~50 s) a run
+Artisan::command('ucm:sync-active-calls', function () {
     try {
         (new \App\Jobs\SyncUcmActiveCallsJob)->handle();
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('UCM active calls sync failed: '.$e->getMessage());
     }
-})->name('sync-ucm-active-calls')->withoutOverlapping(10)->everyFifteenSeconds();
+})->purpose('Sync active calls from the UCMs');
 
-// Phone-Port MAC Correlation — every 60 seconds (runs inline)
-Schedule::call(function () {
+Schedule::command('ucm:sync-active-calls')
+    ->everyFifteenSeconds()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('sync-ucm-active-calls');
+
+// Phone-Port MAC Correlation — every minute, a few seconds (up to 30 s) a run
+Artisan::command('phones:sync-port-map', function () {
     try {
         (new \App\Jobs\SyncPhonePortMappingJob)->handle(app(\App\Services\PhonePortDetectionService::class));
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('Phone-port mapping failed: '.$e->getMessage());
     }
-})->name('sync-phone-port-map')->withoutOverlapping(30)->everyMinute();
+})->purpose('Correlate phone MACs with switch ports');
+
+Schedule::command('phones:sync-port-map')
+    ->everyMinute()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('sync-phone-port-map');
 
 // ──────────────────────────────────────────────────────────────────────
 // ISP Renewal Reminders — daily at 8 AM
@@ -457,7 +523,8 @@ Schedule::call(function () {
 })->name('check-isp-renewals')->withoutOverlapping(60)->dailyAt('08:00');
 
 // ─── Printer SNMP Polling — every 5 minutes ─────────────────
-Schedule::call(function () {
+// A full poll takes ~15 min (up to ~27), so it runs back to back.
+Artisan::command('printers:poll-snmp', function () {
     try {
         (new \App\Jobs\PollPrinterSnmpJob)->handle();
         // Sync anything the direct poll missed from host-monitoring sensors
@@ -466,13 +533,21 @@ Schedule::call(function () {
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('Printer SNMP polling failed: '.$e->getMessage());
     }
-})->name('poll-printer-snmp')->withoutOverlapping(5)->everyFiveMinutes();
+})->purpose('Poll every printer over SNMP, then backfill from host sensors');
+
+Schedule::command('printers:poll-snmp')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('poll-printer-snmp');
 
 // ─── Force Pull All — every minute, flag-gated ───────────────
 // The Printers "Force Pull Now" button sets a cache flag for larger fleets;
 // this drains it with a forced poll (bypassing the recent-poll lock) so a
-// full refresh never has to run inside the web request.
-Schedule::call(function () {
+// full refresh never has to run inside the web request. The when() check is a
+// cache read inside schedule:run, so the forced poll (as long as a normal
+// poll) only gets a process when the flag is set.
+Artisan::command('printers:force-poll', function () {
     if (! \Illuminate\Support\Facades\Cache::pull('printers.force_poll_all')) {
         return;
     }
@@ -482,14 +557,21 @@ Schedule::call(function () {
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('Forced printer SNMP poll failed: '.$e->getMessage());
     }
-})->name('force-poll-printers')->withoutOverlapping(10)->everyMinute();
+})->purpose('Forced SNMP poll of every printer, if "Force Pull Now" was pressed');
+
+Schedule::command('printers:force-poll')
+    ->everyMinute()
+    ->when(fn () => \Illuminate\Support\Facades\Cache::has('printers.force_poll_all'))
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('force-poll-printers');
 
 // ─── Network Discovery Scan Processor — every minute ─────────
-// Runs one pending discovery scan inline (no queue worker in prod). For scans
+// Runs one pending discovery scan (no queue worker in prod). For scans
 // started from the Printers "Discover Printers" button (auto_import_printers),
 // every printer found is auto-created + polled. This is the async path that
-// keeps large /24 sweeps from hitting a web gateway timeout.
-Schedule::call(function () {
+// keeps large /24 sweeps (up to ~12 min) from hitting a web gateway timeout.
+Artisan::command('discovery:process-scans', function () {
     $scan = \App\Models\DiscoveryScan::where('status', 'pending')->orderBy('id')->first();
     if (! $scan) {
         return;
@@ -503,18 +585,32 @@ Schedule::call(function () {
         \Illuminate\Support\Facades\Log::error("Discovery scan #{$scan->id} failed: ".$e->getMessage());
         $scan->update(['status' => 'failed', 'finished_at' => now(), 'error_message' => $e->getMessage()]);
     }
-})->name('process-discovery-scans')->withoutOverlapping(15)->everyMinute();
+})->purpose('Run the oldest pending network discovery scan');
+
+Schedule::command('discovery:process-scans')
+    ->everyMinute()
+    ->when(fn () => \App\Models\DiscoveryScan::where('status', 'pending')->exists())
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('process-discovery-scans');
 
 // ─── Printer Sensor Discovery — every 10 minutes ─────────────
 // Heals SNMP printers that have no sensors yet (DiscoverSnmpDeviceJob is
-// dispatched on create but never drained without a worker). Bounded per run.
-Schedule::call(function () {
+// dispatched on create but never drained without a worker). Bounded per run,
+// still ~45 s of SNMP walks.
+Artisan::command('printers:discover-sensors', function () {
     try {
         app(\App\Services\Printers\PrinterDiscoveryService::class)->discoverPrinterSensors(10, true);
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('Printer sensor discovery failed: '.$e->getMessage());
     }
-})->name('discover-printer-sensors')->withoutOverlapping(15)->everyTenMinutes();
+})->purpose('Discover sensors for up to 10 SNMP printers that have none');
+
+Schedule::command('printers:discover-sensors')
+    ->everyTenMinutes()
+    ->withoutOverlapping(15)
+    ->runInBackground()
+    ->name('discover-printer-sensors');
 
 // ─── Low Toner Monitor — every 30 minutes ────────────────────
 Schedule::call(function () {
@@ -547,14 +643,20 @@ Schedule::call(function () {
 // ─── Metrics Rollup (hourly → daily) + Tiered Pruning ───────
 // Rolls raw sensor_metrics into hourly/daily rollup tables.
 // Also prunes: raw data >7 days, hourly data >90 days.
-// Runs inline (not queued) to avoid queue-worker dependency on shared hosting.
-Schedule::call(function () {
+// Not queued (there is no worker). ~10 min a run, up to ~36.
+Artisan::command('metrics:rollup', function () {
     try {
         (new \App\Jobs\RollupMetricsJob)->handle();
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('Metrics rollup failed: '.$e->getMessage());
     }
-})->name('rollup-metrics')->withoutOverlapping(30)->hourly();
+})->purpose('Roll raw sensor metrics up into hourly/daily tables and prune');
+
+Schedule::command('metrics:rollup')
+    ->hourly()
+    ->withoutOverlapping(120)
+    ->runInBackground()
+    ->name('rollup-metrics');
 
 // ─── Prune Old Sensor Metrics — weekly safety net at 02:00 AM ──
 // Kept as a fallback in case RollupMetricsJob is missed. Uses the
@@ -567,11 +669,12 @@ Schedule::call(function () {
     }
 })->name('prune-old-metrics')->withoutOverlapping(60)->weeklyOn(0, '02:00');
 
-// ─── Switch Drop Counter Poll — every 5 minutes ───────────────
-Schedule::command('switch:poll-drops')->everyFiveMinutes()->withoutOverlapping(10);
+// ─── Switch Drop Counter Poll — every 5 minutes, ~4 min a run ─
+Schedule::command('switch:poll-drops')->everyFiveMinutes()->withoutOverlapping(10)->runInBackground();
 
 // ─── Cisco MLS QoS Queue Stats Poll — every 5 minutes ─────────
-Schedule::command('switch:poll-mls-qos')->everyFiveMinutes()->withoutOverlapping(10);
+// Telnet to each switch; ~1.5 min a run, up to ~7 when switches time out.
+Schedule::command('switch:poll-mls-qos')->everyFiveMinutes()->withoutOverlapping(10)->runInBackground();
 
 // ─── Prune VQ, Switch Drop, Workflow data per retention settings ──
 Schedule::command('data:prune')
@@ -636,15 +739,21 @@ Schedule::call(function () {
 
 // ─── SSL Certificate Auto-Renewal — daily at 02:00 ───────────────────────
 // Renews all ssl_certificates where status='valid', auto_renew=true,
-// and expires_at <= now()+14 days. Runs inline (not via queue) so a
-// queue worker is not required; each renewal may take up to ~60 s.
-Schedule::call(function () {
+// and expires_at <= now()+14 days. Not queued, so a queue worker is not
+// required; each renewal may take up to ~60 s.
+Artisan::command('ssl:renew-expiring', function () {
     try {
         (new \App\Jobs\RenewExpiringCertificatesJob)->handle();
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('SSL auto-renewal failed: '.$e->getMessage());
     }
-})->name('renew-expiring-certs')->withoutOverlapping(30)->dailyAt('02:00');
+})->purpose('Renew auto-renew SSL certificates that expire within 14 days');
+
+Schedule::command('ssl:renew-expiring')
+    ->dailyAt('02:00')
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('renew-expiring-certs');
 
 // ─── Onboarding Manager-Form Reminders — daily at 09:00 ──────────────────
 // For every workflow still in 'awaiting_manager_form', re-send the setup
