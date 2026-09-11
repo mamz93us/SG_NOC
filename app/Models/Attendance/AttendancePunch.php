@@ -29,6 +29,7 @@ class AttendancePunch extends Model
     protected $fillable = [
         'biotime_source_id',
         'biotime_id',
+        'external_id',
         'biotime_employee_id',
         'employee_id',
         'emp_code',

@@ -5,6 +5,7 @@ namespace App\Services\Attendance;
 use App\Models\Attendance\BiotimeArea;
 use App\Models\Attendance\BiotimeEmployee;
 use App\Models\Attendance\BiotimeSource;
+use App\Models\Attendance\BiotimeTerminal;
 use App\Models\Employee;
 
 /**
@@ -149,13 +150,13 @@ class EmployeeLinker
             ->filter(fn ($e) => $e->branch_id !== null && in_array((int) $e->branch_id, $branchIds, true))
             ->values();
 
-        $byArea = $inBranches($this->areaBranches($biotimeEmployee));
-        if ($byArea->count() === 1) {
-            return [(int) $byArea->first()->id, BiotimeEmployee::METHOD_AUTO_BRANCH, $candidateIds];
+        $byLocation = $inBranches($this->punchBranches($biotimeEmployee));
+        if ($byLocation->count() === 1) {
+            return [(int) $byLocation->first()->id, BiotimeEmployee::METHOD_AUTO_BRANCH, $candidateIds];
         }
 
         $default = $biotimeEmployee->source?->default_branch_id;
-        if ($byArea->isEmpty() && $default) {
+        if ($byLocation->isEmpty() && $default) {
             $byDefault = $inBranches([(int) $default]);
             if ($byDefault->count() === 1) {
                 return [(int) $byDefault->first()->id, BiotimeEmployee::METHOD_AUTO_BRANCH, $candidateIds];
@@ -165,21 +166,32 @@ class EmployeeLinker
         return [null, BiotimeEmployee::METHOD_AMBIGUOUS, $candidateIds];
     }
 
-    /** @return list<int> */
-    private function areaBranches(BiotimeEmployee $biotimeEmployee): array
+    /**
+     * Branches of the areas the code punched in — or, for access-control
+     * sources, which have no areas, of the terminals it punched on.
+     *
+     * @return list<int>
+     */
+    private function punchBranches(BiotimeEmployee $biotimeEmployee): array
     {
-        $areas = $biotimeEmployee->areas ?: [];
-        if ($areas === []) {
-            return [];
+        $ids = [];
+
+        if ($areas = $biotimeEmployee->areas ?: []) {
+            $ids = BiotimeArea::where('biotime_source_id', $biotimeEmployee->biotime_source_id)
+                ->whereIn('area_alias', $areas)
+                ->whereNotNull('branch_id')
+                ->pluck('branch_id')
+                ->all();
         }
 
-        return BiotimeArea::where('biotime_source_id', $biotimeEmployee->biotime_source_id)
-            ->whereIn('area_alias', $areas)
-            ->whereNotNull('branch_id')
-            ->pluck('branch_id')
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
+        if ($terminals = $biotimeEmployee->terminals ?: []) {
+            $ids = array_merge($ids, BiotimeTerminal::where('biotime_source_id', $biotimeEmployee->biotime_source_id)
+                ->whereIn('terminal_sn', $terminals)
+                ->whereNotNull('branch_id')
+                ->pluck('branch_id')
+                ->all());
+        }
+
+        return array_values(array_unique(array_map('intval', $ids)));
     }
 }

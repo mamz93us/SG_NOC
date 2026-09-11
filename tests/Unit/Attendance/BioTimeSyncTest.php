@@ -8,6 +8,7 @@ use App\Models\Attendance\AttendanceShift;
 use App\Models\Attendance\AttendanceShiftAssignment;
 use App\Models\Attendance\BiotimeEmployee;
 use App\Models\Attendance\BiotimeSource;
+use App\Models\Attendance\BiotimeTerminal;
 use App\Models\Employee;
 use App\Models\NocEvent;
 use App\Services\Attendance\AttendanceDayBuilder;
@@ -15,6 +16,10 @@ use App\Services\Attendance\AttendanceDayProcessor;
 use App\Services\Attendance\BioTimeConnection;
 use App\Services\Attendance\BioTimeSyncService;
 use App\Services\Attendance\EmployeeLinker;
+use App\Services\Attendance\Readers\AccessTransactionReader;
+use App\Services\Attendance\Readers\IclockTransactionReader;
+use App\Services\Attendance\Readers\PunchReader;
+use App\Services\Attendance\Readers\PunchReaders;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
@@ -51,6 +56,16 @@ beforeEach(function () {
         $t->string('terminal_sn')->nullable();
         $t->string('terminal_alias')->nullable();
         $t->string('area_alias')->nullable();
+    });
+    // ZKBio access control: hex string ids, times with milliseconds, no area.
+    Schema::connection('biotime_fake')->create('acc_transaction', function (Blueprint $t) {
+        $t->string('id')->primary();
+        $t->string('create_time');
+        $t->string('event_time')->nullable();
+        $t->string('dev_alias')->nullable();
+        $t->string('dev_id')->nullable();
+        $t->string('dev_sn')->nullable();
+        $t->string('pin')->nullable();
     });
 
     foreach (['attendance_adjustments', 'attendance_holidays', 'attendance_shift_assignments', 'attendance_shifts',
@@ -100,8 +115,9 @@ beforeEach(function () {
     });
 
     // Every attendance migration except the permission grant (no role_permissions here).
-    foreach (glob(database_path('migrations/2026_09_10_*.php')) as $migration) {
-        if (! str_contains($migration, 'permission')) {
+    foreach (glob(database_path('migrations/2026_09_1*_*.php')) as $migration) {
+        $name = basename($migration);
+        if ((str_contains($name, 'biotime') || str_contains($name, 'attendance')) && ! str_contains($name, 'permission')) {
             (require $migration)->up();
         }
     }
@@ -128,7 +144,37 @@ function bioTimeSync(?BioTimeConnection $bioTime = null): BioTimeSyncService
 {
     $processor = new AttendanceDayProcessor(new AttendanceDayBuilder);
 
-    return new BioTimeSyncService($bioTime ?? bioTimeOn('biotime_fake'), new EmployeeLinker($processor), $processor);
+    return new BioTimeSyncService($bioTime ?? bioTimeOn('biotime_fake'), new EmployeeLinker($processor), $processor, testReaders());
+}
+
+/**
+ * The real readers, except that times are compared as the fake database
+ * stores them. SQL Server gets 'YYYYMMDD hh:mm:ss' literals; SQLite compares
+ * text, which only works in the stored 'YYYY-MM-DD hh:mm:ss' form.
+ */
+function testReaders(): PunchReaders
+{
+    return new class extends PunchReaders
+    {
+        public function for(BiotimeSource $source): PunchReader
+        {
+            return $source->isAccessControl()
+                ? new class extends AccessTransactionReader
+                {
+                    protected function literal(string $time): string
+                    {
+                        return $time;
+                    }
+                }
+            : new class extends IclockTransactionReader
+            {
+                protected function literal(string $time): string
+                {
+                    return $time;
+                }
+            };
+        }
+    };
 }
 
 function biotimePunch(int $id, string $code, string $time, ?string $area = 'Jeddah HQ'): void
@@ -516,4 +562,133 @@ it('warns when someone punches at another branch', function () {
     $day = AttendanceDay::sole();
     expect($day->flags)->toContain(AttendanceDayBuilder::FLAG_OTHER_BRANCH)
         ->and($day->has_error)->toBeFalse();
+});
+
+// ── ZKBio access control (acc_transaction) ───────────────────────────
+
+function accessSource(array $attributes = []): BiotimeSource
+{
+    return BiotimeSource::create($attributes + [
+        'name' => 'ZKBio Access',
+        'source_type' => BiotimeSource::TYPE_ACCESS,
+        'time_column' => 'create_time',
+        'host' => 'sql.test',
+        'port' => 1433,
+        'database' => 'zkbiosecurity',
+        'username' => 'noc_attendance',
+        'password' => 'secret',
+        'trust_server_certificate' => true,
+        'enabled' => true,
+    ]);
+}
+
+function accessPunch(string $id, string $time, string $pin, string $alias = 'IN', string $sn = 'CMWD230660072'): void
+{
+    DB::connection('biotime_fake')->table('acc_transaction')->insert([
+        'id' => $id,
+        'create_time' => $time,
+        'dev_alias' => $alias,
+        'dev_id' => '8a8180b18fdb06a6018ffd31f13e0014',
+        'dev_sn' => $sn,
+        'pin' => $pin,
+    ]);
+}
+
+it('reads an access-control table: pin is the employee, create_time the punch', function () {
+    attendanceEmployee(50, 'Pin 775', '775', 1);
+    accessPunch('8a8180b196ccb1a201975cb05722750b', '2025-06-11 04:52:29.987', '775');
+    accessPunch('8a8180b196ccb1a201975cb06abe750c', '2025-06-11 04:52:35.007', '775');
+    accessPunch('8a8180b196ccb1a201975cb07e53750d', '2025-06-11 04:52:40.020', '775');
+    accessPunch('8a8180b196ccb1a201975cf21145750f', '2025-06-11 05:00:00.000', ''); // a door event: no pin
+    accessPunch('8a8180b196ccb1a20197604b1a2c7599', '2025-06-11 13:05:00.100', '775', 'Out', 'CMWD230660073');
+    $source = accessSource();
+
+    $result = bioTimeSync()->sync($source);
+
+    expect($result['rows'])->toBe(5)
+        ->and($result['skipped'])->toBe(1)
+        ->and(AttendancePunch::count())->toBe(4);
+
+    $punch = AttendancePunch::orderBy('punch_time')->first();
+    expect($punch->external_id)->toBe('8a8180b196ccb1a201975cb05722750b')
+        ->and($punch->biotime_id)->toBeNull()
+        ->and($punch->terminal_alias)->toBe('IN')
+        ->and($punch->terminal_sn)->toBe('CMWD230660072')
+        ->and($punch->employee_id)->toBe(50);
+
+    $day = AttendanceDay::sole();
+    expect($day->first_in->format('H:i:s'))->toBe('04:52:29')
+        ->and($day->last_out->format('H:i:s'))->toBe('13:05:00')
+        ->and($day->flags)->toBe([AttendanceDayBuilder::FLAG_DUPLICATES]);
+
+    $source->refresh();
+    expect($source->last_time)->toBe('2025-06-11 13:05:00.100')
+        ->and($source->last_ref)->toBe('8a8180b196ccb1a20197604b1a2c7599');
+});
+
+it('pages through rows that share a timestamp without losing or repeating any', function () {
+    attendanceEmployee(50, 'Pin 775', '775', 1);
+    foreach ([
+        ['a1', '2025-06-11 08:00:00.000'],
+        ['a2', '2025-06-11 08:00:05.000'],
+        ['a3', '2025-06-11 08:00:05.000'],
+        ['a4', '2025-06-11 08:00:05.000'],
+        ['a5', '2025-06-11 17:00:00.000'],
+    ] as [$id, $time]) {
+        accessPunch($id, $time, '775');
+    }
+    $source = accessSource();
+    $sync = bioTimeSync();
+    $sync->chunk = 2; // a4's second is split across two pages
+
+    expect($sync->sync($source)['rows'])->toBe(5)
+        ->and(AttendancePunch::count())->toBe(5)
+        ->and($source->fresh()->last_ref)->toBe('a5');
+
+    expect($sync->sync($source)['rows'])->toBe(0);
+
+    accessPunch('a6', '2025-06-11 17:30:00.000', '775');
+    expect($sync->sync($source)['rows'])->toBe(1)
+        ->and(AttendancePunch::count())->toBe(6);
+});
+
+it('converts a database that stores UTC to the source time zone', function () {
+    attendanceEmployee(50, 'Pin 775', '775', 1);
+    accessPunch('u1', '2025-06-11 04:52:29.987', '775');
+    $source = accessSource(['stores_utc' => true, 'timezone' => 'Asia/Riyadh']);
+
+    bioTimeSync()->sync($source);
+
+    expect(AttendancePunch::sole()->punch_time->format('Y-m-d H:i:s'))->toBe('2025-06-11 07:52:29');
+});
+
+it('settles a pin that matches two employees by the terminal branch', function () {
+    attendanceEmployee(40, 'Pin 428 (SamirGroup)', '428', 1);
+    attendanceEmployee(41, 'Pin 428 (SSS Egypt)', '428', 2);
+    $source = accessSource();
+    BiotimeTerminal::create(['biotime_source_id' => $source->id, 'terminal_sn' => 'CMWD230660073', 'branch_id' => 2]);
+    accessPunch('x1', '2025-06-11 04:22:31.827', '428', 'Out', 'CMWD230660073');
+
+    bioTimeSync()->sync($source);
+
+    $code = BiotimeEmployee::sole();
+    expect($code->employee_id)->toBe(41)
+        ->and($code->match_method)->toBe(BiotimeEmployee::METHOD_AUTO_BRANCH)
+        ->and($code->terminals)->toBe(['CMWD230660073']);
+});
+
+it('counts access-control punches per day the same on both sides for reconcile', function () {
+    attendanceEmployee(50, 'Pin 775', '775', 1);
+    accessPunch('c1', '2025-06-11 08:00:00.000', '775');
+    accessPunch('c2', '2025-06-11 17:00:00.000', '775');
+    accessPunch('c3', '2025-06-11 17:00:10.000', '');
+    accessPunch('c4', '2025-06-12 08:05:00.000', '775');
+    $source = accessSource();
+    $sync = bioTimeSync();
+    $sync->sync($source);
+
+    $remote = $sync->remoteDailyCounts($source->fresh(), '2025-06-10');
+
+    expect($remote)->toBe(['2025-06-11' => 2, '2025-06-12' => 1])
+        ->and($sync->localDailyCounts($source, '2025-06-10'))->toBe($remote);
 });

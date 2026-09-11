@@ -1,16 +1,16 @@
 @extends('layouts.admin')
 
-@section('title', 'BioTime Sources')
+@section('title', 'Attendance Sources')
 
 @section('content')
 @include('admin.attendance._tabs')
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-        <h4 class="mb-0 fw-bold"><i class="bi bi-database-gear me-2 text-primary"></i>BioTime Sources</h4>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-database-gear me-2 text-primary"></i>Attendance Sources</h4>
         <small class="text-muted">
-            Every ZKTeco BioTime SQL Server database punches are read from. Read-only — the NOC never writes to BioTime,
-            and reads only <code>iclock_transaction</code>.
+            Every ZKTeco SQL Server database punches are read from — BioTime attendance (<code>iclock_transaction</code>)
+            or ZKBio access control (<code>acc_transaction</code>). Read-only: the NOC never writes to them.
         </small>
     </div>
     <a href="{{ route('admin.attendance.sources.create') }}" class="btn btn-primary btn-sm">
@@ -33,14 +33,31 @@
     <div class="card border-success shadow-sm mb-4">
         <div class="card-header bg-success-subtle">
             <i class="bi bi-check-circle-fill text-success me-1"></i>
-            <strong>{{ $t['source'] }}</strong> — connected in {{ $t['latency_ms'] }} ms.
-            Latest <code>iclock_transaction.id</code> is {{ number_format($t['max_id']) }}.
+            <strong>{{ $t['source'] }}</strong> — connected to <code>{{ $t['table'] }}</code> in {{ $t['latency_ms'] }} ms.
+            {{ $t['watermark'] }}.
         </div>
         <div class="card-body">
+            @if (! empty($t['clock']))
+                <div class="small mb-2">
+                    <span class="text-muted">SQL Server clock:</span>
+                    <span class="font-monospace">{{ $t['clock']['local'] }}</span> local,
+                    <span class="font-monospace">{{ $t['clock']['utc'] }}</span> UTC.
+                    @if (! empty($t['newest']))
+                        <span class="text-muted">Newest row:</span> <span class="font-monospace">{{ $t['newest'] }}</span>.
+                    @endif
+                    <div class="text-muted">
+                        If the newest row is close to the UTC clock rather than the local one, the table stores UTC —
+                        switch on <em>Times in this database are UTC</em> for this source.
+                    </div>
+                </div>
+            @endif
+            @foreach ($t['notes'] ?? [] as $note)
+                <div class="small text-warning-emphasis mb-2"><i class="bi bi-info-circle me-1"></i>{{ $note }}</div>
+            @endforeach
             <div class="small mb-2">
-                <span class="text-muted">Areas seen recently:</span>
-                @forelse ($t['areas'] as $area)
-                    <span class="badge bg-secondary-subtle text-body border me-1">{{ $area }}</span>
+                <span class="text-muted">{{ $t['locations_label'] }}:</span>
+                @forelse ($t['locations'] as $location)
+                    <span class="badge bg-secondary-subtle text-body border me-1">{{ $location }}</span>
                 @empty
                     <span class="text-muted">none</span>
                 @endforelse
@@ -49,7 +66,7 @@
                 <table class="table table-sm small mb-0">
                     <thead class="table-light">
                         <tr>
-                            @foreach ($columns as $column)
+                            @foreach ($t['columns'] as $column)
                                 <th>{{ $column }}</th>
                             @endforeach
                         </tr>
@@ -57,12 +74,12 @@
                     <tbody>
                         @forelse ($t['sample'] as $row)
                             <tr>
-                                @foreach ($columns as $column)
+                                @foreach ($t['columns'] as $column)
                                     <td class="font-monospace">{{ $row[$column] ?? '' }}</td>
                                 @endforeach
                             </tr>
                         @empty
-                            <tr><td colspan="{{ count($columns) }}" class="text-muted">The table is empty.</td></tr>
+                            <tr><td colspan="{{ count($t['columns']) }}" class="text-muted">The table is empty.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -102,14 +119,27 @@
                                     <span class="badge bg-secondary ms-1">disabled</span>
                                 @endunless
                             </div>
-                            <div class="small text-muted font-monospace">{{ $source->host }}:{{ $source->port }}</div>
+                            <div class="small">
+                                <span class="badge {{ $source->isAccessControl() ? 'bg-info-subtle text-info-emphasis' : 'bg-primary-subtle text-primary-emphasis' }} border">
+                                    {{ $source->isAccessControl() ? 'Access control' : 'BioTime' }}
+                                </span>
+                                <span class="text-muted font-monospace">{{ $source->host }}:{{ $source->port }}</span>
+                            </div>
                             @if ($source->defaultBranch)
                                 <div class="small text-muted">Default branch: {{ $source->defaultBranch->name }}</div>
                             @endif
                         </td>
                         <td class="small">
-                            <div class="font-monospace">{{ $source->database }}</div>
-                            <div class="text-muted">as {{ $source->username }}</div>
+                            <div class="font-monospace">{{ $source->database }}.{{ $source->source_type }}</div>
+                            <div class="text-muted">
+                                as {{ $source->username }}
+                                @if ($source->isAccessControl())
+                                    · time from <code>{{ $source->time_column ?: 'create_time' }}</code>
+                                @endif
+                                @if ($source->stores_utc)
+                                    · UTC → {{ $source->timezone ?: config('app.timezone') }}
+                                @endif
+                            </div>
                         </td>
                         <td class="small">
                             @if ($source->last_sync_at)
@@ -123,7 +153,7 @@
                                 @endif
                                 <span class="text-muted">{{ $source->last_sync_at->diffForHumans() }}</span>
                                 @if ($source->last_sync_status === 'ok')
-                                    <div class="text-muted">{{ number_format($source->last_sync_rows) }} punch(es) last run</div>
+                                    <div class="text-muted">{{ number_format($source->last_sync_rows) }} row(s) last run</div>
                                 @endif
                                 @if ($source->last_sync_error)
                                     <div class="text-danger text-break">{{ \Illuminate\Support\Str::limit($source->last_sync_error, 200) }}</div>
@@ -135,7 +165,7 @@
                                 <div class="text-muted">Tested {{ $source->last_test_at->diffForHumans() }}: {{ \Illuminate\Support\Str::limit($source->last_test_result, 120) }}</div>
                             @endif
                         </td>
-                        <td class="text-end font-monospace small">{{ number_format($source->last_id) }}</td>
+                        <td class="text-end font-monospace small">{{ $source->watermarkLabel() }}</td>
                         <td class="text-end small">{{ number_format($source->employees_count) }}</td>
                         <td class="text-end">
                             <div class="d-flex gap-1 justify-content-end">
@@ -161,7 +191,7 @@
                     <tr>
                         <td colspan="6" class="text-center text-muted py-5">
                             <i class="bi bi-database fs-3 d-block mb-2"></i>
-                            No BioTime databases yet — press <strong>Add source</strong>.
+                            No databases yet — press <strong>Add source</strong>.
                         </td>
                     </tr>
                 @endforelse
@@ -171,8 +201,9 @@
 </div>
 
 <p class="small text-muted mt-3 mb-0">
-    New punches are pulled every 5 minutes by <code>biotime:sync</code>, by <code>iclock_transaction.id</code> — so punches a
-    terminal uploads late are still picked up. "Sync now" reads at most 20,000 rows; a first backfill continues on the schedule.
+    New punches are pulled every 5 minutes by <code>biotime:sync</code> — BioTime by id, so punches a terminal uploads late
+    are still picked up; access control by time and id. "Sync now" reads at most 20,000 rows; a first backfill continues
+    on the schedule.
 </p>
 
 <script>

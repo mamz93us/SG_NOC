@@ -7,6 +7,7 @@ use App\Models\Attendance\AttendanceDay;
 use App\Models\Attendance\AttendancePunch;
 use App\Models\Attendance\BiotimeArea;
 use App\Models\Attendance\BiotimeEmployee;
+use App\Models\Attendance\BiotimeTerminal;
 use App\Models\Employee;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -26,8 +27,8 @@ class AttendanceDayProcessor
 
     private ShiftResolver $shifts;
 
-    /** @var array<string, ?BiotimeArea> */
-    private array $areas = [];
+    /** @var array<string, array{branch_id: ?int, timezone: ?string}> */
+    private array $locations = [];
 
     /** @var array<string, AttendanceAdjustment>|null preloaded for the range being rebuilt */
     private ?array $adjustments = null;
@@ -187,13 +188,15 @@ class AttendanceDayProcessor
                 : $query->where('biotime_employee_id', $id)->whereNull('employee_id');
 
             $punches = $query->orderBy('punch_time')
-                ->get(['id', 'biotime_source_id', 'emp_code', 'punch_time', 'area_alias']);
+                ->get(['id', 'biotime_source_id', 'emp_code', 'punch_time', 'area_alias', 'terminal_sn']);
         }
 
         $employee = $isEmployee ? $this->shifts->employee($id) : null;
         $adjustment = $isEmployee ? $this->adjustment($id, $date) : null;
         $first = $punches->first();
-        $area = $first ? $this->area((int) $first->biotime_source_id, $first->area_alias) : null;
+        $location = $first
+            ? $this->location((int) $first->biotime_source_id, $first->area_alias, $first->terminal_sn)
+            : ['branch_id' => null, 'timezone' => null];
         $employeeBranch = $employee?->branch_id ? (int) $employee->branch_id : null;
 
         $extraFlags = $isEmployee
@@ -204,7 +207,7 @@ class AttendanceDayProcessor
 
         $context = new DayContext(
             shift: $shift,
-            holiday: $isEmployee ? $this->shifts->holidayFor($employeeBranch ?? $area?->branch_id, $date) : null,
+            holiday: $isEmployee ? $this->shifts->holidayFor($employeeBranch ?? $location['branch_id'], $date) : null,
             expectedToWork: $isEmployee && $this->shifts->expectedToWork($id, $date),
             checkIn: $adjustment?->check_in?->format(self::FORMAT),
             checkOut: $adjustment?->check_out?->format(self::FORMAT),
@@ -214,7 +217,7 @@ class AttendanceDayProcessor
         $result = $this->builder->build(
             $date,
             $punches->map(fn (AttendancePunch $p) => $p->punch_time->format(self::FORMAT))->all(),
-            $this->wallNow($area?->timezone),
+            $this->wallNow($location['timezone']),
             $extraFlags,
             $context,
         );
@@ -237,7 +240,7 @@ class AttendanceDayProcessor
                 'status' => $result->status,
                 'employee_id' => $isEmployee ? $id : null,
                 'biotime_employee_id' => $isEmployee ? null : $id,
-                'branch_id' => $employeeBranch ?? $area?->branch_id,
+                'branch_id' => $employeeBranch ?? $location['branch_id'],
                 'attendance_shift_id' => $shift?->id,
                 'emp_codes' => mb_substr($codes, 0, 150) ?: null,
                 'scheduled_start' => $result->scheduledStart,
@@ -350,7 +353,7 @@ class AttendanceDayProcessor
 
         if ($employee->branch_id) {
             foreach ($punches as $punch) {
-                $branch = $this->area((int) $punch->biotime_source_id, $punch->area_alias)?->branch_id;
+                $branch = $this->location((int) $punch->biotime_source_id, $punch->area_alias, $punch->terminal_sn)['branch_id'];
                 if ($branch && $branch !== (int) $employee->branch_id) {
                     $flags[] = AttendanceDayBuilder::FLAG_OTHER_BRANCH;
                     break;
@@ -400,17 +403,32 @@ class AttendanceDayProcessor
         return CarbonImmutable::parse(CarbonImmutable::now($timezone)->format(self::FORMAT));
     }
 
-    private function area(int $sourceId, ?string $alias): ?BiotimeArea
+    /**
+     * Where a punch was made: its area's branch and time zone, or — for an
+     * access-control punch, which has no area — its terminal's.
+     *
+     * @return array{branch_id: ?int, timezone: ?string}
+     */
+    private function location(int $sourceId, ?string $areaAlias, ?string $terminalSn): array
     {
-        if ($alias === null || $alias === '') {
-            return null;
+        $key = $sourceId.'|'.$areaAlias.'|'.$terminalSn;
+
+        if (! array_key_exists($key, $this->locations)) {
+            $area = ($areaAlias !== null && $areaAlias !== '')
+                ? BiotimeArea::where('biotime_source_id', $sourceId)->where('area_alias', $areaAlias)->first()
+                : null;
+            $terminal = ($terminalSn !== null && $terminalSn !== '')
+                ? BiotimeTerminal::where('biotime_source_id', $sourceId)->where('terminal_sn', $terminalSn)->first()
+                : null;
+
+            $branch = $area?->branch_id ?? $terminal?->branch_id;
+
+            $this->locations[$key] = [
+                'branch_id' => $branch ? (int) $branch : null,
+                'timezone' => $area?->timezone ?: $terminal?->timezone,
+            ];
         }
 
-        $key = $sourceId.'|'.$alias;
-        if (! array_key_exists($key, $this->areas)) {
-            $this->areas[$key] = BiotimeArea::where('biotime_source_id', $sourceId)->where('area_alias', $alias)->first();
-        }
-
-        return $this->areas[$key];
+        return $this->locations[$key];
     }
 }

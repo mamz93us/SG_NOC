@@ -9,6 +9,8 @@ use App\Models\Attendance\BiotimeSource;
 use App\Models\Attendance\BiotimeTerminal;
 use App\Models\AzureBranchMapping;
 use App\Models\NocEvent;
+use App\Services\Attendance\Readers\PunchReader;
+use App\Services\Attendance\Readers\PunchReaders;
 use App\Support\BranchKeywordMatcher;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
@@ -18,13 +20,15 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Copies punches from one BioTime database into attendance_punches.
+ * Copies punches from one ZKTeco database into attendance_punches.
  *
- * Incremental by iclock_transaction.id, never by punch_time: a terminal that
- * was offline uploads last week's punches today, and they arrive with new ids
- * but old times. Reading "punches since my last run" by time would skip them.
+ * What is read, and how it is paged, belongs to the source's reader:
+ *  - BioTime attendance (iclock_transaction) — by the numeric id, never by
+ *    punch time: an offline terminal uploads old punches with new ids;
+ *  - ZKBio access control (acc_transaction) — its ids are unordered hex, so
+ *    by (time, id).
  *
- * Idempotent — rows are upserted on (source, biotime_id) — and resumable: the
+ * Idempotent — upserted on (source, external_id) — and resumable: the
  * watermark is saved after every chunk, so a big first backfill that is cut
  * short by max-rows or a crash simply carries on next run.
  */
@@ -36,17 +40,36 @@ class BioTimeSyncService
 
     public const FAILURES_BEFORE_ALERT = 3;
 
+    /** Rows per query. Tests lower it to exercise paging. */
+    public int $chunk = self::CHUNK;
+
     private ?Collection $branchMappings = null;
+
+    private PunchReaders $readers;
 
     public function __construct(
         private BioTimeConnection $bioTime,
         private EmployeeLinker $linker,
         private AttendanceDayProcessor $processor,
-    ) {}
+        ?PunchReaders $readers = null,
+    ) {
+        $this->readers = $readers ?? new PunchReaders;
+    }
+
+    public function reader(BiotimeSource $source): PunchReader
+    {
+        return $this->readers->for($source);
+    }
+
+    /** The Sources page's "Test connection". */
+    public function test(BiotimeSource $source): array
+    {
+        return $this->reader($source)->test($source, $this->bioTime->connection($source));
+    }
 
     /**
      * @param  string|null  $since  re-read from this date (Y-m-d) instead of the watermark
-     * @return array{status: string, rows: int, skipped: int, new_codes: int, days: int, last_id: int, done: bool}
+     * @return array{status: string, rows: int, skipped: int, new_codes: int, days: int, last_id: int, watermark: string, done: bool}
      */
     public function sync(BiotimeSource $source, ?string $since = null, int $maxRows = self::DEFAULT_MAX_ROWS): array
     {
@@ -54,13 +77,13 @@ class BioTimeSyncService
         $lock = Cache::lock('biotime-sync:'.$source->id, 900);
         if (! $lock->get()) {
             return ['status' => 'busy', 'rows' => 0, 'skipped' => 0, 'new_codes' => 0, 'days' => 0,
-                'last_id' => (int) $source->last_id, 'done' => false];
+                'last_id' => (int) $source->last_id, 'watermark' => $source->watermarkLabel(), 'done' => false];
         }
 
         try {
-            $connection = $this->bioTime->connection($source);
-            $start = $this->startId($source, $connection, $since);
-            $result = $this->pull($source, $connection, $start, $maxRows, null, true);
+            $db = $this->bioTime->connection($source);
+            $reader = $this->reader($source);
+            $result = $this->pull($source, $reader, $db, $reader->startCursor($source, $db, $since), $maxRows, null, true);
         } catch (\Throwable $e) {
             $this->recordFailure($source, $e);
             throw $e;
@@ -82,44 +105,71 @@ class BioTimeSyncService
 
     /**
      * Re-reads every punch in a date range regardless of the watermark — used
-     * by biotime:reconcile when BioTime has punches the NOC does not.
+     * by biotime:reconcile when the source has punches the NOC does not.
      */
     public function pullRange(BiotimeSource $source, string $fromDate, string $toDate): array
     {
-        $connection = $this->bioTime->connection($source);
-        $window = [
-            BioTimeConnection::sqlDateTime($fromDate.' 00:00:00'),
-            BioTimeConnection::sqlDateTime(CarbonImmutable::parse($toDate)->addDay()->toDateString().' 00:00:00'),
-        ];
+        $db = $this->bioTime->connection($source);
+        $reader = $this->reader($source);
+        $window = [$fromDate.' 00:00:00', CarbonImmutable::parse($toDate)->addDay()->toDateString().' 00:00:00'];
 
-        return $this->pull($source, $connection, 0, PHP_INT_MAX, $window, false);
+        return $this->pull($source, $reader, $db, $reader->floorCursor(), PHP_INT_MAX, $window, false);
     }
 
     /**
-     * Punches per day on the BioTime side, up to the watermark so rows not yet
-     * synced do not read as missing.
+     * Punches per local day on the source side, up to the watermark so rows
+     * not yet synced do not read as missing. Counted from normalised rows, so
+     * a UTC source is grouped by the same local day as the NOC.
      *
      * @return array<string, int>
      */
     public function remoteDailyCounts(BiotimeSource $source, string $fromDate): array
     {
-        return $this->bioTime->connection($source)
-            ->table(BioTimeConnection::TABLE)
-            ->selectRaw('CONVERT(varchar(10), punch_time, 23) as d, COUNT(*) as c')
-            ->where('punch_time', '>=', BioTimeConnection::sqlDateTime($fromDate.' 00:00:00'))
-            ->where('id', '<=', (int) $source->last_id)
-            ->whereNotNull('emp_code')
-            ->where('emp_code', '<>', '')
-            ->groupByRaw('CONVERT(varchar(10), punch_time, 23)')
-            ->pluck('c', 'd')
-            ->map(fn ($c) => (int) $c)
-            ->all();
+        $db = $this->bioTime->connection($source);
+        $reader = $this->reader($source);
+
+        // A day's margin either side of the range, then counted by local date:
+        // a UTC source's day boundaries do not fall on the NOC's midnight.
+        $window = [
+            CarbonImmutable::parse($fromDate)->subDay()->toDateString().' 00:00:00',
+            CarbonImmutable::today()->addDays(2)->toDateString().' 00:00:00',
+        ];
+
+        $cursor = $reader->floorCursor();
+        $counts = [];
+
+        while (true) {
+            $batch = $reader->fetch($source, $db, $cursor, $this->chunk, $window);
+            if ($batch->isEmpty()) {
+                break;
+            }
+
+            foreach ($batch as $row) {
+                if (! $reader->withinWatermark($row, $source)) {
+                    continue;
+                }
+                $punch = $reader->normalise($row, $source);
+                $date = $punch ? substr($punch['punch_time'], 0, 10) : null;
+                if ($date !== null && $date >= $fromDate) {
+                    $counts[$date] = ($counts[$date] ?? 0) + 1;
+                }
+            }
+
+            $cursor = $reader->cursorAfter($batch->last());
+            if ($batch->count() < $this->chunk) {
+                break;
+            }
+        }
+
+        ksort($counts);
+
+        return $counts;
     }
 
     /** @return array<string, int> */
     public function localDailyCounts(BiotimeSource $source, string $fromDate): array
     {
-        return AttendancePunch::query()
+        $counts = AttendancePunch::query()
             ->where('biotime_source_id', $source->id)
             ->where('punch_time', '>=', $fromDate.' 00:00:00')
             ->selectRaw('DATE(punch_time) as d, COUNT(*) as c')
@@ -127,6 +177,10 @@ class BioTimeSyncService
             ->pluck('c', 'd')
             ->map(fn ($c) => (int) $c)
             ->all();
+
+        ksort($counts);
+
+        return $counts;
     }
 
     public function raiseEvent(BiotimeSource $source, string $entityType, string $title, string $message): void
@@ -165,35 +219,12 @@ class BioTimeSyncService
 
     // ─────────────────────────────────────────────────────────────
 
-    private function startId(BiotimeSource $source, ConnectionInterface $connection, ?string $since): int
-    {
-        $watermark = (int) $source->last_id;
-
-        // An explicit --since re-reads from that date (safe: upserts). import_from
-        // only shapes a source's very first run, so it is not years of history.
-        $from = $since ?? ($watermark === 0 ? $source->import_from?->toDateString() : null);
-        if ($from === null) {
-            return $watermark;
-        }
-
-        $firstId = $connection->table(BioTimeConnection::TABLE)
-            ->where('punch_time', '>=', BioTimeConnection::sqlDateTime($from.' 00:00:00'))
-            ->min('id');
-
-        if ($firstId === null) {
-            // Nothing that recent: start at the end so later runs read only new punches.
-            return $since === null ? (int) $connection->table(BioTimeConnection::TABLE)->max('id') : $watermark;
-        }
-
-        return max(0, (int) $firstId - 1);
-    }
-
     /**
-     * @param  array{0: string, 1: string}|null  $window  punch_time >= [0] and < [1]
+     * @param  array{0: string, 1: string}|null  $window  local wall-clock [from, to)
      */
-    private function pull(BiotimeSource $source, ConnectionInterface $connection, int $startId, int $maxRows, ?array $window, bool $advanceWatermark): array
+    private function pull(BiotimeSource $source, PunchReader $reader, ConnectionInterface $db, array $cursor, int $maxRows, ?array $window, bool $advanceWatermark): array
     {
-        $cursor = $startId;
+        $start = $cursor;
         $rows = 0;
         $skipped = 0;
         $newCodes = 0;
@@ -202,39 +233,37 @@ class BioTimeSyncService
         $syncedAt = Carbon::now();
 
         while ($rows < $maxRows) {
-            $query = $connection->table(BioTimeConnection::TABLE)
-                ->select(BioTimeConnection::COLUMNS)
-                ->where('id', '>', $cursor);
-
-            if ($window) {
-                $query->where('punch_time', '>=', $window[0])->where('punch_time', '<', $window[1]);
-            }
-
-            $batch = $query->orderBy('id')->limit(self::CHUNK)->get();
+            $batch = $reader->fetch($source, $db, $cursor, $this->chunk, $window);
 
             if ($batch->isEmpty()) {
                 $done = true;
                 break;
             }
 
-            $stored = $this->store($source, $batch, $syncedAt, $touched);
-            $skipped += $stored['skipped'];
-            $newCodes += $stored['new_codes'];
-            $rows += $batch->count();
-            $cursor = (int) $batch->last()->id;
-
-            if ($advanceWatermark && $cursor > (int) $source->last_id) {
-                $source->forceFill(['last_id' => $cursor])->save();
+            $punches = [];
+            foreach ($batch as $row) {
+                $punch = $reader->normalise($row, $source);
+                $punch === null ? $skipped++ : $punches[] = $punch;
             }
 
-            if ($batch->count() < self::CHUNK) {
+            $newCodes += $this->store($source, $punches, $syncedAt, $touched);
+            $rows += $batch->count();
+            $cursor = $reader->cursorAfter($batch->last());
+
+            if ($advanceWatermark) {
+                $reader->advance($source, $cursor);
+            }
+
+            if ($batch->count() < $this->chunk) {
                 $done = true;
                 break;
             }
         }
 
-        if ($advanceWatermark && $startId > (int) $source->last_id) {
-            $source->forceFill(['last_id' => $startId])->save();
+        // A start past the watermark counts even when nothing was read — an
+        // import_from date with nothing newer yet.
+        if ($advanceWatermark) {
+            $reader->advance($source, $start);
         }
 
         $days = $this->processor->rebuild($touched);
@@ -246,42 +275,20 @@ class BioTimeSyncService
             'new_codes' => $newCodes,
             'days' => $days,
             'last_id' => (int) $source->last_id,
+            'watermark' => $source->watermarkLabel(),
             'done' => $done,
         ];
     }
 
     /**
+     * @param  list<array<string, mixed>>  $rows  normalised punches
      * @param  array<string, array<string, true>>  $touched
-     * @return array{skipped: int, new_codes: int}
+     * @return int codes seen for the first time
      */
-    private function store(BiotimeSource $source, Collection $batch, Carbon $syncedAt, array &$touched): array
+    private function store(BiotimeSource $source, array $rows, Carbon $syncedAt, array &$touched): int
     {
-        $rows = [];
-        $skipped = 0;
-
-        foreach ($batch as $record) {
-            $code = trim((string) ($record->emp_code ?? ''));
-            $time = self::wallClock($record->punch_time ?? null);
-
-            if ($code === '' || $time === null) {
-                $skipped++;
-
-                continue;
-            }
-
-            $rows[] = [
-                'biotime_id' => (int) $record->id,
-                'emp_code' => mb_substr($code, 0, 50),
-                'punch_time' => $time,
-                'punch_state' => self::text($record->punch_state ?? null, 10),
-                'terminal_sn' => self::text($record->terminal_sn ?? null, 100),
-                'terminal_alias' => self::text($record->terminal_alias ?? null, 150),
-                'area_alias' => self::text($record->area_alias ?? null, 100),
-            ];
-        }
-
         if ($rows === []) {
-            return ['skipped' => $skipped, 'new_codes' => 0];
+            return 0;
         }
 
         $this->touchAreas($source, $rows);
@@ -306,13 +313,13 @@ class BioTimeSyncService
         foreach (array_chunk($punches, 1000) as $chunk) {
             AttendancePunch::upsert(
                 $chunk,
-                ['biotime_source_id', 'biotime_id'],
-                ['biotime_employee_id', 'employee_id', 'emp_code', 'punch_time', 'punch_state',
+                ['biotime_source_id', 'external_id'],
+                ['biotime_id', 'biotime_employee_id', 'employee_id', 'emp_code', 'punch_time', 'punch_state',
                     'terminal_sn', 'terminal_alias', 'area_alias', 'synced_at'],
             );
         }
 
-        return ['skipped' => $skipped, 'new_codes' => $newCodes];
+        return $newCodes;
     }
 
     /**
@@ -329,6 +336,9 @@ class BioTimeSyncService
             if ($row['area_alias'] !== null) {
                 $byCode[$key]['areas'][$row['area_alias']] = true;
             }
+            if ($row['terminal_sn'] !== null) {
+                $byCode[$key]['terminals'][$row['terminal_sn']] = true;
+            }
         }
 
         $known = BiotimeEmployee::query()
@@ -341,12 +351,13 @@ class BioTimeSyncService
         $new = [];
         foreach ($byCode as $key => $info) {
             $areas = array_keys($info['areas'] ?? []);
+            $terminals = array_keys($info['terminals'] ?? []);
             $biotimeEmployee = $known[$key] ?? null;
 
             if (! $biotimeEmployee) {
                 $biotimeEmployee = BiotimeEmployee::createOrFirst(
                     ['biotime_source_id' => $source->id, 'emp_code' => $info['code']],
-                    ['areas' => $areas, 'first_punch_at' => $info['first'], 'last_punch_at' => $info['last']],
+                    ['areas' => $areas, 'terminals' => $terminals, 'first_punch_at' => $info['first'], 'last_punch_at' => $info['last']],
                 );
                 $biotimeEmployee->setRelation('source', $source);
                 $known[$key] = $biotimeEmployee;
@@ -357,8 +368,8 @@ class BioTimeSyncService
                 continue;
             }
 
-            $merged = array_values(array_unique(array_merge($biotimeEmployee->areas ?? [], $areas)));
-            $biotimeEmployee->areas = array_slice($merged, 0, 20);
+            $biotimeEmployee->areas = array_slice(array_values(array_unique(array_merge($biotimeEmployee->areas ?? [], $areas))), 0, 20);
+            $biotimeEmployee->terminals = array_slice(array_values(array_unique(array_merge($biotimeEmployee->terminals ?? [], $terminals))), 0, 20);
 
             if (! $biotimeEmployee->first_punch_at || $info['first'] < $biotimeEmployee->first_punch_at->format('Y-m-d H:i:s')) {
                 $biotimeEmployee->first_punch_at = $info['first'];
@@ -372,7 +383,8 @@ class BioTimeSyncService
         }
 
         // Link before the punches are written, so they carry employee_id from
-        // the start. Areas are already stored, so the branch rule can use them.
+        // the start. Areas and terminals are already stored, so the branch
+        // rule can use them.
         foreach ($new as $biotimeEmployee) {
             $this->linker->autoLink($biotimeEmployee);
         }
@@ -415,7 +427,13 @@ class BioTimeSyncService
         }
 
         foreach ($latest as $sn => $info) {
-            $terminal = BiotimeTerminal::createOrFirst(['biotime_source_id' => $source->id, 'terminal_sn' => $sn]);
+            $terminal = BiotimeTerminal::createOrFirst(
+                ['biotime_source_id' => $source->id, 'terminal_sn' => $sn],
+                // Access-control terminals carry no area — a keyword in the name is the only first guess.
+                ['branch_id' => $info['area'] === null && $info['alias'] !== null
+                    ? BranchKeywordMatcher::match([$info['alias']], $this->branchMappings ??= AzureBranchMapping::all())
+                    : null],
+            );
 
             if (! $terminal->last_punch_at || $info['time'] >= $terminal->last_punch_at->format('Y-m-d H:i:s')) {
                 $terminal->forceFill([
@@ -454,29 +472,5 @@ class BioTimeSyncService
             ->where('entity_id', (string) $source->id)
             ->where('status', '!=', 'resolved')
             ->first();
-    }
-
-    /**
-     * punch_time exactly as the device wrote it, 'Y-m-d H:i:s'. Not parsed
-     * into a zone — it has none, and converting it would shift every punch.
-     */
-    public static function wallClock(mixed $value): ?string
-    {
-        if ($value instanceof \DateTimeInterface) {
-            return $value->format('Y-m-d H:i:s');
-        }
-
-        if (preg_match('/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/', trim((string) $value), $m)) {
-            return (int) substr($m[1], 0, 4) >= 2000 ? $m[1].' '.$m[2] : null;
-        }
-
-        return null;
-    }
-
-    private static function text(mixed $value, int $max): ?string
-    {
-        $value = trim((string) ($value ?? ''));
-
-        return $value === '' ? null : mb_substr($value, 0, $max);
     }
 }

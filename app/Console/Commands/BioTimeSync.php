@@ -61,9 +61,9 @@ class BioTimeSync extends Command
             }
 
             $this->info(sprintf(
-                '%s: %d punch(es), %d new code(s), %d day(s) rebuilt, watermark %d%s%s',
-                $source->name, $r['rows'], $r['new_codes'], $r['days'], $r['last_id'],
-                $r['skipped'] ? ", {$r['skipped']} row(s) skipped (blank code or time)" : '',
+                '%s: %d row(s), %d new code(s), %d day(s) rebuilt, watermark %s%s%s',
+                $source->name, $r['rows'], $r['new_codes'], $r['days'], $r['watermark'],
+                $r['skipped'] ? ", {$r['skipped']} row(s) skipped (no employee code or time — e.g. door events)" : '',
                 $r['done'] ? '' : ' — more to read, continues next run',
             ));
         }
