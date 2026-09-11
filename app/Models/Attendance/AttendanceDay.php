@@ -57,6 +57,9 @@ class AttendanceDay extends Model
         'computed_at',
     ];
 
+    // `locked` and `attendance_period_id` are set only by AttendancePeriodService,
+    // with a query update — never by filling a day.
+
     protected $casts = [
         'work_date' => 'date',
         'employee_id' => 'integer',
@@ -77,6 +80,8 @@ class AttendanceDay extends Model
         'attendance_adjustment_id' => 'integer',
         'flags' => 'array',
         'has_error' => 'boolean',
+        'locked' => 'boolean',
+        'attendance_period_id' => 'integer',
         'computed_at' => 'datetime',
     ];
 
@@ -103,6 +108,11 @@ class AttendanceDay extends Model
     public function adjustment(): BelongsTo
     {
         return $this->belongsTo(AttendanceAdjustment::class, 'attendance_adjustment_id');
+    }
+
+    public function period(): BelongsTo
+    {
+        return $this->belongsTo(AttendancePeriod::class, 'attendance_period_id');
     }
 
     /** The raw punches this day was built from — its window, which runs past midnight for an overnight shift. */

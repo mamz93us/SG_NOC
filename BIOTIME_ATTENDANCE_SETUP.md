@@ -240,7 +240,36 @@ For older days, run:
 php artisan attendance:process --from=2026-08-01 --to=2026-08-31
 ```
 
-## 9. Commands
+## 9. Periods, approval and the Oracle export
+
+**Attendance → Periods.** A period is one unit that goes to Oracle: a date range for one branch
+or for all of them. A day can be in only one period for the same people, so the page refuses a
+period that overlaps another one for the same branch, or overlaps an all-branches period.
+
+The period page shows whether it is **ready to approve**. It can be approved only when:
+
+- its last day is over, so absences are final,
+- none of its days has a data error (the page lists them by type, with a link to those days),
+- everyone in it has an **Oracle number**,
+- no sync, recalculation or re-matching is still running.
+
+**Approve & lock** (permission `approve-attendance`) freezes the period's days. From then on, punches that arrive
+late, shift or holiday changes and corrections no longer change them. This is enforced on the day
+row itself, so it holds even for a sync that started before the approval. The period page counts
+punches that arrived after approval.
+
+**Reopen** needs a reason. It unlocks the days and queues a recalculation of the period, so
+everything that changed since approval applies. Then approve it again.
+
+Approving queues the **Oracle export**. It builds one record per employee per day: Oracle number,
+name, branch, date, status, shift, scheduled times, check-in/out, worked / late / early-leave /
+overtime minutes, excuse, and whether HR corrected it. The record goes to the sender configured in
+`config/attendance.php`. Until Oracle publishes its attendance API that is
+`StubOracleAttendanceSender`: it sends nothing, and marks the export **prepared**. Every export
+keeps its exact payload, which you can **download as CSV or JSON**. **Prepare again** builds a new one.
+Once a real sender reports **sent**, the period shows *Sent to Oracle*.
+
+## 10. Commands
 
 | Command | When |
 |---|---|
@@ -253,7 +282,7 @@ php artisan attendance:process --from=2026-08-01 --to=2026-08-31
 A source that fails 3 syncs in a row, and a count mismatch that survives
 `--fix`, each raise a **NocEvent** (module `attendance`). The event resolves itself once the problem clears.
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Message | Meaning |
 |---|---|

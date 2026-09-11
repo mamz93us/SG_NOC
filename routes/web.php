@@ -1099,6 +1099,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
                 Route::get('areas', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'index'])->name('areas.index');
                 Route::get('shifts', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'index'])->name('shifts.index');
                 Route::get('holidays', [\App\Http\Controllers\Admin\Attendance\AttendanceHolidayController::class, 'index'])->name('holidays.index');
+                Route::get('periods', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'index'])->name('periods.index');
+                Route::get('periods/{period}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'show'])->name('periods.show');
+                Route::get('exports/{export}/download/{format}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'download'])
+                    ->whereIn('format', ['csv', 'json'])->name('exports.download');
             });
 
             // Connections hold SQL credentials; links decide whose punches are whose.
@@ -1127,6 +1131,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
                 // Corrections: never edit punches, always leave a reason and a history.
                 Route::post('days/{day}/adjustments', [\App\Http\Controllers\Admin\Attendance\AttendanceAdjustmentController::class, 'store'])->name('days.adjust');
                 Route::post('adjustments/{adjustment}/revoke', [\App\Http\Controllers\Admin\Attendance\AttendanceAdjustmentController::class, 'revoke'])->name('adjustments.revoke');
+                Route::post('periods', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'store'])->name('periods.store');
+                Route::delete('periods/{period}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'destroy'])->name('periods.destroy');
+            });
+
+            // Signing off: approve and lock a period, reopen it, send it to Oracle.
+            Route::middleware('permission:approve-attendance')->group(function () {
+                Route::post('periods/{period}/approve', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'approve'])->name('periods.approve');
+                Route::post('periods/{period}/reopen', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'reopen'])->name('periods.reopen');
+                Route::post('periods/{period}/export', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'export'])->name('periods.export');
             });
         });
 
