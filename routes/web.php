@@ -1109,6 +1109,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
                 Route::post('employees/{biotimeEmployee}/no-employee', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'noEmployee'])->name('employees.no-employee');
                 Route::post('employees/{biotimeEmployee}/reset', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'reset'])->name('employees.reset');
                 Route::put('areas/{area}', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'update'])->name('areas.update');
+                Route::put('terminals/{terminal}', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'updateTerminal'])->name('areas.terminals.update');
                 Route::get('sources', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'index'])->name('sources.index');
                 Route::get('sources/create', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'create'])->name('sources.create');
                 Route::post('sources', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'store'])->name('sources.store');

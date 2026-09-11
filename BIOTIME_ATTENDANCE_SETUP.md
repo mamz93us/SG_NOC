@@ -68,6 +68,43 @@ GRANT SELECT ON dbo.iclock_transaction TO noc_attendance;
 
 This grants nothing beyond that one table.
 
+### Access-control databases (ZKBio `acc_transaction`)
+
+A source can also be a ZKBio access-control database, such as ZKBioSecurity or ZKBio CVSecurity. The NOC reads:
+
+```sql
+SELECT id, create_time, dev_alias, dev_id, dev_sn, pin FROM acc_transaction
+```
+
+The columns map like this:
+
+| Column | Used as |
+|---|---|
+| `pin` | The employee code |
+| `create_time` | The punch time. Choose `event_time` on the source instead if the table has it (see below). |
+| `dev_sn` | The terminal |
+| `dev_alias` | The terminal's name, often just "IN" / "Out" |
+
+Grant it the same way:
+
+```sql
+GRANT SELECT ON dbo.acc_transaction TO noc_attendance;
+```
+
+Things that differ from BioTime:
+
+- **Rows with no `pin` are skipped.** These are door, alarm and other non-person events.
+- **The table is read by time, then id.** Its ids are unordered hex strings, so "everything after id X" does not work.
+  Rows that share a timestamp are neither lost nor read twice.
+- **`create_time` is when the row was written.** For an online terminal that is the punch time. A
+  terminal that uploads late gets the upload time. If the table also has `event_time` (the moment of the scan),
+  choose it on the source. Test connection tells you which of the two the table has, and the nightly
+  reconcile then catches rows that arrive late.
+- **There are no areas.** Map each **terminal** to a branch and time zone on Areas & Terminals.
+- **Times may be UTC.** Test connection shows SQL Server's own clock, local and UTC, next to the newest
+  row. If the newest row matches the UTC clock, switch on *Times in this database are UTC* and
+  choose the zone to convert to. Punches are then stored in local time, like BioTime's.
+
 ## 4. Add the sources
 
 **Attendance → BioTime Sources → Add source**, once per BioTime database:
