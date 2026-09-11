@@ -152,7 +152,7 @@ wrapper script + `/etc/sudoers.d/*`, never raw).
 
 | Daemon | Command | Port | Kept alive by | Notes |
 |---|---|---|---|---|
-| **Scheduler-as-worker** | `php artisan schedule:run` (loop) | — | supervisor `deployment/supervisor/switch-poll.conf` | THE production scheduler. ~30 scheduled tasks in `routes/console.php`. Do **not** also add a `schedule:run` cron — that double-fires every task. |
+| **Scheduler-as-worker** | `php artisan schedule:work` | — | supervisor `deployment/supervisor/switch-poll.conf` | THE production scheduler: starts one `schedule:run` at the top of each minute for the ~80 tasks in `routes/console.php`. Do **not** also add a `schedule:run` cron, and do not point supervisor at `schedule:run` itself (it restarts on exit and re-runs the same minute) — both double-fire tasks. |
 | **VQ collector** | `php artisan vq:collect --port=5099` | **UDP 5099** | supervisor `deployment/supervisor/vq-collector.conf` | Listens for **SIP NOTIFY vq-rtcpxr** voice-quality reports from Grandstream phones (NOT SNMP trap). Needs UDP 5099 reachable from branch phones. |
 | **Telnet/SSH proxy** | `node server.js` (`telnet-proxy/`) | **TCP 8765** (127.0.0.1) | PM2 `sg-noc-telnet` | WebSocket↔Telnet/SSH bridge. Validates tokens against the app via `INTERNAL_SECRET` = `.env TELNET_INTERNAL_SECRET`. nginx proxies `/ws/telnet` → 8765. Node deps: `ws`, `ssh2`. |
 

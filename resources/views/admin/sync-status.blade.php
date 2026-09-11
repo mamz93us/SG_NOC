@@ -180,22 +180,19 @@ $serviceConfig = [
 <div class="card shadow-sm border-0 mb-4 border-info">
     <div class="card-header bg-transparent d-flex align-items-center gap-2">
         <i class="bi bi-terminal-fill text-info"></i>
-        <strong>Auto-Scheduler Setup (Cron)</strong>
-        <span id="cronStatus" class="badge bg-secondary ms-auto">Checking…</span>
+        <strong>Auto-Scheduler (supervisor)</strong>
     </div>
     <div class="card-body">
         <p class="text-muted small mb-2">
-            For syncs to run automatically, add this single <strong>cron entry</strong> on your server (runs every minute — Laravel handles the rest):
+            Syncs run from the Laravel scheduler, which supervisor keeps running as the <code>switch-poll</code> program:
         </p>
-        <div class="bg-dark text-light rounded p-3 font-monospace small d-flex align-items-center gap-2">
-            <code id="cronLine">* * * * * cd {{ base_path() }} && php artisan schedule:run >> /dev/null 2>&1</code>
-            <button class="btn btn-sm btn-outline-light ms-auto flex-shrink-0" onclick="copyCron()" title="Copy">
-                <i class="bi bi-clipboard" id="copyIcon"></i>
-            </button>
+        <div class="bg-dark text-light rounded p-3 font-monospace small">
+            <code>php {{ base_path('artisan') }} schedule:work</code>
         </div>
         <p class="text-muted small mt-2 mb-0">
-            <strong>To add it:</strong> Run <code>crontab -e</code> on the server and paste the line above.
-            Or run: <code>( crontab -l 2>/dev/null; echo "* * * * * cd {{ base_path() }} && php artisan schedule:run >> /dev/null 2>&1" ) | crontab -</code>
+            Unit file: <code>deployment/supervisor/switch-poll.conf</code>, installed in <code>/etc/supervisor/conf.d/</code>.
+            Check it with <code>sudo supervisorctl status switch-poll</code>.
+            <strong>Do not also add a <code>schedule:run</code> cron entry</strong> — running both fires every sync twice.
         </p>
     </div>
 </div>
@@ -208,7 +205,7 @@ $serviceConfig = [
     </div>
     <div class="card-body p-0">
         @if($history->isEmpty())
-            <div class="text-center text-muted py-4">No sync history yet. Run a sync manually or set up the cron.</div>
+            <div class="text-center text-muted py-4">No sync history yet. Run a sync manually, or check the scheduler is running.</div>
         @else
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 small">
@@ -258,15 +255,6 @@ $serviceConfig = [
 
 @push('scripts')
 <script>
-function copyCron() {
-    const text = document.getElementById('cronLine').textContent.trim();
-    navigator.clipboard.writeText(text).then(() => {
-        const icon = document.getElementById('copyIcon');
-        icon.className = 'bi bi-clipboard-check';
-        setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
-    });
-}
-
 // Auto-refresh if any service is running
 @php $anyRunning = collect($status)->contains(fn($s) => $s['isRunning']); @endphp
 @if($anyRunning || session('info'))

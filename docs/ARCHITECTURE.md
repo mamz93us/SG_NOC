@@ -4,7 +4,7 @@
 
 ## Scheduler-as-worker
 
-Production runs no dedicated `queue:work` process — cPanel/shared-hosting constraints preclude a long-running worker. `routes/console.php` registers ~30 scheduled tasks (1/2/5-min, hourly, daily, weekly) via `Schedule::command()`/`Schedule::call()`, kept alive by `deployment/supervisor/switch-poll.conf` running `php artisan schedule:run` continuously. Several scheduled tasks call a Job's `->handle()` directly instead of dispatching to the DB queue. **Anything that must run reliably should be a scheduled command, not a queued job.**
+Production runs no dedicated `queue:work` process — cPanel/shared-hosting constraints preclude a long-running worker. `routes/console.php` registers ~30 scheduled tasks (1/2/5-min, hourly, daily, weekly) via `Schedule::command()`/`Schedule::call()`, run by `deployment/supervisor/switch-poll.conf`, which runs `php artisan schedule:work` (one `schedule:run` at the top of each minute; there is no crontab entry). Slow tasks must be `->runInBackground()` — see the Scheduler-as-worker note in `CLAUDE.md`. Several scheduled tasks call a Job's `->handle()` directly instead of dispatching to the DB queue. **Anything that must run reliably should be a scheduled command, not a queued job.**
 
 ## Permission model
 
