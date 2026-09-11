@@ -1,6 +1,37 @@
 @php
     $unmappedCount = \App\Models\Attendance\BiotimeEmployee::unmappedCount();
+    // Background work the pages queued (attendance:work runs it every minute).
+    $openTasks = \App\Models\Attendance\AttendanceTask::whereIn('status', ['pending', 'running'])->orderBy('id')->limit(5)->get();
+    $recentTasks = \App\Models\Attendance\AttendanceTask::whereIn('status', ['done', 'failed'])
+        ->where('finished_at', '>=', now()->subMinutes(15))
+        ->latest('finished_at')
+        ->limit(3)
+        ->get();
 @endphp
+
+@if ($openTasks->isNotEmpty() || $recentTasks->isNotEmpty())
+    <div class="card border-0 shadow-sm mb-3">
+        <ul class="list-group list-group-flush small">
+            @foreach ($openTasks as $task)
+                <li class="list-group-item d-flex align-items-center gap-2">
+                    @if ($task->status === 'running')
+                        <span class="spinner-border spinner-border-sm text-primary"></span>
+                        <span><strong>{{ $task->label }}</strong> — running since {{ $task->started_at?->format('H:i') }}</span>
+                    @else
+                        <i class="bi bi-hourglass-split text-muted"></i>
+                        <span><strong>{{ $task->label }}</strong> — queued {{ $task->created_at?->diffForHumans() }}, starts within a minute</span>
+                    @endif
+                </li>
+            @endforeach
+            @foreach ($recentTasks as $task)
+                <li class="list-group-item d-flex align-items-center gap-2 {{ $task->status === 'failed' ? 'text-danger' : '' }}">
+                    <i class="bi {{ $task->status === 'failed' ? 'bi-x-circle-fill' : 'bi-check-circle-fill text-success' }}"></i>
+                    <span><strong>{{ $task->label }}</strong> — {{ $task->status === 'failed' ? 'failed' : 'done' }} {{ $task->finished_at?->diffForHumans() }}: {{ $task->result }}</span>
+                </li>
+            @endforeach
+        </ul>
+    </div>
+@endif
 <ul class="nav nav-tabs mb-4">
     <li class="nav-item">
         <a class="nav-link {{ request()->routeIs('admin.attendance.days.*') ? 'active' : '' }}"

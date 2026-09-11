@@ -131,11 +131,15 @@ class AccessTransactionReader extends PunchReader
         $column = $this->timeColumn($source);
         $after = $this->literal($cursor['time']);
 
+        // t >= x AND (t > x OR id > y) — the same rows as t > x OR (t = x AND id > y),
+        // but the leading range lets SQL Server seek the time index. Written as
+        // a single OR it scans the whole table: 6.8 s per page on 850k rows.
         $query = $db->table(self::TABLE)
             ->select(['id', $column.' as punch_at', 'dev_alias', 'dev_id', 'dev_sn', 'pin'])
+            ->where($column, '>=', $after)
             ->where(fn ($q) => $q
                 ->where($column, '>', $after)
-                ->orWhere(fn ($same) => $same->where($column, '=', $after)->where('id', '>', (string) $cursor['ref'])));
+                ->orWhere('id', '>', (string) $cursor['ref']));
 
         if ($window) {
             $query->where($column, '>=', $this->literal($this->toDbTime($window[0], $source)))

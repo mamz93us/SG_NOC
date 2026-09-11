@@ -6,12 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Attendance\AttendanceAdjustment;
 use App\Models\Attendance\AttendanceDay;
+use App\Models\Attendance\AttendanceTask;
 use App\Models\Attendance\BiotimeEmployee;
 use App\Models\Attendance\BiotimeSource;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Services\Attendance\AttendanceDayBuilder;
-use App\Services\Attendance\AttendanceDayProcessor;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -126,7 +126,8 @@ class AttendanceDayController extends Controller
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
-    public function reprocess(Request $request, AttendanceDayProcessor $processor): RedirectResponse
+    /** Queued: rebuilding weeks for everyone takes far longer than a web request may. */
+    public function reprocess(Request $request): RedirectResponse
     {
         $data = $request->validate(['from' => 'required|date', 'to' => 'required|date']);
         $from = CarbonImmutable::parse($data['from']);
@@ -139,18 +140,18 @@ class AttendanceDayController extends Controller
             return back()->with('error', 'Rebuild at most 93 days at a time — use `php artisan attendance:process` for longer ranges.');
         }
 
-        @set_time_limit(300);
-        $count = $processor->rebuildRange($from->toDateString(), $to->toDateString());
+        AttendanceTask::queue('rebuild', ['from' => $from->toDateString(), 'to' => $to->toDateString(), 'employee_ids' => null],
+            "Recalculate {$from->format('d M')} – {$to->format('d M')} (requested)", Auth::id());
 
         ActivityLog::create([
             'model_type' => 'AttendanceDay',
             'model_id' => 0,
-            'action' => 'rebuilt',
-            'changes' => ['from' => $from->toDateString(), 'to' => $to->toDateString(), 'days' => $count],
+            'action' => 'rebuild-queued',
+            'changes' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
             'user_id' => Auth::id(),
         ]);
 
-        return back()->with('success', "Rebuilt {$count} day(s) from {$from->toDateString()} to {$to->toDateString()}.");
+        return back()->with('success', "Recalculation of {$from->toDateString()} to {$to->toDateString()} queued — the banner above shows when it is done.");
     }
 
     /** @return array{from: string, to: string, source: ?int, branch: ?int, department: ?int, status: ?string, q: string} */

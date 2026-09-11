@@ -232,7 +232,8 @@ days at once, such as Eid. A holiday records no absence, and work on it is overt
 
 A new correction replaces the previous one, which stays in the day's **History**. Any correction can be **revoked**.
 
-Saving a shift, an assignment or a holiday recalculates the last 14 days straight away.
+Saving a shift, an assignment or a holiday queues a recalculation of the last 14 days. It starts
+within a minute (`attendance:work`), and the banner at the top of the attendance pages shows when it's done.
 For older days, run:
 
 ```bash
@@ -243,7 +244,8 @@ php artisan attendance:process --from=2026-08-01 --to=2026-08-31
 
 | Command | When |
 |---|---|
-| `biotime:sync` | Every 5 min (scheduler). `--source=ID`, `--since=YYYY-MM-DD` to re-read from a date, `--max-rows=`. |
+| `biotime:sync` | Every 5 min (scheduler) with `--max-seconds=240`, so a run never overlaps the next one. `--source=ID`, `--since=YYYY-MM-DD` to re-read from a date, `--max-rows=`. |
+| `attendance:work` | Every minute. Runs the work the pages queue instead of doing it in the web request: **Sync now**, recalculations after shift or holiday changes, **Rebuild days**, and re-matching codes. Progress shows in a banner at the top of every attendance page. |
 | `biotime:reconcile --fix` | Nightly 02:30. Compares per-day counts with BioTime for the last 7 days, re-reads any day that is short, reports punches that were deleted in BioTime, and retries auto-matching. |
 | `biotime:test [source]` | The page's Test connection, from the shell. |
 | `attendance:process` | Hourly with `--days=2` and nightly with `--days=7`. Records absences, which no sync can do because nobody punched, and applies shift and holiday changes to recent days. Use `--from=` / `--to=` for any range. |

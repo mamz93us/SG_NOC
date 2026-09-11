@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\Attendance;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Attendance\AttendanceTask;
 use App\Models\Attendance\BiotimeEmployee;
 use App\Models\Attendance\BiotimeSource;
 use App\Models\Employee;
@@ -101,14 +102,12 @@ class BiotimeEmployeeController extends Controller
         return back()->with('success', "BioTime code {$biotimeEmployee->emp_code} is back on automatic matching: {$biotimeEmployee->methodLabel()}.");
     }
 
-    public function automatch(EmployeeLinker $linker): RedirectResponse
+    /** Queued: every newly linked code rebuilds all the days it touches. */
+    public function automatch(): RedirectResponse
     {
-        @set_time_limit(300);
-        $linked = $linker->retryUnlinked();
+        AttendanceTask::queue('relink', ['source_id' => null], 'Re-match unmapped codes', Auth::id());
 
-        return back()->with('success', $linked
-            ? "Auto-matching linked {$linked} code(s)."
-            : 'Auto-matching found nothing new to link.');
+        return back()->with('success', 'Auto-matching queued — it starts within a minute. The banner above shows what it linked.');
     }
 
     private function applyStatus($query, string $status)

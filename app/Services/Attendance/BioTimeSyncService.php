@@ -69,12 +69,14 @@ class BioTimeSyncService
 
     /**
      * @param  string|null  $since  re-read from this date (Y-m-d) instead of the watermark
+     * @param  int|null  $maxSeconds  stop after about this long; the next run carries on from the watermark
      * @return array{status: string, rows: int, skipped: int, new_codes: int, days: int, last_id: int, watermark: string, done: bool}
      */
-    public function sync(BiotimeSource $source, ?string $since = null, int $maxRows = self::DEFAULT_MAX_ROWS): array
+    public function sync(BiotimeSource $source, ?string $since = null, int $maxRows = self::DEFAULT_MAX_ROWS, ?int $maxSeconds = null): array
     {
-        // The page's "Sync now" and the scheduler must not run one source twice at once.
-        $lock = Cache::lock('biotime-sync:'.$source->id, 900);
+        // A queued "Sync now" and the scheduler must not run one source twice at
+        // once. The lock outlives any budgeted run and is released in finally.
+        $lock = Cache::lock('biotime-sync:'.$source->id, 3600);
         if (! $lock->get()) {
             return ['status' => 'busy', 'rows' => 0, 'skipped' => 0, 'new_codes' => 0, 'days' => 0,
                 'last_id' => (int) $source->last_id, 'watermark' => $source->watermarkLabel(), 'done' => false];
@@ -83,7 +85,7 @@ class BioTimeSyncService
         try {
             $db = $this->bioTime->connection($source);
             $reader = $this->reader($source);
-            $result = $this->pull($source, $reader, $db, $reader->startCursor($source, $db, $since), $maxRows, null, true);
+            $result = $this->pull($source, $reader, $db, $reader->startCursor($source, $db, $since), $maxRows, null, true, $maxSeconds);
         } catch (\Throwable $e) {
             $this->recordFailure($source, $e);
             throw $e;
@@ -222,17 +224,18 @@ class BioTimeSyncService
     /**
      * @param  array{0: string, 1: string}|null  $window  local wall-clock [from, to)
      */
-    private function pull(BiotimeSource $source, PunchReader $reader, ConnectionInterface $db, array $cursor, int $maxRows, ?array $window, bool $advanceWatermark): array
+    private function pull(BiotimeSource $source, PunchReader $reader, ConnectionInterface $db, array $cursor, int $maxRows, ?array $window, bool $advanceWatermark, ?int $maxSeconds = null): array
     {
         $start = $cursor;
         $rows = 0;
         $skipped = 0;
         $newCodes = 0;
-        $touched = [];
+        $days = 0;
         $done = false;
         $syncedAt = Carbon::now();
+        $deadline = $maxSeconds ? microtime(true) + $maxSeconds : null;
 
-        while ($rows < $maxRows) {
+        while ($rows < $maxRows && ($deadline === null || microtime(true) < $deadline)) {
             $batch = $reader->fetch($source, $db, $cursor, $this->chunk, $window);
 
             if ($batch->isEmpty()) {
@@ -246,7 +249,11 @@ class BioTimeSyncService
                 $punch === null ? $skipped++ : $punches[] = $punch;
             }
 
+            $touched = [];
             $newCodes += $this->store($source, $punches, $syncedAt, $touched);
+            // Days are rebuilt per page, so a run its time budget cuts short
+            // never leaves stored punches with stale days.
+            $days += $this->processor->rebuild($touched);
             $rows += $batch->count();
             $cursor = $reader->cursorAfter($batch->last());
 
@@ -265,8 +272,6 @@ class BioTimeSyncService
         if ($advanceWatermark) {
             $reader->advance($source, $start);
         }
-
-        $days = $this->processor->rebuild($touched);
 
         return [
             'status' => 'ok',
