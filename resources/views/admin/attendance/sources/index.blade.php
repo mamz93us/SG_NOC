@@ -136,10 +136,21 @@
                                 @if ($source->isAccessControl())
                                     · time from <code>{{ $source->time_column ?: 'create_time' }}</code>
                                 @endif
+                                @if ($source->isLegacy())
+                                    · code from <code>{{ $source->codeColumn() }}</code>
+                                @endif
                                 @if ($source->stores_utc)
                                     · UTC → {{ $source->timezone ?: config('app.timezone') }}
                                 @endif
                             </div>
+                            @if ($source->codePrefix() !== '')
+                                <div class="text-muted">
+                                    Oracle lookup: <code>{{ $source->codePrefix() }}</code> + the code
+                                </div>
+                            @endif
+                            @if ((int) $source->lookback_days > 0)
+                                <div class="text-muted">Re-reads the last {{ $source->lookback_days }} day(s)</div>
+                            @endif
                         </td>
                         <td class="small">
                             @if ($source->last_sync_at)

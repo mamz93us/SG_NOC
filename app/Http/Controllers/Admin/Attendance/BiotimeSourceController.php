@@ -37,6 +37,8 @@ class BiotimeSourceController extends Controller
         return $this->form(new BiotimeSource([
             'source_type' => BiotimeSource::TYPE_ICLOCK,
             'time_column' => 'create_time',
+            'code_column' => 'BADGENUMBER',
+            'lookback_days' => 0,
             'port' => 1433,
             'trust_server_certificate' => true,
             'enabled' => true,
@@ -75,18 +77,32 @@ class BiotimeSourceController extends Controller
             ]);
         }
 
-        $timesChanged = $source->hasPunches() && (
+        $rereadNeeded = $source->hasPunches() && (
             ($data['time_column'] ?? null) !== $source->time_column
+            || ($data['code_column'] ?? null) !== $source->code_column
             || $data['stores_utc'] !== (bool) $source->stores_utc
             || ($data['timezone'] ?? null) !== $source->timezone
+        );
+
+        // The rule deciding WHICH employee a code belongs to changed. Codes
+        // already linked are the ones now most likely wrong, and retryUnlinked()
+        // would never revisit them — so re-decide every non-manual one.
+        $matchingChanged = $source->hasPunches() && (
+            ($data['code_prefix'] ?? null) !== $source->code_prefix
+            || (int) ($data['default_branch_id'] ?? 0) !== (int) $source->default_branch_id
         );
 
         $source->update($data);
         $this->log($source, 'updated', $data);
 
         $message = "Source \"{$source->name}\" saved.";
-        if ($timesChanged) {
-            $message .= " Punches already stored keep their old times — re-read them with: php artisan biotime:sync --source={$source->id} --since=YYYY-MM-DD";
+        if ($rereadNeeded) {
+            $message .= " Punches already stored keep their old times and codes — re-read them with: php artisan biotime:sync --source={$source->id} --since=YYYY-MM-DD";
+        }
+        if ($matchingChanged) {
+            AttendanceTask::queue('relink', ['source_id' => $source->id, 'all' => true],
+                "Re-match every code on {$source->name}", Auth::id());
+            $message .= ' Every code on this source is being matched again — the banner above shows when it is done.';
         }
 
         return $this->afterSave($request, $source, $message);
@@ -133,6 +149,7 @@ class BiotimeSourceController extends Controller
             'source' => $source,
             'branches' => Branch::orderBy('name')->get(['id', 'name']),
             'types' => BiotimeSource::TYPES,
+            'codeColumns' => BiotimeSource::CODE_COLUMNS,
             'timezones' => BiotimeSource::timezoneChoices(),
         ]);
     }
@@ -152,6 +169,9 @@ class BiotimeSourceController extends Controller
             'name' => 'required|string|max:100',
             'source_type' => ['required', Rule::in(array_keys(BiotimeSource::TYPES))],
             'time_column' => ['nullable', Rule::in(AccessTransactionReader::TIME_COLUMNS)],
+            'code_column' => ['nullable', Rule::in(array_keys(BiotimeSource::CODE_COLUMNS))],
+            'code_prefix' => ['nullable', 'string', 'max:10', 'regex:/^[0-9]+$/'],
+            'lookback_days' => 'nullable|integer|min:0|max:30',
             'host' => 'required|string|max:255',
             'port' => 'required|integer|min:1|max:65535',
             'database' => 'required|string|max:128',
@@ -165,6 +185,12 @@ class BiotimeSourceController extends Controller
         $data['time_column'] = $data['source_type'] === BiotimeSource::TYPE_ACCESS
             ? ($data['time_column'] ?? 'create_time')
             : null;
+        // Only the legacy table joins a user table, so only it picks a column.
+        $data['code_column'] = $data['source_type'] === BiotimeSource::TYPE_CHECKINOUT
+            ? ($data['code_column'] ?? 'BADGENUMBER')
+            : null;
+        $data['code_prefix'] = trim((string) ($data['code_prefix'] ?? '')) ?: null;
+        $data['lookback_days'] = (int) ($data['lookback_days'] ?? 0);
         $data['trust_server_certificate'] = $request->boolean('trust_server_certificate');
         $data['stores_utc'] = $request->boolean('stores_utc');
         $data['enabled'] = $request->boolean('enabled');

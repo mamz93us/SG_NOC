@@ -10,16 +10,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
 
 /**
- * One ZKTeco SQL Server database the NOC reads punches from — either a BioTime
- * attendance database (iclock_transaction) or a ZKBio access-control one
- * (acc_transaction). Services\Attendance\Readers knows how to read each.
+ * One ZKTeco SQL Server database the NOC reads punches from — a BioTime
+ * attendance database (iclock_transaction), a ZKBio access-control one
+ * (acc_transaction), or a legacy ZKTime one (CHECKINOUT + USERINFO).
+ * Services\Attendance\Readers knows how to read each.
  *
  * The connection is built at runtime by Services\Attendance\BioTimeConnection
  * under the name `biotime_{id}`; nothing about it lives in config/database.php.
  *
  * Watermark: `last_id` for BioTime (its ids increase; an offline device uploads
  * old punches days later with NEW ids, so never read by time), and
- * (`last_time`, `last_ref`) for access control, whose ids are unordered hex.
+ * (`last_time`, `last_ref`) for the two that cannot be read by id — access
+ * control, whose ids are unordered hex, and the legacy table, which has no id.
  */
 class BiotimeSource extends Model
 {
@@ -27,15 +29,31 @@ class BiotimeSource extends Model
 
     public const TYPE_ACCESS = 'acc_transaction';
 
+    public const TYPE_CHECKINOUT = 'checkinout';
+
     public const TYPES = [
         self::TYPE_ICLOCK => 'BioTime attendance (iclock_transaction)',
         self::TYPE_ACCESS => 'ZKBio access control (acc_transaction)',
+        self::TYPE_CHECKINOUT => 'ZKTeco legacy (CHECKINOUT + USERINFO)',
+    ];
+
+    /**
+     * USERINFO's identity columns. Which one carries the number HR knows
+     * differs by installation, so it is chosen per source — and whitelisted
+     * here, which is what makes it safe to name in SQL.
+     */
+    public const CODE_COLUMNS = [
+        'BADGENUMBER' => 'BADGENUMBER — the enrolment number on the device',
+        'SSN' => 'SSN — a second id field, often the HR number',
+        'CardNo' => 'CardNo — the RFID card number',
     ];
 
     protected $fillable = [
         'name',
         'source_type',
         'time_column',
+        'code_prefix',
+        'code_column',
         'host',
         'port',
         'database',
@@ -47,6 +65,7 @@ class BiotimeSource extends Model
         'enabled',
         'default_branch_id',
         'import_from',
+        'lookback_days',
     ];
 
     protected $hidden = ['password'];
@@ -58,6 +77,7 @@ class BiotimeSource extends Model
         'enabled' => 'boolean',
         'default_branch_id' => 'integer',
         'import_from' => 'date',
+        'lookback_days' => 'integer',
         'last_id' => 'integer',
         'last_sync_at' => 'datetime',
         'last_sync_rows' => 'integer',
@@ -100,6 +120,35 @@ class BiotimeSource extends Model
         return $this->source_type === self::TYPE_ACCESS;
     }
 
+    public function isLegacy(): bool
+    {
+        return $this->source_type === self::TYPE_CHECKINOUT;
+    }
+
+    /** Read by (time, ref) rather than by a numeric id — everything but BioTime. */
+    public function usesTimeKeyset(): bool
+    {
+        return $this->isAccessControl() || $this->isLegacy();
+    }
+
+    /**
+     * Prepended to the device code before it is looked up as an Oracle EMP_NO.
+     * Cairo's badge 512 is Oracle 55512; without it the bare 512 would match a
+     * Saudi employee who really holds that number.
+     */
+    public function codePrefix(): string
+    {
+        return trim((string) $this->code_prefix);
+    }
+
+    /** Whitelisted, so it is safe to name in SQL. */
+    public function codeColumn(): string
+    {
+        return array_key_exists((string) $this->code_column, self::CODE_COLUMNS)
+            ? (string) $this->code_column
+            : 'BADGENUMBER';
+    }
+
     /** Once punches are stored, the database and table cannot change: their ids would mix. */
     public function hasPunches(): bool
     {
@@ -108,7 +157,7 @@ class BiotimeSource extends Model
 
     public function watermarkLabel(): string
     {
-        if ($this->isAccessControl()) {
+        if ($this->usesTimeKeyset()) {
             return $this->last_time ? substr((string) $this->last_time, 0, 19) : '—';
         }
 

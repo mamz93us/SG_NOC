@@ -20,6 +20,7 @@ use App\Services\Attendance\BioTimeConnection;
 use App\Services\Attendance\BioTimeSyncService;
 use App\Services\Attendance\EmployeeLinker;
 use App\Services\Attendance\Readers\AccessTransactionReader;
+use App\Services\Attendance\Readers\CheckInOutReader;
 use App\Services\Attendance\Readers\IclockTransactionReader;
 use App\Services\Attendance\Readers\PunchReader;
 use App\Services\Attendance\Readers\PunchReaders;
@@ -69,6 +70,23 @@ beforeEach(function () {
         $t->string('dev_id')->nullable();
         $t->string('dev_sn')->nullable();
         $t->string('pin')->nullable();
+    });
+    // ZKTeco legacy: no id at all, and no employee code — only USERID, which
+    // USERINFO turns into a badge number.
+    Schema::connection('biotime_fake')->create('CHECKINOUT', function (Blueprint $t) {
+        $t->integer('USERID');
+        $t->string('CHECKTIME');
+        $t->string('CHECKTYPE')->nullable();
+        $t->string('VERIFYCODE')->nullable();
+        $t->string('SENSORID')->nullable();
+        $t->string('sn')->nullable();
+    });
+    Schema::connection('biotime_fake')->create('USERINFO', function (Blueprint $t) {
+        $t->integer('USERID')->primary();
+        $t->string('BADGENUMBER')->nullable();
+        $t->string('SSN')->nullable();
+        $t->string('CardNo')->nullable();
+        $t->string('NAME')->nullable();
     });
 
     foreach (['attendance_exports', 'attendance_periods', 'attendance_tasks', 'attendance_adjustments', 'attendance_holidays', 'attendance_shift_assignments', 'attendance_shifts',
@@ -161,20 +179,28 @@ function testReaders(): PunchReaders
     {
         public function for(BiotimeSource $source): PunchReader
         {
-            return $source->isAccessControl()
-                ? new class extends AccessTransactionReader
+            return match ($source->source_type) {
+                BiotimeSource::TYPE_ACCESS => new class extends AccessTransactionReader
                 {
                     protected function literal(string $time): string
                     {
                         return $time;
                     }
-                }
-            : new class extends IclockTransactionReader
-            {
-                protected function literal(string $time): string
+                },
+                BiotimeSource::TYPE_CHECKINOUT => new class extends CheckInOutReader
                 {
-                    return $time;
-                }
+                    protected function literal(string $time): string
+                    {
+                        return $time;
+                    }
+                },
+                default => new class extends IclockTransactionReader
+                {
+                    protected function literal(string $time): string
+                    {
+                        return $time;
+                    }
+                },
             };
         }
     };
@@ -694,6 +720,251 @@ it('counts access-control punches per day the same on both sides for reconcile',
 
     expect($remote)->toBe(['2025-06-11' => 2, '2025-06-12' => 1])
         ->and($sync->localDailyCounts($source, '2025-06-10'))->toBe($remote);
+});
+
+// ── ZKTeco legacy (CHECKINOUT + USERINFO) and the code prefix ────────
+
+function legacySource(array $attributes = []): BiotimeSource
+{
+    return BiotimeSource::create($attributes + [
+        'name' => 'ZKTeco Cairo',
+        'source_type' => BiotimeSource::TYPE_CHECKINOUT,
+        'code_column' => 'BADGENUMBER',
+        'host' => 'sql.test',
+        'port' => 1433,
+        'database' => 'att2000',
+        'username' => 'noc_attendance',
+        'password' => 'secret',
+        'trust_server_certificate' => true,
+        'enabled' => true,
+    ]);
+}
+
+function legacyUser(int $userId, ?string $badge, string $name = 'Cairo Staff'): void
+{
+    DB::connection('biotime_fake')->table('USERINFO')->insert([
+        'USERID' => $userId, 'BADGENUMBER' => $badge, 'SSN' => null, 'CardNo' => null, 'NAME' => $name,
+    ]);
+}
+
+function legacyPunch(int $userId, string $time, string $type = 'I', string $sn = 'ZK-CAI-01'): void
+{
+    DB::connection('biotime_fake')->table('CHECKINOUT')->insert([
+        'USERID' => $userId, 'CHECKTIME' => $time, 'CHECKTYPE' => $type, 'SENSORID' => '1', 'sn' => $sn,
+    ]);
+}
+
+it('reads the legacy table, joining USERINFO for the badge number', function () {
+    attendanceEmployee(60, 'Mohamed (Cairo)', '55512', 2);
+    legacyUser(23, '512', 'Mohamed Fathy');
+    legacyPunch(23, '2026-09-09 08:31:00');
+    legacyPunch(23, '2026-09-09 17:02:00', 'O');
+
+    $result = bioTimeSync()->sync(legacySource(['code_prefix' => '55', 'default_branch_id' => 2]));
+
+    expect($result['rows'])->toBe(2)->and(AttendancePunch::count())->toBe(2);
+
+    $punch = AttendancePunch::orderBy('punch_time')->first();
+    expect($punch->emp_code)->toBe('512')
+        ->and($punch->external_id)->toBe('23:20260909083100')
+        ->and($punch->biotime_id)->toBeNull()
+        ->and($punch->punch_state)->toBe('I')
+        ->and($punch->terminal_sn)->toBe('ZK-CAI-01')
+        ->and($punch->employee_id)->toBe(60);
+
+    $code = BiotimeEmployee::sole();
+    expect($code->employee_id)->toBe(60)
+        ->and($code->match_method)->toBe(BiotimeEmployee::METHOD_AUTO)
+        ->and($code->device_name)->toBe('Mohamed Fathy')
+        ->and($code->device_user_id)->toBe('23');
+
+    $day = AttendanceDay::sole();
+    expect($day->first_in->format('H:i'))->toBe('08:31')
+        ->and($day->last_out->format('H:i'))->toBe('17:02');
+});
+
+it('shows every identity column on the test page, keyed to match the sample rows', function () {
+    legacyUser(23, '512', 'Mohamed Fathy');
+    legacyPunch(23, '2026-09-09 08:31:00');
+
+    $result = bioTimeSync()->test(legacySource(['code_prefix' => '55']));
+
+    // The page renders one cell per column name, read out of the sample row by
+    // that name — so the two must agree, or every cell comes out blank.
+    expect($result['columns'])->toBe(['USERID', 'CHECKTIME', 'CHECKTYPE', 'sn', 'BADGENUMBER', 'SSN', 'CardNo', 'NAME'])
+        ->and(array_keys($result['sample'][0]))->toBe($result['columns'])
+        ->and($result['sample'][0]['BADGENUMBER'])->toBe('512')
+        ->and($result['sample'][0]['NAME'])->toBe('Mohamed Fathy')
+        ->and($result['locations'])->toBe(['ZK-CAI-01'])
+        ->and(implode(' ', $result['notes']))->toContain('55512');
+});
+
+it('a code prefix matches the Cairo employee, never the Saudi one holding the bare number', function () {
+    attendanceEmployee(70, 'Saudi 512', '512', 1);
+    attendanceEmployee(71, 'Cairo 512', '55512', 2);
+    legacyUser(23, '512');
+    legacyPunch(23, '2026-09-09 08:00:00');
+
+    bioTimeSync()->sync(legacySource(['code_prefix' => '55']));
+
+    $code = BiotimeEmployee::with('source')->sole();
+    expect($code->employee_id)->toBe(71)
+        ->and($code->match_method)->toBe(BiotimeEmployee::METHOD_AUTO)
+        // The prefixed form REPLACES the bare one: searching both would match
+        // two employees at once and land the code on HR's pile.
+        ->and($code->lookupCodes())->toBe(['55512']);
+});
+
+it('without a prefix the same badge lands on the Saudi employee — the collision the prefix removes', function () {
+    attendanceEmployee(70, 'Saudi 512', '512', 1);
+    attendanceEmployee(71, 'Cairo 512', '55512', 2);
+    legacyUser(23, '512');
+    legacyPunch(23, '2026-09-09 08:00:00');
+
+    bioTimeSync()->sync(legacySource());
+
+    expect(BiotimeEmployee::sole()->employee_id)->toBe(70);
+});
+
+it('strips leading zeros before the prefix: badge 0512 is Oracle 55512', function () {
+    attendanceEmployee(71, 'Cairo 512', '55512', 2);
+    legacyUser(23, '0512');
+    legacyPunch(23, '2026-09-09 08:00:00');
+
+    bioTimeSync()->sync(legacySource(['code_prefix' => '55']));
+
+    expect(BiotimeEmployee::sole()->employee_id)->toBe(71);
+});
+
+it('pages a shared CHECKTIME by NUMERIC user id, so the watermark still passes 9 then 10', function () {
+    legacyUser(9, '9');
+    legacyUser(10, '10');
+    legacyPunch(9, '2026-09-09 08:00:00');
+    legacyPunch(9, '2026-09-09 17:00:00', 'O');
+    legacyPunch(10, '2026-09-09 17:00:00', 'O');
+    $source = legacySource();
+    $sync = bioTimeSync();
+    $sync->chunk = 2; // the crowded second is split across two pages
+
+    // Compared as text '10' sorts BEFORE '9', so the watermark would stop at
+    // user 9 and re-read user 10's punch on every sync from then on.
+    expect($sync->sync($source)['rows'])->toBe(3)
+        ->and(AttendancePunch::count())->toBe(3)
+        ->and($source->fresh()->last_ref)->toBe('10');
+
+    expect($sync->sync($source)['rows'])->toBe(0);
+});
+
+it('re-reading a day upserts, because the synthetic external_id is stable', function () {
+    attendanceEmployee(71, 'Cairo 512', '55512', 2);
+    legacyUser(23, '512');
+    legacyPunch(23, '2026-09-09 08:30:00');
+    legacyPunch(23, '2026-09-09 17:00:00', 'O');
+    $source = legacySource(['code_prefix' => '55']);
+    $sync = bioTimeSync();
+    $sync->sync($source);
+
+    $sync->sync($source, '2026-09-09');
+
+    expect(AttendancePunch::count())->toBe(2);
+});
+
+it('keeps a punch whose USERINFO row is gone, under uid:{USERID}', function () {
+    legacyPunch(77, '2026-09-09 08:00:00');
+
+    bioTimeSync()->sync(legacySource(['code_prefix' => '55']));
+
+    expect(AttendancePunch::sole()->emp_code)->toBe('uid:77')
+        ->and(BiotimeEmployee::sole()->match_method)->toBe(BiotimeEmployee::METHOD_NONE);
+});
+
+it('re-reads recent days, so a punch a terminal uploaded late is not left behind the watermark', function () {
+    attendanceEmployee(71, 'Cairo 512', '55512', 2);
+    legacyUser(23, '512');
+    legacyPunch(23, '2026-09-10 08:30:00');
+    $source = legacySource(['code_prefix' => '55', 'lookback_days' => 2]);
+    $sync = bioTimeSync();
+    $sync->sync($source);
+    expect(AttendancePunch::count())->toBe(1);
+
+    // The terminal was offline all morning; this scan arrives now, with the
+    // time it really happened — behind the watermark, where only a re-read
+    // of the day can find it.
+    legacyPunch(23, '2026-09-10 07:55:00');
+
+    // The window is re-read whole, so both rows are counted; they upsert, and
+    // only the late one is actually new.
+    expect($sync->sync($source)['rows'])->toBe(2)
+        ->and(AttendancePunch::count())->toBe(2)
+        ->and(AttendanceDay::sole()->first_in->format('H:i'))->toBe('07:55');
+});
+
+it('without that lookback the late punch is invisible: the watermark is already past it', function () {
+    attendanceEmployee(71, 'Cairo 512', '55512', 2);
+    legacyUser(23, '512');
+    legacyPunch(23, '2026-09-10 08:30:00');
+    $source = legacySource(['code_prefix' => '55']); // lookback_days = 0
+    $sync = bioTimeSync();
+    $sync->sync($source);
+
+    legacyPunch(23, '2026-09-10 07:55:00');
+
+    expect($sync->sync($source)['rows'])->toBe(0)
+        ->and(AttendancePunch::count())->toBe(1)
+        ->and(AttendanceDay::sole()->first_in->format('H:i'))->toBe('08:30');
+});
+
+it('re-matches every automatic code when the prefix changes, and leaves HR\'s alone', function () {
+    attendanceEmployee(70, 'Saudi 512', '512', 1);
+    attendanceEmployee(71, 'Cairo 512', '55512', 2);
+    attendanceEmployee(72, 'Someone HR chose', '513', 1);
+    legacyUser(23, '512');
+    legacyUser(24, '513');
+    legacyPunch(23, '2026-09-09 08:00:00');
+    legacyPunch(24, '2026-09-09 08:05:00');
+    $source = legacySource();
+    bioTimeSync()->sync($source);
+
+    $linker = new EmployeeLinker(new AttendanceDayProcessor(new AttendanceDayBuilder));
+    $linker->linkManually(BiotimeEmployee::where('emp_code', '513')->sole(), Employee::find(72), 1);
+
+    $source->forceFill(['code_prefix' => '55'])->save();
+
+    // retryUnlinked() would look at neither: both already have an employee.
+    expect($linker->retryUnlinked($source))->toBe(0)
+        ->and($linker->rematch($source))->toBe(1);
+
+    expect(BiotimeEmployee::where('emp_code', '512')->sole()->employee_id)->toBe(71)
+        ->and(BiotimeEmployee::where('emp_code', '513')->sole()->employee_id)->toBe(72);
+});
+
+it('judges a Cairo day by the branch shift — and one with no branch by the company shift', function () {
+    assignShift();                                                                  // everyone: 09:00–17:00
+    $cairo = assignShift(['name' => 'Cairo', 'start_time' => '08:30'], 'branch', 2); // branch 2: 08:30–17:00
+
+    attendanceEmployee(71, 'Cairo 512', '55512', 2);
+    attendanceEmployee(72, 'Cairo 513, branch unset', '55513', null);
+    legacyUser(23, '512');
+    legacyUser(24, '513');
+    foreach ([23, 24] as $userId) {
+        legacyPunch($userId, '2026-09-09 08:45:00');
+        legacyPunch($userId, '2026-09-09 17:00:00', 'O');
+    }
+
+    bioTimeSync()->sync(legacySource(['code_prefix' => '55']));
+
+    $day = AttendanceDay::where('employee_id', 71)->sole();
+    expect($day->attendance_shift_id)->toBe($cairo->id)
+        ->and($day->scheduled_start->format('H:i'))->toBe('08:30')
+        ->and($day->late_minutes)->toBe(15);
+
+    // The branch scope resolves off the EMPLOYEE's branch, never the punch
+    // location — so an employee with none silently falls back to the company
+    // shift and is measured against 09:00 all month, with nothing flagged.
+    $unfiled = AttendanceDay::where('employee_id', 72)->sole();
+    expect($unfiled->attendance_shift_id)->not->toBe($cairo->id)
+        ->and($unfiled->scheduled_start->format('H:i'))->toBe('09:00')
+        ->and($unfiled->late_minutes)->toBe(0);
 });
 
 // ── Background work (attendance:work) ────────────────────────────────

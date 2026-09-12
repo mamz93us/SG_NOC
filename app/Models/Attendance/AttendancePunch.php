@@ -16,7 +16,10 @@ class AttendancePunch extends Model
 {
     public $timestamps = false;
 
-    /** BioTime's punch_state codes. Stored for reference; they do not decide in/out. */
+    /**
+     * BioTime's punch_state codes, plus the legacy table's CHECKTYPE. Stored
+     * for reference; they do not decide in/out — earliest and latest punch do.
+     */
     public const STATES = [
         '0' => 'Check in',
         '1' => 'Check out',
@@ -24,6 +27,8 @@ class AttendancePunch extends Model
         '3' => 'Break in',
         '4' => 'Overtime in',
         '5' => 'Overtime out',
+        'I' => 'Check in',
+        'O' => 'Check out',
     ];
 
     protected $fillable = [
@@ -65,6 +70,8 @@ class AttendancePunch extends Model
 
     public function stateLabel(): string
     {
-        return self::STATES[(string) $this->punch_state] ?? '—';
+        $state = (string) $this->punch_state;
+
+        return self::STATES[$state] ?? self::STATES[strtoupper($state)] ?? '—';
     }
 }

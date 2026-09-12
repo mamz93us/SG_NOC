@@ -18,6 +18,11 @@ use Illuminate\Support\Collection;
  *   punch_time ('Y-m-d H:i:s', local wall clock), punch_state, terminal_sn,
  *   terminal_alias, area_alias
  *
+ * A reader whose database has its own user table may also return device_name
+ * and device_user_id. Both are display only — never matched on — and
+ * BioTimeSyncService moves them onto biotime_employees, stripping them before
+ * the punch itself is written.
+ *
  * A cursor is a small array only the reader understands. The source row keeps
  * the watermark between runs.
  */
