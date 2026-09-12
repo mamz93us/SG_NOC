@@ -37,11 +37,14 @@ class RolePermission extends Model
                 'view-extensions' => 'View Extensions',
                 'manage-extensions' => 'Create / Edit / Delete Extensions',
                 'view-trunks' => 'View VoIP Trunks',
+                'view-phones' => 'View Desk Phones (GDMS / Zero Config)',
+                'manage-phones' => 'Create / Edit / Delete Desk Phones & Push Config',
+                'view-phone-firmware' => 'View Phone Firmware Library & Fleet Versions',
+                'manage-phone-firmware' => 'Upload / Publish / Delete Phone Firmware',
             ],
             'Network' => [
                 'view-network' => 'View Network (Switches, Clients, Events)',
                 'manage-network-settings' => 'Manage Meraki Network Settings',
-                'manage-vpn-settings' => 'Manage VPN Settings',
                 'view-network-events' => 'View Network Change Events',
                 'view-dhcp-leases' => 'View DHCP Leases',
                 'view-sophos' => 'View Sophos Firewalls',
@@ -52,10 +55,17 @@ class RolePermission extends Model
                 'manage-access-points' => 'Manage Access Points (import, ping, edit)',
                 'view-dns' => 'View DNS Accounts & Domains',
                 'manage-dns' => 'Manage DNS Records & Settings',
+                'manage-radius' => 'Manage RADIUS (MAC auth, VLAN policy, NAS clients)',
+                'view-branch-agents' => 'View Branch Agents',
+                'manage-branch-agents' => 'Manage Branch Agents (enroll, edit, delete)',
+                'view-voice-mesh' => 'View Voice Mesh Matrix',
+                'manage-voice-mesh' => 'Manage Voice Mesh Nodes & Settings',
+                'view-voice-quality' => 'View Voice Quality Dashboard & Reports',
             ],
             'Assets' => [
                 'view-assets' => 'View Device Inventory',
                 'manage-assets' => 'Create / Edit / Delete Devices',
+                'manage-devices' => 'Browse / SSH / Telnet into a Device',
             ],
             'Credentials' => [
                 'view-credentials' => 'View Credentials (masked)',
@@ -76,6 +86,8 @@ class RolePermission extends Model
             'Printers' => [
                 'view-printers' => 'View Printer Inventory',
                 'manage-printers' => 'Create / Edit / Delete Printers',
+                'view-printer-usage' => 'View Printer Usage & Counter Reports',
+                'manage-printer-alerts' => 'Manage Printer Toner Alerts & Branch Settings',
             ],
             'Wallpapers' => [
                 'view-wallpapers' => 'View Managed Wallpapers + deployment links',
@@ -129,6 +141,11 @@ class RolePermission extends Model
                 'manage-notification-rules' => 'Manage Notification Routing Rules',
                 'manage-license-monitors' => 'Manage License Inventory Monitors',
                 'manage-allowed-domains' => 'Manage Allowed Domains',
+                'view-server-status' => 'View Server Status (disk, services, DB backups)',
+                'manage-server-status' => 'Run DB Backups & Service Actions',
+                'view-downloads' => 'View Download Center',
+                'manage-downloads' => 'Upload / Delete Download Center Files',
+                'manage-roles' => 'Create / Edit / Delete Roles',
             ],
             'ITAM' => [
                 'view-itam' => 'View ITAM Dashboard',
@@ -223,7 +240,7 @@ class RolePermission extends Model
     {
         $all = static::allSlugs();
         $adminPerms = array_values(array_diff($all, [
-            'manage-users', 'manage-permissions',
+            'manage-users', 'manage-permissions', 'manage-roles',
             'manage-credentials', 'manage-identity-settings',
             'manage-deploy-servers',
             'manage-email-marketing-settings',
@@ -237,6 +254,11 @@ class RolePermission extends Model
             'view-dhcp-leases', 'view-sophos', 'view-fortigate', 'view-access-points', 'view-dns', 'view-admin-links',
             'view-syslog', 'view-agw-audit', 'view-deploy-servers',
             'create-tickets', 'view-tickets',
+            // Registered late (see unregisteredSlugs()); these matched the
+            // read-only grants their own seeding migrations already made.
+            'view-phones', 'view-phone-firmware', 'view-printer-usage',
+            'view-server-status', 'view-downloads', 'view-branch-agents',
+            'view-voice-mesh', 'view-voice-quality',
         ];
         $hrPerms = [
             'manage-hr-portal',
@@ -275,10 +297,82 @@ class RolePermission extends Model
     public static function forRole(string $role): array
     {
         if (! isset(static::$cache[$role])) {
-            static::$cache[$role] = static::where('role', $role)->pluck('permission')->all();
+            try {
+                static::$cache[$role] = static::where('role', $role)->pluck('permission')->all();
+            } catch (\Throwable) {
+                // Table missing (fresh checkout before migrate): grant nothing
+                // rather than fataling inside a boot-time gate closure.
+                static::$cache[$role] = [];
+            }
         }
 
         return static::$cache[$role];
+    }
+
+    /**
+     * Permission slugs that are granted in the database but absent from
+     * allPermissions() above.
+     *
+     * These exist because a subsystem shipped a `permission:` route gate and a
+     * seeding migration without adding the slug to the registry. They were
+     * invisible in the permissions matrix and — worse — the matrix save used to
+     * `truncate()` the table and re-insert only known slugs, silently deleting
+     * every grant for them and locking those pages to super_admin with no UI
+     * left to restore them.
+     *
+     * syncRoles() below never touches an unregistered slug, so a future
+     * omission degrades to "not editable in the UI" instead of "destroyed".
+     *
+     * @return array<int,string>
+     */
+    public static function unregisteredSlugs(): array
+    {
+        try {
+            $granted = static::query()->distinct()->pluck('permission')->all();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        return array_values(array_diff($granted, static::allSlugs()));
+    }
+
+    /**
+     * Replace the permission sets for the given roles.
+     *
+     * Only rows whose permission is in the registry are deleted, so a grant for
+     * an unregistered slug (see unregisteredSlugs()) survives a matrix save.
+     * Scoped to the submitted roles as well, so saving one role can never
+     * affect another.
+     *
+     * @param  array<string,array<int,string>>  $grants  role slug => permission slugs
+     */
+    public static function syncRoles(array $grants): void
+    {
+        $registry = static::allSlugs();
+        $now = now();
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($grants, $registry, $now) {
+            foreach ($grants as $role => $slugs) {
+                $keep = array_values(array_intersect($slugs, $registry));
+
+                static::where('role', $role)
+                    ->whereIn('permission', $registry)
+                    ->delete();
+
+                if ($keep === []) {
+                    continue;
+                }
+
+                static::insert(array_map(fn ($slug) => [
+                    'role' => $role,
+                    'permission' => $slug,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ], $keep));
+            }
+        });
+
+        static::clearCache();
     }
 
     /**

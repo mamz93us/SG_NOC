@@ -11,9 +11,11 @@ class ActivityLog extends Model
     protected $fillable = [
         'model_type',
         'model_id',
+        'model_label',
         'action',
         'changes',
         'user_id',
+        'actor_label',
         'ip_address',
         'user_agent',
     ];
@@ -21,7 +23,12 @@ class ActivityLog extends Model
     protected static function booted(): void
     {
         static::creating(function (self $log) {
-            if (app()->runningInConsole() && !request()) {
+            // Attribute unattended writes to the command or to `system`, so a row
+            // with no user_id still says who acted. Rows written by a signed-in
+            // request leave this null — user_id already covers it.
+            $log->actor_label ??= \App\Support\Audit\Auditor::actorLabel();
+
+            if (app()->runningInConsole() && ! request()) {
                 return;
             }
             try {
@@ -33,6 +40,42 @@ class ActivityLog extends Model
             } catch (\Throwable) {
             }
         });
+    }
+
+    /**
+     * Who acted, for display. Falls back to the console/system label so an
+     * unattended change never renders as a blank cell.
+     */
+    public function actorName(): string
+    {
+        return $this->user?->name
+            ?? $this->actor_label
+            ?? 'system';
+    }
+
+    /**
+     * The touched record, for display: the label captured at write time, else
+     * the bare class and id.
+     */
+    public function subjectName(): string
+    {
+        $type = class_basename($this->model_type ?: 'System');
+
+        if ($this->model_label) {
+            return "{$type}: {$this->model_label}";
+        }
+
+        return $this->model_id ? "{$type} #{$this->model_id}" : $type;
+    }
+
+    /**
+     * Security-relevant events — sign-ins, denials, and anything that moved a
+     * permission. These are what a privilege-escalation review reads, and they
+     * are kept longer than ordinary record edits (see config/audit.php).
+     */
+    public function scopeSecurity($query)
+    {
+        return $query->whereIn('action', (array) config('audit.security_actions', []));
     }
 
     protected $casts = [
@@ -49,11 +92,12 @@ class ActivityLog extends Model
      */
     public static function log(string $action, $arg2 = null, $arg3 = null, $arg4 = null): self
     {
+        // Unattended writes stay unattributed to a person. This used to fall back
+        // to `User::orderBy('id')->first()`, which booked every scheduled sync and
+        // webhook to whoever happened to sign up first — worse than no name at
+        // all, because it reads as a real person's action. `actor_label`, set in
+        // booted(), carries the command name instead.
         $userId = Auth::id();
-        if (!$userId) {
-            $user = User::orderBy('id', 'asc')->first();
-            $userId = $user ? $user->id : null;
-        }
         $modelType = 'System';
         $modelId   = 0;
         $changes   = null;

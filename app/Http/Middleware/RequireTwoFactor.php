@@ -73,7 +73,13 @@ class RequireTwoFactor
 
             // Browser-only users bypass 2FA entirely — low-privilege role,
             // kept frictionless for SSO-first remote-browser access.
-            if (method_exists($user, 'isBrowserUser') && $user->isBrowserUser()) {
+            //
+            // Derived from the role's surfaces rather than the `browser_user`
+            // slug, so a second browser-only role behaves the same. Narrow by
+            // design: a role that also reaches the admin area, the HR workspace
+            // or the marketing portal keeps the second factor. See
+            // Role::onlyBrowserAccess().
+            if (method_exists($user, 'onlyBrowserAccess') && $user->onlyBrowserAccess()) {
                 return $next($request);
             }
 

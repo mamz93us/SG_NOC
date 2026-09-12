@@ -131,13 +131,18 @@ class WorkflowRequest extends Model
             $user = User::find($userId);
             if (!$user) return false;
 
+            // `approver_role` is an approval-chain ROLE NAME from the workflow
+            // template (it_manager, security, …) — not a slug from the roles
+            // table — so this stays a mapping rather than becoming a lookup.
+            // What did change: the superuser test reads the role's is_super flag
+            // instead of comparing the slug to 'super_admin', so a renamed or
+            // additional superuser role can still approve.
+            $isSuper = $user->isSuperAdmin();
+
             return match ($step->approver_role) {
-                'super_admin' => $user->role === 'super_admin',
-                'it_manager'  => in_array($user->role, ['super_admin', 'admin']),
-                'hr'          => in_array($user->role, ['super_admin', 'admin']),
-                'manager'     => in_array($user->role, ['super_admin', 'admin']),
-                'security'    => in_array($user->role, ['super_admin', 'admin']),
-                default       => false,
+                'super_admin' => $isSuper,
+                'it_manager', 'hr', 'manager', 'security' => $isSuper || $user->role === 'admin',
+                default => false,
             };
         }
 

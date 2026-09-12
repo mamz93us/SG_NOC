@@ -154,6 +154,14 @@ branch changes. **Re-run auto-match** does the same on demand.
 If BioTime codes are *not* Oracle numbers at your company, every code lands on
 the mapping page for a one-time manual link, and everything else still works.
 
+**Codes for people the NOC has never held.** Drivers, guards, warehouse and
+cleaning staff punch like everyone else, but they have no mailbox, so no Entra
+account, so no employee record — and their codes stay unmapped no matter how
+often auto-match runs. They come in through **Identity → Oracle HR import**,
+which offers to create every such row as a **service employee** (no email, HR
+data and attendance only). Do that first, then **Re-run auto-match** here: the
+codes link themselves, because the employee now carries the Oracle number.
+
 ## 7. How check-in / check-out is decided
 
 - **Check-in = the earliest punch of the day. Check-out = the latest punch.**
@@ -240,7 +248,51 @@ For older days, run:
 php artisan attendance:process --from=2026-08-01 --to=2026-08-31
 ```
 
-## 9. Periods, approval and the Oracle export
+## 9. The monthly sheet
+
+**Attendance → Monthly sheet** (`/admin/attendance/monthly`) is one person's whole
+month on one page: every date, their check-in and check-out, every punch behind
+them, and the month added up — absences, total hours, missing check-outs, late
+arrivals and early leaves.
+
+The landing page is the picker: everyone with a BioTime code, with that month's
+totals beside them, so it is also the page to scan for who needs attention.
+Pick a person to open their sheet; **Export CSV** gives the same sheet plus its
+totals, ready for payroll.
+
+It shows **every calendar date**, not only the ones `attendance_days` holds.
+Days off, holidays and dates outside employment have no row in that table at
+all, and a sheet with those dates simply missing reads as unexplained gaps. So
+each row says what the calendar expected (work day, day off, holiday name,
+before hire, after termination) alongside what actually happened.
+
+Two things worth knowing before quoting a figure from it:
+
+- **Worked hours are check-in to check-out.** A day with a *missing check-out*
+  therefore adds **nothing** to the month's total — it is a gap to correct, not
+  a day of no work. The *Missing check-out* tile is what says how much of the
+  total is unreliable; fix those days first, then read the hours.
+- **"Not recorded"** on a past work day means no row exists: either
+  `attendance:process` has not written the absence yet (it runs hourly) or the
+  person is not linked to a BioTime code. It is not the same as an absence, and
+  it is counted separately.
+
+Nothing on the page is recomputed — every figure is read from `attendance_days`,
+the same rows the Check-in / Check-out page shows, so the two can never
+disagree. If a number looks wrong, fix the day (correct or excuse it) or rebuild
+the range; do not look for the arithmetic here.
+
+Unmapped BioTime codes belong to nobody yet, so they never appear on a sheet —
+they are only on Check-in / Check-out, filtered to **Unmapped**.
+
+**Employees can ask for their own.** The assistant on the home portal answers
+"when did I check in today?", "how many hours this month?", "was I late?" from
+the same rows, through its `get_my_attendance` tool. It is scoped to whoever is
+signed in and takes no employee argument at all, so there is no way — for a
+manager, for HR, for any wording — to read somebody else's attendance from the
+chat. That stays here, behind `view-attendance`.
+
+## 10. Periods, approval and the Oracle export
 
 **Attendance → Periods.** A period is one unit that goes to Oracle: a date range for one branch
 or for all of them. A day can be in only one period for the same people, so the page refuses a
@@ -269,7 +321,7 @@ overtime minutes, excuse, and whether HR corrected it. The record goes to the se
 keeps its exact payload, which you can **download as CSV or JSON**. **Prepare again** builds a new one.
 Once a real sender reports **sent**, the period shows *Sent to Oracle*.
 
-## 10. Commands
+## 11. Commands
 
 | Command | When |
 |---|---|
@@ -282,7 +334,7 @@ Once a real sender reports **sent**, the period shows *Sent to Oracle*.
 A source that fails 3 syncs in a row, and a count mismatch that survives
 `--fix`, each raise a **NocEvent** (module `attendance`). The event resolves itself once the problem clears.
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 | Message | Meaning |
 |---|---|

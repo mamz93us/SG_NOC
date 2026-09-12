@@ -165,7 +165,9 @@ class SettingsController extends Controller
             'sso_tenant_id' => 'nullable|string|max:100',
             'sso_client_id' => 'nullable|string|max:100',
             'sso_client_secret' => 'nullable|string|max:500',
-            'sso_default_role' => 'required|in:super_admin,admin,hr,viewer,browser_user',
+            // Was a hardcoded list that omitted `marketing` and could never name a
+            // custom role, so a new role was unusable as the SSO default.
+            'sso_default_role' => ['required', 'string', \Illuminate\Validation\Rule::in(\App\Models\Role::slugs())],
         ]);
 
         $settings = Setting::get();

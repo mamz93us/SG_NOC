@@ -44,20 +44,15 @@
             <tbody>
                 @foreach($users as $user)
                 @php
-                    $roleColor = match($user->role) {
-                        'super_admin'  => 'danger',
-                        'admin'        => 'primary',
-                        'hr'           => 'info',
-                        'viewer'       => 'secondary',
-                        'browser_user' => 'warning',
-                        default        => 'secondary',
-                    };
+                    // From the role row, so a custom role gets a colour too —
+                    // this used to be a match on the six hardcoded slugs.
+                    $roleBadge = \App\Models\Role::badgeFor($user->role);
                 @endphp
                 <tr>
                     <td class="text-muted">{{ $loop->iteration }}</td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
-                            <div class="avatar-circle-sm bg-{{ $roleColor }}">
+                            <div class="avatar-circle-sm {{ $roleBadge }}">
                                 {{ strtoupper(substr($user->name, 0, 1)) }}
                             </div>
                             <strong>{{ $user->name }}</strong>
@@ -81,9 +76,19 @@
                         @endif
                     </td>
                     <td>
-                        <span class="badge bg-{{ $roleColor }}">
+                        <span class="badge {{ $roleBadge }}">
                             {{ \App\Models\User::roleLabel($user->role) }}
                         </span>
+                        @php $ur = $user->roleModel(); @endphp
+                        @if($ur && $ur->usesPortal())
+                            <div class="text-muted" style="font-size:10px" title="This role has no NOC Admin surface">
+                                <i class="bi bi-window"></i> portal only
+                            </div>
+                        @elseif(! $ur)
+                            <div class="text-danger" style="font-size:10px" title="users.role does not match any role row">
+                                <i class="bi bi-exclamation-triangle"></i> unknown role
+                            </div>
+                        @endif
                     </td>
                     <td class="text-muted small">
                         @if($user->last_login_at)
@@ -110,16 +115,17 @@
                             <i class="bi bi-pencil"></i>
                         </button>
                         @can('manage-permissions')
-                            @if($user->role === 'super_admin')
+                            @if($user->isSuperAdmin())
                                 <button class="btn btn-sm btn-outline-secondary me-1" disabled
-                                    title="Super Admin bypasses all overrides">
+                                    title="A superuser role holds every permission; exceptions do not apply">
                                     <i class="bi bi-shield-lock"></i>
                                 </button>
                             @else
+                                @php $exceptions = $user->permissions()->count(); @endphp
                                 <a href="{{ route('admin.users.permissions.edit', $user) }}"
-                                    class="btn btn-sm btn-outline-info me-1"
-                                    title="Manage custom permissions">
-                                    <i class="bi bi-shield-lock"></i>
+                                    class="btn btn-sm {{ $exceptions ? 'btn-warning' : 'btn-outline-info' }} me-1"
+                                    title="{{ $exceptions ? $exceptions.' permission exception(s) on top of the role' : 'Add a permission exception for this person' }}">
+                                    <i class="bi bi-shield-lock"></i>@if($exceptions) {{ $exceptions }}@endif
                                 </a>
                             @endif
                         @endcan
@@ -172,12 +178,30 @@
                                     <div class="mb-3">
                                         <label class="form-label fw-semibold">Role <span class="text-danger">*</span></label>
                                         <select name="role" class="form-select" required>
-                                            <option value="super_admin"  {{ $user->role === 'super_admin'  ? 'selected' : '' }}>Super Admin</option>
-                                            <option value="admin"        {{ $user->role === 'admin'        ? 'selected' : '' }}>Admin</option>
-                                            <option value="hr"           {{ $user->role === 'hr'           ? 'selected' : '' }}>HR</option>
-                                            <option value="viewer"       {{ $user->role === 'viewer'       ? 'selected' : '' }}>Viewer</option>
-                                            <option value="browser_user" {{ $user->role === 'browser_user' ? 'selected' : '' }}>Browser User</option>
+                                            @foreach($roles as $r)
+                                                {{-- Only a superuser can hand out a superuser role; the
+                                                     controller enforces it too, this just doesn't offer it. --}}
+                                                @continue($r->is_super && ! auth()->user()->isSuperAdmin())
+                                                <option value="{{ $r->slug }}" {{ $user->role === $r->slug ? 'selected' : '' }}>
+                                                    {{ $r->name }}@if($r->description) — {{ \Illuminate\Support\Str::limit($r->description, 60) }}@endif
+                                                </option>
+                                            @endforeach
                                         </select>
+                                        @php
+                                            $ur = $user->roleModel();
+                                            $urSurfaces = $ur
+                                                ? collect($ur->surfaceList())
+                                                    ->map(fn ($s) => \App\Models\Role::SURFACES[$s] ?? $s)
+                                                    ->join(', ')
+                                                : null;
+                                        @endphp
+                                        @if($ur)
+                                            <div class="form-text" style="font-size:11px">
+                                                Currently signs in to:
+                                                <strong>{{ $urSurfaces ?: 'nothing' }}</strong>.
+                                                Lands on {{ \App\Models\Role::SURFACES[$ur->landing] ?? $ur->landing }}.
+                                            </div>
+                                        @endif
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label fw-semibold">New Password
@@ -281,18 +305,29 @@
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Role <span class="text-danger">*</span></label>
                         <select name="role" class="form-select" required>
-                            <option value="viewer" selected>Viewer (read-only)</option>
-                            <option value="browser_user">Browser User (portal only)</option>
-                            <option value="hr">HR (portal + HR onboarding)</option>
-                            <option value="admin">Admin</option>
-                            <option value="super_admin">Super Admin</option>
+                            @foreach($roles as $r)
+                                @continue($r->is_super && ! auth()->user()->isSuperAdmin())
+                                <option value="{{ $r->slug }}" {{ old('role', 'viewer') === $r->slug ? 'selected' : '' }}>
+                                    {{ $r->name }}
+                                </option>
+                            @endforeach
                         </select>
                         <div class="form-text">
-                            <strong>Viewer</strong> – read-only &nbsp;|&nbsp;
-                            <strong>Browser User</strong> – remote browser portal only &nbsp;|&nbsp;
-                            <strong>HR</strong> – submit onboarding requests &nbsp;|&nbsp;
-                            <strong>Admin</strong> – full access &nbsp;|&nbsp;
-                            <strong>Super Admin</strong> – + user management
+                            @foreach($roles as $r)
+                                @continue($r->is_super && ! auth()->user()->isSuperAdmin())
+                                <div>
+                                    <strong>{{ $r->name }}</strong>
+                                    @if($r->description) – {{ $r->description }} @endif
+                                    <span class="text-muted">
+                                        ({{ collect($r->surfaceList())->map(fn ($s) => \App\Models\Role::SURFACES[$s] ?? $s)->join(', ') ?: 'no surfaces' }})
+                                    </span>
+                                </div>
+                            @endforeach
+                            @can('manage-roles')
+                                <a href="{{ route('admin.roles.index') }}" class="d-inline-block mt-1">
+                                    <i class="bi bi-gear"></i> Manage roles
+                                </a>
+                            @endcan
                         </div>
                     </div>
                     <div class="mb-3">

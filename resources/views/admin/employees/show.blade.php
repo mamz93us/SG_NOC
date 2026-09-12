@@ -71,6 +71,13 @@
                 <h5 class="fw-bold mb-1">{{ $employee->name }}</h5>
                 <div class="text-muted small mb-2">{{ $employee->job_title ?? 'No title' }}</div>
                 <span class="badge {{ $employee->statusBadgeClass() }} px-3 py-1">{{ ucfirst(str_replace('_', ' ', $employee->status)) }}</span>
+                @if($employee->isService())
+                    <span class="badge bg-secondary px-3 py-1">Service</span>
+                    <div class="text-muted small mt-2">
+                        No mailbox and no Entra account — HR data and attendance only.
+                        Add an email address if that changes.
+                    </div>
+                @endif
             </div>
         </div>
 

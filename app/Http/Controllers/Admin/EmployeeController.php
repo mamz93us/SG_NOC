@@ -41,6 +41,15 @@ class EmployeeController extends Controller
             $query->where('employees.branch_id', $request->branch_id);
         }
 
+        // Service employees (no mailbox — drivers, guards, warehouse) are listed
+        // with everyone else and badged, never hidden by default: a filtered-out
+        // person is one nobody remembers to look for.
+        if ($request->filled('type')) {
+            $request->type === Employee::TYPE_SERVICE
+                ? $query->service()
+                : $query->standard();
+        }
+
         if ($request->filled('has_assets')) {
             if ($request->has_assets === 'yes') {
                 $query->has('activeAssets');

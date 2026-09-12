@@ -1374,6 +1374,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('manage-roles')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/roles*') ? 'active' : '' }}"
+                                   href="{{ route('admin.roles.index') }}">
+                                    <i class="bi bi-people-fill me-2"></i>Roles
+                                </a>
+                            </li>
+                            @endcan
                             @can('manage-permissions')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/permissions*') ? 'active' : '' }}"

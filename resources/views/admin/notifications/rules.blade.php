@@ -77,7 +77,9 @@
                 <td>
                     @if($rule->recipient_type === 'role')
                     <i class="bi bi-people-fill me-1 text-muted"></i>
-                    <span class="text-capitalize">{{ str_replace('_', ' ', $rule->recipient_role) }}</span>
+                    <span class="badge {{ \App\Models\Role::badgeFor($rule->recipient_role) }}">
+                        {{ \App\Models\User::roleLabel($rule->recipient_role) }}
+                    </span>
                     @elseif($ruleUsers->isEmpty())
                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
                         <i class="bi bi-exclamation-triangle me-1"></i>No recipient
@@ -218,10 +220,13 @@
                     <div id="role_field_{{ $rule->id }}" class="{{ $rule->recipient_type === 'user' ? 'd-none' : '' }} mb-3">
                         <label class="form-label fw-semibold">Role</label>
                         <select name="recipient_role" class="form-select">
-                            <option value="super_admin" {{ $rule->recipient_role === 'super_admin' ? 'selected' : '' }}>Super Admin</option>
-                            <option value="admin" {{ $rule->recipient_role === 'admin' ? 'selected' : '' }}>Admin</option>
-                            <option value="hr" {{ $rule->recipient_role === 'hr' ? 'selected' : '' }}>HR</option>
-                            <option value="viewer" {{ $rule->recipient_role === 'viewer' ? 'selected' : '' }}>Viewer</option>
+                            {{-- From the roles table, so a custom role can be paged too.
+                                 This was a hardcoded four-option list. --}}
+                            @foreach(\App\Models\Role::cached() as $r)
+                                <option value="{{ $r->slug }}" {{ $rule->recipient_role === $r->slug ? 'selected' : '' }}>
+                                    {{ $r->name }}
+                                </option>
+                            @endforeach
                         </select>
                     </div>
                     <div id="user_field_{{ $rule->id }}" class="{{ $rule->recipient_type === 'role' ? 'd-none' : '' }} mb-3">
@@ -325,10 +330,9 @@
                     <div id="role_field_new" class="mb-3">
                         <label class="form-label fw-semibold">Role</label>
                         <select name="recipient_role" class="form-select">
-                            <option value="super_admin">Super Admin</option>
-                            <option value="admin">Admin</option>
-                            <option value="hr">HR</option>
-                            <option value="viewer">Viewer</option>
+                            @foreach(\App\Models\Role::cached() as $r)
+                                <option value="{{ $r->slug }}">{{ $r->name }}</option>
+                            @endforeach
                         </select>
                     </div>
                     <div id="user_field_new" class="d-none mb-3">

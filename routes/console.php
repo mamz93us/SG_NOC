@@ -210,6 +210,17 @@ Schedule::command('voice-mesh:check-stale --prune')
     ->runInBackground()
     ->name('voice-mesh-prune');
 
+// Audit-trail retention. Every model write lands in activity_logs now, so this
+// is what keeps the table — which shares its database with the queue, the cache
+// and the sessions — from growing without bound. Security events (sign-ins,
+// denials, permission changes) are kept on a longer window; see config/audit.php.
+// Offset past the other prunes so they don't contend for the same tables.
+Schedule::command('activity-log:prune')
+    ->dailyAt('03:40')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('activity-log-prune');
+
 // Host ping sweep — hosts are pinged one at a time (3 packets each), so a
 // sweep takes 2-4 minutes; hosts pinged within their own interval are skipped.
 Artisan::command('hosts:ping', function () {

@@ -40,7 +40,10 @@
                 <label class="form-label form-label-sm mb-1 fw-semibold">User</label>
                 <select name="user_id" class="form-select form-select-sm">
                     <option value="">All Users</option>
-                    @foreach(\App\Models\User::orderBy('name')->get() as $u)
+                    <option value="system" {{ request('user_id') === 'system' ? 'selected' : '' }}>
+                        System / scheduled
+                    </option>
+                    @foreach($users as $u)
                         <option value="{{ $u->id }}" {{ request('user_id') == $u->id ? 'selected' : '' }}>{{ $u->name }}</option>
                     @endforeach
                 </select>
@@ -60,6 +63,23 @@
                 <a href="{{ route('admin.activity-logs') }}" class="btn btn-sm btn-outline-secondary ms-1">
                     <i class="bi bi-x-lg me-1"></i>Clear
                 </a>
+            </div>
+            <div class="col-12">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="security" value="1"
+                           id="securityOnly" {{ request()->boolean('security') ? 'checked' : '' }}
+                           onchange="this.form.submit()">
+                    <label class="form-check-label small" for="securityOnly">
+                        <i class="bi bi-shield-exclamation me-1"></i>
+                        <strong>Security events only</strong>
+                        <span class="text-muted">
+                            — sign-ins, failed sign-ins, lockouts, permission denials, and every change to a
+                            role or a person's permissions. Kept for
+                            {{ (int) (config('audit.security_retention_days') / 365) }} years, longer than
+                            ordinary edits.
+                        </span>
+                    </label>
+                </div>
             </div>
         </form>
     </div>
@@ -93,10 +113,22 @@
                                         <div>
                                             <span class="fw-semibold">{{ $log->user->name }}</span>
                                             <br><small class="text-muted">{{ $log->user->email }}</small>
+                                            @if($log->user->role)
+                                                <br><span class="badge {{ \App\Models\Role::badgeFor($log->user->role) }}"
+                                                          style="font-size:9px">{{ \App\Models\User::roleLabel($log->user->role) }}</span>
+                                            @endif
                                         </div>
                                     </div>
                                     @else
-                                    <span class="text-muted"><i class="bi bi-robot me-1"></i>System</span>
+                                    {{-- No user_id: an unattended write. actor_label names the command
+                                         that did it, so this reads as "console: biotime:sync" rather
+                                         than a bare "System". --}}
+                                    <span class="text-muted">
+                                        <i class="bi bi-robot me-1"></i>{{ $log->actor_label ?? 'System' }}
+                                    </span>
+                                    @endif
+                                    @if($log->ip_address)
+                                        <br><small class="text-muted font-monospace" style="font-size:10px">{{ $log->ip_address }}</small>
                                     @endif
                                 </td>
                                 <td>
@@ -105,22 +137,53 @@
                                             'created' => 'success',
                                             'updated' => 'info',
                                             'deleted' => 'danger',
+                                            'trashed' => 'warning',
+                                            'restored' => 'success',
                                             'synced'  => 'warning',
                                             'imported'=> 'primary',
                                             'exported'=> 'secondary',
+                                            // Security events, so they stand out in a page of edits.
+                                            'login' => 'dark',
+                                            'logout' => 'secondary',
+                                            'login_failed' => 'danger',
+                                            'login_lockout' => 'danger',
+                                            'permission_denied' => 'danger',
+                                            'role_created' => 'dark',
+                                            'role_updated' => 'dark',
+                                            'role_deleted' => 'danger',
+                                            'role_permissions_updated' => 'dark',
+                                            'user_permissions_updated' => 'dark',
+                                            'user_permissions_reset' => 'dark',
+                                            'two_factor_reset' => 'danger',
                                         ];
                                         $color = $badgeMap[$log->action] ?? 'secondary';
                                         $iconMap = [
                                             'created' => 'bi-plus-circle',
                                             'updated' => 'bi-pencil',
                                             'deleted' => 'bi-trash',
+                                            'trashed' => 'bi-archive',
+                                            'restored' => 'bi-arrow-counterclockwise',
                                             'synced'  => 'bi-arrow-repeat',
                                             'imported'=> 'bi-download',
                                             'exported'=> 'bi-upload',
+                                            'login' => 'bi-box-arrow-in-right',
+                                            'logout' => 'bi-box-arrow-right',
+                                            'login_failed' => 'bi-exclamation-triangle',
+                                            'login_lockout' => 'bi-lock',
+                                            'permission_denied' => 'bi-shield-exclamation',
+                                            'role_created' => 'bi-people',
+                                            'role_updated' => 'bi-people',
+                                            'role_deleted' => 'bi-people',
+                                            'role_permissions_updated' => 'bi-shield-lock',
+                                            'user_permissions_updated' => 'bi-person-gear',
+                                            'user_permissions_reset' => 'bi-person-gear',
+                                            'two_factor_reset' => 'bi-key',
                                         ];
                                         $icon = $iconMap[$log->action] ?? 'bi-circle';
                                     @endphp
-                                    <span class="badge bg-{{ $color }}"><i class="bi {{ $icon }} me-1"></i>{{ ucfirst($log->action) }}</span>
+                                    <span class="badge bg-{{ $color }}" title="{{ $log->action }}">
+                                        <i class="bi {{ $icon }} me-1"></i>{{ ucfirst(str_replace('_', ' ', $log->action)) }}
+                                    </span>
                                 </td>
                                 <td>
                                     @php
@@ -147,6 +210,11 @@
                                     <strong>{{ $typeLabel }}</strong>
                                     @if($log->model_id)
                                         <span class="text-muted ms-1">#{{ $log->model_id }}</span>
+                                    @endif
+                                    @if($log->model_label)
+                                        {{-- Captured at write time, so it still names the record after
+                                             the row itself has been deleted. --}}
+                                        <br><small class="text-muted">{{ $log->model_label }}</small>
                                     @endif
                                 </td>
                                 <td>

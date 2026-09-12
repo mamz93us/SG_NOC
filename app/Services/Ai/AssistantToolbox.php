@@ -4,16 +4,21 @@ namespace App\Services\Ai;
 
 use App\Http\Controllers\Home\HomeAssetsController;
 use App\Models\Announcement;
+use App\Models\Attendance\BiotimeEmployee;
 use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\IdentityUser;
 use App\Models\Knowbe4Score;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\Attendance\MonthlyDay;
+use App\Services\Attendance\MonthlySheet;
+use App\Services\Attendance\MonthlyTotals;
 use App\Services\Home\PaydayCalculator;
 use App\Services\Ticketing\TicketCatalog;
 use App\Services\Ticketing\TicketRequestService;
 use App\Services\Ticketing\TicketStatus;
+use Carbon\CarbonImmutable;
 
 /**
  * The assistant's hands. Constructed with the authenticated identity and
@@ -79,6 +84,13 @@ class AssistantToolbox
             $this->def('get_my_security_score',
                 'Get the signed-in employee\'s own KnowBe4 security-awareness score: phishing test results and outstanding security training.',
                 [], []),
+            $this->def('get_my_attendance',
+                'Get the signed-in employee\'s OWN fingerprint attendance: check-in and check-out times per day, hours worked, lateness, early leaves, absences and missing check-outs. Only ever their own — there is no way to see anyone else\'s, and no colleague\'s attendance may be discussed.',
+                [
+                    'period' => ['type' => 'string', 'description' => 'One of: today, yesterday, this_week, this_month, last_month. Defaults to this_month.'],
+                    'month' => ['type' => 'string', 'description' => 'Optional specific month as YYYY-MM (e.g. 2026-08). Overrides period. Use only when the employee names a month.'],
+                ],
+                []),
             $this->def('list_ticket_categories',
                 'List the IT ticketing system\'s categories and sub-categories, for drafting a ticket.',
                 [], []),
@@ -129,6 +141,10 @@ class AssistantToolbox
             ),
             'get_company_info' => $this->getCompanyInfo((string) ($args['topic'] ?? '')),
             'get_my_security_score' => $this->getMySecurityScore(),
+            'get_my_attendance' => $this->getMyAttendance(
+                (string) ($args['period'] ?? 'this_month'),
+                isset($args['month']) ? (string) $args['month'] : null,
+            ),
             'list_ticket_categories' => $this->listTicketCategories(),
             'draft_ticket' => $this->draftTicket($args),
             'draft_email' => $this->draftEmail($args),
@@ -409,6 +425,131 @@ class AssistantToolbox
             'trainings_outstanding' => $score->trainings_outstanding,
             'trainings_completed' => $score->trainings_completed,
         ];
+    }
+
+    /**
+     * The signed-in employee's own attendance, read from `attendance_days` —
+     * the same rows HR sees on Attendance ▸ Monthly sheet, never recomputed
+     * here, so the answer in the chat and the answer in the admin agree.
+     *
+     * Scoped by $this->employee, resolved from the session in
+     * AssistantController. There is deliberately no employee argument: with no
+     * way to name somebody else, no prompt can talk this tool into fetching a
+     * colleague's punches.
+     */
+    private function getMyAttendance(string $period, ?string $month): array
+    {
+        if (! $this->employee) {
+            return ['error' => 'No HR record is linked to your account yet — contact IT to be added to the directory.'];
+        }
+
+        if (! BiotimeEmployee::where('employee_id', $this->employee->id)->exists()) {
+            return ['error' => 'Your fingerprint code is not linked to your HR record yet, so no attendance is recorded for you. HR can link it on the attendance page.'];
+        }
+
+        [$from, $to, $label] = $this->attendanceRange($period, $month);
+
+        $sheet = app(MonthlySheet::class);
+        $days = [];
+
+        // A week can straddle two months; a month never more than itself.
+        for ($m = CarbonImmutable::parse($from)->startOfMonth(); $m->toDateString() <= $to; $m = $m->addMonth()) {
+            foreach ($sheet->build($this->employee, $m->format('Y-m')) as $day) {
+                if ($day->date >= $from && $day->date <= $to) {
+                    $days[] = $day;
+                }
+            }
+        }
+
+        $totals = MonthlyTotals::fromDays($days);
+
+        return [
+            'period' => $label,
+            'from' => $from,
+            'to' => $to,
+            'summary' => [
+                'work_days' => $totals->workDays,
+                'present' => $totals->presentDays,
+                'absent' => $totals->absentDays,
+                'excused' => $totals->excusedDays,
+                'days_off' => $totals->offDays,
+                'holidays' => $totals->holidayDays,
+                'total_worked' => $totals->workedLabel().' (h:mm)',
+                'overtime' => $totals->overtimeLabel().' (h:mm)',
+                'late_days' => $totals->lateDays,
+                'late_total_minutes' => $totals->lateMinutes,
+                'early_leave_days' => $totals->earlyLeaveDays,
+                'early_leave_total_minutes' => $totals->earlyLeaveMinutes,
+                'missing_check_outs' => $totals->missingCheckOuts,
+                'not_recorded_yet' => $totals->unrecordedDays,
+            ],
+            // Worked hours are check-in to check-out, so a day they forgot to
+            // punch out adds nothing. Say so rather than let them read a total
+            // that is quietly short.
+            'note' => $totals->missingCheckOuts > 0
+                ? "{$totals->missingCheckOuts} day(s) have no check-out, so those hours are not counted in the total. HR can correct a day on request."
+                : null,
+            'days' => array_map(fn (MonthlyDay $day) => $this->attendanceDay($day), $days),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function attendanceDay(MonthlyDay $day): array
+    {
+        $row = $day->day;
+        $date = CarbonImmutable::parse($day->date);
+
+        $status = match (true) {
+            $row !== null => $row->statusLabel(),
+            $day->kind === MonthlyDay::KIND_HOLIDAY => 'Holiday: '.$day->kindLabel(),
+            default => $day->emptyLabel(),
+        };
+
+        return array_filter([
+            'date' => $day->date,
+            'weekday' => $date->format('D'),
+            'status' => $status,
+            'check_in' => $row?->first_in?->format('H:i'),
+            'check_out' => $row?->last_out?->format('H:i'),
+            'worked' => $row && $row->worked_minutes !== null ? $row->workedLabel() : null,
+            'due' => $row?->scheduled_start && $row->scheduled_end
+                ? $row->scheduled_start->format('H:i').'–'.$row->scheduled_end->format('H:i')
+                : null,
+            'late_minutes' => (int) $row?->late_minutes ?: null,
+            'early_leave_minutes' => (int) $row?->early_leave_minutes ?: null,
+            'overtime_minutes' => (int) $row?->overtime_minutes ?: null,
+            'problem' => $row?->first_in && ! $row->last_out ? 'No check-out recorded' : null,
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string} [from, to, label]
+     */
+    private function attendanceRange(string $period, ?string $month): array
+    {
+        $today = CarbonImmutable::today();
+
+        if ($month !== null && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', trim($month))) {
+            $start = CarbonImmutable::parse(trim($month).'-01');
+
+            return [$start->toDateString(), $start->endOfMonth()->toDateString(), $start->format('F Y')];
+        }
+
+        return match (strtolower(trim($period))) {
+            'today' => [$today->toDateString(), $today->toDateString(), 'Today'],
+            'yesterday' => [$today->subDay()->toDateString(), $today->subDay()->toDateString(), 'Yesterday'],
+            'this_week', 'week' => [
+                $today->startOfWeek()->toDateString(), $today->endOfWeek()->toDateString(), 'This week',
+            ],
+            'last_month' => [
+                $today->subMonth()->startOfMonth()->toDateString(),
+                $today->subMonth()->endOfMonth()->toDateString(),
+                $today->subMonth()->format('F Y'),
+            ],
+            default => [
+                $today->startOfMonth()->toDateString(), $today->endOfMonth()->toDateString(), $today->format('F Y'),
+            ],
+        };
     }
 
     private function listTicketCategories(): array

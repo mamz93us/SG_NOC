@@ -43,6 +43,12 @@
         </a>
     </li>
     <li class="nav-item">
+        <a class="nav-link {{ request()->routeIs('admin.attendance.monthly.*') ? 'active' : '' }}"
+           href="{{ route('admin.attendance.monthly.index') }}">
+            <i class="bi bi-calendar3 me-1"></i>Monthly sheet
+        </a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link {{ request()->routeIs('admin.attendance.employees.*') ? 'active' : '' }}"
            href="{{ route('admin.attendance.employees.index') }}">
             <i class="bi bi-person-lines-fill me-1"></i>Employee Mapping

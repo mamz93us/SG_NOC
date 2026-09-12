@@ -99,13 +99,23 @@ class MicrosoftController extends Controller
                 ->with('error', 'Microsoft login failed: '.$e->getMessage());
         }
 
-        // Always default new SSO users to browser_user (no admin access).
+        // Settings ▸ SSO has had a "Default Role for New SSO Users" field for as
+        // long as SSO has existed, and nothing read it — every first-time sign-in
+        // was hardcoded to browser_user regardless of what was chosen. Honour it,
+        // but only if it names a real role: an unrecognised slug would create a
+        // user with no surfaces, which reads as portal-only and strands them.
+        $defaultRole = \App\Models\Setting::get()->sso_default_role ?: 'browser_user';
+
+        if (! \App\Models\Role::findBySlug($defaultRole)) {
+            $defaultRole = 'browser_user';
+        }
+
         $user = User::firstOrCreate(
             ['email' => $msUser->getEmail()],
             [
                 'name' => $msUser->getName() ?? $msUser->getEmail(),
                 'password' => \Illuminate\Support\Str::random(32), // unusable random password
-                'role' => 'browser_user',
+                'role' => $defaultRole,
                 'email_verified_at' => now(),
             ]
         );
@@ -156,7 +166,10 @@ class MicrosoftController extends Controller
             $onVcardHost => route('vcard.mine'),
             $onHrHost => route('portal.hr.index'),
             $onHomeHost => route('home.index'),
-            $onMarketingHost, $user->isMarketing() => route('portal.marketing.dashboard'),
+            // Was `$user->isMarketing()` — now any role whose chosen landing is
+            // the marketing portal, so a custom marketing-side role lands there
+            // too instead of being dropped on the NOC portal hub.
+            $onMarketingHost, $user->roleModel()?->landing === 'marketing_portal' => route('portal.marketing.dashboard'),
             $from === 'admin' && ! $user->usesPortal() => route($user->homeRoute()),
             default => route('portal.index'),
         };
@@ -179,7 +192,13 @@ class MicrosoftController extends Controller
         // Browser-only users bypass the app's 2FA. Everyone else — including
         // marketing — goes through the mandatory 2FA flow below; its standalone
         // enrolment + challenge pages are explicitly allowed on the marketing host.
-        if ($user->isBrowserUser()) {
+        //
+        // Derived from the role's surfaces rather than the `browser_user` slug, so
+        // a second browser-only role (per-office, say) behaves the same instead of
+        // being held at 2FA enrolment for a session that can only open a browser.
+        // Role::onlyBrowserAccess() is deliberately narrow — anything that also
+        // reaches the admin area or a data portal keeps the second factor.
+        if ($user->onlyBrowserAccess()) {
             $request->session()->put('2fa_verified', true);
 
             return redirect()->intended(route('portal.index'));

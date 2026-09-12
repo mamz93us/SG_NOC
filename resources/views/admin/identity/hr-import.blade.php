@@ -230,6 +230,29 @@
         <strong><i class="bi bi-question-circle me-1 text-warning"></i>Unmatched Rows ({{ $unmatched->count() }})</strong>
         <div class="text-muted small mt-1">No NOC employee matched by email. Decide per row: create a new employee, skip, or link to an existing one.</div>
     </div>
+
+    @if($serviceCandidates->count() > 0)
+        <div class="alert alert-info border-0 rounded-0 mb-0 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <strong><i class="bi bi-person-badge me-1"></i>{{ $serviceCandidates->count() }} row(s) describe someone with no mailbox of their own.</strong>
+                <div class="small mt-1">
+                    Drivers, guards, warehouse and cleaning staff: Oracle knows them by EMP_NO, Entra does not know them at all.
+                    Creating them here is what lets their fingerprint punches be recognised — they get
+                    <strong>no email address</strong>, and every flow that needs an Entra account skips them.
+                    A row whose Oracle number is already on an employee is left for you.
+                </div>
+            </div>
+            @can('manage-identity')
+                <form method="POST" action="{{ route('admin.identity.hr-import.service-employees', $batch) }}"
+                      onsubmit="return confirm('Create {{ $serviceCandidates->count() }} service employee(s)? They will have no email address.')">
+                    @csrf
+                    <button type="submit" class="btn btn-sm btn-primary text-nowrap">
+                        <i class="bi bi-person-plus me-1"></i>Create {{ $serviceCandidates->count() }} service employee(s)
+                    </button>
+                </form>
+            @endcan
+        </div>
+    @endif
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0 small">
             <thead class="table-light">
@@ -239,8 +262,18 @@
             @foreach($unmatched as $row)
                 <tr>
                     <td>
-                        <div class="fw-semibold">{{ $row->emp_name }}</div>
-                        <div class="text-muted" style="font-size:.75em">{{ $row->email ?? 'no email' }}</div>
+                        <div class="fw-semibold">
+                            {{ $row->emp_name }}
+                            @unless($row->own_mailbox)
+                                <span class="badge bg-secondary" title="{{ $row->mailboxReasonLabel() }}">No mailbox</span>
+                            @endunless
+                        </div>
+                        <div class="text-muted" style="font-size:.75em">
+                            {{ $row->email ?? 'no email' }}
+                            @unless($row->own_mailbox)
+                                <span class="text-warning-emphasis">— {{ $row->mailboxReasonLabel() }}</span>
+                            @endunless
+                        </div>
                         <div class="text-muted" style="font-size:.72em">#{{ $row->emp_no }} · {{ $row->job_name }} · {{ $row->dept_name }}</div>
                     </td>
                     <td>
@@ -257,7 +290,14 @@
                               class="d-flex flex-wrap align-items-center gap-2 resolve-form">
                             @csrf
                             <select name="decision" class="form-select form-select-sm decision-select" style="width:auto" required>
-                                <option value="create">Create new employee</option>
+                                @if($row->own_mailbox)
+                                    <option value="create">Create new employee</option>
+                                    <option value="create_service">Create as service employee (no email)</option>
+                                @else
+                                    {{-- No mailbox of their own: creating one either way must not copy
+                                         an address that belongs to their manager. --}}
+                                    <option value="create">Create service employee (no email)</option>
+                                @endif
                                 <option value="link">Link to existing…</option>
                                 <option value="skip">Skip</option>
                             </select>

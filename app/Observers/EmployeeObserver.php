@@ -9,23 +9,25 @@ use App\Services\Identity\GraphService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Employee side effects: dynamic marketing lists, and the direct-from-the-form
+ * termination cascade.
+ *
+ * The plain create / update / delete audit rows this used to write now come from
+ * the generic AuditObserver, which also covers the HR import and the identity
+ * sync — both of which run with no signed-in user and so wrote nothing here. The
+ * two semantic rows below (`api_failed`, `termination_cascade`) stay, because
+ * they record something a diff of the row cannot say.
+ */
 class EmployeeObserver
 {
     public function created(Employee $model): void
     {
-        if (Auth::check()) {
-            ActivityLog::create(['model_type' => 'Employee', 'model_id' => $model->id, 'action' => 'created', 'changes' => $model->toArray(), 'user_id' => Auth::id()]);
-        }
-
         $this->syncDynamicLists($model);
     }
 
     public function updated(Employee $model): void
     {
-        if (Auth::check()) {
-            ActivityLog::create(['model_type' => 'Employee', 'model_id' => $model->id, 'action' => 'updated', 'changes' => ['old' => $model->getOriginal(), 'new' => $model->getChanges()], 'user_id' => Auth::id()]);
-        }
-
         // Termination cascade: the workflow-driven path already handles this,
         // but HR often flips status directly from the employee form. When we
         // detect that transition, flag open asset/item assignments for return
@@ -48,10 +50,6 @@ class EmployeeObserver
 
     public function deleted(Employee $model): void
     {
-        if (Auth::check()) {
-            ActivityLog::create(['model_type' => 'Employee', 'model_id' => $model->id, 'action' => 'deleted', 'changes' => $model->toArray(), 'user_id' => Auth::id()]);
-        }
-
         $this->syncDynamicLists($model);
     }
 
