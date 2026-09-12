@@ -233,14 +233,18 @@
 
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Default Role for New SSO Users</label>
+                    @php $ssoRole = $settings->sso_default_role ?? 'viewer'; @endphp
                     <select name="sso_default_role" class="form-select">
-                        <option value="viewer"       {{ ($settings->sso_default_role ?? 'viewer') === 'viewer'       ? 'selected' : '' }}>Viewer (read-only)</option>
-                        <option value="browser_user" {{ ($settings->sso_default_role ?? '') === 'browser_user' ? 'selected' : '' }}>Browser User (portal only)</option>
-                        <option value="hr"           {{ ($settings->sso_default_role ?? '') === 'hr'           ? 'selected' : '' }}>HR (portal + HR onboarding)</option>
-                        <option value="admin"        {{ ($settings->sso_default_role ?? '') === 'admin'        ? 'selected' : '' }}>Admin</option>
-                        <option value="super_admin"  {{ ($settings->sso_default_role ?? '') === 'super_admin'  ? 'selected' : '' }}>Super Admin</option>
+                        @foreach(\App\Models\Role::cached() as $r)
+                            <option value="{{ $r->slug }}" {{ $ssoRole === $r->slug ? 'selected' : '' }}>
+                                {{ $r->name }}@if($r->description) — {{ \Illuminate\Support\Str::limit($r->description, 50) }}@endif
+                            </option>
+                        @endforeach
                     </select>
-                    <div class="form-text">Role assigned when a new Microsoft user logs in for the first time.</div>
+                    <div class="form-text">
+                        Role assigned when a new Microsoft user signs in for the first time. Every unrecognised
+                        person in the tenant lands here, so keep it to the least you would give a stranger.
+                    </div>
                 </div>
             </div>
 

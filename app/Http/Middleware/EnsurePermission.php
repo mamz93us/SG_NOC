@@ -21,12 +21,13 @@ class EnsurePermission
             return redirect()->route('login');
         }
 
-        // super_admin has implicit access to every permission. This matches
-        // the role's intent (name = "can do everything") and protects against
-        // accidental lockouts when a permissions-matrix save wipes a row that
-        // wasn't ticked in the UI. User::hasPermission() also short-circuits
-        // here, but checking the role inline avoids the override-cache lookup.
-        if ($user->role === 'super_admin') {
+        // A superuser role has implicit access to every permission. This matches
+        // the role's intent ("can do everything") and protects against accidental
+        // lockouts when a permissions-matrix save wipes a row that wasn't ticked
+        // in the UI. Read from the role's is_super flag rather than comparing the
+        // slug to 'super_admin', so a renamed or additional superuser role is
+        // honoured here as well as in User::hasPermission().
+        if ($user->isSuperAdmin()) {
             return $next($request);
         }
 
@@ -41,6 +42,7 @@ class EnsurePermission
             \App\Models\ActivityLog::create([
                 'model_type' => \App\Models\User::class,
                 'model_id' => $user->id,
+                'model_label' => $user->name,
                 'action' => 'permission_denied',
                 'changes' => [
                     'required' => $permissions,

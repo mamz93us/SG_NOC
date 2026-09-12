@@ -239,7 +239,7 @@ class SubscribersController extends Controller
         }
 
         // Silence per-row audit rows during the bulk import; record one summary instead.
-        $stats = \App\Observers\EmailMarketingActivityObserver::silently(fn () => $importer->import(
+        $stats = \App\Support\Audit\Auditor::withoutAuditing(fn () => $importer->import(
             $list,
             $abs,
             $mapping,

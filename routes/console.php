@@ -173,6 +173,17 @@ Schedule::command('voice-mesh:check-stale --prune')
     ->runInBackground()
     ->name('voice-mesh-prune');
 
+// Audit-trail retention. Every model write lands in activity_logs now, so this
+// is what keeps the table — which shares its database with the queue, the cache
+// and the sessions — from growing without bound. Security events (sign-ins,
+// denials, permission changes) are kept on a longer window; see config/audit.php.
+// Offset past the other prunes so they don't contend for the same tables.
+Schedule::command('activity-log:prune')
+    ->dailyAt('03:40')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('activity-log-prune');
+
 Schedule::call(function () {
     $service = app(\App\Services\PingService::class);
     $hosts = \App\Models\MonitoredHost::where('ping_enabled', true)->get();

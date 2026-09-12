@@ -7,52 +7,17 @@ use App\Events\HostStatusChanged;
 use App\Events\PoorVoiceQualityDetected;
 use App\Listeners\FireVoiceQualityAlert;
 use App\Listeners\WorkflowTriggerListener;
-use App\Models\AlertRule;
-use App\Models\Branch;
-use App\Models\Contact;
-use App\Models\Credential;
 // Models
-use App\Models\Device;
-use App\Models\DnsAccount;
 use App\Models\Employee;
 use App\Models\EmployeeAsset;
-use App\Models\Incident;
-use App\Models\IpamSubnet;
-use App\Models\IpReservation;
-use App\Models\IspConnection;
-use App\Models\ItTask;
-use App\Models\License;
-use App\Models\NetworkSwitch;
 use App\Models\NocEvent;
-use App\Models\NotificationRule;
-use App\Models\Printer;
 use App\Models\RolePermission;
-use App\Models\SophosFirewall;
-use App\Models\User;
-use App\Models\VpnTunnel;
 use App\Models\WorkflowRequest;
-use App\Observers\AlertRuleObserver;
-use App\Observers\BranchObserver;
-use App\Observers\ContactObserver;
-use App\Observers\CredentialObserver;
-// Observers
-use App\Observers\DeviceObserver;
-use App\Observers\DnsAccountObserver;
+// Observers — side effects only. Auditing is attached to every model by
+// discovery in registerAuditing(), not by an import per model.
 use App\Observers\EmployeeAssetObserver;
 use App\Observers\EmployeeObserver;
-use App\Observers\IncidentObserver;
-use App\Observers\IpamSubnetObserver;
-use App\Observers\IpReservationObserver;
-use App\Observers\IspConnectionObserver;
-use App\Observers\ItTaskObserver;
-use App\Observers\LicenseObserver;
-use App\Observers\NetworkSwitchObserver;
 use App\Observers\NocEventObserver;
-use App\Observers\NotificationRuleObserver;
-use App\Observers\PrinterObserver;
-use App\Observers\SophosFirewallObserver;
-use App\Observers\UserObserver;
-use App\Observers\VpnTunnelObserver;
 use App\Observers\WorkflowRequestObserver;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Pagination\Paginator;
@@ -79,41 +44,24 @@ class AppServiceProvider extends ServiceProvider
         // Bootstrap 5 pagination
         Paginator::useBootstrapFive();
 
-        // ── Audit Log Observers ──────────────────────────────────────
-        AlertRule::observe(AlertRuleObserver::class);
-        Branch::observe(BranchObserver::class);
-        Contact::observe(ContactObserver::class);
-        Credential::observe(CredentialObserver::class);
-        DnsAccount::observe(DnsAccountObserver::class);
-        Device::observe(DeviceObserver::class);
+        // ── Audit trail: every model, one observer ───────────────────
+        // Replaces 20 near-identical per-model observers. See
+        // registerAuditing() for how the model list is discovered, and
+        // config/audit.php for the exclusions.
+        $this->registerAuditing();
+
+        // ── Model side effects (NOT audit — these do real work) ──────
+        // Each of these fires business logic on a transition: dynamic list
+        // reconciliation, the termination cascade, incident auto-escalation,
+        // closing asset-return tasks, notifying a workflow's requester. The
+        // audit rows they used to write are the AuditObserver's job now; the
+        // semantic rows they still write (asset_returned,
+        // auto_escalated_from_noc, termination_cascade) record facts a
+        // column diff cannot express.
         Employee::observe(EmployeeObserver::class);
         EmployeeAsset::observe(EmployeeAssetObserver::class);
-        Incident::observe(IncidentObserver::class);
         NocEvent::observe(NocEventObserver::class);
-        IpamSubnet::observe(IpamSubnetObserver::class);
-        IpReservation::observe(IpReservationObserver::class);
-        IspConnection::observe(IspConnectionObserver::class);
-        ItTask::observe(ItTaskObserver::class);
-        License::observe(LicenseObserver::class);
-        NetworkSwitch::observe(NetworkSwitchObserver::class);
-        NotificationRule::observe(NotificationRuleObserver::class);
-        Printer::observe(PrinterObserver::class);
-        SophosFirewall::observe(SophosFirewallObserver::class);
-        User::observe(UserObserver::class);
-        VpnTunnel::observe(VpnTunnelObserver::class);
         WorkflowRequest::observe(WorkflowRequestObserver::class);
-        \App\Models\BackupAccount::observe(\App\Observers\BackupAccountObserver::class);
-
-        // ── Email Marketing audit (portal + admin actions → activity_logs) ──
-        $emAuditObserver = \App\Observers\EmailMarketingActivityObserver::class;
-        \App\Models\EmailMarketing\EmailCampaign::observe($emAuditObserver);
-        \App\Models\EmailMarketing\EmailList::observe($emAuditObserver);
-        \App\Models\EmailMarketing\EmailSubscriber::observe($emAuditObserver);
-        \App\Models\EmailMarketing\EmailTemplate::observe($emAuditObserver);
-        \App\Models\EmailMarketing\EmailSegment::observe($emAuditObserver);
-        \App\Models\EmailMarketing\EmailTag::observe($emAuditObserver);
-        \App\Models\EmailMarketing\EmailSenderIdentity::observe($emAuditObserver);
-        \App\Models\EmailMarketing\EmailSuppression::observe($emAuditObserver);
 
         // ── Workflow Event Triggers ──────────────────────────────────
         Event::listen([EmployeeCreated::class, HostStatusChanged::class], WorkflowTriggerListener::class);
@@ -191,12 +139,21 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // ── Permission Gates (DB-driven via role_permissions) ────────
-        // super_admin is implicitly granted every permission — same contract
-        // as EnsurePermission. Gate::before runs before every check and
-        // short-circuits on `true`.
+        // A superuser role is implicitly granted every permission — same
+        // contract as EnsurePermission and User::hasPermission(). Gate::before
+        // runs before every check and short-circuits on `true`.
+        //
+        // Reads the role's is_super flag rather than comparing the slug to
+        // 'super_admin', so @can in a Blade view agrees with the route gate for a
+        // renamed or additional superuser role. Wrapped because this closure runs
+        // for every @can on every page, including before the roles table exists.
         Gate::before(function ($user) {
-            if (($user->role ?? null) === 'super_admin') {
-                return true;
+            try {
+                if (method_exists($user, 'isSuperAdmin') ? $user->isSuperAdmin() : ($user->role ?? null) === 'super_admin') {
+                    return true;
+                }
+            } catch (\Throwable) {
+                // Fall through to the per-permission checks below.
             }
         });
 
@@ -210,6 +167,13 @@ class AppServiceProvider extends ServiceProvider
             }
         };
 
+        // Only registered slugs get a gate, so `@can('some-unregistered-slug')`
+        // in a view is false for everyone but a superuser. That was the other
+        // half of the missing-registry bug: `@can('view-phone-firmware')` in the
+        // nav hid the menu item even for people whose role held the grant.
+        // The registry is complete now, and RolePermission::unregisteredSlugs()
+        // is surfaced on both the Roles and Permissions pages so future drift is
+        // reported rather than silently hiding a page.
         foreach (RolePermission::allSlugs() as $slug) {
             Gate::define($slug, fn ($user) => $gateCheck($user, $slug));
         }
@@ -261,5 +225,106 @@ class AppServiceProvider extends ServiceProvider
                 return new FilesystemAdapter(new Filesystem($adapter, $config), $adapter, $config);
             });
         }
+    }
+
+    /**
+     * Attach the generic AuditObserver to every model in app/Models.
+     *
+     * Discovery rather than a hand-maintained list, because the previous
+     * arrangement — one observer per model, registered by hand — covered 22 of
+     * ~208 models. The other 186 had no audit trail at all, and nothing about
+     * adding a model prompted anyone to notice.
+     *
+     * The class list is resolved from the composer classmap when one exists
+     * (production runs `composer install --optimize-autoloader`, so this is a
+     * plain array read with no filesystem walk), and falls back to a directory
+     * scan in development.
+     *
+     * config('audit.exclude') keeps the telemetry firehoses out; see the notes
+     * there for why each is excluded.
+     */
+    private function registerAuditing(): void
+    {
+        if (! config('audit.enabled', true)) {
+            return;
+        }
+
+        $excluded = array_flip((array) config('audit.exclude', []));
+
+        foreach ($this->discoverModels() as $class) {
+            if (isset($excluded[$class])) {
+                continue;
+            }
+
+            $class::observe(\App\Observers\AuditObserver::class);
+        }
+    }
+
+    /**
+     * Every concrete Eloquent model under App\Models.
+     *
+     * A directory scan, memoised per process. The composer classmap would avoid
+     * the filesystem work, but it only lists a class after `dump-autoload` has
+     * run — so a model added today would go unaudited until someone happened to
+     * regenerate it. A silent gap in the audit trail is a worse trade than one
+     * walk of one directory per request, which the OS serves from cache anyway.
+     *
+     * @return array<int,class-string<\Illuminate\Database\Eloquent\Model>>
+     */
+    private function discoverModels(): array
+    {
+        static $models = null;
+
+        return $models ??= $this->filterModels($this->scanModelFiles());
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function scanModelFiles(): array
+    {
+        $base = app_path('Models');
+        $candidates = [];
+
+        foreach (\Illuminate\Support\Facades\File::allFiles($base) as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+
+            // app/Models/Attendance/BiotimeSource.php → App\Models\Attendance\BiotimeSource
+            $relative = str_replace([$base.DIRECTORY_SEPARATOR, '.php'], '', $file->getPathname());
+
+            $candidates[] = 'App\\Models\\'.str_replace(DIRECTORY_SEPARATOR, '\\', $relative);
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Keep only the concrete Eloquent models.
+     *
+     * @param  array<int,string>  $candidates
+     * @return array<int,class-string<\Illuminate\Database\Eloquent\Model>>
+     */
+    private function filterModels(array $candidates): array
+    {
+        $models = [];
+
+        foreach ($candidates as $class) {
+            if (! class_exists($class)) {
+                continue;
+            }
+
+            $reflection = new \ReflectionClass($class);
+
+            if ($reflection->isAbstract()
+                || ! $reflection->isSubclassOf(\Illuminate\Database\Eloquent\Model::class)) {
+                continue;
+            }
+
+            $models[] = $class;
+        }
+
+        return $models;
     }
 }

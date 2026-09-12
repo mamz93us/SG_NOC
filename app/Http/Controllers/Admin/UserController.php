@@ -4,86 +4,147 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
     public function index()
     {
         $users = User::orderBy('name')->get();
-        return view('admin.users.index', compact('users'));
+        $roles = Role::assignable()->get();
+
+        return view('admin.users.index', compact('users', 'roles'));
     }
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'name'     => 'required|string|max:100',
-            'email'    => 'required|email|unique:users,email',
-            'password' => ['required', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
-            'role'     => 'required|in:super_admin,admin,hr,viewer,browser_user',
-            'whatsapp_number' => 'nullable|string|max:32',
-        ]);
+        $data = $this->validateUser($request);
 
+        $this->assertMayAssign($data['role']);
+
+        // No ActivityLog write here: the generic AuditObserver records the
+        // create, and does it better — it redacts the password hash and captures
+        // every column rather than three of them.
         $user = User::create([
-            'name'     => $data['name'],
-            'email'    => $data['email'],
+            'name' => $data['name'],
+            'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'role'     => $data['role'],
+            'role' => $data['role'],
             'whatsapp_number' => $data['whatsapp_number'] ?? null,
         ]);
 
-        ActivityLog::create([
-            'model_type' => 'User',
-            'model_id'   => $user->id,
-            'action'     => 'created',
-            'changes'    => ['name' => $user->name, 'email' => $user->email, 'role' => $user->role],
-            'user_id'    => Auth::id(),
-        ]);
-
         return redirect()->route('admin.users.index')
-            ->with('success', "User {$data['name']} created successfully.");
+            ->with('success', "User {$user->name} created as ".User::roleLabel($user->role).'.');
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function validateUser(Request $request, ?User $user = null): array
+    {
+        return $request->validate([
+            'name' => 'required|string|max:100',
+            'email' => [
+                'required',
+                'email',
+                Rule::unique('users', 'email')->ignore($user?->id),
+            ],
+            'password' => $user
+                ? ['nullable', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()]
+                : ['required', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
+            'role' => ['required', 'string', Rule::in(Role::slugs())],
+            'whatsapp_number' => 'nullable|string|max:32',
+        ]);
+    }
+
+    /**
+     * Only a superuser may hand out a superuser role.
+     *
+     * `manage-users` is excluded from the admin role by default, but it is a
+     * grantable permission — so without this check anyone given it could make
+     * themselves (or anyone else) a Super Admin, which is a one-step escalation
+     * past every other permission on the matrix.
+     */
+    private function assertMayAssign(string $roleSlug): void
+    {
+        $role = Role::findBySlug($roleSlug);
+
+        if (! $role?->is_super) {
+            return;
+        }
+
+        if (Auth::user()?->isSuperAdmin()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'role' => 'Only a Super Admin can assign the Super Admin role.',
+        ]);
     }
 
     public function update(Request $request, User $user)
     {
-        $data = $request->validate([
-            'name'     => 'required|string|max:100',
-            'email'    => 'required|email|unique:users,email,' . $user->id,
-            'role'     => 'required|in:super_admin,admin,hr,viewer,browser_user',
-            'password' => ['nullable', Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised()],
-            'whatsapp_number' => 'nullable|string|max:32',
-        ]);
+        $data = $this->validateUser($request, $user);
 
-        $old = $user->only(['name', 'email', 'role', 'whatsapp_number']);
+        $this->assertMayAssign($data['role']);
 
-        $user->name  = $data['name'];
+        // Taking the last superuser's role away locks everyone out of user and
+        // permission management for good — those two permissions are held by no
+        // other role by default, and the only screen that could grant them is
+        // the one being locked.
+        $this->assertNotLastSuperAdmin($user, $data['role']);
+
+        $user->name = $data['name'];
         $user->email = $data['email'];
-        $user->role  = $data['role'];
+        $user->role = $data['role'];
         $user->whatsapp_number = $data['whatsapp_number'] ?? null;
 
-        if (!empty($data['password'])) {
+        if (! empty($data['password'])) {
             $user->password = Hash::make($data['password']);
         }
 
+        // The AuditObserver records the diff, with the password hash redacted.
         $user->save();
 
-        ActivityLog::create([
-            'model_type' => 'User',
-            'model_id'   => $user->id,
-            'action'     => 'updated',
-            'changes'    => [
-                'old' => $old,
-                'new' => $user->only(['name', 'email', 'role', 'whatsapp_number']),
-            ],
-            'user_id' => Auth::id(),
-        ]);
+        // A role change rewrites what this person can reach, so drop their
+        // resolved-permission cache rather than waiting for the request to end.
+        User::clearOverrideCache($user->id);
 
         return redirect()->route('admin.users.index')
             ->with('success', "User {$user->name} updated successfully.");
+    }
+
+    /**
+     * Refuse to demote the last remaining superuser.
+     */
+    private function assertNotLastSuperAdmin(User $user, string $newRole): void
+    {
+        if (! $user->isSuperAdmin()) {
+            return;
+        }
+
+        if (Role::findBySlug($newRole)?->is_super) {
+            return; // still a superuser
+        }
+
+        $superSlugs = Role::cached()->where('is_super', true)->pluck('slug')->all();
+
+        $remaining = User::whereIn('role', $superSlugs)
+            ->where('id', '!=', $user->id)
+            ->count();
+
+        if ($remaining === 0) {
+            throw ValidationException::withMessages([
+                'role' => 'This is the only Super Admin. Promote someone else first, or user and permission management becomes unreachable.',
+            ]);
+        }
     }
 
     public function resetTwoFactor(User $user)
@@ -123,18 +184,21 @@ class UserController extends Controller
                 ->with('error', 'You cannot delete your own account.');
         }
 
-        $snapshot = $user->only(['id', 'name', 'email', 'role']);
+        // Same reasoning as a demotion: deleting the last superuser strands
+        // user and permission management.
+        $superSlugs = Role::cached()->where('is_super', true)->pluck('slug')->all();
+
+        if ($user->isSuperAdmin() && User::whereIn('role', $superSlugs)->where('id', '!=', $user->id)->count() === 0) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'This is the only Super Admin. Promote someone else before deleting this account.');
+        }
+
+        $name = $user->name;
+
+        // The AuditObserver records the delete with the full (redacted) row.
         $user->delete();
 
-        ActivityLog::create([
-            'model_type' => 'User',
-            'model_id'   => $snapshot['id'],
-            'action'     => 'deleted',
-            'changes'    => $snapshot,
-            'user_id'    => Auth::id(),
-        ]);
-
         return redirect()->route('admin.users.index')
-            ->with('success', "User {$snapshot['name']} deleted.");
+            ->with('success', "User {$name} deleted.");
     }
 }

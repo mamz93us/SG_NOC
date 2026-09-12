@@ -196,7 +196,7 @@ class ListsController extends Controller
         }
 
         // Suppress per-subscriber audit rows during the reconcile; log one summary.
-        $result = \App\Observers\EmailMarketingActivityObserver::silently(fn () => $service->syncList($list));
+        $result = \App\Support\Audit\Auditor::withoutAuditing(fn () => $service->syncList($list));
 
         \App\Models\ActivityLog::create([
             'model_type' => 'EmailList',

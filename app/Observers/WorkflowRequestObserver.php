@@ -2,39 +2,27 @@
 
 namespace App\Observers;
 
-use App\Models\ActivityLog;
 use App\Models\WorkflowRequest;
 use App\Services\NotificationService;
-use Illuminate\Support\Facades\Auth;
 
+/**
+ * Requester notifications on terminal status transitions.
+ *
+ * The create / update / delete audit rows this used to write are now the generic
+ * AuditObserver's job — it covers the same events for every model, records them
+ * whether or not a user is signed in (the workflow engine's own transitions run
+ * in the queue), and diffs only what changed.
+ */
 class WorkflowRequestObserver
 {
-    public function created(WorkflowRequest $model): void
-    {
-        if (Auth::check()) {
-            ActivityLog::create(['model_type' => 'WorkflowRequest', 'model_id' => $model->id, 'action' => 'created', 'changes' => $model->toArray(), 'user_id' => Auth::id()]);
-        }
-    }
-
     public function updated(WorkflowRequest $model): void
     {
-        if (Auth::check()) {
-            ActivityLog::create(['model_type' => 'WorkflowRequest', 'model_id' => $model->id, 'action' => 'updated', 'changes' => ['old' => $model->getOriginal(), 'new' => $model->getChanges()], 'user_id' => Auth::id()]);
-        }
-
         // Notify the requester on terminal status transitions. Several code paths
         // flip status directly (ExecuteWorkflowJob, OffboardingFormController,
         // admin UI) without calling NotificationService — centralising it here
         // guarantees the requester hears back regardless of which path fires.
         if ($model->wasChanged('status')) {
             $this->notifyOnTerminalStatus($model);
-        }
-    }
-
-    public function deleted(WorkflowRequest $model): void
-    {
-        if (Auth::check()) {
-            ActivityLog::create(['model_type' => 'WorkflowRequest', 'model_id' => $model->id, 'action' => 'deleted', 'changes' => $model->toArray(), 'user_id' => Auth::id()]);
         }
     }
 

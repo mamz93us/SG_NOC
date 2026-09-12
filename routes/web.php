@@ -815,7 +815,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     })->name('dashboard');
 
     // Phonebook & UCM Overview — the previous /admin landing, now its own page.
+    // Gated on the same permission as the extension list it summarises.
     Route::get('phonebook-overview', [DashboardController::class, 'phonebookOverview'])
+        ->middleware('permission:view-extensions')
         ->name('phonebook.overview');
 
     // Dark mode toggle
@@ -1285,6 +1287,24 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('users.permissions.update');
         Route::delete('users/{user}/permissions', [UserPermissionController::class, 'reset'])
             ->name('users.permissions.reset');
+    });
+
+    // ─── Roles (create / customise, incl. which surfaces they reach) ───
+    // Separate from manage-permissions: editing the matrix is routine, while
+    // minting a role decides who can sign in where.
+    Route::middleware('permission:manage-roles')->group(function () {
+        Route::get('roles', [\App\Http\Controllers\Admin\RoleController::class, 'index'])
+            ->name('roles.index');
+        Route::get('roles/create', [\App\Http\Controllers\Admin\RoleController::class, 'create'])
+            ->name('roles.create');
+        Route::post('roles', [\App\Http\Controllers\Admin\RoleController::class, 'store'])
+            ->name('roles.store');
+        Route::get('roles/{role}/edit', [\App\Http\Controllers\Admin\RoleController::class, 'edit'])
+            ->name('roles.edit');
+        Route::put('roles/{role}', [\App\Http\Controllers\Admin\RoleController::class, 'update'])
+            ->name('roles.update');
+        Route::delete('roles/{role}', [\App\Http\Controllers\Admin\RoleController::class, 'destroy'])
+            ->name('roles.destroy');
     });
 
     // ─── Device Models ────────────────────────────────────────
@@ -2312,19 +2332,24 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             [PrinterMaintenanceController::class, 'destroy'])->name('printers.maintenance.destroy');
     });
 
-    // ── Workflow Templates ────────────────────────────────────────
-    Route::get('/workflow-templates', [WorkflowTemplateController::class, 'index'])->name('workflow-templates.index');
-    Route::post('/workflow-templates', [WorkflowTemplateController::class, 'store'])->name('workflow-templates.store');
-    Route::put('/workflow-templates/{workflowTemplate}', [WorkflowTemplateController::class, 'update'])->name('workflow-templates.update');
-    Route::delete('/workflow-templates/{workflowTemplate}', [WorkflowTemplateController::class, 'destroy'])->name('workflow-templates.destroy');
+    // ── Workflow Templates & Builder ──────────────────────────────
+    // `manage-workflow-templates` has existed in the permission registry since
+    // the workflow engine shipped but was never applied here, so the approval
+    // chains — who signs off on onboarding, offboarding and scrap — were
+    // editable by anyone who could reach /admin at all.
+    Route::middleware('permission:manage-workflow-templates')->group(function () {
+        Route::get('/workflow-templates', [WorkflowTemplateController::class, 'index'])->name('workflow-templates.index');
+        Route::post('/workflow-templates', [WorkflowTemplateController::class, 'store'])->name('workflow-templates.store');
+        Route::put('/workflow-templates/{workflowTemplate}', [WorkflowTemplateController::class, 'update'])->name('workflow-templates.update');
+        Route::delete('/workflow-templates/{workflowTemplate}', [WorkflowTemplateController::class, 'destroy'])->name('workflow-templates.destroy');
 
-    // ── Workflow Builder ──────────────────────────────────────────
-    Route::get('/workflow-templates/{workflowTemplate}/builder', [WorkflowTemplateController::class, 'builder'])->name('workflow-templates.builder');
-    Route::post('/workflow-templates/{workflowTemplate}/definition', [WorkflowTemplateController::class, 'saveDefinition'])->name('workflow-templates.save-definition');
-    Route::get('/workflow-templates/{workflowTemplate}/versions', [WorkflowTemplateController::class, 'versions'])->name('workflow-templates.versions');
-    Route::post('/workflow-templates/{workflowTemplate}/versions/{version}/restore', [WorkflowTemplateController::class, 'restoreVersion'])->name('workflow-templates.restore-version');
-    Route::post('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'store'])->name('workflow-templates.trigger.set');
-    Route::delete('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'destroy'])->name('workflow-templates.trigger.clear');
+        Route::get('/workflow-templates/{workflowTemplate}/builder', [WorkflowTemplateController::class, 'builder'])->name('workflow-templates.builder');
+        Route::post('/workflow-templates/{workflowTemplate}/definition', [WorkflowTemplateController::class, 'saveDefinition'])->name('workflow-templates.save-definition');
+        Route::get('/workflow-templates/{workflowTemplate}/versions', [WorkflowTemplateController::class, 'versions'])->name('workflow-templates.versions');
+        Route::post('/workflow-templates/{workflowTemplate}/versions/{version}/restore', [WorkflowTemplateController::class, 'restoreVersion'])->name('workflow-templates.restore-version');
+        Route::post('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'store'])->name('workflow-templates.trigger.set');
+        Route::delete('/workflow-templates/{workflowTemplate}/trigger', [WorkflowTriggerController::class, 'destroy'])->name('workflow-templates.trigger.clear');
+    });
 
     // ── Email Logs ────────────────────────────────────────────────
     // ─── SES Mail Delivery Log ────────────────────────────────
@@ -2342,31 +2367,54 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
                 ->whereNumber('message')->name('show');
         });
 
-    Route::get('/notifications/email-log', [EmailLogController::class, 'index'])->name('email-log.index');
-    Route::delete('/notifications/email-log', [EmailLogController::class, 'clearAll'])->name('email-log.clear');
+    // Both logs carry message subjects and recipients, so `view-*-logs` — which
+    // the registry has always had and the nav has always checked — now actually
+    // gates them. Clearing a delivery log is destroying an audit record, so that
+    // takes manage-settings on top.
+    Route::middleware('permission:view-email-logs')->group(function () {
+        Route::get('/notifications/email-log', [EmailLogController::class, 'index'])->name('email-log.index');
+    });
+    Route::middleware('permission:manage-settings')->group(function () {
+        Route::delete('/notifications/email-log', [EmailLogController::class, 'clearAll'])->name('email-log.clear');
+    });
 
     // WhatsApp delivery log — the Cloud API counterpart of the email log.
-    Route::get('/notifications/whatsapp-log', [\App\Http\Controllers\Admin\WhatsappLogController::class, 'index'])->name('whatsapp-log.index');
-    Route::delete('/notifications/whatsapp-log', [\App\Http\Controllers\Admin\WhatsappLogController::class, 'clearAll'])->name('whatsapp-log.clear');
+    Route::middleware('permission:view-whatsapp-logs')->group(function () {
+        Route::get('/notifications/whatsapp-log', [\App\Http\Controllers\Admin\WhatsappLogController::class, 'index'])->name('whatsapp-log.index');
+    });
+    Route::middleware('permission:manage-settings')->group(function () {
+        Route::delete('/notifications/whatsapp-log', [\App\Http\Controllers\Admin\WhatsappLogController::class, 'clearAll'])->name('whatsapp-log.clear');
+    });
 
     // ── Notification Rules ────────────────────────────────────────
-    Route::get('/notifications/rules', [NotificationRuleController::class, 'index'])->name('notification-rules.index');
-    Route::post('/notifications/rules', [NotificationRuleController::class, 'store'])->name('notification-rules.store');
-    Route::put('/notifications/rules/{notificationRule}', [NotificationRuleController::class, 'update'])->name('notification-rules.update');
-    Route::delete('/notifications/rules/{notificationRule}', [NotificationRuleController::class, 'destroy'])->name('notification-rules.destroy');
+    // Who gets paged for every event type. `manage-notification-rules` existed
+    // and was checked by the nav, but not by the routes.
+    Route::middleware('permission:manage-notification-rules')->group(function () {
+        Route::get('/notifications/rules', [NotificationRuleController::class, 'index'])->name('notification-rules.index');
+        Route::post('/notifications/rules', [NotificationRuleController::class, 'store'])->name('notification-rules.store');
+        Route::put('/notifications/rules/{notificationRule}', [NotificationRuleController::class, 'update'])->name('notification-rules.update');
+        Route::delete('/notifications/rules/{notificationRule}', [NotificationRuleController::class, 'destroy'])->name('notification-rules.destroy');
+    });
 
     // ── License Monitors ──────────────────────────────────────────
-    Route::get('/license-monitors', [LicenseMonitorController::class, 'index'])->name('license-monitors.index');
-    Route::post('/license-monitors', [LicenseMonitorController::class, 'store'])->name('license-monitors.store');
-    Route::put('/license-monitors/{licenseMonitor}', [LicenseMonitorController::class, 'update'])->name('license-monitors.update');
-    Route::patch('/license-monitors/{licenseMonitor}/toggle', [LicenseMonitorController::class, 'toggleActive'])->name('license-monitors.toggle');
-    Route::delete('/license-monitors/{licenseMonitor}', [LicenseMonitorController::class, 'destroy'])->name('license-monitors.destroy');
+    Route::middleware('permission:manage-license-monitors')->group(function () {
+        Route::get('/license-monitors', [LicenseMonitorController::class, 'index'])->name('license-monitors.index');
+        Route::post('/license-monitors', [LicenseMonitorController::class, 'store'])->name('license-monitors.store');
+        Route::put('/license-monitors/{licenseMonitor}', [LicenseMonitorController::class, 'update'])->name('license-monitors.update');
+        Route::patch('/license-monitors/{licenseMonitor}/toggle', [LicenseMonitorController::class, 'toggleActive'])->name('license-monitors.toggle');
+        Route::delete('/license-monitors/{licenseMonitor}', [LicenseMonitorController::class, 'destroy'])->name('license-monitors.destroy');
+    });
 
     // ── Allowed Domains ───────────────────────────────────────────
-    Route::get('/settings/domains', [AllowedDomainController::class, 'index'])->name('settings.domains');
-    Route::post('/settings/domains', [AllowedDomainController::class, 'store'])->name('settings.domains.store');
-    Route::patch('/settings/domains/{allowedDomain}/primary', [AllowedDomainController::class, 'setPrimary'])->name('settings.domains.primary');
-    Route::delete('/settings/domains/{allowedDomain}', [AllowedDomainController::class, 'destroy'])->name('settings.domains.destroy');
+    // This list is what mailboxOf() and the UPN builder trust, so editing it
+    // changes which HR rows become real mailboxes. `manage-allowed-domains`
+    // existed for it already.
+    Route::middleware('permission:manage-allowed-domains')->group(function () {
+        Route::get('/settings/domains', [AllowedDomainController::class, 'index'])->name('settings.domains');
+        Route::post('/settings/domains', [AllowedDomainController::class, 'store'])->name('settings.domains.store');
+        Route::patch('/settings/domains/{allowedDomain}/primary', [AllowedDomainController::class, 'setPrimary'])->name('settings.domains.primary');
+        Route::delete('/settings/domains/{allowedDomain}', [AllowedDomainController::class, 'destroy'])->name('settings.domains.destroy');
+    });
 
     Route::middleware('permission:manage-settings')->group(function () {
         // ── Provisioning Settings ─────────────────────────────────────
@@ -2592,7 +2640,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         }
 
         return response()->json($items);
-    })->name('api.search-assignables');
+    })
+        // Returns the employee directory (name, email, job title) or the device
+        // inventory (name, IP, serial, asset code), 50 rows a call, to anyone who
+        // could reach /admin at all. Gated to the two permissions that already
+        // grant those lists — OR semantics, since one endpoint serves both.
+        ->middleware('permission:view-employees,view-assets')
+        ->name('api.search-assignables');
 
     // ─── Azure Device Sync ────────────────────────────────────────
     Route::middleware('permission:view-itam')->prefix('itam/azure')->name('itam.azure.')->group(function () {
@@ -2846,11 +2900,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ─── Email Signature Templates ─────────────────────────────────
     Route::prefix('signatures')->name('signatures.')->group(function () {
-        // Preview endpoints are accessible to anyone who can view-admin-links (editors need them)
-        Route::post('/preview', [\App\Http\Controllers\Admin\SignatureController::class, 'preview'])->name('preview');
-        Route::post('/preview-saved', [\App\Http\Controllers\Admin\SignatureController::class, 'previewSaved'])->name('preview-saved');
-
         Route::middleware('permission:manage-signatures')->group(function () {
+            // Preview renders a template against real employee data. The comment
+            // that used to sit here said these were "accessible to anyone who can
+            // view-admin-links (editors need them)" — but no gate was ever
+            // applied, so they answered for any authenticated user. Both callers
+            // are the signature editor and index pages, which are in this group
+            // already, so the gate costs nothing.
+            Route::post('/preview', [\App\Http\Controllers\Admin\SignatureController::class, 'preview'])->name('preview');
+            Route::post('/preview-saved', [\App\Http\Controllers\Admin\SignatureController::class, 'previewSaved'])->name('preview-saved');
+
             Route::get('/', [\App\Http\Controllers\Admin\SignatureController::class, 'index'])->name('index');
             Route::get('/log', [\App\Http\Controllers\Admin\SignatureController::class, 'log'])->name('log');
             Route::get('/transport-preview', [\App\Http\Controllers\Admin\SignatureController::class, 'transportPreview'])->name('transport-preview');
