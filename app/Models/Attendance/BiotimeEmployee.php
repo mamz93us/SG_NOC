@@ -37,6 +37,8 @@ class BiotimeEmployee extends Model
     protected $fillable = [
         'biotime_source_id',
         'emp_code',
+        'device_name',
+        'device_user_id',
         'employee_id',
         'match_method',
         'candidate_ids',
@@ -76,6 +78,36 @@ class BiotimeEmployee extends Model
     public function isManual(): bool
     {
         return $this->match_method === self::METHOD_MANUAL;
+    }
+
+    /**
+     * The Oracle number(s) this code is looked up as — what EmployeeLinker
+     * searches for, and what the mapping page shows so a non-match is
+     * explicable.
+     *
+     * A source may declare a prefix (Cairo: 55, so badge 512 is Oracle 55512).
+     * The prefix REPLACES the raw form rather than joining it: searching both
+     * would match the Cairo employee AND the Saudi one who really holds 512,
+     * which is the collision the prefix exists to remove.
+     *
+     * @return list<string>
+     */
+    public function lookupCodes(): array
+    {
+        $code = trim((string) $this->emp_code);
+        $forms = array_filter([$code, ltrim($code, '0')], fn ($v) => $v !== '');
+
+        if (($prefix = $this->source?->codePrefix() ?: '') !== '') {
+            $forms = array_map(fn ($v) => $prefix.$v, $forms);
+        }
+
+        return array_values(array_unique($forms));
+    }
+
+    /** The number shown next to the code on the mapping page, when it differs from it. */
+    public function lookupCode(): ?string
+    {
+        return $this->lookupCodes()[0] ?? null;
     }
 
     public function isConfirmedNotEmployee(): bool

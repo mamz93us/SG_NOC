@@ -29,7 +29,8 @@ class BiotimeEmployeeController extends Controller
         $search = trim((string) $request->input('q'));
 
         $query = BiotimeEmployee::query()
-            ->with(['source:id,name', 'employee:id,name,oracle_emp_no,branch_id,status', 'employee.branch:id,name', 'confirmedBy:id,name']);
+            // code_prefix too: it is what lookupCode() shows the code being searched as.
+            ->with(['source:id,name,code_prefix', 'employee:id,name,oracle_emp_no,branch_id,status', 'employee.branch:id,name', 'confirmedBy:id,name']);
 
         $this->applyStatus($query, $status);
 
@@ -40,6 +41,7 @@ class BiotimeEmployeeController extends Controller
         if ($search !== '') {
             $query->where(fn ($q) => $q
                 ->where('emp_code', 'like', "%{$search}%")
+                ->orWhere('device_name', 'like', "%{$search}%")
                 ->orWhereHas('employee', fn ($e) => $e->where('name', 'like', "%{$search}%")));
         }
 

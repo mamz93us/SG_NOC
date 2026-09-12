@@ -105,6 +105,44 @@ Things that differ from BioTime:
   row. If the newest row matches the UTC clock, switch on *Times in this database are UTC* and
   choose the zone to convert to. Punches are then stored in local time, like BioTime's.
 
+### Legacy databases (ZKTeco `CHECKINOUT` + `USERINFO`)
+
+Older ZKTeco installations (ZKTime, `att2000`) keep punches in `CHECKINOUT` and people in
+`USERINFO`. Cairo is one of these. The NOC reads:
+
+```sql
+SELECT c.USERID, c.CHECKTIME, c.CHECKTYPE, c.SENSORID, c.sn, u.BADGENUMBER, u.NAME
+FROM CHECKINOUT c LEFT JOIN USERINFO u ON u.USERID = c.USERID
+```
+
+| Column | Used as |
+|---|---|
+| `u.BADGENUMBER` | The employee code. `SSN` and `CardNo` are the alternatives — pick one on the source. |
+| `c.CHECKTIME` | The punch time — the moment of the scan. |
+| `c.CHECKTYPE` | `I` / `O`, stored for reference only. |
+| `c.sn` | The terminal (falling back to `SENSORID`). |
+| `u.NAME` | Shown beside the code on Employee Mapping. Never matched on. |
+
+Grant **both** tables:
+
+```sql
+GRANT SELECT ON dbo.CHECKINOUT TO noc_attendance;
+GRANT SELECT ON dbo.USERINFO TO noc_attendance;
+```
+
+Things that differ:
+
+- **The punch row has no employee code**, only `USERID` — an internal number meaning nothing outside
+  that database. `USERINFO` supplies the badge. A punch whose `USERINFO` row has been deleted is kept
+  anyway, under the code `uid:{USERID}`, and appears on Employee Mapping rather than vanishing.
+- **The table has no id at all.** Its key is `(USERID, CHECKTIME)`, so it is read by time then user id.
+- **`CHECKTIME` is the scan, and nothing records when the row arrived.** A terminal that uploads late
+  writes rows *behind* the watermark, where the forward read cannot see them. Set **Re-read the last
+  … days** to 2 on such a source; the nightly reconcile catches anything older.
+- **There are no areas.** Map each **terminal** to a branch and time zone on Areas & Terminals.
+- **Which column holds the badge differs by installation.** Test connection shows `BADGENUMBER`, `SSN`
+  and `CardNo` side by side for the newest five rows — read it off the screen before the first sync.
+
 ## 4. Add the sources
 
 **Attendance → BioTime Sources → Add source**, once per BioTime database:
@@ -114,7 +152,10 @@ Things that differ from BioTime:
 | Host / Port | The SQL Server's address and fixed TCP port. |
 | Database | Usually `biotime`. Once a source holds punches its database cannot be changed — add a new source instead. |
 | SQL login / Password | The login from step 3. The password is encrypted at rest and never shown again. |
+| Employee code column | Legacy sources only: which `USERINFO` column carries the badge. |
+| Employee code prefix | Optional — put in front of the code before it is looked up as an Oracle number. See step 6. |
 | Import punches from | Where the **first** sync starts. Blank = all history. |
+| Re-read the last … days | 0 = off. For a table read by time, catches punches a terminal uploaded late. |
 | Trust server certificate | Leave on unless SQL Server has a real certificate. ODBC Driver 18 encrypts by default and rejects SQL Server's self-signed certificate otherwise. |
 | Default branch | Optional — see step 6. |
 
@@ -153,6 +194,25 @@ branch changes. **Re-run auto-match** does the same on demand.
 
 If BioTime codes are *not* Oracle numbers at your company, every code lands on
 the mapping page for a one-time manual link, and everything else still works.
+
+### The employee code prefix
+
+Some sites enrol people under a short local number that is only part of their
+Oracle number. Cairo is the case this exists for: badge `512` is Oracle `55512`,
+and a bare `512` is a *different person* in the Saudi series — so looking the
+badge up as it stands would book one person's punches to another.
+
+Setting **Employee code prefix** to `55` on that source makes every code from it
+be searched as `55` + the code. Three things to know:
+
+- The prefixed form **replaces** the bare one; both are never tried. Searching
+  both would match the Cairo employee *and* the Saudi one at once, which is the
+  collision the prefix exists to remove. A prefixed code that matches nobody
+  stays on this page — which is the right answer, not a failure.
+- Leading zeros are stripped first, so badge `0512` is also Oracle `55512`.
+- Punches keep the **raw** badge. The mapping page shows what each code is
+  searched as underneath it, and changing the prefix re-matches every code on
+  the source — HR's manual links excepted — without re-reading the database.
 
 **Codes for people the NOC has never held.** Drivers, guards, warehouse and
 cleaning staff punch like everyone else, but they have no mailbox, so no Entra

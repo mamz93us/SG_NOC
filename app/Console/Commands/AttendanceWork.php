@@ -101,6 +101,16 @@ class AttendanceWork extends Command
 
             case 'relink':
                 $source = isset($payload['source_id']) ? BiotimeSource::find($payload['source_id']) : null;
+
+                // "all" re-decides codes that are already linked too — the
+                // matching rule itself changed, so the wrong ones are exactly
+                // the ones retryUnlinked() would never look at again.
+                if ($payload['all'] ?? false) {
+                    $changed = $linker->rematch($source);
+
+                    return $changed ? "{$changed} code(s) now point at a different employee." : 'Every code still matches the same employee.';
+                }
+
                 $linked = $linker->retryUnlinked($source);
 
                 return $linked ? "{$linked} code(s) linked to an employee." : 'No new matches.';

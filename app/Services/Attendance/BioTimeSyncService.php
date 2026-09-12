@@ -26,7 +26,9 @@ use Illuminate\Support\Facades\Log;
  *  - BioTime attendance (iclock_transaction) — by the numeric id, never by
  *    punch time: an offline terminal uploads old punches with new ids;
  *  - ZKBio access control (acc_transaction) — its ids are unordered hex, so
- *    by (time, id).
+ *    by (time, id);
+ *  - ZKTeco legacy (CHECKINOUT + USERINFO) — no id at all, so by
+ *    (CHECKTIME, USERID), with the badge number joined in from USERINFO.
  *
  * Idempotent — upserted on (source, external_id) — and resumable: the
  * watermark is saved after every chunk, so a big first backfill that is cut
@@ -85,7 +87,10 @@ class BioTimeSyncService
         try {
             $db = $this->bioTime->connection($source);
             $reader = $this->reader($source);
+            $deadline = $maxSeconds ? microtime(true) + $maxSeconds : null;
+
             $result = $this->pull($source, $reader, $db, $reader->startCursor($source, $db, $since), $maxRows, null, true, $maxSeconds);
+            $result = $this->catchUpLate($source, $reader, $db, $result, $since, $maxRows, $deadline);
         } catch (\Throwable $e) {
             $this->recordFailure($source, $e);
             throw $e;
@@ -286,6 +291,45 @@ class BioTimeSyncService
     }
 
     /**
+     * Re-reads the last `lookback_days` days, ignoring the watermark.
+     *
+     * A table read by a (time, id) keyset cannot see a punch that arrived late:
+     * a terminal uploading yesterday's scans writes them BEHIND the watermark,
+     * and the forward pass never looks back. The legacy CHECKINOUT table has no
+     * write-time column at all, so there is nothing else to page by. Re-reading
+     * is free of consequences — punches upsert on (source, external_id) — and
+     * the nightly biotime:reconcile remains the backstop for anything older.
+     *
+     * Skipped while a backfill is still catching up, and when the run is out of
+     * time: the next one does it.
+     *
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private function catchUpLate(BiotimeSource $source, PunchReader $reader, ConnectionInterface $db, array $result, ?string $since, int $maxRows, ?float $deadline): array
+    {
+        $days = (int) $source->lookback_days;
+
+        if ($days < 1 || $since !== null || ! $result['done'] || ($deadline !== null && microtime(true) >= $deadline)) {
+            return $result;
+        }
+
+        $window = [
+            CarbonImmutable::today()->subDays($days - 1)->toDateString().' 00:00:00',
+            CarbonImmutable::today()->addDay()->toDateString().' 00:00:00',
+        ];
+
+        $again = $this->pull($source, $reader, $db, $reader->floorCursor(), $maxRows, $window, false,
+            $deadline === null ? null : max(1, (int) ceil($deadline - microtime(true))));
+
+        foreach (['rows', 'skipped', 'new_codes', 'days'] as $key) {
+            $result[$key] += $again[$key];
+        }
+
+        return $result;
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $rows  normalised punches
      * @param  array<string, array<string, true>>  $touched
      * @return int codes seen for the first time
@@ -303,6 +347,10 @@ class BioTimeSyncService
         $punches = [];
         foreach ($rows as $row) {
             $biotimeEmployee = $employees[mb_strtolower($row['emp_code'])];
+
+            // Whatever the device knows about the person lives on the code,
+            // not on every one of their punches.
+            unset($row['device_name'], $row['device_user_id']);
 
             $punches[] = $row + [
                 'biotime_source_id' => $source->id,
@@ -344,6 +392,13 @@ class BioTimeSyncService
             if ($row['terminal_sn'] !== null) {
                 $byCode[$key]['terminals'][$row['terminal_sn']] = true;
             }
+            // Display only — never matched on. Only a source with its own user
+            // table (the legacy ZKTeco one) supplies these.
+            foreach (['device_name', 'device_user_id'] as $field) {
+                if (($row[$field] ?? null) !== null) {
+                    $byCode[$key][$field] = $row[$field];
+                }
+            }
         }
 
         $known = BiotimeEmployee::query()
@@ -362,7 +417,8 @@ class BioTimeSyncService
             if (! $biotimeEmployee) {
                 $biotimeEmployee = BiotimeEmployee::createOrFirst(
                     ['biotime_source_id' => $source->id, 'emp_code' => $info['code']],
-                    ['areas' => $areas, 'terminals' => $terminals, 'first_punch_at' => $info['first'], 'last_punch_at' => $info['last']],
+                    ['areas' => $areas, 'terminals' => $terminals, 'first_punch_at' => $info['first'], 'last_punch_at' => $info['last'],
+                        'device_name' => $info['device_name'] ?? null, 'device_user_id' => $info['device_user_id'] ?? null],
                 );
                 $biotimeEmployee->setRelation('source', $source);
                 $known[$key] = $biotimeEmployee;
@@ -375,6 +431,12 @@ class BioTimeSyncService
 
             $biotimeEmployee->areas = array_slice(array_values(array_unique(array_merge($biotimeEmployee->areas ?? [], $areas))), 0, 20);
             $biotimeEmployee->terminals = array_slice(array_values(array_unique(array_merge($biotimeEmployee->terminals ?? [], $terminals))), 0, 20);
+
+            foreach (['device_name', 'device_user_id'] as $field) {
+                if (($info[$field] ?? null) !== null) {
+                    $biotimeEmployee->{$field} = $info[$field];
+                }
+            }
 
             if (! $biotimeEmployee->first_punch_at || $info['first'] < $biotimeEmployee->first_punch_at->format('Y-m-d H:i:s')) {
                 $biotimeEmployee->first_punch_at = $info['first'];

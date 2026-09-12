@@ -50,6 +50,7 @@
                     <div class="form-text">
                         <code>iclock_transaction</code>: <code>emp_code</code>, <code>punch_time</code>, areas.
                         <code>acc_transaction</code>: <code>pin</code>, <code>create_time</code>, terminals only.
+                        <code>CHECKINOUT</code>: <code>USERID</code> + <code>CHECKTIME</code>, with the badge number joined in from <code>USERINFO</code>.
                     </div>
                 @endif
             </div>
@@ -65,6 +66,19 @@
                     event_time. <strong>Test connection</strong> tells you which of the two the table has.
                 </div>
             </div>
+            <div class="col-md-6 type-field" data-type="checkinout" @if ($currentType !== 'checkinout') hidden @endif>
+                <label class="form-label small fw-semibold">Employee code column</label>
+                <select name="code_column" class="form-select">
+                    @foreach ($codeColumns as $value => $label)
+                        <option value="{{ $value }}" @selected(old('code_column', $source->code_column ?: 'BADGENUMBER') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+                <div class="form-text">
+                    Which <code>USERINFO</code> column holds the number HR knows. <strong>Test connection</strong> shows all three
+                    side by side — read the badge off it rather than guessing.
+                </div>
+            </div>
+
             <div class="col-md-6">
                 <label class="form-label small fw-semibold">Default branch <span class="text-muted fw-normal">(optional)</span></label>
                 <select name="default_branch_id" class="form-select">
@@ -74,6 +88,27 @@
                     @endforeach
                 </select>
                 <div class="form-text">Used only when an employee code matches two people and neither the area nor the terminal has a branch.</div>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold">Employee code prefix <span class="text-muted fw-normal">(optional)</span></label>
+                <input name="code_prefix" value="{{ old('code_prefix', $source->code_prefix) }}" class="form-control font-monospace"
+                       maxlength="10" inputmode="numeric" placeholder="e.g. 55">
+                <div class="form-text">
+                    Put in front of the device code before it is looked up as an <strong>Oracle number</strong> — Cairo's badge
+                    <code>512</code> is Oracle <code>55512</code>. It <em>replaces</em> the bare code rather than being tried as
+                    well, which is what stops a short Cairo number matching the Saudi employee who really holds it. Punches keep
+                    the raw badge, so changing this re-matches the codes; it never re-reads the database.
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold">Re-read the last <span class="text-muted fw-normal">(days)</span></label>
+                <input name="lookback_days" type="number" min="0" max="30" value="{{ old('lookback_days', (int) $source->lookback_days) }}" class="form-control">
+                <div class="form-text">
+                    0 = off. For a table read by time (<code>acc_transaction</code>, <code>CHECKINOUT</code>) a terminal that
+                    uploads late writes rows <em>behind</em> the watermark; re-reading a couple of days catches them. Re-reads
+                    upsert, so they cost only the query.
+                </div>
             </div>
 
             <div class="col-md-8">

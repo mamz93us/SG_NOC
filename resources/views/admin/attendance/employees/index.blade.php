@@ -9,9 +9,10 @@
     <div>
         <h4 class="mb-0 fw-bold"><i class="bi bi-person-lines-fill me-2 text-primary"></i>Employee Mapping</h4>
         <small class="text-muted">
-            Which NOC employee each BioTime code belongs to. Codes are matched to the employee's <strong>Oracle number</strong>;
-            when a number belongs to two people (SSS Egypt and SamirGroup), the branch of the area they punched in decides.
-            Anything else waits here for you. Manual links are never changed by the automatic rule.
+            Which NOC employee each BioTime code belongs to. Codes are matched to the employee's <strong>Oracle number</strong>
+            — where a source sets a code prefix, with that in front, shown under the code. When a number belongs to two people
+            (SSS Egypt and SamirGroup), the branch of the area they punched in decides. Anything else waits here for you.
+            Manual links are never changed by the automatic rule.
         </small>
     </div>
     @can('manage-attendance')
@@ -76,7 +77,19 @@
                     <tr>
                         <td>
                             <div class="fw-semibold font-monospace">{{ $row->emp_code }}</div>
-                            <div class="small text-muted">{{ $row->source?->name }}</div>
+                            @if ($row->device_name)
+                                <div class="small">{{ $row->device_name }}</div>
+                            @endif
+                            <div class="small text-muted">
+                                {{ $row->source?->name }}
+                                @php $lookup = $row->lookupCode(); @endphp
+                                @if ($lookup && $lookup !== $row->emp_code)
+                                    · searched as Oracle <span class="font-monospace">{{ $lookup }}</span>
+                                @endif
+                                @if ($row->device_user_id)
+                                    · device user {{ $row->device_user_id }}
+                                @endif
+                            </div>
                         </td>
                         <td class="small">{{ implode(', ', $row->areas ?? []) ?: '—' }}</td>
                         <td class="small text-nowrap">{{ $row->last_punch_at?->format('d M Y H:i') ?? '—' }}</td>

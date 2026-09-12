@@ -11,6 +11,7 @@ class PunchReaders
     {
         return match ($source->source_type) {
             BiotimeSource::TYPE_ACCESS => new AccessTransactionReader,
+            BiotimeSource::TYPE_CHECKINOUT => new CheckInOutReader,
             default => new IclockTransactionReader,
         };
     }

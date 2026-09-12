@@ -13,7 +13,9 @@ use App\Models\Employee;
  *
  * The punch query carries no name or email, so the two-signal matcher in
  * OracleHrImportService has nothing to compare. The rule instead assumes the
- * BioTime emp_code IS the Oracle EMP_NO:
+ * BioTime emp_code IS the Oracle EMP_NO — or, where the source declares a code
+ * prefix, that the prefix plus the code is (Cairo's badge 512 is Oracle 55512;
+ * see BiotimeEmployee::lookupCodes()):
  *
  *   1. candidates = employees whose oracle_emp_no is the code (linked
  *      secondary mailboxes excluded — they mirror a primary record);
@@ -98,22 +100,43 @@ class EmployeeLinker
      */
     public function retryUnlinked(?BiotimeSource $source = null): int
     {
-        $linked = 0;
+        return $this->runAuto($source, onlyUnlinked: true);
+    }
+
+    /**
+     * Re-decides EVERY code the automatic rule owns, linked ones included.
+     *
+     * retryUnlinked() only ever looks at codes with no employee, so a code the
+     * rule got wrong stays wrong for good. When the rule itself changes — a
+     * code prefix added, a default branch set — the already-linked codes are
+     * exactly the ones that need deciding again. HR's manual links are still
+     * never touched (autoLink() returns early on those).
+     *
+     * @return int codes whose employee changed
+     */
+    public function rematch(?BiotimeSource $source = null): int
+    {
+        return $this->runAuto($source, onlyUnlinked: false);
+    }
+
+    private function runAuto(?BiotimeSource $source, bool $onlyUnlinked): int
+    {
+        $changed = 0;
 
         BiotimeEmployee::query()
             ->when($source, fn ($q) => $q->where('biotime_source_id', $source->id))
-            ->whereNull('employee_id')
+            ->when($onlyUnlinked, fn ($q) => $q->whereNull('employee_id'))
             ->where(fn ($q) => $q->whereNull('match_method')->orWhere('match_method', '!=', BiotimeEmployee::METHOD_MANUAL))
             ->with('source')
-            ->chunkById(200, function ($rows) use (&$linked) {
+            ->chunkById(200, function ($rows) use (&$changed) {
                 foreach ($rows as $biotimeEmployee) {
                     if ($this->autoLink($biotimeEmployee)) {
-                        $linked++;
+                        $changed++;
                     }
                 }
             });
 
-        return $linked;
+        return $changed;
     }
 
     /**
@@ -121,11 +144,7 @@ class EmployeeLinker
      */
     public function resolve(BiotimeEmployee $biotimeEmployee): array
     {
-        $code = trim((string) $biotimeEmployee->emp_code);
-        $variants = array_values(array_unique(array_filter(
-            [$code, ltrim($code, '0')],
-            fn ($v) => $v !== ''
-        )));
+        $variants = $biotimeEmployee->lookupCodes();
 
         if ($variants === []) {
             return [null, BiotimeEmployee::METHOD_NONE, []];
