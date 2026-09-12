@@ -2,6 +2,7 @@
 
 namespace App\Services\Identity;
 
+use App\Models\AllowedDomain;
 use App\Models\AzureBranchMapping;
 use App\Models\Department;
 use App\Models\Employee;
@@ -81,6 +82,9 @@ class OracleHrImportService
         }
 
         $mappings = AzureBranchMapping::all();
+        // "Shared" can only be seen across the whole file, so count first.
+        $emailCounts = $this->countEmails($rows, $headerIndex, $colMap);
+        $domains = array_map('strtolower', AllowedDomain::getList());
 
         $batch = HrImportBatch::create([
             'filename' => $file->getClientOriginalName(),
@@ -88,7 +92,7 @@ class OracleHrImportService
             'status' => 'parsed',
         ]);
 
-        DB::transaction(function () use ($rows, $headerIndex, $colMap, $mappings, $batch) {
+        DB::transaction(function () use ($rows, $headerIndex, $colMap, $mappings, $batch, $emailCounts, $domains) {
             foreach ($rows as $i => $raw) {
                 if ($i <= $headerIndex) {
                     continue;
@@ -110,6 +114,8 @@ class OracleHrImportService
                 $name = $get('emp_name');
                 $g = strtoupper($get('gender'));
                 $gender = $g === 'F' ? 'female' : ($g === 'M' ? 'male' : null);
+
+                [$ownMailbox, $mailboxReason] = $this->mailboxOf($email, $emailCounts, $domains);
 
                 // Match on emp_no + email + name (scored). May report ambiguous/name-only.
                 [$employee, $method] = $this->matchEmployee($empNo, $name, $email);
@@ -143,6 +149,8 @@ class OracleHrImportService
                     'emp_no' => $empNo ?: null,
                     'emp_name' => $name ?: null,
                     'email' => $email ?: null,
+                    'own_mailbox' => $ownMailbox,
+                    'mailbox_reason' => $mailboxReason,
                     'mobile_raw' => $mobileRaw ?: null,
                     'mobile_normalized' => $mobile,
                     'location_name' => $location ?: null,
@@ -162,6 +170,75 @@ class OracleHrImportService
         $batch->refreshCounts();
 
         return $batch->fresh();
+    }
+
+    /**
+     * Does the address in this row belong to the person on this row?
+     *
+     * An address in the EMAIL column is not proof of a mailbox. Three ways it
+     * is somebody else's, or nobody's:
+     *
+     *  - blank           — the plain case: drivers, guards, warehouse staff;
+     *  - outside_domain  — a personal gmail/hotmail, not a company domain
+     *                      (the list is Settings ▸ Allowed Domains, the same
+     *                      one UPNs are built from, so adding a domain there
+     *                      fixes this everywhere at once);
+     *  - shared          — the same address on more than one row, which is how
+     *                      HR lists mail-less staff: under their MANAGER.
+     *
+     * An address that fails is never copied onto an employee record; it would
+     * hand one person another person's mailbox.
+     *
+     * @param  array<string, int>  $emailCounts  address => how many rows carry it
+     * @param  list<string>  $domains  company domains, lower-case
+     * @return array{0: bool, 1: ?string} [ownMailbox, reason]
+     */
+    public function mailboxOf(string $email, array $emailCounts, array $domains): array
+    {
+        $email = strtolower(trim($email));
+
+        if ($email === '' || ! str_contains($email, '@')) {
+            return [false, 'blank'];
+        }
+
+        // With no domain list configured, every address counts as a company one
+        // — better than declaring the whole company mail-less.
+        if ($domains !== [] && ! in_array(substr($email, strrpos($email, '@') + 1), $domains, true)) {
+            return [false, 'outside_domain'];
+        }
+
+        if (($emailCounts[$email] ?? 0) > 1) {
+            return [false, 'shared'];
+        }
+
+        return [true, null];
+    }
+
+    /**
+     * How many rows carry each address, so a shared one can be recognised.
+     *
+     * @param  array<int, array<int, mixed>>  $rows
+     * @param  array<string, int>  $colMap
+     * @return array<string, int>
+     */
+    private function countEmails(array $rows, int $headerIndex, array $colMap): array
+    {
+        if (! isset($colMap['email'])) {
+            return [];
+        }
+
+        $counts = [];
+        foreach ($rows as $i => $raw) {
+            if ($i <= $headerIndex) {
+                continue;
+            }
+            $email = strtolower(trim((string) ($raw[$colMap['email']] ?? '')));
+            if ($email !== '') {
+                $counts[$email] = ($counts[$email] ?? 0) + 1;
+            }
+        }
+
+        return $counts;
     }
 
     /**
@@ -346,7 +423,7 @@ class OracleHrImportService
     /**
      * Resolve a single unmatched row according to the admin's decision.
      *
-     * @param  string  $decision  create|skip|link
+     * @param  string  $decision  create|create_service|skip|link
      */
     public function resolveUnmatched(HrImportRow $row, string $decision, ?int $linkEmployeeId = null): void
     {
@@ -357,6 +434,15 @@ class OracleHrImportService
                     break;
 
                 case 'create':
+                    // A row with no mailbox of its own becomes a service
+                    // employee whichever way it is created here: the address in
+                    // the column belongs to their manager or to nobody, and
+                    // copying it would hand them someone else's mailbox.
+                    if (! $row->own_mailbox) {
+                        $this->createServiceEmployee($row);
+                        break;
+                    }
+
                     $employee = new Employee([
                         'name' => $row->emp_name ?: ($row->email ?: 'Unknown'),
                         'email' => $row->email,
@@ -369,6 +455,10 @@ class OracleHrImportService
                         'linked_employee_id' => $employee->id,
                         'status' => 'created',
                     ]);
+                    break;
+
+                case 'create_service':
+                    $this->createServiceEmployee($row);
                     break;
 
                 case 'link':
@@ -385,6 +475,89 @@ class OracleHrImportService
                     throw new \InvalidArgumentException("Unknown decision: {$decision}");
             }
         });
+    }
+
+    /**
+     * The rows of a batch that describe someone with no mailbox of their own
+     * but a real Oracle number — drivers, guards, warehouse and cleaning staff.
+     *
+     * These are the people the NOC has never held: every other path into the
+     * employees table starts from Entra, and they have no account there. Their
+     * fingerprints are on the terminals all the same, which is why their punch
+     * codes sit unmapped on Attendance ▸ Employee Mapping until they exist here.
+     *
+     * @return EloquentCollection<int, HrImportRow>
+     */
+    public function serviceCandidates(HrImportBatch $batch): EloquentCollection
+    {
+        return $batch->rows()
+            ->whereIn('status', ['unmatched', 'skipped'])
+            ->where('own_mailbox', false)
+            ->whereNotNull('emp_no')
+            ->where('emp_no', '!=', '')
+            ->with('resolvedBranch')
+            ->orderBy('emp_name')
+            ->get();
+    }
+
+    /**
+     * Create every candidate in one go.
+     *
+     * A row whose Oracle number is already on an employee is left alone and
+     * told why: EMP_NO collides between the SSS-Egypt and SamirGroup series, so
+     * a second row carrying the same number may be a different person or may be
+     * the same one under a record the matcher could not confirm. Creating
+     * blindly would either duplicate somebody or book one person's punches to
+     * another — both worse than a row that waits for HR.
+     *
+     * @return array{created: int, skipped: int}
+     */
+    public function createServiceEmployees(HrImportBatch $batch): array
+    {
+        $created = 0;
+        $skipped = 0;
+
+        foreach ($this->serviceCandidates($batch) as $row) {
+            $clash = Employee::where('oracle_emp_no', $row->emp_no)->first();
+
+            if ($clash) {
+                $row->update([
+                    'error_note' => "Oracle number {$row->emp_no} is already on {$clash->name}. Link this row to them, or create it on its own below.",
+                ]);
+                $skipped++;
+
+                continue;
+            }
+
+            DB::transaction(fn () => $this->createServiceEmployee($row));
+            $created++;
+        }
+
+        $batch->refreshCounts();
+
+        return ['created' => $created, 'skipped' => $skipped];
+    }
+
+    /** One service employee from one row: no email, ever. */
+    private function createServiceEmployee(HrImportRow $row): Employee
+    {
+        $employee = new Employee([
+            'name' => $row->emp_name ?: ('Oracle '.$row->emp_no),
+            'email' => null,
+            'status' => 'active',
+            'employee_type' => Employee::TYPE_SERVICE,
+        ]);
+        $employee->save();
+
+        $this->writeToEmployee($employee, $row);
+
+        $row->update([
+            'decision' => 'create_service',
+            'linked_employee_id' => $employee->id,
+            'status' => 'created',
+        ]);
+
+        return $employee;
     }
 
     /**

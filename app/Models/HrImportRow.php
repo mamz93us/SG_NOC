@@ -13,6 +13,8 @@ class HrImportRow extends Model
         'emp_no',
         'emp_name',
         'email',
+        'own_mailbox',
+        'mailbox_reason',
         'mobile_raw',
         'mobile_normalized',
         'location_name',
@@ -29,10 +31,23 @@ class HrImportRow extends Model
         'error_note',
     ];
 
+    /** Why the address in the EMAIL column is not this person's own mailbox. */
+    public const MAILBOX_REASONS = [
+        'blank' => 'No email address',
+        'outside_domain' => 'Email is not on a company domain',
+        'shared' => 'Email is shared with other rows (a manager\'s)',
+    ];
+
     protected $casts = [
         'row_number' => 'integer',
         'resolved_branch_id' => 'integer',
+        'own_mailbox' => 'boolean',
     ];
+
+    public function mailboxReasonLabel(): ?string
+    {
+        return $this->own_mailbox ? null : (self::MAILBOX_REASONS[$this->mailbox_reason] ?? 'No mailbox of their own');
+    }
 
     public function batch(): BelongsTo
     {

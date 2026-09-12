@@ -1097,6 +1097,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
                 Route::get('/', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'index'])->name('days.index');
                 Route::get('export', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'export'])->name('days.export');
                 Route::get('days/{day}', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'show'])->name('days.show');
+                // One person's whole month. {employee} is a model, so the CSV
+                // route must be declared before it or "export" binds as an id.
+                Route::get('monthly', [\App\Http\Controllers\Admin\Attendance\AttendanceMonthController::class, 'index'])->name('monthly.index');
+                Route::get('monthly/{employee}/export', [\App\Http\Controllers\Admin\Attendance\AttendanceMonthController::class, 'export'])->name('monthly.export');
+                Route::get('monthly/{employee}', [\App\Http\Controllers\Admin\Attendance\AttendanceMonthController::class, 'show'])->name('monthly.show');
                 Route::get('employees', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'index'])->name('employees.index');
                 Route::get('areas', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'index'])->name('areas.index');
                 Route::get('shifts', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'index'])->name('shifts.index');
@@ -1564,6 +1569,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/linked-accounts/{employee}', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'destroy'])->name('linked-accounts.destroy');
         Route::post('/hr-import', [OracleHrImportController::class, 'upload'])->name('hr-import.upload');
         Route::post('/hr-import/{batch}/apply', [OracleHrImportController::class, 'apply'])->name('hr-import.apply');
+        Route::post('/hr-import/{batch}/service-employees', [OracleHrImportController::class, 'createServiceEmployees'])->name('hr-import.service-employees');
         Route::post('/hr-import/rows/{row}/resolve', [OracleHrImportController::class, 'resolveRow'])->name('hr-import.resolve-row');
     });
     Route::middleware('permission:manage-identity-settings')->prefix('identity')->name('identity.')->group(function () {

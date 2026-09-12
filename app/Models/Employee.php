@@ -8,8 +8,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Employee extends Model
 {
+    /** Has (or will have) a mailbox and an Entra account: the ordinary case. */
+    public const TYPE_STANDARD = 'standard';
+
+    /**
+     * Works for the company, holds no mailbox: drivers, guards, warehouse and
+     * cleaning staff. Oracle HRMS knows them by EMP_NO, and the NOC keeps them
+     * for their fingerprint punches. No Entra account, so everything gated on
+     * `azure_id` — the contact sync, the Azure push, the portals — skips them
+     * without needing to know the type exists.
+     */
+    public const TYPE_SERVICE = 'service';
+
     protected $fillable = [
         'azure_id',
+        'employee_type',
         'oracle_emp_no',
         'oracle_dept_no',
         'oracle_department',
@@ -217,6 +230,12 @@ class Employee extends Model
         return $this->status === 'active';
     }
 
+    /** No mailbox: attendance and HR data only. See TYPE_SERVICE. */
+    public function isService(): bool
+    {
+        return $this->employee_type === self::TYPE_SERVICE;
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Scopes
     // ─────────────────────────────────────────────────────────────
@@ -229,6 +248,17 @@ class Employee extends Model
     public function scopeTerminated($query)
     {
         return $query->where('status', 'terminated');
+    }
+
+    public function scopeService($query)
+    {
+        return $query->where('employee_type', self::TYPE_SERVICE);
+    }
+
+    /** Everyone who is not a service employee — rows written before the column existed included. */
+    public function scopeStandard($query)
+    {
+        return $query->where('employee_type', '!=', self::TYPE_SERVICE);
     }
 
     /**

@@ -49,7 +49,13 @@
             <option value="yes" {{ request('has_assets') === 'yes' ? 'selected' : '' }}>With Assets</option>
             <option value="no" {{ request('has_assets') === 'no' ? 'selected' : '' }}>No Assets</option>
         </select>
-        @if(request()->anyFilled(['search','status','branch_id','has_assets']))
+        <select name="type" class="form-select flex-grow-0" style="max-width:170px" onchange="this.form.submit()"
+                title="Service employees hold no mailbox — drivers, guards, warehouse and cleaning staff">
+            <option value="">All Types</option>
+            <option value="standard" {{ request('type') === 'standard' ? 'selected' : '' }}>With mailbox</option>
+            <option value="service" {{ request('type') === 'service' ? 'selected' : '' }}>Service (no mailbox)</option>
+        </select>
+        @if(request()->anyFilled(['search','status','branch_id','has_assets','type']))
         <a href="{{ route('admin.employees.index') }}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
         @endif
     </div>
@@ -118,8 +124,13 @@
                                         <a href="{{ route('admin.employees.show', $emp->id) }}" class="text-decoration-none text-dark">
                                             {{ $emp->name }}
                                         </a>
+                                        @if($emp->isService())
+                                            <span class="badge bg-secondary" title="No mailbox — HR and attendance only">Service</span>
+                                        @endif
                                     </div>
-                                    <div class="text-muted" style="font-size:.75rem">{{ $emp->email }}</div>
+                                    <div class="text-muted" style="font-size:.75rem">
+                                        {{ $emp->email ?: ($emp->oracle_emp_no ? 'Oracle #'.$emp->oracle_emp_no : '') }}
+                                    </div>
                                 </div>
                             </div>
                         </td>

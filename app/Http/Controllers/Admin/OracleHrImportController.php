@@ -86,6 +86,7 @@ class OracleHrImportController extends Controller
             'batch' => $batch,
             'matched' => $matched,
             'unmatched' => $unmatched,
+            'serviceCandidates' => $this->service->serviceCandidates($batch),
             'errorRows' => $errorRows,
             'flagged' => $flagged,
             'employees' => $employees,
@@ -105,12 +106,30 @@ class OracleHrImportController extends Controller
     }
 
     /**
+     * Create an employee for every row describing someone with no mailbox of
+     * their own — see OracleHrImportService::serviceCandidates().
+     */
+    public function createServiceEmployees(HrImportBatch $batch)
+    {
+        $result = $this->service->createServiceEmployees($batch);
+
+        ActivityLog::log("Oracle HR import: {$result['created']} service employee(s) created from {$batch->filename}.");
+
+        $message = "Created {$result['created']} service employee(s) — no mailbox, attendance and HR data only.";
+        if ($result['skipped'] > 0) {
+            $message .= " {$result['skipped']} row(s) were left for you: their Oracle number is already on an employee.";
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /**
      * Resolve one unmatched row (create / skip / link to existing employee).
      */
     public function resolveRow(Request $request, HrImportRow $row)
     {
         $validated = $request->validate([
-            'decision' => ['required', 'in:create,skip,link'],
+            'decision' => ['required', 'in:create,create_service,skip,link'],
             'link_employee_id' => ['required_if:decision,link', 'nullable', 'exists:employees,id'],
         ]);
 
