@@ -82,7 +82,15 @@
         </div>
 
         <div class="card shadow-sm border-0 mb-3">
-            <div class="card-header bg-transparent"><strong><i class="bi bi-info-circle me-1"></i>Details</strong></div>
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-info-circle me-1"></i>Details</strong>
+                @can('manage-employees')
+                <a href="{{ route('admin.employees.edit', $employee->id) }}#hr-reporting" class="btn btn-outline-primary btn-sm py-0 px-2"
+                   title="Edit Oracle number, Oracle department, manager and supervisor">
+                    <i class="bi bi-pencil" style="font-size:.7rem"></i> Edit
+                </a>
+                @endcan
+            </div>
             <div class="card-body small">
                 <dl class="row mb-0">
                     <dt class="col-5 text-muted">Email</dt>
@@ -98,10 +106,14 @@
                     <dd class="col-7">{{ ucfirst($employee->gender) }}</dd>
                     @endif
 
-                    @if($employee->oracle_emp_no)
-                    <dt class="col-5 text-muted">Employee No</dt>
-                    <dd class="col-7"><span class="badge bg-light text-dark border">{{ $employee->oracle_emp_no }}</span></dd>
-                    @endif
+                    <dt class="col-5 text-muted">Oracle No</dt>
+                    <dd class="col-7">
+                        @if($employee->oracle_emp_no)
+                        <span class="badge bg-light text-dark border">{{ $employee->oracle_emp_no }}</span>
+                        @else
+                        —
+                        @endif
+                    </dd>
 
                     @if($employee->mobile_phone)
                     <dt class="col-5 text-muted">Mobile</dt>
@@ -114,15 +126,13 @@
                     <dt class="col-5 text-muted">Department</dt>
                     <dd class="col-7">{{ $employee->department?->name ?? '—' }}</dd>
 
-                    @if($employee->oracle_department || $employee->oracle_dept_no)
                     <dt class="col-5 text-muted">Oracle Dept</dt>
                     <dd class="col-7">
-                        {{ $employee->oracle_department ?? '—' }}
+                        {{ $employee->oracle_department ?: '—' }}
                         @if($employee->oracle_dept_no)
                         <span class="badge bg-light text-dark border ms-1" title="Oracle department number">#{{ $employee->oracle_dept_no }}</span>
                         @endif
                     </dd>
-                    @endif
 
                     @if($employee->oracle_location)
                     <dt class="col-5 text-muted">Oracle Location</dt>

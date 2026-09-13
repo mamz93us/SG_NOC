@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Attendance\AttendanceTask;
+use App\Models\Attendance\BiotimeEmployee;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Device;
@@ -13,7 +15,9 @@ use App\Models\IdentityUser;
 use App\Services\Identity\AzureContactSyncService;
 use App\Services\PhoneDeviceLookup;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class EmployeeController extends Controller
 {
@@ -175,10 +179,9 @@ class EmployeeController extends Controller
     {
         $branches = Branch::orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
-        $managers = Employee::where('status', 'active')->orderBy('name')->get();
         $azureUsers = IdentityUser::where('account_enabled', true)->orderBy('display_name')->get();
 
-        return view('admin.employees.form', compact('branches', 'departments', 'managers', 'azureUsers'));
+        return view('admin.employees.form', compact('branches', 'departments', 'azureUsers') + $this->hrFormData());
     }
 
     public function store(Request $request)
@@ -189,21 +192,16 @@ class EmployeeController extends Controller
             'azure_id' => 'nullable|string|max:100',
             'branch_id' => 'nullable|exists:branches,id',
             'department_id' => 'nullable|exists:departments,id',
-            'manager_id' => 'nullable|exists:employees,id',
             'job_title' => 'nullable|string|max:255',
             'gender' => 'nullable|in:male,female',
             'status' => 'required|in:active,terminated,on_leave',
             'hired_date' => 'nullable|date',
             'notes' => 'nullable|string|max:2000',
-        ] + $this->contactRules());
+        ] + $this->contactRules() + $this->hrRules());
 
-        $employee = Employee::create($validated);
+        $employee = Employee::create($this->hrFields($validated));
 
-        [$msg, $level] = $this->pushToAzure($employee);
-
-        return redirect()
-            ->route('admin.employees.show', $employee->id)
-            ->with($level, 'Employee created successfully.'.$msg);
+        return $this->savedRedirect($employee, 'Employee created successfully.', filled($employee->oracle_emp_no));
     }
 
     /** Validation rules for the per-employee contact fields (NOC = source of truth). */
@@ -260,10 +258,9 @@ class EmployeeController extends Controller
     {
         $branches = Branch::orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
-        $managers = Employee::where('status', 'active')->where('id', '!=', $employee->id)->orderBy('name')->get();
-        $employee->load('signatureRoles');
+        $employee->load('signatureRoles', 'manager.branch', 'supervisor.branch', 'linkedPrimary');
 
-        return view('admin.employees.form', compact('employee', 'branches', 'departments', 'managers'));
+        return view('admin.employees.form', compact('employee', 'branches', 'departments') + $this->hrFormData($employee));
     }
 
     public function update(Request $request, Employee $employee)
@@ -274,24 +271,210 @@ class EmployeeController extends Controller
             'azure_id' => 'nullable|string|max:100',
             'branch_id' => 'nullable|exists:branches,id',
             'department_id' => 'nullable|exists:departments,id',
-            'manager_id' => 'nullable|exists:employees,id',
             'job_title' => 'nullable|string|max:255',
             'gender' => 'nullable|in:male,female',
             'status' => 'required|in:active,terminated,on_leave',
             'hired_date' => 'nullable|date',
             'terminated_date' => 'nullable|date|after_or_equal:hired_date',
             'notes' => 'nullable|string|max:2000',
-        ] + $this->contactRules());
+        ] + $this->contactRules() + $this->hrRules());
 
         // Signature roles are managed by their own endpoints (store/update/destroy) so a
         // half-filled role can never block saving the employee profile.
-        $employee->update($validated);
+        $employee->update($this->hrFields($validated, $employee));
 
-        [$msg, $level] = $this->pushToAzure($employee);
+        return $this->savedRedirect($employee, 'Employee updated successfully.', $employee->wasChanged('oracle_emp_no'));
+    }
+
+    /**
+     * Back to the profile, with whatever the Azure push and a changed Oracle
+     * number have to add. Either one turns the message into a warning.
+     */
+    private function savedRedirect(Employee $employee, string $message, bool $oracleNumberChanged)
+    {
+        $notes = [$this->pushToAzure($employee)];
+        if ($oracleNumberChanged) {
+            $notes[] = $this->oracleNumberChanged($employee);
+        }
+
+        $level = in_array('warning', array_column($notes, 1), true) ? 'warning' : 'success';
 
         return redirect()
             ->route('admin.employees.show', $employee->id)
-            ->with($level, 'Employee updated successfully.'.$msg);
+            ->with($level, $message.implode('', array_column($notes, 0)));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Oracle HR & reporting lines — the Oracle number, the Oracle
+    // department, manager and supervisor, saved with the profile.
+    // ─────────────────────────────────────────────────────────────
+
+    /** Manager and supervisor arrive as picker text: "123 · Name · Oracle 456 · Branch". */
+    private function hrRules(): array
+    {
+        return [
+            'oracle_emp_no' => 'nullable|string|max:50',
+            'oracle_department' => 'nullable|string|max:255',
+            'oracle_dept_no' => 'nullable|string|max:50',
+            'manager' => 'nullable|string|max:255',
+            'supervisor' => 'nullable|string|max:255',
+        ];
+    }
+
+    /**
+     * The section's input as columns. An Oracle value is trimmed and a blank one
+     * stored as null — the attendance matcher compares the number exactly — and
+     * the two pickers become manager_id / supervisor_id. A field the request did
+     * not send is left as it is.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    private function hrFields(array $validated, ?Employee $employee = null): array
+    {
+        foreach (['oracle_emp_no', 'oracle_department', 'oracle_dept_no'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $value = trim((string) $validated[$field]);
+                $validated[$field] = $value === '' ? null : $value;
+            }
+        }
+
+        foreach (['manager', 'supervisor'] as $line) {
+            if (array_key_exists($line, $validated)) {
+                $validated[$line.'_id'] = $this->pickedColleague($line, $validated[$line], $employee);
+                unset($validated[$line]);
+            }
+        }
+
+        $stored = fn (string $column): ?int => $employee?->{$column} === null ? null : (int) $employee->{$column};
+        $managerId = array_key_exists('manager_id', $validated) ? $validated['manager_id'] : $stored('manager_id');
+        $supervisorId = array_key_exists('supervisor_id', $validated) ? $validated['supervisor_id'] : $stored('supervisor_id');
+
+        // Onboarding's rule, applied to a pick being made now: a record that
+        // already names one person for both still saves when something else changes.
+        $picking = $managerId !== $stored('manager_id') || $supervisorId !== $stored('supervisor_id');
+        if ($picking && $supervisorId !== null && $supervisorId === $managerId) {
+            throw ValidationException::withMessages([
+                'supervisor' => 'Manager and supervisor are the same person. Leave the supervisor blank if there is only one.',
+            ]);
+        }
+
+        return $validated;
+    }
+
+    /**
+     * The picker's value starts with the employee id. A linked secondary mailbox
+     * resolves to its primary record, which is where reporting lines are read
+     * (AssistantToolbox::team()).
+     *
+     * @throws ValidationException
+     */
+    private function pickedColleague(string $line, ?string $value, ?Employee $employee): ?int
+    {
+        if (trim((string) $value) === '') {
+            return null;
+        }
+
+        $picked = preg_match('/^\s*#?(\d+)/', (string) $value, $m) ? Employee::find((int) $m[1]) : null;
+        $picked = $picked?->linked_primary_employee_id ? ($picked->linkedPrimary ?? $picked) : $picked;
+
+        $refuse = fn (string $message) => ValidationException::withMessages([$line => $message]);
+
+        if (! $picked) {
+            throw $refuse("Pick the {$line} from the list — start typing a name or Oracle number.");
+        }
+
+        if ($employee && in_array($picked->id, array_filter([$employee->id, $employee->linked_primary_employee_id]))) {
+            throw $refuse("An employee cannot be their own {$line}.");
+        }
+
+        // Nobody who has left is offered, but one already on the record stays put,
+        // so saving any other field never quietly drops them.
+        if ($picked->status === 'terminated' && (int) $picked->id !== (int) $employee?->{$line.'_id'}) {
+            throw $refuse("{$picked->name} has left the company — pick someone who still works here.");
+        }
+
+        return (int) $picked->id;
+    }
+
+    /**
+     * What the section offers: colleagues to pick a manager or supervisor from —
+     * primary records of people still employed, never the person themselves —
+     * and the Oracle departments already on file, each with its number where
+     * the name only ever carries one.
+     *
+     * @return array{employeeOptions: \Illuminate\Database\Eloquent\Collection<int, Employee>, oracleDepartments: array<string, ?string>}
+     */
+    private function hrFormData(?Employee $employee = null): array
+    {
+        $employeeOptions = Employee::with('branch:id,name')
+            ->where('status', '!=', 'terminated')
+            ->whereNull('linked_primary_employee_id')
+            ->when($employee, fn ($query) => $query->whereNotIn('id', array_filter([$employee->id, $employee->linked_primary_employee_id])))
+            ->orderBy('name')
+            ->get(['id', 'name', 'oracle_emp_no', 'branch_id', 'status']);
+
+        $oracleDepartments = Employee::query()
+            ->whereNotNull('oracle_department')
+            ->where('oracle_department', '!=', '')
+            ->distinct()
+            ->orderBy('oracle_department')
+            ->get(['oracle_department', 'oracle_dept_no'])
+            ->groupBy('oracle_department')
+            ->map(function ($rows) {
+                $numbers = $rows->pluck('oracle_dept_no')->filter()->unique();
+
+                return $numbers->count() === 1 ? (string) $numbers->first() : null;
+            })
+            ->all();
+
+        return compact('employeeOptions', 'oracleDepartments');
+    }
+
+    /**
+     * The Oracle number is how fingerprint punches find their owner
+     * (EmployeeLinker), so a new one re-decides every automatically matched
+     * code — the ones linked under the old number are exactly what
+     * retryUnlinked() would never revisit. Queued, never inline: a re-match
+     * rebuilds days. HR's manual links are left alone, as always.
+     *
+     * @return array{0: string, 1: string} [message, flashLevel]
+     */
+    private function oracleNumberChanged(Employee $employee): array
+    {
+        $message = '';
+
+        if (BiotimeEmployee::exists()) {
+            AttendanceTask::queue('relink', ['source_id' => null, 'all' => true],
+                'Re-match attendance codes — an Oracle number changed', Auth::id());
+            $message = ' Attendance is re-matching fingerprint codes to Oracle numbers in the background.';
+        }
+
+        if ($employee->oracle_emp_no === null) {
+            return [$message, 'success'];
+        }
+
+        // EMP_NO collides between the SSS-Egypt and SamirGroup series, so a shared
+        // number can be right; it is still worth saying out loud.
+        $others = Employee::with('branch:id,name')
+            ->where('oracle_emp_no', $employee->oracle_emp_no)
+            ->whereNotIn('id', array_filter([$employee->id, $employee->linked_primary_employee_id]))
+            ->whereNull('linked_primary_employee_id')
+            ->orderBy('name')
+            ->get(['id', 'name', 'branch_id']);
+
+        if ($others->isEmpty()) {
+            return [$message, 'success'];
+        }
+
+        $names = $others->map(fn (Employee $other) => $other->name.($other->branch ? " ({$other->branch->name})" : ''))->implode(', ');
+
+        return [
+            $message." Oracle number {$employee->oracle_emp_no} is also on {$names}. Attendance tells them apart by the branch a code punches in; a code it cannot place waits on Attendance ▸ Employee Mapping.",
+            'warning',
+        ];
     }
 
     // ─────────────────────────────────────────────────────────────
