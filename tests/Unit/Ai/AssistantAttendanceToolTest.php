@@ -156,7 +156,7 @@ it('offers no way to name another employee', function () {
         ->firstWhere('function.name', 'get_my_attendance');
 
     expect($definition)->not->toBeNull()
-        ->and(array_keys((array) $definition['function']['parameters']['properties']))->toBe(['period', 'month'])
+        ->and(array_keys((array) $definition['function']['parameters']['properties']))->toBe(['period', 'month', 'from', 'to'])
         ->and($definition['function']['parameters']['required'])->toBe([]);
 });
 
@@ -234,4 +234,49 @@ it('explains itself when the account has no HR record at all', function () {
 
     expect($result)->toHaveKey('error')
         ->and($result)->not->toHaveKey('days');
+});
+
+it('reads a week as Sunday to Saturday', function () {
+    [$ahmed] = twoPeople();
+
+    $lastWeek = toolboxFor($ahmed)->call('get_my_attendance', ['period' => 'last_week']);
+    $thisWeek = toolboxFor($ahmed)->call('get_my_attendance', ['period' => 'this_week']);
+
+    expect([$lastWeek['from'], $lastWeek['to']])->toBe(['2026-08-30', '2026-09-05'])
+        ->and($lastWeek['days'])->toHaveCount(7)
+        ->and($lastWeek)->not->toHaveKey('today')
+        ->and([$thisWeek['from'], $thisWeek['to']])->toBe(['2026-09-06', '2026-09-12'])
+        // Thursday the 10th is inside this week, and not over.
+        ->and($thisWeek['today'])->toContain('not over');
+});
+
+it('refuses a period it does not know rather than reading it as this month', function () {
+    [$ahmed] = twoPeople();
+
+    $result = toolboxFor($ahmed)->call('get_my_attendance', ['period' => 'last_quarter']);
+
+    expect($result['error'])->toContain('last_week')
+        ->and($result)->not->toHaveKey('days')
+        ->and($result)->not->toHaveKey('summary');
+});
+
+it('reads exact dates, and refuses dates it cannot use', function () {
+    [$ahmed] = twoPeople();
+    $toolbox = toolboxFor($ahmed);
+
+    // Dates win over the period.
+    $range = $toolbox->call('get_my_attendance', ['from' => '2026-09-01', 'to' => '2026-09-10', 'period' => 'today']);
+
+    expect([$range['from'], $range['to']])->toBe(['2026-09-01', '2026-09-10'])
+        ->and($range['days'])->toHaveCount(10);
+
+    foreach ([
+        ['from' => '2026-09-10', 'to' => '2026-09-01'],   // backwards
+        ['from' => '2026-07-01', 'to' => '2026-09-10'],   // 72 days
+        ['from' => '2026-02-30', 'to' => '2026-03-02'],   // no such day
+        ['from' => '2026-09-01'],                          // no end
+        ['month' => 'September'],
+    ] as $args) {
+        expect($toolbox->call('get_my_attendance', $args))->toHaveKey('error')->not->toHaveKey('days');
+    }
 });

@@ -365,7 +365,9 @@ Changing the list needs `manage-attendance-owners`, and every change is also
 logged as an `attendance_owner_added` / `_changed` / `_removed` security action.
 A branch means the branch on the employee record, so someone with no branch is
 visible only to a whole-company owner. An owner can narrow a question by branch,
-department or kind of day ("who was late in Jeddah this week?").
+department or kind of day ("who was late in Jeddah this week?"). A week runs
+Sunday to Saturday, and any other span of up to 62 days can be asked for by its
+dates.
 
 Anyone outside those lists is simply not found, whatever the chat says about who
 is asking — so when someone cannot see a person, fix the reporting line on the

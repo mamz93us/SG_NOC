@@ -36,7 +36,7 @@ class AssistantAgent
         $hasSearched = $this->hasSearchedKnowledge($history);
 
         $apiMessages = array_merge(
-            [['role' => 'system', 'content' => $this->systemPrompt($settings)]],
+            [['role' => 'system', 'content' => $this->systemPrompt($settings, $toolbox)]],
             $history->map(fn (AiMessage $m) => $m->toApiMessage())->all(),
         );
 
@@ -137,7 +137,7 @@ class AssistantAgent
         return false;
     }
 
-    private function systemPrompt(AiSetting $settings): string
+    private function systemPrompt(AiSetting $settings, AssistantToolbox $toolbox): string
     {
         $locale = app()->getLocale();
         $base = trans('home_ai.system_prompt', [], $locale);
@@ -147,6 +147,11 @@ class AssistantAgent
         // nothing to resolve "tomorrow" against.
         $now = now('Africa/Cairo');
         $base .= "\n\nCurrent date and time: {$now->format('l, Y-m-d H:i')} (Africa/Cairo).";
+
+        // Whose attendance this employee can look up, as the server reads it.
+        // With only the rules, the model refused an owner until they said
+        // they were one.
+        $base .= "\n\n".$toolbox->attendanceAccessNote();
 
         $extra = trim((string) $settings->system_prompt_extra);
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AiSetting;
 use App\Models\Attendance\AttendanceOwner;
 use App\Models\Attendance\AttendancePunch;
 use App\Models\Attendance\AttendanceShift;
@@ -8,7 +9,9 @@ use App\Models\Attendance\BiotimeEmployee;
 use App\Models\Attendance\BiotimeSource;
 use App\Models\Employee;
 use App\Models\User;
+use App\Services\Ai\AssistantAgent;
 use App\Services\Ai\AssistantToolbox;
+use App\Services\Ai\AzureOpenAiClient;
 use App\Services\Ai\KnowledgeRetriever;
 use App\Services\Attendance\AttendanceDayBuilder;
 use App\Services\Attendance\AttendanceDayProcessor;
@@ -49,6 +52,7 @@ beforeEach(function () {
     Schema::create('branches', function (Blueprint $t) {
         $t->unsignedInteger('id')->primary();
         $t->string('name');
+        $t->string('city')->nullable();
         $t->timestamps();
     });
     Schema::create('departments', function (Blueprint $t) {
@@ -62,6 +66,9 @@ beforeEach(function () {
         $t->string('email')->nullable();
         $t->string('oracle_emp_no')->nullable();
         $t->string('job_title')->nullable();
+        $t->string('work_phone')->nullable();
+        $t->string('mobile_phone')->nullable();
+        $t->string('extension_number')->nullable();
         $t->unsignedInteger('branch_id')->nullable();
         $t->unsignedInteger('department_id')->nullable();
         $t->unsignedBigInteger('manager_id')->nullable();
@@ -85,7 +92,8 @@ beforeEach(function () {
     }
     (require database_path('migrations/2026_09_13_100001_create_attendance_owners_table.php'))->up();
 
-    DB::table('branches')->insert([['id' => 1, 'name' => 'Jeddah'], ['id' => 2, 'name' => 'Riyadh']]);
+    // Named by code with the city beside it, as on NOC2.
+    DB::table('branches')->insert([['id' => 1, 'name' => 'JED', 'city' => 'Jeddah'], ['id' => 2, 'name' => 'RYD', 'city' => 'Riyadh']]);
     DB::table('departments')->insert([['id' => 1, 'name' => 'Finance'], ['id' => 2, 'name' => 'Sales']]);
 
     AttendanceShiftAssignment::create([
@@ -215,8 +223,8 @@ it('offers no id, email or reporting line to point at', function () {
     $team = $definitions->firstWhere('function.name', 'get_team_attendance');
     $member = $definitions->firstWhere('function.name', 'get_team_member_attendance');
 
-    expect(array_keys((array) $team['function']['parameters']['properties']))->toBe(['period', 'month', 'branch', 'department', 'only'])
-        ->and(array_keys((array) $member['function']['parameters']['properties']))->toBe(['member', 'period', 'month', 'branch'])
+    expect(array_keys((array) $team['function']['parameters']['properties']))->toBe(['period', 'month', 'from', 'to', 'branch', 'department', 'only'])
+        ->and(array_keys((array) $member['function']['parameters']['properties']))->toBe(['member', 'period', 'month', 'from', 'to', 'branch'])
         ->and($member['function']['parameters']['required'])->toBe(['member']);
 });
 
@@ -327,6 +335,7 @@ it('lists the whole team for one day', function () {
 
     expect($result['people'])->toBe(2)
         ->and($result['counts_are'])->toBe('people')
+        ->and($result['today'])->toContain('not over')
         ->and($result['counts']['present'])->toBe(2)
         ->and(array_column($result['members'], 'name'))->toBe(['Ahmed', 'Mona'])
         ->and($result['members'][0]['day']['check_in'])->toBe('08:55')
@@ -448,7 +457,7 @@ it('adds an owner\'s branches to their own direct reports', function () {
     expect(array_column($team['members'], 'name'))->toBe(['Ahmed', 'Mona', 'Rana'])
         ->and($team['members'][0]['reports_to_you_as'])->toBe('manager')
         ->and($team['members'][2])->not->toHaveKey('reports_to_you_as')
-        ->and($team['can_see'])->toBe('the people who report to you, and everyone in Riyadh (attendance owner list)');
+        ->and($team['can_see'])->toBe('their direct reports in the HR records, and everyone in Riyadh (RYD), through the attendance owner list');
 });
 
 it('narrows the group by branch, department and kind of day', function () {
@@ -459,10 +468,12 @@ it('narrows the group by branch, department and kind of day', function () {
     $toolbox = teamToolbox($nadia);
 
     $riyadh = $toolbox->call('get_team_attendance', ['period' => 'today', 'branch' => 'riyadh']);
+    $byCode = $toolbox->call('get_team_attendance', ['period' => 'today', 'branch' => 'RYD']);
     $finance = $toolbox->call('get_team_attendance', ['period' => 'today', 'department' => 'Finance']);
     $late = $toolbox->call('get_team_attendance', ['period' => 'today', 'only' => 'late']);
 
     expect(array_column($riyadh['members'], 'name'))->toBe(['Rana'])
+        ->and(array_column($byCode['members'], 'name'))->toBe(['Rana'])
         ->and(array_column($finance['members'], 'name'))->toBe(['Ahmed', 'Omar'])
         ->and(array_column($late['members'], 'name'))->toBe(['Karim', 'Omar', 'Rana'])
         // Only the late ones are listed; the counts still cover everyone.
@@ -494,7 +505,7 @@ it('refuses an unknown kind of day, and a branch outside what they can see', fun
 
     expect($badOnly['error'])->toContain('only must be one of')
         ->and($badBranch['error'])->toContain('Nobody whose attendance you can see')
-        ->and($badBranch['branches'])->toBe(['Jeddah'])
+        ->and($badBranch['branches'])->toBe(['Jeddah (JED)'])
         ->and(json_encode($badBranch))->not->toContain('08:55');
 });
 
@@ -543,4 +554,74 @@ it('gives someone who has left nobody\'s attendance', function () {
         ->and($team)->not->toHaveKey('members')
         ->and($member)->toHaveKey('error')
         ->and(json_encode($member))->not->toContain('08:05');
+});
+
+it('says which branch a person is in when the branch given is wrong', function () {
+    teamOrg();
+    teamRiyadhPerson();
+    $nadia = teamPerson('Nadia');
+    teamOwner($nadia);
+
+    // The 2026-09-13 chat carried "cai" from one question into the next.
+    $result = teamToolbox($nadia)->call('get_team_member_attendance', ['member' => 'Rana', 'branch' => 'cai', 'period' => 'last_week']);
+
+    expect($result['error'])->toContain('other branches')
+        ->and($result['candidates'])->toHaveCount(1)
+        ->and($result['candidates'][0]['name'])->toBe('Rana')
+        ->and($result['candidates'][0]['branch'])->toBe('Riyadh (RYD)')
+        ->and($result)->not->toHaveKey('days');
+});
+
+it('asks for last week and gets last week, not the month', function () {
+    teamOrg();
+    $nadia = teamPerson('Nadia');
+    teamOwner($nadia);
+
+    $result = teamToolbox($nadia)->call('get_team_member_attendance', ['member' => 'Karim', 'period' => 'last_week']);
+    $bad = teamToolbox($nadia)->call('get_team_attendance', ['period' => 'previous_week']);
+
+    expect([$result['from'], $result['to']])->toBe(['2026-08-30', '2026-09-05'])
+        ->and($result['days'])->toHaveCount(7)
+        ->and(json_encode($result))->not->toContain('09:44')   // Karim's punch on the 10th
+        ->and($bad['error'])->toContain('period must be one of');
+});
+
+it('tells the model whose attendance the signed-in employee can see', function () {
+    $org = teamOrg();
+    teamRiyadhPerson();
+    $nadia = teamPerson('Nadia');
+    teamOwner($nadia);
+    teamOwner($org['layla'], [2]);
+    $gone = teamPerson('Hisham', ['status' => 'terminated', 'terminated_date' => '2026-09-01']);
+    teamOwner($gone);
+
+    expect(teamToolbox($nadia)->attendanceAccessNote())->toContain('everyone in the company')->toContain('straight away')
+        ->and(teamToolbox($org['samir'])->attendanceAccessNote())->toContain('their direct reports')
+        ->and(teamToolbox($org['layla'])->attendanceAccessNote())->toContain('their direct reports')->toContain('Riyadh (RYD)')
+        ->and(teamToolbox($org['karim'])->attendanceAccessNote())->toContain('only their own')
+        ->and(teamToolbox($gone)->attendanceAccessNote())->toContain('only their own')
+        ->and(teamToolbox(null)->attendanceAccessNote())->toContain('only their own');
+});
+
+it('ends every turn\'s system prompt with that access', function () {
+    teamOrg();
+    $nadia = teamPerson('Nadia');
+    teamOwner($nadia);
+
+    $prompt = (new ReflectionMethod(AssistantAgent::class, 'systemPrompt'))
+        ->invoke(new AssistantAgent(new AzureOpenAiClient), new AiSetting, teamToolbox($nadia));
+
+    expect($prompt)->toContain('Attendance access of the signed-in employee: their own, and everyone in the company')
+        ->and($prompt)->toContain('straight away');
+});
+
+it('finds colleagues in the directory by branch city as well as code', function () {
+    teamOrg();
+    teamRiyadhPerson();
+
+    $byCity = teamToolbox(null)->call('lookup_colleague', ['query' => '', 'branch' => 'Riyadh']);
+    $byCode = teamToolbox(null)->call('lookup_colleague', ['query' => '', 'branch' => 'ryd']);
+
+    expect(array_column($byCity['colleagues'], 'name'))->toBe(['Rana'])
+        ->and(array_column($byCode['colleagues'], 'name'))->toBe(['Rana']);
 });
