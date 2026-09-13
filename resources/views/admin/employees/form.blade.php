@@ -78,15 +78,6 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Manager</label>
-                            <select name="manager_id" class="form-select">
-                                <option value="">— None —</option>
-                                @foreach($managers as $mgr)
-                                <option value="{{ $mgr->id }}" {{ old('manager_id', $employee->manager_id ?? '') == $mgr->id ? 'selected' : '' }}>{{ $mgr->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-6">
                             <label class="form-label small fw-semibold">Azure ID <small class="text-muted">(optional)</small></label>
                             <input type="text" name="azure_id" class="form-control font-monospace"
                                    value="{{ old('azure_id', $employee->azure_id ?? '') }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
@@ -103,6 +94,96 @@
                                    value="{{ old('terminated_date', isset($employee) && $employee->terminated_date ? $employee->terminated_date->format('Y-m-d') : '') }}">
                         </div>
                         @endif
+
+                        {{-- ── Oracle HR & reporting lines ── --}}
+                        @php
+                            // Picker text for one person. It starts with the id, which is what the controller reads back.
+                            $pickerLabel = fn ($e) => $e
+                                ? $e->id.' · '.$e->name
+                                    .($e->oracle_emp_no ? ' · Oracle '.$e->oracle_emp_no : '')
+                                    .($e->branch ? ' · '.$e->branch->name : '')
+                                    .($e->status !== 'active' ? ' · '.str_replace('_', ' ', $e->status) : '')
+                                : '';
+                        @endphp
+                        <div class="col-12" id="hr-reporting" style="scroll-margin-top:5rem">
+                            <hr class="my-2">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <i class="bi bi-diagram-3 text-primary"></i>
+                                <span class="fw-semibold">Oracle HR &amp; Reporting Lines</span>
+                                <small class="text-muted">— applying an Oracle HR import overwrites the Oracle fields</small>
+                            </div>
+                            @if($isEdit && $employee->linkedPrimary)
+                            <div class="alert alert-info small py-2 mb-0 mt-2">
+                                <i class="bi bi-link-45deg me-1"></i>
+                                This mailbox is linked to
+                                <a href="{{ route('admin.employees.show', $employee->linkedPrimary->id) }}">{{ $employee->linkedPrimary->name }}</a>.
+                                Attendance and the home-portal assistant read the Oracle number and reporting lines from that record, and Entra takes the department from it —
+                                <a href="{{ route('admin.employees.edit', $employee->linkedPrimary->id) }}#hr-reporting">edit them there</a>.
+                            </div>
+                            @endif
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Oracle Employee No</label>
+                            <input type="text" name="oracle_emp_no" maxlength="50" autocomplete="off"
+                                   class="form-control font-monospace @error('oracle_emp_no') is-invalid @enderror"
+                                   value="{{ old('oracle_emp_no', $employee->oracle_emp_no ?? '') }}">
+                            @error('oracle_emp_no')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">Matches their fingerprint punches — a change re-matches attendance.</div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-semibold">Oracle Department</label>
+                            <input type="text" name="oracle_department" id="oracleDepartment" list="oracle-department-options" maxlength="255" autocomplete="off"
+                                   class="form-control @error('oracle_department') is-invalid @enderror"
+                                   value="{{ old('oracle_department', $employee->oracle_department ?? '') }}">
+                            @error('oracle_department')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">Entra's department when set; otherwise the Department above.</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Oracle Dept No</label>
+                            <input type="text" name="oracle_dept_no" id="oracleDeptNo" maxlength="50" autocomplete="off"
+                                   class="form-control font-monospace @error('oracle_dept_no') is-invalid @enderror"
+                                   value="{{ old('oracle_dept_no', $employee->oracle_dept_no ?? '') }}">
+                            @error('oracle_dept_no')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Manager</label>
+                            <input type="text" name="manager" list="reporting-options" autocomplete="off" placeholder="Type a name or Oracle no…"
+                                   class="form-control @error('manager') is-invalid @enderror"
+                                   value="{{ old('manager', $pickerLabel($employee->manager ?? null)) }}">
+                            @error('manager')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Supervisor</label>
+                            <input type="text" name="supervisor" list="reporting-options" autocomplete="off" placeholder="Type a name or Oracle no…"
+                                   class="form-control @error('supervisor') is-invalid @enderror"
+                                   value="{{ old('supervisor', $pickerLabel($employee->supervisor ?? null)) }}">
+                            @error('supervisor')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-12 form-text mt-1">Clear a field to remove the manager or supervisor.</div>
+                        <datalist id="reporting-options">
+                            @foreach($employeeOptions as $option)
+                            <option value="{{ $pickerLabel($option) }}"></option>
+                            @endforeach
+                        </datalist>
+                        <datalist id="oracle-department-options">
+                            @foreach($oracleDepartments as $deptName => $deptNo)
+                            <option value="{{ $deptName }}">{{ $deptNo ? '#'.$deptNo : '' }}</option>
+                            @endforeach
+                        </datalist>
+                        @push('scripts')
+                        <script>
+                        (function () {
+                            // A known Oracle department fills in its number, where the name only ever carries one.
+                            const numbers = @json((object) $oracleDepartments);
+                            const name = document.getElementById('oracleDepartment');
+                            const number = document.getElementById('oracleDeptNo');
+                            name?.addEventListener('change', function () {
+                                const known = numbers[this.value.trim()];
+                                if (known) number.value = known;
+                            });
+                        })();
+                        </script>
+                        @endpush
 
                         {{-- ── Contact information (NOC = source of truth, auto-synced to Azure AD) ── --}}
                         <div class="col-12">
