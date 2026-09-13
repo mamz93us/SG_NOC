@@ -23,7 +23,7 @@ class HrApiKeyController extends Controller
         $data = $request->validate([
             'name'        => 'required|string|max:100',
             'description' => 'nullable|string|max:500',
-            'scope'       => 'nullable|in:hr,signature',
+            'scope'       => 'nullable|in:hr,signature,attendance',
         ]);
 
         [$rawKey, $model] = HrApiKey::generate(

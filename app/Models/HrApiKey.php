@@ -28,7 +28,7 @@ class HrApiKey extends Model
      * Generate a new raw key string and return [rawKey, model].
      * The raw key is ONLY shown once — never stored in plain text.
      *
-     * @param  string|null  $scope  e.g. 'hr', 'signature', or null for general
+     * @param  string|null  $scope  e.g. 'hr', 'signature', 'attendance', or null for general
      */
     public static function generate(
         string $name,
@@ -75,20 +75,22 @@ class HrApiKey extends Model
     public function scopeLabel(): string
     {
         return match ($this->scope) {
-            'hr'        => 'HR',
-            'signature' => 'Signature API',
-            null        => 'General',
-            default     => ucfirst($this->scope),
+            'hr'         => 'HR',
+            'signature'  => 'Signature API',
+            'attendance' => 'Attendance API',
+            null         => 'General',
+            default      => ucfirst($this->scope),
         };
     }
 
     public function scopeBadgeClass(): string
     {
         return match ($this->scope) {
-            'hr'        => 'bg-info text-dark',
-            'signature' => 'bg-warning text-dark',
-            null        => 'bg-secondary',
-            default     => 'bg-secondary',
+            'hr'         => 'bg-info text-dark',
+            'signature'  => 'bg-warning text-dark',
+            'attendance' => 'bg-success',
+            null         => 'bg-secondary',
+            default      => 'bg-secondary',
         };
     }
 

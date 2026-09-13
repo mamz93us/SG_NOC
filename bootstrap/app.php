@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -115,5 +116,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Oracle's HTTP clients seldom send Accept: application/json, and without
+        // it a validation error on the attendance API would redirect to an HTML
+        // page. Every other path keeps Laravel's default.
+        $exceptions->shouldRenderJsonWhen(
+            fn (Request $request) => $request->is('api/attendance', 'api/attendance/*') || $request->expectsJson()
+        );
     })->create();

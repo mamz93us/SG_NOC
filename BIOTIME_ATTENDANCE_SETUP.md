@@ -381,6 +381,28 @@ overtime minutes, excuse, and whether HR corrected it. The record goes to the se
 keeps its exact payload, which you can **download as CSV or JSON**. **Prepare again** builds a new one.
 Once a real sender reports **sent**, the period shows *Sent to Oracle*.
 
+### Oracle pulling attendance (API)
+
+Oracle can also read attendance itself, whenever it likes, rather than waiting for an export:
+
+- `GET /api/attendance?from=2026-09-01&to=2026-09-30` returns every employee, up to 31 days, 500 records a page (`page`, and `per_page` up to 1000).
+- `GET /api/attendance/employees/{oracle_emp_no}?from=…&to=…` returns one employee, up to 366 days.
+
+Each record is the export's record plus `employee_id`, `approved`, `has_error`, `flags` and `punches`: every raw punch of
+that day, taken from the day's window, so a night shift's 06:00 check-out stays on the day before. Nothing is
+recalculated. The API reads `attendance_days`, exactly as every attendance page does.
+
+To connect Oracle, generate a key on the **HR API Keys** page (`/admin/hr-api-keys`) with the scope **Attendance API
+(Oracle)**. Give it to the Oracle team together with the reference at `/admin/api-docs`, in the *Attendance API (Oracle)*
+section. That key reads attendance and nothing else, and it cannot call `/api/hr`.
+
+Tell the Oracle team:
+
+- Times are the device's local clock with no time zone. Do not convert them.
+- `approved: false` means the period has not been approved yet, so the day can still change.
+- Only employees with an Oracle number are returned. `excluded` counts the days that were left out. Fix the Oracle number or the employee mapping and those days appear.
+- The SSS-Egypt and SamirGroup series overlap. When two employees share an Oracle number, the call answers **409** and lists both. Repeat it with `branch_id` or `employee_id`.
+
 ## 11. Commands
 
 | Command | When |

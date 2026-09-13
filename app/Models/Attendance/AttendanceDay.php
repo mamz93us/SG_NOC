@@ -115,12 +115,27 @@ class AttendanceDay extends Model
         return $this->belongsTo(AttendancePeriod::class, 'attendance_period_id');
     }
 
+    /**
+     * The stretch of time whose punches this day was built from — past
+     * midnight for an overnight shift. Start inclusive, end exclusive; the
+     * calendar day for a row written before windows were stored.
+     *
+     * @return array{0: string, 1: string} Y-m-d H:i:s
+     */
+    public function window(): array
+    {
+        $date = $this->work_date->toDateString();
+
+        return [
+            $this->window_start?->format(AttendanceDayBuilder::FORMAT) ?? $date.' 00:00:00',
+            $this->window_end?->format(AttendanceDayBuilder::FORMAT) ?? CarbonImmutable::parse($date)->addDay()->toDateString().' 00:00:00',
+        ];
+    }
+
     /** The raw punches this day was built from — its window, which runs past midnight for an overnight shift. */
     public function punchesQuery(): Builder
     {
-        $date = $this->work_date->toDateString();
-        $start = $this->window_start?->format('Y-m-d H:i:s') ?? $date.' 00:00:00';
-        $end = $this->window_end?->format('Y-m-d H:i:s') ?? CarbonImmutable::parse($date)->addDay()->toDateString().' 00:00:00';
+        [$start, $end] = $this->window();
 
         $query = AttendancePunch::query()->where('punch_time', '>=', $start)->where('punch_time', '<', $end);
 

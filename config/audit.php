@@ -163,6 +163,11 @@ return [
         'last_activity_at',
         'remember_token',
 
+        // Stamped on an API key by every call it authenticates — Oracle pages
+        // through the attendance API many times a day. Only the timestamp: a
+        // key turning up from a new address (last_used_ip) is still logged.
+        'last_used_at',
+
         // Campaign counters, bumped by the send pipeline and the open/click and
         // SNS webhooks. Carried over from EmailMarketingActivityObserver, which
         // excluded them so a campaign's audit trail stayed about what a person

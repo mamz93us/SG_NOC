@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\HrApiKey;
+use App\Support\AttendanceApiDocs;
 use App\Support\HrApiDocs;
 use Illuminate\View\View;
 
@@ -29,9 +30,12 @@ class ApiDocsController extends Controller
         // The reference is generated from a spec rather than written into the
         // page, so an endpoint change is one edit in App\Support\HrApiDocs.
         $endpoints = HrApiDocs::endpoints();
+        $attendanceEndpoints = AttendanceApiDocs::endpoints();
+        $attendanceRecordFields = AttendanceApiDocs::recordFields();
 
         return view('admin.api-docs.index', compact(
-            'hrApiKeys', 'legacyKey', 'baseUrl', 'branches', 'departments', 'endpoints'
+            'hrApiKeys', 'legacyKey', 'baseUrl', 'branches', 'departments', 'endpoints',
+            'attendanceEndpoints', 'attendanceRecordFields'
         ));
     }
 }

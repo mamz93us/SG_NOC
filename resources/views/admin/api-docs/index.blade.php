@@ -14,6 +14,9 @@
         <small class="text-muted">Integrate your HR system with SG NOC for automated user provisioning</small>
     </div>
     <div>
+        <a href="#attendance-api" class="btn btn-sm btn-outline-primary me-2">
+            <i class="bi bi-fingerprint me-1"></i>Attendance API (Oracle)
+        </a>
         <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 px-3 py-2">
             <i class="bi bi-hdd-stack me-1"></i>
             Base URL: <code class="text-primary ms-1">{{ $baseUrl }}/api/hr</code>
@@ -117,116 +120,7 @@
 ═══════════════════════════════════════════════════════ --}}
 <h5 class="fw-bold mb-3"><i class="bi bi-send-fill me-2 text-primary"></i>Endpoints</h5>
 
-<div class="accordion mb-4 shadow-sm" id="endpointsAccordion">
-@foreach($endpoints as $ep)
-    @php
-        $methodClass = $ep['method'] === 'GET' ? 'bg-info text-dark' : 'bg-success';
-        $bodyId      = 'endpoint-'.$ep['id'];
-    @endphp
-    <div class="accordion-item border">
-        <h2 class="accordion-header">
-            <button class="accordion-button {{ $loop->first ? '' : 'collapsed' }} fw-semibold" type="button"
-                    data-bs-toggle="collapse" data-bs-target="#{{ $bodyId }}"
-                    aria-expanded="{{ $loop->first ? 'true' : 'false' }}" aria-controls="{{ $bodyId }}">
-                <span class="badge {{ $methodClass }} me-3 px-2 py-1" style="font-size:.75rem">{{ $ep['method'] }}</span>
-                <code>{{ $ep['path'] }}</code>
-                <span class="ms-3 text-muted fw-normal small d-none d-md-inline">{{ $ep['summary'] }}</span>
-            </button>
-        </h2>
-        <div id="{{ $bodyId }}" class="accordion-collapse collapse {{ $loop->first ? 'show' : '' }}" data-bs-parent="#endpointsAccordion">
-            <div class="accordion-body">
-
-                @if($ep['mirrors'])
-                <div class="alert alert-primary py-2 small mb-3">
-                    <i class="bi bi-arrow-left-right me-1"></i>
-                    <strong>Same behaviour as {{ $ep['mirrors'] }}.</strong>
-                    Both go through the same service, so a request raised here is indistinguishable from one a person filled in.
-                </div>
-                @endif
-
-                <p class="text-muted">{{ $ep['description'] }}</p>
-
-                @if(! empty($ep['notes']))
-                <ul class="small text-muted ps-3 mb-3">
-                    @foreach($ep['notes'] as $note)
-                    <li class="mb-1">{{ $note }}</li>
-                    @endforeach
-                </ul>
-                @endif
-
-                @if(! empty($ep['fields']))
-                <h6 class="fw-semibold mb-2"><i class="bi bi-list-columns me-1 text-primary"></i>{{ $ep['method'] === 'GET' ? 'Query parameters' : 'Request body' }}</h6>
-                <div class="table-responsive mb-3">
-                    <table class="table table-sm table-bordered mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width:200px">Field</th>
-                                <th style="width:150px">Type</th>
-                                <th style="width:110px">Required</th>
-                                <th>Notes</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($ep['fields'] as [$name, $type, $req, $desc])
-                            <tr>
-                                <td><code>{{ $name }}</code></td>
-                                <td class="small text-muted">{{ $type }}</td>
-                                <td>
-                                    @if($req === 'required')
-                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">required</span>
-                                    @elseif($req === 'one-of')
-                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">one of</span>
-                                    @else
-                                        <span class="badge bg-secondary-subtle text-secondary-emphasis">optional</span>
-                                    @endif
-                                </td>
-                                <td class="small">{{ $desc }}</td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                @if(collect($ep['fields'])->contains(fn ($f) => $f[2] === 'one-of'))
-                <p class="small text-muted"><i class="bi bi-info-circle me-1"></i><strong>one of</strong> — send any single field from that group; the first one that resolves wins.</p>
-                @endif
-                @endif
-
-                <div class="row g-4">
-                    @if($ep['request'])
-                    <div class="col-lg-6">
-                        <h6 class="fw-semibold mb-2"><i class="bi bi-arrow-up-circle me-1 text-primary"></i>Example request</h6>
-                        <pre class="bg-dark text-light p-3 rounded small mb-0"><code>{{ json_encode($ep['request'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) }}</code></pre>
-                    </div>
-                    @endif
-                    <div class="col-lg-{{ $ep['request'] ? 6 : 12 }}">
-                        <h6 class="fw-semibold mb-2">
-                            <i class="bi bi-arrow-down-circle me-1 text-primary"></i>Example response
-                            <span class="badge {{ $ep['method'] === 'GET' ? 'bg-primary' : 'bg-success' }} ms-1">{{ $ep['method'] === 'GET' ? '200 OK' : '201 Created' }}</span>
-                        </h6>
-                        <pre class="bg-dark text-light p-3 rounded small mb-0"><code>{{ json_encode($ep['response'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) }}</code></pre>
-                    </div>
-                </div>
-
-                <h6 class="fw-semibold mb-2 mt-3"><i class="bi bi-terminal me-1 text-secondary"></i>cURL</h6>
-                @php
-                    $curlPath = str_replace('{workflow_id}', '812', $ep['path']);
-                @endphp
-                @if($ep['method'] === 'GET')
-                <pre class="bg-dark text-light p-3 rounded small mb-0"><code>curl -s "{{ $baseUrl }}{{ $curlPath }}{{ ! empty($ep['fields']) ? '?'.$ep['fields'][0][0].'=VALUE' : '' }}" \
-  -H "X-HR-Api-Key: YOUR_KEY" \
-  -H "Accept: application/json"</code></pre>
-                @else
-                <pre class="bg-dark text-light p-3 rounded small mb-0"><code>curl -s -X POST "{{ $baseUrl }}{{ $curlPath }}" \
-  -H "X-HR-Api-Key: YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{{ json_encode($ep['request'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) }}'</code></pre>
-                @endif
-            </div>
-        </div>
-    </div>
-@endforeach
-</div>{{-- /accordion --}}
+@include('admin.api-docs._endpoints', ['endpoints' => $endpoints, 'accordionId' => 'endpointsAccordion'])
 
 {{-- ═══════════════════════════════════════════════════════
      RESPONSE CODES
@@ -256,6 +150,10 @@
                 <tr>
                     <td><span class="badge bg-warning text-dark">401</span></td>
                     <td>Unauthorized — <code>X-HR-Api-Key</code> missing, invalid, or revoked</td>
+                </tr>
+                <tr>
+                    <td><span class="badge bg-warning text-dark">403</span></td>
+                    <td>Forbidden — the key is scoped to another API (an Attendance or Signature key)</td>
                 </tr>
                 <tr>
                     <td><span class="badge bg-warning text-dark">422</span></td>
@@ -404,7 +302,7 @@
 
     <div class="card-header bg-dark text-light d-flex align-items-center gap-2">
         <i class="bi bi-terminal-fill text-success"></i>
-        <span class="fw-semibold">API Test Console</span>
+        <span class="fw-semibold">HR API Test Console</span>
         <span class="badge bg-secondary ms-auto">Live</span>
     </div>
 
@@ -518,6 +416,79 @@
         <template x-if="errorMsg">
             <div class="alert alert-danger small" x-text="errorMsg"></div>
         </template>
+    </div>
+</div>
+
+{{-- ═══════════════════════════════════════════════════════
+     ATTENDANCE API (ORACLE)
+═══════════════════════════════════════════════════════ --}}
+<div id="attendance-api" class="d-flex justify-content-between align-items-center mb-3 pt-4 border-top">
+    <div>
+        <h4 class="mb-0 fw-bold">
+            <i class="bi bi-fingerprint me-2 text-primary"></i>Attendance API (Oracle)
+        </h4>
+        <small class="text-muted">Read-only: each employee’s check-in, check-out and every punch, per day</small>
+    </div>
+    <div>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 px-3 py-2">
+            <i class="bi bi-hdd-stack me-1"></i>
+            Base URL: <code class="text-primary ms-1">{{ $baseUrl }}/api/attendance</code>
+        </span>
+    </div>
+</div>
+
+<div class="card border-success mb-4 shadow-sm">
+    <div class="card-body small">
+        <ul class="mb-0 ps-3">
+            <li class="mb-1"><strong>Key.</strong> Generate one on the <a href="/admin/hr-api-keys">HR API Keys</a> page with the scope
+                <strong>Attendance API (Oracle)</strong>, and send it as <code>X-HR-Api-Key</code> or <code>Authorization: Bearer</code>.
+                It reads attendance and nothing else — it cannot call <code>/api/hr</code>. A key scoped to another API gets 403; a General key works.</li>
+            <li class="mb-1"><strong>Times</strong> are the branch device’s local clock, written <code>Y-m-d H:i:s</code> with no time zone:
+                a Cairo punch in Cairo time, a Jeddah punch in Jeddah time. Do not convert them.</li>
+            <li class="mb-1"><strong>Check-in</strong> is the earliest punch of the day and <strong>check-out</strong> the latest, unless HR
+                corrected them (<code>corrected: true</code>). <code>punches</code> lists every punch of the day as the device recorded it.</li>
+            <li class="mb-1"><strong>A night shift’s day</strong> keeps its punches until 6 hours after the shift ends, so a 06:00 check-out
+                belongs to the day before.</li>
+            <li class="mb-1"><strong>Live data.</strong> <code>approved</code> is true once HR has approved and locked the period. Until then a
+                day can still change — a late punch, a correction, an absence recorded after the shift.</li>
+            <li><strong>Errors are always JSON</strong>, with or without an <code>Accept</code> header: 401 missing, invalid or revoked key ·
+                403 key for another API · 404 unknown Oracle number · 409 Oracle number shared by several employees ·
+                422 bad or too-long range · 429 more than 120 requests a minute from one address.</li>
+        </ul>
+    </div>
+</div>
+
+<h5 class="fw-bold mb-3"><i class="bi bi-send-fill me-2 text-primary"></i>Endpoints</h5>
+
+@include('admin.api-docs._endpoints', ['endpoints' => $attendanceEndpoints, 'accordionId' => 'attendanceEndpointsAccordion'])
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-light d-flex align-items-center gap-2">
+        <i class="bi bi-list-columns text-primary"></i>
+        <span class="fw-semibold">Record fields</span>
+        <span class="text-muted fw-normal small ms-1">— one record per employee per day, the same on both endpoints</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:240px">Field</th>
+                        <th style="width:170px">Type</th>
+                        <th>Meaning</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($attendanceRecordFields as [$name, $type, $meaning])
+                    <tr>
+                        <td><code>{{ $name }}</code></td>
+                        <td class="small text-muted">{{ $type }}</td>
+                        <td class="small">{{ $meaning }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

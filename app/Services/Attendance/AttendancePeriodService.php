@@ -167,6 +167,35 @@ class AttendancePeriodService
             ->count();
     }
 
+    /**
+     * One employee's day as Oracle takes it, in RECORD_FIELDS order. The
+     * export's record, and the core of what GET /api/attendance returns, so
+     * the pushed and the pulled data cannot drift apart.
+     *
+     * @return array<string, mixed>
+     */
+    public static function record(AttendanceDay $d): array
+    {
+        return [
+            'oracle_emp_no' => (string) $d->employee?->oracle_emp_no,
+            'employee_name' => $d->employee?->name,
+            'branch' => $d->branch?->name,
+            'date' => $d->work_date->toDateString(),
+            'status' => $d->status,
+            'shift' => $d->shift?->name,
+            'scheduled_in' => $d->scheduled_start?->format(AttendanceDayBuilder::FORMAT),
+            'scheduled_out' => $d->scheduled_end?->format(AttendanceDayBuilder::FORMAT),
+            'check_in' => $d->first_in?->format(AttendanceDayBuilder::FORMAT),
+            'check_out' => $d->last_out?->format(AttendanceDayBuilder::FORMAT),
+            'worked_minutes' => $d->worked_minutes,
+            'late_minutes' => $d->late_minutes,
+            'early_leave_minutes' => $d->early_leave_minutes,
+            'overtime_minutes' => $d->overtime_minutes,
+            'excuse' => $d->excuse,
+            'corrected' => in_array(AttendanceDayBuilder::FLAG_ADJUSTED, $d->flags ?? [], true),
+        ];
+    }
+
     /** One record per employee per day, as approved. */
     public function buildPayload(AttendancePeriod $period): array
     {
@@ -179,24 +208,7 @@ class AttendancePeriodService
             ->orderBy('employee_id')
             ->lazy(1000)
             ->each(function (AttendanceDay $d) use (&$records) {
-                $records[] = [
-                    'oracle_emp_no' => (string) $d->employee?->oracle_emp_no,
-                    'employee_name' => $d->employee?->name,
-                    'branch' => $d->branch?->name,
-                    'date' => $d->work_date->toDateString(),
-                    'status' => $d->status,
-                    'shift' => $d->shift?->name,
-                    'scheduled_in' => $d->scheduled_start?->format('Y-m-d H:i:s'),
-                    'scheduled_out' => $d->scheduled_end?->format('Y-m-d H:i:s'),
-                    'check_in' => $d->first_in?->format('Y-m-d H:i:s'),
-                    'check_out' => $d->last_out?->format('Y-m-d H:i:s'),
-                    'worked_minutes' => $d->worked_minutes,
-                    'late_minutes' => $d->late_minutes,
-                    'early_leave_minutes' => $d->early_leave_minutes,
-                    'overtime_minutes' => $d->overtime_minutes,
-                    'excuse' => $d->excuse,
-                    'corrected' => in_array(AttendanceDayBuilder::FLAG_ADJUSTED, $d->flags ?? [], true),
-                ];
+                $records[] = self::record($d);
             });
 
         return [

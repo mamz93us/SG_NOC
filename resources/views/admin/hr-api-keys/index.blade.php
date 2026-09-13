@@ -120,9 +120,12 @@
                     <option value="">General (no restriction)</option>
                     <option value="hr">HR Integration</option>
                     <option value="signature">Signature API</option>
+                    <option value="attendance">Attendance API (Oracle)</option>
                 </select>
                 <div class="form-text">
+                    <strong>HR Integration</strong> keys authenticate <code>/api/hr</code> only.<br>
                     <strong>Signature API</strong> keys authenticate <code>GET /api/signature</code> calls from Intune scripts and the Graph nightly job.<br>
+                    <strong>Attendance API</strong> keys authenticate only the read-only <code>GET /api/attendance</code> endpoints — check-in, check-out and punches for Oracle. They cannot call <code>/api/hr</code>.<br>
                     <strong>General</strong> keys work on all scoped APIs (legacy behaviour).
                 </div>
             </div>
