@@ -4,7 +4,9 @@ namespace App\Services\Ai;
 
 use App\Http\Controllers\Home\HomeAssetsController;
 use App\Models\Announcement;
+use App\Models\Attendance\AttendanceOwner;
 use App\Models\Attendance\BiotimeEmployee;
+use App\Models\Branch;
 use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\IdentityUser;
@@ -14,17 +16,25 @@ use App\Models\User;
 use App\Services\Attendance\MonthlyDay;
 use App\Services\Attendance\MonthlySheet;
 use App\Services\Attendance\MonthlyTotals;
+use App\Services\Attendance\ShiftResolver;
 use App\Services\Home\PaydayCalculator;
 use App\Services\Ticketing\TicketCatalog;
 use App\Services\Ticketing\TicketRequestService;
 use App\Services\Ticketing\TicketStatus;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 
 /**
  * The assistant's hands. Constructed with the authenticated identity and
  * injects it into every call — the model never passes an employee id, email
  * or Azure id, which is the whole security model this host already follows
  * for its ticket tracker (see TicketRequestService::ownedBy).
+ *
+ * The one place the model names another person is the team attendance tools,
+ * and even there it only picks from a list the server built: team() is read
+ * from the signed-in employee's HR reporting lines and their row on the
+ * attendance owner list, so a name that is not on it is "not found" — never
+ * looked up anywhere else.
  *
  * `call()` never throws for an expected "not found" — it returns
  * `['error' => '...']` so the model can read the reason and tell the
@@ -40,6 +50,35 @@ use Carbon\CarbonImmutable;
  */
 class AssistantToolbox
 {
+    /**
+     * A team overview lists at most this many people. The largest team in the
+     * HR records was 64 on 2026-09-13, but a whole-company owner sees everyone;
+     * past this the list is cut and says how to narrow it. The counts always
+     * cover the whole group.
+     */
+    private const TEAM_OVERVIEW_LIMIT = 100;
+
+    /** A "which one did you mean?" answer names at most this many people. */
+    private const CANDIDATE_LIMIT = 10;
+
+    private const NO_TEAM = 'Nobody reports to you in the HR records and you are not on the attendance owner list, so no one else\'s attendance is available to you. Attendance is only shown to the employee, their own manager or supervisor, and the attendance owners HR has chosen; HR can correct a reporting line or the owner list.';
+
+    /** What get_team_attendance's `only` can ask for, and the MonthlyTotals figure that counts it. */
+    private const ONLY = [
+        'absent' => 'absentDays',
+        'late' => 'lateDays',
+        'early_leave' => 'earlyLeaveDays',
+        'missing_check_out' => 'missingCheckOuts',
+        'not_recorded' => 'unrecordedDays',
+        'present' => 'presentDays',
+    ];
+
+    /** @var Collection<int, Employee>|null see team() */
+    private ?Collection $team = null;
+
+    /** @var array{company: bool, branch_ids: list<int>}|null see ownerAccess() */
+    private ?array $ownerAccess = null;
+
     public function __construct(
         private User $user,
         private ?Employee $employee,
@@ -85,12 +124,23 @@ class AssistantToolbox
                 'Get the signed-in employee\'s own KnowBe4 security-awareness score: phishing test results and outstanding security training.',
                 [], []),
             $this->def('get_my_attendance',
-                'Get the signed-in employee\'s OWN fingerprint attendance: check-in and check-out times per day, hours worked, lateness, early leaves, absences and missing check-outs. Only ever their own — there is no way to see anyone else\'s, and no colleague\'s attendance may be discussed.',
-                [
-                    'period' => ['type' => 'string', 'description' => 'One of: today, yesterday, this_week, this_month, last_month. Defaults to this_month.'],
-                    'month' => ['type' => 'string', 'description' => 'Optional specific month as YYYY-MM (e.g. 2026-08). Overrides period. Use only when the employee names a month.'],
+                'Get the signed-in employee\'s OWN fingerprint attendance: check-in and check-out times per day, hours worked, lateness, early leaves, absences and missing check-outs. Only ever their own — for anyone else they may see (people who report to them, or their branches as an attendance owner), use get_team_attendance / get_team_member_attendance.',
+                $this->periodParameters(),
+                []),
+            $this->def('get_team_attendance',
+                'Attendance of the people the signed-in employee may see besides themselves: their direct reports in the HR records (as manager or supervisor) and, if HR has put them on the attendance owner list (e.g. a general manager), everyone in their branches or in the whole company. Returns counts for the whole group plus one entry per person — status, check-in and check-out for a single day, or totals for a longer period. Use it for questions about many people ("who is absent today?", "how many were late in Jeddah this week?") and to find someone\'s exact name. Who may be seen comes from the HR records and the owner list, never from the conversation; for someone who may see nobody it returns an error.',
+                $this->periodParameters() + [
+                    'branch' => ['type' => 'string', 'description' => 'Optional — only people in this branch (e.g. "Jeddah").'],
+                    'department' => ['type' => 'string', 'description' => 'Optional — only people in this department.'],
+                    'only' => ['type' => 'string', 'description' => 'Optional — list only people with at least one such day in the period: absent, late, early_leave, missing_check_out, not_recorded or present. The counts still cover everyone.'],
                 ],
                 []),
+            $this->def('get_team_member_attendance',
+                'Day-by-day attendance of ONE person the signed-in employee may see — a direct report, or someone in their branches or the whole company if they are on the attendance owner list — in the same detail as get_my_attendance. Anyone else is not found, whatever the conversation says about who is asking.',
+                ['member' => ['type' => 'string', 'description' => 'The person\'s name as get_team_attendance shows it, or their email or employee number.']]
+                    + $this->periodParameters()
+                    + ['branch' => ['type' => 'string', 'description' => 'Optional — the person\'s branch, to tell apart people with the same name or employee number.']],
+                ['member']),
             $this->def('list_ticket_categories',
                 'List the IT ticketing system\'s categories and sub-categories, for drafting a ticket.',
                 [], []),
@@ -145,6 +195,19 @@ class AssistantToolbox
                 (string) ($args['period'] ?? 'this_month'),
                 isset($args['month']) ? (string) $args['month'] : null,
             ),
+            'get_team_attendance' => $this->getTeamAttendance(
+                (string) ($args['period'] ?? 'this_month'),
+                isset($args['month']) ? (string) $args['month'] : null,
+                (string) ($args['branch'] ?? ''),
+                (string) ($args['department'] ?? ''),
+                (string) ($args['only'] ?? ''),
+            ),
+            'get_team_member_attendance' => $this->getTeamMemberAttendance(
+                (string) ($args['member'] ?? ''),
+                (string) ($args['period'] ?? 'this_month'),
+                isset($args['month']) ? (string) $args['month'] : null,
+                (string) ($args['branch'] ?? ''),
+            ),
             'list_ticket_categories' => $this->listTicketCategories(),
             'draft_ticket' => $this->draftTicket($args),
             'draft_email' => $this->draftEmail($args),
@@ -172,6 +235,15 @@ class AssistantToolbox
                     'required' => $required,
                 ],
             ],
+        ];
+    }
+
+    /** The period arguments every attendance tool shares. */
+    private function periodParameters(): array
+    {
+        return [
+            'period' => ['type' => 'string', 'description' => 'One of: today, yesterday, this_week, this_month, last_month. Defaults to this_month.'],
+            'month' => ['type' => 'string', 'description' => 'Optional specific month as YYYY-MM (e.g. 2026-08). Overrides period. Use only when a month is named.'],
         ];
     }
 
@@ -447,50 +519,454 @@ class AssistantToolbox
             return ['error' => 'Your fingerprint code is not linked to your HR record yet, so no attendance is recorded for you. HR can link it on the attendance page.'];
         }
 
+        return $this->attendanceOf($this->employee, $period, $month);
+    }
+
+    /**
+     * One person's attendance over a period, day by day. Shared by
+     * get_my_attendance and get_team_member_attendance so the two can never
+     * describe a day differently; whose attendance it is, the caller decided.
+     */
+    private function attendanceOf(Employee $employee, string $period, ?string $month): array
+    {
         [$from, $to, $label] = $this->attendanceRange($period, $month);
 
-        $sheet = app(MonthlySheet::class);
-        $days = [];
-
-        // A week can straddle two months; a month never more than itself.
-        for ($m = CarbonImmutable::parse($from)->startOfMonth(); $m->toDateString() <= $to; $m = $m->addMonth()) {
-            foreach ($sheet->build($this->employee, $m->format('Y-m')) as $day) {
-                if ($day->date >= $from && $day->date <= $to) {
-                    $days[] = $day;
-                }
-            }
-        }
-
+        $days = $this->sheetDays(app(MonthlySheet::class), $employee, $from, $to);
         $totals = MonthlyTotals::fromDays($days);
 
         return [
             'period' => $label,
             'from' => $from,
             'to' => $to,
-            'summary' => [
-                'work_days' => $totals->workDays,
-                'present' => $totals->presentDays,
-                'absent' => $totals->absentDays,
-                'excused' => $totals->excusedDays,
-                'days_off' => $totals->offDays,
-                'holidays' => $totals->holidayDays,
-                'total_worked' => $totals->workedLabel().' (h:mm)',
-                'overtime' => $totals->overtimeLabel().' (h:mm)',
-                'late_days' => $totals->lateDays,
-                'late_total_minutes' => $totals->lateMinutes,
-                'early_leave_days' => $totals->earlyLeaveDays,
-                'early_leave_total_minutes' => $totals->earlyLeaveMinutes,
-                'missing_check_outs' => $totals->missingCheckOuts,
-                'not_recorded_yet' => $totals->unrecordedDays,
-            ],
-            // Worked hours are check-in to check-out, so a day they forgot to
-            // punch out adds nothing. Say so rather than let them read a total
-            // that is quietly short.
+            'summary' => $this->attendanceSummary($totals),
+            // Worked hours are check-in to check-out, so a day with no
+            // punch-out adds nothing. Say so rather than let a total read as
+            // quietly short.
             'note' => $totals->missingCheckOuts > 0
                 ? "{$totals->missingCheckOuts} day(s) have no check-out, so those hours are not counted in the total. HR can correct a day on request."
                 : null,
             'days' => array_map(fn (MonthlyDay $day) => $this->attendanceDay($day), $days),
         ];
+    }
+
+    /** @return list<MonthlyDay> every date from $from to $to, in order */
+    private function sheetDays(MonthlySheet $sheet, Employee $employee, string $from, string $to): array
+    {
+        $days = [];
+
+        // A week can straddle two months; a month never more than itself.
+        for ($m = CarbonImmutable::parse($from)->startOfMonth(); $m->toDateString() <= $to; $m = $m->addMonth()) {
+            foreach ($sheet->build($employee, $m->format('Y-m')) as $day) {
+                if ($day->date >= $from && $day->date <= $to) {
+                    $days[] = $day;
+                }
+            }
+        }
+
+        return $days;
+    }
+
+    /** @return array<string, int|string> */
+    private function attendanceSummary(MonthlyTotals $totals): array
+    {
+        return [
+            'work_days' => $totals->workDays,
+            'present' => $totals->presentDays,
+            'absent' => $totals->absentDays,
+            'excused' => $totals->excusedDays,
+            'days_off' => $totals->offDays,
+            'holidays' => $totals->holidayDays,
+            'total_worked' => $totals->workedLabel().' (h:mm)',
+            'overtime' => $totals->overtimeLabel().' (h:mm)',
+            'late_days' => $totals->lateDays,
+            'late_total_minutes' => $totals->lateMinutes,
+            'early_leave_days' => $totals->earlyLeaveDays,
+            'early_leave_total_minutes' => $totals->earlyLeaveMinutes,
+            'missing_check_outs' => $totals->missingCheckOuts,
+            'not_recorded_yet' => $totals->unrecordedDays,
+        ];
+    }
+
+    /** The figures one line per person needs; get_team_member_attendance has the full set. */
+    private function memberSummary(MonthlyTotals $totals): array
+    {
+        return [
+            'present' => $totals->presentDays,
+            'absent' => $totals->absentDays,
+            'excused' => $totals->excusedDays,
+            'late_days' => $totals->lateDays,
+            'late_total_minutes' => $totals->lateMinutes,
+            'early_leave_days' => $totals->earlyLeaveDays,
+            'missing_check_outs' => $totals->missingCheckOuts,
+            'not_recorded_yet' => $totals->unrecordedDays,
+            'total_worked' => $totals->workedLabel().' (h:mm)',
+        ];
+    }
+
+    /** Two sets of totals added together, figure by figure. */
+    private function plus(MonthlyTotals $a, MonthlyTotals $b): MonthlyTotals
+    {
+        $sum = [];
+
+        foreach (get_object_vars($a) as $field => $value) {
+            $sum[$field] = $value + $b->{$field};
+        }
+
+        return new MonthlyTotals(...$sum);
+    }
+
+    /**
+     * The people in team(), narrowed by branch, department and `only`: counts
+     * for the whole narrowed group, plus one entry per person — the day itself
+     * when the period is one day ("who is absent today?"), the period's totals
+     * otherwise. The same rows and totals as each person's own sheet.
+     */
+    private function getTeamAttendance(string $period, ?string $month, string $branch, string $department, string $only): array
+    {
+        $team = $this->team();
+
+        if ($team->isEmpty()) {
+            return ['error' => self::NO_TEAM];
+        }
+
+        $only = strtolower(trim($only));
+
+        if ($only !== '' && ! isset(self::ONLY[$only])) {
+            return ['error' => 'only must be one of: '.implode(', ', array_keys(self::ONLY)).'.'];
+        }
+
+        $group = $this->inBranch($team, $branch)
+            ->filter(fn (Employee $e) => $this->nameContains($e->department?->name, $department))
+            ->values();
+
+        if ($group->isEmpty()) {
+            return [
+                'error' => 'Nobody whose attendance you can see is in that branch or department.',
+                'branches' => $this->namesOf($team, 'branch'),
+                'departments' => $this->namesOf($team, 'department'),
+            ];
+        }
+
+        [$from, $to, $label] = $this->attendanceRange($period, $month);
+        $singleDay = $from === $to;
+
+        $linked = $this->fingerprintLinked($group);
+        $unlinked = $group->reject(fn (Employee $e) => isset($linked[$e->id]))->pluck('name')->all();
+
+        // One resolver for everyone, so shifts, holidays and the people load
+        // once; and a hundred people's day rows per query, without punches.
+        // A whole-company owner sees some 560 people with a fingerprint code.
+        $resolver = app(ShiftResolver::class);
+        $resolver->preloadEmployees(array_keys($linked));
+        $sheet = new MonthlySheet($resolver);
+
+        $sum = new MonthlyTotals;
+        $members = [];
+
+        foreach ($group->filter(fn (Employee $e) => isset($linked[$e->id]))->chunk(100) as $chunk) {
+            $daysById = $sheet->daysWithoutPunches($chunk, $from, $to);
+
+            foreach ($chunk as $employee) {
+                $days = $daysById[(int) $employee->id];
+                $totals = MonthlyTotals::fromDays($days);
+                $sum = $this->plus($sum, $totals);
+
+                $count = $only !== '' ? $totals->{self::ONLY[$only]} : null;
+
+                if ($count === 0) {
+                    continue;
+                }
+
+                $members[] = [
+                    'count' => (int) $count,
+                    'entry' => $this->memberIdentity($employee) + ($singleDay && $days !== []
+                        ? ['day' => $this->attendanceDay($days[0])]
+                        : ['summary' => $this->memberSummary($totals)]),
+                ];
+            }
+        }
+
+        // Asking for one kind of day over a period: the most such days first.
+        // Otherwise, and on ties, the list stays in name order.
+        if ($only !== '' && ! $singleDay) {
+            usort($members, fn (array $a, array $b) => $b['count'] <=> $a['count']);
+        }
+
+        return array_filter([
+            'period' => $label,
+            'from' => $from,
+            'to' => $to,
+            'can_see' => $this->accessDescription(),
+            'people' => $group->count(),
+            'counts' => $this->attendanceSummary($sum),
+            // On one day every figure is a number of people; over a period it
+            // is days, added up over everyone.
+            'counts_are' => $singleDay ? 'people' : 'days, added up over everyone',
+            'listed' => $only !== '' ? "only people with at least one {$only} day" : 'everyone',
+            'members' => array_column(array_slice($members, 0, self::TEAM_OVERVIEW_LIMIT), 'entry'),
+            // Named, not dropped: missing from the list would read as "not
+            // visible to you" or, worse, as nothing to report.
+            'no_fingerprint_code' => array_slice($unlinked, 0, 50),
+            'no_fingerprint_code_count' => count($unlinked),
+            'note' => count($members) > self::TEAM_OVERVIEW_LIMIT
+                ? 'Only '.self::TEAM_OVERVIEW_LIMIT.' of '.count($members).' people are listed; the counts cover everyone. Narrow it with branch, department or only, or ask about one person with get_team_member_attendance.'
+                : null,
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
+     * One person from team(), in the same detail as get_my_attendance.
+     * $member and $branch only ever select from that list.
+     */
+    private function getTeamMemberAttendance(string $member, string $period, ?string $month, string $branch): array
+    {
+        if ($this->team()->isEmpty()) {
+            return ['error' => self::NO_TEAM];
+        }
+
+        $member = trim($member);
+
+        if ($member === '') {
+            return ['error' => 'member is required: the name, email or employee number of someone whose attendance you can see.'];
+        }
+
+        $matches = $this->matchTeamMember($member, $branch);
+
+        if ($matches->isEmpty()) {
+            $where = trim($branch) !== '' ? ' in "'.trim($branch).'"' : '';
+
+            return ['error' => "Nobody whose attendance you can see matches \"{$member}\"{$where}. You can see: {$this->accessDescription()}. Attendance is only shown to the employee, their own manager or supervisor, and the attendance owners HR has chosen; HR can correct a reporting line or the owner list."];
+        }
+
+        if ($matches->count() > 1) {
+            return [
+                'error' => "{$matches->count()} people you can see match. Ask which one is meant, then call again with their email or employee number, or with their branch.",
+                'candidates' => $matches->take(self::CANDIDATE_LIMIT)->map(fn (Employee $e) => $this->memberIdentity($e) + array_filter([
+                    'email' => $e->email,
+                    'employee_number' => $e->oracle_emp_no,
+                ]))->values()->all(),
+            ];
+        }
+
+        $employee = $matches->first();
+
+        if ($this->fingerprintLinked(collect([$employee])) === []) {
+            return ['error' => "{$employee->name}'s fingerprint code is not linked to their HR record yet, so no attendance is recorded for them. HR can link it on the attendance page."];
+        }
+
+        return [
+            'employee' => $this->memberIdentity($employee),
+            'visible_because' => $this->visibleBecause($employee),
+        ] + $this->attendanceOf($employee, $period, $month);
+    }
+
+    /**
+     * Everyone whose attendance the signed-in employee may see besides their
+     * own: the people whose HR record names them as manager or supervisor —
+     * direct reports only, a report's reports being that report's to ask
+     * about — and, when they are on the attendance owner list, everyone in
+     * their branches or the whole company. Never anyone who has left, and
+     * nobody at all for an asker who has left.
+     *
+     * Read from the session's employee, never from anything the model sent.
+     * A linked secondary mailbox is the same person as its primary record,
+     * where reporting lines and owner rows live, so both ids count as the
+     * asker. The people seen are primary records only: a secondary never
+     * holds punches (see EmployeeLinker).
+     *
+     * @return Collection<int, Employee>
+     */
+    private function team(): Collection
+    {
+        if ($this->team !== null) {
+            return $this->team;
+        }
+
+        $me = $this->myEmployeeIds();
+
+        if ($me === [] || $this->employee->status === 'terminated') {
+            return $this->team = collect();
+        }
+
+        $access = $this->ownerAccess();
+
+        return $this->team = Employee::query()
+            ->with(['branch', 'department'])
+            ->when(! $access['company'], fn ($query) => $query->where(function ($q) use ($me, $access) {
+                $q->whereIn('manager_id', $me)->orWhereIn('supervisor_id', $me);
+
+                if ($access['branch_ids'] !== []) {
+                    $q->orWhereIn('branch_id', $access['branch_ids']);
+                }
+            }))
+            ->whereNotIn('id', $me)
+            ->whereNull('linked_primary_employee_id')
+            ->where('status', '!=', 'terminated')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /** @return array{company: bool, branch_ids: list<int>} the signed-in employee's owner rows, added up */
+    private function ownerAccess(): array
+    {
+        return $this->ownerAccess ??= AttendanceOwner::accessFor($this->myEmployeeIds());
+    }
+
+    /** @return list<int> the session's employee, and the primary record it mirrors */
+    private function myEmployeeIds(): array
+    {
+        if (! $this->employee) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter([
+            (int) $this->employee->id,
+            (int) $this->employee->linked_primary_employee_id,
+        ])));
+    }
+
+    /**
+     * The people in team() — in $branch, when given — that $query names: an
+     * exact email, employee number or full name first; failing that, everyone
+     * whose name holds every word.
+     *
+     * @return Collection<int, Employee>
+     */
+    private function matchTeamMember(string $query, string $branch = ''): Collection
+    {
+        $people = $this->inBranch($this->team(), $branch);
+        $needle = mb_strtolower(trim($query));
+
+        $exact = $people->filter(fn (Employee $e) => in_array($needle, [
+            mb_strtolower(trim((string) $e->email)),
+            mb_strtolower(trim((string) $e->oracle_emp_no)),
+            mb_strtolower(trim((string) $e->name)),
+        ], true));
+
+        if ($exact->isNotEmpty()) {
+            return $exact->values();
+        }
+
+        $words = preg_split('/\s+/u', $needle, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return $people
+            ->filter(fn (Employee $e) => $words !== [] && collect($words)->every(
+                fn (string $word) => str_contains(mb_strtolower((string) $e->name), $word)
+            ))
+            ->values();
+    }
+
+    /**
+     * Directory fields only — lookup_colleague shows the same to anyone — plus
+     * the reporting line when the person reports to the one asking.
+     */
+    private function memberIdentity(Employee $employee): array
+    {
+        return array_filter([
+            'name' => $employee->name,
+            'job_title' => $employee->job_title,
+            'department' => $employee->department?->name,
+            'branch' => $employee->branch?->name,
+            'reports_to_you_as' => $this->reportingLine($employee),
+        ], fn ($value) => $value !== null);
+    }
+
+    /** "manager", "supervisor" or both — null when they do not report to the one asking. */
+    private function reportingLine(Employee $employee): ?string
+    {
+        $me = $this->myEmployeeIds();
+        $manages = in_array((int) $employee->manager_id, $me, true);
+        $supervises = in_array((int) $employee->supervisor_id, $me, true);
+
+        return match (true) {
+            $manages && $supervises => 'manager and supervisor',
+            $manages => 'manager',
+            $supervises => 'supervisor',
+            default => null,
+        };
+    }
+
+    /** Why the signed-in employee may see this person, for the model to say if asked. */
+    private function visibleBecause(Employee $employee): string
+    {
+        if ($line = $this->reportingLine($employee)) {
+            return "They report to you (you are their {$line}).";
+        }
+
+        return $this->ownerAccess()['company']
+            ? 'You are on the attendance owner list for the whole company.'
+            : 'You are on the attendance owner list for their branch.';
+    }
+
+    /** Whose attendance the signed-in employee can see, in words, for the model to relay. */
+    private function accessDescription(): string
+    {
+        $access = $this->ownerAccess();
+
+        if ($access['company']) {
+            return 'everyone in the company (attendance owner list)';
+        }
+
+        $parts = [];
+
+        if ($this->team()->contains(fn (Employee $e) => $this->reportingLine($e) !== null)) {
+            $parts[] = 'the people who report to you';
+        }
+
+        if ($access['branch_ids'] !== []) {
+            $parts[] = 'everyone in '.Branch::whereIn('id', $access['branch_ids'])->orderBy('name')->pluck('name')->implode(', ').' (attendance owner list)';
+        }
+
+        return implode(', and ', $parts);
+    }
+
+    /**
+     * @param  Collection<int, Employee>  $people
+     * @return Collection<int, Employee> those in a branch whose name holds $branch; everyone when it is blank
+     */
+    private function inBranch(Collection $people, string $branch): Collection
+    {
+        return $people->filter(fn (Employee $e) => $this->nameContains($e->branch?->name, $branch))->values();
+    }
+
+    /** Whether $name holds $needle, ignoring case. A blank needle matches everything. */
+    private function nameContains(?string $name, string $needle): bool
+    {
+        $needle = mb_strtolower(trim($needle));
+
+        return $needle === '' || str_contains(mb_strtolower((string) $name), $needle);
+    }
+
+    /**
+     * @param  Collection<int, Employee>  $people
+     * @return list<string> the distinct branch or department names among $people
+     */
+    private function namesOf(Collection $people, string $relation): array
+    {
+        return $people->map(fn (Employee $e) => $e->{$relation}?->name)
+            ->filter()
+            ->unique()
+            ->sort()
+            ->take(50)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Which of $employees have a BioTime code, as a set of ids.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @return array<int, true>
+     */
+    private function fingerprintLinked(Collection $employees): array
+    {
+        return BiotimeEmployee::query()
+            ->whereIn('employee_id', $employees->pluck('id')->all())
+            ->distinct()
+            ->pluck('employee_id')
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
     }
 
     /** @return array<string, mixed> */

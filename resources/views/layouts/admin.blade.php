@@ -442,6 +442,12 @@
                                     <i class="bi bi-journal-check me-2"></i>Periods
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.attendance.owners.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.attendance.owners.index') }}">
+                                    <i class="bi bi-shield-lock me-2"></i>Owners
+                                </a>
+                            </li>
                             @can('manage-attendance')
                             <li><hr class="dropdown-divider"></li>
                             <li>

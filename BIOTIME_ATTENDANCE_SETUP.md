@@ -345,12 +345,32 @@ the range; do not look for the arithmetic here.
 Unmapped BioTime codes belong to nobody yet, so they never appear on a sheet —
 they are only on Check-in / Check-out, filtered to **Unmapped**.
 
-**Employees can ask for their own.** The assistant on the home portal answers
-"when did I check in today?", "how many hours this month?", "was I late?" from
-the same rows, through its `get_my_attendance` tool. It is scoped to whoever is
-signed in and takes no employee argument at all, so there is no way — for a
-manager, for HR, for any wording — to read somebody else's attendance from the
-chat. That stays here, behind `view-attendance`.
+**Employees can ask for their own, and managers for their team's.** The
+assistant on the home portal answers "when did I check in today?", "how many
+hours this month?", "was I late?" from the same rows, through its
+`get_my_attendance` tool, which is scoped to whoever is signed in and takes no
+employee argument at all.
+
+A manager or supervisor can also ask about the people who report to them — "who
+is absent today?", "was Ahmed late this week?" — through `get_team_attendance`
+and `get_team_member_attendance`. Who reports to whom is the employee record's
+**Manager** and **Supervisor** (`manager_id` / `supervisor_id`), read on the
+server for the person signed in: direct reports only (not a report's reports),
+and nobody terminated.
+
+**Attendance → Owners** adds people who may ask about more than their own team:
+everyone in the **whole company** (the general manager), or everyone in the
+**branches** ticked on their row (a branch GM), on top of their own reports.
+Changing the list needs `manage-attendance-owners`, and every change is also
+logged as an `attendance_owner_added` / `_changed` / `_removed` security action.
+A branch means the branch on the employee record, so someone with no branch is
+visible only to a whole-company owner. An owner can narrow a question by branch,
+department or kind of day ("who was late in Jeddah this week?").
+
+Anyone outside those lists is simply not found, whatever the chat says about who
+is asking — so when someone cannot see a person, fix the reporting line on the
+employee record, or their row on the owner list. Everyone else's attendance stays
+here, behind `view-attendance`.
 
 ## 10. Periods, approval and the Oracle export
 

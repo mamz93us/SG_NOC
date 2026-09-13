@@ -1110,6 +1110,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
                 Route::get('periods/{period}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'show'])->name('periods.show');
                 Route::get('exports/{export}/download/{format}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'download'])
                     ->whereIn('format', ['csv', 'json'])->name('exports.download');
+                Route::get('owners', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'index'])->name('owners.index');
             });
 
             // Connections hold SQL credentials; links decide whose punches are whose.
@@ -1147,6 +1148,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
                 Route::post('periods/{period}/approve', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'approve'])->name('periods.approve');
                 Route::post('periods/{period}/reopen', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'reopen'])->name('periods.reopen');
                 Route::post('periods/{period}/export', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'export'])->name('periods.export');
+            });
+
+            // The owner list decides who can read a branch's or the whole
+            // company's attendance from the home-portal assistant.
+            Route::middleware('permission:manage-attendance-owners')->group(function () {
+                Route::post('owners', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'store'])->name('owners.store');
+                Route::put('owners/{owner}', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'update'])->name('owners.update');
+                Route::delete('owners/{owner}', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'destroy'])->name('owners.destroy');
             });
         });
 
