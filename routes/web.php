@@ -3155,6 +3155,24 @@ Route::prefix('api/hr')
 
 /*
 |--------------------------------------------------------------------------
+| Attendance API — Oracle pulls check-in/out and punches (token, read-only)
+| Keys come from the HR API Keys page with the `attendance` scope; such a key
+| cannot reach /api/hr. Errors are always JSON (bootstrap/app.php).
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('api/attendance')
+    ->name('api.attendance.')
+    ->middleware(['throttle:120,1', 'hr.api_key:attendance'])
+    ->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\AttendanceApiController::class, 'index'])->name('index');
+        Route::get('/employees/{oracle_emp_no}', [\App\Http\Controllers\Api\AttendanceApiController::class, 'employee'])
+            ->where('oracle_emp_no', '[A-Za-z0-9._-]{1,50}')
+            ->name('employee');
+    });
+
+/*
+|--------------------------------------------------------------------------
 | Internal — Telnet Token Validation (called only by the Node.js proxy)
 | Protected by: localhost-only + X-Telnet-Secret header check in controller.
 |--------------------------------------------------------------------------
