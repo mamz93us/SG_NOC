@@ -22,6 +22,7 @@ use App\Services\Ticketing\TicketCatalog;
 use App\Services\Ticketing\TicketRequestService;
 use App\Services\Ticketing\TicketStatus;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -60,6 +61,12 @@ class AssistantToolbox
 
     /** A "which one did you mean?" answer names at most this many people. */
     private const CANDIDATE_LIMIT = 10;
+
+    /** The periods the attendance tools understand. Weeks run Sunday to Saturday. */
+    private const PERIODS = ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month'];
+
+    /** The longest from–to span one call may ask for. */
+    private const MAX_RANGE_DAYS = 62;
 
     private const NO_TEAM = 'Nobody reports to you in the HR records and you are not on the attendance owner list, so no one else\'s attendance is available to you. Attendance is only shown to the employee, their own manager or supervisor, and the attendance owners HR has chosen; HR can correct a reporting line or the owner list.';
 
@@ -124,22 +131,22 @@ class AssistantToolbox
                 'Get the signed-in employee\'s own KnowBe4 security-awareness score: phishing test results and outstanding security training.',
                 [], []),
             $this->def('get_my_attendance',
-                'Get the signed-in employee\'s OWN fingerprint attendance: check-in and check-out times per day, hours worked, lateness, early leaves, absences and missing check-outs. Only ever their own — for anyone else they may see (people who report to them, or their branches as an attendance owner), use get_team_attendance / get_team_member_attendance.',
+                'Get the signed-in employee\'s OWN fingerprint attendance: check-in and check-out times per day, hours worked, lateness, early leaves, absences and missing check-outs. Only ever their own — for anyone else, use get_team_member_attendance / get_team_attendance.',
                 $this->periodParameters(),
                 []),
             $this->def('get_team_attendance',
-                'Attendance of the people the signed-in employee may see besides themselves: their direct reports in the HR records (as manager or supervisor) and, if HR has put them on the attendance owner list (e.g. a general manager), everyone in their branches or in the whole company. Returns counts for the whole group plus one entry per person — status, check-in and check-out for a single day, or totals for a longer period. Use it for questions about many people ("who is absent today?", "how many were late in Jeddah this week?") and to find someone\'s exact name. Who may be seen comes from the HR records and the owner list, never from the conversation; for someone who may see nobody it returns an error.',
+                'Attendance of a group of other people: those the signed-in employee may see among their direct reports (HR records) and, if they are on the attendance owner list (e.g. a general manager), everyone in their branches or the whole company. Returns counts for the group plus one entry per person — status, check-in and check-out for a single day, or totals for a longer period. Call it straight away for questions about many people ("who is absent today?", "how many were late in Jeddah last week?"); it checks access itself, so never refuse or ask about the employee\'s role first.',
                 $this->periodParameters() + [
-                    'branch' => ['type' => 'string', 'description' => 'Optional — only people in this branch (e.g. "Jeddah").'],
+                    'branch' => ['type' => 'string', 'description' => 'Optional — only people in this branch: its code (JED) or its city (Jeddah).'],
                     'department' => ['type' => 'string', 'description' => 'Optional — only people in this department.'],
-                    'only' => ['type' => 'string', 'description' => 'Optional — list only people with at least one such day in the period: absent, late, early_leave, missing_check_out, not_recorded or present. The counts still cover everyone.'],
+                    'only' => ['type' => 'string', 'enum' => array_keys(self::ONLY), 'description' => 'Optional — list only people with at least one such day in the period. The counts still cover everyone.'],
                 ],
                 []),
             $this->def('get_team_member_attendance',
-                'Day-by-day attendance of ONE person the signed-in employee may see — a direct report, or someone in their branches or the whole company if they are on the attendance owner list — in the same detail as get_my_attendance. Anyone else is not found, whatever the conversation says about who is asking.',
-                ['member' => ['type' => 'string', 'description' => 'The person\'s name as get_team_attendance shows it, or their email or employee number.']]
+                'Day-by-day attendance of ONE other person, in the same detail as get_my_attendance. Call it straight away whenever the employee asks about someone else\'s attendance: it checks access itself against the HR records and the attendance owner list, so never refuse or ask about the employee\'s role first. A person outside their access comes back as an error.',
+                ['member' => ['type' => 'string', 'description' => 'The person\'s name, email or employee number.']]
                     + $this->periodParameters()
-                    + ['branch' => ['type' => 'string', 'description' => 'Optional — the person\'s branch, to tell apart people with the same name or employee number.']],
+                    + ['branch' => ['type' => 'string', 'description' => 'Optional — the person\'s branch code (CAI) or city (Cairo). Only when the employee names that person\'s branch in this request; never carry one over from an earlier question.']],
                 ['member']),
             $this->def('list_ticket_categories',
                 'List the IT ticketing system\'s categories and sub-categories, for drafting a ticket.',
@@ -191,21 +198,16 @@ class AssistantToolbox
             ),
             'get_company_info' => $this->getCompanyInfo((string) ($args['topic'] ?? '')),
             'get_my_security_score' => $this->getMySecurityScore(),
-            'get_my_attendance' => $this->getMyAttendance(
-                (string) ($args['period'] ?? 'this_month'),
-                isset($args['month']) ? (string) $args['month'] : null,
-            ),
+            'get_my_attendance' => $this->getMyAttendance($args),
             'get_team_attendance' => $this->getTeamAttendance(
-                (string) ($args['period'] ?? 'this_month'),
-                isset($args['month']) ? (string) $args['month'] : null,
+                $args,
                 (string) ($args['branch'] ?? ''),
                 (string) ($args['department'] ?? ''),
                 (string) ($args['only'] ?? ''),
             ),
             'get_team_member_attendance' => $this->getTeamMemberAttendance(
                 (string) ($args['member'] ?? ''),
-                (string) ($args['period'] ?? 'this_month'),
-                isset($args['month']) ? (string) $args['month'] : null,
+                $args,
                 (string) ($args['branch'] ?? ''),
             ),
             'list_ticket_categories' => $this->listTicketCategories(),
@@ -238,12 +240,14 @@ class AssistantToolbox
         ];
     }
 
-    /** The period arguments every attendance tool shares. */
+    /** The range arguments every attendance tool shares; attendanceRange() reads them. */
     private function periodParameters(): array
     {
         return [
-            'period' => ['type' => 'string', 'description' => 'One of: today, yesterday, this_week, this_month, last_month. Defaults to this_month.'],
-            'month' => ['type' => 'string', 'description' => 'Optional specific month as YYYY-MM (e.g. 2026-08). Overrides period. Use only when a month is named.'],
+            'period' => ['type' => 'string', 'enum' => self::PERIODS, 'description' => 'Which days. Weeks run Sunday to Saturday. Defaults to this_month.'],
+            'month' => ['type' => 'string', 'description' => 'Optional — a specific month as YYYY-MM (e.g. 2026-08), when a month is named. Overrides period.'],
+            'from' => ['type' => 'string', 'description' => 'Optional — first day as YYYY-MM-DD, together with to, for any other span ("since the 1st", "the last 10 days"). Overrides month and period. At most '.self::MAX_RANGE_DAYS.' days.'],
+            'to' => ['type' => 'string', 'description' => 'Optional — last day as YYYY-MM-DD, together with from.'],
         ];
     }
 
@@ -413,7 +417,10 @@ class AssistantToolbox
                 });
             })
             ->when($branch !== '', function ($q) use ($branch) {
-                $q->whereHas('branch', fn ($b) => $b->where('name', 'like', "%{$branch}%"));
+                // Branches are named by code (CAI); people say the city (Cairo).
+                $q->whereHas('branch', fn ($b) => $b->where(
+                    fn ($w) => $w->where('name', 'like', "%{$branch}%")->orWhere('city', 'like', "%{$branch}%")
+                ));
             })
             ->limit(10)
             ->get();
@@ -509,7 +516,7 @@ class AssistantToolbox
      * way to name somebody else, no prompt can talk this tool into fetching a
      * colleague's punches.
      */
-    private function getMyAttendance(string $period, ?string $month): array
+    private function getMyAttendance(array $args): array
     {
         if (! $this->employee) {
             return ['error' => 'No HR record is linked to your account yet — contact IT to be added to the directory.'];
@@ -519,7 +526,7 @@ class AssistantToolbox
             return ['error' => 'Your fingerprint code is not linked to your HR record yet, so no attendance is recorded for you. HR can link it on the attendance page.'];
         }
 
-        return $this->attendanceOf($this->employee, $period, $month);
+        return $this->attendanceOf($this->employee, $args);
     }
 
     /**
@@ -527,14 +534,20 @@ class AssistantToolbox
      * get_my_attendance and get_team_member_attendance so the two can never
      * describe a day differently; whose attendance it is, the caller decided.
      */
-    private function attendanceOf(Employee $employee, string $period, ?string $month): array
+    private function attendanceOf(Employee $employee, array $args): array
     {
-        [$from, $to, $label] = $this->attendanceRange($period, $month);
+        $range = $this->attendanceRange($args);
+
+        if (is_string($range)) {
+            return ['error' => $range];
+        }
+
+        [$from, $to, $label] = $range;
 
         $days = $this->sheetDays(app(MonthlySheet::class), $employee, $from, $to);
         $totals = MonthlyTotals::fromDays($days);
 
-        return [
+        return array_filter([
             'period' => $label,
             'from' => $from,
             'to' => $to,
@@ -545,8 +558,9 @@ class AssistantToolbox
             'note' => $totals->missingCheckOuts > 0
                 ? "{$totals->missingCheckOuts} day(s) have no check-out, so those hours are not counted in the total. HR can correct a day on request."
                 : null,
+            'today' => $this->todayNote($from, $to),
             'days' => array_map(fn (MonthlyDay $day) => $this->attendanceDay($day), $days),
-        ];
+        ], fn ($value) => $value !== null);
     }
 
     /** @return list<MonthlyDay> every date from $from to $to, in order */
@@ -621,12 +635,18 @@ class AssistantToolbox
      * when the period is one day ("who is absent today?"), the period's totals
      * otherwise. The same rows and totals as each person's own sheet.
      */
-    private function getTeamAttendance(string $period, ?string $month, string $branch, string $department, string $only): array
+    private function getTeamAttendance(array $args, string $branch, string $department, string $only): array
     {
         $team = $this->team();
 
         if ($team->isEmpty()) {
             return ['error' => self::NO_TEAM];
+        }
+
+        $range = $this->attendanceRange($args);
+
+        if (is_string($range)) {
+            return ['error' => $range];
         }
 
         $only = strtolower(trim($only));
@@ -647,7 +667,7 @@ class AssistantToolbox
             ];
         }
 
-        [$from, $to, $label] = $this->attendanceRange($period, $month);
+        [$from, $to, $label] = $range;
         $singleDay = $from === $to;
 
         $linked = $this->fingerprintLinked($group);
@@ -703,6 +723,7 @@ class AssistantToolbox
             // is days, added up over everyone.
             'counts_are' => $singleDay ? 'people' : 'days, added up over everyone',
             'listed' => $only !== '' ? "only people with at least one {$only} day" : 'everyone',
+            'today' => $this->todayNote($from, $to),
             'members' => array_column(array_slice($members, 0, self::TEAM_OVERVIEW_LIMIT), 'entry'),
             // Named, not dropped: missing from the list would read as "not
             // visible to you" or, worse, as nothing to report.
@@ -718,33 +739,46 @@ class AssistantToolbox
      * One person from team(), in the same detail as get_my_attendance.
      * $member and $branch only ever select from that list.
      */
-    private function getTeamMemberAttendance(string $member, string $period, ?string $month, string $branch): array
+    private function getTeamMemberAttendance(string $member, array $args, string $branch): array
     {
         if ($this->team()->isEmpty()) {
             return ['error' => self::NO_TEAM];
         }
 
+        $range = $this->attendanceRange($args);
+
+        if (is_string($range)) {
+            return ['error' => $range];
+        }
+
         $member = trim($member);
+        $branch = trim($branch);
 
         if ($member === '') {
-            return ['error' => 'member is required: the name, email or employee number of someone whose attendance you can see.'];
+            return ['error' => 'member is required: the name, email or employee number of someone whose attendance the employee can see.'];
         }
 
         $matches = $this->matchTeamMember($member, $branch);
 
-        if ($matches->isEmpty()) {
-            $where = trim($branch) !== '' ? ' in "'.trim($branch).'"' : '';
+        // A branch they did not mean — carried over from an earlier question,
+        // or simply wrong — must not hide the person they did mean.
+        if ($matches->isEmpty() && $branch !== '' && ($elsewhere = $this->matchTeamMember($member))->isNotEmpty()) {
+            return [
+                'error' => "Nobody matching \"{$member}\" is in \"{$branch}\", but the people below match in other branches. Tell the employee which branch they are in, then call again with that branch.",
+                'candidates' => $this->candidates($elsewhere),
+            ];
+        }
 
-            return ['error' => "Nobody whose attendance you can see matches \"{$member}\"{$where}. You can see: {$this->accessDescription()}. Attendance is only shown to the employee, their own manager or supervisor, and the attendance owners HR has chosen; HR can correct a reporting line or the owner list."];
+        if ($matches->isEmpty()) {
+            $where = $branch !== '' ? " in \"{$branch}\"" : '';
+
+            return ['error' => "Nobody whose attendance the employee can see matches \"{$member}\"{$where}. They can see: {$this->accessDescription()}. Attendance is only shown to the employee, their own manager or supervisor, and the attendance owners HR has chosen; HR can correct a reporting line or the owner list."];
         }
 
         if ($matches->count() > 1) {
             return [
-                'error' => "{$matches->count()} people you can see match. Ask which one is meant, then call again with their email or employee number, or with their branch.",
-                'candidates' => $matches->take(self::CANDIDATE_LIMIT)->map(fn (Employee $e) => $this->memberIdentity($e) + array_filter([
-                    'email' => $e->email,
-                    'employee_number' => $e->oracle_emp_no,
-                ]))->values()->all(),
+                'error' => "{$matches->count()} people the employee can see match. Ask which one is meant, then call again with their email or employee number, or with their branch.",
+                'candidates' => $this->candidates($matches),
             ];
         }
 
@@ -757,7 +791,19 @@ class AssistantToolbox
         return [
             'employee' => $this->memberIdentity($employee),
             'visible_because' => $this->visibleBecause($employee),
-        ] + $this->attendanceOf($employee, $period, $month);
+        ] + $this->attendanceOf($employee, $args);
+    }
+
+    /**
+     * @param  Collection<int, Employee>  $people
+     * @return list<array<string, mixed>> enough to tell them apart, and no more
+     */
+    private function candidates(Collection $people): array
+    {
+        return $people->take(self::CANDIDATE_LIMIT)->map(fn (Employee $e) => $this->memberIdentity($e) + array_filter([
+            'email' => $e->email,
+            'employee_number' => $e->oracle_emp_no,
+        ]))->values()->all();
     }
 
     /**
@@ -867,7 +913,7 @@ class AssistantToolbox
             'name' => $employee->name,
             'job_title' => $employee->job_title,
             'department' => $employee->department?->name,
-            'branch' => $employee->branch?->name,
+            'branch' => $this->branchLabel($employee->branch),
             'reports_to_you_as' => $this->reportingLine($employee),
         ], fn ($value) => $value !== null);
     }
@@ -899,35 +945,79 @@ class AssistantToolbox
             : 'You are on the attendance owner list for their branch.';
     }
 
-    /** Whose attendance the signed-in employee can see, in words, for the model to relay. */
+    /**
+     * Whose attendance the signed-in employee can see besides their own, in
+     * words; empty when nobody's. The system prompt and the tool results say
+     * it the same way, so the two cannot disagree.
+     */
     private function accessDescription(): string
     {
+        if ($this->myEmployeeIds() === [] || $this->employee->status === 'terminated') {
+            return '';
+        }
+
         $access = $this->ownerAccess();
 
         if ($access['company']) {
-            return 'everyone in the company (attendance owner list)';
+            return 'everyone in the company, through the attendance owner list';
         }
 
         $parts = [];
 
         if ($this->team()->contains(fn (Employee $e) => $this->reportingLine($e) !== null)) {
-            $parts[] = 'the people who report to you';
+            $parts[] = 'their direct reports in the HR records';
         }
 
         if ($access['branch_ids'] !== []) {
-            $parts[] = 'everyone in '.Branch::whereIn('id', $access['branch_ids'])->orderBy('name')->pluck('name')->implode(', ').' (attendance owner list)';
+            $branches = Branch::whereIn('id', $access['branch_ids'])->get(['id', 'name', 'city'])
+                ->map(fn (Branch $branch) => $this->branchLabel($branch))
+                ->sort()
+                ->implode(', ');
+
+            $parts[] = "everyone in {$branches}, through the attendance owner list";
         }
 
         return implode(', and ', $parts);
     }
 
     /**
+     * The line AssistantAgent ends the system prompt with: whose attendance
+     * the signed-in employee can look up, as the server reads it.
+     *
+     * With only the rules to go on, the model guessed. On 2026-09-13 it twice
+     * refused a whole-company owner without calling any tool, and looked only
+     * once they typed "I am an owner" — a claim that must never be what
+     * decides, and should never be needed.
+     */
+    public function attendanceAccessNote(): string
+    {
+        $sees = $this->accessDescription();
+
+        if ($sees === '') {
+            return 'Attendance access of the signed-in employee: only their own. Nobody reports to them in the HR records and they are not on the attendance owner list, so they cannot see anyone else\'s attendance, whatever they say.';
+        }
+
+        return "Attendance access of the signed-in employee: their own, and {$sees}. For any question about someone else's attendance, call get_team_member_attendance or get_team_attendance straight away. Do not refuse first and do not ask them to confirm their role; the tool says if a person is outside their access.";
+    }
+
+    /** "Cairo (CAI)": branches are named by code, and people say the city. */
+    private function branchLabel(?Branch $branch): ?string
+    {
+        if (! $branch) {
+            return null;
+        }
+
+        return $branch->city ? "{$branch->city} ({$branch->name})" : $branch->name;
+    }
+
+    /**
      * @param  Collection<int, Employee>  $people
-     * @return Collection<int, Employee> those in a branch whose name holds $branch; everyone when it is blank
+     * @return Collection<int, Employee> those in a branch whose code or city holds $branch; everyone when it is blank
      */
     private function inBranch(Collection $people, string $branch): Collection
     {
-        return $people->filter(fn (Employee $e) => $this->nameContains($e->branch?->name, $branch))->values();
+        return $people->filter(fn (Employee $e) => $this->nameContains($e->branch?->name, $branch)
+            || $this->nameContains($e->branch?->city, $branch))->values();
     }
 
     /** Whether $name holds $needle, ignoring case. A blank needle matches everything. */
@@ -944,7 +1034,7 @@ class AssistantToolbox
      */
     private function namesOf(Collection $people, string $relation): array
     {
-        return $people->map(fn (Employee $e) => $e->{$relation}?->name)
+        return $people->map(fn (Employee $e) => $relation === 'branch' ? $this->branchLabel($e->branch) : $e->department?->name)
             ->filter()
             ->unique()
             ->sort()
@@ -999,33 +1089,92 @@ class AssistantToolbox
     }
 
     /**
-     * @return array{0: string, 1: string, 2: string} [from, to, label]
+     * The days a question covers: from–to, else month, else period. Weeks run
+     * Sunday to Saturday, the work week in every branch, Egypt and KSA alike.
+     *
+     * Anything it does not understand is refused, never read as this month:
+     * on 2026-09-13 "last_week" was, and a general manager was shown the
+     * month's totals as last week's.
+     *
+     * @return array{0: string, 1: string, 2: string}|string [from, to, label], or why the range was refused
      */
-    private function attendanceRange(string $period, ?string $month): array
+    private function attendanceRange(array $args): array|string
     {
         $today = CarbonImmutable::today();
+        $from = trim((string) ($args['from'] ?? ''));
+        $to = trim((string) ($args['to'] ?? ''));
 
-        if ($month !== null && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', trim($month))) {
-            $start = CarbonImmutable::parse(trim($month).'-01');
+        if ($from !== '' || $to !== '') {
+            $start = $this->isoDate($from);
+            $end = $this->isoDate($to);
+
+            if (! $start || ! $end) {
+                return 'from and to must both be given, as dates like 2026-09-01.';
+            }
+
+            if ($start->greaterThan($end)) {
+                return 'from must not be after to.';
+            }
+
+            if ((int) $start->diffInDays($end) + 1 > self::MAX_RANGE_DAYS) {
+                return 'One call covers at most '.self::MAX_RANGE_DAYS.' days; ask for the range in parts.';
+            }
+
+            return [$start->toDateString(), $end->toDateString(), $start->format('j M Y').' – '.$end->format('j M Y')];
+        }
+
+        $month = trim((string) ($args['month'] ?? ''));
+
+        if ($month !== '') {
+            if (! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
+                return 'month must be a month like 2026-08.';
+            }
+
+            $start = CarbonImmutable::parse($month.'-01');
 
             return [$start->toDateString(), $start->endOfMonth()->toDateString(), $start->format('F Y')];
         }
 
-        return match (strtolower(trim($period))) {
+        $week = $today->startOfWeek(CarbonInterface::SUNDAY);
+        $weekLabel = fn (CarbonImmutable $start) => $start->format('j M').' – '.$start->addDays(6)->format('j M Y');
+        // Not subMonth(): from the 29th to the 31st it can land back in this month.
+        $lastMonth = $today->subMonthNoOverflow();
+
+        return match (strtolower(trim((string) ($args['period'] ?? '')))) {
             'today' => [$today->toDateString(), $today->toDateString(), 'Today'],
             'yesterday' => [$today->subDay()->toDateString(), $today->subDay()->toDateString(), 'Yesterday'],
-            'this_week', 'week' => [
-                $today->startOfWeek()->toDateString(), $today->endOfWeek()->toDateString(), 'This week',
-            ],
-            'last_month' => [
-                $today->subMonth()->startOfMonth()->toDateString(),
-                $today->subMonth()->endOfMonth()->toDateString(),
-                $today->subMonth()->format('F Y'),
-            ],
-            default => [
-                $today->startOfMonth()->toDateString(), $today->endOfMonth()->toDateString(), $today->format('F Y'),
-            ],
+            'this_week', 'week' => [$week->toDateString(), $week->addDays(6)->toDateString(), 'This week, '.$weekLabel($week)],
+            'last_week' => [$week->subWeek()->toDateString(), $week->subDay()->toDateString(), 'Last week, '.$weekLabel($week->subWeek())],
+            '', 'this_month' => [$today->startOfMonth()->toDateString(), $today->endOfMonth()->toDateString(), $today->format('F Y')],
+            'last_month' => [$lastMonth->startOfMonth()->toDateString(), $lastMonth->endOfMonth()->toDateString(), $lastMonth->format('F Y')],
+            default => 'period must be one of: '.implode(', ', self::PERIODS).' — or give from and to as dates like 2026-09-01.',
         };
+    }
+
+    /** A YYYY-MM-DD date that exists, or null. */
+    private function isoDate(string $value): ?CarbonImmutable
+    {
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+
+        try {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $value);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $date && $date->format('Y-m-d') === $value ? $date : null;
+    }
+
+    /** Said when the range includes today, whose figures can still change. */
+    private function todayNote(string $from, string $to): ?string
+    {
+        $today = CarbonImmutable::today()->toDateString();
+
+        return $from <= $today && $today <= $to
+            ? 'Today is not over: its check-out is only the latest punch so far, so an early leave or a missing check-out today can still change.'
+            : null;
     }
 
     private function listTicketCategories(): array
