@@ -332,3 +332,26 @@ it('builds the sheet page for one person', function () {
         ->and($data['employee']->name)->toBe('Ahmed')
         ->and(AttendanceDay::where('employee_id', $employee->id)->count())->toBeGreaterThan(1);
 });
+
+it('gives an overview the same days and totals as the sheet, only without punches', function () {
+    $employee = sheetPerson();
+    AttendanceHoliday::create(['holiday_date' => '2026-09-08', 'name' => 'National Day', 'branch_id' => null]);
+    sheetPunch($employee, '2026-09-01 08:55:00');
+    sheetPunch($employee, '2026-09-01 17:05:00');
+    sheetPunch($employee, '2026-09-02 09:25:00');   // late, and never punched out
+
+    $sheet = sheetFor($employee);
+    $overview = (new MonthlySheet(new ShiftResolver))
+        ->daysWithoutPunches(collect([$employee]), '2026-09-01', '2026-09-30')[$employee->id];
+    $twoDays = (new MonthlySheet(new ShiftResolver))
+        ->daysWithoutPunches(collect([$employee]), '2026-09-02', '2026-09-03')[$employee->id];
+
+    $shape = fn (array $days) => array_map(fn (MonthlyDay $d) => [$d->date, $d->kind, $d->day?->id, $d->holiday, $d->future], $days);
+    $figures = fn (array $days) => array_diff_key(get_object_vars(MonthlyTotals::fromDays($days)), ['punches' => true]);
+
+    expect($shape($overview))->toBe($shape($sheet))
+        ->and($figures($overview))->toBe($figures($sheet))
+        ->and(collect($overview)->sum(fn (MonthlyDay $d) => $d->punches->count()))->toBe(0)
+        ->and(array_column($shape($twoDays), 0))->toBe(['2026-09-02', '2026-09-03'])
+        ->and($twoDays[0]->has(AttendanceDayBuilder::FLAG_MISSING_CHECK_OUT))->toBeTrue();
+});

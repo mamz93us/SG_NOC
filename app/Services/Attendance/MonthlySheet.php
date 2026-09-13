@@ -88,6 +88,60 @@ class MonthlySheet
     }
 
     /**
+     * Several people's dates from $from to $to, for adding up: one query for
+     * all of their attendance_days rows, and no punches.
+     *
+     * Every MonthlyTotals figure but `punches` comes from the day rows and the
+     * calendar, so an overview of a team, a branch or the whole company needs
+     * no punch at all. Building each person's whole month with build() instead
+     * took 10 s for the 566 people on NOC2 (2026-09-13). Each date's kind and
+     * row are exactly what build() gives; only `punches` is empty.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @return array<int, list<MonthlyDay>> keyed by employee id
+     */
+    public function daysWithoutPunches(Collection $employees, string $from, string $to): array
+    {
+        $today = CarbonImmutable::today()->toDateString();
+
+        $rows = AttendanceDay::query()
+            ->whereIn('employee_id', $employees->pluck('id')->all())
+            ->whereBetween('work_date', [$from, $to])
+            ->with('shift:id,name,start_time,end_time')
+            ->get()
+            ->groupBy('employee_id');
+
+        $result = [];
+
+        foreach ($employees as $employee) {
+            $mine = $rows->get($employee->id, collect())->keyBy(fn (AttendanceDay $d) => $d->work_date->toDateString());
+            $branchId = $employee->branch_id ? (int) $employee->branch_id : null;
+            $days = [];
+
+            for ($day = CarbonImmutable::parse($from); $day->toDateString() <= $to; $day = $day->addDay()) {
+                $date = $day->toDateString();
+                $shift = $this->shifts->forEmployee($employee->id, $date);
+                $row = $mine->get($date);
+                $holiday = $this->shifts->holidayFor($row?->branch_id ?? $branchId, $date);
+
+                $days[] = new MonthlyDay(
+                    date: $date,
+                    kind: $this->kind($employee, $date, $shift, $holiday),
+                    day: $row,
+                    punches: collect(),
+                    shift: $shift,
+                    holiday: $holiday,
+                    future: $date > $today,
+                );
+            }
+
+            $result[(int) $employee->id] = $days;
+        }
+
+        return $result;
+    }
+
+    /**
      * Every punch the month's windows can reach, in one query — an overnight
      * shift on the last day reaches into the next month.
      *

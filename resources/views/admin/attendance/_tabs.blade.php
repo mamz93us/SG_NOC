@@ -76,6 +76,12 @@
         </a>
     </li>
     <li class="nav-item">
+        <a class="nav-link {{ request()->routeIs('admin.attendance.owners.*') ? 'active' : '' }}"
+           href="{{ route('admin.attendance.owners.index') }}">
+            <i class="bi bi-shield-lock me-1"></i>Owners
+        </a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link {{ request()->routeIs('admin.attendance.areas.*') ? 'active' : '' }}"
            href="{{ route('admin.attendance.areas.index') }}">
             <i class="bi bi-geo-alt me-1"></i>Areas &amp; Terminals

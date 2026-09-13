@@ -218,6 +218,11 @@ return [
         'role_updated',
         'role_deleted',
         'credential_revealed',
+
+        // Who may read other people's attendance from the home-portal assistant.
+        'attendance_owner_added',
+        'attendance_owner_changed',
+        'attendance_owner_removed',
     ],
 
     'prune_chunk' => 5000,

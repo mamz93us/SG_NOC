@@ -219,6 +219,7 @@ class RolePermission extends Model
                 'view-attendance' => 'View Attendance (BioTime check-in / check-out, employee mapping)',
                 'manage-attendance' => 'Manage Attendance (BioTime sources, employee links, rebuild days)',
                 'approve-attendance' => 'Approve & Lock Attendance Periods, Send to Oracle',
+                'manage-attendance-owners' => 'Manage Attendance Owners (who can ask the assistant about a branch\'s or the whole company\'s attendance)',
             ],
         ];
     }
@@ -278,6 +279,7 @@ class RolePermission extends Model
             'view-attendance',
             'manage-attendance',
             'approve-attendance',
+            'manage-attendance-owners',
         ];
         $marketingPerms = ['view-email-marketing', 'view-courses', 'manage-courses'];
 
