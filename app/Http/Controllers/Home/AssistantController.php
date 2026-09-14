@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\IdentityUser;
 use App\Services\Ai\AssistantAgent;
 use App\Services\Ai\AssistantToolbox;
+use App\Services\Ai\DraftPlaceholders;
 use App\Services\Ai\KnowledgeRetriever;
 use App\Services\Identity\GraphService;
 use App\Services\Ticketing\HomeTicketSubmissionException;
@@ -258,6 +259,14 @@ class AssistantController extends Controller
             'body' => 'required|string|max:10000',
         ]);
 
+        // The draft card has no Edit, so a placeholder the model left in would
+        // go out as written. AssistantToolbox refuses such a draft; this stops
+        // one that reached the card anyway.
+        $placeholders = DraftPlaceholders::find($validated['subject'], $validated['body']);
+        if ($placeholders !== []) {
+            return response()->json(['message' => __('home_ai.email_draft.has_placeholder', ['placeholder' => implode(', ', $placeholders)])], 422);
+        }
+
         try {
             $this->graph->sendMailAsUser(
                 mailbox: (string) $request->user()->email,
@@ -290,6 +299,12 @@ class AssistantController extends Controller
             'body' => 'nullable|string|max:5000',
             'is_teams_meeting' => 'nullable|boolean',
         ]);
+
+        // An invitation goes to other people too: same stop as email().
+        $placeholders = DraftPlaceholders::find($validated['subject'], $validated['body'] ?? null);
+        if ($placeholders !== []) {
+            return response()->json(['message' => __('home_ai.calendar_draft.has_placeholder', ['placeholder' => implode(', ', $placeholders)])], 422);
+        }
 
         try {
             $event = $this->graph->createCalendarEvent(

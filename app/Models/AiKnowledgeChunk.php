@@ -10,16 +10,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * One retrieval unit — a heading-sized slice of an article — plus its packed
  * embedding. See the migration docblock for why this is a blob and not a
  * vector column.
+ *
+ * For an imported PDF, source_page and source_heading say where the slice is
+ * in the original: what the assistant cites, since a translated heading may
+ * appear nowhere in the PDF itself.
  */
 class AiKnowledgeChunk extends Model
 {
     protected $fillable = [
         'article_id', 'portal_document_id', 'heading', 'content', 'content_hash', 'locale',
+        'source_page', 'source_heading',
         'embedding', 'token_count', 'audience', 'audience_branch_id', 'audience_department_id',
     ];
 
     protected $casts = [
         'token_count' => 'integer',
+        'source_page' => 'integer',
         'audience_branch_id' => 'integer',
         'audience_department_id' => 'integer',
     ];

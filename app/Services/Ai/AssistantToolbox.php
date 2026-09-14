@@ -268,11 +268,17 @@ class AssistantToolbox
 
         return [
             'found' => true,
+            // document, page and heading_in_document come only with an imported
+            // PDF: what the employee can find in the original (PdfSourceLocator).
             'results' => $results->map(fn ($r) => [
                 'title' => $r['title'],
                 'heading' => $r['heading'],
                 'content' => mb_substr($r['content'], 0, 1200),
-            ])->values()->all(),
+            ] + array_filter([
+                'heading_in_document' => $r['heading_in_document'] ?? null,
+                'document' => $r['document'] ?? null,
+                'page' => $r['page'] ?? null,
+            ], fn ($value) => $value !== null))->values()->all(),
         ];
     }
 
@@ -1205,6 +1211,11 @@ class AssistantToolbox
      */
     private function draftTicket(array $args): array
     {
+        $placeholders = DraftPlaceholders::find($args['title'] ?? null, $args['description'] ?? null);
+        if ($placeholders !== []) {
+            return $this->placeholderError('draft_ticket', $placeholders);
+        }
+
         $catalog = TicketCatalog::fromSettings();
 
         $categoryId = (int) ($args['category_id'] ?? 0);
@@ -1231,6 +1242,11 @@ class AssistantToolbox
      */
     private function draftEmail(array $args): array
     {
+        $placeholders = DraftPlaceholders::find($args['subject'] ?? null, $args['body'] ?? null);
+        if ($placeholders !== []) {
+            return $this->placeholderError('draft_email', $placeholders);
+        }
+
         $to = array_values(array_filter(array_map(
             fn ($e) => trim((string) $e),
             is_array($args['to'] ?? null) ? $args['to'] : [],
@@ -1253,6 +1269,11 @@ class AssistantToolbox
      */
     private function draftCalendarEvent(array $args): array
     {
+        $placeholders = DraftPlaceholders::find($args['subject'] ?? null, $args['body'] ?? null);
+        if ($placeholders !== []) {
+            return $this->placeholderError('draft_calendar_event', $placeholders);
+        }
+
         $attendees = array_values(array_filter(array_map(
             fn ($e) => trim((string) $e),
             is_array($args['attendees'] ?? null) ? $args['attendees'] : [],
@@ -1269,5 +1290,40 @@ class AssistantToolbox
             'is_teams_meeting' => (bool) ($args['is_teams_meeting'] ?? false),
             'message' => 'Draft ready. Show this to the employee for review; nothing is created until they confirm.',
         ];
+    }
+
+    /**
+     * Refuses a draft that still holds a placeholder, and says how to fill it.
+     * The chat's draft cards have Send and no Edit, so "[Your Name]" in a
+     * draft is "[Your Name]" in the recipient's inbox — see DraftPlaceholders.
+     */
+    private function placeholderError(string $tool, array $placeholders): array
+    {
+        return [
+            'error' => 'The draft still contains a placeholder: '.implode(', ', $placeholders).'. '
+                ."Fill it in and call {$tool} again: the employee is ".$this->displayName()
+                .', lookup_colleague gives anyone else\'s name, and ask the employee for anything you still do not know. '
+                .'Never leave a placeholder for them to fill in.',
+        ];
+    }
+
+    /**
+     * Appended to the system prompt: who the assistant is talking to.
+     *
+     * With no name to sign with, 7 of the first 9 emails the assistant drafted
+     * on NOC2 ended "[Your Name]" or "[اسمك]" — and a draft goes out exactly as
+     * shown when the employee presses Send.
+     */
+    public function identityNote(): string
+    {
+        $role = collect([$this->employee?->job_title, $this->employee?->department?->name])->filter()->implode(', ');
+
+        return 'The signed-in employee is '.$this->displayName().($role !== '' ? " ({$role})" : '').'. '
+            .'Anything you draft for them (an email, a meeting invitation, a ticket) is written as them and signed with that name.';
+    }
+
+    private function displayName(): string
+    {
+        return trim((string) ($this->employee?->name ?: $this->user->name)) ?: 'the employee';
     }
 }

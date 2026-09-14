@@ -1194,6 +1194,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'store'])->name('knowledge.store');
             Route::post('knowledge/reindex-all', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexAll'])->name('knowledge.reindex-all');
             Route::get('knowledge/reindex-status', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexStatus'])->name('knowledge.reindex-status');
+            Route::get('knowledge/stats', [\App\Http\Controllers\Admin\AiKnowledgeStatsController::class, 'index'])->name('knowledge-stats');
             // PDF imports: the upload only queues; ai:import-pdfs reads and translates.
             Route::post('knowledge/imports', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'store'])->name('knowledge.imports.store');
             Route::get('knowledge/imports/status', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'status'])->name('knowledge.imports.status');

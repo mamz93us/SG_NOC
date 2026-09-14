@@ -200,7 +200,7 @@ class PdfKnowledgeImporter
             return $article;
         });
 
-        if ($article?->is_published && ! $this->indexer->indexArticle($article)) {
+        if ($article?->is_published && ! $this->indexer->indexArticle($article, waitWhenThrottled: true)) {
             $import->forceFill(['error' => 'Published, but indexing failed — use Reindex All once Azure OpenAI is reachable.'])->save();
         }
 

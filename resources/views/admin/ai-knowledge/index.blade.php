@@ -12,6 +12,9 @@
         </small>
     </div>
     <div class="d-flex gap-2">
+        <a href="{{ route('admin.ai-assistant.knowledge-stats') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-bar-chart me-1"></i>Statistics
+        </a>
         <a href="{{ route('admin.ai-assistant.instructions.edit') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-card-text me-1"></i>Instructions
         </a>

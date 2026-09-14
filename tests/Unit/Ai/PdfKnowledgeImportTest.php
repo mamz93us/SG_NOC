@@ -28,9 +28,12 @@ beforeEach(function () {
         Schema::dropIfExists($table);
     }
 
-    // Only as the parent the knowledge tables' foreign keys name.
+    // The parent the knowledge tables' foreign keys name, with what KnowledgeRetriever reads of it.
     Schema::create('portal_documents', function (Blueprint $t) {
         $t->id();
+        $t->string('title')->nullable();
+        $t->string('title_ar')->nullable();
+        $t->boolean('is_published')->default(false);
         $t->timestamps();
     });
 
@@ -42,6 +45,7 @@ beforeEach(function () {
         '2026_09_08_100004_create_ai_knowledge_chunks_table',
         '2026_09_09_120000_add_locale_to_ai_knowledge_chunks_table',
         '2026_09_14_110001_create_ai_knowledge_imports_table',
+        '2026_09_14_120001_add_source_to_ai_knowledge_chunks_table',
     ] as $migration) {
         (require database_path("migrations/{$migration}.php"))->up();
     }
@@ -391,4 +395,50 @@ it('turns poppler failures into something an admin can act on', function () {
         ->and(PdfPages::explain('pdfinfo', "Syntax Warning: May not be a PDF file (continuing anyway)\nSyntax Error: Couldn't read xref table\n"))->toContain('damaged')
         ->and(PdfPages::explain('pdftoppm', "Wrong page range given: the first page (9) can not be after the last page (2).\n"))
         ->toBe('pdftoppm failed: Wrong page range given: the first page (9) can not be after the last page (2).');
+});
+
+it('records where each chunk is in the PDF, and search hands that to the assistant', function () {
+    $this->pdf->pages = 1;
+    kbAzure([kbPage([
+        'language' => 'ar',
+        'title_english' => 'Labor Law',
+        'original' => "## المادة الثامنة والتسعون بعد المائة:\nلمفتش العمل حق دخول المنشأة.",
+        'english' => "## Article 198:\nA labor inspector may enter the establishment.",
+    ])]);
+
+    $import = kbImport(['publish' => true, 'file_name' => 'labor-law.pdf']);
+    kbWork($import);
+
+    $english = $import->refresh()->article->chunks()->where('locale', 'en')->first();
+
+    expect($english->source_page)->toBe(1)
+        ->and($english->source_heading)->toBe('المادة الثامنة والتسعون بعد المائة:');
+
+    $result = app(\App\Services\Ai\KnowledgeRetriever::class)->search('labor inspector', null)->firstWhere('heading', 'Article 198:');
+
+    expect($result)->toMatchArray([
+        'document' => 'labor-law.pdf',
+        'page' => 1,
+        'heading_in_document' => 'المادة الثامنة والتسعون بعد المائة:',
+    ]);
+});
+
+it('gives chunks indexed before sources existed their page, without embedding them again', function () {
+    $this->pdf->pages = 1;
+    kbAzure([kbPage([
+        'language' => 'ar',
+        'original' => "## المادة الأولى:\nيسمى هذا النظام نظام العمل.",
+        'english' => "## Article 1:\nThis law is called the Labor Law.",
+    ])]);
+
+    $import = kbImport(['publish' => true]);
+    kbWork($import);
+
+    $article = $import->refresh()->article;
+    $article->chunks()->update(['source_page' => null, 'source_heading' => null]); // as indexed before this change
+    $requestsBefore = count(Http::recorded());
+
+    expect(app(\App\Services\Ai\KnowledgeIndexer::class)->indexArticle($article))->toBeTrue()
+        ->and($article->chunks()->whereNotNull('source_page')->count())->toBe(2)
+        ->and(count(Http::recorded()))->toBe($requestsBefore);
 });

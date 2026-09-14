@@ -1269,6 +1269,12 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge-stats') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.knowledge-stats') }}">
+                                    <i class="bi bi-bar-chart me-2"></i>AI Knowledge Statistics
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.instructions.*') ? 'active' : '' }}"
                                    href="{{ route('admin.ai-assistant.instructions.edit') }}">
                                     <i class="bi bi-card-text me-2"></i>AI Assistant Instructions
