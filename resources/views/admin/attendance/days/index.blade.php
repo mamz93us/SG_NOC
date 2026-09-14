@@ -52,7 +52,7 @@
             'overtime' => 'Overtime',
             'over_max' => 'Too many hours',
             'excused' => 'Excused',
-            'adjusted' => 'Corrected by HR',
+            'adjusted' => 'Edited by HR',
             'unmapped' => 'Unmapped',
             'duplicates' => 'Duplicate punches',
         ];
@@ -187,6 +187,9 @@
                         </td>
                         <td class="text-center">
                             <span class="font-monospace">{{ $d->first_in?->format('H:i') ?? '—' }}</span>
+                            @if ($d->checkInEdited())
+                                <i class="bi bi-pencil-fill small text-warning-emphasis" title="Check-in edited by HR"></i>
+                            @endif
                             @if ($d->late_minutes > 0)
                                 <div class="small text-danger">{{ \App\Models\Attendance\AttendanceDay::minutesLabel($d->late_minutes) }} late</div>
                             @endif
@@ -194,6 +197,9 @@
                         <td class="text-center">
                             @if ($d->last_out)
                                 <span class="font-monospace">{{ $d->last_out->format('H:i') }}</span>
+                                @if ($d->checkOutEdited())
+                                    <i class="bi bi-pencil-fill small text-warning-emphasis" title="Check-out edited by HR"></i>
+                                @endif
                                 @unless ($d->last_out->isSameDay($d->work_date))
                                     <div class="small text-muted">next day</div>
                                 @endunless

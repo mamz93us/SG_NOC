@@ -136,6 +136,9 @@
                         @else
                             <td class="text-center">
                                 <span class="font-monospace">{{ $row->first_in?->format('H:i') ?? '—' }}</span>
+                                @if ($row->checkInEdited())
+                                    <i class="bi bi-pencil-fill small text-warning-emphasis" title="Check-in edited by HR"></i>
+                                @endif
                                 @if ($row->late_minutes > 0)
                                     <div class="small text-danger">{{ AttendanceDay::minutesLabel($row->late_minutes) }} late</div>
                                 @endif
@@ -143,6 +146,9 @@
                             <td class="text-center">
                                 @if ($row->last_out)
                                     <span class="font-monospace">{{ $row->last_out->format('H:i') }}</span>
+                                    @if ($row->checkOutEdited())
+                                        <i class="bi bi-pencil-fill small text-warning-emphasis" title="Check-out edited by HR"></i>
+                                    @endif
                                     @unless ($row->last_out->isSameDay($row->work_date))
                                         <div class="small text-muted">next day</div>
                                     @endunless

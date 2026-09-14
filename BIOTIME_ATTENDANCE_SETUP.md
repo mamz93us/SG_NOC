@@ -248,7 +248,7 @@ Flags:
 | Late / Early leave / Overtime | Fact, in minutes |
 | Worked on day off / Worked on holiday | Fact, counted as overtime |
 | Punched at another branch | Warning |
-| Corrected by HR / Excused | Information |
+| Check-in edited / Check-out edited / Excused | Information |
 
 Raw punches (`attendance_punches`) are never edited. `attendance_days` is
 derived from them and can be rebuilt at any time with **Rebuild days** on the
@@ -292,13 +292,21 @@ days at once, such as Eid. A holiday records no absence, and work on it is overt
 
 **Corrections.** Open a day from the check-in/out page. Anyone with `manage-attendance` can:
 
-- *Correct this day*: set the check-in and/or check-out, with a reason. The punches are not edited;
-  the day shows **Corrected by HR**.
+- *Edit check-in* and *Edit check-out*: two separate forms, each with its own time and its own
+  reason. The punches are not edited. The edited time shows **Edited by HR** on the day page, the
+  day is flagged **Check-in edited** or **Check-out edited**, and the check-in/out list and the
+  monthly sheet mark the time with a pencil.
 - *Excuse the day*: annual leave, sick leave, mission, work from home, permission or other.
   Absence, lateness, early leave and a missing check-out stop counting. A future punch or an
   unmapped code still counts, because those are data errors.
 
-A new correction replaces the previous one, which stays in the day's **History**. Any correction can be **revoked**.
+The day's **Day log** lists the punches together with each active edit: the new time, its reason,
+who made it and when, and the time from the punches that it replaced.
+
+A new edit replaces only the previous edit of the same kind, so editing the check-out leaves the
+check-in edit and its reason in force. Replaced edits stay in the day's **History**, and each edit
+can be **revoked** on its own. The Oracle API and export say which side was edited:
+`check_in_adjusted` and `check_out_adjusted`, with `corrected` true when either is.
 
 Saving a shift, an assignment or a holiday queues a recalculation of the last 14 days. It starts
 within a minute (`attendance:work`), and the banner at the top of the attendance pages shows when it's done.
@@ -397,7 +405,7 @@ everything that changed since approval applies. Then approve it again.
 
 Approving queues the **Oracle export**. It builds one record per employee per day: Oracle number,
 name, branch, date, status, shift, scheduled times, check-in/out, worked / late / early-leave /
-overtime minutes, excuse, and whether HR corrected it. The record goes to the sender configured in
+overtime minutes, excuse, and whether HR edited the check-in or the check-out. The record goes to the sender configured in
 `config/attendance.php`. Until Oracle publishes its attendance API that is
 `StubOracleAttendanceSender`: it sends nothing, and marks the export **prepared**. Every export
 keeps its exact payload, which you can **download as CSV or JSON**. **Prepare again** builds a new one.

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Attendance\AttendanceAdjustment;
 use App\Models\Attendance\AttendanceDay;
+use App\Models\Attendance\AttendancePunch;
 use App\Models\Attendance\AttendanceTask;
 use App\Models\Attendance\BiotimeEmployee;
 use App\Models\Attendance\BiotimeSource;
@@ -16,6 +17,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -57,18 +59,91 @@ class AttendanceDayController extends Controller
     {
         $day->load(['employee.department', 'employee.branch', 'biotimeEmployee.source', 'branch', 'shift']);
 
+        $punches = $day->punchesQuery()->with('source:id,name')->orderBy('punch_time')->orderBy('id')->get();
+        $adjustments = $day->employee_id
+            ? AttendanceAdjustment::with(['createdBy:id,name', 'revokedBy:id,name'])
+                ->where('employee_id', $day->employee_id)
+                ->where('work_date', $day->work_date->toDateString())
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->get()
+            : collect();
+
         return view('admin.attendance.days.show', [
             'day' => $day,
-            'punches' => $day->punchesQuery()->with('source:id,name')->orderBy('punch_time')->orderBy('id')->get(),
-            'adjustments' => $day->employee_id
-                ? AttendanceAdjustment::with(['createdBy:id,name', 'revokedBy:id,name'])
-                    ->where('employee_id', $day->employee_id)
-                    ->where('work_date', $day->work_date->toDateString())
-                    ->latest('id')
-                    ->get()
-                : collect(),
+            'log' => $this->dayLog($day, $punches, $adjustments),
+            'adjustments' => $adjustments,
             'excuses' => AttendanceAdjustment::EXCUSES,
         ]);
+    }
+
+    /**
+     * The day's punches and its active HR time edits as one timeline. A punch
+     * is marked check-in or check-out only while that side is not edited; an
+     * edited side's row is the edit, with its reason and the time it replaced.
+     *
+     * @param  Collection<int, AttendancePunch>  $punches  in time order
+     * @param  Collection<int, AttendanceAdjustment>  $adjustments  latest first
+     * @return list<array{time: \Carbon\CarbonInterface, role: ?string, duplicate: bool, punch: ?AttendancePunch, edit: ?AttendanceAdjustment, replaces: ?string}>
+     */
+    private function dayLog(AttendanceDay $day, Collection $punches, Collection $adjustments): array
+    {
+        $format = AttendanceDayBuilder::FORMAT;
+        $inEdited = $day->checkInEdited();
+        $outEdited = $day->checkOutEdited();
+        $firstIn = $day->first_in?->format($format);
+        $lastOut = $day->last_out?->format($format);
+        $punches = $punches->values();
+        // The check-out is the LAST punch at that time, even inside a burst of repeats.
+        $outIndex = $punches->filter(fn (AttendancePunch $p) => $p->punch_time->format($format) === $lastOut)->keys()->last();
+
+        $rows = [];
+        $previous = null;
+        $distinct = 0;
+        $inMarked = false;
+        foreach ($punches as $index => $punch) {
+            $timestamp = $punch->punch_time->getTimestamp();
+            $duplicate = $previous !== null && $timestamp - $previous < AttendanceDayBuilder::DUPLICATE_WINDOW_SECONDS;
+            if (! $duplicate) {
+                $previous = $timestamp;
+                $distinct++;
+            }
+
+            $role = null;
+            if (! $inEdited && ! $inMarked && $punch->punch_time->format($format) === $firstIn) {
+                $role = 'in';
+                $inMarked = true;
+            } elseif (! $outEdited && $index === $outIndex) {
+                $role = 'out';
+            }
+
+            $rows[] = ['time' => $punch->punch_time, 'role' => $role, 'duplicate' => $duplicate, 'punch' => $punch, 'edit' => null, 'replaces' => null];
+        }
+
+        // What the punches alone give each side, shown against its edit.
+        $fromPunches = [
+            AttendanceAdjustment::KIND_CHECK_IN => $punches->first()?->punch_time,
+            AttendanceAdjustment::KIND_CHECK_OUT => $distinct > 1 ? $punches->last()->punch_time : null,
+        ];
+
+        foreach ($fromPunches as $kind => $punchTime) {
+            $edit = $adjustments->first(fn (AttendanceAdjustment $a) => $a->isActive() && $a->{$kind} !== null);
+            if ($edit) {
+                $rows[] = [
+                    'time' => $edit->{$kind},
+                    'role' => $kind === AttendanceAdjustment::KIND_CHECK_IN ? 'in' : 'out',
+                    'duplicate' => false,
+                    'punch' => null,
+                    'edit' => $edit,
+                    'replaces' => $punchTime?->format('H:i:s'),
+                ];
+            }
+        }
+
+        // By time; at the same second the punch comes before the edit.
+        usort($rows, fn (array $a, array $b) => [$a['time']->getTimestamp(), $a['edit'] ? 1 : 0] <=> [$b['time']->getTimestamp(), $b['edit'] ? 1 : 0]);
+
+        return $rows;
     }
 
     public function export(Request $request): StreamedResponse
@@ -224,7 +299,10 @@ class AttendanceDayController extends Controller
                 'overtime' => $query->where('overtime_minutes', '>', 0),
                 'over_max' => $query->whereJsonContains('flags', AttendanceDayBuilder::FLAG_OVER_MAX_HOURS),
                 'excused' => $query->where('status', AttendanceDayBuilder::STATUS_EXCUSED),
-                'adjusted' => $query->whereJsonContains('flags', AttendanceDayBuilder::FLAG_ADJUSTED),
+                'adjusted' => $query->where(fn ($q) => $q
+                    ->whereJsonContains('flags', AttendanceDayBuilder::FLAG_CHECK_IN_ADJUSTED)
+                    ->orWhereJsonContains('flags', AttendanceDayBuilder::FLAG_CHECK_OUT_ADJUSTED)
+                    ->orWhereJsonContains('flags', AttendanceDayBuilder::FLAG_ADJUSTED)),
                 'duplicates' => $query->whereJsonContains('flags', AttendanceDayBuilder::FLAG_DUPLICATES),
                 default => null,
             };

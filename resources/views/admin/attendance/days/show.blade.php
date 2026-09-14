@@ -7,6 +7,8 @@
 
 @php
     $canAdjust = $day->employee_id && ! $day->locked && auth()->user()?->can('manage-attendance');
+    $inEdited = $day->checkInEdited();
+    $outEdited = $day->checkOutEdited();
     $defaultIn = $day->first_in?->format('Y-m-d\TH:i')
         ?? $day->scheduled_start?->format('Y-m-d\TH:i')
         ?? $day->work_date->format('Y-m-d').'T09:00';
@@ -82,7 +84,13 @@
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body py-3">
                 <div class="fs-4 fw-bold font-monospace">{{ $day->first_in?->format('H:i:s') ?? '—' }}</div>
-                <div class="small text-muted">Check-in (earliest punch)</div>
+                <div class="small text-muted">
+                    @if ($inEdited)
+                        Check-in <span class="badge bg-warning text-dark ms-1"><i class="bi bi-pencil-fill me-1"></i>Edited by HR</span>
+                    @else
+                        Check-in (earliest punch)
+                    @endif
+                </div>
                 @if ($day->late_minutes > 0)
                     <div class="small text-danger">{{ \App\Models\Attendance\AttendanceDay::minutesLabel($day->late_minutes) }} late</div>
                 @endif
@@ -94,7 +102,11 @@
             <div class="card-body py-3">
                 <div class="fs-4 fw-bold font-monospace">{{ $day->last_out?->format('H:i:s') ?? '—' }}</div>
                 <div class="small text-muted">
-                    Check-out (latest punch)
+                    @if ($outEdited)
+                        Check-out <span class="badge bg-warning text-dark ms-1"><i class="bi bi-pencil-fill me-1"></i>Edited by HR</span>
+                    @else
+                        Check-out (latest punch)
+                    @endif
                     @if ($day->last_out && ! $day->last_out->isSameDay($day->work_date))
                         · {{ $day->last_out->format('d M') }}
                     @endif
@@ -131,7 +143,8 @@
     <div class="{{ $canAdjust ? 'col-lg-7' : 'col-12' }}">
         <div class="card shadow-sm border-0">
             <div class="card-header bg-transparent fw-semibold">
-                Raw punches from BioTime
+                Day log
+                <span class="small text-muted fw-normal">· punches from BioTime and edits by HR</span>
                 @if ($day->window_start && ! $day->window_start->isSameDay($day->window_end->copy()->subSecond()))
                     <span class="small text-muted fw-normal">
                         · {{ $day->window_start->format('d M H:i') }} to {{ $day->window_end->format('d M H:i') }} (overnight shift)
@@ -143,74 +156,79 @@
                     <thead class="table-light">
                         <tr>
                             <th style="width:110px">Time</th>
-                            <th style="width:120px">Used as</th>
-                            <th>BioTime state</th>
-                            <th>Terminal</th>
-                            <th>Area</th>
+                            <th style="width:160px">Used as</th>
+                            <th>Source</th>
+                            <th>Terminal / reason</th>
+                            <th>Area / by</th>
                             <th class="text-end">BioTime id</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @php
-                            $firstIn = $day->first_in?->format('Y-m-d H:i:s');
-                            $lastOut = $day->last_out?->format('Y-m-d H:i:s');
-                            // The check-out is the LAST punch at that time, even inside a burst of repeats.
-                            $outIndex = $punches->filter(fn ($p) => $p->punch_time->format('Y-m-d H:i:s') === $lastOut)->keys()->last();
-                            $previous = null;
-                            $inMarked = false;
-                        @endphp
-                        @forelse ($punches as $index => $punch)
-                            @php
-                                $time = $punch->punch_time->format('Y-m-d H:i:s');
-                                $isDuplicate = $previous !== null
-                                    && $punch->punch_time->getTimestamp() - $previous < \App\Services\Attendance\AttendanceDayBuilder::DUPLICATE_WINDOW_SECONDS;
-                                if (! $isDuplicate) {
-                                    $previous = $punch->punch_time->getTimestamp();
-                                }
-                                $role = null;
-                                if (! $inMarked && $time === $firstIn) {
-                                    $role = 'in';
-                                    $inMarked = true;
-                                } elseif ($index === $outIndex) {
-                                    $role = 'out';
-                                }
-                            @endphp
-                            <tr class="{{ $isDuplicate ? 'text-muted' : '' }}">
-                                <td class="font-monospace">
-                                    {{ $punch->punch_time->format('H:i:s') }}
-                                    @unless ($punch->punch_time->isSameDay($day->work_date))
-                                        <div class="small text-muted">{{ $punch->punch_time->format('d M') }}</div>
-                                    @endunless
-                                </td>
-                                <td>
-                                    @if ($role === 'in')
-                                        <span class="badge bg-primary">Check-in</span>
-                                    @elseif ($role === 'out')
-                                        <span class="badge bg-primary">Check-out</span>
-                                    @elseif ($isDuplicate)
-                                        <span class="badge bg-secondary">Duplicate</span>
-                                    @else
-                                        <span class="small text-muted">—</span>
-                                    @endif
-                                </td>
-                                <td class="small">
-                                    {{ $punch->stateLabel() }}
-                                    @if ($punch->punch_state !== null)
-                                        <span class="text-muted font-monospace">({{ $punch->punch_state }})</span>
-                                    @endif
-                                </td>
-                                <td class="small">
-                                    {{ $punch->terminal_alias ?: '—' }}
-                                    @if ($punch->terminal_sn)
-                                        <div class="text-muted font-monospace">{{ $punch->terminal_sn }}</div>
-                                    @endif
-                                </td>
-                                <td class="small">
-                                    {{ $punch->area_alias ?: '—' }}
-                                    <div class="text-muted">{{ $punch->source?->name }}</div>
-                                </td>
-                                <td class="text-end small font-monospace text-muted">{{ $punch->biotime_id }}</td>
-                            </tr>
+                        @forelse ($log as $entry)
+                            @php $time = $entry['time']; @endphp
+                            @if ($entry['edit'])
+                                @php $edit = $entry['edit']; @endphp
+                                <tr class="table-warning">
+                                    <td class="font-monospace">
+                                        {{ $time->format('H:i:s') }}
+                                        @unless ($time->isSameDay($day->work_date))
+                                            <div class="small text-muted">{{ $time->format('d M') }}</div>
+                                        @endunless
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ $entry['role'] === 'in' ? 'Check-in' : 'Check-out' }}</span>
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-pencil-fill me-1"></i>Edited</span>
+                                    </td>
+                                    <td class="small">
+                                        <span class="fw-semibold">Manual edit by HR</span>
+                                        <div class="text-muted">{{ $entry['replaces'] ? 'Was '.$entry['replaces'].' from the punches' : 'Was missing' }}</div>
+                                    </td>
+                                    <td class="small">{{ $edit->reason }}</td>
+                                    <td class="small">
+                                        {{ $edit->createdBy?->name ?? 'Unknown' }}
+                                        <div class="text-muted">{{ $edit->created_at?->format('d M Y H:i') }}</div>
+                                    </td>
+                                    <td class="text-end small text-muted">—</td>
+                                </tr>
+                            @else
+                                @php $punch = $entry['punch']; @endphp
+                                <tr class="{{ $entry['duplicate'] ? 'text-muted' : '' }}">
+                                    <td class="font-monospace">
+                                        {{ $time->format('H:i:s') }}
+                                        @unless ($time->isSameDay($day->work_date))
+                                            <div class="small text-muted">{{ $time->format('d M') }}</div>
+                                        @endunless
+                                    </td>
+                                    <td>
+                                        @if ($entry['role'] === 'in')
+                                            <span class="badge bg-primary">Check-in</span>
+                                        @elseif ($entry['role'] === 'out')
+                                            <span class="badge bg-primary">Check-out</span>
+                                        @elseif ($entry['duplicate'])
+                                            <span class="badge bg-secondary">Duplicate</span>
+                                        @else
+                                            <span class="small text-muted">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="small">
+                                        {{ $punch->stateLabel() }}
+                                        @if ($punch->punch_state !== null)
+                                            <span class="text-muted font-monospace">({{ $punch->punch_state }})</span>
+                                        @endif
+                                    </td>
+                                    <td class="small">
+                                        {{ $punch->terminal_alias ?: '—' }}
+                                        @if ($punch->terminal_sn)
+                                            <div class="text-muted font-monospace">{{ $punch->terminal_sn }}</div>
+                                        @endif
+                                    </td>
+                                    <td class="small">
+                                        {{ $punch->area_alias ?: '—' }}
+                                        <div class="text-muted">{{ $punch->source?->name }}</div>
+                                    </td>
+                                    <td class="text-end small font-monospace text-muted">{{ $punch->biotime_id }}</td>
+                                </tr>
+                            @endif
                         @empty
                             <tr>
                                 <td colspan="6" class="text-center text-muted py-4">No punches on this day.</td>
@@ -222,6 +240,7 @@
         </div>
         <p class="small text-muted mt-2 mb-0">
             BioTime's state column is shown for reference only — staff rarely press the in/out key, so it does not decide check-in or check-out.
+            An HR edit replaces that one time on the day; the punches themselves are never changed.
         </p>
     </div>
 
@@ -230,28 +249,27 @@
             <div class="card shadow-sm border-0 mb-3">
                 <div class="card-header bg-transparent fw-semibold"><i class="bi bi-pencil-square me-1"></i>Correct this day</div>
                 <div class="card-body">
-                    <form method="POST" action="{{ route('admin.attendance.days.adjust', $day) }}">
-                        @csrf
-                        <input type="hidden" name="action" value="times">
-                        <div class="row g-2">
-                            <div class="col-sm-6">
-                                <label class="form-label small">Check-in</label>
-                                <input type="datetime-local" name="check_in" class="form-control form-control-sm"
-                                       value="{{ old('action') === 'times' ? old('check_in') : $defaultIn }}">
-                            </div>
-                            <div class="col-sm-6">
-                                <label class="form-label small">Check-out</label>
-                                <input type="datetime-local" name="check_out" class="form-control form-control-sm"
-                                       value="{{ old('action') === 'times' ? old('check_out') : $defaultOut }}">
-                            </div>
-                            <div class="col-12">
-                                <textarea name="reason" rows="2" class="form-control form-control-sm" required maxlength="1000"
-                                          placeholder="Why — e.g. forgot to punch out, confirmed by manager">{{ old('action') === 'times' ? old('reason') : '' }}</textarea>
-                            </div>
-                        </div>
-                        <div class="form-text">Leave a field empty to keep the device's time. The punches themselves are not changed.</div>
-                        <button class="btn btn-sm btn-primary mt-2">Save correction</button>
-                    </form>
+                    @foreach ([
+                        'check_in' => ['label' => 'check-in', 'default' => $defaultIn, 'edited' => $inEdited, 'example' => 'forgot to punch in, manager confirmed 08:30'],
+                        'check_out' => ['label' => 'check-out', 'default' => $defaultOut, 'edited' => $outEdited, 'example' => 'forgot to punch out, left at 17:30'],
+                    ] as $kind => $side)
+                        <form method="POST" action="{{ route('admin.attendance.days.adjust', $day) }}" class="{{ $loop->first ? '' : 'mt-3 pt-3 border-top' }}">
+                            @csrf
+                            <input type="hidden" name="action" value="{{ $kind }}">
+                            <label class="form-label small fw-semibold mb-1" for="edit-{{ $kind }}">
+                                Edit {{ $side['label'] }}
+                                @if ($side['edited'])
+                                    <span class="badge bg-warning text-dark ms-1">edited</span>
+                                @endif
+                            </label>
+                            <input type="datetime-local" id="edit-{{ $kind }}" name="time" class="form-control form-control-sm" required
+                                   value="{{ old('action') === $kind ? old('time') : $side['default'] }}">
+                            <textarea name="reason" rows="2" class="form-control form-control-sm mt-2" required maxlength="1000"
+                                      placeholder="Why the {{ $side['label'] }} changes — e.g. {{ $side['example'] }}">{{ old('action') === $kind ? old('reason') : '' }}</textarea>
+                            <button class="btn btn-sm btn-primary mt-2">Save {{ $side['label'] }}</button>
+                        </form>
+                    @endforeach
+                    <div class="form-text">Each edit changes only its own time and keeps its own reason. The punches are not changed.</div>
 
                     <hr>
 
@@ -301,7 +319,7 @@
                                     </div>
                                     @if ($adjustment->isActive())
                                         <form method="POST" action="{{ route('admin.attendance.adjustments.revoke', $adjustment) }}"
-                                              onsubmit="return confirm('Revoke this correction? The day goes back to what the punches say.')">
+                                              onsubmit="return confirm('Revoke this edit? Only this change is undone.')">
                                             @csrf
                                             <button class="btn btn-sm btn-link text-danger p-0">Revoke</button>
                                         </form>
