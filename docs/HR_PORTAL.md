@@ -60,6 +60,16 @@ that contained. Do not break either one:
    2FA branches **without** setting `2fa_verified`. So if that same session is
    ever pointed at a NOC route, the normal 2FA challenge still fires.
 
+**Signing in on the NOC instead.** A role whose *landing* is the HR portal
+(Roles ▸ Edit ▸ "Land here after sign-in") is sent straight to the HR host from
+any sign-in page, before the 2FA step: `MicrosoftController` redirects to the HR
+host's own `/auth/microsoft`, which completes without a prompt because Entra has
+just authenticated them. The NOC session left behind is **not** marked verified,
+so NOC pages still challenge it. The shipped HR role lands on the portal hub
+(`noc_portal`), and that path still asks for 2FA — deliberately: the hub, and the
+attendance, employee and announcement pages the HR role can open under `/admin`,
+are NOC surfaces, not the HR workspace.
+
 On top of that, every HR surface is permission-gated (below) and read/propose
 only — the destructive half of every flow is behind IT approval plus, for
 onboarding and offboarding, the line manager's own emailed form.
@@ -179,9 +189,13 @@ Without it, sign-in on the HR host fails with an AADSTS redirect-mismatch error.
 
 ### 5. Grant HR staff access
 
-Admin → Users → set the user's role to **hr**. Or grant the individual slugs in
-Admin → Permissions. A brand-new SSO user is created as `browser_user` and will
-land on the "No HR access" page until this is done.
+Admin → Users → **Add User ▸ From Entra**: search for the employee, pick the
+**HR** role, save. No password is set — they sign in with Microsoft. The account
+is stored under their Entra **UPN**, because that is the address SSO matches on;
+if they already have an account (a first SSO sign-in makes them `browser_user`),
+the role is changed on that account instead of a second one being created.
+Individual slugs can still be granted in Admin → Permissions. Until one of these
+is done, a brand-new SSO user lands on the "No HR access" page.
 
 ### 6. `.env` (optional)
 

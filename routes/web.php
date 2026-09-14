@@ -1288,6 +1288,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             ->name('users.index');
         Route::post('users', [UserController::class, 'store'])
             ->name('users.store');
+        // Employee type-ahead behind "Add user ▸ From Entra".
+        Route::get('users/entra-search', [UserController::class, 'entraSearch'])
+            ->name('users.entra-search');
         Route::put('users/{user}', [UserController::class, 'update'])
             ->name('users.update');
         Route::delete('users/{user}', [UserController::class, 'destroy'])
