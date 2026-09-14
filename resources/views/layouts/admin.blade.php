@@ -398,14 +398,15 @@
                     </li>
                     @endcanany
 
-                    {{-- ── Attendance dropdown ── --}}
-                    @can('view-attendance')
+                    {{-- ── Attendance dropdown (with Vacations) ── --}}
+                    @canany(['view-attendance', 'view-vacations'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/attendance*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/attendance*') || request()->is('admin/vacations*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-fingerprint me-1"></i>Attendance
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @can('view-attendance')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.attendance.days.*') ? 'active' : '' }}"
                                    href="{{ route('admin.attendance.days.index') }}">
@@ -457,9 +458,36 @@
                                 </a>
                             </li>
                             @endcan
+                            @endcan
+                            @can('view-vacations')
+                            @can('view-attendance')
+                            <li><hr class="dropdown-divider"></li>
+                            @endcan
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-airplane me-1"></i>Vacations</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.vacations.balances.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.vacations.balances.index') }}">
+                                    <i class="bi bi-wallet2 me-2"></i>Vacation Balances
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.vacations.absences.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.vacations.absences.index') }}">
+                                    <i class="bi bi-calendar-range me-2"></i>Leave Records
+                                </a>
+                            </li>
+                            @can('manage-vacations')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.vacations.imports.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.vacations.imports.index') }}">
+                                    <i class="bi bi-file-earmark-arrow-up me-2"></i>Import from Oracle
+                                </a>
+                            </li>
+                            @endcan
+                            @endcan
                         </ul>
                     </li>
-                    @endcan
+                    @endcanany
 
                     {{-- ── Network dropdown ── --}}
                     @can('view-network')

@@ -222,6 +222,10 @@ class RolePermission extends Model
                 'approve-attendance' => 'Approve & Lock Attendance Periods, Send to Oracle',
                 'manage-attendance-owners' => 'Manage Attendance Owners (who can ask the assistant about a branch\'s or the whole company\'s attendance)',
             ],
+            'Vacations' => [
+                'view-vacations' => 'View Vacations (every employee\'s Oracle leave balance and leave records)',
+                'manage-vacations' => 'Manage Vacations (import the Oracle vacation sheets, link Oracle numbers to employees)',
+            ],
         ];
     }
 
@@ -281,6 +285,8 @@ class RolePermission extends Model
             'manage-attendance',
             'approve-attendance',
             'manage-attendance-owners',
+            'view-vacations',
+            'manage-vacations',
             'answer-ai-knowledge-gaps',
         ];
         $marketingPerms = ['view-email-marketing', 'view-courses', 'manage-courses'];
