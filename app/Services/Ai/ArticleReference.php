@@ -80,13 +80,13 @@ class ArticleReference
     /** The article a heading is — "المادة السابعة والسبعون:", "Article 77: Compensation" — or null. */
     public static function ofHeading(?string $heading): ?string
     {
-        return self::label(explode(':', trim((string) $heading), 2)[0]);
+        return self::label(explode(':', trim(self::withoutMarks((string) $heading)), 2)[0]);
     }
 
     /** Whether a line is an article's label and nothing else, as an unmarked heading in imported text is. */
     public static function isLabel(string $line): bool
     {
-        $line = rtrim(trim(trim($line), '*_'), ': ');
+        $line = rtrim(trim(trim(self::withoutMarks($line)), '*_'), ': ');
 
         return $line !== '' && mb_strlen($line) <= 80 && ! str_contains($line, ':') && self::label($line) !== null;
     }
@@ -187,6 +187,16 @@ class ArticleReference
         $text = (string) preg_replace('/[\x{0610}-\x{061A}\x{064B}-\x{065F}\x{0670}\x{0640}]/u', '', $text);
 
         return preg_split('/[^\p{L}\p{Nd}]+/u', mb_strtolower($text), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+
+    /**
+     * A footnote mark is not part of an article's name: "[^41]", "[41]", or a
+     * number the page reader left after the label's colon ("المادة العاشرة بعد
+     * المائتين: 76", "…: 76.").
+     */
+    private static function withoutMarks(string $text): string
+    {
+        return (string) preg_replace(['/\s*\[\^?\d{1,3}\]/u', '/:\s*\d{1,3}\s*[.\-]?\s*$/u'], ['', ':'], $text);
     }
 
     private static function key(int $number, bool $bis): ?string

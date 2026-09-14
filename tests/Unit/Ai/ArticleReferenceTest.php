@@ -44,6 +44,16 @@ it('reads the article a heading is, in words or in digits, and nothing else', fu
         ->and(ArticleReference::ofHeading(null))->toBeNull();
 });
 
+it('reads a heading or label that still carries a footnote mark', function () {
+    expect(ArticleReference::ofHeading('المادة السابعة والسبعون:[^41]'))->toBe('77')
+        ->and(ArticleReference::ofHeading('Article 77[^41]:'))->toBe('77')
+        ->and(ArticleReference::isLabel('المادة العاشرة بعد المائتين:[^76]'))->toBeTrue()
+        ->and(ArticleReference::isLabel('المادة العاشرة بعد المائتين: [76]'))->toBeTrue()
+        ->and(ArticleReference::isLabel('المادة العاشرة بعد المائتين: 76'))->toBeTrue()
+        ->and(ArticleReference::isLabel('المادة العاشرة بعد المائتين: 76.'))->toBeTrue()
+        ->and(ArticleReference::ofHeading('Article 211: 77'))->toBe('211');
+});
+
 it('takes a line for an article label only when the line is nothing but the label', function () {
     expect(ArticleReference::isLabel('المادة السبعون:'))->toBeTrue()
         ->and(ArticleReference::isLabel('**Article 70:**'))->toBeTrue()

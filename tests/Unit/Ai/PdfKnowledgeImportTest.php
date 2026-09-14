@@ -73,9 +73,16 @@ beforeEach(function () {
 
         public ?Closure $beforeRender = null;
 
+        public array $strips = [];
+
         public function count(string $path): int
         {
             return $this->pages;
+        }
+
+        public function strips(string $path, int $page): array
+        {
+            return $this->strips[$page] ?? [];
         }
 
         public function text(string $path, int $page): string
@@ -96,6 +103,66 @@ beforeEach(function () {
     };
 
     app()->instance(PdfPages::class, $this->pdf);
+});
+
+it('sends the page whole, then enlarged in strips', function () {
+    $this->pdf->pages = 1;
+    $this->pdf->strips = [1 => ['top-strip-of-page-1', 'bottom-strip-of-page-1']];
+    kbAzure([kbPage(['language' => 'en', 'original' => 'Leave is requested two weeks ahead.'])]);
+
+    expect(kbWork(kbImport()))->toBeTrue();
+
+    Http::assertSent(function ($request) {
+        $images = array_column(array_slice($request['messages'][1]['content'] ?? [], 1), 'image_url');
+
+        return array_column($images, 'url') === array_map(
+            fn (string $jpeg) => 'data:image/jpeg;base64,'.base64_encode($jpeg),
+            ['jpeg-of-page-1', 'top-strip-of-page-1', 'bottom-strip-of-page-1'],
+        );
+    });
+});
+
+it('asks where a page\'s footnote marks are, naming its headings, and files each note under its article', function () {
+    $this->pdf->pages = 1;
+    $this->pdf->strips = [1 => ['top-strip', 'bottom-strip']];
+    kbAzure([
+        kbPage([
+            'language' => 'ar',
+            'original' => "## المادة التاسعة والأربعون بعد المائة:\n(ملغاة)\n\n## المادة الثالثة والخمسون بعد المائة:\nعلى صاحب العمل توفير الرعاية الطبية.\n\n53- ألغيت بالمرسوم الملكي رقم (م/5).",
+            'english' => "## Article 149:\n(Repealed)\n\n## Article 153:\nThe employer must provide medical care.\n\n53- Repealed by Royal Decree No. (M/5).",
+        ]),
+        kbMarks([['number' => 53, 'heading' => 'المادة التاسعة والأربعون بعد المائة:']]),
+    ]);
+
+    $import = kbImport();
+    kbWork($import);
+    $article = $import->refresh()->article;
+
+    expect($article->body_ar)->toBe("## المادة التاسعة والأربعون بعد المائة:\n(ملغاة)\n\n[^53]: ألغيت بالمرسوم الملكي رقم (م/5).\n\n## المادة الثالثة والخمسون بعد المائة:\nعلى صاحب العمل توفير الرعاية الطبية.")
+        ->and($article->body)->toBe("## Article 149:\n(Repealed)\n\n[^53]: Repealed by Royal Decree No. (M/5).\n\n## Article 153:\nThe employer must provide medical care.");
+
+    Http::assertSent(function ($request) {
+        $parts = $request['messages'][1]['content'] ?? [];
+
+        return str_contains($parts[0]['text'] ?? '', "- المادة التاسعة والأربعون بعد المائة:\n- المادة الثالثة والخمسون بعد المائة:")
+            && array_column(array_column(array_slice($parts, 1), 'image_url'), 'url') === [
+                'data:image/jpeg;base64,'.base64_encode('top-strip'),
+                'data:image/jpeg;base64,'.base64_encode('bottom-strip'),
+            ];
+    });
+});
+
+it('puts a page\'s footnotes under their article and marks unmarked article labels as headings', function () {
+    $page = PdfPageTranslator::parse(json_encode([
+        'language' => 'ar',
+        'original' => "المادة الحادية عشرة بعد المائتين:\n77.\n(ملغاة)\n\n-77 ألغيت بالمرسوم الملكي رقم (م/1).",
+        'english' => "Article 211:\n77.\n(Repealed)\n\n-77 Repealed by Royal Decree No. (M/1).",
+    ], JSON_UNESCAPED_UNICODE), 'stop', PdfPageTranslator::parseMarks(json_encode(['marks' => [
+        ['number' => '77', 'heading' => 'المادة الحادية عشرة بعد المائتين:'],
+    ]], JSON_UNESCAPED_UNICODE), 'stop'));
+
+    expect($page['original'])->toBe("## المادة الحادية عشرة بعد المائتين:\n(ملغاة)\n\n[^77]: ألغيت بالمرسوم الملكي رقم (م/1).")
+        ->and($page['english'])->toBe("## Article 211:\n(Repealed)\n\n[^77]: Repealed by Royal Decree No. (M/1).");
 });
 
 function kbImport(array $attributes = []): AiKnowledgeImport
@@ -128,13 +195,40 @@ function kbPage(array $page, string $finishReason = 'stop'): array
     ];
 }
 
-/** Chat replies in order — a page, or an HTTP status to fail with — plus embeddings for whatever gets indexed. */
+/** The marks call's reply for a page. Its tokens are left out, so the totals tests count stay the pages'. */
+function kbMarks(array $marks): array
+{
+    return [
+        'marks' => true, // how kbAzure tells it from a page
+        'choices' => [[
+            'message' => ['role' => 'assistant', 'content' => json_encode(['marks' => $marks], JSON_UNESCAPED_UNICODE)],
+            'finish_reason' => 'stop',
+        ]],
+        'usage' => ['prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0],
+    ];
+}
+
+/**
+ * Chat replies in order — a page, a page's marks, or an HTTP status to fail
+ * with — plus embeddings for whatever gets indexed. A page read is followed by
+ * its marks call, so a page with no marks reply after it gets one with none.
+ */
 function kbAzure(array $replies): void
 {
     $chat = Http::sequence();
 
-    foreach ($replies as $reply) {
-        is_int($reply) ? $chat->pushStatus($reply) : $chat->push($reply);
+    foreach ($replies as $i => $reply) {
+        if (is_int($reply)) {
+            $chat->pushStatus($reply);
+
+            continue;
+        }
+
+        $chat->push($reply);
+
+        if (! isset($reply['marks']) && ! (is_array($replies[$i + 1] ?? null) && isset($replies[$i + 1]['marks']))) {
+            $chat->push(kbMarks([]));
+        }
     }
 
     Http::fake([
@@ -265,7 +359,7 @@ it('carries on from the page it stopped at instead of reading the PDF again', fu
         ->and($import->article->body)->toBe("Page one.\n\nPage two.")
         ->and($this->pdf->rendered)->toBe([1, 2, 2]);
 
-    Http::assertSentCount(3);
+    Http::assertSentCount(5); // page 1 and its footnotes, the throttled page 2, page 2 and its footnotes
 });
 
 it('fails the import after repeated failures on one page, and says which page', function () {

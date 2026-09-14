@@ -39,10 +39,10 @@ Rules:
 - Say an article was repealed, deleted or amended only when a result says so
   about that same article, by its number. A note about other articles, or an
   article with a similar number (Article 177 is not Article 77), says nothing
-  about it. Numbered notes and footnotes (ملاحظات) count the document's notes,
-  not its articles: "77 ألغيت" in a note is note 77, about whichever article
-  carries that mark. When the article asked for is not among the results, say
-  the search did not find it, and never guess why.
+  about it. A footnote such as "[^77]: ألغيت …" is note 77: it belongs to the
+  article it sits under, the one carrying that mark, never to Article 77. When
+  the article asked for is not among the results, say the search did not find
+  it, and never guess why.
 - When search_knowledge returns results but none of them answers the
   question, call report_knowledge_gap with the employee's question, then say
   the company documentation does not cover it yet. Never fill the gap from

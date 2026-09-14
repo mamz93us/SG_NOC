@@ -23,6 +23,15 @@ class PdfPages
      */
     private const LONG_SIDE_PX = 1600;
 
+    /** How many strips a portrait page is cut into (strips()). */
+    private const STRIPS = 4;
+
+    /** How much each strip overlaps the next, as a share of the page's height. */
+    private const STRIP_OVERLAP = 0.05;
+
+    /** The height the page is rendered at before it is cut: an A4 strip is then 1,697 × 690 px. */
+    private const STRIP_PAGE_LONG_SIDE_PX = 2400;
+
     public function count(string $path): int
     {
         $info = $this->run(['pdfinfo', $path], 30);
@@ -38,6 +47,57 @@ class PdfPages
     public function text(string $path, int $page): string
     {
         return $this->run(['pdftotext', '-enc', 'UTF-8', '-f', (string) $page, '-l', (string) $page, $path, '-'], 60);
+    }
+
+    /**
+     * The page enlarged in overlapping horizontal strips, top to bottom, as
+     * JPEG bytes. Azure shrinks a high-detail image to 768 px on its short side,
+     * so a whole portrait page reaches the model 768 px across and small print
+     * blurs: the labor law's "لاستراحتهن" came back as "لراحتهم". A strip is as
+     * wide as the page and short, so it arrives at up to 1,700 px across. The
+     * strips overlap by a couple of lines so no line is cut in two. A landscape
+     * page is wide already and is not cut.
+     *
+     * @return array<int, string>
+     */
+    public function strips(string $path, int $page): array
+    {
+        $info = $this->run(['pdfinfo', '-f', (string) $page, '-l', (string) $page, $path], 30);
+
+        if (! preg_match('/^Page\s+'.$page.'\s+size:\s+([\d.]+)\s+x\s+([\d.]+)/m', $info, $size)) {
+            return [];
+        }
+
+        [$width, $height] = [(float) $size[1], (float) $size[2]];
+
+        if (preg_match('/^Page\s+'.$page.'\s+rot:\s+(90|270)\b/m', $info)) {
+            [$width, $height] = [$height, $width];
+        }
+
+        if ($width <= 0 || $height <= $width) {
+            return [];
+        }
+
+        $dpi = self::STRIP_PAGE_LONG_SIDE_PX / ($height / 72);
+        $pixelsWide = (int) round($width / 72 * $dpi);
+        $pixelsHigh = (int) round($height / 72 * $dpi);
+        $stripHigh = (int) ceil($pixelsHigh * (1 + self::STRIP_OVERLAP * (self::STRIPS - 1)) / self::STRIPS);
+        $step = intdiv($pixelsHigh - $stripHigh, self::STRIPS - 1);
+
+        $strips = [];
+
+        for ($n = 0; $n < self::STRIPS; $n++) {
+            $top = $n === self::STRIPS - 1 ? $pixelsHigh - $stripHigh : $n * $step;
+
+            $strips[] = $this->run([
+                'pdftoppm', '-f', (string) $page, '-l', (string) $page, '-singlefile',
+                '-r', number_format($dpi, 2, '.', ''),
+                '-x', '0', '-y', (string) $top, '-W', (string) $pixelsWide, '-H', (string) $stripHigh,
+                '-jpeg', '-jpegopt', 'quality=85', $path,
+            ], 120);
+        }
+
+        return array_values(array_filter($strips, fn (string $jpeg) => $jpeg !== ''));
     }
 
     /** The page as JPEG bytes. */

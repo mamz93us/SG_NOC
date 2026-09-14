@@ -86,6 +86,7 @@ class PdfKnowledgeImporter
                     $this->pdf->text($path, $number),
                     $number,
                     $import->page_count,
+                    $this->pdf->strips($path, $number),
                 );
             } catch (Throwable $e) {
                 return $this->pageFailed($import, $number, $e);
