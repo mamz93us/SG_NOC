@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Jobs\ReindexAiKnowledgeJob;
 use App\Models\AiKnowledgeArticle;
+use App\Models\AiKnowledgeImport;
 use App\Models\AiSetting;
 use App\Models\Branch;
 use App\Models\Department;
@@ -22,7 +23,8 @@ use Illuminate\View\View;
  * Authoring for the articles the AI IT Assistant searches and cites. Every
  * save re-indexes the article (chunk + embed) so the assistant's answers stay
  * in step with what is published, without a separate "reindex" step to
- * remember.
+ * remember. Articles can also be imported from PDFs — see
+ * AiKnowledgeImportController.
  */
 class AiKnowledgeController extends Controller
 {
@@ -33,7 +35,7 @@ class AiKnowledgeController extends Controller
         $category = trim((string) $request->query('category', ''));
 
         return view('admin.ai-knowledge.index', [
-            'articles' => AiKnowledgeArticle::with(['branch', 'department'])
+            'articles' => AiKnowledgeArticle::with(['branch', 'department', 'import:id,article_id,file_name'])
                 ->when($category !== '', fn ($q) => $q->where('category', $category))
                 ->withCount('chunks')
                 ->orderByDesc('is_published')
@@ -42,6 +44,15 @@ class AiKnowledgeController extends Controller
                 ->withQueryString(),
             'category' => $category,
             'aiSettings' => AiSetting::get(),
+            // Everything still being read or that failed, and what finished this week.
+            'imports' => AiKnowledgeImport::with('article:id,title,is_published')
+                ->where(fn ($q) => $q->where('status', '!=', AiKnowledgeImport::DONE)
+                    ->orWhere('finished_at', '>=', now()->subDays(7)))
+                ->orderByDesc('id')
+                ->limit(30)
+                ->get(),
+            'branches' => Branch::orderBy('name')->get(),
+            'departments' => Department::orderBy('name')->get(),
         ]);
     }
 
@@ -105,6 +116,10 @@ class AiKnowledgeController extends Controller
 
     public function destroy(AiKnowledgeArticle $aiKnowledgeArticle): RedirectResponse
     {
+        // An imported article takes its PDF with it. The foreign key alone would
+        // only null the import's article_id and leave the file behind.
+        $aiKnowledgeArticle->import?->delete();
+
         $aiKnowledgeArticle->delete(); // chunks cascade-delete with it
 
         return redirect()

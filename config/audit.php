@@ -102,6 +102,11 @@ return [
         App\Models\AiMessage::class,
         App\Models\AiKnowledgeChunk::class,
 
+        // A PDF import rewrites `pages` — the whole translated document — after
+        // every page. AiKnowledgeImportController logs the upload and the delete
+        // by hand, and the article an import makes is audited like any other.
+        App\Models\AiKnowledgeImport::class,
+
         // Discovery scratch data, replaced on each scan.
         App\Models\SnmpDiscoveredDevice::class,
         App\Models\DiscoveryResult::class,

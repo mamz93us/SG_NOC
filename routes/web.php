@@ -1194,6 +1194,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'store'])->name('knowledge.store');
             Route::post('knowledge/reindex-all', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexAll'])->name('knowledge.reindex-all');
             Route::get('knowledge/reindex-status', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexStatus'])->name('knowledge.reindex-status');
+            // PDF imports: the upload only queues; ai:import-pdfs reads and translates.
+            Route::post('knowledge/imports', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'store'])->name('knowledge.imports.store');
+            Route::get('knowledge/imports/status', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'status'])->name('knowledge.imports.status');
+            Route::get('knowledge/imports/{aiKnowledgeImport}/file', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'file'])->name('knowledge.imports.file');
+            Route::post('knowledge/imports/{aiKnowledgeImport}/retry', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'retry'])->name('knowledge.imports.retry');
+            Route::delete('knowledge/imports/{aiKnowledgeImport}', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'destroy'])->name('knowledge.imports.destroy');
             Route::get('knowledge/{aiKnowledgeArticle}/edit', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'edit'])->name('knowledge.edit');
             Route::put('knowledge/{aiKnowledgeArticle}', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'update'])->name('knowledge.update');
             Route::delete('knowledge/{aiKnowledgeArticle}', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'destroy'])->name('knowledge.destroy');

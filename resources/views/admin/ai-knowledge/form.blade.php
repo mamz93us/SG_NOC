@@ -28,6 +28,25 @@
 
     <div class="row g-4">
         <div class="col-lg-8">
+            @if($isEdit && $article->import)
+                @php $import = $article->import; @endphp
+                <div class="alert alert-info d-flex gap-2 align-items-start">
+                    <i class="bi bi-file-earmark-pdf fs-5"></i>
+                    <div>
+                        Imported from
+                        <a href="{{ route('admin.ai-assistant.knowledge.imports.file', $import) }}" target="_blank" rel="noopener" class="fw-semibold">{{ $import->file_name }}</a>
+                        ({{ $import->page_count }} {{ Str::plural('page', (int) $import->page_count) }}@if($import->sourceLanguageName()), {{ $import->sourceLanguageName() }}@endif)
+                        {{ $import->finished_at ? 'on '.$import->finished_at->format('j M Y') : '' }}.
+                        @if($import->source_language === 'en')
+                            The body is the text read from the PDF — check it against the original before publishing.
+                        @else
+                            The English body is a machine translation{{ $import->source_language === 'ar' ? ', and the Arabic body is the text read from the PDF' : '' }}.
+                            Check it against the original before publishing, especially figures, dates and entitlements: employees will get answers from it.
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             <div class="card shadow-sm border-0 mb-4">
                 <div class="card-header bg-white fw-semibold">
                     <i class="bi bi-card-text me-1 text-primary"></i>Details
