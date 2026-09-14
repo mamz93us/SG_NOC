@@ -2,143 +2,138 @@
 
 @section('title', 'HR Portal')
 
-@section('content')
+@push('head')
 <style>
-    .hr-hero {
-        background: linear-gradient(135deg, #4a00e0 0%, #8e2de2 100%);
-        color: #fff;
-        border-radius: 22px;
-        padding: 32px 36px;
-        margin-bottom: 28px;
-        box-shadow: 0 12px 30px rgba(74, 0, 224, 0.25);
+    /* Greeting and tiles, as on the employee home portal. */
+    .hr-greeting{ margin:0 0 26px 2px; }
+    .hr-greeting h2{ font-size:clamp(22px, 3vw, 30px); font-weight:700; letter-spacing:-.2px; color:var(--ink); margin:0; }
+    .hr-greeting h2 .name{ color:var(--red-600); }
+    .hr-greeting .line{ margin:6px 0 0; font-size:14.5px; color:var(--ink-soft); }
+    .hr-greeting .meta{
+        margin-top:10px; font-size:12.5px; color:var(--gray-500);
+        display:flex; align-items:center; gap:14px; flex-wrap:wrap;
     }
-    [data-bs-theme="dark"] .hr-hero { box-shadow: 0 12px 30px rgba(0,0,0,.4); }
-    .hr-hero h2 { font-size: 26px; font-weight: 700; margin: 0 0 4px; }
-    .hr-hero p  { margin: 0; opacity: .92; }
-    .hr-hero .hero-avatar {
-        width: 64px; height: 64px; border-radius: 50%;
-        background: rgba(255,255,255,.18);
-        display: inline-flex; align-items: center; justify-content: center;
-        font-size: 24px; font-weight: 700;
-        border: 3px solid rgba(255,255,255,.3);
+    .hr-greeting .meta span{ display:inline-flex; align-items:center; gap:6px; }
+
+    .hr-tiles{ display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; }
+    .hr-tile{
+        position:relative;
+        display:flex; flex-direction:column; align-items:flex-start; gap:14px;
+        background:var(--card);
+        border:1px solid var(--line);
+        border-radius:18px;
+        box-shadow:var(--shadow);
+        padding:24px 22px;
+        min-height:176px;
+        overflow:hidden;
+        text-decoration:none; color:inherit;
+        transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+    }
+    .hr-tile::after{
+        content:"";
+        position:absolute; left:0; right:0; bottom:0;
+        height:3px;
+        background:linear-gradient(90deg, var(--red-600), var(--red-500));
+        transform:scaleX(0); transform-origin:left;
+        transition:transform .3s ease;
+    }
+    .hr-tile:hover{ transform:translateY(-4px); box-shadow:var(--shadow-hover); border-color:transparent; color:inherit; }
+    .hr-tile:hover::after{ transform:scaleX(1); }
+    .hr-tile:focus-visible{ outline:2px solid var(--red-500); outline-offset:3px; }
+    .hr-tile .icon-wrap{
+        width:54px; height:54px; border-radius:14px;
+        background:var(--red-100); color:var(--red-600);
+        display:flex; align-items:center; justify-content:center;
+        font-size:26px; flex-shrink:0;
+    }
+    .hr-tile h3{ font-size:16.5px; font-weight:600; color:var(--ink); letter-spacing:.1px; margin:0; }
+    .hr-tile p{ font-size:13px; line-height:1.5; color:var(--ink-soft); margin:-6px 0 0; }
+    .hr-tile .count{
+        position:absolute; top:18px; right:18px;
+        font-size:10.5px; font-weight:700; letter-spacing:.4px;
+        color:#fff; background:var(--red-600);
+        border-radius:20px; padding:3px 9px;
     }
 
-    .hr-tile {
-        position: relative;
-        display: flex; flex-direction: column; gap: 8px;
-        padding: 26px 22px 22px;
-        border-radius: 18px;
-        color: #fff; text-decoration: none;
-        min-height: 200px;
-        box-shadow: 0 6px 18px rgba(0,0,0,.10);
-        transition: transform .2s ease, box-shadow .2s ease;
-        overflow: hidden;
-    }
-    .hr-tile::after {
-        content: "";
-        position: absolute; inset: -30% -30% auto auto;
-        width: 180px; height: 180px; border-radius: 50%;
-        background: rgba(255,255,255,.10);
-        transition: transform .3s ease;
-    }
-    .hr-tile:hover { transform: translateY(-5px); box-shadow: 0 16px 34px rgba(0,0,0,.18); color: #fff; }
-    .hr-tile:hover::after { transform: scale(1.1); }
-    .hr-tile .tile-icon  { font-size: 36px; z-index: 1; }
-    .hr-tile .tile-title { font-size: 19px; font-weight: 700; margin: 0; z-index: 1; }
-    .hr-tile .tile-desc  { font-size: 13px; opacity: .94; margin: 0; z-index: 1; line-height: 1.4; }
-    .hr-tile .tile-badge {
-        position: absolute; top: 14px; right: 14px;
-        background: rgba(255,255,255,.22);
-        border: 1px solid rgba(255,255,255,.35);
-        border-radius: 100px;
-        padding: 3px 10px; font-size: 11px; font-weight: 600;
-        z-index: 2; backdrop-filter: blur(4px);
-    }
-
-    .tile-onboard  { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
-    .tile-offboard { background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); }
-    .tile-update   { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-    .tile-requests { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    @media (max-width:1180px){ .hr-tiles{ grid-template-columns:repeat(2, 1fr); } }
+    @media (max-width:640px){ .hr-tiles{ grid-template-columns:1fr; } }
+    @media (prefers-reduced-motion:reduce){ .hr-tile, .hr-tile::after{ transition:none; } }
 </style>
+@endpush
 
+@section('content')
 @php
-    $displayName = auth()->user()->name ?? 'there';
-    $firstName   = explode(' ', trim($displayName))[0] ?? $displayName;
-    $initials    = strtoupper(substr($displayName, 0, 1));
+    $displayName = trim(auth()->user()->name ?? '');
+    $firstName   = explode(' ', $displayName)[0] ?: 'there';
     $hour        = (int) now()->format('G');
     $greeting    = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
+    $openTotal   = (int) collect($openCounts)->sum();
 @endphp
 
-<div class="hr-hero d-flex flex-column flex-md-row align-items-md-center gap-3">
-    <span class="hero-avatar">{{ $initials }}</span>
-    <div>
-        <h2>{{ $greeting }}, {{ $firstName }}</h2>
-        <p>Raise a request here and IT takes it from there — nothing is changed until they approve it.</p>
-    </div>
-    <div class="ms-md-auto small text-md-end">
-        <div class="opacity-75">{{ now()->format('l, F j') }}</div>
-        <div><i class="bi bi-people me-1"></i>{{ number_format($employeeCount) }} active employees</div>
+<div class="hr-greeting">
+    <h2>{{ $greeting }}, <span class="name">{{ $firstName }}</span></h2>
+    <p class="line">Raise a request here and IT takes it from there — nothing changes until they approve it.</p>
+    <div class="meta">
+        <span><i class="bi bi-calendar3"></i>{{ now()->format('l, j F Y') }}</span>
+        <span><i class="bi bi-people"></i>{{ number_format($employeeCount) }} active employees</span>
+        @if($openTotal > 0)
+            <span><i class="bi bi-hourglass-split"></i>{{ $openTotal }} open {{ \Illuminate\Support\Str::plural('request', $openTotal) }}</span>
+        @endif
     </div>
 </div>
 
-<div class="row g-3">
+<p class="section-label">Requests</p>
+<div class="hr-tiles">
     @can('submit-hr-onboarding')
-    <div class="col-12 col-sm-6 col-lg-3">
-        <a href="{{ route('portal.hr.onboarding.index') }}" class="hr-tile tile-onboard">
+        <a href="{{ route('portal.hr.onboarding.index') }}" class="hr-tile">
             @if(($openCounts['create_user'] ?? 0) > 0)
-                <span class="tile-badge">{{ $openCounts['create_user'] }} open</span>
+                <span class="count">{{ $openCounts['create_user'] }} open</span>
             @endif
-            <i class="bi bi-person-plus-fill tile-icon"></i>
-            <h5 class="tile-title">Onboard a New Hire</h5>
-            <p class="tile-desc">Request an account, licenses, extension and equipment for someone joining.</p>
+            <span class="icon-wrap"><i class="bi bi-person-plus"></i></span>
+            <h3>Onboard a New Hire</h3>
+            <p>Request an account, licences, extension and equipment for someone joining.</p>
         </a>
-    </div>
     @endcan
 
     @can('submit-hr-offboarding')
-    <div class="col-12 col-sm-6 col-lg-3">
-        <a href="{{ route('portal.hr.offboarding.index') }}" class="hr-tile tile-offboard">
+        <a href="{{ route('portal.hr.offboarding.index') }}" class="hr-tile">
             @if(($openCounts['employee_offboarding'] ?? 0) > 0)
-                <span class="tile-badge">{{ $openCounts['employee_offboarding'] }} open</span>
+                <span class="count">{{ $openCounts['employee_offboarding'] }} open</span>
             @endif
-            <i class="bi bi-person-dash-fill tile-icon"></i>
-            <h5 class="tile-title">Terminate / Offboard</h5>
-            <p class="tile-desc">Start the leaver process — the manager decides on mailbox, laptop and assets.</p>
+            <span class="icon-wrap"><i class="bi bi-person-dash"></i></span>
+            <h3>Terminate / Offboard</h3>
+            <p>Start the leaver process — the manager decides on mailbox, laptop and assets.</p>
         </a>
-    </div>
     @endcan
 
     @can('submit-hr-employee-update')
-    <div class="col-12 col-sm-6 col-lg-3">
-        <a href="{{ route('portal.hr.employee-update.index') }}" class="hr-tile tile-update">
+        <a href="{{ route('portal.hr.employee-update.index') }}" class="hr-tile">
             @if(($openCounts['employee_update'] ?? 0) > 0)
-                <span class="tile-badge">{{ $openCounts['employee_update'] }} open</span>
+                <span class="count">{{ $openCounts['employee_update'] }} open</span>
             @endif
-            <i class="bi bi-pencil-square tile-icon"></i>
-            <h5 class="tile-title">Update Employee Data</h5>
-            <p class="tile-desc">Request a change to a job title, department, branch, manager or phone.</p>
+            <span class="icon-wrap"><i class="bi bi-pencil-square"></i></span>
+            <h3>Update Employee Data</h3>
+            <p>Request a change to a job title, department, branch, manager or phone.</p>
         </a>
-    </div>
     @endcan
 
-    <div class="col-12 col-sm-6 col-lg-3">
-        <a href="{{ route('portal.hr.requests') }}" class="hr-tile tile-requests">
-            <i class="bi bi-list-check tile-icon"></i>
-            <h5 class="tile-title">All My Requests</h5>
-            <p class="tile-desc">Everything you have raised, and where each one currently sits.</p>
-        </a>
-    </div>
+    <a href="{{ route('portal.hr.requests') }}" class="hr-tile">
+        <span class="icon-wrap"><i class="bi bi-list-check"></i></span>
+        <h3>All My Requests</h3>
+        <p>Everything you have raised, and where each one currently sits.</p>
+    </a>
 </div>
 
-<div class="card shadow-sm border-0 mt-4">
-    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-        <span class="fw-semibold"><i class="bi bi-clock-history me-2"></i>Recent activity</span>
+<p class="section-label" style="margin-top:34px;">Recent activity</p>
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history me-2"></i>Your latest requests</span>
         <a href="{{ route('portal.hr.requests') }}" class="btn btn-sm btn-outline-secondary">View all</a>
     </div>
     @if($recent->isEmpty())
         <div class="card-body text-center py-5">
             <i class="bi bi-inbox display-6 text-muted"></i>
-            <p class="text-muted mt-2 mb-0">Nothing raised yet. Pick an action above to get started.</p>
+            <p class="text-muted mt-2 mb-0">Nothing raised yet. Pick a request above to get started.</p>
         </div>
     @else
         <div class="table-responsive">

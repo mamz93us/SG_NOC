@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Employee;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Identity\EntraUserAccounts;
+use App\Support\HrPortal;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -15,16 +19,30 @@ use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
-    public function index()
+    public function index(EntraUserAccounts $accounts)
     {
         $users = User::orderBy('name')->get();
         $roles = Role::assignable()->get();
 
-        return view('admin.users.index', compact('users', 'roles'));
+        $signInHints = $roles->mapWithKeys(fn (Role $role) => [$role->slug => $this->signInHint($role)]);
+
+        // A failed "From Entra" submit re-opens the modal with the person still
+        // chosen, rather than making the admin search for them again.
+        $oldEmployee = old('source') === 'entra' && old('employee_id')
+            ? Employee::with(['identityUser', 'branch:id,name'])->find(old('employee_id'))
+            : null;
+
+        $oldPick = $oldEmployee ? $accounts->describe($oldEmployee) : null;
+
+        return view('admin.users.index', compact('users', 'roles', 'signInHints', 'oldPick'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, EntraUserAccounts $accounts)
     {
+        if ($request->input('source') === 'entra') {
+            return $this->storeFromEntra($request, $accounts);
+        }
+
         $data = $this->validateUser($request);
 
         $this->assertMayAssign($data['role']);
@@ -42,6 +60,81 @@ class UserController extends Controller
 
         return redirect()->route('admin.users.index')
             ->with('success', "User {$user->name} created as ".User::roleLabel($user->role).'.');
+    }
+
+    /**
+     * Type-ahead for "Add user ▸ From Entra".
+     * GET /admin/users/entra-search?q=...
+     */
+    public function entraSearch(Request $request, EntraUserAccounts $accounts): JsonResponse
+    {
+        return response()->json($accounts->search((string) $request->query('q', '')));
+    }
+
+    /**
+     * Add a person who already exists in Entra: pick the employee, pick the
+     * role. Name and address come from their record and there is no password —
+     * they sign in with Microsoft. If they already have an account (usually a
+     * first SSO sign-in that gave them the default role), the role is applied
+     * to that account instead of creating a second one SSO would never use.
+     */
+    private function storeFromEntra(Request $request, EntraUserAccounts $accounts)
+    {
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer'],
+            'role' => ['required', 'string', Rule::in(Role::slugs())],
+            'whatsapp_number' => 'nullable|string|max:32',
+        ], [
+            'employee_id.required' => 'Choose the employee from the search list.',
+        ]);
+
+        $employee = Employee::with('identityUser')->find($data['employee_id']);
+
+        if (! $employee) {
+            throw ValidationException::withMessages(['employee_id' => 'That employee no longer exists.']);
+        }
+
+        if ($reason = $accounts->unavailableReason($employee)) {
+            throw ValidationException::withMessages(['employee_id' => "{$employee->name}: {$reason}"]);
+        }
+
+        $this->assertMayAssign($data['role']);
+
+        if ($existing = $accounts->existingUser($employee)) {
+            $this->assertNotLastSuperAdmin($existing, $data['role']);
+        }
+
+        // The AuditObserver records the create or the role change.
+        ['user' => $user, 'previous_role' => $previous] = $accounts->assign(
+            $employee,
+            $data['role'],
+            $data['whatsapp_number'] ?? null,
+        );
+
+        $role = User::roleLabel($user->role);
+
+        $message = match (true) {
+            $previous === null => "{$user->name} added as {$role}. They sign in with their Microsoft account ({$user->email}) — there is no password to send.",
+            $previous === $user->role => "{$user->name} already had an account as {$role}. Nothing to change.",
+            default => "{$user->name} already had an account, so it was updated: ".User::roleLabel($previous)." → {$role}.",
+        };
+
+        return redirect()->route('admin.users.index')->with('success', $message);
+    }
+
+    /**
+     * One line under the role picker saying where this role signs in and
+     * whether 2FA is asked for — the question every HR hire raises.
+     */
+    private function signInHint(Role $role): string
+    {
+        return match (true) {
+            $role->is_super, $role->hasSurface('noc_admin') => 'Signs in to the NOC with Microsoft and sets up 2FA the first time.',
+            $role->hasSurface('hr_portal') => 'Uses the HR Portal at '.HrPortal::domain().' with Microsoft sign-in — no 2FA there.',
+            $role->onlyBrowserAccess() => 'Remote browser only — Microsoft sign-in, no 2FA.',
+            $role->hasSurface('marketing_portal') => 'Uses the marketing portal with Microsoft sign-in, plus 2FA.',
+            default => 'Signs in with Microsoft and sets up 2FA the first time.',
+        };
     }
 
     /**

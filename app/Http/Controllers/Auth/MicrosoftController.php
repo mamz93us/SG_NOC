@@ -189,6 +189,22 @@ class MicrosoftController extends Controller
             return redirect()->intended($landing);
         }
 
+        // A role whose home is the HR portal, signing in somewhere else (the NOC
+        // login, the portal hub). Send them to the HR host now instead of holding
+        // them at 2FA enrolment for a host they are about to leave: the HR host
+        // skips 2FA (see RequireTwoFactor), and entering through its own
+        // /auth/microsoft completes that sign-in without a prompt, because Entra
+        // has only just authenticated them.
+        //
+        // This session stays signed in but is NOT marked `2fa_verified`, so if
+        // the same person opens a NOC page — which is where the HR role's
+        // attendance, employee and announcement permissions live — the normal
+        // challenge still applies. The marketing host is excluded: it serves
+        // only itself and keeps its mandatory 2FA.
+        if (! $onMarketingHost && \App\Support\HrPortal::enabled() && $user->homeRoute() === 'portal.hr.index') {
+            return redirect()->away(\App\Support\HrPortal::url(route('auth.microsoft', [], false)));
+        }
+
         // Browser-only users bypass the app's 2FA. Everyone else — including
         // marketing — goes through the mandatory 2FA flow below; its standalone
         // enrolment + challenge pages are explicitly allowed on the marketing host.

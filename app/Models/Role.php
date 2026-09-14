@@ -58,7 +58,7 @@ class Role extends Model
     public const SURFACE_HINTS = [
         'noc_admin' => 'The full admin area at /admin — NOC dashboards, ITAM, network, identity.',
         'noc_portal' => 'The internal portal hub at /portal — request forms and self-service.',
-        'hr_portal' => 'The isolated HR workspace on the hr subdomain.',
+        'hr_portal' => 'The isolated HR workspace on the hr subdomain. Microsoft sign-in, no 2FA there — landing here sends every sign-in straight to it.',
         'marketing_portal' => 'The isolated email-marketing portal on the em subdomain.',
         'browser_portal' => 'Remote browser sessions (per-office VPN egress) only.',
     ];
