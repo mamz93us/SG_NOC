@@ -32,6 +32,15 @@ MD;
     expect($chunks[1]['content'])->toContain('restart it first');
 });
 
+it('starts a section at an article label alone on its line, which imported documents often leave unmarked', function () {
+    $markdown = "## المادة الرابعة والستون:\nعلى صاحب العمل أن يعد سجلًا.\n\nالمادة السبعون:\nلا يجوز توقيع جزاء تأديبي على العامل.\n\nالمادة الخامسة من هذا النظام تسري على كل عقد.\n\n**Article 71:**\nNo disciplinary penalty may be imposed.";
+
+    $chunks = AiChunker::chunk($markdown);
+
+    expect(array_column($chunks, 'heading'))->toBe(['المادة الرابعة والستون:', 'المادة السبعون:', 'Article 71:'])
+        ->and($chunks[1]['content'])->toBe("لا يجوز توقيع جزاء تأديبي على العامل.\n\nالمادة الخامسة من هذا النظام تسري على كل عقد.");
+});
+
 it('treats a document with no headings as a single chunk', function () {
     $chunks = AiChunker::chunk("Just a paragraph of plain text.\n\nAnd a second one.");
 

@@ -52,6 +52,20 @@ it('has no page for text that is not in the PDF, such as an article edited after
         ->toBe(['page' => null, 'heading' => null]);
 });
 
+it('finds the page and original heading of an article the page left unmarked', function () {
+    $pages = [
+        ['language' => 'ar', 'original' => "## المادة التاسعة والستون:\nلا يجوز اتهام العامل بمخالفة.", 'english' => "## Article 69:\nA worker may not be charged."],
+        [
+            'language' => 'ar',
+            'original' => "المادة السبعون:\nلا يجوز توقيع جزاء تأديبي.\n\nالمادة الحادية والسبعون:\nيجب إبلاغ العامل كتابة.",
+            'english' => "Article 70:\nNo disciplinary penalty may be imposed.\n\nArticle 71:\nThe worker must be notified in writing.",
+        ],
+    ];
+
+    expect((new PdfSourceLocator($pages))->locate('en', 'Article 71:', 'The worker must be notified in writing.'))
+        ->toBe(['page' => 2, 'heading' => 'المادة الحادية والسبعون:']);
+});
+
 it('gives no original heading for a document that was in English to begin with', function () {
     $pages = [['language' => 'en', 'original' => "## Connecting\nOpen the client.", 'english' => "## Connecting\nOpen the client."]];
 

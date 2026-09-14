@@ -1194,7 +1194,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'store'])->name('knowledge.store');
             Route::post('knowledge/reindex-all', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexAll'])->name('knowledge.reindex-all');
             Route::get('knowledge/reindex-status', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexStatus'])->name('knowledge.reindex-status');
+            // Category and tags by AI: suggested into the form, assigned to one article, or queued for many (ai:classify-articles).
+            Route::post('knowledge/classify-suggest', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classifySuggest'])->name('knowledge.classify-suggest');
+            Route::post('knowledge/classify-all', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classifyAll'])->name('knowledge.classify-all');
+            Route::get('knowledge/classify-status', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classifyStatus'])->name('knowledge.classify-status');
+            Route::post('knowledge/{aiKnowledgeArticle}/classify', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classify'])->name('knowledge.classify');
             Route::get('knowledge/stats', [\App\Http\Controllers\Admin\AiKnowledgeStatsController::class, 'index'])->name('knowledge-stats');
+            // Websites read into the knowledge base: saving only allows; ai:crawl-websites reads.
+            Route::get('knowledge/websites', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'index'])->name('knowledge.websites.index');
+            Route::post('knowledge/websites', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'store'])->name('knowledge.websites.store');
+            Route::get('knowledge/websites/{aiWebSource}', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'show'])->name('knowledge.websites.show');
+            Route::put('knowledge/websites/{aiWebSource}', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'update'])->name('knowledge.websites.update');
+            Route::post('knowledge/websites/{aiWebSource}/crawl', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'crawl'])->name('knowledge.websites.crawl');
+            Route::delete('knowledge/websites/{aiWebSource}', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'destroy'])->name('knowledge.websites.destroy');
             // PDF imports: the upload only queues; ai:import-pdfs reads and translates.
             Route::post('knowledge/imports', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'store'])->name('knowledge.imports.store');
             Route::get('knowledge/imports/status', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'status'])->name('knowledge.imports.status');
@@ -1208,6 +1220,17 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('instructions', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'edit'])->name('instructions.edit');
             Route::post('instructions', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'update'])->name('instructions.update');
             Route::post('instructions/match-threshold', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'updateMatchThreshold'])->name('instructions.match-threshold');
+        });
+        // The questions the assistant could not answer. Its own permission, so HR
+        // can answer policy questions without the assistant's settings.
+        Route::middleware('permission:answer-ai-knowledge-gaps')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
+            Route::get('knowledge-gaps', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'index'])->name('knowledge-gaps.index');
+            Route::get('knowledge-gaps/{aiKnowledgeGap}/answer', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'answerForm'])->name('knowledge-gaps.answer-form');
+            Route::post('knowledge-gaps/answer', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'answer'])->name('knowledge-gaps.answer');
+            Route::post('knowledge-gaps/dismiss', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'dismiss'])->name('knowledge-gaps.dismiss');
+            Route::post('knowledge-gaps/translate', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'translate'])->name('knowledge-gaps.translate');
+            Route::post('knowledge-gaps/{aiKnowledgeGap}/confirm', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'confirm'])->name('knowledge-gaps.confirm');
+            Route::post('knowledge-gaps/{aiKnowledgeGap}/reopen', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'reopen'])->name('knowledge-gaps.reopen');
         });
         Route::middleware('permission:view-ai-conversations')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
             Route::get('conversations', [\App\Http\Controllers\Admin\AiConversationController::class, 'index'])->name('conversations.index');

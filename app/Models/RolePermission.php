@@ -214,6 +214,7 @@ class RolePermission extends Model
             'AI Assistant' => [
                 'manage-ai-assistant' => 'Manage AI Assistant (Settings, Knowledge Articles)',
                 'view-ai-conversations' => 'View AI Assistant Conversations & Usage',
+                'answer-ai-knowledge-gaps' => 'Answer AI Knowledge Gaps (the questions the assistant could not answer; each answer is published as a knowledge article)',
             ],
             'Attendance' => [
                 'view-attendance' => 'View Attendance (BioTime check-in / check-out, employee mapping)',
@@ -280,6 +281,7 @@ class RolePermission extends Model
             'manage-attendance',
             'approve-attendance',
             'manage-attendance-owners',
+            'answer-ai-knowledge-gaps',
         ];
         $marketingPerms = ['view-email-marketing', 'view-courses', 'manage-courses'];
 

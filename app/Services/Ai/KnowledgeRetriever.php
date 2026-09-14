@@ -38,6 +38,9 @@ class KnowledgeRetriever
      */
     public const DEFAULT_RELEVANCE_FLOOR = 0.40;
 
+    /** Chunks given of an article a question names: enough for a long one, in both languages. */
+    private const NAMED_ARTICLE_CHUNKS = 4;
+
     public function __construct(private AzureOpenAiClient $client) {}
 
     private function relevanceFloor(): float
@@ -72,13 +75,20 @@ class KnowledgeRetriever
                     ->orWhere(fn ($d) => $d->whereNotNull('portal_document_id')->whereHas('portalDocument', fn ($x) => $x->where('is_published', true)));
             })
             ->forEmployee($employee)
-            ->with(['article:id,title,title_ar', 'article.import:id,article_id,file_name', 'portalDocument:id,title,title_ar'])
+            ->with(['article:id,title,title_ar', 'article.import:id,article_id,file_name', 'article.webPage:id,article_id,url', 'portalDocument:id,title,title_ar'])
             ->get();
 
         $floor = $this->relevanceFloor();
 
+        // A question naming an article ("المادة 77", "Article 77") gets that
+        // article, found by its heading. Embeddings score one article number as
+        // close as any other: asked for Article 77, the assistant was given 73,
+        // 105 and 118, and told the employee 77 was not in the law.
+        $named = ArticleReference::inQuery($query);
+        $language = TextTranslator::language($query);
+
         $scored = $candidates
-            ->map(function (AiKnowledgeChunk $chunk) use ($queryVector) {
+            ->map(function (AiKnowledgeChunk $chunk) use ($queryVector, $named) {
                 $vector = $chunk->embeddingVector();
                 if ($vector === []) {
                     return null;
@@ -94,14 +104,27 @@ class KnowledgeRetriever
                     'document' => $chunk->article?->import?->file_name,
                     'page' => $chunk->source_page,
                     'heading_in_document' => $chunk->source_heading,
+                    // For a page read from a website: its address.
+                    'url' => $chunk->article?->webPage?->url,
+                    'named' => $named !== null && in_array($named, [
+                        ArticleReference::ofHeading($chunk->heading),
+                        ArticleReference::ofHeading($chunk->source_heading),
+                    ], true),
+                    'order' => [$chunk->locale, (int) $chunk->article_id, (int) $chunk->id],
                 ];
             })
-            ->filter()
-            ->filter(fn ($row) => $row['score'] >= $floor)
-            ->sortByDesc('score')
-            ->values();
+            ->filter();
 
-        return $scored->take($k);
+        // The article asked for: in the question's language first, in reading order.
+        $article = $scored->where('named', true)
+            ->sortBy(fn (array $row) => [$row['order'][0] === $language ? 0 : 1, $row['order'][1], $row['order'][2]])
+            ->take(self::NAMED_ARTICLE_CHUNKS);
+
+        $ranked = $scored->where('named', false)
+            ->filter(fn ($row) => $row['score'] >= $floor)
+            ->sortByDesc('score');
+
+        return $article->concat($ranked)->take($k)->values();
     }
 
     /**

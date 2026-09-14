@@ -32,6 +32,13 @@ class KnowledgeIndexer
     /** Inputs per request, well inside the API's own limit of 2,048. */
     public const BATCH_INPUTS = 100;
 
+    /**
+     * Part of every chunk's content_hash, bumped when what is embedded for a
+     * chunk changes so the next index of an article embeds all of it again. v2
+     * puts the title and heading in front of the text (embeddingText()).
+     */
+    private const EMBEDDING_FORMAT = 'v2';
+
     /** A background caller waits this long after HTTP 429, up to this many times, before giving up. */
     private const THROTTLE_WAIT_SECONDS = 20;
 
@@ -88,7 +95,9 @@ class KnowledgeIndexer
 
         $toEmbed = [];
         foreach ($pieces as $piece) {
-            $hash = hash('sha256', $piece['locale'].'|'.$piece['heading'].'|'.$piece['content']);
+            $title = $piece['locale'] === 'ar' && filled($article->title_ar) ? (string) $article->title_ar : (string) $article->title;
+            $piece['text'] = self::embeddingText($title, $piece['heading'], $piece['content']);
+            $hash = hash('sha256', self::EMBEDDING_FORMAT.'|'.$piece['locale'].'|'.$piece['text']);
             $keepHashes[] = $hash;
 
             $source = $locator?->locate($piece['locale'], $piece['heading'], $piece['content']);
@@ -118,7 +127,7 @@ class KnowledgeIndexer
 
             foreach (self::batches($toEmbed) as $batch) {
                 try {
-                    $vectors = $this->embed(array_column($batch, 'content'), $waitWhenThrottled);
+                    $vectors = $this->embed(array_column($batch, 'text'), $waitWhenThrottled);
                 } catch (\Throwable $e) {
                     Log::warning('KnowledgeIndexer: embedding failed', [
                         'article_id' => $article->id,
@@ -167,12 +176,25 @@ class KnowledgeIndexer
     }
 
     /**
+     * What is embedded for a chunk: its article's title and its own heading,
+     * then its text. The chunker lifts the heading off the text, so a chunk
+     * embedded as text alone never said which article it was — a search for
+     * "المادة السابعة والسبعون" could not find Article 77 — or which document.
+     */
+    public static function embeddingText(string $title, ?string $heading, string $content): string
+    {
+        $label = implode("\n", array_filter([trim($title), trim((string) $heading)], fn (string $line) => $line !== ''));
+
+        return $label === '' ? $content : "{$label}\n\n{$content}";
+    }
+
+    /**
      * Pieces keyed by content hash, cut in order into embeddings requests of
      * at most $maxChars characters and $maxInputs inputs. A piece longer than
      * $maxChars on its own still goes, alone.
      *
-     * @param  array<string, array{content:string}>  $pieces
-     * @return array<int, array<string, array{content:string}>>
+     * @param  array<string, array{content:string, text?:string}>  $pieces  text, when present, is what is embedded
+     * @return array<int, array<string, array{content:string, text?:string}>>
      */
     public static function batches(array $pieces, int $maxChars = self::BATCH_CHARS, int $maxInputs = self::BATCH_INPUTS): array
     {
@@ -181,7 +203,7 @@ class KnowledgeIndexer
         $chars = 0;
 
         foreach ($pieces as $hash => $piece) {
-            $length = mb_strlen($piece['content']);
+            $length = mb_strlen($piece['text'] ?? $piece['content']);
 
             if ($batch !== [] && ($chars + $length > $maxChars || count($batch) >= $maxInputs)) {
                 $batches[] = $batch;

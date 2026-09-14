@@ -102,6 +102,10 @@ class AssistantToolbox
                 'Search the company\'s IT and HR knowledge base for an answer. Always try this before answering an IT/HR/policy question, and before drafting a ticket.',
                 ['query' => ['type' => 'string', 'description' => 'The employee\'s question, in their own words.']],
                 ['query']),
+            $this->def('report_knowledge_gap',
+                'Record a question the knowledge base does not answer. Call it when search_knowledge returned results but none of them answers the question, before telling the employee so. The people who maintain the knowledge base see it and write the answer; nothing is shown to the employee.',
+                ['question' => ['type' => 'string', 'description' => 'The employee\'s question, in their own words.']],
+                ['question']),
             $this->def('get_my_profile',
                 'Get the signed-in employee\'s own profile: department, branch, job title, manager, extension.',
                 [], []),
@@ -188,6 +192,11 @@ class AssistantToolbox
     {
         return match ($name) {
             'search_knowledge' => $this->searchKnowledge((string) ($args['query'] ?? '')),
+            // AssistantAgent records it, knowing the conversation; this only tells the model what to say next.
+            'report_knowledge_gap' => [
+                'recorded' => true,
+                'message' => 'Recorded for the people who maintain the knowledge base. Tell the employee the company documentation does not cover this yet; do not present general knowledge as company policy.',
+            ],
             'get_my_profile' => $this->getMyProfile(),
             'get_my_assets' => $this->getMyAssets(),
             'get_my_tickets' => $this->getMyTickets((string) ($args['status'] ?? 'all')),
@@ -268,8 +277,10 @@ class AssistantToolbox
 
         return [
             'found' => true,
+            'if_none_answer' => 'If none of these results answers the question, call report_knowledge_gap before you reply.',
             // document, page and heading_in_document come only with an imported
-            // PDF: what the employee can find in the original (PdfSourceLocator).
+            // PDF: what the employee can find in the original (PdfSourceLocator);
+            // url only with a page read from a website.
             'results' => $results->map(fn ($r) => [
                 'title' => $r['title'],
                 'heading' => $r['heading'],
@@ -278,6 +289,7 @@ class AssistantToolbox
                 'heading_in_document' => $r['heading_in_document'] ?? null,
                 'document' => $r['document'] ?? null,
                 'page' => $r['page'] ?? null,
+                'url' => $r['url'] ?? null,
             ], fn ($value) => $value !== null))->values()->all(),
         ];
     }

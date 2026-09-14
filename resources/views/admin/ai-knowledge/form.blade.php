@@ -47,6 +47,23 @@
                 </div>
             @endif
 
+            @if($isEdit && $article->webPage)
+                @php $webPage = $article->webPage; @endphp
+                <div class="alert alert-info d-flex gap-2 align-items-start">
+                    <i class="bi bi-globe2 fs-5"></i>
+                    <div>
+                        Read from
+                        <a href="{{ $webPage->url }}" target="_blank" rel="noopener noreferrer" class="fw-semibold text-break">{{ $webPage->url }}</a>
+                        {{ $webPage->fetched_at ? 'on '.$webPage->fetched_at->format('j M Y') : '' }}, part of
+                        <a href="{{ route('admin.ai-assistant.knowledge.websites.show', $webPage->source_id) }}">{{ $webPage->source?->name }}</a>.
+                        When the page changes on the site, the next read replaces this article, so correct it there rather than here.
+                        @if($webPage->language && $webPage->language !== 'en')
+                            The English body is a machine translation.
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             <div class="card shadow-sm border-0 mb-4">
                 <div class="card-header bg-white fw-semibold">
                     <i class="bi bi-card-text me-1 text-primary"></i>Details
@@ -105,8 +122,8 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Category</label>
-                        <input type="text" name="category" maxlength="50"
+                        <label for="articleCategory" class="form-label fw-semibold">Category</label>
+                        <input type="text" id="articleCategory" name="category" maxlength="50"
                                class="form-control @error('category') is-invalid @enderror"
                                value="{{ old('category', $article->category) }}"
                                placeholder="e.g. vpn, printers, payroll">
@@ -114,10 +131,28 @@
                     </div>
 
                     <div>
-                        <label class="form-label fw-semibold">Tags</label>
-                        <input type="text" name="tags" class="form-control"
+                        <label for="articleTags" class="form-label fw-semibold">Tags</label>
+                        <input type="text" id="articleTags" name="tags" class="form-control"
                                value="{{ old('tags', is_array($article->tags) ? implode(', ', $article->tags) : '') }}"
                                placeholder="comma, separated, tags">
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="button" id="suggestFiling" class="btn btn-outline-primary btn-sm"
+                                data-url="{{ route('admin.ai-assistant.knowledge.classify-suggest') }}">
+                            <i class="bi bi-magic me-1"></i>Suggest with AI
+                        </button>
+                        <div class="form-text" id="suggestFilingStatus">
+                            @if($isEdit && $article->ai_classify)
+                                Waiting for the AI to fill these in.
+                            @elseif($isEdit && $article->ai_classify_error)
+                                <span class="text-danger">The AI could not file this article: {{ $article->ai_classify_error }}</span>
+                            @elseif($isEdit && $article->ai_classified_at)
+                                Last filled in by the AI {{ $article->ai_classified_at->diffForHumans() }}.
+                            @else
+                                Reads the title and body and fills in both. Left empty, the AI fills them in after saving.
+                            @endif
+                        </div>
                     </div>
                 </div>
             </div>
@@ -185,6 +220,55 @@
   }
   select.addEventListener('change', sync);
   sync();
+})();
+
+(function () {
+  var button = document.getElementById('suggestFiling');
+  if (!button) return;
+
+  var form = button.closest('form');
+  var status = document.getElementById('suggestFilingStatus');
+  var category = document.getElementById('articleCategory');
+  var tags = document.getElementById('articleTags');
+
+  button.addEventListener('click', function () {
+    var title = form.querySelector('[name="title"]').value.trim();
+    var body = form.querySelector('[name="body"]').value.trim();
+
+    if (!title || !body) {
+      status.textContent = 'Write the title and body first.';
+      return;
+    }
+    if ((category.value.trim() || tags.value.trim()) && !confirm('Replace the category and tags already filled in?')) {
+      return;
+    }
+
+    button.disabled = true;
+    status.textContent = 'Reading the article…';
+
+    fetch(button.dataset.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value },
+      body: JSON.stringify({ title: title, title_ar: form.querySelector('[name="title_ar"]').value, body: body })
+    })
+      .then(function (response) {
+        return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+      })
+      .then(function (result) {
+        if (!result.ok) {
+          throw new Error(result.data.message || 'The AI could not suggest a category and tags.');
+        }
+        category.value = result.data.category;
+        tags.value = result.data.tags.join(', ');
+        status.textContent = 'Filled in. Check them, then save.';
+      })
+      .catch(function (error) {
+        status.textContent = error.message;
+      })
+      .finally(function () {
+        button.disabled = false;
+      });
+  });
 })();
 </script>
 @endsection

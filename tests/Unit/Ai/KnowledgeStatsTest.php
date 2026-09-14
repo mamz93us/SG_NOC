@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Schema;
 uses(Tests\TestCase::class);
 
 beforeEach(function () {
-    foreach (['ai_knowledge_imports', 'ai_knowledge_chunks', 'ai_knowledge_articles', 'ai_knowledge_gaps', 'portal_documents', 'ai_settings'] as $table) {
+    foreach (['ai_web_pages', 'ai_web_sources', 'ai_knowledge_imports', 'ai_knowledge_chunks', 'ai_knowledge_articles', 'ai_knowledge_gaps', 'portal_documents', 'ai_settings'] as $table) {
         Schema::dropIfExists($table);
     }
 
@@ -37,6 +37,7 @@ beforeEach(function () {
         '2026_09_09_120000_add_locale_to_ai_knowledge_chunks_table',
         '2026_09_14_110001_create_ai_knowledge_imports_table',
         '2026_09_14_120001_add_source_to_ai_knowledge_chunks_table',
+        '2026_09_14_140001_create_ai_web_sources_table',
     ] as $migration) {
         (require database_path("migrations/{$migration}.php"))->up();
     }

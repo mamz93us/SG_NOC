@@ -1197,7 +1197,7 @@
                     @endcanany
 
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
-                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','view-mail-delivery','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines','view-knowbe4-scores'])
+                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','view-mail-delivery','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines','view-knowbe4-scores','manage-portal-documents','manage-ai-assistant','answer-ai-knowledge-gaps','view-ai-conversations'])
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/email-templates*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*','admin/smtp-relay*','admin/tickets*','admin/announcements*','admin/greeting-lines*','admin/knowbe4*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -1278,6 +1278,14 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.instructions.*') ? 'active' : '' }}"
                                    href="{{ route('admin.ai-assistant.instructions.edit') }}">
                                     <i class="bi bi-card-text me-2"></i>AI Assistant Instructions
+                                </a>
+                            </li>
+                            @endcan
+                            @can('answer-ai-knowledge-gaps')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge-gaps.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.knowledge-gaps.index') }}">
+                                    <i class="bi bi-question-circle me-2"></i>AI Knowledge Gaps
                                 </a>
                             </li>
                             @endcan

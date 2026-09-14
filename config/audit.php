@@ -107,6 +107,15 @@ return [
         // by hand, and the article an import makes is audited like any other.
         App\Models\AiKnowledgeImport::class,
 
+        // Bumped by every unanswered question and re-scored every 15 minutes.
+        // Answering, dismissing and reopening are logged by hand.
+        App\Models\AiKnowledgeGap::class,
+
+        // Rewritten on every read of a website. AiWebSourceController logs adding,
+        // changing and deleting a website by hand; the articles are audited as usual.
+        App\Models\AiWebSource::class,
+        App\Models\AiWebPage::class,
+
         // Discovery scratch data, replaced on each scan.
         App\Models\SnmpDiscoveredDevice::class,
         App\Models\DiscoveryResult::class,
@@ -172,6 +181,12 @@ return [
         // through the attendance API many times a day. Only the timestamp: a
         // key turning up from a new address (last_used_ip) is still logged.
         'last_used_at',
+
+        // The queue for AI-assigned category and tags on knowledge articles
+        // (ai:classify-articles). The category and tags it writes are still logged.
+        'ai_classify',
+        'ai_classified_at',
+        'ai_classify_error',
 
         // Campaign counters, bumped by the send pipeline and the open/click and
         // SNS webhooks. Carried over from EmailMarketingActivityObserver, which

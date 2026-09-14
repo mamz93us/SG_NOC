@@ -3,7 +3,7 @@
 @section('title', 'AI Assistant Knowledge')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div>
         <h4 class="mb-0 fw-bold"><i class="bi bi-robot me-2 text-primary"></i>AI Assistant Knowledge</h4>
         <small class="text-muted">
@@ -11,13 +11,42 @@
             Publishing re-indexes automatically — see <a href="{{ route('admin.ai-assistant.usage') }}">Usage &amp; Gaps</a> for what employees ask that this library cannot yet answer.
         </small>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ route('admin.ai-assistant.knowledge.websites.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-globe2 me-1"></i>Websites
+        </a>
         <a href="{{ route('admin.ai-assistant.knowledge-stats') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-bar-chart me-1"></i>Statistics
         </a>
         <a href="{{ route('admin.ai-assistant.instructions.edit') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-card-text me-1"></i>Instructions
         </a>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-magic me-1"></i>Category &amp; tags by AI
+            </button>
+            <div class="dropdown-menu dropdown-menu-end p-2" style="min-width: 320px">
+                <form method="POST" action="{{ route('admin.ai-assistant.knowledge.classify-all') }}">
+                    @csrf
+                    <input type="hidden" name="mode" value="missing">
+                    <button type="submit" class="dropdown-item rounded py-2" @disabled($classifyMissing === 0)>
+                        <div class="fw-semibold">Fill in what is missing</div>
+                        <div class="small text-muted text-wrap">
+                            {{ $classifyMissing }} of {{ $articleTotal }} {{ Str::plural('article', $articleTotal) }} lack a category or tags. Only the empty fields are filled in.
+                        </div>
+                    </button>
+                </form>
+                <form method="POST" action="{{ route('admin.ai-assistant.knowledge.classify-all') }}"
+                      onsubmit="return confirm('Let the AI choose the category and tags of all {{ $articleTotal }} articles again, replacing what is there?');">
+                    @csrf
+                    <input type="hidden" name="mode" value="replace">
+                    <button type="submit" class="dropdown-item rounded py-2" @disabled($articleTotal === 0)>
+                        <div class="fw-semibold">Redo every article</div>
+                        <div class="small text-muted text-wrap">Reads all {{ $articleTotal }} and replaces their category and tags, including any typed by hand.</div>
+                    </button>
+                </form>
+            </div>
+        </div>
         <form method="POST" action="{{ route('admin.ai-assistant.knowledge.reindex-all') }}" class="d-inline"
               onsubmit="return confirm('Re-chunk and re-embed every published article? This runs in the background.');">
             @csrf
@@ -96,6 +125,17 @@
         @endif
     </div>
 </div>
+
+@if($classifyQueued > 0)
+    <div id="classify-status" class="alert alert-info d-flex gap-2 align-items-center small"
+         data-poll-url="{{ route('admin.ai-assistant.knowledge.classify-status') }}">
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        <div>
+            The AI is filling in categories and tags. Articles still to read: <strong data-role="queued">{{ $classifyQueued }}</strong>.
+            This page reloads itself when they are done.
+        </div>
+    </div>
+@endif
 
 @if($imports->isNotEmpty())
     <div class="card shadow-sm border-0 mb-4" id="pdf-imports"
@@ -179,6 +219,13 @@
     </div>
 @endif
 
+@if($category !== '')
+    <div class="d-flex align-items-center gap-2 mb-2 small">
+        <span>Showing the category <strong>{{ $category }}</strong></span>
+        <a href="{{ route('admin.ai-assistant.knowledge.index') }}">Show every article</a>
+    </div>
+@endif
+
 <div class="card shadow-sm border-0">
     <div class="table-responsive">
         <table class="table align-middle mb-0">
@@ -189,7 +236,7 @@
                     <th style="min-width:150px">Audience</th>
                     <th style="width:100px" class="text-center">Chunks</th>
                     <th style="width:100px" class="text-center">Status</th>
-                    <th style="width:120px"></th>
+                    <th style="width:160px"></th>
                 </tr>
             </thead>
             <tbody>
@@ -205,12 +252,38 @@
                                         <i class="bi bi-file-earmark-pdf text-danger"></i> PDF
                                     </a>
                                 @endif
+                                @if($article->webPage)
+                                    <a href="{{ $article->webPage->url }}" target="_blank" rel="noopener noreferrer"
+                                       class="badge text-bg-light border text-decoration-none fw-normal ms-1"
+                                       title="Read from {{ $article->webPage->url }}">
+                                        <i class="bi bi-globe2 text-primary"></i> Web
+                                    </a>
+                                @endif
                             </div>
                             @if($article->title_ar)
                                 <div class="small text-muted" dir="rtl">{{ $article->title_ar }}</div>
                             @endif
+                            @if(! empty($article->tags))
+                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                    @foreach($article->tags as $tag)
+                                        <span class="badge text-bg-light border fw-normal">{{ $tag }}</span>
+                                    @endforeach
+                                </div>
+                            @endif
+                            @if($article->ai_classify)
+                                <div class="small text-primary mt-1"><i class="bi bi-hourglass-split me-1"></i>Waiting for the AI to fill in its category and tags</div>
+                            @elseif($article->ai_classify_error)
+                                <div class="small text-danger mt-1">The AI could not file it: {{ $article->ai_classify_error }}</div>
+                            @endif
                         </td>
-                        <td><span class="badge bg-secondary">{{ $article->category ?: '—' }}</span></td>
+                        <td>
+                            @if($article->category)
+                                <a href="{{ route('admin.ai-assistant.knowledge.index', ['category' => $article->category]) }}"
+                                   class="badge bg-secondary text-decoration-none" title="Show this category only">{{ $article->category }}</a>
+                            @else
+                                <span class="badge bg-secondary">—</span>
+                            @endif
+                        </td>
                         <td class="small">
                             @if($article->audience === 'branch')
                                 Branch: {{ $article->branch?->name ?? '—' }}
@@ -232,7 +305,14 @@
                                 <span class="badge bg-secondary">Draft</span>
                             @endif
                         </td>
-                        <td class="text-end">
+                        <td class="text-end text-nowrap">
+                            <form method="POST" action="{{ route('admin.ai-assistant.knowledge.classify', $article) }}" class="d-inline"
+                                  onsubmit="const b = this.querySelector('button'); b.disabled = true; b.querySelector('i').className = 'spinner-border spinner-border-sm';">
+                                @csrf
+                                <button type="submit" class="btn btn-sm btn-outline-primary" title="Read the article and assign its category and tags with AI">
+                                    <i class="bi bi-magic"></i>
+                                </button>
+                            </form>
                             <a href="{{ route('admin.ai-assistant.knowledge.edit', $article) }}" class="btn btn-sm btn-outline-secondary">
                                 <i class="bi bi-pencil"></i>
                             </a>
@@ -290,7 +370,7 @@
                     <div class="col-md-6">
                         <label for="importCategory" class="form-label fw-semibold">Category</label>
                         <input type="text" id="importCategory" name="category" maxlength="50" class="form-control"
-                               value="{{ old('category') }}" placeholder="e.g. hr-policy, payroll, vpn">
+                               value="{{ old('category') }}" placeholder="Left empty: the AI chooses one">
                     </div>
                     <div class="col-md-6">
                         <label for="importAudience" class="form-label fw-semibold">Audience</label>
@@ -372,6 +452,32 @@
                 clearInterval(poll); // don't hammer a failing endpoint forever
             });
     }, 5000);
+})();
+
+(function () {
+    const banner = document.getElementById('classify-status');
+    if (!banner) {
+        return; // nothing waiting for the AI
+    }
+
+    const count = banner.querySelector('[data-role="queued"]');
+
+    const poll = setInterval(function () {
+        fetch(banner.dataset.pollUrl, { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(function (data) {
+                count.textContent = data.queued;
+
+                // Not while the upload dialog is open: reloading would throw away the files chosen in it.
+                if (data.queued === 0 && !document.querySelector('.modal.show')) {
+                    clearInterval(poll);
+                    window.location.reload();
+                }
+            })
+            .catch(function () {
+                clearInterval(poll); // don't hammer a failing endpoint forever
+            });
+    }, 10000);
 })();
 
 (function () {
