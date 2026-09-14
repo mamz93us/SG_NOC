@@ -31,7 +31,7 @@ class AttendancePeriodService
     public const RECORD_FIELDS = [
         'oracle_emp_no', 'employee_name', 'branch', 'date', 'status', 'shift', 'scheduled_in', 'scheduled_out',
         'check_in', 'check_out', 'worked_minutes', 'late_minutes', 'early_leave_minutes', 'overtime_minutes',
-        'excuse', 'corrected',
+        'excuse', 'corrected', 'check_in_adjusted', 'check_out_adjusted',
     ];
 
     public function __construct(private ?OracleAttendanceSender $sender = null) {}
@@ -192,7 +192,9 @@ class AttendancePeriodService
             'early_leave_minutes' => $d->early_leave_minutes,
             'overtime_minutes' => $d->overtime_minutes,
             'excuse' => $d->excuse,
-            'corrected' => in_array(AttendanceDayBuilder::FLAG_ADJUSTED, $d->flags ?? [], true),
+            'corrected' => $d->checkInEdited() || $d->checkOutEdited() || $d->hasFlag(AttendanceDayBuilder::FLAG_ADJUSTED),
+            'check_in_adjusted' => $d->checkInEdited(),
+            'check_out_adjusted' => $d->checkOutEdited(),
         ];
     }
 

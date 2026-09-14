@@ -541,7 +541,7 @@ it('fills a missing check-out from an HR correction without touching the punch',
     $day = AttendanceDay::sole();
     expect($day->last_out->format('H:i'))->toBe('17:00')
         ->and($day->worked_minutes)->toBe(482)
-        ->and($day->flags)->toContain(AttendanceDayBuilder::FLAG_ADJUSTED)
+        ->and($day->flags)->toContain(AttendanceDayBuilder::FLAG_CHECK_OUT_ADJUSTED)
         ->and($day->flags)->not->toContain(AttendanceDayBuilder::FLAG_MISSING_CHECK_OUT)
         ->and($day->has_error)->toBeFalse()
         ->and(AttendancePunch::count())->toBe(1);

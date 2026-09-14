@@ -149,6 +149,23 @@ class AttendanceDay extends Model
         return self::STATUS_LABELS[$this->status] ?? ucfirst((string) $this->status);
     }
 
+    public function hasFlag(string $flag): bool
+    {
+        return in_array($flag, $this->flags ?? [], true);
+    }
+
+    /** HR edited the check-in: first_in is HR's time, not a punch. */
+    public function checkInEdited(): bool
+    {
+        return $this->hasFlag(AttendanceDayBuilder::FLAG_CHECK_IN_ADJUSTED);
+    }
+
+    /** HR edited the check-out: last_out is HR's time, not a punch. */
+    public function checkOutEdited(): bool
+    {
+        return $this->hasFlag(AttendanceDayBuilder::FLAG_CHECK_OUT_ADJUSTED);
+    }
+
     public function workedLabel(): string
     {
         return $this->worked_minutes === null ? '—' : self::hoursLabel($this->worked_minutes);

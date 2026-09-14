@@ -78,6 +78,17 @@ final class AttendanceDayBuilder
 
     public const FLAG_OTHER_BRANCH = 'other_branch';
 
+    /** HR edited the check-in: first_in is HR's time, not a punch. */
+    public const FLAG_CHECK_IN_ADJUSTED = 'check_in_adjusted';
+
+    /** HR edited the check-out: last_out is HR's time, not a punch. */
+    public const FLAG_CHECK_OUT_ADJUSTED = 'check_out_adjusted';
+
+    /**
+     * Either time edited by HR — the only flag before check-in and check-out
+     * edits were separated (2026-09-14). No longer written; a day still
+     * carrying it predates the split.
+     */
     public const FLAG_ADJUSTED = 'adjusted';
 
     public const FLAG_EXCUSED = 'excused';
@@ -109,7 +120,9 @@ final class AttendanceDayBuilder
         self::FLAG_WORKED_OFF_DAY => 'Worked on day off',
         self::FLAG_WORKED_HOLIDAY => 'Worked on holiday',
         self::FLAG_OTHER_BRANCH => 'Punched at another branch',
-        self::FLAG_ADJUSTED => 'Corrected by HR',
+        self::FLAG_CHECK_IN_ADJUSTED => 'Check-in edited',
+        self::FLAG_CHECK_OUT_ADJUSTED => 'Check-out edited',
+        self::FLAG_ADJUSTED => 'Edited by HR',
         self::FLAG_EXCUSED => 'Excused',
     ];
 
@@ -156,18 +169,22 @@ final class AttendanceDayBuilder
         $firstIn = $times[0] ?? null;
         $lastOut = count($distinct) > 1 ? $times[count($times) - 1] : null;
 
-        // An HR correction replaces the device's times; the punches stay as recorded.
+        // An HR edit replaces that side's time; the punches stay as recorded.
+        // Each side is flagged on its own, so an edited check-in never reads
+        // as an edited check-out.
         if ($context->checkIn !== null) {
             $firstIn = CarbonImmutable::parse($context->checkIn);
+            $flags[] = self::FLAG_CHECK_IN_ADJUSTED;
         }
         if ($context->checkOut !== null) {
             $lastOut = CarbonImmutable::parse($context->checkOut);
-        }
-        if ($context->checkIn !== null || $context->checkOut !== null) {
-            $flags[] = self::FLAG_ADJUSTED;
+            $flags[] = self::FLAG_CHECK_OUT_ADJUSTED;
         }
         if ($firstIn === null && $lastOut !== null) {
+            // An edited check-out with no punch or check-in before it stands as the check-in.
             [$firstIn, $lastOut] = [$lastOut, null];
+            $flags = array_values(array_diff($flags, [self::FLAG_CHECK_OUT_ADJUSTED]));
+            $flags[] = self::FLAG_CHECK_IN_ADJUSTED;
         }
 
         $scheduledStart = $shift?->scheduledStart($workDate);

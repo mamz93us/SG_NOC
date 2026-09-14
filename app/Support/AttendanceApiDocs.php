@@ -97,9 +97,10 @@ class AttendanceApiDocs
      */
     public static function recordFields(): array
     {
-        // Days of unlinked codes are never returned, so neither are their flags.
+        // Days of unlinked codes are never returned, so neither are their flags;
+        // `adjusted` predates the separate check-in and check-out flags.
         $flags = collect(AttendanceDayBuilder::LABELS)
-            ->except([AttendanceDayBuilder::FLAG_UNMAPPED, AttendanceDayBuilder::FLAG_NOT_EMPLOYEE])
+            ->except([AttendanceDayBuilder::FLAG_UNMAPPED, AttendanceDayBuilder::FLAG_NOT_EMPLOYEE, AttendanceDayBuilder::FLAG_ADJUSTED])
             ->map(fn (string $label, string $flag) => "{$flag} ({$label})")
             ->implode(', ');
         $errors = implode(', ', array_diff(AttendanceDayBuilder::ERRORS, [AttendanceDayBuilder::FLAG_UNMAPPED]));
@@ -119,7 +120,9 @@ class AttendanceApiDocs
             ['worked_minutes', 'integer | null', 'From check_in to check_out. null without a check-out — never estimated.'],
             ['late_minutes, early_leave_minutes, overtime_minutes', 'integer', 'Against the shift, after its grace periods. Every minute worked on a day off or a holiday counts as overtime.'],
             ['excuse', 'string | null', implode(', ', array_keys(AttendanceAdjustment::EXCUSES))],
-            ['corrected', 'boolean', 'HR corrected check_in or check_out. punches still show what the device recorded.'],
+            ['corrected', 'boolean', 'HR edited check_in, check_out or both. punches still show what the device recorded.'],
+            ['check_in_adjusted', 'boolean', 'HR edited the check-in: check_in is HR’s time, not a punch.'],
+            ['check_out_adjusted', 'boolean', 'HR edited the check-out: check_out is HR’s time, not a punch.'],
             ['approved', 'boolean', 'The day belongs to a period HR has approved and locked. Until then it can still change.'],
             ['has_error', 'boolean', "The day has a data error: {$errors}."],
             ['flags', 'string[]', $flags],
@@ -156,6 +159,8 @@ class AttendanceApiDocs
             'overtime_minutes' => 41,
             'excuse' => null,
             'corrected' => false,
+            'check_in_adjusted' => false,
+            'check_out_adjusted' => false,
             'approved' => true,
             'has_error' => false,
             'flags' => ['overtime'],

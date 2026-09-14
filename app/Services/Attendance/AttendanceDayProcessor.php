@@ -30,7 +30,7 @@ class AttendanceDayProcessor
     /** @var array<string, array{branch_id: ?int, timezone: ?string}> */
     private array $locations = [];
 
-    /** @var array<string, AttendanceAdjustment>|null preloaded for the range being rebuilt */
+    /** @var array<string, array<string, AttendanceAdjustment>>|null employee|date => kind => latest active edit, preloaded for the range being rebuilt */
     private ?array $adjustments = null;
 
     private ?PeriodLocks $locks = null;
@@ -203,7 +203,7 @@ class AttendanceDayProcessor
         }
 
         $employee = $isEmployee ? $this->shifts->employee($id) : null;
-        $adjustment = $isEmployee ? $this->adjustment($id, $date) : null;
+        $edits = $isEmployee ? $this->edits($id, $date) : [];
         $first = $punches->first();
         $location = $first
             ? $this->location((int) $first->biotime_source_id, $first->area_alias, $first->terminal_sn)
@@ -226,9 +226,9 @@ class AttendanceDayProcessor
             shift: $shift,
             holiday: $isEmployee ? $this->shifts->holidayFor($employeeBranch ?? $location['branch_id'], $date) : null,
             expectedToWork: $isEmployee && $this->shifts->expectedToWork($id, $date),
-            checkIn: $adjustment?->check_in?->format(self::FORMAT),
-            checkOut: $adjustment?->check_out?->format(self::FORMAT),
-            excuse: $adjustment?->excuse,
+            checkIn: ($edits[AttendanceAdjustment::KIND_CHECK_IN] ?? null)?->check_in?->format(self::FORMAT),
+            checkOut: ($edits[AttendanceAdjustment::KIND_CHECK_OUT] ?? null)?->check_out?->format(self::FORMAT),
+            excuse: ($edits[AttendanceAdjustment::KIND_EXCUSE] ?? null)?->excuse,
         );
 
         $result = $this->builder->build(
@@ -278,7 +278,7 @@ class AttendanceDayProcessor
             'early_leave_minutes' => $result->earlyLeaveMinutes,
             'overtime_minutes' => $result->overtimeMinutes,
             'excuse' => $result->excuse,
-            'attendance_adjustment_id' => $adjustment?->id,
+            'attendance_adjustment_id' => $edits ? max(array_map(fn (AttendanceAdjustment $edit) => $edit->id, $edits)) : null,
             'flags' => $result->flags,
             'has_error' => $result->hasError(),
             'computed_at' => now(),
@@ -396,22 +396,39 @@ class AttendanceDayProcessor
             ->orderBy('id')
             ->get()
             ->each(function (AttendanceAdjustment $adjustment) {
-                $this->adjustments[$adjustment->employee_id.'|'.$adjustment->work_date->toDateString()] = $adjustment;
+                $key = $adjustment->employee_id.'|'.$adjustment->work_date->toDateString();
+                // Ordered by id, so the latest edit of each kind wins.
+                foreach ($adjustment->kinds() as $kind) {
+                    $this->adjustments[$key][$kind] = $adjustment;
+                }
             });
     }
 
-    private function adjustment(int $employeeId, string $date): ?AttendanceAdjustment
+    /**
+     * The latest active HR edit of each kind: check-in, check-out, excuse.
+     *
+     * @return array<string, AttendanceAdjustment>
+     */
+    private function edits(int $employeeId, string $date): array
     {
         if ($this->adjustments !== null) {
-            return $this->adjustments[$employeeId.'|'.$date] ?? null;
+            return $this->adjustments[$employeeId.'|'.$date] ?? [];
         }
 
-        return AttendanceAdjustment::query()
+        $edits = [];
+        AttendanceAdjustment::query()
             ->where('employee_id', $employeeId)
             ->where('work_date', $date)
             ->whereNull('revoked_at')
-            ->latest('id')
-            ->first();
+            ->orderBy('id')
+            ->get()
+            ->each(function (AttendanceAdjustment $adjustment) use (&$edits) {
+                foreach ($adjustment->kinds() as $kind) {
+                    $edits[$kind] = $adjustment;
+                }
+            });
+
+        return $edits;
     }
 
     private function locks(): PeriodLocks

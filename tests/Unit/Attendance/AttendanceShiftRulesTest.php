@@ -133,8 +133,28 @@ it('fills a missing check-out from an HR correction', function () {
 
     expect($day->lastOut)->toBe('2026-09-10 17:00:00')
         ->and($day->workedMinutes)->toBe(480)
-        ->and($day->flags)->toBe([AttendanceDayBuilder::FLAG_ADJUSTED])
+        ->and($day->flags)->toBe([AttendanceDayBuilder::FLAG_CHECK_OUT_ADJUSTED])
         ->and($day->hasError())->toBeFalse();
+});
+
+it('flags an edited check-in and an edited check-out separately', function () {
+    $inOnly = shiftDay(['2026-09-10 09:40:00', '2026-09-10 17:00:00'], new DayContext(shift: officeShift(), checkIn: '2026-09-10 09:00:00'));
+    $both = shiftDay(['2026-09-10 09:40:00'], new DayContext(shift: officeShift(), checkIn: '2026-09-10 09:00:00', checkOut: '2026-09-10 17:10:00'));
+
+    expect($inOnly->firstIn)->toBe('2026-09-10 09:00:00')
+        ->and($inOnly->lateMinutes)->toBe(0)
+        ->and($inOnly->flags)->toBe([AttendanceDayBuilder::FLAG_CHECK_IN_ADJUSTED])
+        ->and($both->workedMinutes)->toBe(490)
+        ->and($both->flags)->toBe([AttendanceDayBuilder::FLAG_CHECK_IN_ADJUSTED, AttendanceDayBuilder::FLAG_CHECK_OUT_ADJUSTED]);
+});
+
+it('flags a lone edited check-out as the check-in it stands for', function () {
+    $day = shiftDay([], new DayContext(shift: officeShift(), checkOut: '2026-09-10 17:00:00'));
+
+    expect($day->firstIn)->toBe('2026-09-10 17:00:00')
+        ->and($day->lastOut)->toBeNull()
+        ->and($day->flags)->toContain(AttendanceDayBuilder::FLAG_CHECK_IN_ADJUSTED)
+        ->and($day->flags)->not->toContain(AttendanceDayBuilder::FLAG_CHECK_OUT_ADJUSTED);
 });
 
 it('treats more than the shift maximum as a forgotten check-out', function () {

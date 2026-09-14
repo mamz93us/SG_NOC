@@ -5,20 +5,34 @@ namespace App\Models\Attendance;
 use App\Models\Attendance\Concerns\StoresPlainDates;
 use App\Models\Employee;
 use App\Models\User;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * An HR correction to one person's day: corrected check-in / check-out
- * times, or the whole day excused. The raw punches are never touched — the
- * day is rebuilt with this laid over them.
+ * An HR edit to one person's day. Each row sets exactly one thing — the
+ * check-in, the check-out, or a whole-day excuse — with its own reason. The
+ * raw punches are never touched; the day is rebuilt with the edits laid over
+ * them.
  *
- * One active correction per person per day. A new one revokes the previous
- * one rather than editing it, so the history of who changed what stays.
+ * One active edit per kind per person per day. A new edit revokes only the
+ * previous one of the same kind, so editing the check-out leaves the check-in
+ * edit and its reason in force, and the history of who changed what stays.
+ * Rows from before 2026-09-14 could set both times under one reason; the
+ * split migration turned each of those into one row per side.
  */
 class AttendanceAdjustment extends Model
 {
     use StoresPlainDates;
+
+    public const KIND_CHECK_IN = 'check_in';
+
+    public const KIND_CHECK_OUT = 'check_out';
+
+    public const KIND_EXCUSE = 'excuse';
+
+    /** The kinds, each also the column that carries its value. */
+    public const KINDS = [self::KIND_CHECK_IN, self::KIND_CHECK_OUT, self::KIND_EXCUSE];
 
     public const EXCUSES = [
         'annual_leave' => 'Annual leave',
@@ -71,20 +85,35 @@ class AttendanceAdjustment extends Model
         return $this->revoked_at === null;
     }
 
+    /**
+     * What this edit sets: one kind, or both times for a row older than the split.
+     *
+     * @return list<string>
+     */
+    public function kinds(): array
+    {
+        return array_values(array_filter(self::KINDS, fn (string $kind) => $this->{$kind} !== null));
+    }
+
     public function summary(): string
     {
-        if ($this->excuse) {
-            return 'Excused: '.(self::EXCUSES[$this->excuse] ?? $this->excuse);
-        }
-
         $parts = [];
         if ($this->check_in) {
-            $parts[] = 'check-in '.$this->check_in->format('H:i');
+            $parts[] = 'Check-in set to '.$this->timeLabel($this->check_in);
         }
         if ($this->check_out) {
-            $parts[] = 'check-out '.$this->check_out->format($this->check_out->isSameDay($this->work_date) ? 'H:i' : 'd M H:i');
+            $parts[] = 'Check-out set to '.$this->timeLabel($this->check_out);
+        }
+        if ($this->excuse) {
+            $parts[] = 'Excused: '.(self::EXCUSES[$this->excuse] ?? $this->excuse);
         }
 
-        return 'Set '.implode(', ', $parts);
+        return implode(' · ', $parts);
+    }
+
+    /** 17:30 — or 11 Sep 06:00 when the time falls on another date than the day. */
+    public function timeLabel(DateTimeInterface $time): string
+    {
+        return $time->format('Y-m-d') === $this->work_date->toDateString() ? $time->format('H:i') : $time->format('d M H:i');
     }
 }

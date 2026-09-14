@@ -15,9 +15,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
- * HR corrections to a day: set the check-in / check-out, or excuse the day.
- * Each needs a reason; the punches are never edited; a new correction
- * revokes the previous one, so the full history stays visible.
+ * HR edits to a day: the check-in, the check-out or a whole-day excuse, each
+ * saved on its own with its own reason. The punches are never edited. A new
+ * edit revokes only the previous edit of the same kind, so one side's reason
+ * never replaces the other's and the full history stays visible.
  */
 class AttendanceAdjustmentController extends Controller
 {
@@ -32,57 +33,37 @@ class AttendanceAdjustmentController extends Controller
         }
 
         $data = $request->validate([
-            'action' => 'required|in:times,excuse',
-            'check_in' => 'nullable|date',
-            'check_out' => 'nullable|date',
-            'excuse' => ['nullable', 'required_if:action,excuse', Rule::in(array_keys(AttendanceAdjustment::EXCUSES))],
+            'action' => ['required', Rule::in(AttendanceAdjustment::KINDS)],
+            'time' => 'nullable|required_unless:action,'.AttendanceAdjustment::KIND_EXCUSE.'|date',
+            'excuse' => ['nullable', 'required_if:action,'.AttendanceAdjustment::KIND_EXCUSE, Rule::in(array_keys(AttendanceAdjustment::EXCUSES))],
             'reason' => 'required|string|max:1000',
         ]);
 
+        $kind = $data['action'];
         $date = $day->work_date->toDateString();
-        $values = ['check_in' => null, 'check_out' => null, 'excuse' => null];
 
-        if ($data['action'] === 'times') {
-            $in = ! empty($data['check_in']) ? CarbonImmutable::parse($data['check_in']) : null;
-            $out = ! empty($data['check_out']) ? CarbonImmutable::parse($data['check_out']) : null;
-
-            if (! $in && ! $out) {
-                return back()->withInput()->with('error', 'Enter a check-in, a check-out, or both.');
-            }
-
-            // Within a day either side: an overnight shift's check-out is tomorrow.
-            $earliest = CarbonImmutable::parse($date)->subDay();
-            $latest = CarbonImmutable::parse($date)->addDays(2);
-            foreach ([$in, $out] as $time) {
-                if ($time && ($time->lessThan($earliest) || ! $time->lessThan($latest))) {
-                    return back()->withInput()->with('error', "Times must be within a day of {$date}.");
-                }
-            }
-
-            if ($in && $out && ! $out->greaterThan($in)) {
-                return back()->withInput()->with('error', 'Check-out must be after check-in.');
-            }
-
-            if (! $in && ! $day->first_in) {
-                return back()->withInput()->with('error', 'There are no punches on this day — give a check-in as well.');
-            }
-
-            $values['check_in'] = $in?->format('Y-m-d H:i:s');
-            $values['check_out'] = $out?->format('Y-m-d H:i:s');
+        if ($kind === AttendanceAdjustment::KIND_EXCUSE) {
+            $value = $data['excuse'];
         } else {
-            $values['excuse'] = $data['excuse'];
+            $time = CarbonImmutable::parse($data['time']);
+            if ($error = $this->timeError($day, $kind, $time)) {
+                return back()->withInput()->with('error', $error);
+            }
+            $value = $time->format('Y-m-d H:i:s');
         }
 
-        $adjustment = DB::transaction(function () use ($day, $date, $values, $data) {
+        $adjustment = DB::transaction(function () use ($day, $date, $kind, $value, $data) {
             AttendanceAdjustment::query()
                 ->where('employee_id', $day->employee_id)
                 ->where('work_date', $date)
+                ->whereNotNull($kind)
                 ->whereNull('revoked_at')
                 ->update(['revoked_at' => now(), 'revoked_by' => Auth::id()]);
 
-            return AttendanceAdjustment::create($values + [
+            return AttendanceAdjustment::create([
                 'employee_id' => $day->employee_id,
                 'work_date' => $date,
+                $kind => $value,
                 'reason' => $data['reason'],
                 'created_by' => Auth::id(),
             ]);
@@ -90,7 +71,7 @@ class AttendanceAdjustmentController extends Controller
 
         $this->log($adjustment, 'created');
 
-        return $this->rebuildAndShow($processor, $day->employee_id, $date, 'Correction saved: '.$adjustment->summary().'.');
+        return $this->rebuildAndShow($processor, $day->employee_id, $date, 'Saved: '.$adjustment->summary().'.');
     }
 
     public function revoke(AttendanceAdjustment $adjustment, AttendanceDayProcessor $processor): RedirectResponse
@@ -110,7 +91,32 @@ class AttendanceAdjustmentController extends Controller
         $this->log($adjustment, 'revoked');
 
         return $this->rebuildAndShow($processor, $adjustment->employee_id, $adjustment->work_date->toDateString(),
-            'Correction revoked — the day is back to what the punches say.');
+            'Revoked: '.$adjustment->summary().'. That part of the day is back to what the punches say.');
+    }
+
+    /** Why this time can't be saved for this side, or null. */
+    private function timeError(AttendanceDay $day, string $kind, CarbonImmutable $time): ?string
+    {
+        $date = CarbonImmutable::parse($day->work_date->toDateString());
+
+        // Within a day either side: an overnight shift's check-out is tomorrow.
+        if ($time->lessThan($date->subDay()) || ! $time->lessThan($date->addDays(2))) {
+            return "Times must be within a day of {$date->toDateString()}.";
+        }
+
+        if ($kind === AttendanceAdjustment::KIND_CHECK_IN) {
+            return $day->last_out && ! $time->lessThan($day->last_out)
+                ? "Check-in must be before the check-out ({$day->last_out->format('H:i')})."
+                : null;
+        }
+
+        if (! $day->first_in) {
+            return 'This day has no check-in. Edit the check-in first.';
+        }
+
+        return $time->greaterThan($day->first_in)
+            ? null
+            : "Check-out must be after the check-in ({$day->first_in->format('H:i')}).";
     }
 
     private function rebuildAndShow(AttendanceDayProcessor $processor, int $employeeId, string $date, string $message): RedirectResponse
