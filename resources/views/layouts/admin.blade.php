@@ -70,6 +70,10 @@
                 columns: 2;
                 column-gap: 0;
             }
+            .dropdown-menu.dropdown-mega-3 {
+                min-width: 660px;
+                columns: 3;
+            }
             .dropdown-menu.dropdown-mega > li {
                 break-inside: avoid;
             }
@@ -489,14 +493,15 @@
                     </li>
                     @endcanany
 
-                    {{-- ── Network dropdown ── --}}
-                    @can('view-network')
+                    {{-- ── Network dropdown (with Printers) ── --}}
+                    @canany(['view-network','view-printers','view-printer-usage','manage-printer-alerts','manage-printers','view-print-manager'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/network*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/network*','admin/printers*','admin/print-manager*','admin/my-printers*','admin/intune-groups*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-diagram-3-fill me-1"></i>Network
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark dropdown-mega shadow">
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-mega dropdown-mega-3 shadow">
+                            @can('view-network')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.overview') ? 'active' : '' }}"
                                    href="{{ route('admin.network.overview') }}">
@@ -743,14 +748,92 @@
                                 </a>
                             </li>
                             @endcan
+                            @endcan
+                            {{-- ── Printers (was its own top-level menu) ── --}}
+                            @can('view-network')
+                            <li><hr class="dropdown-divider"></li>
+                            @endcan
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-printer-fill me-1"></i>Printers</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/my-printers*') ? 'active' : '' }}"
+                                   href="/admin/my-printers">
+                                    <i class="bi bi-person-badge me-2"></i>My Printers
+                                </a>
+                            </li>
+                            @can('view-printers')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.printers.dashboard') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.dashboard') }}">
+                                    <i class="bi bi-speedometer2 me-2 text-warning"></i>Printer Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers') || request()->is('admin/printers/create') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.index') }}">
+                                    <i class="bi bi-printer-fill me-2"></i>Printers
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers/snmp-status') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.snmp.status') }}">
+                                    <i class="bi bi-activity me-2 text-success"></i>Printer SNMP Status
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers/unified*') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.unified.index') }}">
+                                    <i class="bi bi-collection me-2 text-primary"></i>Unified Printers
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers/drivers*') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.drivers.index') }}">
+                                    <i class="bi bi-file-earmark-arrow-down me-2"></i>Printer Drivers
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-printer-usage')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers/usage*') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.usage') }}">
+                                    <i class="bi bi-bar-chart-fill me-2 text-info"></i>Printer Usage Report
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-printer-alerts')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/printers/branch-settings*') ? 'active' : '' }}"
+                                   href="{{ route('admin.printers.branch.index') }}">
+                                    <i class="bi bi-bell-fill me-2 text-warning"></i>Printer Alert Settings
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-printers')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/intune-groups*') ? 'active' : '' }}"
+                                   href="{{ route('admin.intune-groups.index') }}">
+                                    <i class="bi bi-collection me-2 text-primary"></i>Intune Groups
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-print-manager')
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-cloud-arrow-up me-1"></i>CUPS / IPP Proxy</h6></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/print-manager*') ? 'active' : '' }}"
+                                   href="{{ route('admin.print-manager.index') }}">
+                                    <i class="bi bi-printer me-2 text-info"></i>Print Manager
+                                </a>
+                            </li>
+                            @endcan
                         </ul>
                     </li>
-                    @endcan
+                    @endcanany
 
                     {{-- ── Assets + ITAM dropdown ── --}}
-                    @canany(['view-assets','view-credentials','view-employees','view-itam','view-licenses','view-accessories'])
+                    @canany(['view-assets','view-credentials','view-employees','view-itam','view-licenses','view-accessories','view-wallpapers'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/devices*','admin/credentials*','admin/employees*','admin/itam*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/devices*','admin/credentials*','admin/employees*','admin/itam*','admin/wallpapers*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-cpu me-1"></i>Assets
                         </a>
@@ -796,7 +879,7 @@
                                 </a>
                             </li>
                             @endcan
-                            {{-- Printer pages now live in the dedicated "Printers" menu --}}
+                            {{-- Printer pages live in the Network menu --}}
                             @can('view-credentials')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/credentials*') ? 'active' : '' }}"
@@ -863,6 +946,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('view-wallpapers')
+                            <li>
+                                <a class="dropdown-item {{ request()->is('admin/wallpapers*') ? 'active' : '' }}"
+                                   href="{{ route('admin.wallpapers.index') }}">
+                                    <i class="bi bi-image me-2"></i>Managed Wallpapers
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-itam')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.mac-address') ? 'active' : '' }}"
@@ -924,100 +1015,6 @@
                         </ul>
                     </li>
                     @endcanany
-
-                    {{-- ── Printers dropdown (all printer pages in one place) ── --}}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/printers*','admin/print-manager*','admin/my-printers*','admin/intune-groups*') ? 'active' : '' }}"
-                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-printer-fill me-1"></i>Printers
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-dark shadow">
-                            {{-- Personal — any authenticated user --}}
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/my-printers*') ? 'active' : '' }}"
-                                   href="/admin/my-printers">
-                                    <i class="bi bi-person-badge me-2"></i>My Printers
-                                </a>
-                            </li>
-                            @canany(['view-printers','view-printer-usage','manage-printer-alerts','view-print-manager'])
-                            <li><hr class="dropdown-divider"></li>
-                            @endcanany
-                            @can('view-printers')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.printers.dashboard') ? 'active' : '' }}"
-                                   href="{{ route('admin.printers.dashboard') }}">
-                                    <i class="bi bi-speedometer2 me-2 text-warning"></i>Printer Dashboard
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/printers') || request()->is('admin/printers/create') ? 'active' : '' }}"
-                                   href="{{ route('admin.printers.index') }}">
-                                    <i class="bi bi-printer-fill me-2"></i>Printers
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/printers/snmp-status') ? 'active' : '' }}"
-                                   href="{{ route('admin.printers.snmp.status') }}">
-                                    <i class="bi bi-activity me-2 text-success"></i>Printer SNMP Status
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/printers/unified*') ? 'active' : '' }}"
-                                   href="{{ route('admin.printers.unified.index') }}">
-                                    <i class="bi bi-collection me-2 text-primary"></i>Unified Printers
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/printers/drivers*') ? 'active' : '' }}"
-                                   href="{{ route('admin.printers.drivers.index') }}">
-                                    <i class="bi bi-file-earmark-arrow-down me-2"></i>Printer Drivers
-                                </a>
-                            </li>
-                            @endcan
-                            @can('view-printer-usage')
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/printers/usage*') ? 'active' : '' }}"
-                                   href="{{ route('admin.printers.usage') }}">
-                                    <i class="bi bi-bar-chart-fill me-2 text-info"></i>Printer Usage Report
-                                </a>
-                            </li>
-                            @endcan
-                            @can('manage-printer-alerts')
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/printers/branch-settings*') ? 'active' : '' }}"
-                                   href="{{ route('admin.printers.branch.index') }}">
-                                    <i class="bi bi-bell-fill me-2 text-warning"></i>Printer Alert Settings
-                                </a>
-                            </li>
-                            @endcan
-                            @can('manage-printers')
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/intune-groups*') ? 'active' : '' }}"
-                                   href="{{ route('admin.intune-groups.index') }}">
-                                    <i class="bi bi-collection me-2 text-primary"></i>Intune Groups
-                                </a>
-                            </li>
-                            @endcan
-                            @can('view-wallpapers')
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/wallpapers*') ? 'active' : '' }}"
-                                   href="{{ route('admin.wallpapers.index') }}">
-                                    <i class="bi bi-image me-2 text-primary"></i>Managed Wallpapers
-                                </a>
-                            </li>
-                            @endcan
-                            @can('view-print-manager')
-                            <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header text-secondary"><i class="bi bi-cloud-arrow-up me-1"></i>CUPS / IPP Proxy</h6></li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('admin/print-manager*') ? 'active' : '' }}"
-                                   href="{{ route('admin.print-manager.index') }}">
-                                    <i class="bi bi-printer me-2 text-info"></i>Print Manager
-                                </a>
-                            </li>
-                            @endcan
-                        </ul>
-                    </li>
 
                     {{-- ── Workflows dropdown ── --}}
                     @canany(['view-workflows','manage-workflows','approve-workflows'])
@@ -1198,34 +1195,86 @@
                     </li>
                     @endcan
 
-                    {{-- My Printers moved into the Printers menu --}}
-
                     {{-- Documentation, Marketing, Teamtailor & Admin Tools folded into the Admin menu below --}}
 
-                    {{-- ── Create Ticket (top level: available to every role that can raise one) ── --}}
-                    @can('create-tickets')
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->routeIs('admin.tickets.create') ? 'active' : '' }}"
-                           href="{{ route('admin.tickets.create') }}">
-                            <i class="bi bi-ticket-perforated-fill me-1"></i>Create Ticket
-                        </a>
-                    </li>
-                    @endcan
+                    {{-- Create Ticket / My Tickets are employee links — kept off the admin menu bar --}}
 
-                    {{-- ── My Tickets: live status from the ticketing system, next to
-                         the form that raises them. Not in the Admin dropdown — this
-                         one is for everybody, not for administrators. ── --}}
-                    @canany(['create-tickets','view-tickets'])
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->routeIs('admin.tickets.tracker*') ? 'active' : '' }}"
-                           href="{{ route('admin.tickets.tracker') }}">
-                            <i class="bi bi-life-preserver me-1"></i>My Tickets
+                    {{-- ── AI dropdown (every AI Assistant page in one place) ── --}}
+                    @canany(['manage-ai-assistant','answer-ai-knowledge-gaps','view-ai-conversations'])
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/ai-assistant*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-robot me-1"></i>AI
                         </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @can('manage-ai-assistant')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge.*') && ! request()->routeIs('admin.ai-assistant.knowledge.websites.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.knowledge.index') }}">
+                                    <i class="bi bi-book me-2"></i>Knowledge Articles
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge.websites.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.knowledge.websites.index') }}">
+                                    <i class="bi bi-globe2 me-2"></i>Websites
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge-stats') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.knowledge-stats') }}">
+                                    <i class="bi bi-bar-chart me-2"></i>Knowledge Statistics
+                                </a>
+                            </li>
+                            @endcan
+                            @can('answer-ai-knowledge-gaps')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge-gaps.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.knowledge-gaps.index') }}">
+                                    <i class="bi bi-question-circle me-2"></i>Knowledge Gaps
+                                </a>
+                            </li>
+                            @endcan
+                            @can('view-ai-conversations')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.conversations.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.conversations.index') }}">
+                                    <i class="bi bi-chat-dots me-2"></i>Conversations
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.usage') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.usage') }}">
+                                    <i class="bi bi-graph-up me-2"></i>Usage
+                                </a>
+                            </li>
+                            @endcan
+                            @canany(['manage-ai-assistant','manage-settings'])
+                            <li><hr class="dropdown-divider"></li>
+                            @endcanany
+                            @can('manage-ai-assistant')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.instructions.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.instructions.edit') }}">
+                                    <i class="bi bi-card-text me-2"></i>Instructions
+                                </a>
+                            </li>
+                            @endcan
+                            {{-- The Azure OpenAI connection is a card on General Settings --}}
+                            @can('manage-settings')
+                            <li>
+                                <a class="dropdown-item" href="{{ route('admin.settings.index') }}#ai-assistant">
+                                    <i class="bi bi-sliders me-2"></i>Assistant Settings
+                                </a>
+                            </li>
+                            @endcan
+                        </ul>
                     </li>
                     @endcanany
 
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
-                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','view-mail-delivery','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines','view-knowbe4-scores','manage-portal-documents','manage-ai-assistant','answer-ai-knowledge-gaps','view-ai-conversations'])
+                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','view-mail-delivery','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines','view-knowbe4-scores','manage-portal-documents'])
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/email-templates*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*','admin/smtp-relay*','admin/tickets*','admin/announcements*','admin/greeting-lines*','admin/knowbe4*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -1286,42 +1335,6 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.portal-documents.*') ? 'active' : '' }}"
                                    href="{{ route('admin.portal-documents.index') }}">
                                     <i class="bi bi-folder2-open me-2"></i>Employee Documents
-                                </a>
-                            </li>
-                            @endcan
-                            @can('manage-ai-assistant')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.ai-assistant.knowledge.index') }}">
-                                    <i class="bi bi-robot me-2"></i>AI Assistant Knowledge
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge-stats') ? 'active' : '' }}"
-                                   href="{{ route('admin.ai-assistant.knowledge-stats') }}">
-                                    <i class="bi bi-bar-chart me-2"></i>AI Knowledge Statistics
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.instructions.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.ai-assistant.instructions.edit') }}">
-                                    <i class="bi bi-card-text me-2"></i>AI Assistant Instructions
-                                </a>
-                            </li>
-                            @endcan
-                            @can('answer-ai-knowledge-gaps')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge-gaps.*') ? 'active' : '' }}"
-                                   href="{{ route('admin.ai-assistant.knowledge-gaps.index') }}">
-                                    <i class="bi bi-question-circle me-2"></i>AI Knowledge Gaps
-                                </a>
-                            </li>
-                            @endcan
-                            @can('view-ai-conversations')
-                            <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.conversations.*') || request()->routeIs('admin.ai-assistant.usage') ? 'active' : '' }}"
-                                   href="{{ route('admin.ai-assistant.conversations.index') }}">
-                                    <i class="bi bi-chat-dots me-2"></i>AI Assistant Conversations
                                 </a>
                             </li>
                             @endcan
