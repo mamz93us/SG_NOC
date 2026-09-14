@@ -387,6 +387,7 @@ it('names an untitled document after its file and follows the language most page
 
 it('turns poppler failures into something an admin can act on', function () {
     expect(PdfPages::explain('pdfinfo', "Command Line Error: Incorrect password\n"))->toContain('password-protected')
+        ->and(PdfPages::explain('pdfinfo', "I/O Error: Couldn't open file '/srv/app/x.pdf': Permission denied.\n"))->toContain('not the PDF')
         ->and(PdfPages::explain('pdfinfo', "Syntax Warning: May not be a PDF file (continuing anyway)\nSyntax Error: Couldn't read xref table\n"))->toContain('damaged')
         ->and(PdfPages::explain('pdftoppm', "Wrong page range given: the first page (9) can not be after the last page (2).\n"))
         ->toBe('pdftoppm failed: Wrong page range given: the first page (9) can not be after the last page (2).');

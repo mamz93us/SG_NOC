@@ -76,6 +76,10 @@ class PdfPages
             return 'The PDF is password-protected. Save a copy without the password and upload that.';
         }
 
+        if (stripos($stderr, 'Permission denied') !== false) {
+            return 'The import worker is not allowed to read the uploaded file (permission denied). That is a server permissions problem, not the PDF: fix it, then Retry.';
+        }
+
         if (preg_match('/May not be a PDF|Couldn\'t read xref|trailer dictionary/i', $stderr)) {
             return 'The file could not be read as a PDF — it may be damaged.';
         }
