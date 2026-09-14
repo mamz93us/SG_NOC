@@ -72,7 +72,7 @@ class KnowledgeRetriever
                     ->orWhere(fn ($d) => $d->whereNotNull('portal_document_id')->whereHas('portalDocument', fn ($x) => $x->where('is_published', true)));
             })
             ->forEmployee($employee)
-            ->with(['article:id,title,title_ar', 'portalDocument:id,title,title_ar'])
+            ->with(['article:id,title,title_ar', 'article.import:id,article_id,file_name', 'portalDocument:id,title,title_ar'])
             ->get();
 
         $floor = $this->relevanceFloor();
@@ -89,6 +89,11 @@ class KnowledgeRetriever
                     'heading' => $chunk->heading,
                     'content' => $chunk->content,
                     'score' => self::cosineSimilarity($queryVector, $vector),
+                    // For an imported PDF: the file and page to find this on, and
+                    // the heading as the PDF writes it when `heading` is a translation.
+                    'document' => $chunk->article?->import?->file_name,
+                    'page' => $chunk->source_page,
+                    'heading_in_document' => $chunk->source_heading,
                 ];
             })
             ->filter()

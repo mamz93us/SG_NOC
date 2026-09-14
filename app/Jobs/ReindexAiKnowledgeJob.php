@@ -18,8 +18,9 @@ use Illuminate\Queue\SerializesModels;
  * failed silently in the past (e.g. no embedding_deployment configured yet,
  * or an Azure OpenAI outage at save time) once the settings are fixed.
  *
- * Queued rather than run inline because embedding every article is one Azure
- * OpenAI call per article — drained by the queue-drainer scheduled task
+ * Queued rather than run inline because embedding every article is at least
+ * one Azure OpenAI call per article, and a throttled call waits (see
+ * KnowledgeIndexer::BATCH_CHARS) — drained by the queue-drainer scheduled task
  * (routes/console.php), same pattern as SyncGdmsDeviceAccountsJob.
  */
 class ReindexAiKnowledgeJob implements ShouldQueue

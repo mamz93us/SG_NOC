@@ -153,6 +153,9 @@ class AssistantAgent
         // they were one.
         $base .= "\n\n".$toolbox->attendanceAccessNote();
 
+        // Who is asking, so a draft is signed with a name rather than "[Your Name]".
+        $base .= "\n\n".$toolbox->identityNote();
+
         $extra = trim((string) $settings->system_prompt_extra);
 
         return $extra !== '' ? $base."\n\n".$extra : $base;
