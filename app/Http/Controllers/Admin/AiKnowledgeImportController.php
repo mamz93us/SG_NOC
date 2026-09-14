@@ -68,6 +68,8 @@ class AiKnowledgeImportController extends Controller
                 continue;
             }
 
+            $this->letWorkerRead($path);
+
             $import = AiKnowledgeImport::create([
                 'file_path' => $path,
                 'file_name' => $name,
@@ -180,6 +182,26 @@ class AiKnowledgeImportController extends Controller
                     'error' => $import->error,
                 ]]),
         ]);
+    }
+
+    /**
+     * Uploads are written by PHP-FPM as www-data, but ai:import-pdfs runs in
+     * the scheduler as azureuser, and Flysystem creates private-disk
+     * directories 0700 — the first import on NOC2 failed with pdfinfo's
+     * "Permission denied". 0711 lets the worker open a file it has the name
+     * of, a UUID from the database, without letting anyone list the directory.
+     */
+    private function letWorkerRead(string $path): void
+    {
+        $file = Storage::disk('private')->path($path);
+
+        try {
+            chmod(dirname($file), 0711);
+            chmod($file, 0644);
+        } catch (\Throwable) {
+            // Not ours to change (made by another user): the import then fails
+            // with a message saying it is a permissions problem.
+        }
     }
 
     /** By hand: the model is kept out of automatic auditing (config/audit.php). */
