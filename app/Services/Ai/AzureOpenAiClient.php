@@ -29,7 +29,8 @@ class AzureOpenAiClient
      *
      * @param  array<int,array<string,mixed>>  $messages
      * @param  array<int,array<string,mixed>>  $tools  OpenAI-style function tool definitions; empty = no tools offered
-     * @return array{message: array<string,mixed>, usage: array<string,int>}
+     * @param  array<string,mixed>  $opts  max_tokens, temperature, tool_choice, response_format, timeout (seconds, default 60)
+     * @return array{message: array<string,mixed>, finish_reason: ?string, usage: array<string,int>}
      *
      * @throws RuntimeException on any non-2xx, an unconfigured client, or a body that is not JSON
      */
@@ -54,11 +55,15 @@ class AzureOpenAiClient
             $payload['tool_choice'] = $opts['tool_choice'] ?? 'auto';
         }
 
+        if (isset($opts['response_format'])) {
+            $payload['response_format'] = $opts['response_format'];
+        }
+
         $response = Http::withHeaders([
             'api-key' => $settings->azure_api_key,
             'Content-Type' => 'application/json',
         ])
-            ->timeout(60)
+            ->timeout((int) ($opts['timeout'] ?? 60))
             ->post($url, $payload);
 
         if (! $response->successful()) {

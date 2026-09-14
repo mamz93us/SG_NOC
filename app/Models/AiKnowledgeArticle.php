@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * One admin-authored knowledge article the AI Assistant can search and cite.
@@ -48,6 +49,12 @@ class AiKnowledgeArticle extends Model
     public function chunks(): HasMany
     {
         return $this->hasMany(AiKnowledgeChunk::class, 'article_id');
+    }
+
+    /** The PDF import this article was made from, if it was. */
+    public function import(): HasOne
+    {
+        return $this->hasOne(AiKnowledgeImport::class, 'article_id');
     }
 
     public function scopePublished(Builder $query): Builder

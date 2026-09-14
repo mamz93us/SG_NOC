@@ -1039,6 +1039,17 @@ Schedule::command('ai:index-documents')
     ->runInBackground()
     ->name('ai-index-documents');
 
+// PDFs uploaded on the Knowledge page. Each page is one gpt-4o call — it reads
+// an image of the page and translates it — so they are read here, never in the
+// upload request. The page an import stopped at is saved and the next run
+// carries on. 20 minutes outlasts the worst run: the 240 s budget plus the
+// page already under way.
+Schedule::command('ai:import-pdfs --max-seconds=240')
+    ->everyMinute()
+    ->withoutOverlapping(20)
+    ->runInBackground()
+    ->name('ai-import-pdfs');
+
 // Conversations (and their messages, via cascade) older than
 // ai_settings.retention_days — a chat is not an audit record.
 Schedule::command('ai:prune-conversations')
