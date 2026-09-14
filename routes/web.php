@@ -1159,6 +1159,28 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             });
         });
 
+        // ── Vacations (Oracle leave balances and leave records) ───
+        // Imported from Oracle's sheets today and by an API later, both through
+        // Services\Vacation\VacationImporter. See VACATIONS.md.
+        Route::prefix('vacations')->name('vacations.')->group(function () {
+            Route::middleware('permission:view-vacations')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'index'])->name('balances.index');
+                Route::get('export', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'export'])->name('balances.export');
+                Route::get('people/{vacationEmployee}', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'show'])->name('balances.show');
+                Route::get('records', [\App\Http\Controllers\Admin\Vacation\VacationAbsenceController::class, 'index'])->name('absences.index');
+                Route::get('records/export', [\App\Http\Controllers\Admin\Vacation\VacationAbsenceController::class, 'export'])->name('absences.export');
+            });
+
+            // An import replaces Oracle's figures; a link decides whose leave is whose.
+            Route::middleware('permission:manage-vacations')->group(function () {
+                Route::get('import', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'index'])->name('imports.index');
+                Route::post('import', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'store'])->name('imports.store');
+                Route::post('people/{vacationEmployee}/link', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'link'])->name('people.link');
+                Route::post('people/{vacationEmployee}/no-employee', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'noEmployee'])->name('people.no-employee');
+                Route::post('people/{vacationEmployee}/reset', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'reset'])->name('people.reset');
+            });
+        });
+
         // ── Employee home portal authoring ────────────────────────
         // What the whole company reads on home.samirgroup.net each morning.
         Route::middleware('permission:manage-announcements')->group(function () {

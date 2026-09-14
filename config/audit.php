@@ -116,6 +116,14 @@ return [
         App\Models\AiWebSource::class,
         App\Models\AiWebPage::class,
 
+        // Oracle's vacation figures, re-imported wholesale from each export.
+        // Every import is logged by hand with its counts (VacationImport keeps
+        // them), and so is HR linking an Oracle number to an employee.
+        App\Models\Vacation\VacationEmployee::class,
+        App\Models\Vacation\VacationBalance::class,
+        App\Models\Vacation\VacationAbsence::class,
+        App\Models\Vacation\VacationImport::class,
+
         // Discovery scratch data, replaced on each scan.
         App\Models\SnmpDiscoveredDevice::class,
         App\Models\DiscoveryResult::class,

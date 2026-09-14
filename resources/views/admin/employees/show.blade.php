@@ -220,6 +220,36 @@
             </div>
         </div>
 
+        {{-- Vacation: Oracle's leave balance (Vacations ▸ Balances) --}}
+        @can('view-vacations')
+        @php
+            $vacationPerson = \App\Models\Vacation\VacationEmployee::forEmployee($employee)->first();
+            $vacationBalance = $vacationPerson?->balances->sortByDesc('year')->first();
+            $vacationDays = fn ($value) => \App\Models\Vacation\VacationBalance::days($value);
+        @endphp
+        @if($vacationPerson)
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header bg-transparent py-2 d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-airplane me-1"></i>Vacation {{ $vacationBalance?->year }}</strong>
+                <a href="{{ route('admin.vacations.balances.show', $vacationPerson) }}" class="btn btn-outline-primary btn-sm py-0 px-2">Open</a>
+            </div>
+            <div class="card-body small">
+                @if($vacationBalance && $vacationBalance->hasBalance())
+                <div class="d-flex justify-content-between text-center">
+                    <div><div class="text-muted">Last year</div><div class="fw-semibold font-monospace">{{ $vacationDays($vacationBalance->carryover) }}</div></div>
+                    <div><div class="text-muted">This year</div><div class="fw-semibold font-monospace">{{ $vacationDays($vacationBalance->accrued) }}</div></div>
+                    <div><div class="text-muted">Used</div><div class="fw-semibold font-monospace">{{ $vacationDays($vacationBalance->used) }}</div></div>
+                    <div><div class="text-muted">Remaining</div><div class="fw-bold font-monospace {{ $vacationBalance->balance < 0 ? 'text-danger' : 'text-success' }}">{{ $vacationDays($vacationBalance->balance) }}</div></div>
+                </div>
+                <div class="text-muted mt-2">From Oracle, as of {{ $vacationBalance->as_of->format('d M Y') }}</div>
+                @else
+                <span class="text-muted">No balance in Oracle — leave records only.</span>
+                @endif
+            </div>
+        </div>
+        @endif
+        @endcan
+
         {{-- Linked Contact --}}
         <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #6f42c1!important">
             <div class="card-header bg-transparent py-2 d-flex justify-content-between align-items-center">
