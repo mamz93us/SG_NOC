@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Home;
 
 use App\Http\Controllers\Controller;
 use App\Models\AiConversation;
+use App\Models\AiKnowledgeGap;
 use App\Models\AiMessage;
 use App\Models\AiSetting;
 use App\Models\Employee;
@@ -205,10 +206,18 @@ class AssistantController extends Controller
             404
         );
 
+        $wasNotHelpful = $message->rating === -1;
+
         $message->update([
             'rating' => $validated['rating'],
             'rating_reason' => $validated['reason'] ?? null,
         ]);
+
+        // "Not helpful" on an answer from the knowledge base puts its question
+        // on AI Assistant ▸ Knowledge gaps — once, not on every click.
+        if ((int) $validated['rating'] === -1 && ! $wasNotHelpful) {
+            AiKnowledgeGap::recordNotHelpful($message);
+        }
 
         return response()->json(['ok' => true]);
     }

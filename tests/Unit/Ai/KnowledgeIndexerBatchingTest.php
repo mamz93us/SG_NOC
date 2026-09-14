@@ -39,6 +39,7 @@ beforeEach(function () {
         '2026_09_09_120000_add_locale_to_ai_knowledge_chunks_table',
         '2026_09_14_110001_create_ai_knowledge_imports_table',
         '2026_09_14_120001_add_source_to_ai_knowledge_chunks_table',
+        '2026_09_14_150001_add_ai_classification_to_ai_knowledge_articles_table',
     ] as $migration) {
         (require database_path("migrations/{$migration}.php"))->up();
     }
@@ -86,6 +87,29 @@ it('embeds a long article in batches inside the budget and stores every chunk', 
         expect(array_sum(array_map('mb_strlen', $request['input'])))->toBeLessThanOrEqual(KnowledgeIndexer::BATCH_CHARS)
             ->and(count($request['input']))->toBeLessThanOrEqual(KnowledgeIndexer::BATCH_INPUTS);
     }
+});
+
+it('embeds each chunk under its article title and heading, so an article can be found by its name', function () {
+    embeddingsForEveryInput();
+
+    $article = AiKnowledgeArticle::create([
+        'title' => 'Labor Law',
+        'title_ar' => 'نظام العمل',
+        'body' => "## Article 77:\nUnless the contract specifies a defined compensation.",
+        'body_ar' => "## المادة السابعة والسبعون:\nما لم يتضمن العقد تعويضًا محددًا.",
+        'audience' => 'all',
+        'is_published' => true,
+    ]);
+
+    expect(app(KnowledgeIndexer::class)->indexArticle($article))->toBeTrue()
+        ->and(Http::recorded()->flatMap(fn (array $pair) => $pair[0]['input'])->all())->toBe([
+            "Labor Law\nArticle 77:\n\nUnless the contract specifies a defined compensation.",
+            "نظام العمل\nالمادة السابعة والسبعون:\n\nما لم يتضمن العقد تعويضًا محددًا.",
+        ])
+        ->and($article->chunks()->orderBy('id')->pluck('content')->all())->toBe([
+            'Unless the contract specifies a defined compensation.',
+            'ما لم يتضمن العقد تعويضًا محددًا.',
+        ]);
 });
 
 it('writes nothing when a later batch fails', function () {

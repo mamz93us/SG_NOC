@@ -47,8 +47,9 @@ Reply with one JSON object:
 
 For "original" and "english":
 - Keep all of the content: every heading, paragraph, list item, table row, note, number, date, amount and name. Never summarise, shorten, explain or add.
-- Mark the document's own headings with ## or ###, keeping their numbering as written (for example "Article 7" or "3.2"). Add no headings of your own.
+- Mark the document's own headings with ## or ###, keeping their numbering as written (for example "Article 7" or "3.2"). Every article, section and numbered clause starts with its own heading line, on every page, even where the page sets it in plain bold. Add no headings of your own.
 - Write tables as Markdown tables.
+- Put each footnote right after the heading or paragraph that carries its marker, on a line of its own that starts with its number in square brackets (for example "[77] Repealed by Royal Decree No. (M/1)"), instead of at the foot of the page, and leave the marker itself out of the heading. A footnote number is not an article number: never write a footnote as "Article 77" or "المادة 77".
 - Leave out what repeats on every page (letterhead, running headers and footers, page numbers), and logos, watermarks, stamps and signatures.
 - If the page mixes languages, "original" keeps each part as written and "english" gives the whole page in English.
 - For a page with no content, return "" in every field.

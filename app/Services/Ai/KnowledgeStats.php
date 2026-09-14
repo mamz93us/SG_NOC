@@ -19,7 +19,7 @@ class KnowledgeStats
     public const SIZE_BANDS = [250, 500, 1000, 1500];
 
     /** The tables the knowledge base lives in, for the storage figures. */
-    public const TABLES = ['ai_knowledge_articles', 'ai_knowledge_chunks', 'ai_knowledge_imports', 'ai_knowledge_gaps'];
+    public const TABLES = ['ai_knowledge_articles', 'ai_knowledge_chunks', 'ai_knowledge_imports', 'ai_knowledge_gaps', 'ai_web_sources', 'ai_web_pages'];
 
     public function build(): array
     {
@@ -70,14 +70,16 @@ class KnowledgeStats
 
         $rows = DB::table('ai_knowledge_articles AS a')
             ->leftJoin('ai_knowledge_imports AS i', 'i.article_id', '=', 'a.id')
+            ->leftJoin('ai_web_pages AS w', 'w.article_id', '=', 'a.id')
             ->selectRaw("a.id, a.title, a.category, a.is_published,
                 {$length}(a.body) AS body_characters, {$length}(COALESCE(a.body_ar, '')) AS body_ar_characters,
-                i.id AS import_id, i.file_name, i.page_count, i.source_language")
+                i.id AS import_id, i.file_name, i.page_count, i.source_language, w.url AS web_url")
             ->orderBy('a.title')
             ->get()
             ->unique('id')
             ->map(fn (object $a) => $this->measure([
-                'kind' => $a->import_id ? 'pdf' : 'written',
+                'kind' => $a->import_id ? 'pdf' : ($a->web_url ? 'website' : 'written'),
+                'url' => $a->web_url,
                 'article_id' => (int) $a->id,
                 'document_id' => null,
                 'title' => (string) $a->title,
@@ -153,6 +155,7 @@ class KnowledgeStats
             'drafts' => $articles->where('published', false)->count(),
             'written' => $articles->where('kind', 'written')->count(),
             'imported' => $articles->where('kind', 'pdf')->count(),
+            'websites' => $articles->where('kind', 'website')->count(),
             'library_documents' => $sources->where('kind', 'library')->count(),
             'not_indexed' => $articles->filter(fn (array $s) => $s['published'] && $s['chunks'] === 0)->count(),
             'chunks' => $count,

@@ -89,7 +89,8 @@ class PdfSourceLocator
     {
         $heading = trim((string) $heading);
 
-        if ($heading === '' || ! preg_match('/^#{1,6}[ \t]+'.preg_quote($heading, '/').'[ \t]*$/mu', $text, $match, PREG_OFFSET_CAPTURE)) {
+        // A Markdown heading, or a plain label line the chunker takes for one.
+        if ($heading === '' || ! preg_match('/^(?:#{1,6}[ \t]+|[*_]{0,2})'.preg_quote($heading, '/').'[*_]{0,2}[ \t]*$/mu', $text, $match, PREG_OFFSET_CAPTURE)) {
             return null;
         }
 
@@ -161,11 +162,12 @@ class PdfSourceLocator
         return mb_substr($original[$index], 0, 255);
     }
 
-    /** @return array<int, string> */
+    /** @return array<int, string> the page's headings as the chunker reads them */
     private static function headings(string $markdown): array
     {
-        preg_match_all('/^#{1,6}[ \t]+(.+?)[ \t]*$/mu', $markdown, $match);
-
-        return array_map('trim', $match[1]);
+        return array_values(array_filter(
+            array_map(fn (string $line) => AiChunker::headingOf($line), preg_split('/\R/u', $markdown) ?: []),
+            fn (?string $heading) => $heading !== null,
+        ));
     }
 }

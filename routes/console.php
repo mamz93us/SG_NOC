@@ -1050,6 +1050,34 @@ Schedule::command('ai:import-pdfs --max-seconds=240')
     ->runInBackground()
     ->name('ai-import-pdfs');
 
+// Unanswered questions: embed new ones, group the wordings of one question,
+// and close those an article published since now answers. Only a new question
+// costs an Azure call, so every 15 minutes is cheap.
+Schedule::command('ai:knowledge-gaps')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('ai-knowledge-gaps');
+
+// Websites allowed on AI Assistant Knowledge ▸ Websites, read page by page. It
+// starts no new page after 240 s; a round cut off carries on at the next run.
+// 20 minutes outlasts the worst run: the budget, plus a page whose translation
+// and indexing wait out Azure throttling.
+Schedule::command('ai:crawl-websites --max-seconds=240')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(20)
+    ->runInBackground()
+    ->name('ai-crawl-websites');
+
+// Category and tags filled in by the AI: articles queued on the Knowledge page,
+// and any article created without them. One short chat call an article, so a
+// run is quick, and a queue is cleared a minute at a time.
+Schedule::command('ai:classify-articles --max-seconds=50')
+    ->everyMinute()
+    ->withoutOverlapping(5)
+    ->runInBackground()
+    ->name('ai-classify-articles');
+
 // Conversations (and their messages, via cascade) older than
 // ai_settings.retention_days — a chat is not an audit record.
 Schedule::command('ai:prune-conversations')

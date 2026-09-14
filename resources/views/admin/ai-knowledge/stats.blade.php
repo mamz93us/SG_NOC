@@ -45,7 +45,7 @@
         [
             'label' => 'Articles',
             'value' => number_format($totals['articles']),
-            'note' => $totals['published'].' published · '.$totals['drafts'].' '.Str::plural('draft', $totals['drafts']).' · '.$totals['imported'].' from PDFs',
+            'note' => $totals['published'].' published · '.$totals['drafts'].' '.Str::plural('draft', $totals['drafts']).' · '.$totals['imported'].' from PDFs'.($totals['websites'] ? ' · '.$totals['websites'].' from websites' : ''),
         ],
         [
             'label' => 'Chunks',
@@ -245,6 +245,8 @@
                                     @endif
                                 @elseif($source['kind'] === 'library')
                                     <i class="bi bi-folder2-open"></i> Employee Documents · {{ $source['file_name'] }}
+                                @elseif($source['kind'] === 'website')
+                                    <i class="bi bi-globe2"></i> <span class="text-break">{{ $source['url'] }}</span>
                                 @else
                                     Written here
                                 @endif

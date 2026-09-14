@@ -40,8 +40,11 @@
 <div class="row g-4">
     <div class="col-lg-7">
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-white fw-semibold">
-                <i class="bi bi-exclamation-circle me-1 text-warning"></i>Knowledge gaps — what to write next
+            <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-exclamation-circle me-1 text-warning"></i>Knowledge gaps — what to write next</span>
+                @can('answer-ai-knowledge-gaps')
+                    <a href="{{ route('admin.ai-assistant.knowledge-gaps.index') }}" class="small fw-normal">Answer them <i class="bi bi-arrow-right"></i></a>
+                @endcan
             </div>
             <div class="table-responsive">
                 <table class="table align-middle mb-0">

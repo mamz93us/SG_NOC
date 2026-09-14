@@ -41,6 +41,22 @@ class AiChunker
     }
 
     /**
+     * The heading a line opens: a Markdown heading, or an article's label alone
+     * on its line. Documents imported from PDF do not mark every article — 54
+     * of the labor law's came through as a plain "المادة الأولى:" line — and
+     * each of those used to run on under the heading before it, so the text of
+     * Article 70 was indexed, and cited, as Article 64.
+     */
+    public static function headingOf(string $line): ?string
+    {
+        if (preg_match('/^(#{1,6})\s+(.+?)\s*$/u', $line, $m)) {
+            return trim($m[2]);
+        }
+
+        return ArticleReference::isLabel($line) ? trim(trim($line), '*_ ') : null;
+    }
+
+    /**
      * @return array<int, array{heading: ?string, content: string}>
      */
     private static function splitByHeadings(string $markdown): array
@@ -60,9 +76,11 @@ class AiChunker
         };
 
         foreach ($lines as $line) {
-            if (preg_match('/^(#{1,6})\s+(.+?)\s*$/u', $line, $m)) {
+            $opens = self::headingOf($line);
+
+            if ($opens !== null) {
                 $flush();
-                $heading = trim($m[2]);
+                $heading = $opens;
 
                 continue;
             }

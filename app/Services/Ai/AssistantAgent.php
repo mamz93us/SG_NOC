@@ -70,8 +70,15 @@ class AssistantAgent
                         $hasSearched = true;
 
                         if (($toolResult['found'] ?? null) === false) {
-                            AiKnowledgeGap::record((string) ($args['query'] ?? ''), $conversation->locale);
+                            AiKnowledgeGap::record((string) ($args['query'] ?? ''), AiKnowledgeGap::NO_RESULTS, $conversation->id);
                         }
+                    }
+
+                    // Results came back and none answered. Before this tool such
+                    // questions never reached the gap list: two in the fortnight
+                    // before it, one an employee asking what leaving would cost.
+                    if ($name === 'report_knowledge_gap') {
+                        AiKnowledgeGap::record((string) ($args['question'] ?? ''), AiKnowledgeGap::NOT_ANSWERED, $conversation->id);
                     }
                 }
 
