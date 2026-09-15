@@ -96,7 +96,9 @@ class RecruitmentAiController extends Controller
             $adError = $e->getMessage();
         }
 
-        $includeRejected = $request->boolean('rejected');
+        // Rejected applications rank too unless left out: a recruiter may want
+        // back someone Teamtailor already turned down.
+        $includeRejected = ! $request->boolean('hide_rejected');
         $exists = $recruitmentJob->exists;
 
         return view('admin.recruitment-ai.show', [

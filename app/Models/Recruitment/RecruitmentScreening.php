@@ -87,9 +87,9 @@ class RecruitmentScreening extends Model
 
     /**
      * Screened applicants, best first: score, then more must-haves met, then
-     * who applied first. Rejected applications only when asked for.
+     * who applied first. Rejected applications rank too unless left out.
      */
-    public function scopeRanked(Builder $query, bool $includeRejected = false): Builder
+    public function scopeRanked(Builder $query, bool $includeRejected = true): Builder
     {
         return $query->where('status', self::STATUS_SCREENED)
             ->when(! $includeRejected, fn (Builder $q) => $q->where('rejected', false))

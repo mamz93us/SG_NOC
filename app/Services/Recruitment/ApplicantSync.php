@@ -4,6 +4,7 @@ namespace App\Services\Recruitment;
 
 use App\Models\Recruitment\RecruitmentJob;
 use App\Models\Recruitment\RecruitmentScreening;
+use App\Services\Teamtailor\TeamtailorAnswers;
 use App\Services\Teamtailor\TeamtailorApiService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -169,69 +170,25 @@ class ApplicantSync
     }
 
     /**
-     * The applicant's answers as "Q: … / A: …" pairs, questions from the
-     * side-loaded `questions` matched to each answer.
+     * The applicant's answers as "Q: … / A: …" pairs, for the screening prompt.
+     * TeamtailorAnswers reads each value (choice ids named by their titles) and
+     * its question.
      *
-     * @param  array<string,mixed>  $body  a candidate fetched with include=answers,questions
+     * @param  array<string,mixed>  $body  a candidate fetched with include=answers,answers.question
      */
     public static function answersText(array $body): string
     {
-        $included = collect($body['included'] ?? []);
-        $questions = $included->where('type', 'questions')->keyBy('id');
+        $included = collect($body['included'] ?? [])
+            ->keyBy(fn ($resource) => ($resource['type'] ?? '').':'.($resource['id'] ?? ''));
         $pairs = [];
 
         foreach ($included->where('type', 'answers') as $answer) {
-            $value = self::answerValue($answer['attributes'] ?? []);
-
-            if ($value === '') {
-                continue;
+            if ($described = TeamtailorAnswers::describe($answer, $included)) {
+                $pairs[] = ($described['question'] !== null ? "Q: {$described['question']}\n" : '').'A: '.$described['answer'];
             }
-
-            $questionId = (string) Arr::get($answer, 'relationships.question.data.id', '');
-            $title = trim((string) Arr::get($questions->get($questionId, []), 'attributes.title', ''));
-
-            $pairs[] = ($title !== '' ? "Q: {$title}\n" : '').'A: '.$value;
         }
 
         return implode("\n\n", $pairs);
-    }
-
-    /** @param  array<string,mixed>  $attributes  an answer resource's attributes; the field used depends on question-type */
-    private static function answerValue(array $attributes): string
-    {
-        foreach (['text', 'answer'] as $key) {
-            if (is_scalar($attributes[$key] ?? null) && trim((string) $attributes[$key]) !== '') {
-                return trim((string) $attributes[$key]);
-            }
-        }
-
-        if (is_bool($attributes['boolean'] ?? null)) {
-            return $attributes['boolean'] ? 'Yes' : 'No';
-        }
-
-        if (is_numeric($attributes['number'] ?? null)) {
-            return (string) $attributes['number'];
-        }
-
-        if (! empty($attributes['date']) && is_scalar($attributes['date'])) {
-            return (string) $attributes['date'];
-        }
-
-        foreach (['choices', 'range', 'data'] as $key) {
-            $value = $attributes[$key] ?? null;
-
-            if (is_array($value) && $value !== []) {
-                $parts = array_map(fn ($item) => is_array($item) ? (string) ($item['text'] ?? $item['title'] ?? json_encode($item)) : (string) $item, $value);
-
-                return implode(', ', array_filter($parts, fn (string $part) => trim($part) !== ''));
-            }
-
-            if (is_scalar($value) && trim((string) $value) !== '') {
-                return trim((string) $value);
-            }
-        }
-
-        return '';
     }
 
     /** @param  array<string,mixed>  $applicant */
