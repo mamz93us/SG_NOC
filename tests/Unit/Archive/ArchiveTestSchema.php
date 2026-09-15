@@ -42,6 +42,7 @@ class ArchiveTestSchema
      * add the same column twice.
      */
     private const TABLES = [
+        'archive_scan_endpoints',
         'archive_inbox_items',
         'archive_ai_usage',
         'archive_ai_proposals',

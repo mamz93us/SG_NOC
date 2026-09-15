@@ -291,6 +291,19 @@ if (\App\Support\ArchivePortal::enabled()) {
                 Route::post('/ai/batches', [\App\Http\Controllers\Archive\AiController::class, 'start'])->name('ai.start');
                 Route::post('/ai/batches/{batch}', [\App\Http\Controllers\Archive\AiController::class, 'batchAction'])
                     ->whereNumber('batch')->name('ai.batch');
+                // Scan destinations: the addresses and SFTP logins the copiers
+                // send to. A destination only ever grants "put a document in" —
+                // never read — which is what makes an address held in a copier's
+                // plain settings acceptable.
+                Route::get('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'index'])->name('scan');
+                Route::post('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'store'])->name('scan.store');
+                Route::post('/scan/{endpoint}/toggle', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'toggle'])
+                    ->whereNumber('endpoint')->name('scan.toggle');
+                Route::post('/scan/{endpoint}/rotate', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'rotate'])
+                    ->whereNumber('endpoint')->name('scan.rotate');
+                Route::delete('/scan/{endpoint}', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'destroy'])
+                    ->whereNumber('endpoint')->name('scan.destroy');
+
                 Route::post('/tasks', [\App\Http\Controllers\Archive\ManageController::class, 'queueTask'])->name('tasks.store');
                 Route::post('/archives', [\App\Http\Controllers\Archive\ManageController::class, 'enable'])->name('enable');
                 Route::get('/archives/{archive}', [\App\Http\Controllers\Archive\ManageController::class, 'showArchive'])

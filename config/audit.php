@@ -164,6 +164,13 @@ return [
         //     is the FILING, and that is audited where it happens: as the
         //     document, its values and its files being created.
         App\Models\Archive\ArchiveInboxItem::class,
+        //   - scan destinations, which stamp last_received_at and a counter on
+        //     EVERY scan a copier sends: a busy reception machine would write
+        //     fifty audit rows a day saying a number went up. Creating, disabling,
+        //     rotating and deleting one are the real events, and
+        //     ScanDestinationController logs each of those by hand as a security
+        //     action — never including the token.
+        App\Models\Archive\ArchiveScanEndpoint::class,
     ],
 
     /*

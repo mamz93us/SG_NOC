@@ -75,4 +75,53 @@ return [
 
     'cache_max_gb' => (float) env('ARCHIVE_CACHE_MAX_GB', 5),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Scan to e-mail
+    |--------------------------------------------------------------------------
+    |
+    | The copiers that cannot do SFTP (the old Ricoh MP C3001/C3003 units) mail
+    | their scans instead. They send to `u-<token>@` for a person's inbox or
+    | `a-<token>@` for an archive's shared one, on this domain; the NOC's Postfix
+    | accepts it only from `mynetworks`, pipes the raw message into `mail_spool`,
+    | and `archive:ingest-mail` reads it from there.
+    |
+    | ROUTING IS BY RECIPIENT, never by sender. The relay rewrites every sender to
+    | one SES-verified identity (deployment/smtp-relay/sender_canonical.regexp),
+    | so the From address of an arriving scan identifies nothing at all.
+    |
+    | The domain is deliberately NOT a real mail domain with public MX: nothing
+    | outside the office networks should be able to put a document into an inbox.
+    |
+    */
+
+    'scan_mail_domain' => env('ARCHIVE_SCAN_MAIL_DOMAIN', 'scan.archive.samirgroup.net'),
+
+    'mail_spool' => env('ARCHIVE_MAIL_SPOOL', '/var/spool/archive-mail/new'),
+
+    /*
+    | A scan bigger than this is refused rather than ingested — a 200 MB mail is
+    | a misconfigured copier (600 dpi colour of a 40-page contract), not a
+    | document somebody wants filed.
+    */
+
+    'max_scan_mb' => (int) env('ARCHIVE_MAX_SCAN_MB', 50),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scan to folder
+    |--------------------------------------------------------------------------
+    |
+    | The copiers that CAN do SFTP write into a per-destination SFTPGo account
+    | whose home is a folder under this root, named after the account. The sweep
+    | reuses the settled-file rule the backup sweeper learned: a file is only
+    | taken once its mtime has stopped moving, because an in-progress transfer
+    | keeps bumping it and half a scan is worse than a late one.
+    |
+    */
+
+    'scan_folder_root' => env('ARCHIVE_SCAN_FOLDER_ROOT', '/srv/archive-scans'),
+
+    'scan_folder_stability_seconds' => max(0, (int) env('ARCHIVE_SCAN_STABILITY_SECONDS', 90)),
+
 ];

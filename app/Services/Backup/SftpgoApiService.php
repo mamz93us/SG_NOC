@@ -2,7 +2,6 @@
 
 namespace App\Services\Backup;
 
-use App\Models\BackupAccount;
 use App\Models\Setting;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
@@ -56,32 +55,32 @@ class SftpgoApiService
     // ─── User management ──────────────────────────────────────────
 
     /** Create the device's SFTPGo virtual user; if it already exists, update it. */
-    public function createUser(BackupAccount $account, string $plainPassword): array
+    public function createUser(ProvisionsSftpgoUser $account, string $plainPassword): array
     {
         $resp = $this->request('POST', '/api/v2/users', $this->userPayload($account, $plainPassword));
 
         if ($resp->status() === 409) {
             return $this->setPassword($account, $plainPassword);
         }
-        $this->assertOk($resp, "create user {$account->sftpgo_username}");
+        $this->assertOk($resp, 'create user '.$account->sftpgoUsername());
 
         return $resp->json() ?? [];
     }
 
     /** Push the account's current settings (protocols, quota, status) — keeps the password. */
-    public function updateUser(BackupAccount $account): array
+    public function updateUser(ProvisionsSftpgoUser $account): array
     {
-        $resp = $this->request('PUT', $this->userPath($account->sftpgo_username), $this->userPayload($account, null));
-        $this->assertOk($resp, "update user {$account->sftpgo_username}");
+        $resp = $this->request('PUT', $this->userPath($account->sftpgoUsername()), $this->userPayload($account, null));
+        $this->assertOk($resp, 'update user '.$account->sftpgoUsername());
 
         return $resp->json() ?? [];
     }
 
     /** Rotate the password (full PUT incl. the new password — partial PUTs reset omitted fields). */
-    public function setPassword(BackupAccount $account, string $plainPassword): array
+    public function setPassword(ProvisionsSftpgoUser $account, string $plainPassword): array
     {
-        $resp = $this->request('PUT', $this->userPath($account->sftpgo_username), $this->userPayload($account, $plainPassword));
-        $this->assertOk($resp, "set password for {$account->sftpgo_username}");
+        $resp = $this->request('PUT', $this->userPath($account->sftpgoUsername()), $this->userPayload($account, $plainPassword));
+        $this->assertOk($resp, 'set password for '.$account->sftpgoUsername());
 
         return $resp->json() ?? [];
     }
@@ -142,11 +141,11 @@ class SftpgoApiService
      * what the account allows; HTTP/WebDAV always denied. Password is included
      * only when (re)setting it — an absent password on PUT keeps the existing one.
      */
-    private function userPayload(BackupAccount $account, ?string $password): array
+    private function userPayload(ProvisionsSftpgoUser $account, ?string $password): array
     {
         $payload = [
-            'username' => $account->sftpgo_username,
-            'status' => $account->is_active ? 1 : 0,
+            'username' => $account->sftpgoUsername(),
+            'status' => $account->isEnabledForSftpgo() ? 1 : 0,
             'home_dir' => $account->homeDir(),
             'permissions' => ['/' => ['upload', 'create_dirs', 'list']],
             'quota_size' => $account->quotaBytes(),

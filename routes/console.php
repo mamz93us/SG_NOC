@@ -132,6 +132,27 @@ Schedule::command('archive:ai-batch --max-seconds=240')
     ->runInBackground()
     ->name('archive-ai-batch');
 
+// Scans the copiers that CAN do SFTP wrote into their own folders. Waits for each
+// file's mtime to settle before taking it, and deletes the local copy only after
+// the write to Azure is read back — the original is paper already back in the
+// tray. No-ops on any host without the scan root.
+Schedule::command('archive:sweep-scan-folders')
+    ->everyMinute()
+    ->withoutOverlapping(15)
+    ->runInBackground()
+    ->name('archive-sweep-scan-folders');
+
+// Scans the old Ricoh copiers mailed in — they cannot do SFTP at all, so mail is
+// the only way those machines can send anything. Postfix drops each message in
+// the spool and this reads it; no-ops on any host without that spool, which is
+// every dev box. Routing is by the recipient token: the relay rewrites every
+// sender, so From identifies nothing.
+Schedule::command('archive:ingest-mail')
+    ->everyMinute()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('archive-ingest-mail');
+
 // Newly captured scans: count the pages, read them, and propose what the index
 // fields say, so the filing form is filled in before anybody opens it. Wakes
 // every minute and does nothing unless something has arrived — which is the

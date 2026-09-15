@@ -14,6 +14,9 @@
             <a href="{{ route('archive.review') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-check2-square"></i> Review proposals
             </a>
+            <a href="{{ route('archive.manage.scan') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-printer"></i> Scan destinations
+            </a>
             <a href="{{ route('archive.manage.ai') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-stars"></i> AI
             </a>
