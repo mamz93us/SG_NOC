@@ -10,9 +10,17 @@
         <span class="arc-muted">/</span>
         <span class="fw-semibold">Manage</span>
 
-        <a href="{{ route('archive.manage.transfer') }}" class="ms-auto btn btn-sm btn-outline-secondary">
-            <i class="bi bi-cloud-arrow-up"></i> Transfer to Azure
-        </a>
+        <div class="ms-auto d-flex gap-2">
+            <a href="{{ route('archive.review') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-check2-square"></i> Review proposals
+            </a>
+            <a href="{{ route('archive.manage.ai') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-stars"></i> AI
+            </a>
+            <a href="{{ route('archive.manage.transfer') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-cloud-arrow-up"></i> Transfer to Azure
+            </a>
+        </div>
     </div>
 
     <div class="row g-3">

@@ -69,6 +69,80 @@
         </div>
     </form>
 
+    @if ($canAsk)
+        {{-- Asking across the archives this person may search. Distinct from the
+             search above: the form is exact and searches index fields, this reads
+             what has actually been read. Both matter, which is why both are here
+             and the note says which is which. --}}
+        <div class="arc-card p-3 mb-3">
+            <form id="askArchiveForm" class="d-flex gap-2 align-items-start flex-wrap">
+                <input type="text" class="form-control form-control-sm" id="askArchiveQuestion"
+                       maxlength="1000" style="min-width:260px;flex:1"
+                       placeholder="Ask: which invoices from ACME are over 10,000?">
+                <button class="btn btn-brand btn-sm" type="submit" id="askArchiveSend">
+                    <i class="bi bi-stars"></i> Ask
+                </button>
+            </form>
+
+            <div id="askArchiveAnswer" class="small mt-2 d-none"></div>
+
+            <p class="arc-muted small mb-0 mt-2">
+                The search above is exact and covers every document. Asking searches the
+                index too, but anything about words inside the pages only covers pages
+                that have been read.
+            </p>
+        </div>
+
+        <script>
+        (function () {
+            const form   = document.getElementById('askArchiveForm');
+            const box    = document.getElementById('askArchiveQuestion');
+            const send   = document.getElementById('askArchiveSend');
+            const answer = document.getElementById('askArchiveAnswer');
+
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+
+                const question = box.value.trim();
+                if (question === '') { return; }
+
+                send.disabled = true;
+                answer.classList.remove('d-none');
+                answer.textContent = 'Searching…';
+
+                fetch(@json(route('archive.ask')), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify({ question: question }),
+                })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    answer.textContent = data.answer || data.error || 'No answer came back.';
+
+                    // An answer that called no tool is an answer from nothing —
+                    // the model talking rather than searching. Said plainly,
+                    // because these are invoice numbers and amounts.
+                    if (data.answer && (!data.used_tools || data.used_tools.length === 0)) {
+                        const warn = document.createElement('div');
+                        warn.className = 'small mt-2';
+                        warn.style.color = 'var(--amber)';
+                        warn.textContent = 'This answer did not search the archive — check it against the search above.';
+                        answer.appendChild(warn);
+                    }
+                })
+                .catch(function () {
+                    answer.textContent = 'The AI service could not answer that just now.';
+                })
+                .finally(function () { send.disabled = false; });
+            });
+        })();
+        </script>
+    @endif
+
     <div class="arc-card p-0">
         @if ($documents->isEmpty())
             <div class="arc-empty">

@@ -68,6 +68,12 @@ class DocumentController extends Controller
             'missing' => $primary && ! $this->viewer->exists($primary),
             'converterMissing' => $primary && $this->viewer->needsMissingConverter($primary),
             'canEdit' => $access->canOnArchive($document->archive, 'can_edit'),
+            // Both halves, because they are granted separately and refused
+            // separately: the person needs use-archive-ai, and the archive itself
+            // has to have ai_chat switched on (HR is why that switch exists). A
+            // panel that renders and then refuses every question is worse than no
+            // panel at all.
+            'canAsk' => $access->mayUseAi() && (bool) $document->archive?->ai_chat,
         ]);
     }
 

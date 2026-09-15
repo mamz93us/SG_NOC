@@ -46,6 +46,91 @@
                 </dl>
             </div>
 
+            @if ($canAsk)
+                {{-- Asking about this document. Answered only from its own pages,
+                     and every answer cites the page it came from — the text is a
+                     machine reading of a scan, so "(page 2)" is what lets somebody
+                     check it against the image on the right.
+
+                     Unread pages are read on demand, which costs money, so the
+                     panel says so rather than presenting this as free. --}}
+                <div class="arc-card p-3 mb-3">
+                    <h2 class="h6 mb-2">Ask about this document</h2>
+
+                    <form id="askForm" class="mb-2">
+                        <textarea class="form-control form-control-sm mb-2" id="askQuestion" rows="2"
+                                  maxlength="1000" placeholder="What is the total? Who signed it?"></textarea>
+                        <button class="btn btn-brand btn-sm w-100" type="submit" id="askSend">Ask</button>
+                    </form>
+
+                    <div id="askAnswer" class="small d-none"></div>
+
+                    <p class="arc-muted small mb-0" id="askNote">
+                        Answered only from this document's pages. Pages that have never been
+                        read are read now, which costs against the archive's AI budget.
+                    </p>
+                </div>
+
+                {{-- Inline, not @push('scripts'): a partial's push can land after the
+                     code that needs it, and this belongs to this panel alone. --}}
+                <script>
+                (function () {
+                    const form   = document.getElementById('askForm');
+                    const box    = document.getElementById('askQuestion');
+                    const send   = document.getElementById('askSend');
+                    const answer = document.getElementById('askAnswer');
+                    const note   = document.getElementById('askNote');
+
+                    form.addEventListener('submit', function (event) {
+                        event.preventDefault();
+
+                        const question = box.value.trim();
+                        if (question === '') { return; }
+
+                        send.disabled = true;
+                        send.textContent = 'Reading…';
+                        answer.classList.remove('d-none');
+                        answer.textContent = 'Reading the pages…';
+
+                        fetch(@json(route('archive.ask.document', $document->id)), {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            },
+                            body: JSON.stringify({ question: question }),
+                        })
+                        .then(function (response) { return response.json(); })
+                        .then(function (data) {
+                            // textContent throughout: the answer quotes a scanned
+                            // document, and that text is never markup.
+                            answer.textContent = data.answer || data.error || 'No answer came back.';
+
+                            if (data.pages && data.pages.length) {
+                                const cited = document.createElement('div');
+                                cited.className = 'arc-muted small mt-2';
+                                cited.textContent = 'From page(s) ' + data.pages.join(', ') + '.';
+                                answer.appendChild(cited);
+                            }
+
+                            if (data.pages_read_now > 0) {
+                                note.textContent = data.pages_read_now
+                                    + ' page(s) were read for that. Asking again about them costs nothing.';
+                            }
+                        })
+                        .catch(function () {
+                            answer.textContent = 'The AI service could not answer that just now.';
+                        })
+                        .finally(function () {
+                            send.disabled = false;
+                            send.textContent = 'Ask';
+                        });
+                    });
+                })();
+                </script>
+            @endif
+
             <div class="arc-card p-3">
                 <h2 class="h6 mb-3">Files <span class="arc-muted fw-normal">({{ $files->count() }})</span></h2>
 

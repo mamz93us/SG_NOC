@@ -223,6 +223,27 @@ if (\App\Support\ArchivePortal::enabled()) {
 
             Route::get('/documents/{id}/files/{file}/download', [\App\Http\Controllers\Archive\DocumentController::class, 'download'])
                 ->whereNumber('id')->whereNumber('file')->name('document.download');
+
+            // Reviewing what AI proposed. Gated by `can_edit` membership on the
+            // archive rather than by manage-archive-portal: approving a proposal
+            // edits a document's index, and whoever configures the ArcMate mirror
+            // is not thereby qualified to say what an invoice number is.
+            Route::get('/review', [\App\Http\Controllers\Archive\ReviewController::class, 'index'])->name('review');
+            Route::post('/review/{proposal}', [\App\Http\Controllers\Archive\ReviewController::class, 'decide'])
+                ->whereNumber('proposal')->name('review.decide');
+            Route::post('/review-bulk', [\App\Http\Controllers\Archive\ReviewController::class, 'bulk'])->name('review.bulk');
+        });
+
+        // ── Asking ────────────────────────────────────────────────
+        // Its own permission and a tighter throttle, because unlike the pages
+        // above these cost money per call: use-archive-ai is granted separately
+        // (AI ▸ AI Access), and the controller re-checks it along with the
+        // archive's own ai_chat switch.
+        Route::middleware(['auth', 'permission:use-archive-ai', 'throttle:30,1'])->group(function () {
+            Route::post('/documents/{id}/ask', [\App\Http\Controllers\Archive\AskController::class, 'document'])
+                ->whereNumber('id')->name('ask.document');
+
+            Route::post('/ask', [\App\Http\Controllers\Archive\AskController::class, 'archive'])->name('ask');
         });
 
         // ── Setting it up ─────────────────────────────────────────
@@ -243,6 +264,18 @@ if (\App\Support\ArchivePortal::enabled()) {
                     ->whereNumber('archive')->name('transfer.archive');
                 Route::post('/transfer/retry', [\App\Http\Controllers\Archive\TransferController::class, 'retry'])->name('transfer.retry');
                 Route::post('/transfer/verify', [\App\Http\Controllers\Archive\TransferController::class, 'verify'])->name('transfer.verify');
+
+                // AI: the budget, which archives it may touch, and the batches
+                // that read history or propose values. Nothing here calls Azure —
+                // a batch is a row the scheduler works in slices.
+                Route::get('/ai', [\App\Http\Controllers\Archive\AiController::class, 'index'])->name('ai');
+                Route::post('/ai/settings', [\App\Http\Controllers\Archive\AiController::class, 'saveSettings'])->name('ai.settings');
+                Route::post('/ai/archives/{archive}', [\App\Http\Controllers\Archive\AiController::class, 'saveArchive'])
+                    ->whereNumber('archive')->name('ai.archive');
+                Route::post('/ai/estimate', [\App\Http\Controllers\Archive\AiController::class, 'estimate'])->name('ai.estimate');
+                Route::post('/ai/batches', [\App\Http\Controllers\Archive\AiController::class, 'start'])->name('ai.start');
+                Route::post('/ai/batches/{batch}', [\App\Http\Controllers\Archive\AiController::class, 'batchAction'])
+                    ->whereNumber('batch')->name('ai.batch');
                 Route::post('/tasks', [\App\Http\Controllers\Archive\ManageController::class, 'queueTask'])->name('tasks.store');
                 Route::post('/archives', [\App\Http\Controllers\Archive\ManageController::class, 'enable'])->name('enable');
                 Route::get('/archives/{archive}', [\App\Http\Controllers\Archive\ManageController::class, 'showArchive'])

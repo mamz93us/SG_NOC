@@ -82,6 +82,11 @@ class ArchiveController extends Controller
             'choices' => $choices,
             'hasFilters' => $search->hasFilters($criteria),
             'canManage' => $access->canOnArchive($archive, 'can_manage'),
+            // Two halves, granted and refused separately: the person needs
+            // use-archive-ai, and this archive has to have ai_chat switched on.
+            // Offering the box to somebody whose every question would be refused
+            // is worse than not offering it.
+            'canAsk' => $access->mayUseAi() && (bool) $archive->ai_chat,
         ]);
     }
 }
