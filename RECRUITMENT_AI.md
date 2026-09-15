@@ -23,7 +23,7 @@ Access is the `use-recruitment-ai` permission itself, so it also shows under Use
 
 1. **AI ▸ Recruitment AI** → open the job → optionally write **must-haves**, one per line.
 2. **Switch on AI screening.** `recruitment:screen` (scheduler, every minute) reads the applicant list and screens applicants one by one; the page shows the progress.
-3. The **Top 10** ranks screened applicants by score. Rejected applications are left out unless you include them.
+3. The **Top 10** ranks screened applicants by score. Applications already rejected in Teamtailor are included and marked **Rejected**; **Leave them out** hides them (the chat tool takes `include_rejected: false` for the same).
 
 How a score is made:
 

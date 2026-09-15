@@ -90,19 +90,20 @@ it('lists the jobs set up, with their screening progress', function () {
         ->and($jobs[1])->toMatchArray(['job_id' => '88', 'ai_screening' => 'off']);
 });
 
-it('ranks a job\'s screened applicants, leaving out rejected ones unless asked', function () {
+it('ranks a job\'s screened applicants, rejected ones included unless left out', function () {
     $toolbox = new RecruitmentToolbox($this->recruiter);
 
     $shortlist = $toolbox->call('get_job_shortlist', ['job' => 'accountant']);
 
-    expect(array_column($shortlist['candidates'], 'name'))->toBe(['Mona Ali', 'Omar Hassan'])
-        ->and($shortlist['candidates'][0])->toMatchArray(['rank' => 1, 'candidate_ref' => 'C'.$this->mona->id, 'score' => 91, 'fit' => 'Strong match'])
+    expect(array_column($shortlist['candidates'], 'name'))->toBe(['Sara Nabil', 'Mona Ali', 'Omar Hassan'])
+        ->and($shortlist['candidates'][0])->toMatchArray(['rank' => 1, 'candidate_ref' => 'C'.$this->sara->id, 'score' => 95, 'stage' => 'Rejected'])
+        ->and($shortlist['candidates'][1])->toMatchArray(['rank' => 2, 'candidate_ref' => 'C'.$this->mona->id, 'score' => 91, 'fit' => 'Strong match'])
         ->and($shortlist['must_haves'])->toBe(['SAP', 'Arabic'])
         ->and(implode(' ', $shortlist['notes']))->toContain('1 applicants are still waiting');
 
-    $withRejected = $toolbox->call('get_job_shortlist', ['job' => '77', 'include_rejected' => true, 'limit' => 1]);
+    $withoutRejected = $toolbox->call('get_job_shortlist', ['job' => '77', 'include_rejected' => false, 'limit' => 1]);
 
-    expect(array_column($withRejected['candidates'], 'name'))->toBe(['Sara Nabil']);
+    expect(array_column($withoutRejected['candidates'], 'name'))->toBe(['Mona Ali']);
 });
 
 it('gives one applicant\'s CV and evaluation by reference or by name, only within the job', function () {

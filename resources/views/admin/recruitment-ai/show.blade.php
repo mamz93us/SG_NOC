@@ -144,9 +144,11 @@
         <div class="fw-semibold"><i class="bi bi-trophy me-1 text-warning"></i>Top 10</div>
         <div class="small">
             @if ($includeRejected)
-                <a href="{{ route('admin.recruitment-ai.show', $jobId) }}">Leave out rejected applications</a>
+                <span class="text-muted me-1">Applications rejected in Teamtailor are included and marked Rejected.</span>
+                <a href="{{ route('admin.recruitment-ai.show', ['job' => $jobId, 'hide_rejected' => 1]) }}">Leave them out</a>
             @else
-                <a href="{{ route('admin.recruitment-ai.show', ['job' => $jobId, 'rejected' => 1]) }}">Include rejected applications</a>
+                <span class="text-muted me-1">Rejected applications are left out.</span>
+                <a href="{{ route('admin.recruitment-ai.show', $jobId) }}">Include them</a>
             @endif
         </div>
     </div>

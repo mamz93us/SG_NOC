@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Admin\Teamtailor;
 
 use App\Http\Controllers\Controller;
+use App\Models\Recruitment\RecruitmentScreening;
+use App\Services\Recruitment\RecruitmentToolbox;
+use App\Services\Teamtailor\CandidateProfileReader;
 use App\Services\Teamtailor\TeamtailorApiService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 
 class CandidateController extends Controller
 {
@@ -54,103 +58,63 @@ class CandidateController extends Controller
     }
 
     /**
-     * Show one candidate's in-app profile, side-loading their job-applications (and
-     * the jobs those applications belong to, when Teamtailor allows the nested
-     * include) so the page can list what they applied to. Also exposes a deep link
-     * out to the Teamtailor recruiter app when teamtailor.app_url is configured.
+     * One candidate as Teamtailor holds them: details, every application with
+     * its stage, rejection, cover letter and questions and answers, attachments,
+     * and the activity log (CandidateProfileReader). Also a deep link out to the
+     * Teamtailor recruiter app when teamtailor.app_url is configured, and each
+     * application's Recruitment AI score for people who may use Recruitment AI.
      */
-    public function show(Request $request, TeamtailorApiService $teamtailor, string $candidate)
+    public function show(Request $request, TeamtailorApiService $teamtailor, CandidateProfileReader $reader, string $candidate)
     {
         $configured = $teamtailor->isConfigured();
-        $profile = null;
-        $applications = [];
+        $allActivity = $request->boolean('all_activity');
+        $data = null;
         $error = null;
 
         if ($configured) {
             try {
-                $body = $this->fetchCandidateProfile($teamtailor, $candidate);
-                $row = Arr::get($body, 'data', []);
-                $included = collect(Arr::get($body, 'included', []))
-                    ->keyBy(fn ($r) => ($r['type'] ?? '').':'.($r['id'] ?? ''));
-
-                $profile = $this->mapCandidate($row);
-                $applications = $this->mapProfileApplications($row, $included);
+                $data = $reader->read($candidate, $allActivity);
             } catch (\Throwable $e) {
                 $error = $e->getMessage();
             }
         }
 
         $appBase = (string) config('teamtailor.app_url', '');
-        $teamtailorUrl = $appBase !== '' ? $appBase.'/candidates/'.$candidate : null;
 
         return view('admin.teamtailor.candidates.show', [
             'candidateId' => $candidate,
             'configured' => $configured,
-            'profile' => $profile,
-            'applications' => $applications,
+            'profile' => $data['profile'] ?? null,
+            'applications' => $data['applications'] ?? [],
+            'otherAnswers' => $data['other_answers'] ?? [],
+            'uploads' => $data['uploads'] ?? [],
+            'activities' => $data['activities'] ?? [],
+            'activitiesTotal' => $data['activities_total'] ?? null,
+            'activityError' => $data['activity_error'] ?? null,
+            'allActivity' => $allActivity,
+            'screenings' => $this->screenings($request, $candidate),
             'error' => $error,
-            'teamtailorUrl' => $teamtailorUrl,
+            'teamtailorUrl' => $appBase !== '' ? $appBase.'/candidates/'.$candidate : null,
         ]);
     }
 
     /**
-     * Fetch a candidate with their applications. Tries the nested job include so
-     * each application can show its job title; the nested include is undocumented,
-     * so a 4xx param rejection retries with just job-applications — the profile must
-     * never break over an unsupported include.
+     * Recruitment AI's screening of this candidate, keyed by Teamtailor job id;
+     * empty for anyone who may not use Recruitment AI.
      *
-     * @return array<string,mixed>
+     * @return Collection<string, RecruitmentScreening>
      */
-    private function fetchCandidateProfile(TeamtailorApiService $teamtailor, string $id): array
+    private function screenings(Request $request, string $candidate): Collection
     {
-        try {
-            return $teamtailor->getCandidate($id, ['job-applications', 'job-applications.job']);
-        } catch (\Throwable $e) {
-            if (preg_match('/\((400|422)\)/', $e->getMessage()) !== 1) {
-                throw $e;
-            }
-
-            return $teamtailor->getCandidate($id, ['job-applications']);
-        }
-    }
-
-    /**
-     * Build the candidate's application history from the side-loaded resources:
-     * one row per job-application with its job title (when the job was included),
-     * the applied date and whether it has been rejected. Sorted newest first.
-     *
-     * @param  array<string,mixed>  $row  the candidate resource
-     * @param  \Illuminate\Support\Collection<string,array<string,mixed>>  $included
-     * @return array<int,array<string,mixed>>
-     */
-    private function mapProfileApplications(array $row, $included): array
-    {
-        $apps = [];
-
-        foreach (Arr::get($row, 'relationships.job-applications.data', []) as $ref) {
-            $app = $included->get('job-applications:'.($ref['id'] ?? ''));
-            if (! $app) {
-                continue;
-            }
-
-            $jobId = (string) Arr::get($app, 'relationships.job.data.id', '');
-            $job = $jobId !== '' ? $included->get('jobs:'.$jobId) : null;
-            $title = $job
-                ? (Arr::get($job, 'attributes.title') ?? Arr::get($job, 'attributes.internal-name'))
-                : null;
-
-            $apps[] = [
-                'id' => $app['id'] ?? null,
-                'job_id' => $jobId ?: null,
-                'job_title' => $title,
-                'applied_at' => Arr::get($app, 'attributes.created-at'),
-                'rejected' => ! empty(Arr::get($app, 'attributes.rejected-at')),
-            ];
+        if (! $request->user()?->hasPermission(RecruitmentToolbox::PERMISSION)) {
+            return collect();
         }
 
-        usort($apps, fn ($x, $y) => strcmp((string) $y['applied_at'], (string) $x['applied_at']));
-
-        return $apps;
+        return RecruitmentScreening::with('job:id,teamtailor_job_id,title')
+            ->where('teamtailor_candidate_id', $candidate)
+            ->get(['id', 'recruitment_job_id', 'status', 'score', 'fit', 'must_haves_met', 'must_haves_total'])
+            ->filter(fn (RecruitmentScreening $screening) => $screening->job !== null)
+            ->keyBy(fn (RecruitmentScreening $screening) => $screening->job->teamtailor_job_id);
     }
 
     /**

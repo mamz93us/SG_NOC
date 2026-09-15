@@ -152,6 +152,46 @@ class TeamtailorApiService
     }
 
     /**
+     * GET /v1/candidates/{id}/activities — the candidate's activity log in
+     * Teamtailor (created, stage moves, rejections, messages, meetings, CV
+     * uploads), newest first. `include=job,user` fills in which job and which
+     * recruiter; the candidate's own `activities` include carries neither.
+     *
+     * @param  array<int,string>  $include
+     * @return array decoded JSON:API body: data[], included[], meta{}
+     */
+    public function listCandidateActivities(string $candidateId, int $page = 1, ?int $size = null, array $include = []): array
+    {
+        $query = [
+            'sort' => '-created-at',
+            'page[size]' => max(1, min($size ?? self::MAX_PAGE_SIZE, self::MAX_PAGE_SIZE)),
+            'page[number]' => max(1, $page),
+        ];
+
+        if ($include !== []) {
+            $query['include'] = implode(',', $include);
+        }
+
+        return $this->get('/v1/candidates/'.rawurlencode($candidateId).'/activities', $query);
+    }
+
+    /**
+     * GET /v1/jobs/{id}/picked-questions — the application questions one job
+     * asks. An answer names its picked question, which is how a candidate's
+     * answers are told apart by job: Teamtailor refuses
+     * include=answers.picked-question.job with HTTP 400.
+     *
+     * @return array decoded JSON:API body: data[], meta{}
+     */
+    public function listJobPickedQuestions(string $jobId, int $page = 1): array
+    {
+        return $this->get('/v1/jobs/'.rawurlencode($jobId).'/picked-questions', [
+            'page[size]' => self::MAX_PAGE_SIZE,
+            'page[number]' => max(1, $page),
+        ]);
+    }
+
+    /**
      * GET /v1/jobs — the recruiting positions candidates apply to.
      *
      * @param  array<string,string|int>  $filters

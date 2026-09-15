@@ -64,7 +64,7 @@ class RecruitmentToolbox
                 $job + [
                     'limit' => ['type' => 'integer', 'description' => 'How many, 1 to 25. Defaults to 10.'],
                     'min_score' => ['type' => 'integer', 'description' => 'Optional - only applicants scoring at least this (0-100).'],
-                    'include_rejected' => ['type' => 'boolean', 'description' => 'Optional - also list applications already rejected in Teamtailor. Defaults to false.'],
+                    'include_rejected' => ['type' => 'boolean', 'description' => 'Optional - defaults to true: applications already rejected in Teamtailor are ranked too, with stage Rejected. Pass false to leave them out.'],
                 ],
                 $this->scope ? [] : ['job']),
             $this->def('get_candidate_details',
@@ -115,7 +115,7 @@ class RecruitmentToolbox
 
         $limit = (int) ($args['limit'] ?? 10);
         $limit = $limit < 1 ? 10 : min(self::SHORTLIST_MAX, $limit);
-        $includeRejected = filter_var($args['include_rejected'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $includeRejected = filter_var($args['include_rejected'] ?? true, FILTER_VALIDATE_BOOLEAN);
         $minScore = is_numeric($args['min_score'] ?? null) ? max(0, min(100, (int) $args['min_score'])) : null;
 
         $ranked = $job->screenings()
@@ -346,9 +346,9 @@ class RecruitmentToolbox
         if ($progress['failed'] > 0) {
             $notes[] = "{$progress['failed']} CVs could not be read and are not ranked.";
         }
-        if (! $includeRejected) {
-            $notes[] = 'Applications already rejected in Teamtailor are left out.';
-        }
+        $notes[] = $includeRejected
+            ? 'Applications already rejected in Teamtailor are ranked too; their stage says Rejected.'
+            : 'Applications already rejected in Teamtailor are left out.';
 
         return $notes;
     }
