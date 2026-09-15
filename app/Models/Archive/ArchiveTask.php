@@ -27,8 +27,10 @@ class ArchiveTask extends Model
     /** Recount documents, files and bytes for the archive cards. */
     public const TYPE_RECOUNT = 'recount';
 
-    /** Work an AI batch: read history, or propose values for empty fields. */
-    public const TYPE_AI_BATCH = 'ai_batch';
+    // No AI task type here on purpose: an AI batch is its own queue
+    // (archive_ai_batches, worked by archive:ai-batch), because it carries an
+    // estimate, a running cost and a pause that a generic task row cannot. A
+    // type here would be a second, wrong way to start one.
 
     public const STATUS_PENDING = 'pending';
 

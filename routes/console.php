@@ -120,6 +120,18 @@ Schedule::command('archive:transfer-files --max-seconds=240')
     ->runInBackground()
     ->name('archive-transfer-files');
 
+// Reading history into text, and proposing values for index fields nobody ever
+// filled in. Both are batches with an estimate and a running cost, so this wakes
+// every minute and does nothing at all unless somebody started one. It stops
+// itself at the month's budget rather than on a bill, and a batch of 500,000
+// documents survives a deploy because each slice is only 25 of them. The
+// 30-minute lock outlasts the 240 s budget plus the document in flight.
+Schedule::command('archive:ai-batch --max-seconds=240')
+    ->everyMinute()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('archive-ai-batch');
+
 // Converted TIFFs are a disposable cache: every file in it can be rebuilt from
 // the original, so the only question is how much disk it may hold. NOC2 has
 // ~88 GB free and the archive holds ~35 GB of TIFF.

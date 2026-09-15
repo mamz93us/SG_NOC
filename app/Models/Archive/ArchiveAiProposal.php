@@ -32,6 +32,18 @@ class ArchiveAiProposal extends Model
 
     public const STATUS_REJECTED = 'rejected';
 
+    /**
+     * AI read the document and the field is simply not on it.
+     *
+     * Deliberately not `rejected` — nobody rejected anything, and it never
+     * reaches the review queue (see scopePending). It is recorded for two
+     * reasons: a reviewer chasing a missing invoice number can see that it was
+     * looked for, and BatchRunner picks documents that have no proposal row for
+     * a field, so without this a document AI finds nothing on would be chosen —
+     * and paid for — again on every slice for as long as the batch lives.
+     */
+    public const STATUS_NOT_FOUND = 'not_found';
+
     protected $fillable = [
         'archive_ai_batch_id',
         'archive_document_id',

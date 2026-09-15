@@ -87,7 +87,7 @@ return new class extends Migration
             // than take it on trust — the whole point of a review queue.
             $table->unsignedTinyInteger('confidence')->nullable();
             $table->unsignedSmallInteger('evidence_page')->nullable();
-            // pending | approved | edited | rejected
+            // pending | approved | edited | rejected | not_found
             $table->string('status', 20)->default('pending');
             $table->string('approved_value', 250)->nullable();
             $table->unsignedBigInteger('reviewed_by')->nullable();
