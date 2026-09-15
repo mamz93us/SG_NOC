@@ -233,6 +233,16 @@ if (\App\Support\ArchivePortal::enabled()) {
                 Route::get('/', [\App\Http\Controllers\Archive\ManageController::class, 'index'])->name('index');
                 Route::post('/source', [\App\Http\Controllers\Archive\ManageController::class, 'saveSource'])->name('source.save');
                 Route::post('/source/test', [\App\Http\Controllers\Archive\ManageController::class, 'testSource'])->name('source.test');
+
+                // Moving the 372 GB to Azure. Nothing here copies anything: the
+                // buttons change a setting or queue a task, and the worker picks
+                // it up within a minute.
+                Route::get('/transfer', [\App\Http\Controllers\Archive\TransferController::class, 'index'])->name('transfer');
+                Route::post('/transfer/settings', [\App\Http\Controllers\Archive\TransferController::class, 'saveSettings'])->name('transfer.settings');
+                Route::post('/transfer/archives/{archive}', [\App\Http\Controllers\Archive\TransferController::class, 'archiveAction'])
+                    ->whereNumber('archive')->name('transfer.archive');
+                Route::post('/transfer/retry', [\App\Http\Controllers\Archive\TransferController::class, 'retry'])->name('transfer.retry');
+                Route::post('/transfer/verify', [\App\Http\Controllers\Archive\TransferController::class, 'verify'])->name('transfer.verify');
                 Route::post('/tasks', [\App\Http\Controllers\Archive\ManageController::class, 'queueTask'])->name('tasks.store');
                 Route::post('/archives', [\App\Http\Controllers\Archive\ManageController::class, 'enable'])->name('enable');
                 Route::get('/archives/{archive}', [\App\Http\Controllers\Archive\ManageController::class, 'showArchive'])

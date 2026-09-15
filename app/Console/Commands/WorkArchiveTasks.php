@@ -7,6 +7,7 @@ use App\Models\Archive\ArchiveDocument;
 use App\Models\Archive\ArchiveSource;
 use App\Models\Archive\ArchiveTask;
 use App\Services\Archive\ArcMate\ArcMateDiscovery;
+use App\Services\Archive\ArchiveTransferService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -79,8 +80,40 @@ class WorkArchiveTasks extends Command
         return match ($task->type) {
             ArchiveTask::TYPE_RECOUNT => $this->recount($task),
             ArchiveTask::TYPE_RESCAN_SOURCE => $this->rescan(),
+            ArchiveTask::TYPE_VERIFY_SAMPLE => $this->verifySample($task),
+            ArchiveTask::TYPE_RETRY_FAILED => $this->retryFailed($task),
             default => throw new \RuntimeException("No handler for archive task type [{$task->type}]."),
         };
+    }
+
+    /**
+     * Re-download random transferred files and compare them with what was
+     * recorded when they were copied.
+     *
+     * Queued rather than run in the page, because it reads whole files back out
+     * of Azure — the exact kind of work that turned the attendance screens into
+     * 504s when it was done inline.
+     *
+     * @return array<string,mixed>
+     */
+    private function verifySample(ArchiveTask $task): array
+    {
+        return app(ArchiveTransferService::class)
+            ->verifySample((int) ($task->params['count'] ?? 20));
+    }
+
+    /**
+     * Clear the error on files that failed too often, so the worker picks them
+     * up again.
+     *
+     * @return array<string,mixed>
+     */
+    private function retryFailed(ArchiveTask $task): array
+    {
+        $cleared = app(ArchiveTransferService::class)
+            ->retryFailed($task->params['archive_id'] ?? null);
+
+        return ['requeued' => $cleared];
     }
 
     /**

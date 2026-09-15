@@ -108,6 +108,18 @@ Schedule::command('archive:work')
     ->runInBackground()
     ->name('archive-work');
 
+// Moving ArcMate's 372 GB into the NOC's own Azure storage, file by verified
+// file. Wakes every minute and usually does nothing — outside the transfer
+// window it returns immediately — which is what makes "allow during working
+// hours" on the Transfer page take effect within a minute instead of at the
+// next cron boundary. The 60-minute lock outlasts the 240 s budget plus the
+// file already in flight; nothing is ever deleted from the ArcMate share.
+Schedule::command('archive:transfer-files --max-seconds=240')
+    ->everyMinute()
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('archive-transfer-files');
+
 // Converted TIFFs are a disposable cache: every file in it can be rebuilt from
 // the original, so the only question is how much disk it may hold. NOC2 has
 // ~88 GB free and the archive holds ~35 GB of TIFF.

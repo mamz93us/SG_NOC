@@ -148,6 +148,8 @@ return [
         App\Models\Archive\ArchiveFileText::class,
         App\Models\Archive\ArchiveAccessLog::class,
         App\Models\Archive\ArchiveTask::class,
+        //   - the transfer's own run log, written every minute for nights on end
+        App\Models\Archive\ArchiveTransferRun::class,
     ],
 
     /*

@@ -9,6 +9,10 @@
         </a>
         <span class="arc-muted">/</span>
         <span class="fw-semibold">Manage</span>
+
+        <a href="{{ route('archive.manage.transfer') }}" class="ms-auto btn btn-sm btn-outline-secondary">
+            <i class="bi bi-cloud-arrow-up"></i> Transfer to Azure
+        </a>
     </div>
 
     <div class="row g-3">

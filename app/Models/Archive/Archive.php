@@ -52,9 +52,13 @@ class Archive extends Model
         'ai_reading',
         'ai_extract',
         'sort_order',
+        'transfer_paused',
+        'transfer_priority',
     ];
 
     protected $casts = [
+        'transfer_paused' => 'boolean',
+        'transfer_priority' => 'integer',
         'readable' => 'boolean',
         'ai_chat' => 'boolean',
         'ai_reading' => 'boolean',
@@ -70,6 +74,25 @@ class Archive extends Model
         'byte_total' => 'integer',
         'counts_updated_at' => 'datetime',
         'sort_order' => 'integer',
+    ];
+
+    /**
+     * Defaults for a new row in PHP, not only in the database — see the note on
+     * ArchiveSource::$attributes for the bug this prevents.
+     *
+     * `readable` is the dangerous one to leave null: the transfer and the AI
+     * both skip an archive that is not readable, so a null would quietly
+     * exclude a perfectly good archive from both.
+     */
+    protected $attributes = [
+        'mode' => self::MODE_MIRROR,
+        'readable' => true,
+        'ai_chat' => false,
+        'ai_reading' => false,
+        'ai_extract' => false,
+        'transfer_paused' => false,
+        'transfer_priority' => 100,
+        'sort_order' => 0,
     ];
 
     public function source(): BelongsTo

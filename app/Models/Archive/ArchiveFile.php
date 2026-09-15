@@ -41,6 +41,9 @@ class ArchiveFile extends Model
         'page_count',
         'sha256',
         'arcmate_crc',
+        'transferred_at',
+        'transfer_attempts',
+        'transfer_error',
     ];
 
     protected $casts = [
@@ -48,7 +51,50 @@ class ArchiveFile extends Model
         'position' => 'integer',
         'size' => 'integer',
         'page_count' => 'integer',
+        'transferred_at' => 'datetime',
+        'transfer_attempts' => 'integer',
     ];
+
+    /**
+     * Defaults for a new row in PHP, not only in the database — see the note on
+     * ArchiveSource::$attributes for the bug this prevents. `disk` matters most:
+     * a file whose disk is null is a file nothing knows how to read.
+     */
+    protected $attributes = [
+        'disk' => self::DISK_ARCMATE,
+        'position' => 0,
+        'transfer_attempts' => 0,
+    ];
+
+    /** Give up on a file after this many tries and let a person look at it. */
+    public const MAX_TRANSFER_ATTEMPTS = 5;
+
+    /**
+     * The transfer worker's queue: still on the ArcMate share, still worth
+     * trying, and in an archive that is readable and not paused.
+     *
+     * Newest first within an archive. If the move is ever interrupted for good,
+     * the files people actually open are the ones that made it across.
+     */
+    public function scopeTransferQueue(Builder $query): Builder
+    {
+        return $query->where('archive_files.disk', self::DISK_ARCMATE)
+            ->where('archive_files.transfer_attempts', '<', self::MAX_TRANSFER_ATTEMPTS)
+            ->whereExists(function ($sub) {
+                $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->from('archives')
+                    ->whereColumn('archives.id', 'archive_files.archive_id')
+                    ->where('archives.readable', true)
+                    ->where('archives.transfer_paused', false);
+            });
+    }
+
+    /** Files that have failed too often — the Transfer page's error list. */
+    public function scopeTransferFailed(Builder $query): Builder
+    {
+        return $query->where('disk', self::DISK_ARCMATE)
+            ->where('transfer_attempts', '>=', self::MAX_TRANSFER_ATTEMPTS);
+    }
 
     public function archive(): BelongsTo
     {

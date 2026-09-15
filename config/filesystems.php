@@ -191,6 +191,28 @@ return [
             'throw' => false,
         ],
 
+        // Azure Blob storage for the document archive — the 372 GB of scans
+        // ArcMate held, moved here file by file by archive:transfer-files, plus
+        // everything filed through the portal afterwards.
+        //
+        // Its OWN container by default, not the shared backups one. This is not
+        // a backup: it is the live store for every supplier invoice, contract
+        // and HR file the company has scanned since 2013, it is two orders of
+        // magnitude larger than anything else here, and it wants its own
+        // retention and soft-delete settings. Turn soft-delete ON for it.
+        //
+        // 'documents/' and 'inbox/' live under one disk rather than two, so a
+        // filed document is a move within the same container instead of a copy
+        // between two.
+        'azure_archive' => [
+            'driver' => 'azure',
+            'account' => env('AZURE_BLOB_ACCOUNT'),
+            'key' => env('AZURE_BLOB_KEY'),
+            'container' => env('AZURE_BLOB_ARCHIVE_CONTAINER', 'noc-archive'),
+            'endpoint' => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
+            'throw' => false,
+        ],
+
     ],
 
     /*

@@ -29,6 +29,7 @@ class ArchiveTestSchema
 {
     /** @var array<int,string> Dropped newest-first so foreign keys unwind cleanly. */
     private const TABLES = [
+        'archive_transfer_runs',
         'archive_tasks',
         'archive_access_logs',
         'archive_file_texts',
@@ -72,7 +73,13 @@ class ArchiveTestSchema
             });
         }
 
-        foreach (glob(database_path('migrations/*_archive_portal_tables.php')) ?: [] as $migration) {
+        // Every archive migration, in file order, so a column added to the real
+        // schema is covered here without anyone remembering to restate it.
+        foreach (glob(database_path('migrations/*_archive_*.php')) ?: [] as $migration) {
+            if (str_contains($migration, 'permissions')) {
+                continue; // needs role_permissions, which these tests do not build
+            }
+
             (require $migration)->up();
         }
     }
