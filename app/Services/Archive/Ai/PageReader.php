@@ -222,16 +222,31 @@ TXT;
      * caller instead of into archive_file_texts, and is read into its proper rows
      * once the document exists.
      *
-     * The caller checks the budget before asking (it decides what to do when
-     * there is none); this records what the page cost.
+     * Both caps are enforced here, exactly as read() enforces them. They were
+     * not, at first: this checked nothing and the caller checked only the month's
+     * budget, so the per-person daily page limit — the thing that stops one
+     * enthusiastic afternoon spending the month — simply did not apply to
+     * anything uploaded. A cap being advertised on the AI page and not applied to
+     * a whole path is worse than having no cap.
+     *
+     * @throws ArchiveSpendRefused when a cap says no. The caller decides what
+     *                             that means; for the inbox it is "try tomorrow",
+     *                             not "this scan is broken".
      */
     public function readUnfiledPage(string $pdfPath, int $page, ?int $archiveId = null, ?int $userId = null): string
     {
+        $settings = ArchiveAiSettings::get();
+        $refusal = $this->maySpend($settings, $userId);
+
+        if ($refusal !== null) {
+            throw new ArchiveSpendRefused($refusal);
+        }
+
         $text = $this->aiRead($pdfPath, $page);
 
         ArchiveAiUsage::record(
             ArchiveAiUsage::FEATURE_READ,
-            ArchiveAiSettings::get()->pageCost(),
+            $settings->pageCost(),
             pages: 1,
             userId: $userId,
             archiveId: $archiveId,
@@ -268,8 +283,12 @@ TXT;
      * Two separate limits: the month's money, and one person's pages today. The
      * per-person one exists so a single enthusiastic afternoon cannot spend the
      * month on its own.
+     *
+     * Public because every path that spends money has to ask the same question.
+     * While it was private, two of them could not: the inbox reader and the Ask
+     * panels checked the month's budget alone and the daily cap went unenforced.
      */
-    private function maySpend(ArchiveAiSettings $settings, ?int $userId): ?string
+    public function maySpend(ArchiveAiSettings $settings, ?int $userId): ?string
     {
         if (! $settings->withinBudget($settings->pageCost())) {
             return $settings->budget() <= 0

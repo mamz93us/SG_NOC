@@ -88,14 +88,13 @@ TXT;
 
         $settings = ArchiveAiSettings::get();
 
-        if (! $settings->withinBudget()) {
-            return [
-                'answer' => '',
-                'used_tools' => [],
-                'error' => $settings->budget() <= 0
-                    ? 'No AI budget has been set for the archive yet.'
-                    : 'The archive AI budget for this month has been spent.',
-            ];
+        // Both caps, through the one place that knows them. Only the month's
+        // budget was checked here at first, so the per-person daily limit — which
+        // the AI page advertises — did not apply to asking at all.
+        $refusal = $this->reader->maySpend($settings, $user?->getKey());
+
+        if ($refusal !== null) {
+            return ['answer' => '', 'used_tools' => [], 'error' => $refusal];
         }
 
         $messages = array_merge(
@@ -174,6 +173,16 @@ TXT;
     public function askDocument(?User $user, ArchiveDocument $document, string $question, int $maxPages = 30): array
     {
         $settings = ArchiveAiSettings::get();
+
+        // Checked before any page is read. textFor() applies the same caps per
+        // page, but a question whose pages are all read already would otherwise
+        // reach the chat call without either cap being consulted.
+        $refusal = $this->reader->maySpend($settings, $user?->getKey());
+
+        if ($refusal !== null) {
+            return ['answer' => '', 'pages' => [], 'read' => ['pages_read' => 0, 'cost' => 0.0], 'error' => $refusal];
+        }
+
         $parts = [];
         $pages = [];
         $read = ['pages_read' => 0, 'cost' => 0.0];
@@ -241,23 +250,22 @@ TXT;
     // ─── Internals ───────────────────────────────────────────────
 
     /**
-     * Record what the conversation itself cost.
+     * Record what the conversation itself cost, from the tokens Azure reported.
      *
      * Reading pages is metered by PageReader; this is the chat on top of it.
      * Both land in the same month's budget, because from the payer's side they
      * are the same spend.
+     *
+     * Measured, not assumed. This was a flat half of a page's cost per call,
+     * which priced a six-turn tool loop over 40,000 characters of scanned text
+     * exactly like a one-line question — so the recorded spend ran below the real
+     * one, and the cap that reads it kept saying yes.
      */
     private function meter(?User $user, int $promptTokens, int $completionTokens, string $feature, ?int $archiveId = null): void
     {
-        // Priced off the page rate rather than a token table: one keyed-in
-        // number is easier to keep honest than a per-model price list that
-        // silently goes stale, and chat turns here are small next to the
-        // reading they sit on.
-        $cost = ArchiveAiSettings::get()->pageCost() * 0.5;
-
         ArchiveAiUsage::record(
             $feature,
-            $cost,
+            ArchiveAiSettings::get()->chatCost($promptTokens, $completionTokens),
             pages: 0,
             userId: $user?->getKey(),
             archiveId: $archiveId,

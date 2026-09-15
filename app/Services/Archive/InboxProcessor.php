@@ -7,6 +7,7 @@ use App\Models\Archive\ArchiveAiSettings;
 use App\Models\Archive\ArchiveInboxItem;
 use App\Models\User;
 use App\Services\Ai\PdfPages;
+use App\Services\Archive\Ai\ArchiveSpendRefused;
 use App\Services\Archive\Ai\FieldExtractor;
 use App\Services\Archive\Ai\PageReader;
 use Illuminate\Support\Facades\Log;
@@ -134,7 +135,20 @@ class InboxProcessor
                 return ['pages' => 0, 'fields' => 0, 'error' => null];
             }
 
-            $text = $this->read($item, $local, $pageCount);
+            [$text, $refused] = $this->read($item, $local, $pageCount);
+
+            // A cap, not a fault. The item goes back in the queue with its
+            // attempt given back, because being told "tomorrow" three times must
+            // not permanently write off a perfectly good scan.
+            if ($refused !== null && trim($text) === '') {
+                $item->forceFill([
+                    'ai_status' => ArchiveInboxItem::AI_QUEUED,
+                    'ai_attempts' => max(0, (int) $item->ai_attempts - 1),
+                    'error' => $refused,
+                ])->save();
+
+                return ['pages' => 0, 'fields' => 0, 'error' => null];
+            }
 
             if (trim($text) === '') {
                 $item->forceFill([
@@ -180,11 +194,15 @@ class InboxProcessor
      * Free first, exactly as PageReader does it for a filed file: a PDF made by a
      * "scan to PDF" driver often carries its own text layer, and paying to look at
      * a page whose words are already in the file buys nothing.
+     *
+     * @return array{0:string, 1:?string} the text, and why reading stopped early
+     *                                    if a cap refused it
      */
-    private function read(ArchiveInboxItem $item, string $local, int $pageCount): string
+    private function read(ArchiveInboxItem $item, string $local, int $pageCount): array
     {
         $parts = [];
         $pages = min($pageCount, self::MAX_PAGES);
+        $refused = null;
 
         for ($page = 1; $page <= $pages; $page++) {
             $layer = '';
@@ -202,24 +220,28 @@ class InboxProcessor
                 continue;
             }
 
-            // Re-checked per page, not once per item: a 10-page scan can cross the
-            // cap half way through, and the pages already read are still useful.
-            if (! ArchiveAiSettings::get()->withinBudget()) {
-                break;
-            }
-
             // PageReader's own vision call, on a file that has no archive_files
             // row yet. Reached through its public method rather than duplicated,
-            // so there is one reading prompt in this codebase and not two.
-            $parts[] = '[page '.$page.']'.PHP_EOL.$this->reader->readUnfiledPage(
-                $local,
-                $page,
-                $item->archive_id,
-                $item->user_id,
-            );
+            // so there is one reading prompt in this codebase and not two — and
+            // it enforces BOTH caps, the month's budget and this person's pages
+            // today, rather than leaving the second to a caller that forgot it.
+            try {
+                $parts[] = '[page '.$page.']'.PHP_EOL.$this->reader->readUnfiledPage(
+                    $local,
+                    $page,
+                    $item->archive_id,
+                    $item->user_id,
+                );
+            } catch (ArchiveSpendRefused $e) {
+                // Checked per page rather than once per item: a 10-page scan can
+                // cross a cap half way through, and the pages already read stay
+                // useful.
+                $refused = $e->getMessage();
+                break;
+            }
         }
 
-        return trim(implode(PHP_EOL.PHP_EOL, $parts));
+        return [trim(implode(PHP_EOL.PHP_EOL, $parts)), $refused];
     }
 
     // ─── Where does it belong ────────────────────────────────────

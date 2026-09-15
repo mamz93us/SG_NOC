@@ -26,12 +26,16 @@ class ArchiveAiSettings extends Model
         'monthly_budget_usd',
         'per_user_daily_pages',
         'page_read_cost_usd',
+        'prompt_token_cost_usd',
+        'completion_token_cost_usd',
     ];
 
     protected $casts = [
         'monthly_budget_usd' => 'decimal:2',
         'per_user_daily_pages' => 'integer',
         'page_read_cost_usd' => 'decimal:5',
+        'prompt_token_cost_usd' => 'decimal:5',
+        'completion_token_cost_usd' => 'decimal:5',
     ];
 
     /** Defaults in PHP as well as the database — see ArchiveSource::$attributes. */
@@ -42,6 +46,10 @@ class ArchiveAiSettings extends Model
         'monthly_budget_usd' => 0,
         'per_user_daily_pages' => 200,
         'page_read_cost_usd' => 0.01,
+        // gpt-4o list prices per 1,000 tokens as of 2026-09. A starting point to
+        // be corrected from a real invoice, not a claim about this tenancy.
+        'prompt_token_cost_usd' => 0.0025,
+        'completion_token_cost_usd' => 0.01,
     ];
 
     public static function get(): self
@@ -58,6 +66,23 @@ class ArchiveAiSettings extends Model
     public function estimateFor(int $pages): float
     {
         return round($this->pageCost() * max(0, $pages), 2);
+    }
+
+    /**
+     * What one conversation turn actually cost, from the tokens Azure reported.
+     *
+     * Measured rather than assumed. This used to be a flat half of a page's cost
+     * for every call, which meant a six-turn tool loop over 40,000 characters of
+     * scanned text recorded the same figure as a one-line question — understating
+     * the month's spend, and doing it silently, while the cap that reads that
+     * figure let spending carry on.
+     */
+    public function chatCost(int $promptTokens, int $completionTokens): float
+    {
+        $cost = (max(0, $promptTokens) / 1000) * (float) $this->prompt_token_cost_usd
+            + (max(0, $completionTokens) / 1000) * (float) $this->completion_token_cost_usd;
+
+        return round($cost, 5);
     }
 
     public function budget(): float

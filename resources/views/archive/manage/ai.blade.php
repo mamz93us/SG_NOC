@@ -76,15 +76,38 @@
                            name="per_user_daily_pages" value="{{ $settings->per_user_daily_pages }}">
 
                     <label class="form-label small arc-muted mb-1">Cost of reading one page (USD)</label>
-                    <input type="number" step="0.00001" min="0" class="form-control form-control-sm"
+                    <input type="number" step="0.00001" min="0" class="form-control form-control-sm mb-2"
                            name="page_read_cost_usd" value="{{ $settings->page_read_cost_usd }}">
+
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small arc-muted mb-1">Per 1k tokens in</label>
+                            <input type="number" step="0.00001" min="0" class="form-control form-control-sm"
+                                   name="prompt_token_cost_usd" value="{{ $settings->prompt_token_cost_usd }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small arc-muted mb-1">Per 1k tokens out</label>
+                            <input type="number" step="0.00001" min="0" class="form-control form-control-sm"
+                                   name="completion_token_cost_usd" value="{{ $settings->completion_token_cost_usd }}">
+                        </div>
+                    </div>
 
                     <button class="btn btn-brand btn-sm w-100 mt-3">Save</button>
                 </form>
 
                 <p class="arc-muted small mb-0 mt-2">
                     A budget of 0 means AI is switched off, not unlimited — the safer reading of
-                    “nobody has set this yet”. Batches stop themselves at the budget.
+                    “nobody has set this yet”. Batches stop themselves at the budget, and so do
+                    questions.
+                </p>
+
+                {{-- Said plainly, because a figure that looks like a bill and is not
+                     one is how a budget gets trusted past the point it should be. --}}
+                <p class="arc-muted small mb-0 mt-2">
+                    <i class="bi bi-info-circle"></i>
+                    Everything on this page is an <strong>estimate</strong> from the prices above,
+                    not Azure's invoice. Reading is counted per page; questions are counted from
+                    the tokens each call reported. Correct these prices against a real bill.
                 </p>
             </div>
 

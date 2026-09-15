@@ -70,6 +70,11 @@ class AiController extends Controller
             'monthly_budget_usd' => ['required', 'numeric', 'min:0', 'max:100000'],
             'per_user_daily_pages' => ['required', 'integer', 'min:0', 'max:100000'],
             'page_read_cost_usd' => ['required', 'numeric', 'min:0', 'max:10'],
+            // The conversation prices. Validated here as well, or a figure typed
+            // on the page is silently dropped by fill() and the spend keeps being
+            // measured against whatever the last value was.
+            'prompt_token_cost_usd' => ['required', 'numeric', 'min:0', 'max:10'],
+            'completion_token_cost_usd' => ['required', 'numeric', 'min:0', 'max:10'],
         ]);
 
         ArchiveAiSettings::get()->fill($data)->save();
