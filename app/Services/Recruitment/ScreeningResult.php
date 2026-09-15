@@ -13,14 +13,21 @@ use RuntimeException;
  * comes from the score's band, and a must-have the CV clearly does not meet
  * caps the score, so a candidate missing one never ranks above those who meet
  * them all.
+ *
+ * Where the applicant lives is kept apart from the evaluation, in `location`:
+ * the runner stores it with their salary, encrypted.
  */
 final class ScreeningResult
 {
     /** The highest score an applicant with a must-have marked "no" can keep. */
     public const CAP_WHEN_MISSING = 49;
 
+    /** Further than any trip to an office; a bigger number is a mistake. */
+    private const MAX_DISTANCE_KM = 20000;
+
     /**
      * @param  array<string,mixed>  $evaluation
+     * @param  array{lives_in: ?string, distance_km: ?int, relocation_needed: ?string}  $location
      */
     public function __construct(
         public readonly int $score,
@@ -28,6 +35,7 @@ final class ScreeningResult
         public readonly int $mustHavesMet,
         public readonly int $mustHavesTotal,
         public readonly array $evaluation,
+        public readonly array $location = ['lives_in' => null, 'distance_km' => null, 'relocation_needed' => null],
     ) {}
 
     /**
@@ -74,7 +82,7 @@ final class ScreeningResult
             'languages' => self::items($data['languages'] ?? null, 6, 40),
             'education' => self::text($data['education'] ?? null, 200),
             'interview_questions' => self::items($data['interview_questions'] ?? null, 4, 300),
-        ]);
+        ], self::location($data));
     }
 
     /**
@@ -108,6 +116,32 @@ final class ScreeningResult
         }
 
         return $checks;
+    }
+
+    /**
+     * Where the applicant lives, the estimated distance to the office, and
+     * whether they would move city. A distance with no place it was measured
+     * from is the reply template's 0, not an estimate, so it is dropped.
+     *
+     * @param  array<string,mixed>  $data
+     * @return array{lives_in: ?string, distance_km: ?int, relocation_needed: ?string}
+     */
+    private static function location(array $data): array
+    {
+        $livesIn = self::text($data['lives_in'] ?? null, 120);
+        $km = $data['distance_km'] ?? null;
+
+        if (is_string($km) && preg_match('/\d+(?:\.\d+)?/', $km, $match) === 1) {
+            $km = $match[0];
+        }
+
+        $relocation = is_string($data['relocation_needed'] ?? null) ? strtolower(trim($data['relocation_needed'])) : null;
+
+        return [
+            'lives_in' => $livesIn,
+            'distance_km' => $livesIn !== null && is_numeric($km) ? max(0, min(self::MAX_DISTANCE_KM, (int) round((float) $km))) : null,
+            'relocation_needed' => in_array($relocation, ['yes', 'no', 'unclear'], true) ? $relocation : null,
+        ];
     }
 
     private static function text(mixed $value, int $max): ?string

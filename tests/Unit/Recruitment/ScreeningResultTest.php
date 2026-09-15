@@ -2,6 +2,7 @@
 
 use App\Services\Recruitment\CandidateScreener;
 use App\Services\Recruitment\JobAd;
+use App\Services\Recruitment\SalaryAnswers;
 use App\Services\Recruitment\ScreeningResult;
 
 it('keeps a clean evaluation and takes the fit label from the score', function () {
@@ -68,6 +69,15 @@ it('treats a missing or odd must-have answer as unclear', function () {
     expect(array_column($result->evaluation['must_haves'], 'met'))->toBe(['unclear', 'unclear']);
 });
 
+it('reads where the applicant lives and the distance, and drops a distance with no place to measure from', function () {
+    $located = ScreeningResult::parse(json_encode(['score' => 70, 'lives_in' => 'Nasr City, Cairo', 'distance_km' => '18 km', 'relocation_needed' => 'No']), 'stop', []);
+    $nowhere = ScreeningResult::parse(json_encode(['score' => 70, 'lives_in' => null, 'distance_km' => 0, 'relocation_needed' => 'maybe']), 'stop', []);
+
+    expect($located->location)->toBe(['lives_in' => 'Nasr City, Cairo', 'distance_km' => 18, 'relocation_needed' => 'no'])
+        ->and($located->evaluation)->not->toHaveKey('lives_in')
+        ->and($nowhere->location)->toBe(['lives_in' => null, 'distance_km' => null, 'relocation_needed' => null]);
+});
+
 it('keeps the score between 0 and 100', function (int|float $given, int $kept) {
     expect(ScreeningResult::parse(json_encode(['score' => $given]), 'stop', [])->score)->toBe($kept);
 })->with([
@@ -93,4 +103,27 @@ it('gives the screening the must-haves in order and says when the CV is a scan',
         ->toContain('Q: Notice period?')
         ->toContain('read the attached images')
         ->not->toContain('<cv>');
+});
+
+it('gives the screening the office, the budget, the salary from the answers and the profile location', function () {
+    $note = CandidateScreener::note(new JobAd('Accountant', 'Close the month.'), [], 'CV text', '', false, [
+        'office' => 'CAI — Heliopolis, Cairo',
+        'budget' => '8,000–12,000 EGP a month',
+        'salary' => SalaryAnswers::extract([
+            ['question' => 'What is your expected salary?', 'answer' => '15,000 EGP', 'from' => 'another application'],
+            ['question' => 'What is your current salary?', 'answer' => '9000'],
+        ]),
+        'profile_location' => 'Giza, Egypt',
+    ]);
+
+    expect($note)->toContain('The office this job is in: CAI — Heliopolis, Cairo.')
+        ->toContain('The salary budget for this job: 8,000–12,000 EGP a month.')
+        ->toContain("The applicant's salary, read from their answers: expected 15,000 EGP (given in another application); current 9,000 EGP.")
+        ->toContain('The location on their Teamtailor profile: Giza, Egypt.');
+
+    expect(CandidateScreener::note(new JobAd('Accountant', ''), [], 'CV text', '', false))
+        ->toContain('has not set the office')
+        ->toContain('No salary budget is set')
+        ->toContain('stated no expected or current salary')
+        ->toContain('profile gives no location');
 });

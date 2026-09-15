@@ -58,11 +58,13 @@ class CandidateController extends Controller
     }
 
     /**
-     * One candidate as Teamtailor holds them: details, every application with
-     * its stage, rejection, cover letter and questions and answers, attachments,
-     * and the activity log (CandidateProfileReader). Also a deep link out to the
-     * Teamtailor recruiter app when teamtailor.app_url is configured, and each
-     * application's Recruitment AI score for people who may use Recruitment AI.
+     * One candidate as Teamtailor holds them: the salary their answers state on
+     * top, details, every application with its stage, rejection, cover letter
+     * and questions and answers, attachments, and the activity log
+     * (CandidateProfileReader). Also a deep link out to the Teamtailor recruiter
+     * app when teamtailor.app_url is configured, and — for people who may use
+     * Recruitment AI — each application's AI score and the distance to the
+     * office the screening estimated.
      */
     public function show(Request $request, TeamtailorApiService $teamtailor, CandidateProfileReader $reader, string $candidate)
     {
@@ -80,41 +82,70 @@ class CandidateController extends Controller
         }
 
         $appBase = (string) config('teamtailor.app_url', '');
+        $canUseRecruitmentAi = (bool) $request->user()?->hasPermission(RecruitmentToolbox::PERMISSION);
+        $screenings = $canUseRecruitmentAi ? $this->screenings($candidate) : collect();
+        $applications = $data['applications'] ?? [];
 
         return view('admin.teamtailor.candidates.show', [
             'candidateId' => $candidate,
             'configured' => $configured,
             'profile' => $data['profile'] ?? null,
-            'applications' => $data['applications'] ?? [],
+            'applications' => $applications,
             'otherAnswers' => $data['other_answers'] ?? [],
+            'salary' => $data['salary'] ?? ['expected' => null, 'current' => null],
             'uploads' => $data['uploads'] ?? [],
             'activities' => $data['activities'] ?? [],
             'activitiesTotal' => $data['activities_total'] ?? null,
             'activityError' => $data['activity_error'] ?? null,
             'allActivity' => $allActivity,
-            'screenings' => $this->screenings($request, $candidate),
+            'canUseRecruitmentAi' => $canUseRecruitmentAi,
+            'screenings' => $screenings,
+            'screenedLocation' => self::screenedLocation($applications, $screenings),
             'error' => $error,
             'teamtailorUrl' => $appBase !== '' ? $appBase.'/candidates/'.$candidate : null,
         ]);
     }
 
     /**
-     * Recruitment AI's screening of this candidate, keyed by Teamtailor job id;
-     * empty for anyone who may not use Recruitment AI.
+     * Recruitment AI's screening of this candidate, keyed by Teamtailor job id.
+     * Only for people who may use Recruitment AI: the caller checks.
      *
      * @return Collection<string, RecruitmentScreening>
      */
-    private function screenings(Request $request, string $candidate): Collection
+    private function screenings(string $candidate): Collection
     {
-        if (! $request->user()?->hasPermission(RecruitmentToolbox::PERMISSION)) {
-            return collect();
-        }
-
         return RecruitmentScreening::with('job:id,teamtailor_job_id,title')
             ->where('teamtailor_candidate_id', $candidate)
-            ->get(['id', 'recruitment_job_id', 'status', 'score', 'fit', 'must_haves_met', 'must_haves_total'])
+            ->get(['id', 'recruitment_job_id', 'status', 'score', 'fit', 'must_haves_met', 'must_haves_total', 'facts'])
             ->filter(fn (RecruitmentScreening $screening) => $screening->job !== null)
             ->keyBy(fn (RecruitmentScreening $screening) => $screening->job->teamtailor_job_id);
+    }
+
+    /**
+     * Where the newest application with an AI screening says the candidate
+     * lives, and how far that is from its job's office; null when none says.
+     *
+     * @param  list<array<string,mixed>>  $applications  newest first
+     * @param  Collection<string, RecruitmentScreening>  $screenings  keyed by Teamtailor job id
+     * @return array{lives_in: ?string, distance_km: ?int, office: ?string, relocation_needed: ?string, job_title: ?string}|null
+     */
+    private static function screenedLocation(array $applications, Collection $screenings): ?array
+    {
+        foreach ($applications as $application) {
+            $screening = $application['job_id'] ? $screenings->get($application['job_id']) : null;
+
+            if ($screening && ($screening->distanceKm() !== null || $screening->livesIn() !== null)) {
+                return [
+                    'lives_in' => $screening->livesIn(),
+                    'distance_km' => $screening->distanceKm(),
+                    'office' => $screening->distanceOffice(),
+                    'relocation_needed' => $screening->relocationNeeded(),
+                    'job_title' => $application['job_title'],
+                ];
+            }
+        }
+
+        return null;
     }
 
     /**

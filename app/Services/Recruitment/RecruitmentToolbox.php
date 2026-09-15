@@ -57,18 +57,20 @@ class RecruitmentToolbox
 
         return [
             $this->def('list_recruitment_jobs',
-                'List the Teamtailor jobs set up in Recruitment AI: title, Teamtailor job id, whether AI screening is on, applicants, how many are screened or still waiting, and the best score. Call it first when the employee has not named a job.',
+                'List the Teamtailor jobs set up in Recruitment AI: title, Teamtailor job id, whether AI screening is on, the office and salary budget, applicants, how many are screened or still waiting, and the best score. Call it first when the employee has not named a job.',
                 [], []),
             $this->def('get_job_shortlist',
-                'The best applicants for one job, ranked by the AI screening of each CV against the job ad and the recruiter\'s must-haves: score, fit, which must-haves each meets, a summary, strengths and concerns. Use it for "best 10", "top candidates", "who should we interview".',
+                'The best applicants for one job, ranked by the AI screening of each CV against the job ad, the recruiter\'s must-haves and - when the recruiter set them - the job\'s salary budget and office: score, fit, which must-haves each meets, a summary, strengths and concerns, the expected and current salary from their answers, where they live and the estimated distance to the office. Use it for "best 10", "top candidates", "who should we interview", "who is within budget", "who lives near the office".',
                 $job + [
                     'limit' => ['type' => 'integer', 'description' => 'How many, 1 to 25. Defaults to 10.'],
                     'min_score' => ['type' => 'integer', 'description' => 'Optional - only applicants scoring at least this (0-100).'],
+                    'max_expected_salary' => ['type' => 'integer', 'description' => 'Optional - only applicants whose expected monthly salary is at most this, in the currency they gave. Applicants who stated none are left out.'],
+                    'max_distance_km' => ['type' => 'integer', 'description' => 'Optional - only applicants estimated to live within this many km of the job\'s office. Applicants with no estimate are left out.'],
                     'include_rejected' => ['type' => 'boolean', 'description' => 'Optional - defaults to true: applications already rejected in Teamtailor are ranked too, with stage Rejected. Pass false to leave them out.'],
                 ],
                 $this->scope ? [] : ['job']),
             $this->def('get_candidate_details',
-                'Everything screened for one applicant of a job: the full AI evaluation (each must-have with evidence, strengths, concerns, skills, languages, education, suggested interview questions), their answers to the application questions, and the text of their CV. Use it to analyse, explain or compare specific candidates.',
+                'Everything screened for one applicant of a job: the full AI evaluation (each must-have with evidence, strengths, concerns, skills, languages, education, suggested interview questions), the salary they stated and where they live, their answers to the application questions, and the text of their CV. Use it to analyse, explain or compare specific candidates.',
                 $job + ['candidate' => ['type' => 'string', 'description' => 'The applicant: the candidate_ref from get_job_shortlist or search_candidates (e.g. C42), or their name or email.']],
                 $this->scope ? ['candidate'] : ['job', 'candidate']),
             $this->def('search_candidates',
@@ -117,19 +119,67 @@ class RecruitmentToolbox
         $limit = $limit < 1 ? 10 : min(self::SHORTLIST_MAX, $limit);
         $includeRejected = filter_var($args['include_rejected'] ?? true, FILTER_VALIDATE_BOOLEAN);
         $minScore = is_numeric($args['min_score'] ?? null) ? max(0, min(100, (int) $args['min_score'])) : null;
+        $maxSalary = is_numeric($args['max_expected_salary'] ?? null) ? max(0, (int) $args['max_expected_salary']) : null;
+        $maxKm = is_numeric($args['max_distance_km'] ?? null) ? max(0, (int) $args['max_distance_km']) : null;
 
-        $ranked = $job->screenings()
+        $query = $job->screenings()
             ->ranked($includeRejected)
-            ->when($minScore !== null, fn ($query) => $query->where('score', '>=', $minScore))
-            ->limit($limit)
-            ->get();
+            ->when($minScore !== null, fn ($query) => $query->where('score', '>=', $minScore));
+
+        $unstated = ['salary' => 0, 'distance' => 0];
+
+        if ($maxSalary === null && $maxKm === null) {
+            $ranked = $query->limit($limit)->get();
+        } else {
+            // Salary and distance are encrypted, so these filters run here, not in SQL.
+            $ranked = $query->get()->filter(function (RecruitmentScreening $screening) use ($maxSalary, $maxKm, &$unstated) {
+                if ($maxSalary !== null) {
+                    $expected = $screening->salaryFigure('expected');
+
+                    if ($expected === null) {
+                        $unstated['salary']++;
+
+                        return false;
+                    }
+
+                    if ((int) $expected['min'] > $maxSalary) {
+                        return false;
+                    }
+                }
+
+                if ($maxKm !== null) {
+                    $km = $screening->distanceKm();
+
+                    if ($km === null) {
+                        $unstated['distance']++;
+
+                        return false;
+                    }
+
+                    if ($km > $maxKm) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })->take($limit)->values();
+        }
+
+        $notes = $this->notes($job, $includeRejected);
+
+        if ($unstated['salary'] > 0) {
+            $notes[] = "{$unstated['salary']} ranked applicants stated no expected salary, so max_expected_salary left them out.";
+        }
+        if ($unstated['distance'] > 0) {
+            $notes[] = "{$unstated['distance']} ranked applicants have no estimated distance to the office, so max_distance_km left them out.";
+        }
 
         return [
             'job' => $this->jobHeader($job),
-            'ranked_by' => 'The AI screening of each CV against the job ad and the recruiter\'s must-haves. A must-have the CV clearly does not meet caps the score at '.ScreeningResult::CAP_WHEN_MISSING.'.',
+            'ranked_by' => 'The AI screening of each CV against the job ad and the recruiter\'s must-haves. A must-have the CV clearly does not meet caps the score at '.ScreeningResult::CAP_WHEN_MISSING.'. An expected salary above the job\'s budget, a commute over 40 km or a move to another city lowers the score a little.',
             'must_haves' => $job->mustHaveList(),
-            'candidates' => $ranked->values()->map(fn (RecruitmentScreening $screening, int $i) => ['rank' => $i + 1] + $this->brief($screening))->all(),
-            'notes' => $this->notes($job, $includeRejected),
+            'candidates' => $ranked->values()->map(fn (RecruitmentScreening $screening, int $i) => ['rank' => $i + 1] + $this->brief($screening, $job))->all(),
+            'notes' => $notes,
         ];
     }
 
@@ -150,11 +200,13 @@ class RecruitmentToolbox
         $cv = (string) $screening->cv_text;
 
         return [
-            'job' => ['job_id' => $job->teamtailor_job_id, 'title' => $job->title],
-            'candidate' => $this->brief($screening) + [
+            'job' => ['job_id' => $job->teamtailor_job_id, 'title' => $job->title, 'office' => $job->officeText(), 'salary_budget' => $job->budgetText()],
+            'candidate' => $this->brief($screening, $job) + [
                 'email' => $screening->candidate_email,
-                'location' => $screening->candidate_location,
+                'profile_location' => $screening->candidate_location,
                 'linkedin' => $screening->linkedin_url,
+                'expected_salary_answer' => $screening->salaryFigure('expected')['text'] ?? null,
+                'current_salary_answer' => $screening->salaryFigure('current')['text'] ?? null,
             ],
             'evaluation' => $screening->status === RecruitmentScreening::STATUS_SCREENED ? $screening->evaluation : null,
             'not_screened_because' => match ($screening->status) {
@@ -201,7 +253,7 @@ class RecruitmentToolbox
                 continue;
             }
 
-            $matches[] = $this->brief($screening, withChecks: false)
+            $matches[] = $this->brief($screening, $job, withChecks: false)
                 + ['snippet' => self::snippet($screening->cv_text."\n".$evaluation, $terms[0])];
 
             if (count($matches) >= self::SEARCH_MAX) {
@@ -292,6 +344,8 @@ class RecruitmentToolbox
             'title' => $job->title,
             'teamtailor_status' => $job->job_status,
             'ai_screening' => $job->screening_enabled ? 'on' : 'off',
+            'office' => $job->officeText(),
+            'salary_budget' => $job->budgetText(),
             'applicants' => $job->applicant_count,
             'screened' => $progress['screened'],
             'waiting_to_be_screened' => $progress['pending'],
@@ -301,8 +355,10 @@ class RecruitmentToolbox
         ];
     }
 
-    private function brief(RecruitmentScreening $screening, bool $withChecks = true): array
+    private function brief(RecruitmentScreening $screening, RecruitmentJob $job, bool $withChecks = true): array
     {
+        $expected = $screening->expectedSalaryLabel();
+
         $brief = [
             'candidate_ref' => 'C'.$screening->id,
             'name' => $screening->candidate_name,
@@ -312,6 +368,12 @@ class RecruitmentToolbox
             'summary' => $screening->evaluationValue('summary'),
             'current_role' => $screening->evaluationValue('current_role'),
             'relevant_years' => $screening->evaluationValue('relevant_years'),
+            'expected_salary' => $expected,
+            'current_salary' => $screening->currentSalaryLabel(),
+            'above_budget' => $expected !== null && $job->salary_budget_max ? $screening->aboveBudget($job) : null,
+            'lives_in' => $screening->livesIn() ?? $screening->candidate_location,
+            'distance_to_office_km' => $screening->distanceKm(),
+            'relocation_needed' => $screening->relocationNeeded(),
             'stage' => $screening->rejected ? 'Rejected' : ($screening->stage ?? 'Active'),
             'applied' => $screening->applied_at?->toDateString(),
         ];
@@ -349,6 +411,10 @@ class RecruitmentToolbox
         $notes[] = $includeRejected
             ? 'Applications already rejected in Teamtailor are ranked too; their stage says Rejected.'
             : 'Applications already rejected in Teamtailor are left out.';
+        if (! $job->office_branch_id) {
+            $notes[] = 'No office is set for this job, so no distances are estimated.';
+        }
+        $notes[] = 'Salaries are the figures applicants gave in their answers, and distances to the office are the AI\'s estimates: say so when you use them.';
 
         return $notes;
     }

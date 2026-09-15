@@ -6,13 +6,15 @@ use App\Models\Recruitment\RecruitmentJob;
 use App\Models\Recruitment\RecruitmentScreening;
 use App\Services\Teamtailor\TeamtailorAnswers;
 use App\Services\Teamtailor\TeamtailorApiService;
+use App\Services\Teamtailor\TeamtailorJobLookups;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
  * Everything Recruitment AI reads from Teamtailor: a job's ad, its applicants,
- * and one applicant's CV link and application answers. Read-only.
+ * and one applicant's CV link, application answers and the salary those
+ * answers state. Read-only.
  *
  * Applicants become screening rows. A new applicant is queued; one whose CV
  * changed in Teamtailor (`resume-updated-at`) is queued again; everyone else
@@ -26,7 +28,15 @@ class ApplicantSync
     /** Hard ceiling so a pathological meta.page-count can't loop forever. */
     private const MAX_PAGES = 200;
 
-    public function __construct(private TeamtailorApiService $api) {}
+    /** Heads, in the screening prompt, the answers not given to this job's own questions. */
+    public const OTHER_ANSWERS_HEADING = 'Given in other applications, or to questions no longer on this job:';
+
+    private TeamtailorJobLookups $jobs;
+
+    public function __construct(private TeamtailorApiService $api)
+    {
+        $this->jobs = new TeamtailorJobLookups($api);
+    }
 
     /** @return array{ad: JobAd, status: ?string} */
     public function fetchAd(RecruitmentJob $job): array
@@ -39,10 +49,16 @@ class ApplicantSync
         ];
     }
 
+    /** @return list<string> the job's application questions (picked question ids), which tell its answers from a candidate's others */
+    public function pickedQuestionIds(string $jobId): array
+    {
+        return $this->jobs->pickedQuestionIds($jobId);
+    }
+
     /** @return array{applicants: int, new: int, rescreen: int} */
     public function syncApplicants(RecruitmentJob $job): array
     {
-        $stageNames = $this->stageNames($job->teamtailor_job_id);
+        $stageNames = $this->jobs->stageNames($job->teamtailor_job_id);
         $seen = [];
         $new = 0;
         $rescreen = 0;
@@ -87,11 +103,13 @@ class ApplicantSync
 
     /**
      * One applicant's CV link (signed and short-lived, so fetched right before
-     * reading) and their application answers as text.
+     * reading), their application answers as text, and the salary they state.
      *
-     * @return array{resume: ?string, answers: string}
+     * @param  list<string>  $pickedQuestionIds  the job's questions (pickedQuestionIds()); empty counts every answer as this job's
+     * @param  ?string  $currency  the job's budget currency, for a salary that names none
+     * @return array{resume: ?string, answers: string, salary: array{expected: ?array, current: ?array}} salary as SalaryAnswers::extract()
      */
-    public function fetchCandidate(string $candidateId): array
+    public function fetchCandidate(string $candidateId, array $pickedQuestionIds = [], ?string $currency = null): array
     {
         // `answers.question`, not `questions`: with include=answers,questions an
         // answer's question relationship carries only a link, so no answer can
@@ -111,10 +129,16 @@ class ApplicantSync
         }
 
         $attributes = $body['data']['attributes'] ?? [];
+        $answers = self::answers($body, $pickedQuestionIds);
 
         return [
             'resume' => ($attributes['resume'] ?? null) ?: (($attributes['original-resume'] ?? null) ?: null),
-            'answers' => self::answersText($body),
+            'answers' => self::answersText($answers),
+            // This job's answers first: someone who applied twice may have asked two salaries.
+            'salary' => SalaryAnswers::extract(array_merge(
+                $answers['own'],
+                array_map(fn (array $pair) => $pair + ['from' => 'another application'], $answers['other']),
+            ), $currency),
         ];
     }
 
@@ -170,25 +194,53 @@ class ApplicantSync
     }
 
     /**
-     * The applicant's answers as "Q: … / A: …" pairs, for the screening prompt.
-     * TeamtailorAnswers reads each value (choice ids named by their titles) and
-     * its question.
+     * The applicant's answers, split into those to this job's own questions and
+     * the rest. Answers belong to the candidate, not to one application: each
+     * names the picked question it answers. Without the job's picked questions
+     * they cannot be told apart, so all count as this job's.
      *
      * @param  array<string,mixed>  $body  a candidate fetched with include=answers,answers.question
+     * @param  list<string>  $pickedQuestionIds
+     * @return array{own: list<array{question: ?string, answer: string}>, other: list<array{question: ?string, answer: string}>}
      */
-    public static function answersText(array $body): string
+    public static function answers(array $body, array $pickedQuestionIds = []): array
     {
         $included = collect($body['included'] ?? [])
             ->keyBy(fn ($resource) => ($resource['type'] ?? '').':'.($resource['id'] ?? ''));
-        $pairs = [];
+        $picked = array_flip($pickedQuestionIds);
+        $split = ['own' => [], 'other' => []];
 
         foreach ($included->where('type', 'answers') as $answer) {
-            if ($described = TeamtailorAnswers::describe($answer, $included)) {
-                $pairs[] = ($described['question'] !== null ? "Q: {$described['question']}\n" : '').'A: '.$described['answer'];
+            if (! $described = TeamtailorAnswers::describe($answer, $included)) {
+                continue;
             }
+
+            $ours = $picked === [] || isset($picked[(string) $described['picked_question_id']]);
+            $split[$ours ? 'own' : 'other'][] = ['question' => $described['question'], 'answer' => $described['answer']];
         }
 
-        return implode("\n\n", $pairs);
+        return $split;
+    }
+
+    /**
+     * The answers as "Q: … / A: …" pairs for the screening prompt: this job's,
+     * then the rest under a heading.
+     *
+     * @param  array{own: list<array{question: ?string, answer: string}>, other: list<array{question: ?string, answer: string}>}  $answers  from answers()
+     */
+    public static function answersText(array $answers): string
+    {
+        $block = fn (array $pairs) => implode("\n\n", array_map(
+            fn (array $pair) => ($pair['question'] !== null ? "Q: {$pair['question']}\n" : '').'A: '.$pair['answer'],
+            $pairs,
+        ));
+
+        $parts = array_filter([
+            $block($answers['own'] ?? []),
+            ($answers['other'] ?? []) !== [] ? self::OTHER_ANSWERS_HEADING."\n\n".$block($answers['other']) : '',
+        ], fn (string $part) => $part !== '');
+
+        return implode("\n\n", $parts);
     }
 
     /** @param  array<string,mixed>  $applicant */
@@ -215,23 +267,5 @@ class ApplicantSync
         $screening->save();
 
         return $isNew ? 'new' : ($cvChanged ? 'rescreen' : 'unchanged');
-    }
-
-    /** @return array<string,string> stage id => name; empty when Teamtailor refuses (stages are optional) */
-    private function stageNames(string $jobId): array
-    {
-        try {
-            $names = [];
-
-            foreach ($this->api->listJobStages($jobId)['data'] ?? [] as $stage) {
-                if (isset($stage['attributes']['name'])) {
-                    $names[(string) ($stage['id'] ?? '')] = (string) $stage['attributes']['name'];
-                }
-            }
-
-            return $names;
-        } catch (\Throwable) {
-            return [];
-        }
     }
 }

@@ -3,16 +3,16 @@
 namespace App\Services\Teamtailor;
 
 use App\Services\Recruitment\JobAd;
+use App\Services\Recruitment\SalaryAnswers;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 
 /**
  * Everything the Candidates page shows about one person, read live from
  * Teamtailor: their details, every application with its stage, rejection,
- * cover letter and the questions asked with the answers given, attachments,
- * and the activity log. Read-only.
+ * cover letter and the questions asked with the answers given, the salary
+ * those answers state, attachments, and the activity log. Read-only.
  *
  * Three quirks of the API shape it (checked against the live account on
  * 2026-09-15):
@@ -23,8 +23,9 @@ use Illuminate\Support\Facades\Cache;
  *   the log is read from /candidates/{id}/activities with include=job,user.
  * - An activity's `data` is a JSON string whose keys depend on its code.
  *
- * A job's stages and picked questions are cached for ten minutes: they change
- * rarely, and every profile of that job's applicants needs them.
+ * A job's stages and picked questions come from TeamtailorJobLookups, cached
+ * for ten minutes: they change rarely, and every profile of that job's
+ * applicants needs them.
  */
 class CandidateProfileReader
 {
@@ -33,8 +34,6 @@ class CandidateProfileReader
 
     /** With "Show all activity": at most this many pages. */
     public const ACTIVITY_MAX_PAGES = 10;
-
-    private const CACHE_SECONDS = 600;
 
     private const MESSAGE_CHARS = 5000;
 
@@ -46,13 +45,17 @@ class CandidateProfileReader
         ['job-applications'],
     ];
 
-    public function __construct(private TeamtailorApiService $api) {}
+    public function __construct(
+        private TeamtailorApiService $api,
+        private TeamtailorJobLookups $jobs,
+    ) {}
 
     /**
      * @return array{
      *     profile: array<string,mixed>,
      *     applications: list<array<string,mixed>>,
      *     other_answers: list<array{question: ?string, answer: string}>,
+     *     salary: array{expected: ?array, current: ?array},
      *     uploads: list<array<string,mixed>>,
      *     activities: list<array<string,mixed>>,
      *     activities_total: ?int,
@@ -72,12 +75,12 @@ class CandidateProfileReader
 
         $pickedByJob = [];
         foreach ($applicationJobIds as $jobId) {
-            $pickedByJob[$jobId] = $this->pickedQuestionIds($jobId);
+            $pickedByJob[$jobId] = $this->jobs->pickedQuestionIds($jobId);
         }
 
         $stageNames = [];
         foreach (array_unique(array_merge($applicationJobIds, self::jobIds($activityRows))) as $jobId) {
-            $stageNames += $this->stageNames($jobId);
+            $stageNames += $this->jobs->stageNames($jobId);
         }
 
         $grouped = self::applications($candidate, $included, $pickedByJob);
@@ -87,6 +90,7 @@ class CandidateProfileReader
             'profile' => self::profile($candidate),
             'applications' => $grouped['applications'],
             'other_answers' => $grouped['other_answers'],
+            'salary' => self::salary($grouped['applications'], $grouped['other_answers']),
             'uploads' => self::uploads($included),
             'activities' => array_map(fn (array $row) => self::activity($row, $lookups, $stageNames), $activityRows),
             'activities_total' => $activitiesTotal,
@@ -135,7 +139,8 @@ class CandidateProfileReader
 
     /**
      * The applications, newest first, each with the answers to its own job's
-     * questions; answers to no application's questions are returned apart.
+     * questions and the salary they state; answers to no application's
+     * questions are returned apart.
      *
      * @param  array<string,mixed>  $candidate
      * @param  Collection<string, array<string,mixed>>  $included  keyed "type:id"
@@ -191,6 +196,7 @@ class CandidateProfileReader
                 'referring_site' => self::string($attributes['referring-site'] ?? null),
                 'sourced' => (bool) ($attributes['sourced'] ?? false),
                 'answers' => $own,
+                'salary' => SalaryAnswers::extract($own),
             ];
         }
 
@@ -204,6 +210,28 @@ class CandidateProfileReader
         }
 
         return ['applications' => $applications, 'other_answers' => $other];
+    }
+
+    /**
+     * The salary the answers state, for the top of the profile: the newest
+     * application's answers first, then older ones, then answers tied to none.
+     * A figure from an application says which job it was given for.
+     *
+     * @param  list<array<string,mixed>>  $applications  from applications(), newest first
+     * @param  list<array{question: ?string, answer: string}>  $otherAnswers
+     * @return array{expected: ?array, current: ?array} as SalaryAnswers::extract()
+     */
+    public static function salary(array $applications, array $otherAnswers): array
+    {
+        $pairs = [];
+
+        foreach ($applications as $application) {
+            foreach ($application['answers'] as $answer) {
+                $pairs[] = $answer + ['from' => $application['job_title']];
+            }
+        }
+
+        return SalaryAnswers::extract(array_merge($pairs, $otherAnswers));
     }
 
     /**
@@ -390,51 +418,6 @@ class CandidateProfileReader
         }
 
         return [$rows, $included, $total, null];
-    }
-
-    /** @return list<string> */
-    private function pickedQuestionIds(string $jobId): array
-    {
-        try {
-            // A failed fetch throws out of remember(), so it is never cached.
-            return Cache::remember("teamtailor:job:{$jobId}:picked-question-ids", self::CACHE_SECONDS, function () use ($jobId) {
-                $ids = [];
-
-                for ($page = 1; $page <= 5; $page++) {
-                    $batch = $this->api->listJobPickedQuestions($jobId, $page)['data'] ?? [];
-                    foreach ($batch as $picked) {
-                        $ids[] = (string) ($picked['id'] ?? '');
-                    }
-                    if (count($batch) < 30) {
-                        break;
-                    }
-                }
-
-                return array_values(array_filter($ids));
-            });
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    /** @return array<string,string> stage id => name */
-    private function stageNames(string $jobId): array
-    {
-        try {
-            return Cache::remember("teamtailor:job:{$jobId}:stage-names", self::CACHE_SECONDS, function () use ($jobId) {
-                $names = [];
-
-                foreach ($this->api->listJobStages($jobId)['data'] ?? [] as $stage) {
-                    if (isset($stage['id'], $stage['attributes']['name'])) {
-                        $names[(string) $stage['id']] = (string) $stage['attributes']['name'];
-                    }
-                }
-
-                return $names;
-            });
-        } catch (\Throwable) {
-            return [];
-        }
     }
 
     /** @param  iterable<array<string,mixed>>  $resources  anything with a job relationship */

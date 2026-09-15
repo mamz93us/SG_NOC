@@ -37,7 +37,7 @@ function ttProfileRoutes(): array
                 'created-at' => '2026-08-01T10:00:00Z', 'updated-at' => '2026-09-10T10:00:00Z',
             ], 'relationships' => [
                 'job-applications' => ['data' => [['type' => 'job-applications', 'id' => 'ja2'], ['type' => 'job-applications', 'id' => 'ja1']]],
-                'answers' => ['data' => [['type' => 'answers', 'id' => 'an1'], ['type' => 'answers', 'id' => 'an2'], ['type' => 'answers', 'id' => 'an3']]],
+                'answers' => ['data' => [['type' => 'answers', 'id' => 'an1'], ['type' => 'answers', 'id' => 'an2'], ['type' => 'answers', 'id' => 'an3'], ['type' => 'answers', 'id' => 'an4']]],
                 'uploads' => ['data' => [['type' => 'uploads', 'id' => 'up1']]],
             ]],
             'included' => [
@@ -64,15 +64,17 @@ function ttProfileRoutes(): array
                 ['id' => 'q1', 'type' => 'questions', 'attributes' => ['title' => 'Notice period?']],
                 ['id' => 'q2', 'type' => 'questions', 'attributes' => ['title' => 'Do you have a Saudi driving licence?']],
                 ['id' => 'q3', 'type' => 'questions', 'attributes' => ['title' => 'Salary expectation', 'unit' => 'SAR']],
+                ['id' => 'q4', 'type' => 'questions', 'attributes' => ['title' => 'What is your current salary?']],
                 ttProfileAnswer('an1', ['question-type' => 'text', 'text' => '1 month', 'answer' => '1 month'], 'q1', 'pq77a'),
                 ttProfileAnswer('an2', ['question-type' => 'boolean', 'boolean' => true, 'answer' => 'true'], 'q2', 'pq88a'),
                 ttProfileAnswer('an3', ['question-type' => 'number', 'number' => 9000, 'answer' => 9000], 'q3', 'pq-retired'),
+                ttProfileAnswer('an4', ['question-type' => 'text', 'text' => '7,500', 'answer' => '7,500'], 'q4', 'pq77b'),
                 ['id' => 'up1', 'type' => 'uploads', 'attributes' => [
                     'file-name' => 'certificate.pdf', 'url' => 'https://s3.example/certificate.pdf', 'internal' => false, 'created-at' => '2026-09-04T08:00:00Z',
                 ]],
             ],
         ],
-        '/v1/jobs/77/picked-questions' => ['data' => [['id' => 'pq77a', 'type' => 'picked-questions']]],
+        '/v1/jobs/77/picked-questions' => ['data' => [['id' => 'pq77a', 'type' => 'picked-questions'], ['id' => 'pq77b', 'type' => 'picked-questions']]],
         '/v1/jobs/88/picked-questions' => ['data' => [['id' => 'pq88a', 'type' => 'picked-questions']]],
         '/v1/jobs/77/stages' => ['data' => [
             ['id' => 'st0', 'type' => 'stages', 'attributes' => ['name' => 'Applied']],
@@ -119,7 +121,7 @@ it('reads a candidate\'s details, each application with its own questions and an
         ->and(array_column($data['applications'], 'job_title'))->toBe(['Senior Accountant', 'Driver'])
         ->and($data['applications'][0])->toMatchArray([
             'stage' => 'Interview', 'rejected' => false, 'cover_letter' => 'Dear team', 'referring_site' => 'LinkedIn',
-            'answers' => [['question' => 'Notice period?', 'answer' => '1 month']],
+            'answers' => [['question' => 'Notice period?', 'answer' => '1 month'], ['question' => 'What is your current salary?', 'answer' => '7,500']],
         ])
         ->and($data['applications'][1])->toMatchArray([
             'stage' => 'Screening', 'rejected' => true, 'reject_reason' => 'Not enough experience', 'rejected_by_company' => true, 'sourced' => true,
@@ -128,6 +130,18 @@ it('reads a candidate\'s details, each application with its own questions and an
         ->and($data['other_answers'])->toBe([['question' => 'Salary expectation', 'answer' => '9000 SAR']])
         ->and($data['uploads'])->toHaveCount(1)
         ->and($data['uploads'][0])->toMatchArray(['name' => 'certificate.pdf', 'url' => 'https://s3.example/certificate.pdf', 'internal' => false]);
+});
+
+it('puts the salary the answers state on top, the newest application first', function () {
+    RecruitmentTestSchema::fakeTeamtailor(ttProfileRoutes());
+
+    $data = app(CandidateProfileReader::class)->read('700');
+
+    expect($data['salary']['current'])->toMatchArray(['amount' => 7500, 'currency' => 'SAR', 'text' => '7,500', 'from' => 'Senior Accountant'])
+        // Asked by a question since taken off its job, so tied to no application.
+        ->and($data['salary']['expected'])->toMatchArray(['min' => 9000, 'max' => 9000, 'currency' => 'SAR', 'from' => null])
+        ->and($data['applications'][0]['salary']['current']['amount'])->toBe(7500)
+        ->and($data['applications'][1]['salary'])->toBe(['expected' => null, 'current' => null]);
 });
 
 it('turns the activity log into readable lines with the job, the user and stage names', function () {
