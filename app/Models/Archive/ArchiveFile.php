@@ -27,6 +27,18 @@ class ArchiveFile extends Model
 
     public const DISK_AZURE = 'azure_archive';
 
+    /** Nothing has tried to read this file's pages yet. */
+    public const TEXT_NONE = 'none';
+
+    public const TEXT_PENDING = 'pending';
+
+    public const TEXT_DONE = 'done';
+
+    public const TEXT_FAILED = 'failed';
+
+    /** Not something with pages at all — an attached e-mail, a zip. */
+    public const TEXT_UNREADABLE = 'unreadable';
+
     protected $fillable = [
         'archive_id',
         'archive_document_id',
@@ -53,6 +65,8 @@ class ArchiveFile extends Model
         'page_count' => 'integer',
         'transferred_at' => 'datetime',
         'transfer_attempts' => 'integer',
+        'pages_read' => 'integer',
+        'text_read_at' => 'datetime',
     ];
 
     /**
@@ -64,7 +78,26 @@ class ArchiveFile extends Model
         'disk' => self::DISK_ARCMATE,
         'position' => 0,
         'transfer_attempts' => 0,
+        'text_status' => self::TEXT_NONE,
+        'pages_read' => 0,
     ];
+
+    /**
+     * Files whose pages have never been read.
+     *
+     * Only the ones with pages to read: an attached e-mail or a zip has no
+     * pages, and paying gpt-4o to look at one would be spending money to learn
+     * nothing.
+     */
+    public function scopeNeedingText(Builder $query): Builder
+    {
+        return $query->whereIn('text_status', [self::TEXT_NONE, self::TEXT_PENDING])
+            ->where(function (Builder $q) {
+                foreach (['pdf', 'tif', 'tiff', 'jpg', 'jpeg', 'png', 'bmp'] as $extension) {
+                    $q->orWhere('path', 'like', '%.'.$extension);
+                }
+            });
+    }
 
     /** Give up on a file after this many tries and let a person look at it. */
     public const MAX_TRANSFER_ATTEMPTS = 5;

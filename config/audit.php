@@ -150,6 +150,15 @@ return [
         App\Models\Archive\ArchiveTask::class,
         //   - the transfer's own run log, written every minute for nights on end
         App\Models\Archive\ArchiveTransferRun::class,
+        //   - AI meters and queues: a batch rewrites its counters every minute,
+        //     records one usage row per call, and creates proposals in the
+        //     thousands. Starting or cancelling a batch is logged by hand, and
+        //     APPROVING a proposal writes a real value, which is audited as the
+        //     edit it is. ArchiveAiSettings is deliberately NOT here: changing
+        //     a budget is a decision.
+        App\Models\Archive\ArchiveAiBatch::class,
+        App\Models\Archive\ArchiveAiProposal::class,
+        App\Models\Archive\ArchiveAiUsage::class,
     ],
 
     /*

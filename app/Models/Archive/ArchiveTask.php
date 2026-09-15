@@ -27,6 +27,9 @@ class ArchiveTask extends Model
     /** Recount documents, files and bytes for the archive cards. */
     public const TYPE_RECOUNT = 'recount';
 
+    /** Work an AI batch: read history, or propose values for empty fields. */
+    public const TYPE_AI_BATCH = 'ai_batch';
+
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_RUNNING = 'running';

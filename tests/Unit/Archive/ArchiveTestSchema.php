@@ -27,8 +27,25 @@ use Illuminate\Support\Facades\Schema;
  */
 class ArchiveTestSchema
 {
-    /** @var array<int,string> Dropped newest-first so foreign keys unwind cleanly. */
+    /**
+     * @var array<int,string> Dropped most-dependent first so foreign keys unwind
+     *                        cleanly.
+     *
+     * Order matters and is easy to get wrong: archive_ai_proposals points at
+     * BOTH archive_documents and archive_fields, so leaving it behind makes
+     * dropping either of those fail with "no such table" on the one already
+     * gone. Anything added to the archive schema belongs here the same day.
+     *
+     * `ai_conversations` is a stub this class creates (the AI migration adds a
+     * column to it). It is dropped here so create() — which calls drop() first
+     * — always rebuilds it clean; otherwise the second test in a run tries to
+     * add the same column twice.
+     */
     private const TABLES = [
+        'archive_ai_usage',
+        'archive_ai_proposals',
+        'archive_ai_batches',
+        'archive_ai_settings',
         'archive_transfer_runs',
         'archive_tasks',
         'archive_access_logs',
@@ -40,6 +57,7 @@ class ArchiveTestSchema
         'archive_fields',
         'archives',
         'archive_sources',
+        'ai_conversations',
     ];
 
     public static function create(): void
@@ -53,6 +71,19 @@ class ArchiveTestSchema
                 $table->string('email')->unique();
                 $table->string('password')->nullable();
                 $table->string('role', 50)->default('viewer');
+                $table->timestamps();
+            });
+        }
+
+        // The AI migration adds `contains_archive_data` to ai_conversations, so
+        // the table has to exist before it runs. A stub of the columns that
+        // migration touches, not the real thing.
+        if (! Schema::hasTable('ai_conversations')) {
+            Schema::create('ai_conversations', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('user_id')->nullable();
+                $table->string('locale', 10)->nullable();
+                $table->boolean('contains_candidate_data')->default(false);
                 $table->timestamps();
             });
         }
