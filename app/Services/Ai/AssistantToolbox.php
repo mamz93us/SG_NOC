@@ -105,6 +105,9 @@ class AssistantToolbox
     /** see recruitment() */
     private ?RecruitmentToolbox $recruitment = null;
 
+    /** see archive() */
+    private ?\App\Services\Archive\Ai\ArchiveToolbox $archive = null;
+
     public function __construct(
         private User $user,
         private ?Employee $employee,
@@ -115,11 +118,18 @@ class AssistantToolbox
 
     /**
      * OpenAI-shaped function tool definitions, offered on every chat turn. The
-     * recruitment tools are added only for someone who may use Recruitment AI.
+     * recruitment tools are added only for someone who may use Recruitment AI,
+     * and the archive tools only for someone who may use archive AI AND belongs
+     * to at least one archive — both toolboxes return [] otherwise, so a person
+     * is never told about documents they cannot reach.
      */
     public function definitions(): array
     {
-        return array_merge($this->baseDefinitions(), $this->recruitment()->definitions());
+        return array_merge(
+            $this->baseDefinitions(),
+            $this->recruitment()->definitions(),
+            $this->archive()->definitions(),
+        );
     }
 
     private function baseDefinitions(): array
@@ -282,9 +292,11 @@ class AssistantToolbox
             'draft_ticket' => $this->draftTicket($args),
             'draft_email' => $this->draftEmail($args),
             'draft_calendar_event' => $this->draftCalendarEvent($args),
-            default => $this->recruitment()->handles($name)
-                ? $this->recruitment()->call($name, $args)
-                : ['error' => "Unknown tool: {$name}"],
+            default => match (true) {
+                $this->recruitment()->handles($name) => $this->recruitment()->call($name, $args),
+                $this->archive()->handles($name) => $this->archive()->call($name, $args),
+                default => ['error' => "Unknown tool: {$name}"],
+            },
         };
     }
 
@@ -294,10 +306,28 @@ class AssistantToolbox
         return $this->recruitment ??= new RecruitmentToolbox($this->user);
     }
 
+    /**
+     * The document archive's tools, for this same signed-in user.
+     *
+     * Constructed with the user and nothing else, so no tool argument can point
+     * at somebody else's documents; the toolbox re-checks per-archive
+     * membership on every call, not just here.
+     */
+    private function archive(): \App\Services\Archive\Ai\ArchiveToolbox
+    {
+        return $this->archive ??= new \App\Services\Archive\Ai\ArchiveToolbox($this->user);
+    }
+
     /** The system prompt's recruitment rules, for someone who may use Recruitment AI; '' for everyone else. */
     public function recruitmentNote(): string
     {
         return $this->recruitment()->enabled() ? (string) __('home_ai.recruitment_note') : '';
+    }
+
+    /** The system prompt's archive rules, for someone who may search it; '' for everyone else. */
+    public function archiveNote(): string
+    {
+        return $this->archive()->promptNote();
     }
 
     private function def(string $name, string $description, array $properties, array $required): array

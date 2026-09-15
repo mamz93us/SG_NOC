@@ -32,6 +32,11 @@ class AiAccess
                 'permission' => RecruitmentToolbox::PERMISSION,
                 'description' => 'Reads Teamtailor applicants\' CVs, ranks them for a job and answers questions about them - on AI ▸ Recruitment AI, and in the Samir AI Assistant chat on the home portal.',
             ],
+            'archive' => [
+                'name' => 'Document Archive AI',
+                'permission' => \App\Services\Archive\Ai\ArchiveToolbox::PERMISSION,
+                'description' => 'Searches the scanned document archive and answers questions about a document - on archive.samirgroup.net, and in the Samir AI Assistant chat on the home portal. Granting this does NOT grant any document: access is per archive, on the archive portal.',
+            ],
         ];
     }
 

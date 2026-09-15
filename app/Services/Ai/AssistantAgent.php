@@ -73,6 +73,15 @@ class AssistantAgent
                         $conversation->forceFill(['contains_candidate_data' => true])->save();
                     }
 
+                    // Same treatment for the document archive: a transcript that
+                    // searched it holds invoice numbers, suppliers and amounts —
+                    // and, for an HR archive, worse. Flagged before the tool row
+                    // is written, so a turn that fails later still leaves the
+                    // conversation hidden from anyone without archive AI.
+                    if (in_array($name, \App\Services\Archive\Ai\ArchiveToolbox::TOOLS, true) && ! $conversation->contains_archive_data) {
+                        $conversation->forceFill(['contains_archive_data' => true])->save();
+                    }
+
                     if ($name === 'search_knowledge') {
                         $hasSearched = true;
 
