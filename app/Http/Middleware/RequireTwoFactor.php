@@ -71,6 +71,23 @@ class RequireTwoFactor
                 return $next($request);
             }
 
+            // The document archive subdomain is SSO-only as well, matching the
+            // HR portal it was modelled on. The containment argument is the
+            // same — EnforceArchivePortalHostIsolation 404s everything that is
+            // not the archive — but it carries less weight here, because this
+            // host serves scanned invoices, contracts and HR files. What
+            // actually guards those is per-archive membership, re-checked on
+            // every document, file, stream, download and AI tool
+            // (Services\Archive\ArchiveAccess); host isolation only keeps the
+            // NOC out of reach of a session established here.
+            //
+            // Scoped to the HOST, not the session: the session is never marked
+            // `2fa_verified`, so the same user hitting any NOC route is still
+            // challenged. Do not "optimise" this into a session flag.
+            if (\App\Support\ArchivePortal::enabled() && \App\Support\ArchivePortal::isHost($request)) {
+                return $next($request);
+            }
+
             // Browser-only users bypass 2FA entirely — low-privilege role,
             // kept frictionless for SSO-first remote-browser access.
             //

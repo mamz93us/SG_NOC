@@ -52,6 +52,7 @@ class Role extends Model
         'hr_portal' => 'HR Portal',
         'marketing_portal' => 'Marketing Portal',
         'browser_portal' => 'Remote Browser',
+        'archive_portal' => 'Document Archive',
     ];
 
     /** One-line description of each surface, for the role form. */
@@ -61,6 +62,7 @@ class Role extends Model
         'hr_portal' => 'The isolated HR workspace on the hr subdomain. Microsoft sign-in, no 2FA there — landing here sends every sign-in straight to it.',
         'marketing_portal' => 'The isolated email-marketing portal on the em subdomain.',
         'browser_portal' => 'Remote browser sessions (per-office VPN egress) only.',
+        'archive_portal' => 'The isolated document archive on the archive subdomain (the ArcMate replacement). Microsoft sign-in, no 2FA there. Reaching this surface is not access to any document: that is granted per archive.',
     ];
 
     /**
@@ -75,6 +77,7 @@ class Role extends Model
         'hr_portal' => 'portal.hr.index',
         'marketing_portal' => 'portal.marketing.dashboard',
         'browser_portal' => 'portal.index',
+        'archive_portal' => 'archive.index',
     ];
 
     public function surfaceList(): array

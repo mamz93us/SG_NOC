@@ -134,6 +134,20 @@ return [
         // Discovery scratch data, replaced on each scan.
         App\Models\SnmpDiscoveredDevice::class,
         App\Models\DiscoveryResult::class,
+
+        // Document archive. The records themselves — documents, their index
+        // values, their files — ARE audited, because a person editing an index
+        // value is exactly the kind of event this log exists for; the ArcMate
+        // sync and the transfer worker wrap their bulk writes in
+        // Auditor::withoutAuditing() instead of being excluded here, so a
+        // 600,000-file backfill writes no audit rows while a human edit still
+        // does. What is excluded is everything around them:
+        //   - page text, which is the document's contents rather than an event
+        //   - the access log, which is its own purpose-built audit table
+        //   - the task queue, whose rows are a button press already logged
+        App\Models\Archive\ArchiveFileText::class,
+        App\Models\Archive\ArchiveAccessLog::class,
+        App\Models\Archive\ArchiveTask::class,
     ],
 
     /*

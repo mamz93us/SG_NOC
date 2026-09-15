@@ -228,6 +228,11 @@ class RolePermission extends Model
                 'view-vacations' => 'View Vacations (every employee\'s Oracle leave balance and leave records)',
                 'manage-vacations' => 'Manage Vacations (import the Oracle vacation sheets, link Oracle numbers to employees)',
             ],
+            'Document Archive' => [
+                'use-archive-portal' => 'Sign in to the Document Archive (archive.samirgroup.net) — reaching a document still needs membership of that archive',
+                'use-archive-ai' => 'Use Document Archive AI (ask the archive, ask about a document, archive search in the Samir AI Assistant)',
+                'manage-archive-portal' => 'Manage the Document Archive (archives, fields, members, the ArcMate source, transfer to Azure, AI batches & budget)',
+            ],
         ];
     }
 
