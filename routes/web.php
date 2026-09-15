@@ -1181,6 +1181,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             });
         });
 
+        // ── Employee profiles: attendance and vacations of one person ──
+        // Either permission opens the page; each half shows only to its own holders.
+        Route::middleware('permission:view-attendance,view-vacations')->group(function () {
+            Route::get('people', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'index'])->name('people.index');
+            Route::get('people/{employee}', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'show'])->name('people.show');
+        });
+
         // ── Employee home portal authoring ────────────────────────
         // What the whole company reads on home.samirgroup.net each morning.
         Route::middleware('permission:manage-announcements')->group(function () {

@@ -325,6 +325,9 @@
     flex-shrink:0;
   }
   .icon-wrap svg{ width:28px; height:28px; }
+  /* Samir AI Assistant: the brand mark on the dark ground of its chat header. */
+  .icon-wrap.icon-ai{ background:linear-gradient(140deg, var(--gray-900) 0%, var(--gray-700) 100%); }
+  .icon-wrap.icon-ai img{ width:32px; height:auto; display:block; }
   .badge{
     position:absolute;
     bottom:-4px; right:-4px;

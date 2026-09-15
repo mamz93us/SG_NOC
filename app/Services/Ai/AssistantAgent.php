@@ -155,9 +155,9 @@ class AssistantAgent
         $now = now('Africa/Cairo');
         $base .= "\n\nCurrent date and time: {$now->format('l, Y-m-d H:i')} (Africa/Cairo).";
 
-        // Whose attendance this employee can look up, as the server reads it.
-        // With only the rules, the model refused an owner until they said
-        // they were one.
+        // Whose attendance and leave this employee can look up, as the server
+        // reads it. With only the rules, the model refused an owner until they
+        // said they were one.
         $base .= "\n\n".$toolbox->attendanceAccessNote();
 
         // Who is asking, so a draft is signed with a name rather than "[Your Name]".

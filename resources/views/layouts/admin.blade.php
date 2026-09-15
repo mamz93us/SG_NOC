@@ -405,11 +405,18 @@
                     {{-- ── Attendance dropdown (with Vacations) ── --}}
                     @canany(['view-attendance', 'view-vacations'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/attendance*') || request()->is('admin/vacations*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/attendance*') || request()->is('admin/vacations*') || request()->is('admin/people*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-fingerprint me-1"></i>Attendance
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.people.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.people.index') }}">
+                                    <i class="bi bi-person-badge me-2"></i>Employee Profiles
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
                             @can('view-attendance')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.attendance.days.*') ? 'active' : '' }}"

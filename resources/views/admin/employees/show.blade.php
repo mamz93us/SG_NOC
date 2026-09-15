@@ -13,7 +13,12 @@
         <a href="{{ route('admin.employees.report', $employee) }}" class="btn btn-outline-success btn-sm" target="_blank" title="Print Asset Report">
             <i class="bi bi-printer me-1"></i>Print Report
         </a>
-        <a href="{{ route('admin.employees.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
+        @canany(['view-attendance', 'view-vacations'])
+        <a href="{{ route('admin.people.show', $employee->id) }}" class="btn btn-outline-primary btn-sm" title="Attendance and vacation on one page">
+            <i class="bi bi-person-badge me-1"></i>Attendance &amp; Vacation
+        </a>
+        @endcanany
+<a href="{{ route('admin.employees.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
         @can('manage-employees')
         <a href="{{ route('admin.employees.edit', $employee->id) }}" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-pencil me-1"></i>Edit
@@ -220,35 +225,35 @@
             </div>
         </div>
 
-        {{-- Vacation: Oracle's leave balance (Vacations ▸ Balances) --}}
-        @can('view-vacations')
+        {{-- Attendance & vacation: the Employee profile has both on one page --}}
+        @canany(['view-attendance', 'view-vacations'])
         @php
-            $vacationPerson = \App\Models\Vacation\VacationEmployee::forEmployee($employee)->first();
+            $vacationPerson = auth()->user()?->can('view-vacations') ? \App\Models\Vacation\VacationEmployee::forEmployee($employee)->first() : null;
             $vacationBalance = $vacationPerson?->balances->sortByDesc('year')->first();
             $vacationDays = fn ($value) => \App\Models\Vacation\VacationBalance::days($value);
         @endphp
-        @if($vacationPerson)
         <div class="card shadow-sm border-0 mb-3">
             <div class="card-header bg-transparent py-2 d-flex justify-content-between align-items-center">
-                <strong><i class="bi bi-airplane me-1"></i>Vacation {{ $vacationBalance?->year }}</strong>
-                <a href="{{ route('admin.vacations.balances.show', $vacationPerson) }}" class="btn btn-outline-primary btn-sm py-0 px-2">Open</a>
+                <strong><i class="bi bi-person-badge me-1"></i>Attendance &amp; Vacation</strong>
+                <a href="{{ route('admin.people.show', $employee->id) }}" class="btn btn-outline-primary btn-sm py-0 px-2">Open profile</a>
             </div>
             <div class="card-body small">
                 @if($vacationBalance && $vacationBalance->hasBalance())
                 <div class="d-flex justify-content-between text-center">
-                    <div><div class="text-muted">Last year</div><div class="fw-semibold font-monospace">{{ $vacationDays($vacationBalance->carryover) }}</div></div>
-                    <div><div class="text-muted">This year</div><div class="fw-semibold font-monospace">{{ $vacationDays($vacationBalance->accrued) }}</div></div>
-                    <div><div class="text-muted">Used</div><div class="fw-semibold font-monospace">{{ $vacationDays($vacationBalance->used) }}</div></div>
-                    <div><div class="text-muted">Remaining</div><div class="fw-bold font-monospace {{ $vacationBalance->balance < 0 ? 'text-danger' : 'text-success' }}">{{ $vacationDays($vacationBalance->balance) }}</div></div>
+                    <div><div class="text-muted">Last year</div><div class="fw-semibold">{{ $vacationDays($vacationBalance->carryover) }}</div></div>
+                    <div><div class="text-muted">This year</div><div class="fw-semibold">{{ $vacationDays($vacationBalance->accrued) }}</div></div>
+                    <div><div class="text-muted">Used</div><div class="fw-semibold">{{ $vacationDays($vacationBalance->used) }}</div></div>
+                    <div><div class="text-muted">Remaining</div><div class="fw-bold {{ $vacationBalance->balance < 0 ? 'text-danger' : 'text-success' }}">{{ $vacationDays($vacationBalance->balance) }}</div></div>
                 </div>
-                <div class="text-muted mt-2">From Oracle, as of {{ $vacationBalance->as_of->format('d M Y') }}</div>
+                <div class="text-muted mt-2">Vacation {{ $vacationBalance->year }} from Oracle, as of {{ $vacationBalance->as_of->format('d M Y') }}</div>
+                @elseif($vacationPerson)
+                <span class="text-muted">No Oracle balance, leave records only.</span>
                 @else
-                <span class="text-muted">No balance in Oracle — leave records only.</span>
+                <span class="text-muted">Attendance month by month, leave balance and leave records, on one page.</span>
                 @endif
             </div>
         </div>
-        @endif
-        @endcan
+        @endcanany
 
         {{-- Linked Contact --}}
         <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #6f42c1!important">

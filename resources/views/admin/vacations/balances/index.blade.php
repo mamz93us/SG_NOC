@@ -212,7 +212,11 @@
                             <td colspan="5" class="text-center text-muted small">Not in Oracle's balance sheet for {{ $filters['year'] }} — leave records only</td>
                         @endif
                         <td class="text-end">
-                            <a href="{{ $page }}" class="btn btn-sm btn-outline-primary">Open</a>
+                            @if ($employee)
+                                <a href="{{ route('admin.people.show', $employee) }}" class="btn btn-sm btn-outline-secondary"
+                                   title="Attendance and vacation profile" onclick="event.stopPropagation()"><i class="bi bi-person-badge"></i></a>
+                            @endif
+<a href="{{ $page }}" class="btn btn-sm btn-outline-primary">Open</a>
                         </td>
                     </tr>
                 @empty

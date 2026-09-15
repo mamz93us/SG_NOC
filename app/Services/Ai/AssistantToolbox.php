@@ -13,6 +13,9 @@ use App\Models\IdentityUser;
 use App\Models\Knowbe4Score;
 use App\Models\Setting;
 use App\Models\User;
+use App\Models\Vacation\VacationAbsence;
+use App\Models\Vacation\VacationBalance;
+use App\Models\Vacation\VacationEmployee;
 use App\Services\Attendance\MonthlyDay;
 use App\Services\Attendance\MonthlySheet;
 use App\Services\Attendance\MonthlyTotals;
@@ -31,11 +34,12 @@ use Illuminate\Support\Collection;
  * or Azure id, which is the whole security model this host already follows
  * for its ticket tracker (see TicketRequestService::ownedBy).
  *
- * The one place the model names another person is the team attendance tools,
- * and even there it only picks from a list the server built: team() is read
- * from the signed-in employee's HR reporting lines and their row on the
- * attendance owner list, so a name that is not on it is "not found" — never
- * looked up anywhere else.
+ * The one place the model names another person is the team attendance and
+ * leave tools, and even there it only picks from a list the server built:
+ * team() is read from the signed-in employee's HR reporting lines and their
+ * row on the attendance owner list, so a name that is not on it is "not
+ * found" — never looked up anywhere else. Attendance and leave share that one
+ * list, so whoever sees a person's attendance sees their leave, and nobody else.
  *
  * `call()` never throws for an expected "not found" — it returns
  * `['error' => '...']` so the model can read the reason and tell the
@@ -65,10 +69,21 @@ class AssistantToolbox
     /** The periods the attendance tools understand. Weeks run Sunday to Saturday. */
     private const PERIODS = ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month'];
 
-    /** The longest from–to span one call may ask for. */
+    /** The longest from–to span one attendance call may ask for. */
     private const MAX_RANGE_DAYS = 62;
 
-    private const NO_TEAM = 'Nobody reports to you in the HR records and you are not on the attendance owner list, so no one else\'s attendance is available to you. Attendance is only shown to the employee, their own manager or supervisor, and the attendance owners HR has chosen; HR can correct a reporting line or the owner list.';
+    /** Leave is booked ahead, so get_team_vacation looks forward as well as back. */
+    private const LEAVE_PERIODS = ['today', 'tomorrow', 'this_week', 'next_week', 'last_week', 'this_month', 'next_month', 'last_month'];
+
+    /** The longest span get_team_vacation lists leave records for: a quarter. */
+    private const MAX_LEAVE_RANGE_DAYS = 92;
+
+    /** What get_team_vacation's `only` can ask for, and how the result says what it listed. */
+    private const LEAVE_ONLY = [
+        'on_leave' => 'only people with leave in the period',
+        'on_business_trip' => 'only people on a business trip in the period',
+        'negative_balance' => 'only people with a negative balance, the most negative first',
+    ];
 
     /** What get_team_attendance's `only` can ask for, and the MonthlyTotals figure that counts it. */
     private const ONLY = [
@@ -152,6 +167,26 @@ class AssistantToolbox
                     + $this->periodParameters()
                     + ['branch' => ['type' => 'string', 'description' => 'Optional — the person\'s branch code (CAI) or city (Cairo). Only when the employee names that person\'s branch in this request; never carry one over from an earlier question.']],
                 ['member']),
+            $this->def('get_my_vacation',
+                'Get the signed-in employee\'s OWN annual leave from Oracle: their balance (carried over from last year, earned this year so far, used, remaining, as of the date Oracle reported it) and their leave records for the year — type, dates, days, and whether taken, ongoing or upcoming. Only ever their own — for anyone else, use get_team_member_vacation / get_team_vacation.',
+                ['year' => ['type' => 'integer', 'description' => 'Optional — a year such as 2026. Defaults to the newest year Oracle has a balance for.']],
+                []),
+            $this->def('get_team_vacation',
+                'Leave of a group of other people — exactly those get_team_attendance covers: the signed-in employee\'s direct reports (HR records) and, if they are on the attendance owner list (e.g. a general manager), everyone in their branches or the whole company. Returns counts for the group plus one entry per person: their newest Oracle balance (remaining, used, as of) and their leave records in the period. Call it straight away for questions about many people ("who is on vacation today?", "who in Jeddah has a negative balance?"); it checks access itself, so never refuse or ask about the employee\'s role first.',
+                $this->periodParameters(self::LEAVE_PERIODS, self::MAX_LEAVE_RANGE_DAYS, 'today') + [
+                    'branch' => ['type' => 'string', 'description' => 'Optional — only people in this branch: its code (JED) or its city (Jeddah).'],
+                    'department' => ['type' => 'string', 'description' => 'Optional — only people in this department.'],
+                    'only' => ['type' => 'string', 'enum' => array_keys(self::LEAVE_ONLY), 'description' => 'Optional — list only people on leave or on a business trip in the period, or with a negative balance. The counts still cover everyone.'],
+                ],
+                []),
+            $this->def('get_team_member_vacation',
+                'Annual leave of ONE other person, in the same detail as get_my_vacation: their Oracle balance and leave records. Call it straight away whenever the employee asks about someone else\'s leave or balance: it checks access itself against the HR records and the attendance owner list, so never refuse or ask about the employee\'s role first. A person outside their access comes back as an error.',
+                [
+                    'member' => ['type' => 'string', 'description' => 'The person\'s name, email or employee number.'],
+                    'year' => ['type' => 'integer', 'description' => 'Optional — a year such as 2026. Defaults to the newest year Oracle has a balance for.'],
+                    'branch' => ['type' => 'string', 'description' => 'Optional — the person\'s branch code (CAI) or city (Cairo). Only when the employee names that person\'s branch in this request; never carry one over from an earlier question.'],
+                ],
+                ['member']),
             $this->def('list_ticket_categories',
                 'List the IT ticketing system\'s categories and sub-categories, for drafting a ticket.',
                 [], []),
@@ -219,6 +254,18 @@ class AssistantToolbox
                 $args,
                 (string) ($args['branch'] ?? ''),
             ),
+            'get_my_vacation' => $this->getMyVacation($args),
+            'get_team_vacation' => $this->getTeamVacation(
+                $args,
+                (string) ($args['branch'] ?? ''),
+                (string) ($args['department'] ?? ''),
+                (string) ($args['only'] ?? ''),
+            ),
+            'get_team_member_vacation' => $this->getTeamMemberVacation(
+                (string) ($args['member'] ?? ''),
+                $args,
+                (string) ($args['branch'] ?? ''),
+            ),
             'list_ticket_categories' => $this->listTicketCategories(),
             'draft_ticket' => $this->draftTicket($args),
             'draft_email' => $this->draftEmail($args),
@@ -249,13 +296,18 @@ class AssistantToolbox
         ];
     }
 
-    /** The range arguments every attendance tool shares; attendanceRange() reads them. */
-    private function periodParameters(): array
+    /**
+     * The range arguments every attendance tool shares — and get_team_vacation,
+     * with its own periods and span; dateRange() reads them.
+     *
+     * @param  list<string>  $periods
+     */
+    private function periodParameters(array $periods = self::PERIODS, int $maxDays = self::MAX_RANGE_DAYS, string $default = 'this_month'): array
     {
         return [
-            'period' => ['type' => 'string', 'enum' => self::PERIODS, 'description' => 'Which days. Weeks run Sunday to Saturday. Defaults to this_month.'],
+            'period' => ['type' => 'string', 'enum' => $periods, 'description' => "Which days. Weeks run Sunday to Saturday. Defaults to {$default}."],
             'month' => ['type' => 'string', 'description' => 'Optional — a specific month as YYYY-MM (e.g. 2026-08), when a month is named. Overrides period.'],
-            'from' => ['type' => 'string', 'description' => 'Optional — first day as YYYY-MM-DD, together with to, for any other span ("since the 1st", "the last 10 days"). Overrides month and period. At most '.self::MAX_RANGE_DAYS.' days.'],
+            'from' => ['type' => 'string', 'description' => 'Optional — first day as YYYY-MM-DD, together with to, for any other span ("since the 1st", "the last 10 days"). Overrides month and period. At most '.$maxDays.' days.'],
             'to' => ['type' => 'string', 'description' => 'Optional — last day as YYYY-MM-DD, together with from.'],
         ];
     }
@@ -658,7 +710,7 @@ class AssistantToolbox
         $team = $this->team();
 
         if ($team->isEmpty()) {
-            return ['error' => self::NO_TEAM];
+            return ['error' => $this->noTeam('attendance')];
         }
 
         $range = $this->attendanceRange($args);
@@ -760,7 +812,7 @@ class AssistantToolbox
     private function getTeamMemberAttendance(string $member, array $args, string $branch): array
     {
         if ($this->team()->isEmpty()) {
-            return ['error' => self::NO_TEAM];
+            return ['error' => $this->noTeam('attendance')];
         }
 
         $range = $this->attendanceRange($args);
@@ -769,11 +821,36 @@ class AssistantToolbox
             return ['error' => $range];
         }
 
+        $employee = $this->teamMember($member, $branch, 'attendance');
+
+        if (is_array($employee)) {
+            return $employee;
+        }
+
+        if ($this->fingerprintLinked(collect([$employee])) === []) {
+            return ['error' => "{$employee->name}'s fingerprint code is not linked to their HR record yet, so no attendance is recorded for them. HR can link it on the attendance page."];
+        }
+
+        return [
+            'employee' => $this->memberIdentity($employee),
+            'visible_because' => $this->visibleBecause($employee),
+        ] + $this->attendanceOf($employee, $args);
+    }
+
+    /**
+     * The one person in team() whom $member names — in $branch, when given —
+     * or the error to hand back instead: nobody, several people, or a branch
+     * the employee did not mean. $what ("attendance", "leave") words the error.
+     *
+     * @return Employee|array{error: string, candidates?: list<array<string, mixed>>}
+     */
+    private function teamMember(string $member, string $branch, string $what): Employee|array
+    {
         $member = trim($member);
         $branch = trim($branch);
 
         if ($member === '') {
-            return ['error' => 'member is required: the name, email or employee number of someone whose attendance the employee can see.'];
+            return ['error' => "member is required: the name, email or employee number of someone whose {$what} the employee can see."];
         }
 
         $matches = $this->matchTeamMember($member, $branch);
@@ -790,7 +867,7 @@ class AssistantToolbox
         if ($matches->isEmpty()) {
             $where = $branch !== '' ? " in \"{$branch}\"" : '';
 
-            return ['error' => "Nobody whose attendance the employee can see matches \"{$member}\"{$where}. They can see: {$this->accessDescription()}. Attendance is only shown to the employee, their own manager or supervisor, and the attendance owners HR has chosen; HR can correct a reporting line or the owner list."];
+            return ['error' => "Nobody whose {$what} the employee can see matches \"{$member}\"{$where}. They can see: {$this->accessDescription()}. ".$this->whoMaySee($what)];
         }
 
         if ($matches->count() > 1) {
@@ -800,16 +877,19 @@ class AssistantToolbox
             ];
         }
 
-        $employee = $matches->first();
+        return $matches->first();
+    }
 
-        if ($this->fingerprintLinked(collect([$employee])) === []) {
-            return ['error' => "{$employee->name}'s fingerprint code is not linked to their HR record yet, so no attendance is recorded for them. HR can link it on the attendance page."];
-        }
+    /** Why the team tools have nobody to show; $what is "attendance" or "leave". */
+    private function noTeam(string $what): string
+    {
+        return "Nobody reports to you in the HR records and you are not on the attendance owner list, so no one else's {$what} is available to you. ".$this->whoMaySee($what);
+    }
 
-        return [
-            'employee' => $this->memberIdentity($employee),
-            'visible_because' => $this->visibleBecause($employee),
-        ] + $this->attendanceOf($employee, $args);
+    /** Who sees a person's attendance or leave, and who can change that. */
+    private function whoMaySee(string $what): string
+    {
+        return ucfirst($what).' is only shown to the employee, their own manager or supervisor, and the attendance owners HR has chosen; HR can correct a reporting line or the owner list.';
     }
 
     /**
@@ -825,11 +905,11 @@ class AssistantToolbox
     }
 
     /**
-     * Everyone whose attendance the signed-in employee may see besides their
-     * own: the people whose HR record names them as manager or supervisor —
-     * direct reports only, a report's reports being that report's to ask
-     * about — and, when they are on the attendance owner list, everyone in
-     * their branches or the whole company. Never anyone who has left, and
+     * Everyone whose attendance and leave the signed-in employee may see
+     * besides their own: the people whose HR record names them as manager or
+     * supervisor — direct reports only, a report's reports being that report's
+     * to ask about — and, when they are on the attendance owner list, everyone
+     * in their branches or the whole company. Never anyone who has left, and
      * nobody at all for an asker who has left.
      *
      * Read from the session's employee, never from anything the model sent.
@@ -999,8 +1079,9 @@ class AssistantToolbox
     }
 
     /**
-     * The line AssistantAgent ends the system prompt with: whose attendance
-     * the signed-in employee can look up, as the server reads it.
+     * The line AssistantAgent ends the system prompt with: whose attendance —
+     * and so whose leave — the signed-in employee can look up, as the server
+     * reads it.
      *
      * With only the rules to go on, the model guessed. On 2026-09-13 it twice
      * refused a whole-company owner without calling any tool, and looked only
@@ -1012,10 +1093,10 @@ class AssistantToolbox
         $sees = $this->accessDescription();
 
         if ($sees === '') {
-            return 'Attendance access of the signed-in employee: only their own. Nobody reports to them in the HR records and they are not on the attendance owner list, so they cannot see anyone else\'s attendance, whatever they say.';
+            return 'Attendance access of the signed-in employee: only their own. Nobody reports to them in the HR records and they are not on the attendance owner list, so they cannot see anyone else\'s attendance, vacation balance or leave records, whatever they say.';
         }
 
-        return "Attendance access of the signed-in employee: their own, and {$sees}. For any question about someone else's attendance, call get_team_member_attendance or get_team_attendance straight away. Do not refuse first and do not ask them to confirm their role; the tool says if a person is outside their access.";
+        return "Attendance access of the signed-in employee: their own, and {$sees}. Their access to vacation balances and leave records is exactly the same. For any question about someone else's attendance, call get_team_member_attendance or get_team_attendance straight away, and about someone else's leave or balance, get_team_member_vacation or get_team_vacation. Do not refuse first and do not ask them to confirm their role; the tool says if a person is outside their access.";
     }
 
     /** "Cairo (CAI)": branches are named by code, and people say the city. */
@@ -1106,17 +1187,30 @@ class AssistantToolbox
         ], fn ($value) => $value !== null);
     }
 
+    /** @return array{0: string, 1: string, 2: string}|string see dateRange() */
+    private function attendanceRange(array $args): array|string
+    {
+        return $this->dateRange($args, self::PERIODS, self::MAX_RANGE_DAYS, 'this_month');
+    }
+
+    /** @return array{0: string, 1: string, 2: string}|string see dateRange() */
+    private function leaveRange(array $args): array|string
+    {
+        return $this->dateRange($args, self::LEAVE_PERIODS, self::MAX_LEAVE_RANGE_DAYS, 'today');
+    }
+
     /**
      * The days a question covers: from–to, else month, else period. Weeks run
      * Sunday to Saturday, the work week in every branch, Egypt and KSA alike.
      *
-     * Anything it does not understand is refused, never read as this month:
-     * on 2026-09-13 "last_week" was, and a general manager was shown the
-     * month's totals as last week's.
+     * Anything it does not understand is refused, never read as the default:
+     * on 2026-09-13 "last_week" was read as this month, and a general manager
+     * was shown the month's totals as last week's.
      *
+     * @param  list<string>  $periods  the periods the calling tool offers
      * @return array{0: string, 1: string, 2: string}|string [from, to, label], or why the range was refused
      */
-    private function attendanceRange(array $args): array|string
+    private function dateRange(array $args, array $periods, int $maxDays, string $default): array|string
     {
         $today = CarbonImmutable::today();
         $from = trim((string) ($args['from'] ?? ''));
@@ -1134,8 +1228,8 @@ class AssistantToolbox
                 return 'from must not be after to.';
             }
 
-            if ((int) $start->diffInDays($end) + 1 > self::MAX_RANGE_DAYS) {
-                return 'One call covers at most '.self::MAX_RANGE_DAYS.' days; ask for the range in parts.';
+            if ((int) $start->diffInDays($end) + 1 > $maxDays) {
+                return 'One call covers at most '.$maxDays.' days; ask for the range in parts.';
             }
 
             return [$start->toDateString(), $end->toDateString(), $start->format('j M Y').' – '.$end->format('j M Y')];
@@ -1153,19 +1247,33 @@ class AssistantToolbox
             return [$start->toDateString(), $start->endOfMonth()->toDateString(), $start->format('F Y')];
         }
 
+        $period = strtolower(trim((string) ($args['period'] ?? '')));
+        $period = match ($period) {
+            '' => $default,
+            'week' => 'this_week',
+            default => $period,
+        };
+
+        if (! in_array($period, $periods, true)) {
+            return 'period must be one of: '.implode(', ', $periods).' — or give from and to as dates like 2026-09-01.';
+        }
+
         $week = $today->startOfWeek(CarbonInterface::SUNDAY);
         $weekLabel = fn (CarbonImmutable $start) => $start->format('j M').' – '.$start->addDays(6)->format('j M Y');
-        // Not subMonth(): from the 29th to the 31st it can land back in this month.
+        // Not subMonth() / addMonth(): from the 29th to the 31st they can land in the wrong month.
         $lastMonth = $today->subMonthNoOverflow();
+        $nextMonth = $today->addMonthNoOverflow();
 
-        return match (strtolower(trim((string) ($args['period'] ?? '')))) {
+        return match ($period) {
             'today' => [$today->toDateString(), $today->toDateString(), 'Today'],
             'yesterday' => [$today->subDay()->toDateString(), $today->subDay()->toDateString(), 'Yesterday'],
-            'this_week', 'week' => [$week->toDateString(), $week->addDays(6)->toDateString(), 'This week, '.$weekLabel($week)],
+            'tomorrow' => [$today->addDay()->toDateString(), $today->addDay()->toDateString(), 'Tomorrow'],
+            'this_week' => [$week->toDateString(), $week->addDays(6)->toDateString(), 'This week, '.$weekLabel($week)],
             'last_week' => [$week->subWeek()->toDateString(), $week->subDay()->toDateString(), 'Last week, '.$weekLabel($week->subWeek())],
-            '', 'this_month' => [$today->startOfMonth()->toDateString(), $today->endOfMonth()->toDateString(), $today->format('F Y')],
+            'next_week' => [$week->addWeek()->toDateString(), $week->addDays(13)->toDateString(), 'Next week, '.$weekLabel($week->addWeek())],
+            'this_month' => [$today->startOfMonth()->toDateString(), $today->endOfMonth()->toDateString(), $today->format('F Y')],
             'last_month' => [$lastMonth->startOfMonth()->toDateString(), $lastMonth->endOfMonth()->toDateString(), $lastMonth->format('F Y')],
-            default => 'period must be one of: '.implode(', ', self::PERIODS).' — or give from and to as dates like 2026-09-01.',
+            'next_month' => [$nextMonth->startOfMonth()->toDateString(), $nextMonth->endOfMonth()->toDateString(), $nextMonth->format('F Y')],
         };
     }
 
@@ -1193,6 +1301,406 @@ class AssistantToolbox
         return $from <= $today && $today <= $to
             ? 'Today is not over: its check-out is only the latest punch so far, so an early leave or a missing check-out today can still change.'
             : null;
+    }
+
+    /**
+     * The signed-in employee's own annual leave, as Oracle holds it: the rows
+     * Vacations ▸ Balances shows, never recomputed here.
+     *
+     * Scoped by $this->employee, like get_my_attendance: there is no employee
+     * argument, so no prompt can point it at a colleague's balance.
+     */
+    private function getMyVacation(array $args): array
+    {
+        if (! $this->employee) {
+            return ['error' => 'No HR record is linked to your account yet — contact IT to be added to the directory.'];
+        }
+
+        $year = $this->leaveYear($args);
+
+        if (is_string($year)) {
+            return ['error' => $year];
+        }
+
+        // A linked secondary mailbox reads its primary record's, where links are made.
+        $people = VacationEmployee::forEmployee($this->employee);
+
+        if ($people->isEmpty()) {
+            return ['error' => 'Your HR record is not linked to your Oracle leave record yet, so no vacation balance is available for you. HR can link your Oracle number on the Vacations page.'];
+        }
+
+        return $this->vacationOf($people, $year);
+    }
+
+    /**
+     * One person from team(), in the same detail as get_my_vacation. $member
+     * and $branch only ever select from that list — the one the attendance
+     * tools read.
+     */
+    private function getTeamMemberVacation(string $member, array $args, string $branch): array
+    {
+        if ($this->team()->isEmpty()) {
+            return ['error' => $this->noTeam('leave')];
+        }
+
+        $year = $this->leaveYear($args);
+
+        if (is_string($year)) {
+            return ['error' => $year];
+        }
+
+        $employee = $this->teamMember($member, $branch, 'leave');
+
+        if (is_array($employee)) {
+            return $employee;
+        }
+
+        $people = VacationEmployee::forEmployee($employee);
+
+        if ($people->isEmpty()) {
+            return ['error' => "{$employee->name}'s HR record is not linked to an Oracle leave record yet, so no vacation balance is available for them. HR can link their Oracle number on the Vacations page."];
+        }
+
+        return [
+            'employee' => $this->memberIdentity($employee),
+            'visible_because' => $this->visibleBecause($employee),
+        ] + $this->vacationOf($people, $year);
+    }
+
+    /**
+     * The people in team(), narrowed by branch, department and `only`: counts
+     * for the whole narrowed group, plus one entry per person with their newest
+     * Oracle balance and their leave records in the period.
+     */
+    private function getTeamVacation(array $args, string $branch, string $department, string $only): array
+    {
+        $team = $this->team();
+
+        if ($team->isEmpty()) {
+            return ['error' => $this->noTeam('leave')];
+        }
+
+        $range = $this->leaveRange($args);
+
+        if (is_string($range)) {
+            return ['error' => $range];
+        }
+
+        $only = strtolower(trim($only));
+
+        if ($only !== '' && ! isset(self::LEAVE_ONLY[$only])) {
+            return ['error' => 'only must be one of: '.implode(', ', array_keys(self::LEAVE_ONLY)).'.'];
+        }
+
+        $group = $this->inBranch($team, $branch)
+            ->filter(fn (Employee $e) => $this->nameContains($e->department?->name, $department))
+            ->values();
+
+        if ($group->isEmpty()) {
+            return [
+                'error' => 'Nobody whose leave you can see is in that branch or department.',
+                'branches' => $this->namesOf($team, 'branch'),
+                'departments' => $this->namesOf($team, 'department'),
+            ];
+        }
+
+        [$from, $to, $label] = $range;
+
+        // A few queries per 500 people, however large the group: a
+        // whole-company owner sees everyone.
+        $peopleByEmployee = $this->oraclePeople($group);
+        $recordsByPerson = $peopleByEmployee->flatten(1)->pluck('id')->chunk(500)
+            ->flatMap(fn (Collection $ids) => VacationAbsence::query()
+                ->active()
+                ->whereIn('vacation_employee_id', $ids->values()->all())
+                ->overlapping($from, $to)
+                ->orderBy('start_date')
+                ->orderBy('id')
+                ->get())
+            ->groupBy('vacation_employee_id');
+
+        $counts = ['on_leave' => 0, 'on_business_trip' => 0, 'negative_balance' => 0, 'no_balance_in_oracle' => 0];
+        $members = [];
+        $unlinked = [];
+        $stale = 0;
+
+        foreach ($group as $employee) {
+            $people = $peopleByEmployee->get($employee->id);
+
+            if (! $people) {
+                $unlinked[] = $employee->name;
+
+                continue;
+            }
+
+            $balance = $this->newestBalance($people);
+            $hasBalance = (bool) $balance?->hasBalance();
+            $records = $people->flatMap(fn (VacationEmployee $person) => $recordsByPerson->get($person->id, collect()))
+                ->sortBy(fn (VacationAbsence $record) => $record->start_date->toDateString())
+                ->values();
+
+            $onLeave = $records->contains(fn (VacationAbsence $record) => ! $record->isBusinessTrip());
+            $onTrip = $records->contains(fn (VacationAbsence $record) => $record->isBusinessTrip());
+            $negative = $hasBalance && $balance->balance < 0;
+
+            $counts['on_leave'] += (int) $onLeave;
+            $counts['on_business_trip'] += (int) $onTrip;
+            $counts['negative_balance'] += (int) $negative;
+            $counts['no_balance_in_oracle'] += (int) (! $hasBalance);
+            $stale += (int) ($hasBalance && $balance->isStale());
+
+            $listed = match ($only) {
+                'on_leave' => $onLeave,
+                'on_business_trip' => $onTrip,
+                'negative_balance' => $negative,
+                default => true,
+            };
+
+            if (! $listed) {
+                continue;
+            }
+
+            $members[] = [
+                'remaining' => $hasBalance ? $balance->balance : null,
+                'entry' => $this->memberIdentity($employee) + array_filter([
+                    // The figures one line per person needs; get_team_member_vacation has them all.
+                    'balance' => $hasBalance
+                        ? array_intersect_key($this->leaveBalance($balance), array_flip(['as_of', 'used_this_year', 'other_adjustments', 'remaining']))
+                        : 'none in Oracle',
+                    'leave' => $records->map(fn (VacationAbsence $record) => $this->leaveRecord($record))->all() ?: null,
+                ]),
+            ];
+        }
+
+        // Asking for negative balances: the most negative first. Otherwise, name order.
+        if ($only === 'negative_balance') {
+            usort($members, fn (array $a, array $b) => $a['remaining'] <=> $b['remaining']);
+        }
+
+        $notes = ['Each balance is Oracle\'s own figure as of its as_of date: never add balances up or work one out again. leave lists each person\'s records in the period; a business trip is not leave.'];
+
+        if ($stale > 0) {
+            $notes[] = "{$stale} of these balances are more than ".(int) config('vacations.stale_after_days', 35).' days old, so leave has been earned since; say they are out of date.';
+        }
+
+        if (count($members) > self::TEAM_OVERVIEW_LIMIT) {
+            $notes[] = 'Only '.self::TEAM_OVERVIEW_LIMIT.' of '.count($members).' people are listed; the counts cover everyone. Narrow it with branch, department or only, or ask about one person with get_team_member_vacation.';
+        }
+
+        return array_filter([
+            'period' => $label,
+            'from' => $from,
+            'to' => $to,
+            'can_see' => $this->accessDescription(),
+            'people' => $group->count(),
+            'counts' => $counts + ['not_linked_to_oracle' => count($unlinked)],
+            'counts_are' => 'people',
+            'listed' => $only !== '' ? self::LEAVE_ONLY[$only] : 'everyone',
+            'members' => array_column(array_slice($members, 0, self::TEAM_OVERVIEW_LIMIT), 'entry'),
+            // Named, not dropped: missing from the list would read as nothing to report.
+            'not_linked_to_oracle' => array_slice($unlinked, 0, 50) ?: null,
+            'notes' => $notes,
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
+     * One person's leave for a year: Oracle's balance and the leave records in
+     * that year. Shared by get_my_vacation and get_team_member_vacation so the
+     * two can never describe it differently; whose leave it is, the caller
+     * decided. The same figures as the person's page on Vacations ▸ Balances.
+     *
+     * @param  Collection<int, VacationEmployee>  $people  the person's Oracle numbers, balances loaded
+     * @param  int|null  $year  null for the newest year Oracle has a balance for
+     */
+    private function vacationOf(Collection $people, ?int $year): array
+    {
+        $balances = $people->flatMap(fn (VacationEmployee $person) => $person->balances
+            ->map(fn (VacationBalance $balance) => $balance->setRelation('vacationEmployee', $person)));
+        $year ??= $balances->max('year') ?? CarbonImmutable::today()->year;
+
+        // One balance a year per Oracle number; should there be two, the newest leads.
+        $yearBalances = $balances->where('year', $year)
+            ->sortByDesc(fn (VacationBalance $balance) => $balance->as_of->toDateString())
+            ->values();
+        $balance = $yearBalances->first();
+
+        $records = VacationAbsence::query()
+            ->whereIn('vacation_employee_id', $people->pluck('id')->all())
+            ->overlapping("{$year}-01-01", "{$year}-12-31")
+            ->orderBy('start_date')
+            ->orderBy('id')
+            ->get();
+        $listed = $records->whereNull('removed_at')->values();
+        $withdrawn = $records->count() - $listed->count();
+
+        return array_filter([
+            'year' => $year,
+            'balance' => $balance?->hasBalance() ? $this->leaveBalance($balance) : null,
+            'balance_note' => match (true) {
+                $balance === null => "Oracle's balance sheet has no {$year} balance for this person; only leave records came through.",
+                ! $balance->hasBalance() => 'Oracle has no leave plan for this person yet: every figure in its balance sheet is empty.',
+                default => null,
+            },
+            // Named, not dropped: which Oracle number is the right one is HR's to say.
+            'other_balances' => $yearBalances->slice(1)
+                ->map(fn (VacationBalance $other) => ['oracle_number' => $other->vacationEmployee->oracle_emp_no]
+                    + ($other->hasBalance() ? $this->leaveBalance($other) : ['as_of' => $other->as_of->toDateString()]))
+                ->values()
+                ->all() ?: null,
+            'other_years_with_a_balance' => $balances->map(fn (VacationBalance $b) => (int) $b->year)
+                ->reject(fn (int $y) => $y === $year)
+                ->unique()
+                ->sortDesc()
+                ->values()
+                ->all() ?: null,
+            'records_by_type' => $this->leaveByType($listed),
+            'records' => $listed->map(fn (VacationAbsence $record) => $this->leaveRecord($record))->all(),
+            'no_longer_in_oracle' => $withdrawn > 0
+                ? "{$withdrawn} leave record(s) in {$year} are no longer listed by Oracle — withdrawn or changed there — and are left out above."
+                : null,
+            'notes' => $this->leaveNotes($balance, $yearBalances->count(), $listed->isNotEmpty(), (string) $people->first()->book) ?: null,
+        ], fn ($value) => $value !== null);
+    }
+
+    /** @return array<string, float|string> Oracle's figures as imported; a part it left empty is left out */
+    private function leaveBalance(VacationBalance $balance): array
+    {
+        return array_filter([
+            'as_of' => $balance->as_of->toDateString(),
+            'carried_over_from_last_year' => $this->leaveDays($balance->carryover),
+            'earned_this_year_so_far' => $this->leaveDays($balance->accrued),
+            'used_this_year' => $this->leaveDays($balance->used),
+            // What remaining holds beyond the three figures before it; only there when there is some.
+            'other_adjustments' => $balance->otherAdjustments() ?: null,
+            'remaining' => $this->leaveDays($balance->balance),
+        ], fn ($value) => $value !== null);
+    }
+
+    /** @return array<string, mixed> one leave record, as the person's page on Vacations ▸ Balances lists it */
+    private function leaveRecord(VacationAbsence $record): array
+    {
+        return array_filter([
+            'type' => $record->absence_type,
+            'from' => $record->start_date->toDateString(),
+            'from_weekday' => $record->start_date->format('D'),
+            'to' => $record->end_date->toDateString(),
+            'to_weekday' => $record->end_date->format('D'),
+            'days' => $this->leaveDays($record->days()),
+            'calendar_days' => $record->calendar_days,
+            'status' => $record->status(), // taken, ongoing or upcoming
+            'business_trip' => $record->isBusinessTrip() ?: null,
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
+     * A year's records added up per type, leave before business trips — the
+     * "by type" figures of the person's page on Vacations ▸ Balances.
+     *
+     * @param  Collection<int, VacationAbsence>  $records  still listed by Oracle
+     * @return list<array<string, mixed>>
+     */
+    private function leaveByType(Collection $records): array
+    {
+        return $records->groupBy('absence_type')
+            ->map(fn (Collection $group, $type) => array_filter([
+                'type' => (string) $type,
+                'records' => $group->count(),
+                'days' => $this->leaveDays($group->sum(fn (VacationAbsence $record) => $record->days())),
+                'business_trip' => VacationAbsence::isTripType((string) $type) ?: null,
+            ], fn ($value) => $value !== null))
+            ->sortBy(fn (array $row) => [isset($row['business_trip']) ? 1 : 0, -$row['days']])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * What has to be said beside the figures, so the model never quietly turns
+     * Oracle's balance into a number of its own.
+     *
+     * @return list<string>
+     */
+    private function leaveNotes(?VacationBalance $balance, int $balancesThatYear, bool $hasRecords, string $book): array
+    {
+        $notes = [];
+
+        if ($balance?->hasBalance()) {
+            $notes[] = 'remaining is Oracle\'s own figure as of '.$balance->as_of->format('j M Y').'. Oracle adds leave every month and deducts booked leave only once it is taken, so never work out a different remaining.';
+
+            if ($balance->isStale()) {
+                $notes[] = 'This balance is '.(int) $balance->as_of->diffInDays(CarbonImmutable::today()).' days old: the leave earned, and the days left, have grown since. Say so.';
+            }
+
+            if ($adjustment = $balance->otherAdjustments()) {
+                $notes[] = 'remaining includes '.($adjustment > 0 ? '+' : '').VacationBalance::days($adjustment).' days of other_adjustments: an adjustment recorded in Oracle outside its carried-over, earned and used figures. HR can explain it.';
+            }
+        }
+
+        if ($balancesThatYear > 1) {
+            $notes[] = 'Oracle holds more than one balance for this person, under different Oracle numbers; balance is the newest. HR can say which one applies.';
+        }
+
+        if ($hasRecords) {
+            $notes[] = 'A record\'s days leave out the weekend ('.$this->weekendOf($book).') but not public holidays, so a record over a holiday can show more days than Oracle deducted. records_by_type adds up every record in the year, upcoming ones included. A business trip is not leave.';
+        }
+
+        return $notes;
+    }
+
+    /** "Friday and Saturday": the days a book's leave records do not count. */
+    private function weekendOf(string $book): string
+    {
+        $sunday = CarbonImmutable::today()->startOfWeek(CarbonInterface::SUNDAY);
+
+        return collect(VacationEmployee::books()[$book]['weekend'] ?? [])
+            ->map(fn ($day) => $sunday->addDays((int) $day)->format('l'))
+            ->implode(' and ') ?: 'none';
+    }
+
+    /** @return int|string|null the year asked for, null when none was, or why it was refused */
+    private function leaveYear(array $args): int|string|null
+    {
+        $year = trim((string) ($args['year'] ?? ''));
+
+        if ($year === '') {
+            return null;
+        }
+
+        return preg_match('/^20\d{2}$/', $year) ? (int) $year : 'year must be a year like 2026.';
+    }
+
+    /**
+     * Each employee's Oracle numbers, balances loaded: VacationEmployee::forEmployee()
+     * for a whole group at once. team() holds primary records only, which is
+     * where links are made.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @return Collection<int, Collection<int, VacationEmployee>> keyed by employee id
+     */
+    private function oraclePeople(Collection $employees): Collection
+    {
+        return $employees->pluck('id')->chunk(500)
+            ->flatMap(fn (Collection $ids) => VacationEmployee::query()
+                ->whereIn('employee_id', $ids->values()->all())
+                ->with('balances')
+                ->orderBy('id')
+                ->get())
+            ->groupBy('employee_id');
+    }
+
+    /**
+     * @param  Collection<int, VacationEmployee>  $people
+     * @return VacationBalance|null the newest balance Oracle reported for one person, across their Oracle numbers
+     */
+    private function newestBalance(Collection $people): ?VacationBalance
+    {
+        return $people->flatMap(fn (VacationEmployee $person) => $person->balances)
+            ->sortByDesc(fn (VacationBalance $balance) => sprintf('%04d %s', $balance->year, $balance->as_of->toDateString()))
+            ->first();
+    }
+
+    private function leaveDays(?float $days): ?float
+    {
+        return $days === null ? null : round($days, 2);
     }
 
     private function listTicketCategories(): array

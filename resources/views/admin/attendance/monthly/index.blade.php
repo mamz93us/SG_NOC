@@ -147,7 +147,9 @@
                             <td colspan="7" class="text-center text-muted small">Nothing recorded this month</td>
                         @endif
                         <td class="text-end">
-                            <a href="{{ $sheet }}" class="btn btn-sm btn-outline-primary">Sheet</a>
+                            <a href="{{ route('admin.people.show', ['employee' => $employee, 'month' => $filters['month']]) }}" class="btn btn-sm btn-outline-secondary"
+                               title="Attendance and vacation profile" onclick="event.stopPropagation()"><i class="bi bi-person-badge"></i></a>
+<a href="{{ $sheet }}" class="btn btn-sm btn-outline-primary">Sheet</a>
                         </td>
                     </tr>
                 @empty

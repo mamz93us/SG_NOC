@@ -60,59 +60,7 @@
                 @endif
             </div>
             <div class="card-body">
-                @if ($balance && $balance->hasBalance())
-                    <div class="row g-3 text-center">
-                        @foreach ([
-                            ['Last year', 'carried over into '.$year, $balance->carryover, $balance->carryover < 0 ? 'text-danger' : ''],
-                            ['This year so far', 'earned up to '.$balance->as_of->format('d M'), $balance->accrued, ''],
-                            ['Used', 'days taken in '.$year, $balance->used, ''],
-                            ['Remaining', 'days left', $balance->balance, $balance->balance < 0 ? 'text-danger' : 'text-success'],
-                        ] as [$label, $hint, $value, $class])
-                            <div class="col-6 col-md-3">
-                                <div class="border rounded-3 py-3 h-100">
-                                    <div class="small text-muted">{{ $label }}</div>
-                                    <div class="fs-3 fw-bold font-monospace {{ $class }}">{{ $days($value) }}</div>
-                                    <div class="small text-muted">{{ $hint }}</div>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-
-                    <div class="small text-muted mt-3">
-                        <span class="font-monospace">
-                            {{ $days($balance->carryover ?? 0) }} + {{ $days($balance->accrued ?? 0) }} − {{ $days($balance->used ?? 0) }}
-                            @if ($adjustment)
-                                {{ $adjustment > 0 ? '+' : '−' }} {{ $days(abs($adjustment)) }}
-                            @endif
-                            = {{ $days($balance->balance) }}
-                        </span>
-                        (last year + this year so far − used{{ $adjustment ? ' + other adjustments' : '' }} = remaining)
-                    </div>
-
-                    @if ($adjustment)
-                        <div class="alert alert-info small mt-3 mb-0">
-                            <i class="bi bi-info-circle me-1"></i>
-                            Oracle's remaining balance includes {{ $adjustment > 0 ? '+' : '' }}{{ $days($adjustment) }} days that are
-                            not in its carried-over, earned or used columns — an adjustment recorded in Oracle. Check it there
-                            before relying on it.
-                        </div>
-                    @endif
-                    @if ($balance->isStale())
-                        <div class="alert alert-warning small mt-3 mb-0">
-                            <i class="bi bi-hourglass-bottom me-1"></i>
-                            This balance is {{ $balance->as_of->diffInDays(now()->startOfDay()) }} days old. Oracle adds leave every
-                            month, so what this person has earned — and what is left — has grown since.
-                        </div>
-                    @endif
-                @elseif ($balance)
-                    <div class="text-muted">
-                        Oracle has no leave plan for this person yet: every figure in its balance sheet is empty.
-                    </div>
-                @else
-                    <div class="text-muted">
-                        This person is not in Oracle's balance sheet for {{ $year }} — only their leave records came through.
-                    </div>
-                @endif
+                @include('admin.vacations.balances._balance', ['balance' => $balance, 'year' => $year])
             </div>
         </div>
 
@@ -127,41 +75,7 @@
                     </a>
                 @endif
             </div>
-            <div class="table-responsive">
-                <table class="table align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Type</th>
-                            <th>From</th>
-                            <th>To</th>
-                            <th class="text-end" title="Days without the weekend">Days</th>
-                            <th class="text-end">Calendar days</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($records as $record)
-                            <tr class="{{ $record->removed_at ? 'text-muted' : '' }}">
-                                <td><span class="badge {{ \App\Models\Vacation\VacationAbsence::typeBadgeClass($record->absence_type) }}">{{ $record->absence_type }}</span></td>
-                                <td class="text-nowrap">{{ $record->start_date->format('D d M Y') }}</td>
-                                <td class="text-nowrap">{{ $record->end_date->format('D d M Y') }}</td>
-                                <td class="text-end font-monospace">{{ $days($record->days()) }}</td>
-                                <td class="text-end font-monospace text-muted">{{ $record->calendar_days }}</td>
-                                <td>
-                                    <span class="badge {{ $record->statusBadgeClass($today) }}">{{ $record->statusLabel($today) }}</span>
-                                    @if ($record->removed_at)
-                                        <div class="small">since {{ $record->removed_at->format('d M Y') }}</div>
-                                    @endif
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="text-center text-muted py-4">No leave records in {{ $year }}.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+            @include('admin.vacations.balances._records', ['records' => $records, 'today' => $today, 'year' => $year])
             <div class="card-footer bg-transparent small text-muted">
                 Days leave out the weekend but not public holidays, so a record spanning a holiday can show more days than
                 Oracle deducted. The balance above is Oracle's own count.
@@ -202,6 +116,9 @@
                         @endcan
                     </div>
                     <div class="text-muted">Oracle no. on their record: {{ $employee->oracle_emp_no ?: '—' }}</div>
+                    <a href="{{ route('admin.people.show', $employee) }}" class="btn btn-sm btn-outline-primary mt-2">
+                        <i class="bi bi-person-badge me-1"></i>Attendance &amp; vacation profile
+                    </a>
                 @elseif ($person->isConfirmedNotEmployee())
                     <div class="text-muted">Marked as nobody in the NOC.</div>
                 @else

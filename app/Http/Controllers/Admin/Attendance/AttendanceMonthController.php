@@ -9,9 +9,12 @@ use App\Models\Attendance\BiotimeEmployee;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Vacation\VacationAbsence;
 use App\Services\Attendance\AttendanceDayBuilder;
 use App\Services\Attendance\MonthlySheet;
 use App\Services\Attendance\MonthlyTotals;
+use App\Services\People\EmployeeProfile;
+use App\Services\People\ProfileYear;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
@@ -58,7 +61,23 @@ class AttendanceMonthController extends Controller
             'days' => $days,
             'totals' => MonthlyTotals::fromDays($days),
             'codes' => BiotimeEmployee::where('employee_id', $employee->id)->pluck('emp_code')->implode(', '),
+            // Oracle's leave on each date, for those who may see vacations.
+            'leaveByDate' => $request->user()?->can('view-vacations') ? $this->leaveByDate($employee, $month) : [],
         ]);
+    }
+
+    /**
+     * The Oracle leave records covering each date of the month.
+     *
+     * @return array<string, list<VacationAbsence>>
+     */
+    private function leaveByDate(Employee $employee, string $month): array
+    {
+        $start = CarbonImmutable::parse($month.'-01');
+        [$from, $to] = [$start->toDateString(), $start->endOfMonth()->toDateString()];
+        $profile = app(EmployeeProfile::class);
+
+        return ProfileYear::coverage($profile->leave($profile->oraclePeople($employee), $from, $to), $from, $to);
     }
 
     public function export(Request $request, Employee $employee, MonthlySheet $sheet): StreamedResponse

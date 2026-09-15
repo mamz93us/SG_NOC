@@ -84,6 +84,27 @@ numbers matched one employee, 5 also matched a Cairo employee and were settled b
   day numbers. If a listed branch name stops existing, every import says so in its notes.
 - `stale_after_days` (35): a balance older than this is flagged, because this year's leave has grown since.
 
+## In the home portal assistant
+
+The assistant on `home.samirgroup.net` reads the same rows (`Services\Ai\AssistantToolbox`):
+
+- `get_my_vacation`: the signed-in employee's own balance for a year (the newest year Oracle has a balance for,
+  unless they name one) and their leave records in it, with the per-type totals of the person's page. It takes no
+  employee argument, so no prompt can point it at a colleague.
+- `get_team_member_vacation` (one person) and `get_team_vacation` (a group: who is on leave or on a business trip
+  in a period, or has a negative balance, each with their newest balance) show another person's leave to **exactly
+  the people who may see their attendance**: their manager or supervisor in the HR records, and the attendance
+  owners of their branch or of the whole company (Attendance ▸ Owners). Both tools read the attendance tools' own
+  list (`team()`), so the two cannot drift apart. `get_team_vacation` also looks ahead (`tomorrow`, `next_week`,
+  `next_month`), at most 92 days a call.
+
+Nothing is recomputed for the chat. `remaining` is Oracle's `balance`, and it always comes with its `as_of`, the
+*other adjustments*, a note once it is older than `stale_after_days`, and the reminder that booked leave is only
+deducted once taken. The system prompt forbids adding up, subtracting or projecting leave. A person with no Oracle
+link is named, never dropped. A record Oracle no longer lists is left out and counted. When one employee has two
+Oracle numbers with a balance for the same year, the newest is `balance` and the other is listed under
+`other_balances` for HR to settle. No permission is involved: `view-vacations` is for the admin pages only.
+
 ## Permissions
 
 - `view-vacations`: the Balances and Leave records pages, their CSV exports, and the vacation card on an
