@@ -142,7 +142,15 @@
   }
 </style>
 
-@push('scripts')
+{{--
+    Inline, NOT @push('scripts'). Blade keeps a stack's pushes grouped by
+    include depth rather than in the order they ran: on home.index the ticket
+    modal's push (depth 2) came first, the widget's own push (depth 2 too) was
+    appended to it, and this engine, one include deeper, was output after both
+    — so the widget's script found no window.SamirAssistant and "Ask Samir AI"
+    did nothing. Defined here, where the partial is included, it needs no
+    stack order at all; it touches nothing on the page until chat() is called.
+--}}
 <script>
 (function () {
   'use strict';
@@ -716,5 +724,4 @@
   };
 })();
 </script>
-@endpush
 @endonce
