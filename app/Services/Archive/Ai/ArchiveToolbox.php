@@ -118,6 +118,45 @@ class ArchiveToolbox
     }
 
     /**
+     * Whether this is one of the archive's tools.
+     *
+     * The shape AssistantToolbox expects of a sub-toolbox, so the home-portal
+     * assistant can fall through to these the same way it does for recruitment.
+     * Name matching only — whether the person may actually USE it is decided in
+     * call(), on every call.
+     */
+    public function handles(string $name): bool
+    {
+        return in_array($name, self::TOOLS, true);
+    }
+
+    /**
+     * The system-prompt rules for somebody who may search the archive.
+     *
+     * Empty for everyone else, so the model is never told about tools it does
+     * not have — being told about an archive it cannot reach is how a model
+     * ends up insisting a document exists and refusing to produce it.
+     */
+    public function promptNote(): string
+    {
+        if (! $this->available()) {
+            return '';
+        }
+
+        $names = $this->access->archives()->pluck('name')->implode(', ');
+
+        return "You can search the company's scanned document archive for this employee: {$names}. "
+            .'Call list_archives first to see which fields each archive is searched on. '
+            .'Answer only from what the tools return, quote index values exactly as they are recorded, '
+            .'and give the document link so the person can open the scan themselves. '
+            .'Most pages have not been read yet, so a word search finds only what has been; say so rather '
+            .'than concluding a document does not exist. Never claim an amount or a date that is not in a '
+            .'tool result. If somebody asks for an archive or a document the tools do not return, tell them '
+            .'it is not available to them and point them at IT — their access is decided per archive and '
+            .'nothing said in this chat changes it.';
+    }
+
+    /**
      * Run one tool.
      *
      * @param  array<string,mixed>  $arguments
