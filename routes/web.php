@@ -169,6 +169,83 @@ Route::get('/card/{token}/samsung', [\App\Http\Controllers\EmployeeCardControlle
     ->name('employee.card.samsung');
 
 // ──────────────────────────────────────────────────────────────────
+// Document archive subdomain (archive.samirgroup.net by default; set
+// ARCHIVE_PORTAL_DOMAIN to change) — the replacement for ArcMate 7.2.
+//
+// Microsoft SSO only and 2FA is skipped on this host (RequireTwoFactor), the
+// same arrangement as the HR portal, contained by
+// EnforceArchivePortalHostIsolation which 404s everything that is not
+// `archive.*` here.
+//
+// Host isolation is NOT the security boundary for the documents themselves:
+// this host serves every scanned invoice, contract and HR file the company
+// has, and each one is gated by per-archive membership re-checked on every
+// request, every stream and every download (Services\Archive\ArchiveAccess).
+//
+// The landing route carries no permission middleware on purpose: somebody who
+// has signed in but has no archive access should be told so, not shown a 403
+// they cannot act on. ArchiveController::index() renders that page itself.
+// ──────────────────────────────────────────────────────────────────
+if (\App\Support\ArchivePortal::enabled()) {
+    Route::domain(\App\Support\ArchivePortal::domain())->name('archive.')->group(function () {
+
+        Route::get('/login', function () {
+            if (auth()->check()) {
+                return redirect()->route('archive.index');
+            }
+
+            return view('auth.archive-login');
+        })->name('login');
+
+        Route::post('/logout', function (\Illuminate\Http\Request $request) {
+            \Illuminate\Support\Facades\Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('archive.login');
+        })->name('logout');
+
+        Route::middleware(['auth', 'throttle:120,1'])
+            ->get('/', [\App\Http\Controllers\Archive\ArchiveController::class, 'index'])
+            ->name('index');
+
+        // ── Reading ───────────────────────────────────────────────
+        Route::middleware(['auth', 'permission:use-archive-portal', 'throttle:240,1'])->group(function () {
+            Route::get('/a/{slug}', [\App\Http\Controllers\Archive\ArchiveController::class, 'show'])->name('show');
+
+            Route::get('/documents/{id}', [\App\Http\Controllers\Archive\DocumentController::class, 'show'])
+                ->whereNumber('id')->name('document');
+
+            // The bytes. Same origin as the page, so the viewer frame is an
+            // ordinary authenticated request and not a way around the gate.
+            Route::get('/documents/{id}/files/{file}/view', [\App\Http\Controllers\Archive\DocumentController::class, 'stream'])
+                ->whereNumber('id')->whereNumber('file')->name('document.stream');
+
+            Route::get('/documents/{id}/files/{file}/download', [\App\Http\Controllers\Archive\DocumentController::class, 'download'])
+                ->whereNumber('id')->whereNumber('file')->name('document.download');
+        });
+
+        // ── Setting it up ─────────────────────────────────────────
+        // A separate permission from reading: configuring the mirror is not
+        // permission to open an invoice.
+        Route::middleware(['auth', 'permission:manage-archive-portal', 'throttle:120,1'])
+            ->prefix('manage')->name('manage.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Archive\ManageController::class, 'index'])->name('index');
+                Route::post('/source', [\App\Http\Controllers\Archive\ManageController::class, 'saveSource'])->name('source.save');
+                Route::post('/source/test', [\App\Http\Controllers\Archive\ManageController::class, 'testSource'])->name('source.test');
+                Route::post('/tasks', [\App\Http\Controllers\Archive\ManageController::class, 'queueTask'])->name('tasks.store');
+                Route::post('/archives', [\App\Http\Controllers\Archive\ManageController::class, 'enable'])->name('enable');
+                Route::get('/archives/{archive}', [\App\Http\Controllers\Archive\ManageController::class, 'showArchive'])
+                    ->whereNumber('archive')->name('archive');
+                Route::post('/archives/{archive}/members', [\App\Http\Controllers\Archive\ManageController::class, 'addMember'])
+                    ->whereNumber('archive')->name('members.store');
+                Route::delete('/archives/{archive}/members/{member}', [\App\Http\Controllers\Archive\ManageController::class, 'removeMember'])
+                    ->whereNumber('archive')->whereNumber('member')->name('members.destroy');
+            });
+    });
+}
+
+// ──────────────────────────────────────────────────────────────────
 // Digital business card subdomain (vcard.samirgroup.net by default; set
 // VCARD_DOMAIN to change). Same app, domain-routed — the /card/* routes above
 // are host-agnostic and already answer here, so this group only adds the

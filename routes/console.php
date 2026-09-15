@@ -86,6 +86,37 @@ Schedule::command('attendance:work')
     ->runInBackground()
     ->name('attendance-work');
 
+// ─── Document archive (the ArcMate replacement) ─────────────────────
+// Copies ArcMate's index into the NOC, read-only and watermarked, so an
+// interrupted slice resumes rather than restarts. SPS Invoices alone is
+// 513,381 documents and ~594,000 files, so the first backfill runs for hours
+// across many slices — which is exactly why it is budgeted and backgrounded.
+// The 30-minute lock outlasts the 240 s budget plus the batch already in
+// flight; a lock that expires mid-run would let a second copy start.
+// No-ops when no ArcMate source is configured.
+Schedule::command('archive:sync-arcmate --max-seconds=240')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('archive-sync-arcmate');
+
+// The archive pages queue their heavy buttons here rather than doing them in
+// the request — the same rule, and the same 504, as attendance.
+Schedule::command('archive:work')
+    ->everyMinute()
+    ->withoutOverlapping(120)
+    ->runInBackground()
+    ->name('archive-work');
+
+// Converted TIFFs are a disposable cache: every file in it can be rebuilt from
+// the original, so the only question is how much disk it may hold. NOC2 has
+// ~88 GB free and the archive holds ~35 GB of TIFF.
+Schedule::command('archive:prune-cache')
+    ->dailyAt('03:20')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('archive-prune-cache');
+
 // GDMS Contact Sync
 Schedule::command('gdms:sync-contacts')
     ->cron($everyN($gdmsInterval))
