@@ -9,10 +9,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class AiConversation extends Model
 {
     protected $fillable = [
-        'user_id', 'employee_id', 'locale', 'title', 'message_count', 'total_tokens', 'last_message_at',
+        'user_id', 'employee_id', 'locale', 'contains_candidate_data', 'recruitment_job_id', 'title', 'message_count', 'total_tokens', 'last_message_at',
     ];
 
     protected $casts = [
+        // Set once a recruitment tool ran: AI ▸ Conversations then shows the
+        // transcript only to people who may use Recruitment AI.
+        'contains_candidate_data' => 'boolean',
         'message_count' => 'integer',
         'total_tokens' => 'integer',
         'last_message_at' => 'datetime',

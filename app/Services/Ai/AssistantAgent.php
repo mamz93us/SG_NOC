@@ -66,6 +66,13 @@ class AssistantAgent
                 } else {
                     $toolResult = $toolbox->call($name, $args);
 
+                    // Saved at once, before the tool row: a transcript holding
+                    // candidate data is hidden on AI ▸ Conversations from anyone
+                    // who may not use Recruitment AI, even if this turn fails later.
+                    if (in_array($name, \App\Services\Recruitment\RecruitmentToolbox::TOOLS, true) && ! $conversation->contains_candidate_data) {
+                        $conversation->forceFill(['contains_candidate_data' => true])->save();
+                    }
+
                     if ($name === 'search_knowledge') {
                         $hasSearched = true;
 
@@ -162,6 +169,12 @@ class AssistantAgent
 
         // Who is asking, so a draft is signed with a name rather than "[Your Name]".
         $base .= "\n\n".$toolbox->identityNote();
+
+        // The recruitment rules, only for someone who may use Recruitment AI.
+        $recruitment = $toolbox->recruitmentNote();
+        if ($recruitment !== '') {
+            $base .= "\n\n".$recruitment;
+        }
 
         $extra = trim((string) $settings->system_prompt_extra);
 

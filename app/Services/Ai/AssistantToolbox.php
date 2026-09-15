@@ -21,6 +21,7 @@ use App\Services\Attendance\MonthlySheet;
 use App\Services\Attendance\MonthlyTotals;
 use App\Services\Attendance\ShiftResolver;
 use App\Services\Home\PaydayCalculator;
+use App\Services\Recruitment\RecruitmentToolbox;
 use App\Services\Ticketing\TicketCatalog;
 use App\Services\Ticketing\TicketRequestService;
 use App\Services\Ticketing\TicketStatus;
@@ -101,6 +102,9 @@ class AssistantToolbox
     /** @var array{company: bool, branch_ids: list<int>}|null see ownerAccess() */
     private ?array $ownerAccess = null;
 
+    /** see recruitment() */
+    private ?RecruitmentToolbox $recruitment = null;
+
     public function __construct(
         private User $user,
         private ?Employee $employee,
@@ -109,8 +113,16 @@ class AssistantToolbox
         private TicketRequestService $tickets,
     ) {}
 
-    /** OpenAI-shaped function tool definitions, offered on every chat turn. */
+    /**
+     * OpenAI-shaped function tool definitions, offered on every chat turn. The
+     * recruitment tools are added only for someone who may use Recruitment AI.
+     */
     public function definitions(): array
+    {
+        return array_merge($this->baseDefinitions(), $this->recruitment()->definitions());
+    }
+
+    private function baseDefinitions(): array
     {
         return [
             $this->def('search_knowledge',
@@ -270,8 +282,22 @@ class AssistantToolbox
             'draft_ticket' => $this->draftTicket($args),
             'draft_email' => $this->draftEmail($args),
             'draft_calendar_event' => $this->draftCalendarEvent($args),
-            default => ['error' => "Unknown tool: {$name}"],
+            default => $this->recruitment()->handles($name)
+                ? $this->recruitment()->call($name, $args)
+                : ['error' => "Unknown tool: {$name}"],
         };
+    }
+
+    /** Recruitment AI's tools, for this same signed-in user; empty and refused without the permission. */
+    private function recruitment(): RecruitmentToolbox
+    {
+        return $this->recruitment ??= new RecruitmentToolbox($this->user);
+    }
+
+    /** The system prompt's recruitment rules, for someone who may use Recruitment AI; '' for everyone else. */
+    public function recruitmentNote(): string
+    {
+        return $this->recruitment()->enabled() ? (string) __('home_ai.recruitment_note') : '';
     }
 
     private function def(string $name, string $description, array $properties, array $required): array

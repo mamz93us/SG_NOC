@@ -190,6 +190,7 @@ class RolePermission extends Model
             'Recruitment' => [
                 'view-candidates' => 'View & filter Teamtailor candidates',
                 'reject-candidates' => 'Reject Teamtailor job applications',
+                'use-recruitment-ai' => 'Use Recruitment AI (AI screening of applicants\' CVs, shortlists, asking the assistant about candidates)',
             ],
             'Email Signatures' => [
                 'manage-signatures' => 'Create / Edit / Delete Email Signature Templates',
@@ -215,6 +216,7 @@ class RolePermission extends Model
                 'manage-ai-assistant' => 'Manage AI Assistant (Settings, Knowledge Articles)',
                 'view-ai-conversations' => 'View AI Assistant Conversations & Usage',
                 'answer-ai-knowledge-gaps' => 'Answer AI Knowledge Gaps (the questions the assistant could not answer; each answer is published as a knowledge article)',
+                'manage-ai-access' => 'Manage AI Access (who may use the AI features that read restricted data, such as Recruitment AI)',
             ],
             'Attendance' => [
                 'view-attendance' => 'View Attendance (BioTime check-in / check-out, employee mapping)',
@@ -250,6 +252,8 @@ class RolePermission extends Model
             'manage-credentials', 'manage-identity-settings',
             'manage-deploy-servers',
             'manage-email-marketing-settings',
+            // Candidate CVs and who may read them: granted to named people, never by default.
+            'use-recruitment-ai', 'manage-ai-access',
         ]));
         $viewerPerms = [
             'view-branches', 'view-contacts',

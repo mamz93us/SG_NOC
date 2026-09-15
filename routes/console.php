@@ -1078,6 +1078,16 @@ Schedule::command('ai:classify-articles --max-seconds=50')
     ->runInBackground()
     ->name('ai-classify-articles');
 
+// Recruitment AI: read and score the applicants of every job a recruiter
+// switched screening on for. One chat call per CV, so the page only queues and
+// this does the work; a job's applicant list is re-read from Teamtailor every
+// 30 minutes. 20 minutes outlasts the 240 s budget plus the CV under way.
+Schedule::command('recruitment:screen --max-seconds=240')
+    ->everyMinute()
+    ->withoutOverlapping(20)
+    ->runInBackground()
+    ->name('recruitment-screen');
+
 // Conversations (and their messages, via cascade) older than
 // ai_settings.retention_days — a chat is not an audit record.
 Schedule::command('ai:prune-conversations')
