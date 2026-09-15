@@ -2,6 +2,7 @@
 
 namespace App\Models\Archive;
 
+use App\Models\Attendance\Concerns\StoresPlainDates;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 
@@ -17,7 +18,24 @@ use Illuminate\Support\Facades\Log;
  */
 class ArchiveAiUsage extends Model
 {
+    /**
+     * `day` is written as a bare Y-m-d.
+     *
+     * The `date` cast alone writes "Y-m-d 00:00:00". MySQL's DATE column hides
+     * that; SQLite does not, and `where('day', $today)` then matches nothing —
+     * which is how the per-person daily cap came to read zero pages used no
+     * matter how many had been read, silently not capping anything at all.
+     *
+     * The trait lives under Attendance because that is where the same bug was
+     * found first (see its note on work_date); the behaviour is general, and a
+     * second copy of it here would only drift.
+     */
+    use StoresPlainDates;
+
     protected $table = 'archive_ai_usage';
+
+    /** @var array<int,string> */
+    protected array $plainDates = ['day'];
 
     public const FEATURE_READ = 'read';
 
@@ -86,8 +104,12 @@ class ArchiveAiUsage extends Model
     public static function spentThisMonth(): float
     {
         try {
+            // A range rather than equality, and deliberately tolerant of rows
+            // written before `day` became a bare date — a budget check must not
+            // depend on how a value happened to be formatted on the way in.
             return (float) static::query()
-                ->whereBetween('day', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
+                ->whereDate('day', '>=', now()->startOfMonth()->toDateString())
+                ->whereDate('day', '<=', now()->endOfMonth()->toDateString())
                 ->sum('cost_usd');
         } catch (\Throwable) {
             return 0.0;
@@ -107,9 +129,11 @@ class ArchiveAiUsage extends Model
         }
 
         try {
+            // whereDate, not equality: this guards money, and a cap that reads
+            // zero because of a time component is a cap that never fires.
             return (int) static::query()
                 ->where('user_id', $userId)
-                ->where('day', now()->toDateString())
+                ->whereDate('day', now()->toDateString())
                 ->sum('pages');
         } catch (\Throwable) {
             return 0;
