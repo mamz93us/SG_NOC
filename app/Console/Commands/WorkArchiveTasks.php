@@ -3,13 +3,11 @@
 namespace App\Console\Commands;
 
 use App\Models\Archive\Archive;
-use App\Models\Archive\ArchiveDocument;
 use App\Models\Archive\ArchiveSource;
 use App\Models\Archive\ArchiveTask;
-use App\Services\Archive\ArcMate\ArcMateDiscovery;
 use App\Services\Archive\ArchiveTransferService;
+use App\Services\Archive\ArcMate\ArcMateDiscovery;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -134,23 +132,15 @@ class WorkArchiveTasks extends Command
         $counted = [];
 
         foreach ($archives as $archive) {
-            $documents = DB::table('archive_documents')
-                ->where('archive_id', $archive->getKey())
-                ->where('status', ArchiveDocument::STATUS_ACTIVE)
-                ->whereNull('deleted_at')
-                ->count();
+            // The one implementation, on the model. The sync and filing call the
+            // same one, so a recount can never quietly produce different figures
+            // from the ones already on the card.
+            $archive->refreshCounts();
 
-            $files = DB::table('archive_files')->where('archive_id', $archive->getKey())->count();
-            $bytes = (int) DB::table('archive_files')->where('archive_id', $archive->getKey())->sum('size');
-
-            $archive->forceFill([
-                'document_count' => $documents,
-                'file_count' => $files,
-                'byte_total' => $bytes,
-                'counts_updated_at' => now(),
-            ])->save();
-
-            $counted[$archive->slug] = ['documents' => $documents, 'files' => $files];
+            $counted[$archive->slug] = [
+                'documents' => (int) $archive->document_count,
+                'files' => (int) $archive->file_count,
+            ];
         }
 
         return $counted;

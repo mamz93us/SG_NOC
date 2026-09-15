@@ -132,6 +132,17 @@ Schedule::command('archive:ai-batch --max-seconds=240')
     ->runInBackground()
     ->name('archive-ai-batch');
 
+// Newly captured scans: count the pages, read them, and propose what the index
+// fields say, so the filing form is filled in before anybody opens it. Wakes
+// every minute and does nothing unless something has arrived — which is the
+// point, since the minute between a scan landing and a person filing it is the
+// whole opportunity. Stops itself at the AI budget like every other reader.
+Schedule::command('archive:process-inbox --max-seconds=240')
+    ->everyMinute()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('archive-process-inbox');
+
 // Converted TIFFs are a disposable cache: every file in it can be rebuilt from
 // the original, so the only question is how much disk it may hold. NOC2 has
 // ~88 GB free and the archive holds ~35 GB of TIFF.

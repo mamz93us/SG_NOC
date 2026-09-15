@@ -341,8 +341,13 @@ class ArchiveTransferService
      * Deterministic, so a retry overwrites its own half-finished attempt rather
      * than leaving a second copy behind. Keyed by the file's own id because
      * ArcMate's names are only unique within a timestamp folder.
+     *
+     * Public because filing a newly captured document has to put its files in
+     * exactly this layout (InboxService moves them here out of `inbox/`). Two
+     * implementations of this path is how a filed document becomes unfindable
+     * later, so there is one and both callers use it.
      */
-    private function targetPath(ArchiveFile $file): string
+    public function targetPath(ArchiveFile $file): string
     {
         $slug = $file->archive?->slug ?: 'archive-'.$file->archive_id;
         $captured = $file->document?->captured_at;

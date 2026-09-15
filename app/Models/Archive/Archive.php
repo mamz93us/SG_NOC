@@ -171,6 +171,42 @@ class Archive extends Model
         return $this->name !== '' ? $this->name : ($this->slug ?: 'Archive');
     }
 
+    /**
+     * Recount the figures shown on the archive cards.
+     *
+     * Stored rather than counted per page load: counting 513,381 documents on
+     * every visit is a self-inflicted slow page.
+     *
+     * One implementation, called by the sync, the recount task and filing alike.
+     * There were three, and they disagreed — one omitted `byte_total`, another
+     * counted through a relation and so missed the soft-delete guard, which is
+     * how a card and a recount end up reporting different totals for the same
+     * archive with nothing obviously wrong.
+     */
+    public function refreshCounts(): void
+    {
+        $this->forceFill([
+            'document_count' => \Illuminate\Support\Facades\DB::table('archive_documents')
+                ->where('archive_id', $this->getKey())
+                ->where('status', self::documentActiveStatus())
+                ->whereNull('deleted_at')
+                ->count(),
+            'file_count' => \Illuminate\Support\Facades\DB::table('archive_files')
+                ->where('archive_id', $this->getKey())
+                ->count(),
+            'byte_total' => (int) \Illuminate\Support\Facades\DB::table('archive_files')
+                ->where('archive_id', $this->getKey())
+                ->sum('size'),
+            'counts_updated_at' => now(),
+        ])->save();
+    }
+
+    /** Indirect so this model does not import ArchiveDocument just for a string. */
+    private static function documentActiveStatus(): string
+    {
+        return ArchiveDocument::STATUS_ACTIVE;
+    }
+
     /** The field whose `arcmate_column` is this ArcMate column (S1, D1, C1 …). */
     public function fieldForArcMateColumn(string $column): ?ArchiveField
     {

@@ -72,6 +72,14 @@
 
         @auth
             <div class="ms-auto d-flex align-items-center gap-3">
+                {{-- Shown to everyone who may enter: whether there is anywhere to
+                     file into is a per-archive membership question, and the page
+                     itself explains when there is not. --}}
+                @can('use-archive-portal')
+                    <a href="{{ route('archive.inbox') }}" class="text-decoration-none arc-muted small">
+                        <i class="bi bi-inbox"></i> Inbox
+                    </a>
+                @endcan
                 @can('manage-archive-portal')
                     <a href="{{ route('archive.manage.index') }}" class="text-decoration-none arc-muted small">
                         <i class="bi bi-sliders"></i> Manage

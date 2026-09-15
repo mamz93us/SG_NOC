@@ -538,15 +538,10 @@ class ArchiveSyncService
 
     private function refreshCounts(Archive $archive): void
     {
-        $archive->forceFill([
-            'document_count' => DB::table('archive_documents')
-                ->where('archive_id', $archive->getKey())
-                ->where('status', ArchiveDocument::STATUS_ACTIVE)
-                ->whereNull('deleted_at')
-                ->count(),
-            'file_count' => DB::table('archive_files')->where('archive_id', $archive->getKey())->count(),
-            'counts_updated_at' => now(),
-        ])->save();
+        // One implementation on the model, shared with the recount task and with
+        // filing — this one used to omit byte_total, so the Transfer page and the
+        // archive card disagreed about the same archive.
+        $archive->refreshCounts();
     }
 
     private function trim(mixed $value, int $length): ?string

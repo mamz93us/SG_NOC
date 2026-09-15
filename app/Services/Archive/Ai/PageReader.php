@@ -212,6 +212,34 @@ TXT;
         ];
     }
 
+    /**
+     * Read one page of something that is not an archive_files row yet.
+     *
+     * Capture needs this and nothing else does: a scan arriving in the inbox has
+     * no file row to hang text on until somebody files it, but its pages still
+     * have to be read to pre-fill the filing form. It is the same call, the same
+     * prompt and the same price as read() — the text simply goes back to the
+     * caller instead of into archive_file_texts, and is read into its proper rows
+     * once the document exists.
+     *
+     * The caller checks the budget before asking (it decides what to do when
+     * there is none); this records what the page cost.
+     */
+    public function readUnfiledPage(string $pdfPath, int $page, ?int $archiveId = null, ?int $userId = null): string
+    {
+        $text = $this->aiRead($pdfPath, $page);
+
+        ArchiveAiUsage::record(
+            ArchiveAiUsage::FEATURE_READ,
+            ArchiveAiSettings::get()->pageCost(),
+            pages: 1,
+            userId: $userId,
+            archiveId: $archiveId,
+        );
+
+        return $text;
+    }
+
     /** How many pages this file has, without reading any of them. */
     public function pageCount(ArchiveFile $file): int
     {

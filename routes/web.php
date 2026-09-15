@@ -228,6 +228,21 @@ if (\App\Support\ArchivePortal::enabled()) {
             // archive rather than by manage-archive-portal: approving a proposal
             // edits a document's index, and whoever configures the ArcMate mirror
             // is not thereby qualified to say what an invoice number is.
+            // Capture: scans arriving and scans being filed. Gated by `can_add`
+            // membership in the controller, the same shape as the review queue —
+            // being able to search an archive is not being able to put documents
+            // into it, and neither is a configuration permission.
+            Route::get('/inbox', [\App\Http\Controllers\Archive\InboxController::class, 'index'])->name('inbox');
+            Route::post('/inbox', [\App\Http\Controllers\Archive\InboxController::class, 'store'])->name('inbox.store');
+            Route::get('/inbox/{item}', [\App\Http\Controllers\Archive\InboxController::class, 'edit'])
+                ->whereNumber('item')->name('inbox.edit');
+            Route::get('/inbox/{item}/preview', [\App\Http\Controllers\Archive\InboxController::class, 'preview'])
+                ->whereNumber('item')->name('inbox.preview');
+            Route::post('/inbox/{item}/file', [\App\Http\Controllers\Archive\InboxController::class, 'file'])
+                ->whereNumber('item')->name('inbox.file');
+            Route::post('/inbox/{item}/discard', [\App\Http\Controllers\Archive\InboxController::class, 'discard'])
+                ->whereNumber('item')->name('inbox.discard');
+
             Route::get('/review', [\App\Http\Controllers\Archive\ReviewController::class, 'index'])->name('review');
             Route::post('/review/{proposal}', [\App\Http\Controllers\Archive\ReviewController::class, 'decide'])
                 ->whereNumber('proposal')->name('review.decide');

@@ -159,6 +159,11 @@ return [
         App\Models\Archive\ArchiveAiBatch::class,
         App\Models\Archive\ArchiveAiProposal::class,
         App\Models\Archive\ArchiveAiUsage::class,
+        //   - the capture inbox, whose ai_status and ai_suggestions the worker
+        //     rewrites as it reads each arriving scan. The event worth recording
+        //     is the FILING, and that is audited where it happens: as the
+        //     document, its values and its files being created.
+        App\Models\Archive\ArchiveInboxItem::class,
     ],
 
     /*
