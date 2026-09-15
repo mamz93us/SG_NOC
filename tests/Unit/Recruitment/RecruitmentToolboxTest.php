@@ -15,6 +15,18 @@ use Tests\Unit\Recruitment\RecruitmentTestSchema;
 
 uses(Tests\TestCase::class);
 
+/** What screening stores beside the evaluation: a salary in SAR from the answers, and where the AI read the applicant lives. */
+function recruitmentFacts(int $expected, ?int $current, string $livesIn, int $km, string $relocation): array
+{
+    return [
+        'salary' => [
+            'expected' => ['min' => $expected, 'max' => $expected, 'currency' => 'SAR', 'text' => (string) $expected, 'from' => null],
+            'current' => $current === null ? null : ['amount' => $current, 'currency' => 'SAR', 'text' => (string) $current, 'from' => null],
+        ],
+        'location' => ['lives_in' => $livesIn, 'distance_km' => $km, 'relocation_needed' => $relocation, 'office' => 'JED'],
+    ];
+}
+
 beforeEach(function () {
     RbacTestSchema::create();
     RecruitmentTestSchema::create();
@@ -36,6 +48,7 @@ beforeEach(function () {
     $this->job = RecruitmentJob::create([
         'teamtailor_job_id' => '77', 'title' => 'Senior Accountant', 'screening_enabled' => true,
         'must_haves' => "SAP\nArabic", 'applicant_count' => 5,
+        'salary_budget_max' => 14000, 'salary_currency' => 'SAR',
     ]);
     $this->otherJob = RecruitmentJob::create(['teamtailor_job_id' => '88', 'title' => 'Driver', 'screening_enabled' => false]);
 
@@ -63,8 +76,11 @@ beforeEach(function () {
         ], $extra));
     };
 
-    $this->mona = $screen($this->job, 'Mona Ali', 91);
-    $this->omar = $screen($this->job, 'Omar Hassan', 76, ['cv_text' => 'Omar: Oracle and IFRS, Arabic native']);
+    $this->mona = $screen($this->job, 'Mona Ali', 91, ['facts' => recruitmentFacts(12000, 10000, 'Al Rawdah, Jeddah', 8, 'no')]);
+    $this->omar = $screen($this->job, 'Omar Hassan', 76, [
+        'cv_text' => 'Omar: Oracle and IFRS, Arabic native',
+        'facts' => recruitmentFacts(16000, null, 'Olaya, Riyadh', 950, 'yes'),
+    ]);
     $this->sara = $screen($this->job, 'Sara Nabil', 95, ['rejected' => true]);
     $this->waiting = $screen($this->job, 'Ahmed Waiting', null);
     $this->driver = $screen($this->otherJob, 'Mona Driver', 60);
@@ -106,12 +122,36 @@ it('ranks a job\'s screened applicants, rejected ones included unless left out',
     expect(array_column($withoutRejected['candidates'], 'name'))->toBe(['Mona Ali']);
 });
 
+it('gives each ranked applicant\'s salary and distance, and filters on them', function () {
+    $toolbox = new RecruitmentToolbox($this->recruiter, $this->job);
+
+    $shortlist = $toolbox->call('get_job_shortlist', []);
+    $byName = collect($shortlist['candidates'])->keyBy('name');
+
+    expect($byName['Mona Ali'])->toMatchArray([
+        'expected_salary' => '12,000 SAR', 'current_salary' => '10,000 SAR', 'above_budget' => false,
+        'lives_in' => 'Al Rawdah, Jeddah', 'distance_to_office_km' => 8, 'relocation_needed' => 'no',
+    ])
+        ->and($byName['Omar Hassan'])->toMatchArray(['expected_salary' => '16,000 SAR', 'above_budget' => true, 'distance_to_office_km' => 950, 'relocation_needed' => 'yes'])
+        ->and($byName['Sara Nabil'])->toMatchArray(['expected_salary' => null, 'above_budget' => null, 'distance_to_office_km' => null])
+        ->and($shortlist['job']['salary_budget'])->toBe('up to 14,000 SAR a month');
+
+    $near = $toolbox->call('get_job_shortlist', ['max_distance_km' => 50]);
+    $withinBudget = $toolbox->call('get_job_shortlist', ['max_expected_salary' => 14000]);
+
+    expect(array_column($near['candidates'], 'name'))->toBe(['Mona Ali'])
+        ->and(implode(' ', $near['notes']))->toContain('1 ranked applicants have no estimated distance')
+        ->and(array_column($withinBudget['candidates'], 'name'))->toBe(['Mona Ali'])
+        ->and(implode(' ', $withinBudget['notes']))->toContain('1 ranked applicants stated no expected salary');
+});
+
 it('gives one applicant\'s CV and evaluation by reference or by name, only within the job', function () {
     $toolbox = new RecruitmentToolbox($this->recruiter, $this->job);
 
     $byRef = $toolbox->call('get_candidate_details', ['candidate' => 'C'.$this->omar->id]);
 
     expect($byRef['candidate']['name'])->toBe('Omar Hassan')
+        ->and($byRef['candidate']['expected_salary_answer'])->toBe('16000')
         ->and($byRef['cv_text'])->toContain('Oracle')
         ->and($byRef['evaluation']['summary'])->toBe('Omar Hassan summary')
         ->and($toolbox->call('get_candidate_details', ['candidate' => 'sara'])['candidate']['name'])->toBe('Sara Nabil')

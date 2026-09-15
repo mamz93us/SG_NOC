@@ -50,6 +50,8 @@
 @endif
 
 @if($profile)
+@include('admin.teamtailor.candidates._salary_distance')
+
 <div class="row g-3">
     {{-- ─── Left: details, CV and attachments, pitch, Teamtailor's CV summary ─── --}}
     <div class="col-lg-4">
@@ -204,6 +206,18 @@
                                     @if($app['sourced']) · sourced @endif
                                     @if($app['changed_stage_at'] && ! $app['rejected']) · stage since {{ $day($app['changed_stage_at']) }} @endif
                                 </div>
+                                @php
+                                    $appExpected = \App\Services\Recruitment\SalaryAnswers::label($app['salary']['expected'] ?? null);
+                                    $appCurrent = \App\Services\Recruitment\SalaryAnswers::label($app['salary']['current'] ?? null);
+                                    $appKm = $screening?->distanceKm();
+                                @endphp
+                                @if($appExpected || $appCurrent || $appKm !== null)
+                                <div class="small mt-1 d-flex flex-wrap column-gap-3">
+                                    @if($appExpected)<span>Expects <strong>{{ $appExpected }}</strong></span>@endif
+                                    @if($appCurrent)<span>Now <strong>{{ $appCurrent }}</strong></span>@endif
+                                    @if($appKm !== null)<span title="Estimated by Recruitment AI">~{{ number_format($appKm) }} km to {{ $screening->distanceOffice() ?? 'the office' }}</span>@endif
+                                </div>
+                                @endif
                             </div>
                             <div class="d-flex flex-wrap gap-2 align-items-center">
                                 @if($screening)

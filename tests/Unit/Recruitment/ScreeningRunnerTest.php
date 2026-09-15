@@ -25,11 +25,14 @@ beforeEach(function () {
 
         public ?Throwable $throw = null;
 
+        public array $context = [];
+
         public function __construct() {}
 
-        public function evaluate(JobAd $ad, array $mustHaves, string $cvText, array $images, string $answers): array
+        public function evaluate(JobAd $ad, array $mustHaves, string $cvText, array $images, string $answers, array $context = []): array
         {
             $this->calls++;
+            $this->context = $context;
 
             if ($this->throw) {
                 throw $this->throw;
@@ -40,6 +43,9 @@ beforeEach(function () {
                     'score' => 80,
                     'summary' => "Read for {$ad->title}",
                     'must_haves' => array_map(fn (string $m) => ['requirement' => $m, 'met' => 'yes'], $mustHaves),
+                    'lives_in' => 'Al Rawdah, Jeddah',
+                    'distance_km' => 12,
+                    'relocation_needed' => 'no',
                 ]), 'stop', $mustHaves),
                 'tokens_in' => 1200,
                 'tokens_out' => 300,
@@ -63,8 +69,14 @@ beforeEach(function () {
         }
     };
 
+    // Inserted, not created: Branch is audited, and there is no activity log here.
+    DB::table('branches')->insert(['id' => 10, 'name' => 'JED', 'city' => 'Jeddah', 'street' => 'Tahlia Street']);
+
     $this->runner = new ScreeningRunner(new ApplicantSync(new TeamtailorApiService), $this->cvs, $this->screener);
-    $this->job = RecruitmentJob::create(['teamtailor_job_id' => '77', 'screening_enabled' => true, 'must_haves' => 'SAP']);
+    $this->job = RecruitmentJob::create([
+        'teamtailor_job_id' => '77', 'screening_enabled' => true, 'must_haves' => 'SAP',
+        'office_branch_id' => 10, 'salary_budget_max' => 11000, 'salary_currency' => 'SAR',
+    ]);
 });
 
 afterEach(fn () => RecruitmentTestSchema::drop());
@@ -93,12 +105,31 @@ it('reads the applicants, screens those with a CV and marks those without', func
         ->and(applicant($job, '502')->status)->toBe(RecruitmentScreening::STATUS_NO_CV);
 });
 
-it('keeps the CV text encrypted at rest', function () {
+it('gives the screening the office, the budget and the salary from the answers, and keeps what it read', function () {
+    $this->runner->run(microtime(true) + 60);
+    $job = $this->job->fresh();
+    $mona = applicant($job, '501');
+
+    expect($this->screener->context)->toMatchArray([
+        'office' => 'JED — Tahlia Street, Jeddah',
+        'budget' => 'up to 11,000 SAR a month',
+        'profile_location' => 'Jeddah, Saudi Arabia',
+    ])
+        ->and($mona->salaryFigure('expected'))->toMatchArray(['min' => 12000, 'max' => 12000, 'currency' => 'SAR', 'from' => null])
+        // Answered for job 88; it names no currency, so it takes the expected salary's.
+        ->and($mona->salaryFigure('current'))->toMatchArray(['amount' => 9000, 'currency' => 'SAR', 'from' => 'another application'])
+        ->and($mona->aboveBudget($job))->toBeTrue()
+        ->and($mona->facts['location'])->toBe(['lives_in' => 'Al Rawdah, Jeddah', 'distance_km' => 12, 'relocation_needed' => 'no', 'office' => 'JED'])
+        ->and(applicant($job, '502')->facts)->toBe(['salary' => ['expected' => null, 'current' => null], 'location' => null]);
+});
+
+it('keeps the CV text and the salary encrypted at rest', function () {
     $this->runner->run(microtime(true) + 60);
 
-    $raw = DB::table('recruitment_screenings')->where('teamtailor_candidate_id', '501')->value('cv_text');
+    $raw = DB::table('recruitment_screenings')->where('teamtailor_candidate_id', '501')->first(['cv_text', 'facts']);
 
-    expect($raw)->not->toBeNull()->not->toContain('s3.example');
+    expect($raw->cv_text)->not->toBeNull()->not->toContain('s3.example')
+        ->and($raw->facts)->not->toBeNull()->not->toContain('12000')->not->toContain('Rawdah');
 });
 
 it('screens nobody again until the must-haves change, then everyone', function () {
@@ -111,6 +142,29 @@ it('screens nobody again until the must-haves change, then everyone', function (
 
     expect($this->screener->calls)->toBe(2)
         ->and(applicant($this->job, '501')->must_haves_total)->toBe(2);
+});
+
+it('screens everyone again when the salary budget or the office changes', function () {
+    $this->runner->run(microtime(true) + 60);
+
+    $this->job->update(['salary_budget_max' => 13000]);
+    $this->runner->run(microtime(true) + 60);
+    expect($this->screener->calls)->toBe(2);
+
+    DB::table('branches')->insert(['id' => 20, 'name' => 'RYD', 'city' => 'Riyadh']);
+    $this->job->update(['office_branch_id' => 20]);
+    $this->runner->run(microtime(true) + 60);
+
+    expect($this->screener->calls)->toBe(3)
+        ->and(applicant($this->job, '501')->distanceOffice())->toBe('RYD');
+});
+
+it('keeps no distance when the job has no office, whatever the reply says', function () {
+    $this->job->update(['office_branch_id' => null]);
+    $this->runner->run(microtime(true) + 60);
+
+    expect($this->screener->context['office'])->toBeNull()
+        ->and(applicant($this->job, '501')->facts['location'])->toBe(['lives_in' => 'Al Rawdah, Jeddah', 'distance_km' => null, 'relocation_needed' => null, 'office' => null]);
 });
 
 it('stops the run when Azure throttles and leaves the applicant queued', function () {

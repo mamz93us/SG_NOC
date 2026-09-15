@@ -60,6 +60,43 @@
                 <dt class="col-5 text-muted fw-normal">CV</dt>
                 <dd class="col-7">A scan, read from images of its pages</dd>
             @endif
+            @php
+                $evaluationExpected = $screening->salaryFigure('expected');
+                $evaluationCurrent = $screening->salaryFigure('current');
+                $evaluationRaise = $screening->salaryRaisePercent();
+            @endphp
+            @if ($evaluationExpected)
+                <dt class="col-5 text-muted fw-normal">Expected salary</dt>
+                <dd class="col-7">
+                    {{ $screening->expectedSalaryLabel() }}
+                    @if ($evaluationRaise !== null)
+                        <span class="text-muted">({{ $evaluationRaise >= 0 ? '+' : '' }}{{ $evaluationRaise }}% on current)</span>
+                    @endif
+                    @if (isset($job) && $job instanceof \App\Models\Recruitment\RecruitmentJob && $screening->aboveBudget($job))
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Above budget</span>
+                    @endif
+                    <div class="text-muted">“{{ $evaluationExpected['text'] ?? '' }}”{{ ! empty($evaluationExpected['from']) ? ' · '.$evaluationExpected['from'] : '' }}</div>
+                </dd>
+            @endif
+            @if ($evaluationCurrent)
+                <dt class="col-5 text-muted fw-normal">Current salary</dt>
+                <dd class="col-7">
+                    {{ $screening->currentSalaryLabel() }}
+                    <div class="text-muted">“{{ $evaluationCurrent['text'] ?? '' }}”{{ ! empty($evaluationCurrent['from']) ? ' · '.$evaluationCurrent['from'] : '' }}</div>
+                </dd>
+            @endif
+            @if ($screening->livesIn())
+                <dt class="col-5 text-muted fw-normal">Lives in</dt>
+                <dd class="col-7">{{ $screening->livesIn() }}</dd>
+            @endif
+            @if ($screening->distanceKm() !== null)
+                <dt class="col-5 text-muted fw-normal">Distance to {{ $screening->distanceOffice() ?? 'the office' }}</dt>
+                <dd class="col-7">~{{ number_format($screening->distanceKm()) }} km <span class="text-muted">(AI estimate)</span></dd>
+            @endif
+            @if ($screening->relocationNeeded() === 'yes')
+                <dt class="col-5 text-muted fw-normal">Relocation</dt>
+                <dd class="col-7">Would need to move city</dd>
+            @endif
         </dl>
 
         @if (! empty($evaluation['skills']))

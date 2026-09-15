@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\AiConversation;
 use App\Models\AiMessage;
 use App\Models\AiSetting;
+use App\Models\Branch;
 use App\Models\Recruitment\RecruitmentJob;
 use App\Models\Recruitment\RecruitmentScreening;
 use App\Services\Recruitment\JobAd;
@@ -15,15 +16,19 @@ use App\Services\Teamtailor\TeamtailorApiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
  * AI ▸ Recruitment AI: switch AI screening on for a Teamtailor job, set its
- * must-haves, see the ranked applicants, and ask about them.
+ * must-haves, office and salary budget, see the ranked applicants, and ask
+ * about them.
  *
  * Nothing slow happens here — recruitment:screen reads the CVs — and nothing
  * is written to Teamtailor. Every action that changes what is screened, or
@@ -36,7 +41,7 @@ class RecruitmentAiController extends Controller
     private const LIST_COLUMNS = [
         'id', 'recruitment_job_id', 'teamtailor_candidate_id', 'candidate_name', 'candidate_email',
         'candidate_location', 'linkedin_url', 'applied_at', 'stage', 'rejected', 'status', 'error',
-        'score', 'fit', 'must_haves_met', 'must_haves_total', 'evaluation', 'cv_read_as', 'screened_at',
+        'score', 'fit', 'must_haves_met', 'must_haves_total', 'evaluation', 'facts', 'cv_read_as', 'screened_at',
     ];
 
     public function index(TeamtailorApiService $teamtailor): View
@@ -107,6 +112,7 @@ class RecruitmentAiController extends Controller
             'title' => ($ad?->title ?: $recruitmentJob->title) ?: 'Job '.$job,
             'ad' => $ad,
             'adError' => $adError,
+            'branches' => Branch::orderBy('name')->get(['id', 'name', 'city']),
             'progress' => $exists ? $recruitmentJob->progress() : ['total' => 0, 'screened' => 0, 'pending' => 0, 'no_cv' => 0, 'failed' => 0],
             'top' => $exists ? $recruitmentJob->screenings()->ranked($includeRejected)->limit(10)->get(self::LIST_COLUMNS) : collect(),
             'all' => $exists
@@ -173,30 +179,64 @@ class RecruitmentAiController extends Controller
         return back()->with('success', 'AI screening is off. The results so far are kept; new applicants are not screened.');
     }
 
+    /**
+     * Saves what applicants are judged against besides the ad: the must-haves,
+     * the office distances are measured to, and the monthly salary budget. All
+     * three are in the criteria hash, so any change screens everyone again.
+     */
     public function updateCriteria(Request $request, string $job): RedirectResponse
     {
-        $data = $request->validate(['must_haves' => 'nullable|string|max:5000']);
+        $data = $request->validate([
+            'must_haves' => 'nullable|string|max:5000',
+            'office_branch_id' => 'nullable|integer|exists:branches,id',
+            'salary_budget_min' => 'nullable|integer|min:0|max:10000000',
+            'salary_budget_max' => 'nullable|integer|min:0|max:10000000',
+            'salary_currency' => ['nullable', 'required_with:salary_budget_min,salary_budget_max', Rule::in(RecruitmentJob::CURRENCIES)],
+        ], [
+            'salary_currency.required_with' => 'Choose the currency of the salary budget.',
+        ]);
+
+        $min = isset($data['salary_budget_min']) ? (int) $data['salary_budget_min'] : null;
+        $max = isset($data['salary_budget_max']) ? (int) $data['salary_budget_max'] : null;
+
+        if ($min !== null && $max !== null && $min > $max) {
+            throw ValidationException::withMessages(['salary_budget_max' => 'The top of the salary budget is below its bottom.']);
+        }
 
         $recruitmentJob = RecruitmentJob::firstOrNew(['teamtailor_job_id' => $job]);
-        $before = $recruitmentJob->exists ? $recruitmentJob->mustHaveList() : [];
-        $after = RecruitmentJob::parseMustHaves((string) ($data['must_haves'] ?? ''));
+        $before = $this->criteria($recruitmentJob);
+        $mustHaves = RecruitmentJob::parseMustHaves((string) ($data['must_haves'] ?? ''));
 
         $recruitmentJob->forceFill([
-            'must_haves' => $after === [] ? null : implode("\n", $after),
+            'must_haves' => $mustHaves === [] ? null : implode("\n", $mustHaves),
+            'office_branch_id' => isset($data['office_branch_id']) ? (int) $data['office_branch_id'] : null,
+            'salary_budget_min' => $min,
+            'salary_budget_max' => $max,
+            'salary_currency' => $min !== null || $max !== null ? $data['salary_currency'] : null,
+        ]);
+
+        $after = $this->criteria($recruitmentJob);
+
+        if ($before === $after) {
+            return back()->with('info', 'Nothing changed.');
+        }
+
+        $recruitmentJob->forceFill([
             'criteria_updated_at' => now(),
             'criteria_updated_by' => Auth::id(),
         ])->save();
 
-        if ($before === $after) {
-            return back()->with('info', 'The must-haves did not change.');
-        }
+        $changed = array_keys(array_filter($after, fn ($value, string $key) => $value !== $before[$key], ARRAY_FILTER_USE_BOTH));
 
-        $this->audit('recruitment_ai_criteria_changed', $recruitmentJob, ['old' => $before, 'new' => $after]);
+        $this->audit('recruitment_ai_criteria_changed', $recruitmentJob, [
+            'old' => Arr::only($before, $changed),
+            'new' => Arr::only($after, $changed),
+        ]);
 
         $screened = $recruitmentJob->screenings()->where('status', RecruitmentScreening::STATUS_SCREENED)->count();
 
-        return back()->with('success', 'Must-haves saved.'.($screened > 0
-            ? " The {$screened} applicants screened so far will be screened again against them".($recruitmentJob->screening_enabled ? '.' : ' once screening is switched on.')
+        return back()->with('success', 'Saved.'.($screened > 0
+            ? " The {$screened} applicants screened so far will be screened again".($recruitmentJob->screening_enabled ? '.' : ' once screening is switched on.')
             : ''));
     }
 
@@ -296,6 +336,18 @@ class RecruitmentAiController extends Controller
             'conversation_id' => $result['conversation']->id,
             'reply' => (string) ($result['reply']?->content ?? ''),
         ]);
+    }
+
+    /** What the criteria form sets, in the words the audit log keeps. */
+    private function criteria(RecruitmentJob $job): array
+    {
+        $job->unsetRelation('office');
+
+        return [
+            'must_haves' => $job->mustHaveList(),
+            'office' => $job->officeText(),
+            'salary_budget' => $job->budgetText(),
+        ];
     }
 
     private function audit(string $action, RecruitmentJob $job, array $changes = []): void

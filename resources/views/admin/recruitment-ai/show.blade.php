@@ -113,16 +113,52 @@
             <div class="card-body">
                 <form method="POST" action="{{ route('admin.recruitment-ai.criteria', $jobId) }}">
                     @csrf
+                    @if ($errors->any())
+                        <div class="alert alert-danger small py-2">{{ $errors->first() }}</div>
+                    @endif
                     <label class="form-label fw-semibold mb-1" for="raMustHaves">Must-haves</label>
                     <div class="small text-muted mb-2">
                         One per line, e.g. "5+ years in accounting", "SAP FICO", "Saudi driving licence". An applicant whose CV
                         clearly does not meet one scores at most {{ \App\Services\Recruitment\ScreeningResult::CAP_WHEN_MISSING }}.
-                        Changing them screens everyone again.
                     </div>
-                    <textarea name="must_haves" id="raMustHaves" rows="5" class="form-control form-control-sm" maxlength="5000"
+                    <textarea name="must_haves" id="raMustHaves" rows="4" class="form-control form-control-sm" maxlength="5000"
                               placeholder="Leave empty to judge against the job ad only">{{ old('must_haves', $job->must_haves) }}</textarea>
+
+                    <div class="row g-2 mt-1">
+                        <div class="col-sm-5">
+                            <label class="form-label small fw-semibold mb-1" for="raOffice">Office</label>
+                            <select name="office_branch_id" id="raOffice" class="form-select form-select-sm">
+                                <option value="">Not set</option>
+                                @foreach ($branches as $branch)
+                                    <option value="{{ $branch->id }}" @selected((string) old('office_branch_id', $job->office_branch_id) === (string) $branch->id)>
+                                        {{ $branch->name }}{{ $branch->city ? ' — '.$branch->city : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-sm-7">
+                            <label class="form-label small fw-semibold mb-1" for="raBudgetMin">Monthly salary budget</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" name="salary_budget_min" id="raBudgetMin" class="form-control" min="0" max="10000000" step="1"
+                                       placeholder="From" value="{{ old('salary_budget_min', $job->salary_budget_min) }}">
+                                <input type="number" name="salary_budget_max" class="form-control" min="0" max="10000000" step="1"
+                                       placeholder="To" aria-label="Budget up to" value="{{ old('salary_budget_max', $job->salary_budget_max) }}">
+                                <select name="salary_currency" class="form-select" style="max-width:5.5rem" aria-label="Currency">
+                                    <option value="">—</option>
+                                    @foreach (\App\Models\Recruitment\RecruitmentJob::CURRENCIES as $currency)
+                                        <option value="{{ $currency }}" @selected(old('salary_currency', $job->salary_currency) === $currency)>{{ $currency }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-1">
+                        The AI estimates how far each applicant lives from the office, and an expected salary above the budget lowers
+                        the score. Salaries are read from the applicants' answers. Changing any of this screens everyone again.
+                    </div>
+
                     <div class="d-flex justify-content-between align-items-center mt-2">
-                        <button class="btn btn-sm btn-primary"><i class="bi bi-check2 me-1"></i>Save must-haves</button>
+                        <button class="btn btn-sm btn-primary"><i class="bi bi-check2 me-1"></i>Save</button>
                         @if ($ad && $ad->text !== '')
                             <a class="small" data-bs-toggle="collapse" href="#raAd" role="button">Show the job ad</a>
                         @endif
@@ -186,6 +222,7 @@
                             <div class="small text-muted">
                                 {{ collect([$screening->evaluationValue('current_role'), $screening->candidate_location, $screening->applied_at ? 'applied '.$screening->applied_at->format('d M Y') : null])->filter()->implode(' · ') }}
                             </div>
+                            @include('admin.recruitment-ai._facts', ['screening' => $screening])
                             <div class="mt-1">{{ $screening->evaluationValue('summary') }}</div>
                             <div class="mt-2 d-flex flex-wrap gap-3 small">
                                 <a data-bs-toggle="collapse" href="#raTop{{ $screening->id }}" role="button">Details</a>
@@ -236,6 +273,9 @@
                         <th>Stage</th>
                         <th>Applied</th>
                         <th>Must-haves</th>
+                        <th title="Expected monthly salary, from their answers">Expects</th>
+                        <th title="Current salary, from their answers">Now</th>
+                        <th title="Estimated by the AI from where they live">Distance</th>
                         <th class="pe-3"></th>
                     </tr>
                 </thead>
@@ -260,6 +300,16 @@
                             <td>{{ $screening->rejected ? 'Rejected' : ($screening->stage ?? 'Active') }}</td>
                             <td class="text-nowrap">{{ $screening->applied_at?->format('d M Y') ?? '—' }}</td>
                             <td>{{ $screening->must_haves_total ? $screening->must_haves_met.'/'.$screening->must_haves_total : '—' }}</td>
+                            <td class="text-nowrap">
+                                {{ $screening->expectedSalaryLabel() ?? '—' }}
+                                @if ($screening->aboveBudget($job))
+                                    <i class="bi bi-exclamation-triangle-fill text-warning ms-1" title="Above the budget"></i>
+                                @endif
+                            </td>
+                            <td class="text-nowrap">{{ $screening->currentSalaryLabel() ?? '—' }}</td>
+                            <td class="text-nowrap" title="{{ $screening->livesIn() }}">
+                                {{ $screening->distanceKm() !== null ? '~'.number_format($screening->distanceKm()).' km' : '—' }}
+                            </td>
                             <td class="pe-3 text-end text-nowrap">
                                 @if ($screening->status === 'screened')
                                     <a data-bs-toggle="collapse" href="#raRow{{ $screening->id }}" role="button">Details</a>
@@ -270,7 +320,7 @@
                         </tr>
                         @if ($screening->status === 'screened')
                             <tr class="collapse" id="raRow{{ $screening->id }}">
-                                <td colspan="6" class="bg-body-tertiary px-3 py-3">
+                                <td colspan="9" class="bg-body-tertiary px-3 py-3">
                                     <div class="mb-2">{{ $screening->evaluationValue('summary') }}</div>
                                     @include('admin.recruitment-ai._evaluation', ['screening' => $screening])
                                     <div class="mt-2 d-flex flex-wrap gap-3">@include('admin.recruitment-ai._links', ['screening' => $screening])</div>

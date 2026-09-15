@@ -59,16 +59,33 @@ it('queues again only the applicant whose CV changed in Teamtailor', function ()
         ->and($job->screenings()->where('teamtailor_candidate_id', '502')->value('status'))->toBe(RecruitmentScreening::STATUS_SCREENED);
 });
 
-it('reads an applicant\'s CV link and application answers', function () {
+it('reads an applicant\'s CV link, application answers and the salary they state', function () {
     RecruitmentTestSchema::fakeTeamtailor(RecruitmentTestSchema::routes());
 
     $candidate = (new ApplicantSync(new TeamtailorApiService))->fetchCandidate('501');
 
     expect($candidate['resume'])->toBe('https://s3.example/501-fresh.pdf')
-        ->and($candidate['answers'])->toBe("Q: Notice period?\nA: 1 month\n\nA: Yes");
+        ->and($candidate['answers'])->toBe("Q: Notice period?\nA: 1 month\n\nA: Yes\n\nQ: What is your expected salary?\nA: 12,000 SAR\n\nQ: What is your current salary?\nA: 9,000")
+        ->and($candidate['salary']['expected'])->toMatchArray(['min' => 12000, 'max' => 12000, 'currency' => 'SAR', 'from' => null])
+        ->and($candidate['salary']['current'])->toMatchArray(['amount' => 9000, 'currency' => 'SAR', 'from' => null]);
 
     // Only the nested include puts the question's id on each answer (see fetchCandidate()).
     Http::assertSent(fn ($request) => str_contains(urldecode($request->url()), 'include=answers,answers.question'));
+});
+
+it('puts this job\'s answers first, and says which salary was given in another application', function () {
+    RecruitmentTestSchema::fakeTeamtailor(RecruitmentTestSchema::routes());
+    $sync = new ApplicantSync(new TeamtailorApiService);
+
+    $candidate = $sync->fetchCandidate('501', $sync->pickedQuestionIds('77'), 'EGP');
+
+    expect($candidate['answers'])->toBe(
+        "Q: Notice period?\nA: 1 month\n\nQ: What is your expected salary?\nA: 12,000 SAR\n\n"
+        .ApplicantSync::OTHER_ANSWERS_HEADING."\n\nA: Yes\n\nQ: What is your current salary?\nA: 9,000"
+    )
+        ->and($candidate['salary']['expected'])->toMatchArray(['min' => 12000, 'currency' => 'SAR', 'from' => null])
+        // It names no currency: the expected salary's comes before the job's.
+        ->and($candidate['salary']['current'])->toMatchArray(['amount' => 9000, 'currency' => 'SAR', 'from' => 'another application']);
 });
 
 it('still reads the CV when Teamtailor rejects the answers include', function () {
@@ -83,5 +100,7 @@ it('still reads the CV when Teamtailor rejects the answers include', function ()
 
     $candidate = (new ApplicantSync(new TeamtailorApiService))->fetchCandidate('503');
 
-    expect($candidate)->toBe(['resume' => 'https://s3.example/503.pdf', 'answers' => '']);
+    expect($candidate['resume'])->toBe('https://s3.example/503.pdf')
+        ->and($candidate['answers'])->toBe('')
+        ->and($candidate['salary'])->toBe(['expected' => null, 'current' => null]);
 });

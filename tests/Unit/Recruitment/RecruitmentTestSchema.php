@@ -11,9 +11,10 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Recruitment AI's tables, and a fake Teamtailor for the tests that sync.
  *
- * The recruitment tables come from the real migration, so its SQL is exercised
- * too; ai_conversations, which it alters, is built by hand first. Not
- * RefreshDatabase — see tests/Unit/Rbac/RbacTestSchema.php for why.
+ * The recruitment tables come from the real migrations, so their SQL is
+ * exercised too; ai_conversations, which they alter, and branches, where a
+ * job's office is picked from, are built by hand first. Not RefreshDatabase —
+ * see tests/Unit/Rbac/RbacTestSchema.php for why.
  */
 class RecruitmentTestSchema
 {
@@ -31,12 +32,21 @@ class RecruitmentTestSchema
             $table->timestamps();
         });
 
+        Schema::create('branches', function (Blueprint $table) {
+            $table->unsignedInteger('id')->primary();
+            $table->string('name');
+            $table->string('city', 100)->nullable();
+            $table->string('street')->nullable();
+            $table->timestamps();
+        });
+
         (require base_path('database/migrations/2026_09_15_100001_create_recruitment_ai_tables.php'))->up();
+        (require base_path('database/migrations/2026_09_15_130001_add_office_salary_and_facts_to_recruitment_ai.php'))->up();
     }
 
     public static function drop(): void
     {
-        foreach (['recruitment_screenings', 'recruitment_jobs', 'ai_conversations'] as $table) {
+        foreach (['recruitment_screenings', 'recruitment_jobs', 'ai_conversations', 'branches'] as $table) {
             Schema::dropIfExists($table);
         }
     }
@@ -67,8 +77,8 @@ class RecruitmentTestSchema
     }
 
     /**
-     * Job 77 with two applicants: Mona (a CV, applied to job 88 as well) and
-     * Omar (no CV, rejected).
+     * Job 77 with two applicants: Mona (a CV, asks 12,000 SAR, applied to job 88
+     * as well and gave her current salary there) and Omar (no CV, rejected).
      *
      * @return array<string, array<string,mixed>>
      */
@@ -83,6 +93,10 @@ class RecruitmentTestSchema
             '/v1/jobs/77/stages' => ['data' => [
                 ['id' => 's1', 'type' => 'stages', 'attributes' => ['name' => 'Interview']],
                 ['id' => 's2', 'type' => 'stages', 'attributes' => ['name' => 'Screening']],
+            ]],
+            '/v1/jobs/77/picked-questions' => ['data' => [
+                ['id' => 'pq1', 'type' => 'picked-questions'],
+                ['id' => 'pq3', 'type' => 'picked-questions'],
             ]],
             '/v1/jobs/77/candidates' => [
                 'data' => [
@@ -117,8 +131,15 @@ class RecruitmentTestSchema
                 'data' => ['id' => '501', 'type' => 'candidates', 'attributes' => ['resume' => 'https://s3.example/501-fresh.pdf']],
                 'included' => [
                     ['id' => 'q1', 'type' => 'questions', 'attributes' => ['title' => 'Notice period?']],
-                    ['id' => 'a1', 'type' => 'answers', 'attributes' => ['text' => '1 month'], 'relationships' => ['question' => ['data' => ['id' => 'q1']]]],
+                    ['id' => 'a1', 'type' => 'answers', 'attributes' => ['text' => '1 month'],
+                        'relationships' => ['question' => ['data' => ['id' => 'q1']], 'picked-question' => ['data' => ['id' => 'pq1']]]],
                     ['id' => 'a2', 'type' => 'answers', 'attributes' => ['boolean' => true], 'relationships' => ['question' => ['data' => ['id' => 'q2']]]],
+                    ['id' => 'q3', 'type' => 'questions', 'attributes' => ['title' => 'What is your expected salary?']],
+                    ['id' => 'a3', 'type' => 'answers', 'attributes' => ['text' => '12,000 SAR'],
+                        'relationships' => ['question' => ['data' => ['id' => 'q3']], 'picked-question' => ['data' => ['id' => 'pq3']]]],
+                    ['id' => 'q4', 'type' => 'questions', 'attributes' => ['title' => 'What is your current salary?']],
+                    ['id' => 'a4', 'type' => 'answers', 'attributes' => ['text' => '9,000'],
+                        'relationships' => ['question' => ['data' => ['id' => 'q4']], 'picked-question' => ['data' => ['id' => 'pq88']]]],
                 ],
             ],
             '/v1/candidates/502' => [
