@@ -1207,9 +1207,9 @@
                     {{-- Create Ticket / My Tickets are employee links — kept off the admin menu bar --}}
 
                     {{-- ── AI dropdown (every AI Assistant page in one place) ── --}}
-                    @canany(['manage-ai-assistant','answer-ai-knowledge-gaps','view-ai-conversations'])
+                    @canany(['manage-ai-assistant','answer-ai-knowledge-gaps','view-ai-conversations','use-recruitment-ai','manage-ai-access'])
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('admin/ai-assistant*') ? 'active' : '' }}"
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/ai-assistant*') || request()->is('admin/recruitment-ai*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-robot me-1"></i>AI
                         </a>
@@ -1242,6 +1242,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('use-recruitment-ai')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.recruitment-ai.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.recruitment-ai.index') }}">
+                                    <i class="bi bi-person-check me-2"></i>Recruitment AI
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-ai-conversations')
                             <li><hr class="dropdown-divider"></li>
                             <li>
@@ -1254,6 +1262,15 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.usage') ? 'active' : '' }}"
                                    href="{{ route('admin.ai-assistant.usage') }}">
                                     <i class="bi bi-graph-up me-2"></i>Usage
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-ai-access')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.access.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.ai-assistant.access.index') }}">
+                                    <i class="bi bi-shield-check me-2"></i>AI Access
                                 </a>
                             </li>
                             @endcan

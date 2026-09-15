@@ -17,9 +17,16 @@
             @endif
         </small>
     </div>
-    <a href="{{ route('admin.candidates.index') }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-person-rolodex me-1"></i>All candidates
-    </a>
+    <div class="d-flex gap-2">
+        @can('use-recruitment-ai')
+        <a href="{{ route('admin.recruitment-ai.show', $jobId) }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-stars me-1"></i>AI shortlist
+        </a>
+        @endcan
+        <a href="{{ route('admin.candidates.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-person-rolodex me-1"></i>All candidates
+        </a>
+    </div>
 </div>
 
 @unless($configured)

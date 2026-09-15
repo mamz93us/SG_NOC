@@ -1261,6 +1261,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('knowledge-gaps/{aiKnowledgeGap}/confirm', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'confirm'])->name('knowledge-gaps.confirm');
             Route::post('knowledge-gaps/{aiKnowledgeGap}/reopen', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'reopen'])->name('knowledge-gaps.reopen');
         });
+        // Who may use the AI features that read restricted data (Recruitment AI).
+        // Writes per-user grants and denies; each change is a security event.
+        Route::middleware('permission:manage-ai-access')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
+            Route::get('access', [\App\Http\Controllers\Admin\AiAccessController::class, 'index'])->name('access.index');
+            Route::post('access', [\App\Http\Controllers\Admin\AiAccessController::class, 'store'])->name('access.store');
+            Route::delete('access/{feature}/{user}', [\App\Http\Controllers\Admin\AiAccessController::class, 'destroy'])->name('access.destroy');
+        });
         Route::middleware('permission:view-ai-conversations')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
             Route::get('conversations', [\App\Http\Controllers\Admin\AiConversationController::class, 'index'])->name('conversations.index');
             Route::get('conversations/{aiConversation}', [\App\Http\Controllers\Admin\AiConversationController::class, 'show'])->name('conversations.show');
@@ -2914,6 +2921,21 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('/{job}/applications/{application}/reject', [\App\Http\Controllers\Admin\Teamtailor\JobController::class, 'reject'])
                 ->name('applications.reject');
         });
+    });
+
+    // ─── Recruitment AI (AI screening of Teamtailor applicants) ─────
+    // The page only queues and shows what recruitment:screen stored; the chat
+    // tools read the same rows. Read-only towards Teamtailor.
+    Route::prefix('recruitment-ai')->name('recruitment-ai.')->middleware('permission:use-recruitment-ai')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\Recruitment\RecruitmentAiController::class, 'index'])->name('index');
+        Route::get('/jobs/{job}', [\App\Http\Controllers\Admin\Recruitment\RecruitmentAiController::class, 'show'])->name('show');
+        Route::get('/jobs/{job}/status', [\App\Http\Controllers\Admin\Recruitment\RecruitmentAiController::class, 'status'])->name('status');
+        Route::post('/jobs/{job}/start', [\App\Http\Controllers\Admin\Recruitment\RecruitmentAiController::class, 'start'])->name('start');
+        Route::post('/jobs/{job}/stop', [\App\Http\Controllers\Admin\Recruitment\RecruitmentAiController::class, 'stop'])->name('stop');
+        Route::post('/jobs/{job}/criteria', [\App\Http\Controllers\Admin\Recruitment\RecruitmentAiController::class, 'updateCriteria'])->name('criteria');
+        Route::post('/jobs/{job}/rescreen', [\App\Http\Controllers\Admin\Recruitment\RecruitmentAiController::class, 'rescreen'])->name('rescreen');
+        Route::post('/jobs/{job}/ask', [\App\Http\Controllers\Admin\Recruitment\RecruitmentAiController::class, 'ask'])->name('ask');
+        Route::delete('/jobs/{job}/data', [\App\Http\Controllers\Admin\Recruitment\RecruitmentAiController::class, 'destroyData'])->name('destroy-data');
     });
 
     // ─── Switch Drops — RETIRED ────────────────────────────────────

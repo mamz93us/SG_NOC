@@ -181,6 +181,16 @@ class TeamtailorApiService
     }
 
     /**
+     * GET /v1/jobs/{id} — one job, with its ad (`body`, `pitch`) and status.
+     *
+     * @return array decoded JSON:API body: data{}
+     */
+    public function getJob(string $id): array
+    {
+        return $this->get('/v1/jobs/'.rawurlencode($id));
+    }
+
+    /**
      * GET /v1/jobs/{id}/candidates — the people who applied to one job.
      *
      * Teamtailor has no job→applications route and the flat /v1/job-applications

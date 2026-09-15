@@ -124,6 +124,13 @@ return [
         App\Models\Vacation\VacationAbsence::class,
         App\Models\Vacation\VacationImport::class,
 
+        // Recruitment AI: every sync stamps the job and every screening rewrites
+        // its row, CV text included — an audit copy would be the one place that
+        // text sat unencrypted. RecruitmentAiController logs switching screening
+        // on and off, criteria changes, re-screens and deleting a job's AI data.
+        App\Models\Recruitment\RecruitmentJob::class,
+        App\Models\Recruitment\RecruitmentScreening::class,
+
         // Discovery scratch data, replaced on each scan.
         App\Models\SnmpDiscoveredDevice::class,
         App\Models\DiscoveryResult::class,
@@ -251,6 +258,10 @@ return [
         'attendance_owner_added',
         'attendance_owner_changed',
         'attendance_owner_removed',
+
+        // Who may use an AI feature that reads restricted data (AI ▸ AI Access).
+        'ai_access_granted',
+        'ai_access_revoked',
     ],
 
     'prune_chunk' => 5000,
