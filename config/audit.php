@@ -134,6 +134,43 @@ return [
         // Discovery scratch data, replaced on each scan.
         App\Models\SnmpDiscoveredDevice::class,
         App\Models\DiscoveryResult::class,
+
+        // Document archive. The records themselves — documents, their index
+        // values, their files — ARE audited, because a person editing an index
+        // value is exactly the kind of event this log exists for; the ArcMate
+        // sync and the transfer worker wrap their bulk writes in
+        // Auditor::withoutAuditing() instead of being excluded here, so a
+        // 600,000-file backfill writes no audit rows while a human edit still
+        // does. What is excluded is everything around them:
+        //   - page text, which is the document's contents rather than an event
+        //   - the access log, which is its own purpose-built audit table
+        //   - the task queue, whose rows are a button press already logged
+        App\Models\Archive\ArchiveFileText::class,
+        App\Models\Archive\ArchiveAccessLog::class,
+        App\Models\Archive\ArchiveTask::class,
+        //   - the transfer's own run log, written every minute for nights on end
+        App\Models\Archive\ArchiveTransferRun::class,
+        //   - AI meters and queues: a batch rewrites its counters every minute,
+        //     records one usage row per call, and creates proposals in the
+        //     thousands. Starting or cancelling a batch is logged by hand, and
+        //     APPROVING a proposal writes a real value, which is audited as the
+        //     edit it is. ArchiveAiSettings is deliberately NOT here: changing
+        //     a budget is a decision.
+        App\Models\Archive\ArchiveAiBatch::class,
+        App\Models\Archive\ArchiveAiProposal::class,
+        App\Models\Archive\ArchiveAiUsage::class,
+        //   - the capture inbox, whose ai_status and ai_suggestions the worker
+        //     rewrites as it reads each arriving scan. The event worth recording
+        //     is the FILING, and that is audited where it happens: as the
+        //     document, its values and its files being created.
+        App\Models\Archive\ArchiveInboxItem::class,
+        //   - scan destinations, which stamp last_received_at and a counter on
+        //     EVERY scan a copier sends: a busy reception machine would write
+        //     fifty audit rows a day saying a number went up. Creating, disabling,
+        //     rotating and deleting one are the real events, and
+        //     ScanDestinationController logs each of those by hand as a security
+        //     action — never including the token.
+        App\Models\Archive\ArchiveScanEndpoint::class,
     ],
 
     /*

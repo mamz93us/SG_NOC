@@ -64,6 +64,19 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\EnforceHomePortalHostIsolation::class,
         );
 
+        // And the document archive — the replacement for ArcMate. It serves the
+        // archive portal and nothing else. Before auth for the same reason as
+        // the others, and it matters more here than anywhere: this host holds
+        // every scanned invoice, contract and HR file, so a NOC route probed on
+        // it must 404 rather than start a login. Host isolation is only the
+        // outer shell; each document is gated by per-archive membership on
+        // every request (Services\Archive\ArchiveAccess).
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnforceArchivePortalHostIsolation::class);
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\EnforceArchivePortalHostIsolation::class,
+        );
+
         // Guests hitting the isolated /portal/* routes — or anything on the
         // marketing subdomain — go to the portal's SSO-only login page, not the
         // admin login. Everyone else falls back to 'login'.
@@ -79,6 +92,9 @@ return Application::configure(basePath: dirname(__DIR__))
             }
             if (\App\Support\HomePortal::isHost($request)) {
                 return route('home.login');
+            }
+            if (\App\Support\ArchivePortal::isHost($request)) {
+                return route('archive.login');
             }
             if ($request->is('portal') || $request->is('portal/*')) {
                 return route('portal.login');

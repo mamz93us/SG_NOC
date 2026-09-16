@@ -36,6 +36,11 @@ class AccessVisitRecorder
             return 'hr';
         }
 
+        // Same for the document archive (the ArcMate replacement).
+        if (\App\Support\ArchivePortal::isHost($request)) {
+            return 'archive';
+        }
+
         if ($request->is('portal') || $request->is('portal/*')) {
             return 'portal';
         }

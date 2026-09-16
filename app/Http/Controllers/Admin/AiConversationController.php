@@ -40,6 +40,7 @@ class AiConversationController extends Controller
     public function show(Request $request, AiConversation $aiConversation): View
     {
         abort_if($aiConversation->contains_candidate_data && ! $this->mayReadCandidates($request), 404);
+        abort_if($aiConversation->contains_archive_data && ! $this->mayReadArchive($request), 404);
 
         return view('admin.ai-conversations.show', [
             'conversation' => $aiConversation->load('user', 'employee'),
@@ -77,11 +78,27 @@ class AiConversationController extends Controller
 
     private function visible(Builder $query, Request $request): Builder
     {
-        return $this->mayReadCandidates($request) ? $query : $query->where('contains_candidate_data', false);
+        if (! $this->mayReadCandidates($request)) {
+            $query->where('contains_candidate_data', false);
+        }
+
+        // A separate permission, deliberately: reading candidate CVs and
+        // reading the finance and HR archives are different grants, held by
+        // different people. Someone with one must not inherit the other.
+        if (! $this->mayReadArchive($request)) {
+            $query->where('contains_archive_data', false);
+        }
+
+        return $query;
     }
 
     private function mayReadCandidates(Request $request): bool
     {
         return (bool) $request->user()?->hasPermission(RecruitmentToolbox::PERMISSION);
+    }
+
+    private function mayReadArchive(Request $request): bool
+    {
+        return (bool) $request->user()?->hasPermission(\App\Services\Archive\Ai\ArchiveToolbox::PERMISSION);
     }
 }

@@ -86,6 +86,93 @@ Schedule::command('attendance:work')
     ->runInBackground()
     ->name('attendance-work');
 
+// ─── Document archive (the ArcMate replacement) ─────────────────────
+// Copies ArcMate's index into the NOC, read-only and watermarked, so an
+// interrupted slice resumes rather than restarts. SPS Invoices alone is
+// 513,381 documents and ~594,000 files, so the first backfill runs for hours
+// across many slices — which is exactly why it is budgeted and backgrounded.
+// The 30-minute lock outlasts the 240 s budget plus the batch already in
+// flight; a lock that expires mid-run would let a second copy start.
+// No-ops when no ArcMate source is configured.
+Schedule::command('archive:sync-arcmate --max-seconds=240')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('archive-sync-arcmate');
+
+// The archive pages queue their heavy buttons here rather than doing them in
+// the request — the same rule, and the same 504, as attendance.
+Schedule::command('archive:work')
+    ->everyMinute()
+    ->withoutOverlapping(120)
+    ->runInBackground()
+    ->name('archive-work');
+
+// Moving ArcMate's 372 GB into the NOC's own Azure storage, file by verified
+// file. Wakes every minute and usually does nothing — outside the transfer
+// window it returns immediately — which is what makes "allow during working
+// hours" on the Transfer page take effect within a minute instead of at the
+// next cron boundary. The 60-minute lock outlasts the 240 s budget plus the
+// file already in flight; nothing is ever deleted from the ArcMate share.
+Schedule::command('archive:transfer-files --max-seconds=240')
+    ->everyMinute()
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->name('archive-transfer-files');
+
+// Reading history into text, and proposing values for index fields nobody ever
+// filled in. Both are batches with an estimate and a running cost, so this wakes
+// every minute and does nothing at all unless somebody started one. It stops
+// itself at the month's budget rather than on a bill, and a batch of 500,000
+// documents survives a deploy because each slice is only 25 of them. The
+// 30-minute lock outlasts the 240 s budget plus the document in flight.
+Schedule::command('archive:ai-batch --max-seconds=240')
+    ->everyMinute()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('archive-ai-batch');
+
+// Scans the copiers that CAN do SFTP wrote into their own folders. Waits for each
+// file's mtime to settle before taking it, and deletes the local copy only after
+// the write to Azure is read back — the original is paper already back in the
+// tray. No-ops on any host without the scan root.
+Schedule::command('archive:sweep-scan-folders')
+    ->everyMinute()
+    ->withoutOverlapping(15)
+    ->runInBackground()
+    ->name('archive-sweep-scan-folders');
+
+// Scans the old Ricoh copiers mailed in — they cannot do SFTP at all, so mail is
+// the only way those machines can send anything. Postfix drops each message in
+// the spool and this reads it; no-ops on any host without that spool, which is
+// every dev box. Routing is by the recipient token: the relay rewrites every
+// sender, so From identifies nothing.
+Schedule::command('archive:ingest-mail')
+    ->everyMinute()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('archive-ingest-mail');
+
+// Newly captured scans: count the pages, read them, and propose what the index
+// fields say, so the filing form is filled in before anybody opens it. Wakes
+// every minute and does nothing unless something has arrived — which is the
+// point, since the minute between a scan landing and a person filing it is the
+// whole opportunity. Stops itself at the AI budget like every other reader.
+Schedule::command('archive:process-inbox --max-seconds=240')
+    ->everyMinute()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('archive-process-inbox');
+
+// Converted TIFFs are a disposable cache: every file in it can be rebuilt from
+// the original, so the only question is how much disk it may hold. NOC2 has
+// ~88 GB free and the archive holds ~35 GB of TIFF.
+Schedule::command('archive:prune-cache')
+    ->dailyAt('03:20')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('archive-prune-cache');
+
 // GDMS Contact Sync
 Schedule::command('gdms:sync-contacts')
     ->cron($everyN($gdmsInterval))

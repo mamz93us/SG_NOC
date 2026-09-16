@@ -169,6 +169,154 @@ Route::get('/card/{token}/samsung', [\App\Http\Controllers\EmployeeCardControlle
     ->name('employee.card.samsung');
 
 // ──────────────────────────────────────────────────────────────────
+// Document archive subdomain (archive.samirgroup.net by default; set
+// ARCHIVE_PORTAL_DOMAIN to change) — the replacement for ArcMate 7.2.
+//
+// Microsoft SSO only and 2FA is skipped on this host (RequireTwoFactor), the
+// same arrangement as the HR portal, contained by
+// EnforceArchivePortalHostIsolation which 404s everything that is not
+// `archive.*` here.
+//
+// Host isolation is NOT the security boundary for the documents themselves:
+// this host serves every scanned invoice, contract and HR file the company
+// has, and each one is gated by per-archive membership re-checked on every
+// request, every stream and every download (Services\Archive\ArchiveAccess).
+//
+// The landing route carries no permission middleware on purpose: somebody who
+// has signed in but has no archive access should be told so, not shown a 403
+// they cannot act on. ArchiveController::index() renders that page itself.
+// ──────────────────────────────────────────────────────────────────
+if (\App\Support\ArchivePortal::enabled()) {
+    Route::domain(\App\Support\ArchivePortal::domain())->name('archive.')->group(function () {
+
+        Route::get('/login', function () {
+            if (auth()->check()) {
+                return redirect()->route('archive.index');
+            }
+
+            return view('auth.archive-login');
+        })->name('login');
+
+        Route::post('/logout', function (\Illuminate\Http\Request $request) {
+            \Illuminate\Support\Facades\Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('archive.login');
+        })->name('logout');
+
+        Route::middleware(['auth', 'throttle:120,1'])
+            ->get('/', [\App\Http\Controllers\Archive\ArchiveController::class, 'index'])
+            ->name('index');
+
+        // ── Reading ───────────────────────────────────────────────
+        Route::middleware(['auth', 'permission:use-archive-portal', 'throttle:240,1'])->group(function () {
+            Route::get('/a/{slug}', [\App\Http\Controllers\Archive\ArchiveController::class, 'show'])->name('show');
+
+            Route::get('/documents/{id}', [\App\Http\Controllers\Archive\DocumentController::class, 'show'])
+                ->whereNumber('id')->name('document');
+
+            // The bytes. Same origin as the page, so the viewer frame is an
+            // ordinary authenticated request and not a way around the gate.
+            Route::get('/documents/{id}/files/{file}/view', [\App\Http\Controllers\Archive\DocumentController::class, 'stream'])
+                ->whereNumber('id')->whereNumber('file')->name('document.stream');
+
+            Route::get('/documents/{id}/files/{file}/download', [\App\Http\Controllers\Archive\DocumentController::class, 'download'])
+                ->whereNumber('id')->whereNumber('file')->name('document.download');
+
+            // Reviewing what AI proposed. Gated by `can_edit` membership on the
+            // archive rather than by manage-archive-portal: approving a proposal
+            // edits a document's index, and whoever configures the ArcMate mirror
+            // is not thereby qualified to say what an invoice number is.
+            // Capture: scans arriving and scans being filed. Gated by `can_add`
+            // membership in the controller, the same shape as the review queue —
+            // being able to search an archive is not being able to put documents
+            // into it, and neither is a configuration permission.
+            Route::get('/inbox', [\App\Http\Controllers\Archive\InboxController::class, 'index'])->name('inbox');
+            Route::post('/inbox', [\App\Http\Controllers\Archive\InboxController::class, 'store'])->name('inbox.store');
+            Route::get('/inbox/{item}', [\App\Http\Controllers\Archive\InboxController::class, 'edit'])
+                ->whereNumber('item')->name('inbox.edit');
+            Route::get('/inbox/{item}/preview', [\App\Http\Controllers\Archive\InboxController::class, 'preview'])
+                ->whereNumber('item')->name('inbox.preview');
+            Route::post('/inbox/{item}/file', [\App\Http\Controllers\Archive\InboxController::class, 'file'])
+                ->whereNumber('item')->name('inbox.file');
+            Route::post('/inbox/{item}/discard', [\App\Http\Controllers\Archive\InboxController::class, 'discard'])
+                ->whereNumber('item')->name('inbox.discard');
+
+            Route::get('/review', [\App\Http\Controllers\Archive\ReviewController::class, 'index'])->name('review');
+            Route::post('/review/{proposal}', [\App\Http\Controllers\Archive\ReviewController::class, 'decide'])
+                ->whereNumber('proposal')->name('review.decide');
+            Route::post('/review-bulk', [\App\Http\Controllers\Archive\ReviewController::class, 'bulk'])->name('review.bulk');
+        });
+
+        // ── Asking ────────────────────────────────────────────────
+        // Its own permission and a tighter throttle, because unlike the pages
+        // above these cost money per call: use-archive-ai is granted separately
+        // (AI ▸ AI Access), and the controller re-checks it along with the
+        // archive's own ai_chat switch.
+        Route::middleware(['auth', 'permission:use-archive-ai', 'throttle:30,1'])->group(function () {
+            Route::post('/documents/{id}/ask', [\App\Http\Controllers\Archive\AskController::class, 'document'])
+                ->whereNumber('id')->name('ask.document');
+
+            Route::post('/ask', [\App\Http\Controllers\Archive\AskController::class, 'archive'])->name('ask');
+        });
+
+        // ── Setting it up ─────────────────────────────────────────
+        // A separate permission from reading: configuring the mirror is not
+        // permission to open an invoice.
+        Route::middleware(['auth', 'permission:manage-archive-portal', 'throttle:120,1'])
+            ->prefix('manage')->name('manage.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Archive\ManageController::class, 'index'])->name('index');
+                Route::post('/source', [\App\Http\Controllers\Archive\ManageController::class, 'saveSource'])->name('source.save');
+                Route::post('/source/test', [\App\Http\Controllers\Archive\ManageController::class, 'testSource'])->name('source.test');
+
+                // Moving the 372 GB to Azure. Nothing here copies anything: the
+                // buttons change a setting or queue a task, and the worker picks
+                // it up within a minute.
+                Route::get('/transfer', [\App\Http\Controllers\Archive\TransferController::class, 'index'])->name('transfer');
+                Route::post('/transfer/settings', [\App\Http\Controllers\Archive\TransferController::class, 'saveSettings'])->name('transfer.settings');
+                Route::post('/transfer/archives/{archive}', [\App\Http\Controllers\Archive\TransferController::class, 'archiveAction'])
+                    ->whereNumber('archive')->name('transfer.archive');
+                Route::post('/transfer/retry', [\App\Http\Controllers\Archive\TransferController::class, 'retry'])->name('transfer.retry');
+                Route::post('/transfer/verify', [\App\Http\Controllers\Archive\TransferController::class, 'verify'])->name('transfer.verify');
+
+                // AI: the budget, which archives it may touch, and the batches
+                // that read history or propose values. Nothing here calls Azure —
+                // a batch is a row the scheduler works in slices.
+                Route::get('/ai', [\App\Http\Controllers\Archive\AiController::class, 'index'])->name('ai');
+                Route::post('/ai/settings', [\App\Http\Controllers\Archive\AiController::class, 'saveSettings'])->name('ai.settings');
+                Route::post('/ai/archives/{archive}', [\App\Http\Controllers\Archive\AiController::class, 'saveArchive'])
+                    ->whereNumber('archive')->name('ai.archive');
+                Route::post('/ai/estimate', [\App\Http\Controllers\Archive\AiController::class, 'estimate'])->name('ai.estimate');
+                Route::post('/ai/batches', [\App\Http\Controllers\Archive\AiController::class, 'start'])->name('ai.start');
+                Route::post('/ai/batches/{batch}', [\App\Http\Controllers\Archive\AiController::class, 'batchAction'])
+                    ->whereNumber('batch')->name('ai.batch');
+                // Scan destinations: the addresses and SFTP logins the copiers
+                // send to. A destination only ever grants "put a document in" —
+                // never read — which is what makes an address held in a copier's
+                // plain settings acceptable.
+                Route::get('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'index'])->name('scan');
+                Route::post('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'store'])->name('scan.store');
+                Route::post('/scan/{endpoint}/toggle', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'toggle'])
+                    ->whereNumber('endpoint')->name('scan.toggle');
+                Route::post('/scan/{endpoint}/rotate', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'rotate'])
+                    ->whereNumber('endpoint')->name('scan.rotate');
+                Route::delete('/scan/{endpoint}', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'destroy'])
+                    ->whereNumber('endpoint')->name('scan.destroy');
+
+                Route::post('/tasks', [\App\Http\Controllers\Archive\ManageController::class, 'queueTask'])->name('tasks.store');
+                Route::post('/archives', [\App\Http\Controllers\Archive\ManageController::class, 'enable'])->name('enable');
+                Route::get('/archives/{archive}', [\App\Http\Controllers\Archive\ManageController::class, 'showArchive'])
+                    ->whereNumber('archive')->name('archive');
+                Route::post('/archives/{archive}/members', [\App\Http\Controllers\Archive\ManageController::class, 'addMember'])
+                    ->whereNumber('archive')->name('members.store');
+                Route::delete('/archives/{archive}/members/{member}', [\App\Http\Controllers\Archive\ManageController::class, 'removeMember'])
+                    ->whereNumber('archive')->whereNumber('member')->name('members.destroy');
+            });
+    });
+}
+
+// ──────────────────────────────────────────────────────────────────
 // Digital business card subdomain (vcard.samirgroup.net by default; set
 // VCARD_DOMAIN to change). Same app, domain-routed — the /card/* routes above
 // are host-agnostic and already answer here, so this group only adds the

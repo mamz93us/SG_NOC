@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
  * stamped by the upload webhook (last_received_at) and the sweeper
  * (last_archived_at); backups:check-overdue maintains last_status.
  */
-class BackupAccount extends Model
+class BackupAccount extends Model implements \App\Services\Backup\ProvisionsSftpgoUser
 {
     public const FREQ_DAILY = 'daily';
 
@@ -158,6 +158,23 @@ class BackupAccount extends Model
         $root = rtrim(Setting::get()->sftpgo_home_root ?: '/srv/backups', '/');
 
         return $root.'/'.$this->sftpgo_username;
+    }
+
+    // ─── ProvisionsSftpgoUser ─────────────────────────────────────
+    //
+    // The two accessors the interface needs that this model expressed as plain
+    // columns. Nothing about the existing behaviour changes: SftpgoApiService now
+    // asks through the interface so an archive scan folder can be provisioned by
+    // the same client, without it importing either model.
+
+    public function sftpgoUsername(): string
+    {
+        return (string) $this->sftpgo_username;
+    }
+
+    public function isEnabledForSftpgo(): bool
+    {
+        return (bool) $this->is_active;
     }
 
     public function expectedWindowMinutes(): ?int
