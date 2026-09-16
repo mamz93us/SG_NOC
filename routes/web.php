@@ -1812,6 +1812,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/contact-sync/send-reminders', [IdentityController::class, 'contactSyncSendMobileReminders'])->name('contact-sync.send-reminders');
         Route::post('/linked-accounts', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'store'])->name('linked-accounts.store');
         Route::post('/linked-accounts/link', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'link'])->name('linked-accounts.link');
+        Route::post('/linked-accounts/merge', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'merge'])->name('linked-accounts.merge');
         Route::delete('/linked-accounts/{employee}', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'destroy'])->name('linked-accounts.destroy');
         Route::post('/hr-import', [OracleHrImportController::class, 'upload'])->name('hr-import.upload');
         Route::post('/hr-import/{batch}/apply', [OracleHrImportController::class, 'apply'])->name('hr-import.apply');

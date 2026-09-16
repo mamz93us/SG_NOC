@@ -3,8 +3,10 @@
 use App\Services\Identity\LinkedAccountSuggester;
 
 /**
- * Which records the Linked Accounts page offers to join into one person, and
- * which one it makes the main record.
+ * What the Linked Accounts page offers for people the NOC holds more than
+ * once: merge a duplicate record into the person's record, or link a real second
+ * mailbox to the person's main record. The cases are the ones found on NOC2 on
+ * 2026-09-16.
  */
 function suggestRecord(int $id, string $name, ?string $email, array $extra = []): array
 {
@@ -15,74 +17,87 @@ function suggestRecord(int $id, string $name, ?string $email, array $extra = [])
     ], $extra);
 }
 
-it('makes the SSS Egypt record with the Oracle number the main one and links the samirgroup.com mailbox to it', function () {
-    $suggestions = LinkedAccountSuggester::suggest([
-        suggestRecord(94, 'Ahmed Salem', 'ahmed.salem@samirgroup.com'),
-        suggestRecord(95, 'Ahmed Salem', 'ahmed.salem@sssegypt.com', ['oracle_emp_no' => '519']),
-    ], [95 => '2026-09-14 08:02:00']);
+/** Suggestions with every record's Azure account treated as live, unless listed as gone. */
+function suggestFor(array $records, array $punches = [], array $goneAccounts = []): array
+{
+    $live = array_values(array_diff(array_filter(array_column($records, 'azure_id')), $goneAccounts));
 
-    expect($suggestions)->toHaveCount(1)
-        ->and($suggestions[0]['primary']['id'])->toBe(95)
-        ->and(array_column($suggestions[0]['secondaries'], 'id'))->toBe([94])
-        ->and($suggestions[0]['reasons'])->toBe(['Same mailbox name on another domain', 'Same name']);
-});
+    return LinkedAccountSuggester::suggest($records, $punches, $live);
+}
 
-it('makes the service record from the HR import the main one for a person who also has a mailbox record', function () {
-    $suggestions = LinkedAccountSuggester::suggest([
+function suggestionIds(array $suggestion): array
+{
+    return [$suggestion['kind'], $suggestion['primary']['id'], array_column($suggestion['secondaries'], 'id')];
+}
+
+it('merges the service record the Oracle HR import created into the person\'s mailbox record', function () {
+    $suggestions = suggestFor([
         suggestRecord(285, 'Ibrahim Syed', 'ibrahim.syed@samirgroup.com'),
         suggestRecord(762, 'Ibrahim Syed', null, ['employee_type' => 'service', 'oracle_emp_no' => '2693']),
     ], [762 => '2026-09-16 07:58:00']);
 
-    expect($suggestions[0]['primary']['id'])->toBe(762)
-        ->and(array_column($suggestions[0]['secondaries'], 'id'))->toBe([285])
+    expect(array_map('suggestionIds', $suggestions))->toBe([['merge', 285, [762]]])
         ->and($suggestions[0]['reasons'])->toBe(['Same name']);
 });
 
-it('groups every mailbox of one person, and matches a name written in reverse order', function () {
-    $suggestions = LinkedAccountSuggester::suggest([
-        suggestRecord(566, 'Saher Al-Hindi', 'saher.alhindi@samirgroup.com', ['oracle_emp_no' => '1656']),
-        suggestRecord(567, 'SAHER ALHINDI', 'saher@sssegypt.com'),
-        suggestRecord(568, 'Saher Al Hindi', 'saher@oriana-sa.com'),
-        suggestRecord(275, 'Hussein Moukalled', 'hussein.moukalled@samirgroup.com', ['oracle_emp_no' => '283']),
-        suggestRecord(479, 'Moukalled Hussein', 'moukalled.hussein@samirgroup.com'),
-    ]);
+it('merges a record holding the same email into the one with the Microsoft account, even when someone linked them', function () {
+    $suggestions = suggestFor([
+        suggestRecord(690, 'Reema Al Mutairi', 'reema.almutairi@samirgroup.com', ['linked_primary_employee_id' => 805]),
+        suggestRecord(805, 'Reema  Almutairi', 'reema.almutairi@samirgroup.com', ['oracle_emp_no' => '2875', 'azure_id' => null]),
+    ], [805 => '2026-09-16 08:00:00']);
 
-    expect($suggestions)->toHaveCount(2)
-        ->and($suggestions[0]['primary']['id'])->toBe(275)
-        ->and($suggestions[0]['reasons'])->toBe(['Same name in reverse order'])
-        ->and($suggestions[1]['primary']['id'])->toBe(566)
-        ->and(array_column($suggestions[1]['secondaries'], 'id'))->toBe([567, 568]);
+    expect(array_map('suggestionIds', $suggestions))->toBe([['merge', 690, [805]]])
+        ->and($suggestions[0]['reasons'])->toBe(['Same email', 'Same name']);
 });
 
-it('never joins records Oracle HR knows as two different people', function () {
-    $suggestions = LinkedAccountSuggester::suggest([
-        suggestRecord(1, 'Mohamed Hassan', 'mohamed.hassan@samirgroup.com', ['oracle_emp_no' => '1200']),
-        suggestRecord(2, 'Mohamed Hassan', 'mohamed.hassan@sssegypt.com', ['oracle_emp_no' => '524']),
-    ]);
+it('merges an old terminated record into the current one, and leaves the mailbox linked to it for the merge to move', function () {
+    $suggestions = suggestFor([
+        suggestRecord(709, 'Rana Montaser', 'rana.montaser@sssegypt.com', ['status' => 'terminated']),
+        suggestRecord(716, 'Rana Montaser', 'rana.montaser@sssegypt.com'),
+        suggestRecord(717, 'Rana Montaser', 'rana.montaser@samirgroup.com', ['linked_primary_employee_id' => 709]),
+        suggestRecord(625, 'Tariq Al Hindi', 'tariq.alhindi@samirgroup.com', ['status' => 'terminated']),
+        suggestRecord(799, 'Tariq Alhindi', null, ['employee_type' => 'service', 'oracle_emp_no' => '2625']),
+    ], [716 => '2026-09-16 08:00:00'], goneAccounts: ['az-709', 'az-625']);
 
-    expect($suggestions)->toBe([]);
+    expect(array_map('suggestionIds', $suggestions))->toBe([
+        ['merge', 716, [709]],
+        ['merge', 799, [625]],
+    ]);
 });
 
-it('skips app accounts nobody in HR or BioTime knows, terminated records and accounts already linked', function () {
-    $suggestions = LinkedAccountSuggester::suggest([
-        suggestRecord(1, 'Application Notification', 'customapp@samirgroup.com'),
-        suggestRecord(2, 'Application Notification', 'customapp1@samirgroup.com'),
-        suggestRecord(3, 'Marina Atef', 'marina.atef@sssegypt.com', ['oracle_emp_no' => '529']),
-        suggestRecord(4, 'Marina Atef', 'marina.atef@samirgroup.com', ['status' => 'terminated']),
-        suggestRecord(5, 'Sara Gad', 'sara.gad@sssegypt.com', ['oracle_emp_no' => '523']),
-        suggestRecord(6, 'Sara Gad', 'sara.gad@samirgroup.com', ['linked_primary_employee_id' => 5]),
-    ]);
+it('links a second live mailbox to the HR record instead of merging it', function () {
+    $suggestions = suggestFor([
+        suggestRecord(100, 'Ahmed Yousef', 'ahmed.yousef@samirgroup.com'),
+        suggestRecord(101, 'Ahmed Yousef', 'ahmed.yousef@sssegypt.com', ['oracle_emp_no' => '537']),
+        // A different person with a reversed name and another Oracle number must not pull the group apart.
+        suggestRecord(668, 'Yousef Ahmed', 'yousef.ahmed@sssegypt.com', ['oracle_emp_no' => '518']),
+    ], [101 => '2026-09-14 08:00:00', 668 => '2026-09-14 08:00:00']);
 
-    expect($suggestions)->toBe([]);
+    expect(array_map('suggestionIds', $suggestions))->toBe([['link', 101, [100]]])
+        ->and($suggestions[0]['reasons'])->toBe(['Same mailbox name on another domain', 'Same name']);
 });
 
-it('keeps a record an admin already made the main one as the main one', function () {
-    $suggestions = LinkedAccountSuggester::suggest([
+it('keeps a record an admin already made the main one, and skips mailboxes already linked', function () {
+    $suggestions = suggestFor([
         suggestRecord(10, 'Nada Khier', 'nada.khier@sssegypt.com'),
         suggestRecord(11, 'Nada Khier', 'nada.khier@samirgroup.com', ['linked_primary_employee_id' => 10]),
         suggestRecord(12, 'Nada Khier', 'nada@oriana-sa.com', ['oracle_emp_no' => '520']),
     ]);
 
-    expect($suggestions[0]['primary']['id'])->toBe(10)
-        ->and(array_column($suggestions[0]['secondaries'], 'id'))->toBe([12]);
+    expect(array_map('suggestionIds', $suggestions))->toBe([['link', 10, [12]]]);
+});
+
+it('suggests nothing for different people, numbered test accounts or app accounts nobody in HR knows', function () {
+    $suggestions = suggestFor([
+        suggestRecord(1, 'Mohammed Qasim', 'mohammed.qasim@samirgroup.com', ['oracle_emp_no' => '2563']),
+        suggestRecord(2, 'Mohammed Qasim', null, ['employee_type' => 'service', 'oracle_emp_no' => '1081']),
+        suggestRecord(3, 'TestUserAVD1 Test', 'testuseravd1@samirgroup.com', ['oracle_emp_no' => '9001']),
+        suggestRecord(4, 'TestUserAVD2 Test', 'testuseravd2@samirgroup.com'),
+        suggestRecord(5, 'Application Notification', 'customapp@samirgroup.com'),
+        suggestRecord(6, 'Application Notification', 'customapp1@samirgroup.com'),
+        suggestRecord(7, 'Old Leaver', 'old.leaver@samirgroup.com', ['status' => 'terminated', 'oracle_emp_no' => '77']),
+        suggestRecord(8, 'Old Leaver', 'old.leaver@sssegypt.com', ['status' => 'terminated']),
+    ], goneAccounts: ['az-7', 'az-8']);
+
+    expect($suggestions)->toBe([]);
 });

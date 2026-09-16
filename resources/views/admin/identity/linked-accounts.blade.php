@@ -71,6 +71,112 @@
     @endif
 </form>
 
+{{-- ── Duplicate records: merge ── --}}
+@php $canMerge = $canManage && auth()->user()?->can('manage-employees'); @endphp
+<div class="card border-0 shadow-sm mb-4">
+    <form method="POST" action="{{ route('admin.identity.linked-accounts.merge') }}">
+        @csrf
+        <div class="card-header bg-transparent py-3 fw-semibold d-flex align-items-center">
+            <span><i class="bi bi-intersect me-1 text-danger"></i>Duplicate records</span>
+            <span class="badge bg-danger-subtle text-danger-emphasis border ms-2">{{ count($merges) }}</span>
+            <span class="text-muted fw-normal small ms-2">The same person recorded twice: merge them into one record</span>
+            @if($canMerge && count($merges))
+                <button type="submit" class="btn btn-sm btn-danger ms-auto"
+                        onclick="return confirm('Merge every ticked person into one record? The duplicate records are deleted once everything on them has moved.')">
+                    <i class="bi bi-intersect me-1"></i>Merge checked
+                </button>
+            @endif
+        </div>
+        <div class="card-body p-0">
+            @if(! count($merges))
+                <div class="text-muted text-center py-4">
+                    <i class="bi bi-check2-circle d-block mb-2" style="font-size:1.5rem;"></i>
+                    No duplicate records found{{ $search !== '' ? ' for this search' : '' }}.
+                </div>
+            @else
+            <div class="px-3 pt-3 small text-muted">
+                Usually a mailbox record next to a service record the Oracle HR import created for the same person, or an old record next to the current one.
+                Merging keeps the record with the Microsoft account, moves the Oracle number, punches, attendance, leave, licences, assets and
+                everything else onto it, fills whatever it was missing, and deletes the duplicate. The merge is logged in full.
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size:13px;">
+                    <thead class="text-muted">
+                        <tr>
+                            @if($canMerge)
+                                <th class="ps-3" style="width:32px">
+                                    <input type="checkbox" class="form-check-input" title="Tick all"
+                                           onclick="document.querySelectorAll('.merge-pick').forEach(c => c.checked = this.checked)">
+                                </th>
+                            @endif
+                            <th class="{{ $canMerge ? '' : 'ps-3' }}">Record to keep</th>
+                            <th>Duplicate, merged into it and deleted</th>
+                            <th>Why</th>
+                            @if($canMerge)<th class="text-end pe-3"></th>@endif
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach($merges as $i => $s)
+                        @php $p = $s['primary']; @endphp
+                        <tr>
+                            @if($canMerge)
+                                <td class="ps-3">
+                                    <input type="checkbox" class="form-check-input merge-pick" name="merges[{{ $i }}][selected]" value="1">
+                                    <input type="hidden" name="merges[{{ $i }}][employee_ids][]" value="{{ $p['id'] }}">
+                                    @foreach($s['secondaries'] as $sec)
+                                        <input type="hidden" name="merges[{{ $i }}][employee_ids][]" value="{{ $sec['id'] }}">
+                                    @endforeach
+                                </td>
+                            @endif
+                            <td class="{{ $canMerge ? '' : 'ps-3' }}">
+                                <div class="fw-semibold">{!! $person($p) !!}</div>
+                                <div class="text-muted font-monospace">{{ $p['email'] ?: 'no email' }}</div>
+                                <div class="small">
+                                    @if($p['oracle_emp_no'])<span class="badge text-bg-primary">Oracle {{ $p['oracle_emp_no'] }}</span>@endif
+                                    @if(($p['employee_type'] ?? 'standard') !== 'standard')<span class="badge text-bg-secondary">{{ ucfirst($p['employee_type']) }}</span>@endif
+                                    {!! $signIn($p['azure_id']) !!}
+                                    @if($canSeeAttendance && $p['last_punch'])<span class="text-muted ms-1">punched {{ \Illuminate\Support\Carbon::parse($p['last_punch'])->format('d M Y') }}</span>@endif
+                                </div>
+                                <div class="text-muted small">{{ collect([$p['job_title'], $p['department'], $p['branch']])->filter()->implode(' · ') }}</div>
+                            </td>
+                            <td>
+                                @foreach($s['secondaries'] as $sec)
+                                    <div class="{{ $loop->last ? '' : 'mb-2' }}">
+                                        <div>{!! $person($sec) !!} <span class="text-muted font-monospace">{{ $sec['email'] ?: 'no email' }}</span></div>
+                                        <div class="small">
+                                            @if($sec['oracle_emp_no'])<span class="badge text-bg-primary">Oracle {{ $sec['oracle_emp_no'] }}</span>@endif
+                                            @if(($sec['employee_type'] ?? 'standard') !== 'standard')<span class="badge text-bg-secondary">{{ ucfirst($sec['employee_type']) }}</span>@endif
+                                            @if(($sec['status'] ?? '') === 'terminated')<span class="badge text-bg-dark">Terminated</span>@endif
+                                            {!! $signIn($sec['azure_id']) !!}
+                                            @if($canSeeAttendance && $sec['last_punch'])<span class="text-muted ms-1">punched {{ \Illuminate\Support\Carbon::parse($sec['last_punch'])->format('d M Y') }}</span>@endif
+                                        </div>
+                                        <div class="text-muted small">{{ collect([$sec['job_title'], $sec['department'], $sec['branch']])->filter()->implode(' · ') }}</div>
+                                    </div>
+                                @endforeach
+                            </td>
+                            <td>
+                                @foreach($s['reasons'] as $reason)
+                                    <span class="badge bg-light text-dark border d-inline-block mb-1">{{ $reason }}</span>
+                                @endforeach
+                            </td>
+                            @if($canMerge)
+                                <td class="text-end pe-3">
+                                    <button type="submit" name="only" value="{{ $i }}" class="btn btn-outline-danger btn-sm text-nowrap"
+                                            onclick="return confirm('Merge {{ count($s['secondaries']) }} duplicate record(s) into {{ addslashes($p['name']) }}? The duplicate is deleted once everything on it has moved.')">
+                                        <i class="bi bi-intersect me-1"></i>Merge
+                                    </button>
+                                </td>
+                            @endif
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endif
+        </div>
+    </form>
+</div>
+
 {{-- ── Suggested links ── --}}
 <div class="card border-0 shadow-sm mb-4">
     <form method="POST" action="{{ route('admin.identity.linked-accounts.link') }}">
@@ -78,7 +184,7 @@
         <div class="card-header bg-transparent py-3 fw-semibold d-flex align-items-center">
             <span><i class="bi bi-magic me-1 text-warning"></i>Suggested links</span>
             <span class="badge bg-warning-subtle text-warning-emphasis border ms-2">{{ count($suggestions) }}</span>
-            <span class="text-muted fw-normal small ms-2">People the NOC holds more than once and nobody has linked yet</span>
+            <span class="text-muted fw-normal small ms-2">One person with a second mailbox: link it to the main record</span>
             @if($canManage && count($suggestions))
                 <button type="submit" class="btn btn-sm btn-success ms-auto"
                         onclick="return confirm('Link every ticked person to their main record?')">

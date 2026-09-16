@@ -529,6 +529,20 @@ class OracleHrImportService
                 continue;
             }
 
+            // The same person may already be here without an Oracle number, typically under their
+            // mailbox record: HR lists mail-less staff under a manager's address, so the email match
+            // missed them. A new service record would be a duplicate of that person. On NOC2 on
+            // 2026-09-16 there were seven, each with attendance on one record and licences on the other.
+            $existing = $this->samePersonWithoutOracleNumber($row);
+            if ($existing) {
+                $row->update([
+                    'error_note' => "{$existing->name} (#{$existing->id}".($existing->email ? ", {$existing->email}" : '').') is already in the NOC without an Oracle number. Link this row to that record instead of creating a second one.',
+                ]);
+                $skipped++;
+
+                continue;
+            }
+
             DB::transaction(fn () => $this->createServiceEmployee($row));
             $created++;
         }
@@ -536,6 +550,28 @@ class OracleHrImportService
         $batch->refreshCounts();
 
         return ['created' => $created, 'skipped' => $skipped];
+    }
+
+    /**
+     * The one current employee with this row's name and no Oracle number, if
+     * exactly one exists. Names compare on letters and digits only, so "Bander
+     * Al-Harbi" finds "Bander Alharbi"; two candidates stay unresolved.
+     */
+    private function samePersonWithoutOracleNumber(HrImportRow $row): ?Employee
+    {
+        $name = preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $row->emp_name));
+        if (strlen($name) < 6) {
+            return null;
+        }
+
+        $matches = Employee::query()
+            ->where('status', '!=', 'terminated')
+            ->where(fn ($q) => $q->whereNull('oracle_emp_no')->orWhere('oracle_emp_no', ''))
+            ->get(['id', 'name', 'email'])
+            ->filter(fn (Employee $e) => preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $e->name)) === $name)
+            ->values();
+
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     /** One service employee from one row: no email, ever. */
