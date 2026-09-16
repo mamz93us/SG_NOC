@@ -21,15 +21,17 @@
 set -euo pipefail
 
 HOST="${ARCMATE_HOST:-172.16.8.10}"
-# The repositories are NOT a share of their own: ArcMate shares the whole D:
-# drive as "d", with ArcRepositories a folder inside it. mount.cifs takes a
-# subdirectory in the UNC, so this mounts the folder itself at $MOUNT and the
-# app's mount_path stays /mnt/arcmate.
+# ArcMate exposes the repositories TWICE: the whole D: drive is shared as "d"
+# (so \host\d\ArcRepositories works), and there is a dedicated
+# ArcRepositories share pointing at the same folder. Use the dedicated one:
+# it is what production mounts, and share-level access can then be granted to
+# the read-only account without also exposing the rest of D:.
 #
-# That the whole drive is shared is one of the things this project exists to
-# end; mounting only the subfolder, read-only, is as narrow as this side can
-# make it.
-SHARE="${ARCMATE_SHARE:-d/ArcRepositories}"
+# If a host only has the drive share, override it -- mount.cifs accepts a
+# subdirectory in the UNC:
+#
+#     sudo ARCMATE_SHARE=d/ArcRepositories bash mount-arcmate.sh
+SHARE="${ARCMATE_SHARE:-ArcRepositories}"
 MOUNT="${ARCMATE_MOUNT:-/mnt/arcmate}"
 CRED="${ARCMATE_CRED:-/etc/arcmate-share.cred}"
 APP_USER="${APP_USER:-azureuser}"
