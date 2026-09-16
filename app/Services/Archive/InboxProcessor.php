@@ -124,6 +124,20 @@ class InboxProcessor
 
             $item->forceFill(['pages' => $pageCount])->save();
 
+            // Whether AI may read this scan at all, asked BEFORE any money is
+            // spent. The AI page says to leave the switches off for anything
+            // holding HR files, and until now that promise did not cover capture:
+            // a scan uploaded towards an archive with every AI switch off was
+            // still read, because this path checked only the budget.
+            //
+            // Done after the page count, which is free and which the filing form
+            // wants either way.
+            if (! $this->aiAllowed($item)) {
+                $item->forceFill(['ai_status' => ArchiveInboxItem::AI_DONE])->save();
+
+                return ['pages' => $pageCount, 'fields' => 0, 'error' => null];
+            }
+
             // Page count first and cheaply, because the filing form wants it even
             // when there is no budget to read anything.
             if (! ArchiveAiSettings::get()->withinBudget()) {
@@ -280,6 +294,29 @@ class InboxProcessor
         }
 
         return $candidates->first();
+    }
+
+    /**
+     * May AI read this scan?
+     *
+     * `ai_extract` is the capture switch, separate from `ai_reading` on purpose:
+     * reading history is a batch somebody starts and watches, while this runs by
+     * itself on every scan that arrives. They are different decisions and they
+     * get different switches.
+     *
+     * A scan that already knows its archive — one that came through a scan
+     * destination bound to an archive — is judged by that archive alone. One that
+     * does not is allowed if ANY archive its owner may file into has AI on, which
+     * is the same set the guess is made from: the alternative is refusing to read
+     * a scan because one of several possible destinations has AI off.
+     */
+    private function aiAllowed(ArchiveInboxItem $item): bool
+    {
+        if ($item->archive_id) {
+            return (bool) $item->archive?->ai_extract;
+        }
+
+        return $this->candidates($item)->contains(fn (Archive $archive) => (bool) $archive->ai_extract);
     }
 
     /**
