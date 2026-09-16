@@ -88,11 +88,13 @@ class AiController extends Controller
         $data = $request->validate([
             'ai_chat' => ['nullable', 'boolean'],
             'ai_reading' => ['nullable', 'boolean'],
+            'ai_extract' => ['nullable', 'boolean'],
         ]);
 
         $archive->forceFill([
             'ai_chat' => (bool) ($data['ai_chat'] ?? false),
             'ai_reading' => (bool) ($data['ai_reading'] ?? false),
+            'ai_extract' => (bool) ($data['ai_extract'] ?? false),
         ])->save();
 
         return back()->with('status', $archive->displayName().' updated.');

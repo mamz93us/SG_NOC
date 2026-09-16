@@ -234,6 +234,7 @@
                                 <th>Pages read</th>
                                 <th>Answer questions</th>
                                 <th>May read</th>
+                                <th>Read new scans</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -269,6 +270,14 @@
                                         <input class="form-check-input" type="checkbox" name="ai_reading" value="1"
                                                form="a{{ $row->archive->id }}" @checked($row->archive->ai_reading)>
                                     </td>
+                                    <td>
+                                        {{-- Capture, not history: this one runs by itself on every
+                                             scan that arrives, where "May read" is a batch somebody
+                                             starts and watches. Different decisions, different
+                                             switches. --}}
+                                        <input class="form-check-input" type="checkbox" name="ai_extract" value="1"
+                                               form="a{{ $row->archive->id }}" @checked($row->archive->ai_extract)>
+                                    </td>
                                     <td class="text-end">
                                         <button class="btn btn-sm btn-outline-secondary" form="a{{ $row->archive->id }}">
                                             Save
@@ -281,7 +290,12 @@
                 </div>
 
                 <p class="arc-muted small mb-0 mt-2">
-                    Both are off by default. Leave them off for anything holding HR files.
+                    All three are off by default — leave them off for anything holding HR
+                    files. <strong>Answer questions</strong> lets people ask about this
+                    archive; <strong>May read</strong> lets a batch here read its pages so
+                    words become searchable; <strong>Read new scans</strong> lets AI fill in
+                    the filing form for scans arriving in an inbox, which happens on its own
+                    rather than when somebody asks.
                 </p>
             </div>
 
