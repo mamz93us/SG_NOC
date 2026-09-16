@@ -1,4 +1,4 @@
-@extends('layouts.archive')
+@extends('layouts.admin')
 
 @section('title', 'Transfer to Azure')
 
@@ -20,8 +20,10 @@
 @endphp
 
 @section('content')
+    @include('admin.archive._styles')
+
     <div class="d-flex align-items-center gap-2 mb-3">
-        <a href="{{ route('archive.manage.index') }}" class="arc-muted text-decoration-none small">
+        <a href="{{ route('admin.archive.index') }}" class="arc-muted text-decoration-none small">
             <i class="bi bi-arrow-left"></i> Manage
         </a>
         <span class="arc-muted">/</span>
@@ -111,7 +113,7 @@
             <div class="arc-card p-3 mb-3">
                 <h2 class="h6 mb-3">When it runs</h2>
 
-                <form method="POST" action="{{ route('archive.manage.transfer.settings') }}">
+                <form method="POST" action="{{ route('admin.archive.transfer.settings') }}">
                     @csrf
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" name="transfer_enabled" value="1"
@@ -186,7 +188,7 @@
             <div class="arc-card p-3">
                 <h2 class="h6 mb-3">Checks</h2>
 
-                <form method="POST" action="{{ route('archive.manage.transfer.verify') }}" class="mb-2">
+                <form method="POST" action="{{ route('admin.archive.transfer.verify') }}" class="mb-2">
                     @csrf
                     <input type="hidden" name="count" value="20">
                     <button class="btn btn-outline-secondary btn-sm w-100">Verify 20 transferred files</button>
@@ -248,7 +250,7 @@
                                         <td class="text-end">
                                             @if ($row->archive->readable)
                                                 <form method="POST"
-                                                      action="{{ route('archive.manage.transfer.archive', $row->archive) }}"
+                                                      action="{{ route('admin.archive.transfer.archive', $row->archive) }}"
                                                       class="d-inline m-0">
                                                     @csrf
                                                     <input type="hidden" name="action"
@@ -259,7 +261,7 @@
                                                 </form>
                                                 @if ($row->pending > 0)
                                                     <form method="POST"
-                                                          action="{{ route('archive.manage.transfer.archive', $row->archive) }}"
+                                                          action="{{ route('admin.archive.transfer.archive', $row->archive) }}"
                                                           class="d-inline m-0">
                                                         @csrf
                                                         <input type="hidden" name="action" value="now">
@@ -284,7 +286,7 @@
                             Would not transfer
                             <span class="arc-muted fw-normal">({{ number_format($failedCount) }})</span>
                         </h2>
-                        <form method="POST" action="{{ route('archive.manage.transfer.retry') }}" class="m-0">
+                        <form method="POST" action="{{ route('admin.archive.transfer.retry') }}" class="m-0">
                             @csrf
                             <button class="btn btn-sm btn-outline-secondary">Retry all</button>
                         </form>

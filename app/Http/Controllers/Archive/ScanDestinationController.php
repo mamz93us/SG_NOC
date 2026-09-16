@@ -38,7 +38,7 @@ class ScanDestinationController extends Controller
     {
         $sftpgo = new SftpgoApiService;
 
-        return view('archive.manage.scan', [
+        return view('admin.archive.scan', [
             'endpoints' => ArchiveScanEndpoint::query()
                 ->with(['user', 'archive'])
                 ->orderBy('type')
@@ -107,7 +107,7 @@ class ScanDestinationController extends Controller
         $this->log('archive_scan_endpoint_created', $endpoint);
 
         return redirect()
-            ->route('archive.manage.scan')
+            ->route('admin.archive.scan')
             ->with('status', 'Destination created. Put the address below into the copier — it is shown only now.')
             ->with('archive_scan_token', $endpoint->address($token));
     }
@@ -154,7 +154,7 @@ class ScanDestinationController extends Controller
         $this->log('archive_scan_endpoint_created', $endpoint);
 
         return redirect()
-            ->route('archive.manage.scan')
+            ->route('admin.archive.scan')
             ->with('status', 'Folder destination created. The password is shown only now.')
             ->with('archive_scan_password', [
                 'username' => $endpoint->sftpgoUsername(),

@@ -135,11 +135,18 @@
                 <h2 class="h6 mb-3">Files <span class="arc-muted fw-normal">({{ $files->count() }})</span></h2>
 
                 @forelse ($files as $file)
+                    @php($storage = $file->storage())
                     <div class="d-flex align-items-center justify-content-between gap-2 py-2 {{ ! $loop->last ? 'border-bottom' : '' }}">
                         <div class="text-truncate">
                             <i class="bi {{ $file->isEmail() ? 'bi-envelope' : ($file->isPdf() ? 'bi-file-earmark-pdf' : 'bi-file-earmark-image') }}"></i>
                             <a href="{{ route('archive.document', ['id' => $document->id, 'file' => $file->id]) }}"
                                class="text-decoration-none small">{{ $file->downloadName() }}</a>
+                            {{-- Where the bytes are. It matters to a reader and not only
+                                 to an admin: a file still on ArcMate is served through the
+                                 cifs mount, so it depends on that VM being up. --}}
+                            <div class="small {{ $storage['class'] }}" title="{{ $storage['detail'] }}">
+                                <i class="bi {{ $storage['icon'] }}"></i> {{ $storage['label'] }}
+                            </div>
                         </div>
                         <a href="{{ route('archive.document.download', [$document->id, $file->id]) }}"
                            class="btn btn-sm btn-outline-secondary" title="Download">

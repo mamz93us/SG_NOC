@@ -419,3 +419,37 @@ test('the temporary copy is cleaned up, wherever it lives', function () {
 
     expect($after)->toBe($before);
 });
+
+// ─── Saying where a file actually is ─────────────────────────────
+
+test('a file says whether it is in the NOC or still on ArcMate', function () {
+    // One method, because the document page, the viewer and the Transfer page
+    // all answer this question and two pages disagreeing about where a file
+    // lives is worse than neither saying.
+    $file = ($this->makeFile)('where.pdf', 'invoice bytes');
+
+    expect($file->storage()['key'])->toBe('arcmate');
+    expect($file->storage()['label'])->toContain('ArcMate');
+    // Said in terms of what it costs the reader, not the disk name.
+    expect($file->storage()['detail'])->toContain('needs that server to be up');
+
+    expect($this->transfers->transfer($file))->toBeTrue();
+
+    $file = $file->fresh();
+    expect($file->storage()['key'])->toBe('azure');
+    expect($file->storage()['detail'])->toContain('checked against the original');
+});
+
+test('a failed copy is not shown as merely waiting', function () {
+    // Waiting needs only time; a failure needs somebody to look. Reporting both
+    // as "still on ArcMate" hides the one that will never resolve itself.
+    $file = ($this->makeFile)('gone.pdf', 'bytes');
+    $file->forceFill(['path' => $this->scratch.'/not-there.pdf'])->save();
+
+    expect($this->transfers->transfer($file))->toBeFalse();
+
+    $storage = $file->fresh()->storage();
+    expect($storage['key'])->toBe('failed');
+    expect($storage['label'])->toContain('failed');
+    expect($storage['detail'])->toContain('Not on the share');
+});

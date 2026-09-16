@@ -74,7 +74,7 @@ class ReviewController extends Controller
         // bulk-approve is for.
         $order = $request->query('order') === 'confident' ? 'desc' : 'asc';
 
-        return view('archive.manage.review', [
+        return view('archive.review', [
             // The paginator carries its own total, so nothing here counts twice.
             'proposals' => ArchiveAiProposal::query()
                 ->pending()

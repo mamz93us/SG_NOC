@@ -6,7 +6,6 @@ return [
     'brand_subtitle' => 'Samir Group',
     'sign_out' => 'Sign out',
     'inbox' => 'Inbox',
-    'manage' => 'Manage',
     'review' => 'Review',
     'footer' => 'Samir Group © :year — Internal use only',
 ];

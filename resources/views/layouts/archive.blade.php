@@ -237,11 +237,6 @@
             <i class="bi bi-inbox"></i> {{ __('archive_layout.inbox') }}
           </a>
         @endcan
-        @can('manage-archive-portal')
-          <a class="arc-header-link" href="{{ route('archive.manage.index') }}">
-            <i class="bi bi-sliders"></i> {{ __('archive_layout.manage') }}
-          </a>
-        @endcan
 
         <div class="arc-header-clock">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9.25"/><path d="M12 7v5.2l3.4 2" stroke-linecap="round" stroke-linejoin="round"/></svg>

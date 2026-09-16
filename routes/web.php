@@ -260,64 +260,6 @@ if (\App\Support\ArchivePortal::enabled()) {
 
             Route::post('/ask', [\App\Http\Controllers\Archive\AskController::class, 'archive'])->name('ask');
         });
-
-        // ── Setting it up ─────────────────────────────────────────
-        // A separate permission from reading: configuring the mirror is not
-        // permission to open an invoice.
-        Route::middleware(['auth', 'permission:manage-archive-portal', 'throttle:120,1'])
-            ->prefix('manage')->name('manage.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\Archive\ManageController::class, 'index'])->name('index');
-                Route::post('/source', [\App\Http\Controllers\Archive\ManageController::class, 'saveSource'])->name('source.save');
-                Route::post('/source/test', [\App\Http\Controllers\Archive\ManageController::class, 'testSource'])->name('source.test');
-
-                // Moving the 372 GB to Azure. Nothing here copies anything: the
-                // buttons change a setting or queue a task, and the worker picks
-                // it up within a minute.
-                Route::get('/transfer', [\App\Http\Controllers\Archive\TransferController::class, 'index'])->name('transfer');
-                Route::post('/transfer/settings', [\App\Http\Controllers\Archive\TransferController::class, 'saveSettings'])->name('transfer.settings');
-                Route::post('/transfer/archives/{archive}', [\App\Http\Controllers\Archive\TransferController::class, 'archiveAction'])
-                    ->whereNumber('archive')->name('transfer.archive');
-                Route::post('/transfer/retry', [\App\Http\Controllers\Archive\TransferController::class, 'retry'])->name('transfer.retry');
-                Route::post('/transfer/verify', [\App\Http\Controllers\Archive\TransferController::class, 'verify'])->name('transfer.verify');
-
-                // AI: the budget, which archives it may touch, and the batches
-                // that read history or propose values. Nothing here calls Azure —
-                // a batch is a row the scheduler works in slices.
-                Route::get('/ai', [\App\Http\Controllers\Archive\AiController::class, 'index'])->name('ai');
-                Route::post('/ai/settings', [\App\Http\Controllers\Archive\AiController::class, 'saveSettings'])->name('ai.settings');
-                Route::post('/ai/archives/{archive}', [\App\Http\Controllers\Archive\AiController::class, 'saveArchive'])
-                    ->whereNumber('archive')->name('ai.archive');
-                Route::post('/ai/estimate', [\App\Http\Controllers\Archive\AiController::class, 'estimate'])->name('ai.estimate');
-                Route::post('/ai/batches', [\App\Http\Controllers\Archive\AiController::class, 'start'])->name('ai.start');
-                Route::post('/ai/batches/{batch}', [\App\Http\Controllers\Archive\AiController::class, 'batchAction'])
-                    ->whereNumber('batch')->name('ai.batch');
-                // Scan destinations: the addresses and SFTP logins the copiers
-                // send to. A destination only ever grants "put a document in" —
-                // never read — which is what makes an address held in a copier's
-                // plain settings acceptable.
-                Route::get('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'index'])->name('scan');
-                Route::post('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'store'])->name('scan.store');
-                Route::post('/scan/{endpoint}/toggle', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'toggle'])
-                    ->whereNumber('endpoint')->name('scan.toggle');
-                Route::post('/scan/{endpoint}/rotate', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'rotate'])
-                    ->whereNumber('endpoint')->name('scan.rotate');
-                Route::delete('/scan/{endpoint}', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'destroy'])
-                    ->whereNumber('endpoint')->name('scan.destroy');
-
-                Route::post('/tasks', [\App\Http\Controllers\Archive\ManageController::class, 'queueTask'])->name('tasks.store');
-                Route::post('/archives', [\App\Http\Controllers\Archive\ManageController::class, 'enable'])->name('enable');
-                Route::get('/archives/{archive}', [\App\Http\Controllers\Archive\ManageController::class, 'showArchive'])
-                    ->whereNumber('archive')->name('archive');
-                // A field ArcMate does not have. Safe on a mirrored archive
-                // BECAUSE it has no arcmate_column: the sync maps values by
-                // column, so it never writes this one and never clears it.
-                Route::post('/archives/{archive}/fields', [\App\Http\Controllers\Archive\ManageController::class, 'addField'])
-                    ->whereNumber('archive')->name('fields.store');
-                Route::post('/archives/{archive}/members', [\App\Http\Controllers\Archive\ManageController::class, 'addMember'])
-                    ->whereNumber('archive')->name('members.store');
-                Route::delete('/archives/{archive}/members/{member}', [\App\Http\Controllers\Archive\ManageController::class, 'removeMember'])
-                    ->whereNumber('archive')->whereNumber('member')->name('members.destroy');
-            });
     });
 }
 
@@ -1365,6 +1307,72 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::put('portal-documents/{portalDocument}', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'update'])->name('portal-documents.update');
             Route::delete('portal-documents/{portalDocument}', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'destroy'])->name('portal-documents.destroy');
         });
+
+        // ── Document archive (archive.samirgroup.net) ─────────────────
+        // Its SETTINGS, not its contents. The portal itself is for reading,
+        // filing and asking — searching an archive, opening a scan, approving an
+        // AI proposal — and none of that belongs to whoever configures the
+        // ArcMate mirror. So the mirror, the transfer, the AI budget and the scan
+        // destinations are administered here, beside every other subsystem's
+        // settings, and the portal has no settings pages at all.
+        //
+        // Being on this host is the point: /admin demands 2FA, and the archive
+        // host deliberately skips it, so configuration was the one archive
+        // surface reachable with a password alone.
+        Route::middleware(['permission:manage-archive-portal', 'throttle:120,1'])
+            ->prefix('archive')->name('archive.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Archive\ManageController::class, 'index'])->name('index');
+                Route::post('/source', [\App\Http\Controllers\Archive\ManageController::class, 'saveSource'])->name('source.save');
+                Route::post('/source/test', [\App\Http\Controllers\Archive\ManageController::class, 'testSource'])->name('source.test');
+
+                // Moving the 372 GB to Azure. Nothing here copies anything: the
+                // buttons change a setting or queue a task, and the worker picks
+                // it up within a minute.
+                Route::get('/transfer', [\App\Http\Controllers\Archive\TransferController::class, 'index'])->name('transfer');
+                Route::post('/transfer/settings', [\App\Http\Controllers\Archive\TransferController::class, 'saveSettings'])->name('transfer.settings');
+                Route::post('/transfer/archives/{archive}', [\App\Http\Controllers\Archive\TransferController::class, 'archiveAction'])
+                    ->whereNumber('archive')->name('transfer.archive');
+                Route::post('/transfer/retry', [\App\Http\Controllers\Archive\TransferController::class, 'retry'])->name('transfer.retry');
+                Route::post('/transfer/verify', [\App\Http\Controllers\Archive\TransferController::class, 'verify'])->name('transfer.verify');
+
+                // AI: the budget, which archives it may touch, and the batches
+                // that read history or propose values. Nothing here calls Azure —
+                // a batch is a row the scheduler works in slices.
+                Route::get('/ai', [\App\Http\Controllers\Archive\AiController::class, 'index'])->name('ai');
+                Route::post('/ai/settings', [\App\Http\Controllers\Archive\AiController::class, 'saveSettings'])->name('ai.settings');
+                Route::post('/ai/archives/{archive}', [\App\Http\Controllers\Archive\AiController::class, 'saveArchive'])
+                    ->whereNumber('archive')->name('ai.archive');
+                Route::post('/ai/estimate', [\App\Http\Controllers\Archive\AiController::class, 'estimate'])->name('ai.estimate');
+                Route::post('/ai/batches', [\App\Http\Controllers\Archive\AiController::class, 'start'])->name('ai.start');
+                Route::post('/ai/batches/{batch}', [\App\Http\Controllers\Archive\AiController::class, 'batchAction'])
+                    ->whereNumber('batch')->name('ai.batch');
+                // Scan destinations: the addresses and SFTP logins the copiers
+                // send to. A destination only ever grants "put a document in" —
+                // never read — which is what makes an address held in a copier's
+                // plain settings acceptable.
+                Route::get('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'index'])->name('scan');
+                Route::post('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'store'])->name('scan.store');
+                Route::post('/scan/{endpoint}/toggle', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'toggle'])
+                    ->whereNumber('endpoint')->name('scan.toggle');
+                Route::post('/scan/{endpoint}/rotate', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'rotate'])
+                    ->whereNumber('endpoint')->name('scan.rotate');
+                Route::delete('/scan/{endpoint}', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'destroy'])
+                    ->whereNumber('endpoint')->name('scan.destroy');
+
+                Route::post('/tasks', [\App\Http\Controllers\Archive\ManageController::class, 'queueTask'])->name('tasks.store');
+                Route::post('/archives', [\App\Http\Controllers\Archive\ManageController::class, 'enable'])->name('enable');
+                Route::get('/archives/{archive}', [\App\Http\Controllers\Archive\ManageController::class, 'showArchive'])
+                    ->whereNumber('archive')->name('archive');
+                // A field ArcMate does not have. Safe on a mirrored archive
+                // BECAUSE it has no arcmate_column: the sync maps values by
+                // column, so it never writes this one and never clears it.
+                Route::post('/archives/{archive}/fields', [\App\Http\Controllers\Archive\ManageController::class, 'addField'])
+                    ->whereNumber('archive')->name('fields.store');
+                Route::post('/archives/{archive}/members', [\App\Http\Controllers\Archive\ManageController::class, 'addMember'])
+                    ->whereNumber('archive')->name('members.store');
+                Route::delete('/archives/{archive}/members/{member}', [\App\Http\Controllers\Archive\ManageController::class, 'removeMember'])
+                    ->whereNumber('archive')->whereNumber('member')->name('members.destroy');
+            });
 
         // ── AI IT Assistant ───────────────────────────────────────────
         // Knowledge article authoring + settings live under manage-ai-assistant;
