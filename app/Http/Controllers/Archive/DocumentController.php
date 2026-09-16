@@ -74,6 +74,12 @@ class DocumentController extends Controller
             // panel that renders and then refuses every question is worse than no
             // panel at all.
             'canAsk' => $access->mayUseAi() && (bool) $document->archive?->ai_chat,
+            // A mirrored archive copies DOCUMENTS first and their files after, so
+            // during the first backfill a real document legitimately has no files
+            // yet. Saying "this document has no files" then reads as data loss, on
+            // the one screen where that is most alarming.
+            'backfilling' => (bool) $document->archive?->arcmate_database
+                && $document->archive?->backfill_done_at === null,
         ]);
     }
 

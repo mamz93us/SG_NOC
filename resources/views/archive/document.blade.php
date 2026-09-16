@@ -147,14 +147,35 @@
                         </a>
                     </div>
                 @empty
-                    <p class="arc-muted small mb-0">This document has no files.</p>
+                    @if ($backfilling)
+                        {{-- Still mirroring: documents come over before their files, so
+                             this is a queue position, not a missing scan. --}}
+                        <p class="arc-muted small mb-0">
+                            <i class="bi bi-hourglass-split"></i>
+                            Still being copied from ArcMate. Documents arrive before their
+                            scans do, so this one has not reached the front of the queue yet.
+                        </p>
+                    @else
+                        <p class="arc-muted small mb-0">This document has no files.</p>
+                    @endif
                 @endforelse
             </div>
         </div>
 
         <div class="col-lg-8 col-xl-9">
             @if (! $primary)
-                <div class="arc-card arc-empty">Nothing to display.</div>
+                @if ($backfilling)
+                    <div class="arc-card arc-empty">
+                        <i class="bi bi-hourglass-split" style="font-size:1.5rem"></i>
+                        <p class="mt-2 mb-1">The scan is still being copied from ArcMate.</p>
+                        <p class="small mb-0">
+                            Every document is copied first and its files follow, so this page
+                            fills in on its own. Nothing is missing.
+                        </p>
+                    </div>
+                @else
+                    <div class="arc-card arc-empty">Nothing to display.</div>
+                @endif
             @elseif ($missing)
                 {{-- The index row is real but the bytes are not where ArcMate said.
                      Reported rather than hidden: a file that has gone missing on the
