@@ -5,8 +5,8 @@ use App\Models\Archive\ArchiveDocument;
 use App\Models\Archive\ArchiveDocumentValue;
 use App\Models\Archive\ArchiveField;
 use App\Models\Archive\ArchiveFile;
-use App\Services\Archive\ArcMate\ReadsArcMate;
 use App\Services\Archive\ArchiveSyncService;
+use App\Services\Archive\ArcMate\ReadsArcMate;
 use Tests\Unit\Archive\ArchiveTestSchema;
 
 /**
@@ -452,4 +452,80 @@ test('counts are refreshed for the archive card', function () {
     expect($archive->document_count)->toBe(2);
     expect($archive->file_count)->toBe(1);
     expect($archive->backfill_done_at)->not->toBeNull();
+});
+
+test('a file whose document can never arrive does not block every file behind it', function () {
+    // Found in production. ArcMate holds files with arcDocumentId 0 — 38 of them
+    // in SPS Invoices — and the pass waited for a document that cannot exist. The
+    // mirror froze at 19,000 of 511,248 files with the watermark stuck on the
+    // first such row, and every later file queued behind it for ever.
+    //
+    // The two cases are told apart by the DOCUMENT watermark: ahead of it means
+    // still coming, at or behind it means it is not coming.
+    $arcmate = new FakeArcMate(
+        documents: [
+            ['arcId' => 10, 'arcStatus' => 1, 'arcFileCount' => 1, 'S1' => 'INV-001', 'S2' => null],
+            ['arcId' => 11, 'arcStatus' => 1, 'arcFileCount' => 1, 'S1' => 'INV-002', 'S2' => null],
+        ],
+        files: [
+            ['arcId' => 500, 'arcDocumentId' => 10, 'arcFileName' => 'D2026\0915\1440\a.pdf',
+                'arcOrgName' => null, 'arcFileOrder' => 10, 'arcPageCount' => 0, 'arcFileSize' => 0, 'arcStatus' => 0, 'arcFileCRC' => null],
+            // No document at all, and there never will be one.
+            ['arcId' => 501, 'arcDocumentId' => 0, 'arcFileName' => 'D2026\0915\1445\orphan.pdf',
+                'arcOrgName' => null, 'arcFileOrder' => 10, 'arcPageCount' => 0, 'arcFileSize' => 0, 'arcStatus' => 0, 'arcFileCRC' => null],
+            ['arcId' => 502, 'arcDocumentId' => 11, 'arcFileName' => 'D2026\0915\1450\b.pdf',
+                'arcOrgName' => null, 'arcFileOrder' => 10, 'arcPageCount' => 0, 'arcFileSize' => 0, 'arcStatus' => 0, 'arcFileCRC' => null],
+        ],
+    );
+
+    $stats = syncFake($arcmate, $this->archive, $this->sync);
+
+    // The file behind the orphan is copied, not stranded.
+    expect($stats['files'])->toBe(2);
+    expect($stats['skipped'])->toBe(1);
+    expect(ArchiveFile::count())->toBe(2);
+
+    // And the watermark moves PAST the orphan, or the next run reads it again.
+    expect($this->archive->fresh()->last_file_arc_id)->toBe(502);
+});
+
+test('a batch that is entirely orphans still moves the watermark', function () {
+    // The infinite-loop guard: advancing only to the last WRITTEN file leaves a
+    // batch with nothing writable in it re-reading the same rows for ever.
+    $arcmate = new FakeArcMate(
+        documents: [['arcId' => 10, 'arcStatus' => 1, 'arcFileCount' => 0, 'S1' => 'INV-001', 'S2' => null]],
+        files: [
+            ['arcId' => 500, 'arcDocumentId' => 0, 'arcFileName' => 'D2026\0915\1440\x.pdf',
+                'arcOrgName' => null, 'arcFileOrder' => 10, 'arcPageCount' => 0, 'arcFileSize' => 0, 'arcStatus' => 0, 'arcFileCRC' => null],
+            ['arcId' => 501, 'arcDocumentId' => 0, 'arcFileName' => 'D2026\0915\1445\y.pdf',
+                'arcOrgName' => null, 'arcFileOrder' => 10, 'arcPageCount' => 0, 'arcFileSize' => 0, 'arcStatus' => 0, 'arcFileCRC' => null],
+        ],
+    );
+
+    $stats = syncFake($arcmate, $this->archive, $this->sync);
+
+    expect($stats['files'])->toBe(0);
+    expect($stats['skipped'])->toBe(2);
+    expect($this->archive->fresh()->last_file_arc_id)->toBe(501);
+});
+
+test('the backfill is not called done while a file is still waiting for its document', function () {
+    // caught_up used to mean "did not run out of time", so a run that stopped at
+    // a file whose document had not arrived still stamped backfill_done_at. On
+    // NOC2 that marked a mirror holding 3% of its files as complete.
+    $arcmate = new FakeArcMate(
+        documents: [['arcId' => 10, 'arcStatus' => 1, 'arcFileCount' => 1, 'S1' => 'INV-001', 'S2' => null]],
+        files: [
+            ['arcId' => 500, 'arcDocumentId' => 10, 'arcFileName' => 'D2026\0915\1440\a.pdf',
+                'arcOrgName' => null, 'arcFileOrder' => 10, 'arcPageCount' => 0, 'arcFileSize' => 0, 'arcStatus' => 0, 'arcFileCRC' => null],
+            // Its document is ahead of the watermark: still coming.
+            ['arcId' => 501, 'arcDocumentId' => 99, 'arcFileName' => 'D2026\0915\1450\b.pdf',
+                'arcOrgName' => null, 'arcFileOrder' => 10, 'arcPageCount' => 0, 'arcFileSize' => 0, 'arcStatus' => 0, 'arcFileCRC' => null],
+        ],
+    );
+
+    $stats = syncFake($arcmate, $this->archive, $this->sync);
+
+    expect($stats['caught_up'])->toBeFalse();
+    expect($this->archive->fresh()->backfill_done_at)->toBeNull();
 });

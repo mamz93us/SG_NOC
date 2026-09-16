@@ -62,15 +62,18 @@ class ArchiveSyncService
     {
         $shouldStop ??= static fn (): bool => false;
 
-        $stats = ['documents' => 0, 'files' => 0, 'updated' => 0, 'deleted' => 0, 'caught_up' => false];
+        $stats = ['documents' => 0, 'files' => 0, 'updated' => 0, 'deleted' => 0, 'skipped' => 0, 'caught_up' => false];
+        $documentsExhausted = false;
+        $filesExhausted = false;
+        $skipped = 0;
 
         Auditor::withoutAuditing(function () use ($archive, $reader, $batch, $shouldStop, &$stats) {
             $columns = $this->columns($archive);
 
-            $stats['documents'] = $this->syncDocuments($archive, $reader, $columns, $batch, $shouldStop);
+            $stats['documents'] = $this->syncDocuments($archive, $reader, $columns, $batch, $shouldStop, $documentsExhausted);
 
             if (! $shouldStop()) {
-                $stats['files'] = $this->syncFiles($archive, $reader, $batch, $shouldStop);
+                $stats['files'] = $this->syncFiles($archive, $reader, $batch, $shouldStop, $filesExhausted, $skipped);
             }
 
             if (! $shouldStop()) {
@@ -81,7 +84,12 @@ class ArchiveSyncService
                 $stats['deleted'] = $this->syncDeletions($archive, $reader, $batch, $shouldStop);
             }
 
-            $stats['caught_up'] = ! $shouldStop();
+            $stats['skipped'] = $skipped;
+
+            // "Caught up" has to mean there is nothing left to copy, not merely
+            // that we did not run out of time. Read the loose way, one pass that
+            // stopped early marked a 3%-complete mirror as finished.
+            $stats['caught_up'] = ! $shouldStop() && $documentsExhausted && $filesExhausted;
         });
 
         if ($stats['caught_up'] && $archive->backfill_done_at === null) {
@@ -96,8 +104,9 @@ class ArchiveSyncService
     // ─── Pass 1: new documents ───────────────────────────────────
 
     /** @param array<int,ArchiveField> $columns arcmate column => field */
-    private function syncDocuments(Archive $archive, ReadsArcMate $reader, array $columns, int $batch, callable $shouldStop): int
+    private function syncDocuments(Archive $archive, ReadsArcMate $reader, array $columns, int $batch, callable $shouldStop, ?bool &$exhausted = null): int
     {
+        $exhausted = false;
         $total = 0;
 
         for ($pass = 0; $pass < self::MAX_BATCHES_PER_PASS; $pass++) {
@@ -108,6 +117,7 @@ class ArchiveSyncService
             $rows = $reader->documentsAfter((int) $archive->last_doc_arc_id, array_keys($columns), $batch);
 
             if ($rows === []) {
+                $exhausted = true;
                 break;
             }
 
@@ -154,8 +164,35 @@ class ArchiveSyncService
 
     // ─── Pass 2: new files ───────────────────────────────────────
 
-    private function syncFiles(Archive $archive, ReadsArcMate $reader, int $batch, callable $shouldStop): int
-    {
+    /**
+     * Copy new files.
+     *
+     * The ordering rule that makes this safe: file and document arcIds are
+     * independent sequences in ArcMate, so a file can appear before its document
+     * has been copied. When that happens the pass stops and leaves the watermark
+     * before the file, and the next run picks it up once the document pass has
+     * caught up.
+     *
+     * But that only works for a document that is still COMING. ArcMate also holds
+     * files whose document can never arrive -- 38 of them in SPS Invoices, all with
+     * arcDocumentId 0 -- and waiting for those blocked every later file behind them:
+     * the mirror sat at 19,000 of 511,248 files with the watermark frozen, and
+     * reported itself caught up. So the two cases are told apart by the document
+     * watermark: ahead of it means not copied yet, at or behind it means it is not
+     * coming, and the file is skipped rather than waited on.
+     *
+     * @param  int|null  $skipped  files whose document will never exist
+     */
+    private function syncFiles(
+        Archive $archive,
+        ReadsArcMate $reader,
+        int $batch,
+        callable $shouldStop,
+        ?bool &$exhausted = null,
+        ?int &$skipped = null,
+    ): int {
+        $exhausted = false;
+        $skipped = 0;
         $total = 0;
 
         for ($pass = 0; $pass < self::MAX_BATCHES_PER_PASS; $pass++) {
@@ -166,6 +203,7 @@ class ArchiveSyncService
             $rows = $reader->filesAfter((int) $archive->last_file_arc_id, $batch);
 
             if ($rows === []) {
+                $exhausted = true;
                 break;
             }
 
@@ -175,17 +213,29 @@ class ArchiveSyncService
             ));
 
             $writable = [];
-            $stoppedAt = null;
+            $waitingFor = null;
+            $examined = null;
 
             foreach ($rows as $row) {
-                // The document has not been copied yet. Stop here rather than
-                // skipping: the next run will have it, and the watermark must
-                // not move past a file we did not write.
-                if (! isset($documentIds[(int) $row->arcDocumentId])) {
-                    $stoppedAt = (int) $row->arcId;
-                    break;
+                $documentArcId = (int) $row->arcDocumentId;
+
+                if (! isset($documentIds[$documentArcId])) {
+                    // Still coming: the document pass has not reached it. Stop, and
+                    // do not move the watermark past a file we did not write.
+                    if ($documentArcId > (int) $archive->last_doc_arc_id) {
+                        $waitingFor = (int) $row->arcId;
+                        break;
+                    }
+
+                    // Never coming (see the note above). Skipped, and counted so the
+                    // run reports it rather than losing files silently.
+                    $examined = (int) $row->arcId;
+                    $skipped++;
+
+                    continue;
                 }
 
+                $examined = (int) $row->arcId;
                 $writable[] = $row;
             }
 
@@ -193,14 +243,21 @@ class ArchiveSyncService
                 $this->writeFiles($archive, $writable, $documentIds);
                 $this->stampCaptureTimes($archive, $writable, $documentIds);
                 $total += count($writable);
-
-                $highest = (int) end($writable)->arcId;
-                $archive->forceFill(['last_file_arc_id' => $highest])->save();
             }
 
-            // Either we ran into an uncopied document, or this was the last
-            // partial batch — both mean the pass is done for now.
-            if ($stoppedAt !== null || count($rows) < $batch) {
+            // Past everything decided about, written or deliberately skipped. Moving
+            // only to the last WRITTEN file means a batch that is entirely orphans
+            // never advances, and the pass re-reads the same rows for ever.
+            if ($examined !== null) {
+                $archive->forceFill(['last_file_arc_id' => $examined])->save();
+            }
+
+            if ($waitingFor !== null) {
+                break;
+            }
+
+            if (count($rows) < $batch) {
+                $exhausted = true;
                 break;
             }
         }
