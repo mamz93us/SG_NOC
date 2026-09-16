@@ -6,8 +6,8 @@
     <div class="row justify-content-center">
         <div class="col-md-5 col-lg-4">
             <div class="arc-card p-4 mt-5 text-center">
-                <h1 class="h5 mb-1">Document Archive</h1>
-                <p class="arc-muted small mb-4">Samir Group</p>
+                <h1 class="h5 mb-1">Sign in</h1>
+                <p class="arc-muted small mb-4">Use your Samir Group work account.</p>
 
                 {{--
                     Microsoft only. There is no password form here at all — this
