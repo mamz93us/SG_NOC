@@ -85,12 +85,16 @@ class SyncArcMateArchives extends Command
                 }
 
                 $this->line(sprintf(
-                    '%-24s +%d documents, +%d files, %d updated, %d deleted%s',
+                    '%-24s +%d documents, +%d files, %d updated, %d deleted%s%s',
                     $archive->slug,
                     $stats['documents'],
                     $stats['files'],
                     $stats['updated'],
                     $stats['deleted'],
+                    // Files whose document does not exist in ArcMate. Reported
+                    // rather than dropped quietly: they are skipped on purpose,
+                    // and a count that climbs is worth someone looking at.
+                    ($stats['skipped'] ?? 0) ? ', '.$stats['skipped'].' skipped (no document)' : '',
                     $stats['caught_up'] ? ', caught up' : ''
                 ));
             } catch (\Throwable $e) {
