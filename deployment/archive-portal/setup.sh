@@ -167,11 +167,22 @@ systemctl reload nginx
 log "nginx reloaded."
 
 # --- TLS -----------------------------------------------------------------------
+TLS_OK=0
+
 if [[ "${SKIP_TLS:-0}" == "1" ]]; then
     warn "SKIP_TLS=1 — no certificate. Later:"
     warn "    sudo certbot certonly -a webroot -w $ACME_ROOT -d $DOMAIN"
 elif [[ -d "/etc/letsencrypt/live/${DOMAIN}" ]]; then
     log "Certificate already exists for $DOMAIN."
+    # Re-run on a host that is already set up. The TLS block is only written in
+    # the branch that obtains a certificate, so check it is actually there rather
+    # than assuming a cert means a working vhost.
+    if grep -q "listen 443" "$AVAILABLE"; then
+        TLS_OK=1
+    else
+        warn "A certificate exists but this vhost has no 443 block. Remove"
+        warn "$AVAILABLE and re-run to have it written."
+    fi
 elif ! command -v certbot >/dev/null; then
     warn "certbot is not installed."
 else
@@ -181,12 +192,18 @@ else
 
     if certbot "${CERTBOT_ARGS[@]}"; then
         log "Certificate issued. Adding the TLS server block ..."
+        VHOST_BACKUP="${AVAILABLE}.before-tls.$(date +%Y%m%d%H%M%S)"
+        cp -a "$AVAILABLE" "$VHOST_BACKUP"
         cat >> "$AVAILABLE" <<NGINX
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
+    # `listen ... http2` rather than the newer `http2 on;` directive: nginx on
+    # this host is 1.24, where `http2 on;` is an unknown directive and makes the
+    # WHOLE config invalid — nginx keeps serving its old config but every later
+    # reload or restart then fails, which is a latent outage rather than an
+    # obvious one. Every other vhost here uses this same form.
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name ${DOMAIN};
 
     ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
@@ -216,7 +233,28 @@ server {
     location ~ /\.(?!well-known).* { deny all; }
 }
 NGINX
-        nginx -t && systemctl reload nginx && log "TLS live."
+        if nginx -t 2>/dev/null; then
+            # TLS works, so plain HTTP only needs to redirect. The ACME location
+            # is `^~`, which outranks this, so renewals keep working over port 80.
+            perl -0777 -i -pe 's{    location / \{\n        try_files \$uri \$uri/ /index\.php\?\$query_string;\n    \}}{    location / \{ return 301 https://\$host\$request_uri; \}}s' "$AVAILABLE"
+            if nginx -t 2>/dev/null; then
+                systemctl reload nginx
+                TLS_OK=1
+                log "TLS live; HTTP redirects to it."
+            else
+                cp -a "$VHOST_BACKUP" "$AVAILABLE"
+                nginx -t >/dev/null 2>&1 && systemctl reload nginx
+                warn "The HTTP-redirect edit broke the config; reverted. TLS not applied."
+            fi
+        else
+            # Never leave an invalid vhost on disk: nginx would keep running on
+            # its old config and then fail the next reload or reboot.
+            cp -a "$VHOST_BACKUP" "$AVAILABLE"
+            nginx -t >/dev/null 2>&1 && systemctl reload nginx
+            warn "The TLS block did not validate, so it was REVERTED. The site is up"
+            warn "over HTTP only. nginx -t output:"
+            nginx -t 2>&1 | sed "s/^/      /" || true
+        fi
     else
         warn "certbot failed. The site is up over HTTP; fix DNS then re-run."
     fi
@@ -244,7 +282,13 @@ sudo -u "$WEB_USER" php "$APP_DIR/artisan" migrate --force
 # --- Smoke test ----------------------------------------------------------------
 # Proves both halves at once: the vhost resolves, and host isolation is live.
 log "Smoke testing ..."
-probe() { curl -s -o /dev/null -w '%{http_code}' -H "Host: ${DOMAIN}" "http://127.0.0.1$1" || echo "ERR"; }
+probe() {
+    if [[ "$TLS_OK" == "1" ]]; then
+        curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}$1" || echo "ERR"
+    else
+        curl -s -o /dev/null -w '%{http_code}' -H "Host: ${DOMAIN}" "http://127.0.0.1$1" || echo "ERR"
+    fi
+}
 
 LOGIN_CODE="$(probe /login)"
 ADMIN_CODE="$(probe /admin/employees)"
@@ -259,7 +303,15 @@ FAILED=0
     || { warn "  /admin/employees -> $ADMIN_CODE (expected 404 — HOST ISOLATION IS NOT WORKING)"; FAILED=1; }
 
 echo
-[[ $FAILED -eq 0 ]] && log "Done. https://${DOMAIN}/ is ready." || warn "Done with warnings — see above."
+if [[ $FAILED -eq 0 && "$TLS_OK" == "1" ]]; then
+    log "Done. https://${DOMAIN}/ is ready."
+elif [[ "$TLS_OK" != "1" ]]; then
+    # Saying "ready" with no working certificate is how a broken deploy gets
+    # signed off. Be explicit about what is and is not up.
+    warn "Done, but WITHOUT TLS — http://${DOMAIN}/ only. See the warnings above."
+else
+    warn "Done with warnings — see above."
+fi
 
 cat <<REMINDER
 
