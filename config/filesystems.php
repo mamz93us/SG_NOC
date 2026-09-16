@@ -195,11 +195,25 @@ return [
         // ArcMate held, moved here file by file by archive:transfer-files, plus
         // everything filed through the portal afterwards.
         //
-        // Its OWN container by default, not the shared backups one. This is not
-        // a backup: it is the live store for every supplier invoice, contract
-        // and HR file the company has scanned since 2013, it is two orders of
-        // magnitude larger than anything else here, and it wants its own
-        // retention and soft-delete settings. Turn soft-delete ON for it.
+        // The SAME container as every other azure_* disk, separated by prefix,
+        // which is the pattern the rest of them already follow. It started out
+        // as its own container — this is the live store for every supplier
+        // invoice and contract scanned since 2013, not a backup, and a store
+        // that size wants its own retention — but a container has to be created
+        // in Azure before anything can be written to it, and the NOC already
+        // has one. Sharing it costs nothing to start and is what actually got
+        // the transfer moving.
+        //
+        // Nothing else can reach into archive/: the two prune commands that
+        // clear this container (offboarding backups, sftp backups) each delete
+        // a path named on one of their own rows, through their own prefixed
+        // disk, and neither ever lists the container. A LIFECYCLE rule set in
+        // Azure itself would not know that, so any rule on this container must
+        // name its prefix.
+        //
+        // Set AZURE_BLOB_ARCHIVE_CONTAINER to give the archive a container of
+        // its own later; that also stops the container in Settings — which names
+        // the shared one — from overriding it.
         //
         // 'documents/' and 'inbox/' live under one disk rather than two, so a
         // filed document is a move within the same container instead of a copy
@@ -208,12 +222,12 @@ return [
             'driver' => 'azure',
             'account' => env('AZURE_BLOB_ACCOUNT'),
             'key' => env('AZURE_BLOB_KEY'),
-            'container' => env('AZURE_BLOB_ARCHIVE_CONTAINER', 'noc-archive'),
-            // Its OWN container, not the shared one the other azure_* disks use.
-            // The Azure Blob container in Settings names that shared container,
-            // so this disk opts out of it — otherwise every transferred invoice
-            // goes into the offboarding backups container instead.
-            'container_from_settings' => false,
+            'container' => env('AZURE_BLOB_ARCHIVE_CONTAINER', env('AZURE_BLOB_CONTAINER', 'noc-offboarding-backups')),
+            'prefix' => 'archive/',
+            // Only a container named expressly for the archive beats the one in
+            // Settings. With none set the archive shares the NOC's container
+            // like its neighbours, so Settings supplying it is correct.
+            'container_from_settings' => env('AZURE_BLOB_ARCHIVE_CONTAINER') === null,
             'endpoint' => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
             'throw' => false,
         ],
