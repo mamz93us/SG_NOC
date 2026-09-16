@@ -435,6 +435,40 @@ class GraphService
     }
 
     /**
+     * Every user with just the fields licence tracking needs.
+     *
+     * The narrow $select keeps a 999-user page near 1 MB, which transfers in
+     * about two seconds from NOC2. listUsers() has to page by 100 because its
+     * full profile payload stalls there. assignedLicenses covers both direct and
+     * group-based licences; licenseAssignmentStates says which, and when each
+     * was last applied.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listUsersForLicenses(): array
+    {
+        $users = [];
+
+        $this->paginateWithCallback('/users', function (array $page) use (&$users) {
+            $new = 0;
+            foreach ($page as $user) {
+                if (! isset($users[$user['id']])) {
+                    $users[$user['id']] = $user;
+                    $new++;
+                }
+            }
+
+            // A page with nothing new is Graph's cycling nextLink: stop.
+            return $new > 0;
+        }, [
+            '$top' => 999,
+            '$select' => 'id,userPrincipalName,mail,accountEnabled,assignedLicenses,licenseAssignmentStates',
+        ], pageDelayMs: 150);
+
+        return array_values($users);
+    }
+
+    /**
      * Assign a license (SKU) to a user.
      *
      * @see https://learn.microsoft.com/en-us/graph/api/user-assignlicense

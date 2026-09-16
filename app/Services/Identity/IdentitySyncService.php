@@ -9,7 +9,6 @@ use App\Models\IdentityLicense;
 use App\Models\IdentitySyncLog;
 use App\Models\IdentityUser;
 use App\Models\License;
-use App\Models\LicenseAssignment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -96,10 +95,10 @@ class IdentitySyncService
     // Step 1: Licenses
     // ─────────────────────────────────────────────────────────────
 
-    public function syncLicenses(array &$errors): int
+    public function syncLicenses(array &$errors, ?array $skus = null): int
     {
         try {
-            $skus = $this->graph->listSubscribedSkus();
+            $skus ??= $this->graph->listSubscribedSkus();
             $syncedIds = [];
 
             DB::transaction(function () use ($skus, &$syncedIds) {
@@ -157,75 +156,20 @@ class IdentitySyncService
     }
 
     /**
-     * Sync each Employee's Azure-assigned licenses into the ITAM
-     * polymorphic LicenseAssignment table. Idempotent: re-runs add new
-     * assignments and remove auto-synced ones the user no longer has.
+     * Step 5 of the full sync: employee licence assignments and seat counts,
+     * copied from Microsoft. The work lives in LicenseAssignmentSync, which the
+     * scheduler also runs on its own every five minutes; step 1 has just synced
+     * the SKU list, so it is not synced twice.
      *
-     * Called from syncAll() after syncUsers() so the assigned_licenses
-     * fix-up at the end of syncUsers() has already run.
+     * Returns the number of assignment rows added plus removed.
      */
     public function syncEmployeeLicenseAssignments(array &$errors): int
     {
         try {
-            $skuToLicenseId = IdentityLicense::whereNotNull('license_id')
-                ->pluck('license_id', 'sku_id')
-                ->all();
+            $result = (new LicenseAssignmentSync($this->graph))->run(refreshSkus: false);
+            array_push($errors, ...$result['errors']);
 
-            if (empty($skuToLicenseId)) {
-                return 0;
-            }
-
-            $assignmentCount = 0;
-
-            IdentityUser::query()
-                ->whereNotNull('azure_id')
-                ->chunk(200, function ($users) use ($skuToLicenseId, &$assignmentCount) {
-                    foreach ($users as $iu) {
-                        $employee = Employee::where('azure_id', $iu->azure_id)
-                            ->orWhere('email', $iu->user_principal_name)
-                            ->orWhere('email', $iu->mail)
-                            ->first();
-
-                        if (! $employee) {
-                            continue;
-                        }
-
-                        $userSkus = is_array($iu->assigned_licenses) ? $iu->assigned_licenses : [];
-                        $activeLicenseIds = [];
-
-                        foreach ($userSkus as $skuId) {
-                            if (! isset($skuToLicenseId[$skuId])) {
-                                continue;
-                            }
-                            $licenseId = $skuToLicenseId[$skuId];
-                            $activeLicenseIds[] = $licenseId;
-
-                            LicenseAssignment::firstOrCreate(
-                                [
-                                    'license_id' => $licenseId,
-                                    'assignable_type' => Employee::class,
-                                    'assignable_id' => $employee->id,
-                                ],
-                                [
-                                    'assigned_date' => now(),
-                                    'notes' => 'Auto-synced from Azure',
-                                ]
-                            );
-                            $assignmentCount++;
-                        }
-
-                        // Remove Azure-sourced assignments the user no longer has
-                        LicenseAssignment::where('assignable_type', Employee::class)
-                            ->where('assignable_id', $employee->id)
-                            ->where('notes', 'Auto-synced from Azure')
-                            ->whereNotIn('license_id', $activeLicenseIds ?: [0])
-                            ->delete();
-                    }
-                });
-
-            Log::info("IdentitySyncService: Synced {$assignmentCount} employee license assignments.");
-
-            return $assignmentCount;
+            return $result['added'] + $result['removed'];
         } catch (\Throwable $e) {
             $errors[] = 'Employee licenses: '.$e->getMessage();
             Log::error('IdentitySyncService: Employee license sync failed: '.$e->getMessage());

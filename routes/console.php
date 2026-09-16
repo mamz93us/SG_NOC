@@ -199,20 +199,19 @@ Schedule::command('identity:sync')
     ->withoutOverlapping(240)
     ->runInBackground();
 
-// Employee licence assignments — hourly, at :35.
+// Microsoft 365 licences → NOC, every five minutes: which employee holds which
+// licence, and each licence's seat count. One direction only; it never writes
+// to Microsoft. A licence assigned or removed in the admin centre, by a
+// licensing group, or by the NOC's own Assign buttons reaches the employee's
+// NOC record within minutes.
 //
-// This same step already runs as the LAST thing inside identity:sync, but it
-// sat at zero assignments for two months while every sync reported "completed":
-// the heavy job evidently was not always reaching the end, and LOG_LEVEL=error
-// on production meant its Log::info never recorded that it had been skipped.
-//
-// Running it standalone as well makes licence data independent of whether the
-// big sync finishes. It is cheap (a chunked read plus firstOrCreate) and
-// idempotent, so the overlap with identity:sync is harmless — whichever runs
-// first, the second is a no-op. Offset to :35 to stay clear of the hourly sync.
+// It reads Graph live (about three requests, a few seconds) instead of the
+// identity_users mirror, so it does not wait for the hourly identity:sync.
+// The old hourly version only removed rows it had written itself and never
+// visited deleted accounts: 45 stale rows on NOC2 by 2026-09-16.
 Schedule::command('identity:sync-license-assignments')
-    ->hourlyAt(35)
-    ->withoutOverlapping(30)
+    ->everyFiveMinutes()
+    ->withoutOverlapping(15)
     ->runInBackground();
 
 // CUPS Print Manager — status refresh
