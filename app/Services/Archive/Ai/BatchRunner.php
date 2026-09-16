@@ -61,9 +61,14 @@ class BatchRunner
      * @param  array<string,mixed>  $filters
      * @return array{documents:int, pages:int, cost:float, known_pages:bool}
      */
-    public function estimate(Archive $archive, string $type, array $filters = [], array $fieldIds = []): array
+    public function estimate(Archive $archive, string $type, array $filters = [], array $fieldIds = [], int $maxDocuments = 0): array
     {
         $documents = $this->documentQuery($archive, $type, $filters, $fieldIds)->count();
+
+        // The figure on the page has to be what the batch will actually do.
+        if ($maxDocuments > 0) {
+            $documents = min($documents, $maxDocuments);
+        }
 
         $recordedPages = (int) ArchiveFile::query()
             ->where('archive_id', $archive->getKey())
@@ -138,13 +143,45 @@ class BatchRunner
                 return $stats;
             }
 
+            // Whether this is a document the batch has not worked before. A read
+            // batch takes ten pages of a document at a time and then picks the
+            // SAME document again, so counting every turn would make a 30-page
+            // document three of them — and a limit of a hundred stop at thirty.
+            $isNewDocument = (int) $batch->current_document_id !== (int) $document->getKey();
+
+            // The batch's own limit — "only the newest hundred".
+            //
+            // Checked against the batch row rather than this slice, because a
+            // batch is worked a slice a minute: a limit counted per slice would
+            // mean a hundred every minute until the archive ran out.
+            //
+            // And checked HERE, once a document has been chosen and only when it
+            // is a new one, so the hundredth document is finished rather than
+            // abandoned part-read. Stopping before the choice cut the last
+            // document off after ten pages and marked the batch done, which
+            // leaves a document half-searchable with nothing saying so.
+            $limit = (int) $batch->max_documents;
+
+            if ($isNewDocument && $limit > 0 && (int) $batch->documents_done >= $limit) {
+                $batch->finish(ArchiveAiBatch::STATUS_DONE);
+                $stats['finished'] = true;
+                $stats['reason'] = 'Reached its limit of '.$limit.' document(s).';
+
+                return $stats;
+            }
+
             $done = $this->document($batch, $document, $fields);
 
-            $stats['documents']++;
+            $stats['documents'] += $isNewDocument ? 1 : 0;
             $stats['pages'] += $done['pages'];
             $stats['cost'] += $done['cost'];
 
-            $batch->addProgress($done['pages'], $done['cost']);
+            $batch->addProgress(
+                $done['pages'],
+                $done['cost'],
+                $isNewDocument ? 1 : 0,
+                $document->getKey(),
+            );
         }
 
         return $stats;

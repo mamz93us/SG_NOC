@@ -208,6 +208,75 @@ class ManageController extends Controller
         ]);
     }
 
+    /**
+     * Add a field ArcMate does not have.
+     *
+     * A mirrored archive's fields come from ArcMate's own arcDesign.xml, so it
+     * has exactly what ArcMate was set up to record — SPS Invoices has an invoice
+     * number and a PO number and nothing else. A field added here has no
+     * arcmate_column, which is what makes it safe: ArchiveSyncService maps values
+     * BY column, so a field without one is invisible to the mirror. The sync will
+     * never write it and never clear it.
+     *
+     * That is what makes it useful too. AI can propose a value for it from the
+     * scan (the fill batches) and a person approves it, which is how the archive
+     * comes to hold something ArcMate never captured — a customer name, say.
+     */
+    public function addField(Request $request, Archive $archive): RedirectResponse
+    {
+        $data = $request->validate([
+            'label' => ['required', 'string', 'max:120'],
+            'type' => ['required', 'string', 'in:'.implode(',', array_keys(ArchiveField::TYPES))],
+            'ai_hint' => ['nullable', 'string', 'max:500'],
+            'options' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $key = $this->uniqueFieldKey($archive, $data['label']);
+
+        // A list field's choices, one per line.
+        $options = null;
+
+        if ($data['type'] === ArchiveField::TYPE_LIST && filled($data['options'] ?? null)) {
+            $options = array_values(array_filter(array_map('trim', preg_split('/\R/', $data['options']) ?: [])));
+        }
+
+        $field = ArchiveField::create([
+            'archive_id' => $archive->getKey(),
+            'key' => $key,
+            'label' => $data['label'],
+            'type' => $data['type'],
+            // Deliberately null: see the note above. This is the whole reason the
+            // sync leaves the field alone.
+            'arcmate_column' => null,
+            'ai_hint' => $data['ai_hint'] ?: null,
+            'options' => $options,
+            'sort_order' => (int) $archive->fields()->max('sort_order') + 1,
+        ]);
+
+        return back()->with('status', $field->label().' added. ArcMate does not know about it, so the sync will not touch it — fill it in by hand, or let an AI fill batch propose values for it.');
+    }
+
+    /**
+     * A key nothing else in this archive is using.
+     *
+     * Derived from the label rather than typed, because the key is what the
+     * search form, the URL and the AI tools all use — and it can never change
+     * afterwards without orphaning every value stored against it.
+     */
+    private function uniqueFieldKey(Archive $archive, string $label): string
+    {
+        $base = Str::slug($label, '_') ?: 'field';
+        $base = mb_substr($base, 0, 50);
+        $key = $base;
+        $n = 2;
+
+        while ($archive->fields()->where('key', $key)->exists()) {
+            $key = $base.'_'.$n++;
+        }
+
+        return $key;
+    }
+
     /** Give somebody access to one archive. */
     public function addMember(Request $request, Archive $archive): RedirectResponse
     {

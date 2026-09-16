@@ -74,6 +74,65 @@
                         </tbody>
                     </table>
                 @endif
+
+                {{-- Add a field ArcMate does not have.
+
+                    Worth saying on screen why this is safe on a MIRRORED archive:
+                    the sync copies values by ArcMate column, so a field with no
+                    column is invisible to it. Without that line the obvious
+                    assumption is that the next sync will wipe anything added here,
+                    and nobody would use it. --}}
+                <hr class="my-3">
+                <h3 class="h6 mb-1">Add a field</h3>
+                <p class="arc-muted small mb-3">
+                    ArcMate's own fields are above. A field added here is this portal's:
+                    the ArcMate sync never writes it and never clears it, because it maps
+                    values by ArcMate column and this one has none. Fill it in by hand, or
+                    let an <a href="{{ route('archive.manage.ai') }}">AI fill batch</a>
+                    read it off the scans and propose values for review.
+                </p>
+
+                <form method="POST" action="{{ route('archive.manage.fields.store', $archive) }}">
+                    @csrf
+                    <div class="row g-2">
+                        <div class="col-7">
+                            <label class="form-label small arc-muted mb-1">Name</label>
+                            <input class="form-control form-control-sm" name="label" required maxlength="120"
+                                   value="{{ old('label') }}" placeholder="Customer">
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label small arc-muted mb-1">Type</label>
+                            <select class="form-select form-select-sm" name="type">
+                                @foreach (\App\Models\Archive\ArchiveField::TYPES as $value => $name)
+                                    <option value="{{ $value }}" @selected(old('type') === $value)>{{ $name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small arc-muted mb-1">
+                                What the AI should look for <span class="arc-muted">(optional)</span>
+                            </label>
+                            <input class="form-control form-control-sm" name="ai_hint" maxlength="500"
+                                   value="{{ old('ai_hint') }}"
+                                   placeholder="The company the invoice is addressed to, near the top">
+                            <div class="form-text small">
+                                Goes to the AI with the field when it reads a scan. A field with no hint
+                                is filled from its name alone, which is enough for an obvious one and not
+                                for a form with three names on it.
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small arc-muted mb-1">
+                                Choices, one per line <span class="arc-muted">(list fields only)</span>
+                            </label>
+                            <textarea class="form-control form-control-sm" name="options" rows="2"
+                                      maxlength="2000" placeholder="Invoice&#10;Credit note&#10;Delivery note">{{ old('options') }}</textarea>
+                        </div>
+                        <div class="col-12">
+                            <button class="btn btn-sm btn-brand">Add field</button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
 

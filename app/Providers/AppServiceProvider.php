@@ -199,12 +199,25 @@ class AppServiceProvider extends ServiceProvider
                 $container = $config['container'] ?? 'noc-offboarding-backups';
                 $suffix = $config['endpoint'] ?? 'core.windows.net';
 
+                // A disk may keep its own container. Every azure_* disk here
+                // but one shares a container and separates by prefix, so the
+                // settings field names that shared container — and applying it
+                // to a disk that asked for a different one silently redirects
+                // that disk's writes. The archive is its own container by
+                // design (372 GB of invoices, its own retention), and without
+                // this every one of them would have landed in the offboarding
+                // backups container instead.
+                $containerFromSettings = (bool) ($config['container_from_settings'] ?? true);
+
                 try {
                     $settings = \App\Models\Setting::get();
                     $account = $settings->azure_blob_account ?: $account;
                     $key = $settings->azure_blob_key ?: $key;
-                    $container = $settings->azure_blob_container ?: $container;
                     $suffix = $settings->azure_blob_endpoint_suffix ?: $suffix;
+
+                    if ($containerFromSettings) {
+                        $container = $settings->azure_blob_container ?: $container;
+                    }
                 } catch (\Throwable) {
                     // settings table may not exist yet during migrations
                 }
@@ -220,7 +233,11 @@ class AppServiceProvider extends ServiceProvider
 
                 $connection = "DefaultEndpointsProtocol=https;AccountName={$account};AccountKey={$key};EndpointSuffix={$suffix}";
                 $client = BlobRestProxy::createBlobService($connection);
-                $adapter = new AzureBlobStorageAdapter($client, $container, $config['prefix'] ?? null);
+                // '' rather than null: the adapter's $prefix is typed string, and
+                // a disk with no prefix — the archive is the first — made it throw
+                // a TypeError on every single resolve, so nothing could be written
+                // and the failure read as "Azure is not configured".
+                $adapter = new AzureBlobStorageAdapter($client, $container, (string) ($config['prefix'] ?? ''));
 
                 return new FilesystemAdapter(new Filesystem($adapter, $config), $adapter, $config);
             });

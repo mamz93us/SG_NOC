@@ -396,6 +396,18 @@ class ArchiveTransferService
     }
 
     /** Whether Azure is actually configured, without letting a throw escape. */
+    /** Why the storage could not be reached, or null when it can. */
+    public function storageProblem(): ?string
+    {
+        try {
+            Storage::disk(ArchiveFile::DISK_AZURE)->exists('.archive-healthcheck');
+
+            return null;
+        } catch (\Throwable $e) {
+            return $e->getMessage();
+        }
+    }
+
     private function diskReady(): bool
     {
         try {
@@ -403,7 +415,11 @@ class ArchiveTransferService
 
             return true;
         } catch (\Throwable $e) {
-            Log::warning('[archive] Azure disk not ready: '.$e->getMessage());
+            // error, not warning: production runs LOG_LEVEL=error, and this stops
+            // the whole transfer. Logged as a warning it was invisible — the
+            // transfer simply did nothing, every minute, with no record anywhere
+            // and no run row to look at either.
+            Log::error('[archive] Azure disk not ready: '.$e->getMessage());
 
             return false;
         }

@@ -404,3 +404,122 @@ test('an estimate counts the documents and says when pages are guessed', functio
     expect($estimate['known_pages'])->toBeFalse();
     expect($estimate['cost'])->toBeGreaterThan(0);
 });
+
+// ─── "Only the newest hundred" ────────────────────────────────────
+
+test('a batch stops at its limit, counted across runs', function () {
+    // The limit exists because "try it on the last hundred invoices" and "read
+    // all 513,000" were the same button. It has to hold ACROSS runs: a batch is
+    // worked a slice a minute, and a limit checked per slice would mean a hundred
+    // every minute until the archive ran out.
+    foreach (range(1, 5) as $ignored) {
+        ($this->makeDocument)();
+    }
+
+    $reader = new FakePageReader(pagesPerCall: 10, totalPages: 1);
+    $runner = new BatchRunner($reader, new FakeFieldExtractor);
+
+    $batch = ArchiveAiBatch::create([
+        'archive_id' => $this->archive->id,
+        'type' => ArchiveAiBatch::TYPE_READ,
+        'max_documents' => 2,
+    ]);
+
+    // One document per run, the way the scheduler ends a slice on time.
+    $oneDocument = function () use ($runner, $batch): array {
+        $turns = 0;
+
+        return $runner->run($batch->fresh(), function () use (&$turns): bool {
+            return $turns++ >= 1;
+        });
+    };
+
+    $oneDocument();
+    expect($batch->fresh()->documents_done)->toBe(1);
+    expect($batch->fresh()->isFinished())->toBeFalse();
+
+    $oneDocument();
+    expect($batch->fresh()->documents_done)->toBe(2);
+
+    // The third run has nothing left to do, and says so rather than carrying on.
+    $stats = $oneDocument();
+
+    expect($stats['finished'])->toBeTrue();
+    expect($stats['reason'])->toContain('limit of 2');
+    expect($batch->fresh()->status)->toBe(ArchiveAiBatch::STATUS_DONE);
+
+    // Two documents read, three left alone — not "two ordered, five read".
+    expect(ArchiveFileText::count())->toBe(2);
+});
+
+test('a long document counts once towards the limit, not once per slice', function () {
+    // A read batch takes ten pages of a document and then picks the SAME
+    // document again, so counting turns made a 30-page document three of them:
+    // "the newest hundred" would have stopped at thirty-odd, with no hint that
+    // it had. The batch must read exactly two documents to the end.
+    $first = ($this->makeDocument)();
+    $second = ($this->makeDocument)();
+    $third = ($this->makeDocument)();
+
+    $reader = new FakePageReader(pagesPerCall: 10, totalPages: 30);
+    $runner = new BatchRunner($reader, new FakeFieldExtractor);
+
+    $batch = ArchiveAiBatch::create([
+        'archive_id' => $this->archive->id,
+        'type' => ArchiveAiBatch::TYPE_READ,
+        'max_documents' => 2,
+    ]);
+
+    $stats = $runner->run($batch);
+
+    expect($stats['finished'])->toBeTrue();
+    expect($batch->fresh()->documents_done)->toBe(2);
+
+    // Newest first, and these share a captured_at, so it is the highest ids that
+    // were read — both of them to the end, and the oldest not at all.
+    expect($third->files()->first()->pages_read)->toBe(30);
+    expect($second->files()->first()->pages_read)->toBe(30);
+    expect((int) $first->files()->first()->pages_read)->toBe(0);
+
+    // 60 pages, and the progress bar reads 100% rather than 300%.
+    expect($batch->fresh()->pages_done)->toBe(60);
+});
+
+test('no limit means the date range alone decides, as before', function () {
+    // The control is optional, and leaving it empty must not quietly become a
+    // limit of nothing.
+    foreach (range(1, 3) as $ignored) {
+        ($this->makeDocument)();
+    }
+
+    $runner = new BatchRunner(new FakePageReader(10, 1), new FakeFieldExtractor);
+    $batch = ($this->batchFor)(ArchiveAiBatch::TYPE_READ);
+
+    expect($batch->max_documents)->toBeNull();
+
+    $stats = $runner->run($batch);
+
+    expect($stats['finished'])->toBeTrue();
+    expect($batch->fresh()->documents_done)->toBe(3);
+});
+
+test('the estimate shows what the limit will actually do', function () {
+    // The cost shown before starting is the whole reason to set a limit, so it
+    // has to be the limited figure. Showing 513,000 documents next to a control
+    // that will read a hundred is worse than showing nothing.
+    foreach (range(1, 4) as $ignored) {
+        ($this->makeDocument)();
+    }
+
+    $runner = new BatchRunner(new FakePageReader, new FakeFieldExtractor);
+
+    $whole = $runner->estimate($this->archive, ArchiveAiBatch::TYPE_READ);
+    $limited = $runner->estimate($this->archive, ArchiveAiBatch::TYPE_READ, [], [], 2);
+
+    expect($whole['documents'])->toBe(4);
+    expect($limited['documents'])->toBe(2);
+    expect($limited['cost'])->toBeLessThan($whole['cost']);
+
+    // A limit above what is there is not a promise of more documents.
+    expect($runner->estimate($this->archive, ArchiveAiBatch::TYPE_READ, [], [], 500)['documents'])->toBe(4);
+});

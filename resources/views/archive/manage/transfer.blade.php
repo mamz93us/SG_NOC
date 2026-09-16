@@ -71,6 +71,25 @@
         </div>
     </div>
 
+    {{-- Why nothing is moving.
+
+        A transfer at 0% with "0 file(s) waiting" looks exactly like a finished
+        one, and the blocker that stops everything — no reachable storage — was
+        only ever a log line at a level production does not record. So each
+        reason is named here, all of them at once, with what to do about it. --}}
+    @if ($blockers !== [])
+        <div class="arc-card p-3 mb-3" style="border-color: var(--amber)">
+            <div class="fw-semibold mb-2" style="color: var(--amber)">
+                <i class="bi bi-pause-circle"></i> Nothing is being transferred
+            </div>
+            <ul class="mb-0 small">
+                @foreach ($blockers as $blocker)
+                    <li>{{ $blocker }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     @if ($totals['total'] > 0)
         <div class="arc-card p-3 mb-3">
             @php($overall = (int) round($totals['done'] / max(1, $totals['total']) * 100))
