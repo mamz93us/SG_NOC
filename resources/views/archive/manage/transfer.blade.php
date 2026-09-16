@@ -133,6 +133,31 @@
                             <input type="number" min="0" class="form-control form-control-sm" name="transfer_speed_mbps"
                                    value="{{ $source->transfer_speed_mbps }}">
                         </div>
+
+                        {{-- Which documents to move, by capture date. 372 GB in one
+                             decision is a lot; this makes it several. Either end may be
+                             left blank. --}}
+                        <div class="col-12"><hr class="my-1"></div>
+                        <div class="col-6">
+                            <label class="form-label small arc-muted mb-1">Scanned from</label>
+                            <input type="date" class="form-control form-control-sm" name="transfer_from"
+                                   value="{{ $source->transfer_from }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small arc-muted mb-1">Scanned until</label>
+                            <input type="date" class="form-control form-control-sm" name="transfer_to"
+                                   value="{{ $source->transfer_to }}">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-text small">
+                                @if ($pendingInRange !== null)
+                                    <strong>{{ number_format($pendingInRange) }}</strong> file(s) waiting inside that range.
+                                    Anything outside it is left alone until you widen it.
+                                @else
+                                    Leave both blank to move everything, newest first.
+                                @endif
+                            </div>
+                        </div>
                     </div>
 
                     <button class="btn btn-brand btn-sm w-100 mt-3">Save</button>

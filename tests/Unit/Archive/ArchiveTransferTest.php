@@ -305,3 +305,70 @@ test('the same file transferred twice lands in one place', function () {
     expect($file->fresh()->path)->toBe($first);
     expect(Storage::disk(ArchiveFile::DISK_AZURE)->allFiles())->toHaveCount(1);
 });
+
+test('a date range moves only the documents scanned inside it', function () {
+    // 372 GB in one decision is a lot; a range turns it into several. The date is
+    // the DOCUMENT's capture date, because that is what people mean by "last
+    // year's invoices" — and it is the same value the blob path is built from.
+    $old = ArchiveDocument::create([
+        'archive_id' => $this->archive->id,
+        'arcmate_id' => 99,
+        'status' => ArchiveDocument::STATUS_ACTIVE,
+        'captured_at' => '2013-04-02 09:00:00',
+    ]);
+
+    $recent = ($this->makeFile)('recent.pdf', 'this year');
+
+    $path = $this->scratch.'/old.pdf';
+    file_put_contents($path, 'old history');
+    $older = ArchiveFile::create([
+        'archive_id' => $this->archive->id,
+        'archive_document_id' => $old->id,
+        'arcmate_id' => 4242,
+        'position' => 10,
+        'original_name' => 'old.pdf',
+        'disk' => ArchiveFile::DISK_ARCMATE,
+        'path' => $path,
+        'arcmate_path' => $path,
+    ]);
+
+    $this->source->forceFill(['transfer_from' => '2026-01-01', 'transfer_to' => '2026-12-31'])->save();
+
+    $stats = $this->transfers->run($this->source->fresh(), maxFiles: 10);
+
+    expect($stats['files'])->toBe(1);
+    expect($recent->fresh()->disk)->toBe(ArchiveFile::DISK_AZURE);
+    // Outside the range: left exactly where it was, not failed, not skipped-with-error.
+    expect($older->fresh()->disk)->toBe(ArchiveFile::DISK_ARCMATE);
+    expect($older->fresh()->transfer_attempts)->toBe(0);
+});
+
+test('one open end of a range still limits the transfer', function () {
+    // "Everything from 2024 onwards" is a from with no to, and must not be read
+    // as "no range at all".
+    $old = ArchiveDocument::create([
+        'archive_id' => $this->archive->id,
+        'arcmate_id' => 98,
+        'status' => ArchiveDocument::STATUS_ACTIVE,
+        'captured_at' => '2013-04-02 09:00:00',
+    ]);
+
+    $path = $this->scratch.'/ancient.pdf';
+    file_put_contents($path, 'ancient');
+    ArchiveFile::create([
+        'archive_id' => $this->archive->id,
+        'archive_document_id' => $old->id,
+        'arcmate_id' => 4243,
+        'position' => 10,
+        'original_name' => 'ancient.pdf',
+        'disk' => ArchiveFile::DISK_ARCMATE,
+        'path' => $path,
+        'arcmate_path' => $path,
+    ]);
+
+    ($this->makeFile)('current.pdf', 'current');
+
+    $this->source->forceFill(['transfer_from' => '2026-01-01', 'transfer_to' => null])->save();
+
+    expect($this->transfers->run($this->source->fresh(), maxFiles: 10)['files'])->toBe(1);
+});

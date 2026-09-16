@@ -160,12 +160,43 @@
         @else
             <div class="table-responsive">
                 <table class="table arc-table mb-0">
+                    {{-- Sortable headings. fullUrlWithQuery keeps whatever search is
+                         already applied, so sorting narrows results rather than
+                         resetting the form. --}}
+                    @php
+                        $sortHead = function (string $key, string $label) use ($criteria) {
+                            $active = ($criteria["sort"] ?? "date") === $key;
+                            // Clicking the active column flips it; a new column starts
+                            // in the order that is useful for it - newest first for a
+                            // date, A-Z for a name.
+                            $next = $active
+                                ? (($criteria["dir"] ?? "desc") === "asc" ? "desc" : "asc")
+                                : ($key === "date" ? "desc" : "asc");
+                            $icon = $active
+                                ? ' <i class="bi bi-caret-' . (($criteria["dir"] ?? "desc") === "asc" ? "up" : "down") . '-fill"></i>'
+                                : "";
+
+                            // e() on the label: it is printed unescaped so the caret can be markup, and
+                            // the label itself comes from ArcMate's arcDesign.xml on the share.
+                            return [request()->fullUrlWithQuery(["sort" => $key, "dir" => $next, "page" => null]), e($label) . $icon, $active];
+                        };
+                    @endphp
                     <thead>
                         <tr>
                             @foreach ($fields as $field)
-                                <th>{{ $field->label() }}</th>
+                                @php([$href, $html, $active] = $sortHead($field->key, $field->label()))
+                                <th>
+                                    <a href="{{ $href }}" class="text-decoration-none {{ $active ? "fw-bold" : "arc-muted" }}">
+                                        {!! $html !!}
+                                    </a>
+                                </th>
                             @endforeach
-                            <th>Scanned</th>
+                            @php([$href, $html, $active] = $sortHead("date", "Scanned"))
+                            <th>
+                                <a href="{{ $href }}" class="text-decoration-none {{ $active ? "fw-bold" : "arc-muted" }}">
+                                    {!! $html !!}
+                                </a>
+                            </th>
                             <th class="text-end">Files</th>
                         </tr>
                     </thead>
