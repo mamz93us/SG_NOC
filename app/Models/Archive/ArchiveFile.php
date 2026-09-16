@@ -155,6 +155,61 @@ class ArchiveFile extends Model
         return $this->disk === self::DISK_ARCMATE;
     }
 
+    /** Copied into the NOC's own storage, verified, and switched over. */
+    public function isTransferred(): bool
+    {
+        return $this->disk === self::DISK_AZURE;
+    }
+
+    /**
+     * Where this file's bytes actually are, for a person to read.
+     *
+     * On the model rather than in a view because several pages answer the same
+     * question — the document page, the file viewer, the Transfer page — and the
+     * one thing worse than not saying where a file lives is two pages saying
+     * different things about it.
+     *
+     * It matters to a reader, not just to an admin: a file still on ArcMate is
+     * served through the cifs mount, so it depends on that VM being up. Once it is
+     * transferred it does not.
+     *
+     * @return array{key:string, label:string, icon:string, class:string, detail:string}
+     */
+    public function storage(): array
+    {
+        if ($this->isTransferred()) {
+            return [
+                'key' => 'azure',
+                'label' => 'In the NOC',
+                'icon' => 'bi-cloud-check',
+                'class' => 'text-success',
+                'detail' => $this->transferred_at
+                    ? 'Copied to the NOC\'s storage on '.$this->transferred_at->format('j M Y, H:i').', checked against the original.'
+                    : 'In the NOC\'s own storage.',
+            ];
+        }
+
+        // A failure is worth separating from simply waiting: one needs somebody to
+        // look, the other needs only time.
+        if (filled($this->transfer_error)) {
+            return [
+                'key' => 'failed',
+                'label' => 'Still on ArcMate — copy failed',
+                'icon' => 'bi-exclamation-triangle',
+                'class' => 'text-danger',
+                'detail' => 'The last attempt to copy it into the NOC failed: '.$this->transfer_error,
+            ];
+        }
+
+        return [
+            'key' => 'arcmate',
+            'label' => 'Still on ArcMate',
+            'icon' => 'bi-hdd-network',
+            'class' => 'text-warning-emphasis',
+            'detail' => 'Read from the ArcMate share, so it needs that server to be up. It is queued to be copied into the NOC.',
+        ];
+    }
+
     // ─── Type ────────────────────────────────────────────────────
 
     public function extension(): string

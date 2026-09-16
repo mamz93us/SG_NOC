@@ -1,10 +1,12 @@
-@extends('layouts.archive')
+@extends('layouts.admin')
 
 @section('title', $archive->displayName())
 
 @section('content')
+    @include('admin.archive._styles')
+
     <div class="d-flex align-items-center gap-2 mb-3">
-        <a href="{{ route('archive.manage.index') }}" class="arc-muted text-decoration-none small">
+        <a href="{{ route('admin.archive.index') }}" class="arc-muted text-decoration-none small">
             <i class="bi bi-arrow-left"></i> Manage
         </a>
         <span class="arc-muted">/</span>
@@ -88,11 +90,11 @@
                     ArcMate's own fields are above. A field added here is this portal's:
                     the ArcMate sync never writes it and never clears it, because it maps
                     values by ArcMate column and this one has none. Fill it in by hand, or
-                    let an <a href="{{ route('archive.manage.ai') }}">AI fill batch</a>
+                    let an <a href="{{ route('admin.archive.ai') }}">AI fill batch</a>
                     read it off the scans and propose values for review.
                 </p>
 
-                <form method="POST" action="{{ route('archive.manage.fields.store', $archive) }}">
+                <form method="POST" action="{{ route('admin.archive.fields.store', $archive) }}">
                     @csrf
                     <div class="row g-2">
                         <div class="col-7">
@@ -144,7 +146,7 @@
                     Access is per archive. Being able to sign in to the portal is not access to anything here.
                 </p>
 
-                <form method="POST" action="{{ route('archive.manage.members.store', $archive) }}" class="mb-3">
+                <form method="POST" action="{{ route('admin.archive.members.store', $archive) }}" class="mb-3">
                     @csrf
                     <div class="row g-2 align-items-end">
                         <div class="col-md-5">
@@ -189,7 +191,7 @@
                                         <td class="arc-muted small">{{ implode(', ', $member->grantedLabels()) }}</td>
                                         <td class="text-end">
                                             <form method="POST"
-                                                  action="{{ route('archive.manage.members.destroy', [$archive, $member]) }}"
+                                                  action="{{ route('admin.archive.members.destroy', [$archive, $member]) }}"
                                                   class="m-0"
                                                   onsubmit="return confirm('Remove access for {{ $member->user?->email }}?')">
                                                 @csrf

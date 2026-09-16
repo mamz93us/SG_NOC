@@ -26,12 +26,13 @@
                     </p>
 
                     @if ($canManage)
-                        <a href="{{ route('archive.manage.index') }}" class="btn btn-brand btn-sm">
-                            <i class="bi bi-sliders"></i> Set the archive up
+                        <a href="{{ route('admin.archive.index') }}" class="btn btn-brand btn-sm">
+                            <i class="bi bi-sliders"></i> Set the archive up in the NOC
                         </a>
                         <p class="arc-muted small mb-0 mt-3">
                             You will need the read-only SQL login and the mounted file share
-                            first — the Manage page tests both and says which is missing.
+                            first — the settings page in the NOC tests both and says which is
+                            missing.
                         </p>
                     @else
                         <p class="arc-muted small mb-0">

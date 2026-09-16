@@ -39,7 +39,7 @@ class ManageController extends Controller
 
         $mounted = $discovery->mountAvailable();
 
-        return view('archive.manage.index', [
+        return view('admin.archive.index', [
             'source' => $source,
             'mounted' => $mounted,
             'driverAvailable' => ArcMateConnection::driverAvailable(),
@@ -192,7 +192,7 @@ class ManageController extends Controller
         }
 
         return redirect()
-            ->route('archive.manage.archive', $archive)
+            ->route('admin.archive.archive', $archive)
             ->with('status', 'Archive created. The sync will start copying documents within five minutes.');
     }
 
@@ -200,7 +200,7 @@ class ManageController extends Controller
     {
         $archive->load(['fields', 'members.user']);
 
-        return view('archive.manage.archive', [
+        return view('admin.archive.archive', [
             'archive' => $archive,
             'sampleFile' => $archive->files()->first(),
             'modes' => Archive::MODES,

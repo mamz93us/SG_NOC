@@ -1368,6 +1368,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('manage-archive-portal')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.archive.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.archive.index') }}">
+                                    <i class="bi bi-archive me-2"></i>Document Archive
+                                </a>
+                            </li>
+                            @endcan
                             @can('manage-greeting-lines')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.greeting-lines.*') ? 'active' : '' }}"
@@ -1771,6 +1779,16 @@
 
     <!-- PAGE CONTENT -->
     <div class="container-fluid px-3 px-lg-4 mt-4 mb-5">
+        {{-- `status` as well as `success`: it is Laravel's own convention and
+             what several controllers already return, so a page that flashed it
+             here showed nothing at all. --}}
+        @if(session('status'))
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ session('status') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
+
         @if(session('success'))
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 {{ session('success') }}

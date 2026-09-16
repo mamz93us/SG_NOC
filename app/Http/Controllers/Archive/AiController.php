@@ -41,7 +41,7 @@ class AiController extends Controller
     {
         $settings = ArchiveAiSettings::get();
 
-        return view('archive.manage.ai', [
+        return view('admin.archive.ai', [
             'settings' => $settings,
             'spentThisMonth' => ArchiveAiUsage::spentThisMonth(),
             'remaining' => $settings->remainingBudget(),

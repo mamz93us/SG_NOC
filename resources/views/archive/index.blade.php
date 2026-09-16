@@ -55,8 +55,11 @@
     </div>
 
     @if ($canManage)
+        {{-- An absolute link, because this is a different host: the settings are
+             in the NOC now, and this portal is for reading, filing and asking. --}}
         <p class="arc-muted small mt-4 mb-0">
-            <a href="{{ route('archive.manage.index') }}">Manage archives, access and the ArcMate connection</a>
+            Archives, access and the ArcMate connection are set up in the NOC:
+            <a href="{{ route('admin.archive.index') }}">Document Archive settings</a>
         </p>
     @endif
 @endsection

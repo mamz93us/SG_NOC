@@ -1,10 +1,12 @@
-@extends('layouts.archive')
+@extends('layouts.admin')
 
 @section('title', 'Scan destinations')
 
 @section('content')
+    @include('admin.archive._styles')
+
     <div class="d-flex align-items-center gap-2 mb-3">
-        <a href="{{ route('archive.manage.index') }}" class="arc-muted text-decoration-none small">
+        <a href="{{ route('admin.archive.index') }}" class="arc-muted text-decoration-none small">
             <i class="bi bi-arrow-left"></i> Manage
         </a>
         <span class="arc-muted">/</span>
@@ -76,7 +78,7 @@
             <div class="arc-card p-3 mb-3">
                 <h2 class="h6 mb-3">Add a destination</h2>
 
-                <form method="POST" action="{{ route('archive.manage.scan.store') }}">
+                <form method="POST" action="{{ route('admin.archive.scan.store') }}">
                     @csrf
 
                     <label class="form-label small arc-muted mb-1">How the copier sends</label>
@@ -187,7 +189,7 @@
                                         </td>
 
                                         <td class="text-end text-nowrap">
-                                            <form method="POST" action="{{ route('archive.manage.scan.rotate', $endpoint) }}"
+                                            <form method="POST" action="{{ route('admin.archive.scan.rotate', $endpoint) }}"
                                                   class="d-inline m-0"
                                                   onsubmit="return confirm('Replace it? The copier stops working until you update its settings.')">
                                                 @csrf
@@ -196,7 +198,7 @@
                                                 </button>
                                             </form>
 
-                                            <form method="POST" action="{{ route('archive.manage.scan.toggle', $endpoint) }}"
+                                            <form method="POST" action="{{ route('admin.archive.scan.toggle', $endpoint) }}"
                                                   class="d-inline m-0">
                                                 @csrf
                                                 <button class="btn btn-sm btn-outline-secondary">
@@ -204,7 +206,7 @@
                                                 </button>
                                             </form>
 
-                                            <form method="POST" action="{{ route('archive.manage.scan.destroy', $endpoint) }}"
+                                            <form method="POST" action="{{ route('admin.archive.scan.destroy', $endpoint) }}"
                                                   class="d-inline m-0"
                                                   onsubmit="return confirm('Delete {{ $endpoint->label }}? Scans already received are kept.')">
                                                 @csrf

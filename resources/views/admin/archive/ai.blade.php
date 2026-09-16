@@ -1,10 +1,12 @@
-@extends('layouts.archive')
+@extends('layouts.admin')
 
 @section('title', 'AI')
 
 @section('content')
+    @include('admin.archive._styles')
+
     <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="{{ route('archive.manage.index') }}" class="arc-muted text-decoration-none small">
+        <a href="{{ route('admin.archive.index') }}" class="arc-muted text-decoration-none small">
             <i class="bi bi-arrow-left"></i> Manage
         </a>
         <span class="arc-muted">/</span>
@@ -65,7 +67,7 @@
             <div class="arc-card p-3 mb-3">
                 <h2 class="h6 mb-3">What AI may spend</h2>
 
-                <form method="POST" action="{{ route('archive.manage.ai.settings') }}">
+                <form method="POST" action="{{ route('admin.archive.ai.settings') }}">
                     @csrf
                     <label class="form-label small arc-muted mb-1">Budget a month (USD)</label>
                     <input type="number" step="0.01" min="0" class="form-control form-control-sm mb-2"
@@ -140,7 +142,7 @@
             <div class="arc-card p-3 mb-3">
                 <h2 class="h6 mb-3">Read pages, or fill in what is missing</h2>
 
-                <form method="POST" action="{{ route('archive.manage.ai.start') }}" id="batchForm">
+                <form method="POST" action="{{ route('admin.archive.ai.start') }}" id="batchForm">
                     @csrf
                     <div class="row g-2">
                         <div class="col-md-6">
@@ -255,7 +257,7 @@
                                             @endif
                                         </span>
                                     </td>
-                                    <form method="POST" action="{{ route('archive.manage.ai.archive', $row->archive) }}"
+                                    <form method="POST" action="{{ route('admin.archive.ai.archive', $row->archive) }}"
                                           id="a{{ $row->archive->id }}" class="m-0">
                                         @csrf
                                     </form>
@@ -332,7 +334,7 @@
                                         </td>
                                         <td class="text-end text-nowrap">
                                             @if (! $batch->isFinished())
-                                                <form method="POST" action="{{ route('archive.manage.ai.batch', $batch) }}" class="d-inline m-0">
+                                                <form method="POST" action="{{ route('admin.archive.ai.batch', $batch) }}" class="d-inline m-0">
                                                     @csrf
                                                     <input type="hidden" name="action"
                                                            value="{{ $batch->status === \App\Models\Archive\ArchiveAiBatch::STATUS_PAUSED ? 'resume' : 'pause' }}">
@@ -340,13 +342,13 @@
                                                         {{ $batch->status === \App\Models\Archive\ArchiveAiBatch::STATUS_PAUSED ? 'Resume' : 'Pause' }}
                                                     </button>
                                                 </form>
-                                                <form method="POST" action="{{ route('archive.manage.ai.batch', $batch) }}" class="d-inline m-0">
+                                                <form method="POST" action="{{ route('admin.archive.ai.batch', $batch) }}" class="d-inline m-0">
                                                     @csrf
                                                     <input type="hidden" name="action" value="cancel">
                                                     <button class="btn btn-sm btn-outline-secondary">Cancel</button>
                                                 </form>
                                             @elseif ($batch->status === \App\Models\Archive\ArchiveAiBatch::STATUS_OVER_BUDGET)
-                                                <form method="POST" action="{{ route('archive.manage.ai.batch', $batch) }}" class="d-inline m-0">
+                                                <form method="POST" action="{{ route('admin.archive.ai.batch', $batch) }}" class="d-inline m-0">
                                                     @csrf
                                                     <input type="hidden" name="action" value="resume">
                                                     <button class="btn btn-sm btn-outline-secondary">Resume</button>
@@ -404,7 +406,7 @@
 
             const form = new FormData(document.getElementById('batchForm'));
 
-            fetch(@json(route('archive.manage.ai.estimate')), {
+            fetch(@json(route('admin.archive.ai.estimate')), {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
                 body: form,

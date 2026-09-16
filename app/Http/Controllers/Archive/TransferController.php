@@ -42,7 +42,7 @@ class TransferController extends Controller
         $estimatedRemaining = $averageBytes ? (int) round($averageBytes * $totals['pending']) : null;
         $bytesPerSecond = ArchiveTransferRun::recentBytesPerSecond();
 
-        return view('archive.manage.transfer', [
+        return view('admin.archive.transfer', [
             'source' => $source,
             'totals' => $totals,
             'archives' => $perArchive,

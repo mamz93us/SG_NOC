@@ -1,8 +1,10 @@
-@extends('layouts.archive')
+@extends('layouts.admin')
 
 @section('title', 'Manage')
 
 @section('content')
+    @include('admin.archive._styles')
+
     <div class="d-flex align-items-center gap-2 mb-3">
         <a href="{{ route('archive.index') }}" class="arc-muted text-decoration-none small">
             <i class="bi bi-arrow-left"></i> Archives
@@ -14,13 +16,13 @@
             <a href="{{ route('archive.review') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-check2-square"></i> Review proposals
             </a>
-            <a href="{{ route('archive.manage.scan') }}" class="btn btn-sm btn-outline-secondary">
+            <a href="{{ route('admin.archive.scan') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-printer"></i> Scan destinations
             </a>
-            <a href="{{ route('archive.manage.ai') }}" class="btn btn-sm btn-outline-secondary">
+            <a href="{{ route('admin.archive.ai') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-stars"></i> AI
             </a>
-            <a href="{{ route('archive.manage.transfer') }}" class="btn btn-sm btn-outline-secondary">
+            <a href="{{ route('admin.archive.transfer') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-cloud-arrow-up"></i> Transfer to Azure
             </a>
         </div>
@@ -32,7 +34,7 @@
             <div class="arc-card p-3 mb-3">
                 <h2 class="h6 mb-3">ArcMate connection</h2>
 
-                <form method="POST" action="{{ route('archive.manage.source.save') }}">
+                <form method="POST" action="{{ route('admin.archive.source.save') }}">
                     @csrf
                     <div class="row g-2">
                         <div class="col-8">
@@ -78,7 +80,7 @@
                     </div>
                 </form>
 
-                <form method="POST" action="{{ route('archive.manage.source.test') }}" class="mt-2">
+                <form method="POST" action="{{ route('admin.archive.source.test') }}" class="mt-2">
                     @csrf
                     <button class="btn btn-outline-secondary btn-sm w-100">Test connection</button>
                 </form>
@@ -136,7 +138,7 @@
             <div class="arc-card p-3 mb-3">
                 <div class="d-flex align-items-center justify-content-between mb-3">
                     <h2 class="h6 mb-0">Projects on the ArcMate share</h2>
-                    <form method="POST" action="{{ route('archive.manage.tasks.store') }}" class="m-0">
+                    <form method="POST" action="{{ route('admin.archive.tasks.store') }}" class="m-0">
                         @csrf
                         <input type="hidden" name="type" value="rescan_source">
                         <button class="btn btn-outline-secondary btn-sm">Rescan</button>
@@ -172,9 +174,9 @@
                                         <td class="text-end">
                                             @if ($existing)
                                                 <a class="btn btn-sm btn-outline-secondary"
-                                                   href="{{ route('archive.manage.archive', $existing) }}">Set up</a>
+                                                   href="{{ route('admin.archive.archive', $existing) }}">Set up</a>
                                             @else
-                                                <form method="POST" action="{{ route('archive.manage.enable') }}" class="m-0">
+                                                <form method="POST" action="{{ route('admin.archive.enable') }}" class="m-0">
                                                     @csrf
                                                     <input type="hidden" name="folder" value="{{ $project['folder'] }}">
                                                     <button class="btn btn-sm btn-brand">Mirror it</button>
@@ -205,7 +207,7 @@
                                 @foreach ($archives as $archive)
                                     <tr>
                                         <td>
-                                            <a href="{{ route('archive.manage.archive', $archive) }}"
+                                            <a href="{{ route('admin.archive.archive', $archive) }}"
                                                class="fw-semibold text-decoration-none">{{ $archive->displayName() }}</a>
                                             @unless ($archive->readable)
                                                 <span class="badge bg-warning-subtle text-warning-emphasis ms-1">encrypted</span>
