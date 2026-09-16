@@ -148,7 +148,9 @@ class ArchiveToolbox
         return "You can search the company's scanned document archive for this employee: {$names}. "
             .'Call list_archives first to see which fields each archive is searched on. '
             .'Answer only from what the tools return, quote index values exactly as they are recorded, '
-            .'and give the document link so the person can open the scan themselves. '
+            .'and name the document you mean (its invoice number, say). Do NOT write a URL or a '
+            .'markdown link: the portal turns the documents you used into View and Download '
+            .'buttons under your answer, and a pasted link only arrives as unreadable text. '
             .'Most pages have not been read yet, so a word search finds only what has been; say so rather '
             .'than concluding a document does not exist. Never claim an amount or a date that is not in a '
             .'tool result. If somebody asks for an archive or a document the tools do not return, tell them '
