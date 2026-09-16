@@ -396,7 +396,15 @@ class ArchiveTransferService
     }
 
     /** Whether Azure is actually configured, without letting a throw escape. */
-    /** Why the storage could not be reached, or null when it can. */
+    /**
+     * Why the storage could not be reached, or null when it can.
+     *
+     * The WHOLE exception chain, because Flysystem's own message is only
+     * "Unable to check existence for: …" and the reason that matters — a
+     * container that does not exist, a key that is wrong — is in the exception
+     * underneath it. On screen the outer message alone is indistinguishable
+     * from a network blip, and the fix for each of those is different.
+     */
     public function storageProblem(): ?string
     {
         try {
@@ -404,7 +412,20 @@ class ArchiveTransferService
 
             return null;
         } catch (\Throwable $e) {
-            return $e->getMessage();
+            $container = (string) config('filesystems.disks.'.ArchiveFile::DISK_AZURE.'.container');
+            $reasons = [];
+
+            for ($level = $e; $level !== null; $level = $level->getPrevious()) {
+                // Azure's own body is XML with a BOM on it; the first line of the
+                // message is the sentence worth reading.
+                $line = trim((string) (preg_split('/\R/', $level->getMessage())[0] ?? ''));
+
+                if ($line !== '' && ! in_array($line, $reasons, true)) {
+                    $reasons[] = $line;
+                }
+            }
+
+            return 'container '.($container ?: '(unnamed)').' — '.mb_substr(implode(' · ', $reasons), 0, 400);
         }
     }
 
