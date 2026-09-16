@@ -50,21 +50,7 @@ final class LicenseAssignmentPlan
     public static function build(array $users, array $licenseBySku, iterable $employees, iterable $rows, string $today): self
     {
         $plan = new self;
-
-        $byAzure = [];
-        $byEmail = [];
-        foreach ($employees as $e) {
-            $e = self::toArray($e);
-            $e['id'] = (int) $e['id'];
-            if (! empty($e['azure_id'])) {
-                $byAzure[$e['azure_id']][] = $e;
-            }
-            $email = strtolower(trim((string) ($e['email'] ?? '')));
-            if ($email !== '') {
-                $byEmail[$email][$e['id']] = $e;
-            }
-        }
-        $liveAzureIds = array_flip(array_column($users, 'id'));
+        $matcher = new AzureEmployeeMatcher($employees, array_column($users, 'id'));
 
         $desired = [];
         foreach ($users as $user) {
@@ -79,7 +65,7 @@ final class LicenseAssignmentPlan
             }
 
             $upn = (string) ($user['userPrincipalName'] ?? $user['id']);
-            [$employeeId, $candidates] = self::resolve($user, $byAzure, $byEmail, $liveAzureIds);
+            [$employeeId, $candidates] = $matcher->match($user);
             if ($employeeId === null) {
                 if ($candidates === []) {
                     $plan->unmatched[] = $upn;
@@ -141,49 +127,5 @@ final class LicenseAssignmentPlan
     private static function toArray(mixed $row): array
     {
         return $row instanceof Arrayable ? $row->toArray() : (array) $row;
-    }
-
-    /**
-     * The employee an Azure account belongs to.
-     *
-     * The Azure object id decides whenever an employee carries it. Email is only
-     * the fallback, and it never picks by row order: the old sync ran
-     * `azure_id = ? OR email = ? OR email = ?` and took the first row, which put
-     * one active employee's licences on her terminated record with the same
-     * address. An email candidate already linked to a different Azure account
-     * that still exists belongs to that account instead.
-     *
-     * @return array{0: ?int, 1: list<int>} the employee id, or null with the candidates that made it ambiguous
-     */
-    private static function resolve(array $user, array $byAzure, array $byEmail, array $liveAzureIds): array
-    {
-        if (! empty($byAzure[$user['id']])) {
-            $matches = $byAzure[$user['id']];
-            usort($matches, fn ($a, $b) => [($a['status'] ?? '') !== 'active', $a['id']] <=> [($b['status'] ?? '') !== 'active', $b['id']]);
-
-            return [$matches[0]['id'], []];
-        }
-
-        $candidates = [];
-        foreach (['userPrincipalName', 'mail'] as $field) {
-            $email = strtolower(trim((string) ($user[$field] ?? '')));
-            foreach ($byEmail[$email] ?? [] as $id => $e) {
-                $linkedElsewhere = ! empty($e['azure_id']) && $e['azure_id'] !== $user['id'] && isset($liveAzureIds[$e['azure_id']]);
-                if (! $linkedElsewhere) {
-                    $candidates[$id] = $e;
-                }
-            }
-        }
-
-        if (count($candidates) === 1) {
-            return [array_key_first($candidates), []];
-        }
-
-        $active = array_filter($candidates, fn ($e) => ($e['status'] ?? '') === 'active');
-        if (count($active) === 1) {
-            return [array_key_first($active), []];
-        }
-
-        return [null, array_keys($candidates)];
     }
 }

@@ -2720,6 +2720,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('costs', [\App\Http\Controllers\Admin\AssetReportController::class, 'costs'])->name('costs');
             Route::get('stale-licenses', [\App\Http\Controllers\Admin\AssetReportController::class, 'staleLicenses'])->name('stale-licenses');
 
+            // Every account holding a paid Microsoft licence, by whether a real employee needs it.
+            Route::get('microsoft-licenses', [\App\Http\Controllers\Admin\MicrosoftLicenseReportController::class, 'index'])->name('microsoft-licenses');
+
             // Recurring-subscription finance reports (AI tools and any other
             // recurring licence). Usage = monthly run rate; payments = payable.
             Route::get('subscriptions', [\App\Http\Controllers\Admin\SubscriptionReportController::class, 'usage'])->name('subscriptions');
