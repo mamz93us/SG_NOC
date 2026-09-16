@@ -68,7 +68,7 @@ class ArchiveDocument extends Model
 
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('status', self::STATUS_ACTIVE);
+        return $query->where($query->qualifyColumn('status'), self::STATUS_ACTIVE);
     }
 
     /**

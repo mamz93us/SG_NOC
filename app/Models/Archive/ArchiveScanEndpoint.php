@@ -167,7 +167,7 @@ class ArchiveScanEndpoint extends Model implements \App\Services\Backup\Provisio
 
     public function scopeEnabled(Builder $query): Builder
     {
-        return $query->where('enabled', true);
+        return $query->where($query->qualifyColumn('enabled'), true);
     }
 
     public function isEmail(): bool

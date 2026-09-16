@@ -90,7 +90,7 @@ class ArchiveAiBatch extends Model
     /** Batches the worker should pick up. */
     public function scopeRunnable(Builder $query): Builder
     {
-        return $query->whereIn('status', [self::STATUS_PENDING, self::STATUS_RUNNING]);
+        return $query->whereIn($query->qualifyColumn('status'), [self::STATUS_PENDING, self::STATUS_RUNNING]);
     }
 
     public function isFinished(): bool

@@ -89,7 +89,7 @@ class ArchiveAiProposal extends Model
 
     public function scopePending(Builder $query): Builder
     {
-        return $query->where('status', self::STATUS_PENDING);
+        return $query->where($query->qualifyColumn('status'), self::STATUS_PENDING);
     }
 
     /** The value that would be written: what a reviewer typed, else AI's. */
