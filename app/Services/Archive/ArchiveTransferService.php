@@ -416,12 +416,18 @@ class ArchiveTransferService
             $reasons = [];
 
             for ($level = $e; $level !== null; $level = $level->getPrevious()) {
-                // Azure's own body is XML with a BOM on it; the first line of the
-                // message is the sentence worth reading.
-                $line = trim((string) (preg_split('/\R/', $level->getMessage())[0] ?? ''));
+                // Azure reports a failure over several lines — "Fail:", then
+                // "Code: 404", then "Value: The specified container does not
+                // exist." — and follows them with the raw XML body. The sentence
+                // worth reading is the third line, so the whole message is kept up
+                // to where the XML starts and folded onto one line. Taking only
+                // the first line left "Fail:" and threw the reason away.
+                $message = (string) $level->getMessage();
+                $message = (string) preg_replace('/details \(if any\).*/s', '', $message);
+                $message = trim((string) preg_replace('/\s+/', ' ', $message));
 
-                if ($line !== '' && ! in_array($line, $reasons, true)) {
-                    $reasons[] = $line;
+                if ($message !== '' && ! in_array($message, $reasons, true)) {
+                    $reasons[] = $message;
                 }
             }
 
