@@ -225,6 +225,55 @@
             </div>
         </div>
 
+        {{-- One person, several accounts (Identity ▸ Linked Accounts) --}}
+        @if($personAccounts->count() > 1)
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header bg-transparent py-2 d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-link-45deg me-1"></i>Accounts
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">{{ $personAccounts->count() }}</span></strong>
+                @can('view-identity')
+                <a href="{{ route('admin.identity.linked-accounts', ['q' => $mainRecord->name]) }}" class="btn btn-outline-secondary btn-sm py-0 px-2">Linked accounts</a>
+                @endcan
+            </div>
+            <div class="card-body small">
+                @if($employee->linked_primary_employee_id)
+                <div class="alert alert-info py-2 px-2 mb-2">
+                    A linked account of <a href="{{ route('admin.employees.show', $mainRecord->id) }}">{{ $mainRecord->name }}</a>.
+                    Job title, department, extension and mobile come from that main record.
+                </div>
+                @endif
+                <ul class="list-unstyled mb-0">
+                    @foreach($personAccounts as $account)
+                    <li class="d-flex align-items-start gap-2 {{ $loop->last ? '' : 'mb-2' }}">
+                        <i class="bi {{ $account->id === $mainRecord->id ? 'bi-person-check-fill text-primary' : 'bi-envelope text-muted' }} mt-1"></i>
+                        <div class="flex-grow-1">
+                            @if($account->id === $employee->id)
+                                <span class="fw-semibold">{{ $account->email ?: $account->name }}</span> <span class="text-muted">(this page)</span>
+                            @else
+                                <a href="{{ route('admin.employees.show', $account->id) }}">{{ $account->email ?: $account->name }}</a>
+                            @endif
+                            <div class="text-muted">
+                                {{ $account->id === $mainRecord->id ? 'Main record' : 'Linked account' }}@if($account->oracle_emp_no) · Oracle {{ $account->oracle_emp_no }}@endif @if($account->branch)· {{ $account->branch->name }}@endif
+                            </div>
+                            <div>
+                                @if(! $account->azure_id)
+                                    <span class="badge text-bg-light border">No Microsoft account</span>
+                                @elseif($account->identityUser)
+                                    <span class="badge {{ $account->identityUser->account_enabled ? 'text-bg-success' : 'text-bg-danger' }}">{{ $account->identityUser->account_enabled ? 'Sign-in enabled' : 'Sign-in disabled' }}</span>
+                                    @if($account->identityUser->licenses_count)
+                                        <span class="badge text-bg-light border">{{ $account->identityUser->licenses_count }} {{ \Illuminate\Support\Str::plural('licence', $account->identityUser->licenses_count) }}</span>
+                                    @endif
+                                @endif
+                                @if($account->status === 'terminated')<span class="badge text-bg-secondary">Terminated</span>@endif
+                            </div>
+                        </div>
+                    </li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+        @endif
+
         {{-- Attendance & vacation: the Employee profile has both on one page --}}
         @canany(['view-attendance', 'view-vacations'])
         @php

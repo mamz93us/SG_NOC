@@ -119,6 +119,15 @@ class EmployeeController extends Controller
             'contact',
         ]);
 
+        // One person, several accounts: the main record and every account linked to it.
+        $mainRecord = $employee->linked_primary_employee_id ? ($employee->linkedPrimary ?? $employee) : $employee;
+        $personAccounts = Employee::query()
+            ->where(fn ($q) => $q->whereKey($mainRecord->id)->orWhere('linked_primary_employee_id', $mainRecord->id))
+            ->with(['identityUser:id,azure_id,account_enabled,licenses_count', 'branch:id,name'])
+            ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$mainRecord->id])
+            ->orderBy('email')
+            ->get(['id', 'name', 'email', 'azure_id', 'status', 'employee_type', 'oracle_emp_no', 'branch_id', 'linked_primary_employee_id']);
+
         // Only show user-equipment types in the assign modal (laptops, monitors, etc.)
         $availableDevices = Device::userEquipment()
             ->where('status', 'available')
@@ -171,7 +180,7 @@ class EmployeeController extends Controller
         return view('admin.employees.show', compact(
             'employee', 'availableDevices', 'availableAccessories',
             'availableLicenses', 'licenseAssignments', 'phoneInfo', 'azureDevices',
-            'networkPresence'
+            'networkPresence', 'mainRecord', 'personAccounts'
         ));
     }
 

@@ -7,9 +7,13 @@ use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\IdentityUser;
+use App\Services\Identity\EmployeeAccountLinker;
+use App\Services\Identity\LinkedAccountSuggester;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 /**
@@ -21,14 +25,53 @@ use Illuminate\View\View;
  */
 class LinkedAccountController extends Controller
 {
-    /** List existing links + the add form. */
-    public function index(): View
+    /**
+     * People with more than one record: the ones the NOC suggests linking, the
+     * ones already linked (grouped by their main record), and the manual form.
+     */
+    public function index(Request $request): View
     {
+        $search = trim((string) $request->query('q', ''));
+        $matches = fn (?string ...$values) => $search === ''
+            || str_contains(mb_strtolower(implode(' ', array_filter($values))), mb_strtolower($search));
+
         $links = Employee::query()
             ->whereNotNull('linked_primary_employee_id')
-            ->with(['branch', 'linkedPrimary.branch', 'linkedPrimary.department', 'identityUser'])
+            ->with(['branch', 'linkedPrimary.branch', 'linkedPrimary.department', 'linkedPrimary.identityUser', 'identityUser'])
             ->orderBy('name')
             ->get();
+        $linkedPeople = $links
+            ->groupBy('linked_primary_employee_id')
+            ->map(fn ($accounts) => ['primary' => $accounts->first()->linkedPrimary, 'accounts' => $accounts])
+            ->filter(fn ($person) => $person['primary']
+                ? $matches($person['primary']->name, $person['primary']->email, ...$person['accounts']->pluck('email')->all())
+                : $matches(...$person['accounts']->pluck('email')->all()))
+            ->sortBy(fn ($person) => mb_strtolower($person['primary']?->name ?? ''))
+            ->values();
+
+        $employees = Employee::query()
+            ->leftJoin('branches', 'branches.id', '=', 'employees.branch_id')
+            ->leftJoin('departments', 'departments.id', '=', 'employees.department_id')
+            ->toBase()
+            ->get([
+                'employees.id', 'employees.name', 'employees.email', 'employees.azure_id', 'employees.status',
+                'employees.employee_type', 'employees.oracle_emp_no', 'employees.linked_primary_employee_id',
+                'employees.job_title', 'branches.name as branch', 'departments.name as department',
+            ]);
+        $lastPunch = Schema::hasTable('attendance_punches')
+            ? DB::table('attendance_punches')->whereNotNull('employee_id')->groupBy('employee_id')
+                ->selectRaw('employee_id, max(punch_time) as last_punch')->pluck('last_punch', 'employee_id')->all()
+            : [];
+        $suggestions = array_values(array_filter(
+            LinkedAccountSuggester::suggest($employees, $lastPunch),
+            fn ($s) => $matches($s['primary']['name'], $s['primary']['email'], ...array_column($s['secondaries'], 'email'), ...array_column($s['secondaries'], 'name')),
+        ));
+
+        // Sign-in state and licence count of every account shown, by Azure object id.
+        $azureIds = collect($suggestions)
+            ->flatMap(fn ($s) => array_merge([$s['primary']['azure_id']], array_column($s['secondaries'], 'azure_id')))
+            ->filter()->unique()->values();
+        $identity = IdentityUser::whereIn('azure_id', $azureIds)->get(['azure_id', 'account_enabled', 'licenses_count'])->keyBy('azure_id');
 
         $branches = Branch::orderBy('name')->get();
 
@@ -36,7 +79,57 @@ class LinkedAccountController extends Controller
         $defaultBranchId = $branches->first(fn ($b) => str_contains(mb_strtolower($b->name), 'jed')
             || str_contains(mb_strtolower($b->name), 'jeddah'))?->id;
 
-        return view('admin.identity.linked-accounts', compact('links', 'branches', 'defaultBranchId'));
+        return view('admin.identity.linked-accounts', [
+            'search' => $search,
+            'suggestions' => $suggestions,
+            'identity' => $identity,
+            'linkedPeople' => $linkedPeople,
+            'linkCount' => $links->count(),
+            'branches' => $branches,
+            'defaultBranchId' => $defaultBranchId,
+            'canSeeAttendance' => (bool) $request->user()?->can('view-attendance'),
+        ]);
+    }
+
+    /**
+     * Link suggested (or hand-picked) records to their main record. One button
+     * links one person; "Link checked" links every ticked suggestion at once.
+     */
+    public function link(Request $request, EmployeeAccountLinker $linker): RedirectResponse
+    {
+        $data = $request->validate([
+            'only' => 'nullable|integer|min:0',
+            'links' => 'required|array|min:1',
+            'links.*.selected' => 'nullable|boolean',
+            'links.*.primary_id' => 'required|integer|exists:employees,id',
+            'links.*.secondary_ids' => 'required|array|min:1',
+            'links.*.secondary_ids.*' => 'integer|exists:employees,id',
+        ]);
+
+        $rows = isset($data['only'])
+            ? array_intersect_key($data['links'], [(int) $data['only'] => true])
+            : array_filter($data['links'], fn ($row) => ! empty($row['selected']));
+
+        if ($rows === []) {
+            return back()->with('error', 'Tick at least one person to link.');
+        }
+
+        $linked = [];
+        $skipped = [];
+        foreach ($rows as $row) {
+            $result = $linker->link(Employee::findOrFail($row['primary_id']), $row['secondary_ids']);
+            $linked = array_merge($linked, $result['linked']);
+            $skipped = array_merge($skipped, $result['skipped']);
+        }
+
+        $message = $linked
+            ? 'Linked '.count($linked).' account(s): '.implode(', ', $linked).'. Their signature and Azure contact data now follow the main record; run a Bulk Azure Contact Sync to push it to Azure.'
+            : 'Nothing was linked.';
+        if ($skipped) {
+            $message .= ' Skipped: '.implode(' ', $skipped);
+        }
+
+        return back()->with($linked ? 'success' : 'error', $message);
     }
 
     /** Create (or update) the link. */

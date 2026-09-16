@@ -1187,6 +1187,12 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.identity.linked-accounts') ? 'active' : '' }}"
+                                   href="{{ route('admin.identity.linked-accounts') }}">
+                                    <i class="bi bi-link-45deg me-2"></i>Linked Accounts
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.identity.hr-import*') ? 'active' : '' }}"
                                    href="{{ route('admin.identity.hr-import') }}">
                                     <i class="bi bi-file-earmark-spreadsheet me-2"></i>Oracle HR Import
