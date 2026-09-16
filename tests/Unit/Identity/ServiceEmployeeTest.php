@@ -187,6 +187,20 @@ it('leaves a row alone when its Oracle number is already on somebody', function 
         ->and($row->fresh()->error_note)->toContain('already on Mohamed Ali');
 });
 
+it('does not create a second record for someone already in the NOC without an Oracle number', function () {
+    // The mailbox record the email match missed: HR listed the person under a manager's address.
+    Employee::create(['name' => 'Bander Alharbi', 'email' => 'bander.alharbi@samirgroup.com', 'status' => 'active']);
+
+    $batch = serviceBatch();
+    $row = serviceRow($batch, ['emp_no' => '1641', 'emp_name' => 'Bander Al-Harbi']);
+
+    $result = (new OracleHrImportService)->createServiceEmployees($batch);
+
+    expect($result)->toBe(['created' => 0, 'skipped' => 1])
+        ->and(Employee::count())->toBe(1)
+        ->and($row->fresh()->error_note)->toContain('already in the NOC without an Oracle number');
+});
+
 it('will not create a mail-less person as an ordinary employee', function () {
     $batch = serviceBatch();
     $row = serviceRow($batch);

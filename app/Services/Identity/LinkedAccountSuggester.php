@@ -5,20 +5,26 @@ namespace App\Services\Identity;
 use Illuminate\Contracts\Support\Arrayable;
 
 /**
- * People the NOC holds more than once and has not linked yet: an SSS Egypt
- * employee's sssegypt.com record next to their samirgroup.com one, the
- * managing director's three mailboxes, or a service record the Oracle HR
- * import created for someone who already had a mailbox record. Pure: employee
- * rows and punch dates go in, suggested links come out.
+ * People the NOC holds more than once, and what to do about each. Pure:
+ * employee rows, punch dates and the Azure accounts that exist go in, merge and
+ * link suggestions come out.
  *
- * Records belong together when they share an email, a mailbox name on another
- * domain, a full name, or the same name in reverse order. Two records whose
- * Oracle HR numbers differ are two people, and the group is dropped. A group
- * needs one record Oracle HR or BioTime knows, which is what makes it a person
- * rather than two app accounts called "Application Notification".
+ * Records belong to one person when they share an email, a mailbox name on
+ * another domain, a full name, or the same name in reverse order. Names keep
+ * their digits, so TestUserAVD1 and TestUserAVD2 stay apart. A group never forms
+ * across two different Oracle HR numbers: Oracle's SSS-Egypt and SamirGroup
+ * series collide, and "Yousef Ahmed" is not "Ahmed Yousef".
  *
- * The main record is the HR one: its own Oracle number first, then punches,
- * then a mailbox. Every other record becomes a linked account of it.
+ * Within a group:
+ * - **merge**: every record without a live Microsoft account is the same person
+ *   recorded again, typically a service record the Oracle HR import created next
+ *   to the mailbox record, or an old terminated record next to the current one.
+ *   It merges into the record kept (see EmployeeMerger::order()).
+ * - **link**: two or more live mailboxes (sssegypt.com and samirgroup.com) are
+ *   real accounts; the extra ones link to the HR record.
+ *
+ * A group needs something that makes it a person: an Oracle number, punches, an
+ * existing link, or, for a merge, a shared email.
  */
 final class LinkedAccountSuggester
 {
@@ -32,9 +38,10 @@ final class LinkedAccountSuggester
     /**
      * @param  iterable<object|array<string, mixed>>  $employees  id, name, email, azure_id, status, employee_type, oracle_emp_no, linked_primary_employee_id
      * @param  array<int, string>  $lastPunch  employee id => latest punch time
-     * @return list<array{primary: array<string, mixed>, secondaries: list<array<string, mixed>>, reasons: list<string>}>
+     * @param  iterable<string>  $liveAzureIds  object ids of the accounts that exist in Azure
+     * @return list<array{kind: string, primary: array<string, mixed>, secondaries: list<array<string, mixed>>, reasons: list<string>}>
      */
-    public static function suggest(iterable $employees, array $lastPunch = []): array
+    public static function suggest(iterable $employees, array $lastPunch = [], iterable $liveAzureIds = []): array
     {
         $records = [];
         foreach ($employees as $e) {
@@ -42,12 +49,15 @@ final class LinkedAccountSuggester
             $e['id'] = (int) $e['id'];
             $records[$e['id']] = $e;
         }
-
-        // Records already linked to a main record are settled; terminated ones are gone.
-        $open = array_filter($records, fn ($e) => ($e['status'] ?? '') !== 'terminated' && empty($e['linked_primary_employee_id']));
+        $live = [];
+        foreach ($liveAzureIds as $azureId) {
+            $live[(string) $azureId] = true;
+        }
+        $hasLive = fn (array $e) => ! empty($e['azure_id']) && isset($live[$e['azure_id']]);
+        $oracle = fn (array $e) => trim((string) ($e['oracle_emp_no'] ?? ''));
 
         $keys = [];
-        foreach ($open as $id => $e) {
+        foreach ($records as $id => $e) {
             $email = strtolower(trim((string) ($e['email'] ?? '')));
             if ($email !== '' && str_contains($email, '@')) {
                 $keys['email:'.$email][] = $id;
@@ -60,14 +70,19 @@ final class LinkedAccountSuggester
             if (strlen($name) >= 6) {
                 $keys['name:'.$name][] = $id;
             }
-            $words = preg_split('/[^a-z]+/', strtolower((string) ($e['name'] ?? '')), -1, PREG_SPLIT_NO_EMPTY);
+            $words = preg_split('/[^a-z0-9]+/', strtolower((string) ($e['name'] ?? '')), -1, PREG_SPLIT_NO_EMPTY);
             if (count($words) >= 2) {
                 sort($words);
                 $keys['reversed:'.implode(' ', $words)][] = $id;
             }
         }
 
+        // Union-find that refuses to join two different Oracle numbers.
         $parent = [];
+        $numbers = [];
+        foreach ($records as $id => $e) {
+            $numbers[$id] = $oracle($e);
+        }
         $find = function (int $x) use (&$parent, &$find): int {
             if (($parent[$x] ?? $x) === $x) {
                 return $x;
@@ -82,82 +97,107 @@ final class LinkedAccountSuggester
                 continue;
             }
             $kind = strstr($key, ':', true);
-            // A mailbox name only counts across domains; on one domain it is the same email.
-            if ($kind === 'mailbox' && count(array_unique(array_map(fn ($id) => strtolower(substr(strrchr((string) $open[$id]['email'], '@'), 1)), $ids))) < 2) {
-                continue;
+            if ($kind === 'mailbox' && count(array_unique(array_map(fn ($id) => strtolower(substr(strrchr((string) $records[$id]['email'], '@'), 1)), $ids))) < 2) {
+                continue; // One domain means the same email, which has its own key.
             }
-            // Identical names are "Same name"; only a different word order is "reverse order".
-            if ($kind === 'reversed' && count(array_unique(array_map(fn ($id) => self::letters($open[$id]['name'] ?? ''), $ids))) < 2) {
-                continue;
+            if ($kind === 'reversed' && count(array_unique(array_map(fn ($id) => self::letters($records[$id]['name'] ?? ''), $ids))) < 2) {
+                continue; // Identical names are "Same name".
             }
-            for ($i = 1; $i < count($ids); $i++) {
+            foreach (array_slice($ids, 1) as $id) {
                 $a = $find($ids[0]);
-                $b = $find($ids[$i]);
+                $b = $find($id);
                 if ($a !== $b) {
+                    if ($numbers[$a] !== '' && $numbers[$b] !== '' && $numbers[$a] !== $numbers[$b]) {
+                        continue;
+                    }
                     $parent[$b] = $a;
+                    $numbers[$a] = $numbers[$a] !== '' ? $numbers[$a] : $numbers[$b];
                 }
-            }
-            foreach ($ids as $id) {
-                $reasons[$id][$kind] = true;
+                if ($kind !== 'reversed' || self::letters($records[$ids[0]]['name'] ?? '') !== self::letters($records[$id]['name'] ?? '')) {
+                    $reasons[$ids[0]][$kind] = true;
+                    $reasons[$id][$kind] = true;
+                }
             }
         }
 
         $groups = [];
-        foreach (array_keys($open) as $id) {
-            if (isset($parent[$id]) || isset($reasons[$id])) {
-                $groups[$find($id)][] = $id;
-            }
+        foreach (array_keys($records) as $id) {
+            $groups[$find($id)][] = $id;
         }
 
-        // A record an admin already made the main one keeps that role.
         $hasLinked = [];
         foreach ($records as $e) {
             if (! empty($e['linked_primary_employee_id'])) {
                 $hasLinked[(int) $e['linked_primary_employee_id']] = true;
             }
         }
+        $with = fn (int $id) => $records[$id] + ['last_punch' => $lastPunch[$id] ?? null, 'has_live_account' => $hasLive($records[$id])];
 
         $suggestions = [];
         foreach ($groups as $ids) {
-            if (count($ids) < 2) {
+            if (count($ids) < 2 || ! array_filter($ids, fn ($id) => ($records[$id]['status'] ?? '') !== 'terminated')) {
                 continue;
             }
-            $oracle = array_unique(array_filter(array_map(fn ($id) => trim((string) ($open[$id]['oracle_emp_no'] ?? '')), $ids)));
-            if (count($oracle) > 1) {
-                continue;
-            }
-
-            $score = fn ($id) => (isset($hasLinked[$id]) ? 16 : 0)
-                + (trim((string) ($open[$id]['oracle_emp_no'] ?? '')) !== '' ? 8 : 0)
-                + (isset($lastPunch[$id]) ? 4 : 0)
-                + (! empty($open[$id]['azure_id']) ? 2 : 0)
-                + (($open[$id]['employee_type'] ?? 'standard') === 'standard' ? 1 : 0);
-            usort($ids, fn ($a, $b) => [$score($b), $a] <=> [$score($a), $b]);
-
-            $primary = $ids[0];
-            if ($score($primary) < 4) {
-                continue; // Neither Oracle HR nor BioTime knows anyone here.
-            }
-
             $groupReasons = [];
             foreach ($ids as $id) {
                 $groupReasons += $reasons[$id] ?? [];
             }
+            $reasonText = array_values(array_map(fn ($kind) => self::REASONS[$kind], array_keys(array_intersect_key(self::REASONS, $groupReasons))));
+            $known = (bool) array_filter($ids, fn ($id) => $oracle($records[$id]) !== '' || isset($lastPunch[$id]) || isset($hasLinked[$id]));
 
-            $suggestions[] = [
-                'primary' => $open[$primary] + ['last_punch' => $lastPunch[$primary] ?? null],
-                'secondaries' => array_map(fn ($id) => $open[$id] + ['last_punch' => $lastPunch[$id] ?? null], array_slice($ids, 1)),
-                'reasons' => array_values(array_map(fn ($kind) => self::REASONS[$kind], array_keys(array_intersect_key(self::REASONS, $groupReasons)))),
-            ];
+            // The mailbox that is the person's HR record: an existing main record, its own Oracle number, punches.
+            $mailboxes = array_values(array_filter($ids, fn ($id) => $hasLive($records[$id])));
+            $mainScore = fn ($id) => [($records[$id]['status'] ?? '') !== 'terminated' ? 1 : 0, isset($hasLinked[$id]) ? 1 : 0, $oracle($records[$id]) !== '' ? 1 : 0, isset($lastPunch[$id]) ? 1 : 0, -$id];
+            usort($mailboxes, fn ($a, $b) => $mainScore($b) <=> $mainScore($a));
+
+            // Merge: records without a live account fold into the main mailbox, or, with none, into the best of them.
+            $others = array_values(array_filter($ids, fn ($id) => ! $hasLive($records[$id])));
+            if ($others) {
+                $keepRank = fn ($id) => [($records[$id]['status'] ?? '') !== 'terminated' ? 1 : 0, $oracle($records[$id]) !== '' ? 1 : 0, isset($lastPunch[$id]) ? 1 : 0, -$id];
+                usort($others, fn ($a, $b) => $keepRank($b) <=> $keepRank($a));
+                $keep = $mailboxes[0] ?? array_shift($others);
+                $sameEmail = isset($groupReasons['email']);
+                $current = fn ($id) => ($records[$id]['status'] ?? '') !== 'terminated';
+                $email = fn ($id) => strtolower(trim((string) ($records[$id]['email'] ?? '')));
+                // Same rules EmployeeMerger::problems() enforces: never a current record into a leaver, never two current addresses.
+                $duplicates = array_values(array_filter($others, fn ($id) => ! (! $current($keep) && $current($id))
+                    && ! ($current($keep) && $current($id) && $email($keep) !== '' && $email($id) !== '' && $email($keep) !== $email($id))));
+                if ($duplicates && ($known || $sameEmail) && ($records[$keep]['status'] ?? '') !== 'terminated') {
+                    $suggestions[] = [
+                        'kind' => 'merge',
+                        'primary' => $with($keep),
+                        'secondaries' => array_map($with, $duplicates),
+                        'reasons' => $reasonText,
+                    ];
+                }
+            }
+
+            // Link: extra live mailboxes of a current person, not yet linked to the main one.
+            if (count($mailboxes) >= 2 && $known) {
+                $main = $mailboxes[0];
+                // Only unlinked mailboxes. One linked to a record that merges into the main one follows the merge.
+                $toLink = array_values(array_filter(array_slice($mailboxes, 1), fn ($id) => ($records[$id]['status'] ?? '') !== 'terminated'
+                    && empty($records[$id]['linked_primary_employee_id'])
+                    && ! isset($hasLinked[$id])));
+                if ($toLink && ($records[$main]['status'] ?? '') !== 'terminated' && empty($records[$main]['linked_primary_employee_id'])) {
+                    $suggestions[] = [
+                        'kind' => 'link',
+                        'primary' => $with($main),
+                        'secondaries' => array_map($with, $toLink),
+                        'reasons' => $reasonText,
+                    ];
+                }
+            }
         }
 
-        usort($suggestions, fn ($a, $b) => strcasecmp((string) $a['primary']['name'], (string) $b['primary']['name']));
+        usort($suggestions, fn ($a, $b) => [$a['kind'] === 'merge' ? 0 : 1, strtolower((string) $a['primary']['name'])]
+            <=> [$b['kind'] === 'merge' ? 0 : 1, strtolower((string) $b['primary']['name'])]);
 
         return $suggestions;
     }
 
     private static function letters(?string $value): string
     {
-        return (string) preg_replace('/[^a-z]/', '', strtolower((string) $value));
+        return (string) preg_replace('/[^a-z0-9]/', '', strtolower((string) $value));
     }
 }

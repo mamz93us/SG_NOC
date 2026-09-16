@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\IdentityUser;
 use App\Services\Identity\EmployeeAccountLinker;
 use App\Services\Identity\LinkedAccountSuggester;
+use App\Services\People\EmployeeMerger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -63,7 +64,7 @@ class LinkedAccountController extends Controller
                 ->selectRaw('employee_id, max(punch_time) as last_punch')->pluck('last_punch', 'employee_id')->all()
             : [];
         $suggestions = array_values(array_filter(
-            LinkedAccountSuggester::suggest($employees, $lastPunch),
+            LinkedAccountSuggester::suggest($employees, $lastPunch, IdentityUser::query()->pluck('azure_id')),
             fn ($s) => $matches($s['primary']['name'], $s['primary']['email'], ...array_column($s['secondaries'], 'email'), ...array_column($s['secondaries'], 'name')),
         ));
 
@@ -81,7 +82,8 @@ class LinkedAccountController extends Controller
 
         return view('admin.identity.linked-accounts', [
             'search' => $search,
-            'suggestions' => $suggestions,
+            'merges' => array_values(array_filter($suggestions, fn ($s) => $s['kind'] === 'merge')),
+            'suggestions' => array_values(array_filter($suggestions, fn ($s) => $s['kind'] === 'link')),
             'identity' => $identity,
             'linkedPeople' => $linkedPeople,
             'linkCount' => $links->count(),
@@ -130,6 +132,57 @@ class LinkedAccountController extends Controller
         }
 
         return back()->with($linked ? 'success' : 'error', $message);
+    }
+
+    /**
+     * Merge records that are the same person into one: the record kept is the
+     * one with the Microsoft account (EmployeeMerger::order()), and the others
+     * are deleted once everything pointing at them has moved. Employee data, so
+     * it takes manage-employees on top of the page's manage-identity.
+     */
+    public function merge(Request $request, EmployeeMerger $merger): RedirectResponse
+    {
+        abort_unless((bool) $request->user()?->can('manage-employees'), 403);
+
+        $data = $request->validate([
+            'only' => 'nullable|integer|min:0',
+            'merges' => 'required|array|min:1',
+            'merges.*.selected' => 'nullable|boolean',
+            'merges.*.employee_ids' => 'required|array|min:2',
+            'merges.*.employee_ids.*' => 'integer|distinct|exists:employees,id',
+        ]);
+
+        $rows = isset($data['only'])
+            ? array_intersect_key($data['merges'], [(int) $data['only'] => true])
+            : array_filter($data['merges'], fn ($row) => ! empty($row['selected']));
+
+        if ($rows === []) {
+            return back()->with('error', 'Tick at least one person to merge.');
+        }
+
+        $merged = [];
+        $refused = [];
+        foreach ($rows as $row) {
+            [$keep, $duplicates] = EmployeeMerger::order(Employee::whereKey($row['employee_ids'])->get());
+            foreach ($duplicates as $duplicate) {
+                $label = "#{$duplicate->id} into {$keep->name} (#{$keep->id})";
+                $result = $merger->merge($keep->fresh(), $duplicate);
+                if ($result['merged']) {
+                    $merged[] = $label;
+                } else {
+                    $refused[] = "{$label}: ".implode(' ', $result['problems']);
+                }
+            }
+        }
+
+        $message = $merged
+            ? 'Merged '.count($merged).' duplicate record(s): '.implode(', ', $merged).'.'
+            : 'Nothing was merged.';
+        if ($refused) {
+            $message .= ' Not merged: '.implode(' ', $refused);
+        }
+
+        return back()->with($merged ? 'success' : 'error', $message);
     }
 
     /** Create (or update) the link. */
