@@ -7,7 +7,7 @@
 # sets that mount up and makes it survive a reboot.
 #
 #   sudo bash deployment/archive-portal/mount-arcmate.sh
-#   sudo ARCMATE_HOST=172.16.8.10 ARCMATE_SHARE=ArcRepositories bash ...
+#   sudo ARCMATE_HOST=172.16.8.10 ARCMATE_SHARE=d/ArcRepositories bash ...
 #
 # THE CREDENTIALS FILE IS NOT WRITTEN BY THIS SCRIPT, on purpose. It prints
 # exactly what to put in it and stops. A password typed into a script ends up in
@@ -21,7 +21,15 @@
 set -euo pipefail
 
 HOST="${ARCMATE_HOST:-172.16.8.10}"
-SHARE="${ARCMATE_SHARE:-ArcRepositories}"
+# The repositories are NOT a share of their own: ArcMate shares the whole D:
+# drive as "d", with ArcRepositories a folder inside it. mount.cifs takes a
+# subdirectory in the UNC, so this mounts the folder itself at $MOUNT and the
+# app's mount_path stays /mnt/arcmate.
+#
+# That the whole drive is shared is one of the things this project exists to
+# end; mounting only the subfolder, read-only, is as narrow as this side can
+# make it.
+SHARE="${ARCMATE_SHARE:-d/ArcRepositories}"
 MOUNT="${ARCMATE_MOUNT:-/mnt/arcmate}"
 CRED="${ARCMATE_CRED:-/etc/arcmate-share.cred}"
 APP_USER="${APP_USER:-azureuser}"
