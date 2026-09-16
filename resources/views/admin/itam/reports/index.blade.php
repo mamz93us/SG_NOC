@@ -42,6 +42,7 @@
             ['transfers', 'bi-arrow-left-right', 'Transfer History', 'Every transfer between employees or to a branch store.', 'warning'],
             ['scraps', 'bi-trash3', 'Scrap History', 'All assets that have been formally scrapped.', 'danger'],
             ['stale-licenses', 'bi-exclamation-triangle', 'Stale Licenses', 'Licenses still held by a terminated or Azure-disabled employee.', 'danger'],
+            ['microsoft-licenses', 'bi-microsoft', 'Microsoft 365 License Review', 'Every licensed Azure account: real employee, not in Oracle HR, not a person, second account, disabled or terminated.', 'primary'],
             ['subscriptions', 'bi-robot', 'AI Subscription Usage', 'Who holds a seat on each AI tool and what it costs per month.', 'dark'],
             ['subscription-payments', 'bi-cash-coin', 'Subscription Payments Due', 'What renews this month, split by card vs wire transfer — for finance.', 'success'],
             ['subscriptions-by-department', 'bi-diagram-3', 'Subscription Cost by Department', 'Monthly cost and current-month charges allocated to each department.', 'info'],

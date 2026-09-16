@@ -36,6 +36,9 @@ class LicenseAssignmentSync
 
     private const MAX_REMOVAL_SHARE = 0.10;
 
+    /** When licences were last copied from Microsoft, for the license review report. */
+    public const LAST_RUN_CACHE_KEY = 'identity:license-sync:last-run';
+
     public function __construct(private GraphService $graph) {}
 
     /**
@@ -134,6 +137,8 @@ class LicenseAssignmentSync
                 });
             }
         });
+
+        Cache::forever(self::LAST_RUN_CACHE_KEY, now()->toIso8601String());
 
         if ($result['added'] || $result['removed'] || $seats) {
             ActivityLog::log('Microsoft licence sync', [
