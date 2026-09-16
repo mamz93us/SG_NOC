@@ -308,6 +308,11 @@ if (\App\Support\ArchivePortal::enabled()) {
                 Route::post('/archives', [\App\Http\Controllers\Archive\ManageController::class, 'enable'])->name('enable');
                 Route::get('/archives/{archive}', [\App\Http\Controllers\Archive\ManageController::class, 'showArchive'])
                     ->whereNumber('archive')->name('archive');
+                // A field ArcMate does not have. Safe on a mirrored archive
+                // BECAUSE it has no arcmate_column: the sync maps values by
+                // column, so it never writes this one and never clears it.
+                Route::post('/archives/{archive}/fields', [\App\Http\Controllers\Archive\ManageController::class, 'addField'])
+                    ->whereNumber('archive')->name('fields.store');
                 Route::post('/archives/{archive}/members', [\App\Http\Controllers\Archive\ManageController::class, 'addMember'])
                     ->whereNumber('archive')->name('members.store');
                 Route::delete('/archives/{archive}/members/{member}', [\App\Http\Controllers\Archive\ManageController::class, 'removeMember'])

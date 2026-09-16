@@ -209,6 +209,11 @@ return [
             'account' => env('AZURE_BLOB_ACCOUNT'),
             'key' => env('AZURE_BLOB_KEY'),
             'container' => env('AZURE_BLOB_ARCHIVE_CONTAINER', 'noc-archive'),
+            // Its OWN container, not the shared one the other azure_* disks use.
+            // The Azure Blob container in Settings names that shared container,
+            // so this disk opts out of it — otherwise every transferred invoice
+            // goes into the offboarding backups container instead.
+            'container_from_settings' => false,
             'endpoint' => env('AZURE_BLOB_ENDPOINT_SUFFIX', 'core.windows.net'),
             'throw' => false,
         ],

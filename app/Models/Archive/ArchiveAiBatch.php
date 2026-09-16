@@ -50,6 +50,7 @@ class ArchiveAiBatch extends Model
         'field_ids',
         'pages_total',
         'documents_total',
+        'max_documents',
         'estimated_cost_usd',
         'status',
         'requested_by',
@@ -61,7 +62,9 @@ class ArchiveAiBatch extends Model
         'pages_total' => 'integer',
         'pages_done' => 'integer',
         'documents_total' => 'integer',
+        'max_documents' => 'integer',
         'documents_done' => 'integer',
+        'current_document_id' => 'integer',
         'estimated_cost_usd' => 'decimal:2',
         'cost_so_far_usd' => 'decimal:4',
         'finished_at' => 'datetime',
@@ -105,12 +108,21 @@ class ArchiveAiBatch extends Model
         return $total > 0 ? (int) round(min(1, $this->documents_done / $total) * 100) : 0;
     }
 
-    /** Add what one document's reading cost, and stop at the budget. */
-    public function addProgress(int $pages, float $cost, int $documents = 1): void
+    /**
+     * Add what one turn at a document cost.
+     *
+     * $documents is 0 when this is another turn at the document already being
+     * worked, so `documents_done` counts DOCUMENTS. A read batch takes ten pages
+     * at a time and comes back to the same document until it is read out, and
+     * counting each turn made the progress bar and the batch's own limit both
+     * wrong for anything longer than ten pages.
+     */
+    public function addProgress(int $pages, float $cost, int $documents = 1, ?int $documentId = null): void
     {
         $this->forceFill([
             'pages_done' => (int) $this->pages_done + $pages,
             'documents_done' => (int) $this->documents_done + $documents,
+            'current_document_id' => $documentId ?? $this->current_document_id,
             'cost_so_far_usd' => (float) $this->cost_so_far_usd + $cost,
             'status' => self::STATUS_RUNNING,
         ])->save();

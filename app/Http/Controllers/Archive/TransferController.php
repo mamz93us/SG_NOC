@@ -8,6 +8,7 @@ use App\Models\Archive\ArchiveFile;
 use App\Models\Archive\ArchiveSource;
 use App\Models\Archive\ArchiveTask;
 use App\Models\Archive\ArchiveTransferRun;
+use App\Services\Archive\ArchiveTransferService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +52,7 @@ class TransferController extends Controller
                 ? (int) round($estimatedRemaining / max(1, $bytesPerSecond))
                 : null,
             'allowedNow' => (bool) $source?->transferAllowedNow(),
+            'blockers' => $this->blockers($source, $totals),
             'pendingInRange' => $this->pendingInRange($source),
             'failed' => ArchiveFile::query()->transferFailed()->with('archive')->limit(50)->get(),
             'failedCount' => ArchiveFile::query()->transferFailed()->count(),
@@ -60,6 +62,78 @@ class TransferController extends Controller
                 ->where('status', ArchiveTask::STATUS_DONE)
                 ->latest('id')->first(),
         ]);
+    }
+
+    /**
+     * Every reason nothing is moving, in the order the worker meets them.
+     *
+     * The page used to show "0 file(s) waiting" and a progress bar at 0%, which
+     * is what a finished transfer looks like as well as a blocked one. Worse, the
+     * one blocker that stops everything — the storage being unreachable — was
+     * only ever a log line, and at a level production does not record.
+     *
+     * Deliberately ALL of them rather than the first: a person fixing one and
+     * finding it still idle has learned nothing.
+     *
+     * @return array<int,string>
+     */
+    private function blockers(?ArchiveSource $source, array $totals): array
+    {
+        if (! $source) {
+            return ['There is no ArcMate connection set up yet, so there is nothing to transfer from.'];
+        }
+
+        if ($totals['pending'] === 0 && $totals['total'] > 0) {
+            return []; // finished, which is not a blocker
+        }
+
+        $blockers = [];
+
+        if (! $source->transfer_enabled) {
+            $blockers[] = 'The transfer is switched off. Tick "Transfer switched on" below.';
+        } elseif (! $source->transferAllowedNow()) {
+            $blockers[] = sprintf(
+                'Outside the transfer window (%s–%s). It will start on its own, or tick "Allow during working hours".',
+                $source->transfer_window_start ?: '19:00',
+                $source->transfer_window_end ?: '07:00',
+            );
+        }
+
+        // The one that was invisible. Checked here because this is the page
+        // somebody opens when nothing is happening.
+        if ($problem = (new ArchiveTransferService)->storageProblem()) {
+            $blockers[] = 'The NOC\'s Azure storage cannot be reached, so there is nowhere to copy to: '.$problem;
+        }
+
+        // Files left, but every archive holding them is paused. Counted against
+        // the queue scope, which is what the worker actually reads.
+        $paused = Archive::query()
+            ->where('transfer_paused', true)
+            ->whereExists(fn ($q) => $q->select(DB::raw(1))
+                ->from('archive_files')
+                ->whereColumn('archive_files.archive_id', 'archives.id')
+                ->where('archive_files.disk', ArchiveFile::DISK_ARCMATE))
+            ->get()
+            ->map(fn (Archive $a) => $a->displayName());
+
+        $queued = ArchiveFile::query()->transferQueue()->count();
+
+        if ($queued === 0 && $paused->isNotEmpty()) {
+            $blockers[] = 'Paused, so nothing is queued: '.$paused->implode(', ').'. Resume it in the table below.';
+        }
+
+        // A date range that excludes everything left is the other way the page
+        // reads as idle while being correctly configured.
+        if ($queued > 0 && $this->pendingInRange($source) === 0) {
+            $blockers[] = sprintf(
+                'The scanned-date range (%s to %s) leaves out all %s remaining file(s). Widen it, or clear both dates.',
+                $source->transfer_from ?: 'the beginning',
+                $source->transfer_to ?: 'today',
+                number_format($queued),
+            );
+        }
+
+        return $blockers;
     }
 
     /** The window, the cap, and whether the transfer runs at all. */

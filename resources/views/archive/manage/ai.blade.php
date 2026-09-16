@@ -174,6 +174,14 @@
                             <label class="form-label small arc-muted mb-1">Until</label>
                             <input type="date" class="form-control form-control-sm" name="to">
                         </div>
+                        <div class="col-md-3">
+                            {{-- The control people want first: try it on a few and see
+                                 whether the values are any good. Without it, "just try
+                                 it" and "read all 513,000" were the same button. --}}
+                            <label class="form-label small arc-muted mb-1">Newest N only</label>
+                            <input type="number" min="1" class="form-control form-control-sm"
+                                   name="max_documents" placeholder="all" value="{{ old('max_documents') }}">
+                        </div>
                     </div>
 
                     {{-- Fields, only for a fill batch, and only the chosen archive's own. --}}
@@ -296,6 +304,12 @@
                                         <td class="small">{{ $batch->archive?->displayName() ?? '—' }}</td>
                                         <td class="arc-muted small">
                                             {{ $batch->type === \App\Models\Archive\ArchiveAiBatch::TYPE_FILL ? 'Fill fields' : 'Read pages' }}
+                                            @if ($batch->max_documents)
+                                                {{-- Said on the row, because the totals below are already the
+                                                     LIMITED figure and "0 / 100" on an archive of half a
+                                                     million otherwise looks like a miscount. --}}
+                                                <div>newest {{ number_format($batch->max_documents) }} only</div>
+                                            @endif
                                         </td>
                                         <td>
                                             <div class="progress" style="height:8px">

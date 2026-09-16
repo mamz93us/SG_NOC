@@ -120,6 +120,7 @@ class AiController extends Controller
             $data['type'],
             array_filter(['from' => $data['from'] ?? null, 'to' => $data['to'] ?? null]),
             array_map('intval', $data['field_ids'] ?? []),
+            (int) ($data['max_documents'] ?? 0),
         );
 
         return response()->json($estimate + [
@@ -167,7 +168,8 @@ class AiController extends Controller
         }
 
         $filters = array_filter(['from' => $data['from'] ?? null, 'to' => $data['to'] ?? null]);
-        $estimate = $this->runner->estimate($archive, $data['type'], $filters, $fieldIds);
+        $maxDocuments = (int) ($data['max_documents'] ?? 0);
+        $estimate = $this->runner->estimate($archive, $data['type'], $filters, $fieldIds, $maxDocuments);
 
         if ($estimate['documents'] === 0) {
             return back()->with('error', 'Nothing matches that — there is no work to do.');
@@ -179,6 +181,7 @@ class AiController extends Controller
             'filters' => $filters ?: null,
             'field_ids' => $fieldIds ?: null,
             'documents_total' => $estimate['documents'],
+            'max_documents' => $maxDocuments ?: null,
             'pages_total' => $estimate['pages'],
             'estimated_cost_usd' => $estimate['cost'],
             'requested_by' => $request->user()?->getKey(),
@@ -237,6 +240,8 @@ class AiController extends Controller
             'to' => ['nullable', 'date_format:Y-m-d'],
             'field_ids' => ['nullable', 'array'],
             'field_ids.*' => ['integer'],
+            // Blank means no limit: the date range alone decides.
+            'max_documents' => ['nullable', 'integer', 'min:1', 'max:1000000'],
         ]);
     }
 
