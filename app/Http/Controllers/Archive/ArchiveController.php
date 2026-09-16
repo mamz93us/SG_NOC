@@ -33,7 +33,15 @@ class ArchiveController extends Controller
         $archives = $access->archives()->get();
 
         if ($archives->isEmpty()) {
-            return view('auth.archive-no-access');
+            // Two situations look identical from here and need different answers:
+            // nothing has been set up yet, or plenty has and none of it is this
+            // person's. Telling an administrator to "ask IT" while the real
+            // answer is "connect ArcMate" sends the one person who can fix it
+            // looking for somebody else.
+            return view('auth.archive-no-access', [
+                'nothingSetUp' => Archive::query()->count() === 0,
+                'canManage' => $access->mayManage(),
+            ]);
         }
 
         return view('archive.index', [
