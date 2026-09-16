@@ -92,6 +92,7 @@ class MicrosoftController extends Controller
                 \App\Support\VCard::isHost($request) => 'vcard.login',
                 \App\Support\HrPortal::isHost($request) => 'portal.hr.login',
                 \App\Support\HomePortal::isHost($request) => 'home.login',
+                \App\Support\ArchivePortal::isHost($request) => 'archive.login',
                 default => 'portal.login',
             };
 
@@ -130,6 +131,7 @@ class MicrosoftController extends Controller
                 \App\Support\VCard::isHost($request) => 'vcard',
                 \App\Support\HrPortal::isHost($request) => 'hr',
                 \App\Support\HomePortal::isHost($request) => 'home',
+                \App\Support\ArchivePortal::isHost($request) => 'archive',
                 $user->usesPortal() => 'portal',
                 default => 'noc',
             };
@@ -161,11 +163,13 @@ class MicrosoftController extends Controller
         $onVcardHost = \App\Support\VCard::isHost($request);
         $onHrHost = \App\Support\HrPortal::isHost($request);
         $onHomeHost = \App\Support\HomePortal::isHost($request);
+        $onArchiveHost = \App\Support\ArchivePortal::isHost($request);
 
         $landing = match (true) {
             $onVcardHost => route('vcard.mine'),
             $onHrHost => route('portal.hr.index'),
             $onHomeHost => route('home.index'),
+            $onArchiveHost => route('archive.index'),
             // Was `$user->isMarketing()` — now any role whose chosen landing is
             // the marketing portal, so a custom marketing-side role lands there
             // too instead of being dropped on the NOC portal hub.
@@ -185,7 +189,14 @@ class MicrosoftController extends Controller
         // The home portal is in this set for the same reason, plus one of its
         // own: it is the page every PC opens unattended, so a 2FA challenge
         // there would defeat the point of signing in silently.
-        if ($onVcardHost || $onHrHost || $onHomeHost) {
+        //
+        // The document archive is in the set too, and it has to be: its host
+        // isolation 404s every route that is not the archive's own, so the
+        // two-factor-challenge page cannot be reached there at all. Falling
+        // through to the NOC path sent people to a 404 immediately after a
+        // successful sign-in. The session is still never marked verified, so
+        // the same session used against NOC is challenged normally.
+        if ($onVcardHost || $onHrHost || $onHomeHost || $onArchiveHost) {
             return redirect()->intended($landing);
         }
 
@@ -203,6 +214,15 @@ class MicrosoftController extends Controller
         // only itself and keeps its mandatory 2FA.
         if (! $onMarketingHost && \App\Support\HrPortal::enabled() && $user->homeRoute() === 'portal.hr.index') {
             return redirect()->away(\App\Support\HrPortal::url(route('auth.microsoft', [], false)));
+        }
+
+        // The same treatment for a role whose landing is the document archive.
+        // That host skips 2FA, and entering through its own /auth/microsoft
+        // finishes the sign-in without a prompt because Entra has only just
+        // authenticated them. Still not marked verified, so a NOC page still
+        // challenges.
+        if (! $onMarketingHost && \App\Support\ArchivePortal::enabled() && $user->homeRoute() === 'archive.index') {
+            return redirect()->away(\App\Support\ArchivePortal::url(route('auth.microsoft', [], false)));
         }
 
         // Browser-only users bypass the app's 2FA. Everyone else — including
