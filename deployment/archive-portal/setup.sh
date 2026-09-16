@@ -223,14 +223,23 @@ NGINX
 fi
 
 # --- App -----------------------------------------------------------------------
-APP_OWNER="$(stat -c '%U' "$APP_DIR/artisan")"
+# Run artisan as the WEB user, not as the file owner.
+#
+# On this host the app files belong to azureuser while PHP-FPM runs as www-data,
+# and azureuser is not in the www-data group. artisan writes to bootstrap/cache
+# and storage/logs, so running it as the owner can leave cache and log files
+# PHP-FPM cannot rewrite — the app breaking *after* a deploy that reported
+# success. The scheduler is the opposite case and runs its own commands as
+# azureuser; see the "scheduler runs as azureuser" gotcha in CLAUDE.md.
+WEB_USER="${WEB_USER:-www-data}"
+id -u "$WEB_USER" >/dev/null 2>&1 || die "No such user: $WEB_USER (override with WEB_USER=)."
 
-log "Clearing cached config + routes (as $APP_OWNER) ..."
-sudo -u "$APP_OWNER" php "$APP_DIR/artisan" config:clear >/dev/null
-sudo -u "$APP_OWNER" php "$APP_DIR/artisan" route:clear  >/dev/null
+log "Clearing cached config + routes (as $WEB_USER) ..."
+sudo -u "$WEB_USER" php "$APP_DIR/artisan" config:clear >/dev/null
+sudo -u "$WEB_USER" php "$APP_DIR/artisan" route:clear  >/dev/null
 
 log "Running migrations ..."
-sudo -u "$APP_OWNER" php "$APP_DIR/artisan" migrate --force
+sudo -u "$WEB_USER" php "$APP_DIR/artisan" migrate --force
 
 # --- Smoke test ----------------------------------------------------------------
 # Proves both halves at once: the vhost resolves, and host isolation is live.
