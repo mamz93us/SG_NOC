@@ -18,10 +18,12 @@
 
         return $html;
     };
+    $unit = $groupBy === 'branch' ? 'Branch' : 'Department';
+    $filters = collect([$vendor !== '' ? $vendor : null, $branch !== '' ? ($branchOptions[$branch] ?? $branch) : null])->filter();
 @endphp
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-3 d-print-none">
-        <h4 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>License Cost by Department — {{ $month->format('F Y') }}</h4>
+        <h4 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>License Cost by {{ $unit }} — {{ $month->format('F Y') }}@if($filters->isNotEmpty()) <span class="text-muted fs-6">· {{ $filters->implode(' · ') }}</span>@endif</h4>
         <div class="d-flex gap-2 flex-wrap">
             <a href="{{ route('admin.itam.reports.subscriptions', ['month' => $month->format('Y-m'), 'display' => $display]) }}" class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-robot me-1"></i>Usage
@@ -41,13 +43,13 @@
     </div>
 
     <div class="d-none d-print-block mb-3">
-        <h4 class="mb-1">License Cost by Department — {{ $month->format('F Y') }}</h4>
+        <h4 class="mb-1">License Cost by {{ $unit }} — {{ $month->format('F Y') }}@if($filters->isNotEmpty()) · {{ $filters->implode(' · ') }}@endif</h4>
         <div class="small text-muted">Samir Group IT · generated {{ now()->format('d M Y H:i') }}</div>
     </div>
 
     <p class="text-muted small mb-3">
         Every license that costs something (Microsoft 365, AI tools, Adobe, Autodesk and the rest), charged to the department
-        of the person holding each seat. A second mailbox linked to a person counts under that person's department.
+        and branch of the person holding each seat. A second mailbox linked to a person counts under that person's main record.
         <strong>Per year</strong> and <strong>Monthly</strong> are the run rate of recurring licenses, what the department costs
         to keep running. <strong>Due {{ $month->format('M') }}</strong> is each seat's share of the licenses that renew in
         {{ $month->format('F Y') }}. <strong>One-time</strong> is licenses bought once, at their purchase price; it is never
@@ -56,11 +58,19 @@
 
     <div class="alert alert-light border small py-2">
         <i class="bi bi-info-circle me-1"></i>
-        <strong>The department split is an allocation, not a set of payments.</strong> A license is one indivisible
+        <strong>The split is an allocation, not a set of payments.</strong> A license is one indivisible
         charge, and finance still pays it once, from the
         <a href="{{ route('admin.itam.reports.subscription-payments', ['month' => $month->format('Y-m')]) }}">Payments Due</a>
-        report. The shares here add back up to the same totals, so they can be used for departmental recharge.
+        report. Unfiltered, the shares here add back up to the same totals, so they can be used for recharge.
     </div>
+
+    @if($filters->isNotEmpty())
+    <div class="alert alert-info small py-2 d-print-none">
+        <i class="bi bi-funnel me-1"></i>
+        Showing only <strong>{{ $filters->implode(' · ') }}</strong>: every total below covers those seats alone@if($branch !== ''), and seats nobody holds belong to no branch so they are left out@endif.
+        <a href="{{ route('admin.itam.reports.subscriptions-by-department', array_filter(['month' => $month->format('Y-m'), 'type' => $type, 'display' => $display, 'group' => $groupBy === 'branch' ? 'branch' : null])) }}" class="alert-link">Clear filters</a>
+    </div>
+    @endif
 
     {{-- Filters --}}
     <form method="GET" class="mb-3 d-print-none">
@@ -69,6 +79,25 @@
             <select name="month" class="form-select form-select-sm" style="max-width:180px" onchange="this.form.submit()">
                 @foreach($monthOptions as $m)
                 <option value="{{ $m->format('Y-m') }}" {{ $m->format('Y-m') === $month->format('Y-m') ? 'selected' : '' }}>{{ $m->format('F Y') }}</option>
+                @endforeach
+            </select>
+            <label class="small text-muted mb-0 ms-2">Group by</label>
+            <select name="group" class="form-select form-select-sm" style="max-width:140px" onchange="this.form.submit()">
+                <option value="department" {{ $groupBy === 'department' ? 'selected' : '' }}>Department</option>
+                <option value="branch" {{ $groupBy === 'branch' ? 'selected' : '' }}>Branch</option>
+            </select>
+            <label class="small text-muted mb-0 ms-2">Vendor</label>
+            <select name="vendor" class="form-select form-select-sm" style="max-width:180px" onchange="this.form.submit()">
+                <option value="">All vendors</option>
+                @foreach($vendorOptions as $option)
+                <option value="{{ $option }}" {{ strcasecmp($vendor, $option) === 0 ? 'selected' : '' }}>{{ $option }}</option>
+                @endforeach
+            </select>
+            <label class="small text-muted mb-0 ms-2">Branch</label>
+            <select name="branch" class="form-select form-select-sm" style="max-width:200px" onchange="this.form.submit()">
+                <option value="">All branches</option>
+                @foreach($branchOptions as $key => $name)
+                <option value="{{ $key }}" {{ $branch === $key ? 'selected' : '' }}>{{ $name }}</option>
                 @endforeach
             </select>
             <label class="small text-muted mb-0 ms-2">Type</label>
@@ -95,7 +124,7 @@
         <div class="col-6 col-md-4 col-xl-2">
             <div class="card border-0 shadow-sm text-center h-100"><div class="card-body py-3">
                 <div class="display-6 fw-bold text-primary">{{ $departmentCount }}</div>
-                <div class="small text-muted">Departments</div>
+                <div class="small text-muted">{{ \Illuminate\Support\Str::plural($unit) }}</div>
             </div></div>
         </div>
         <div class="col-6 col-md-4 col-xl">
@@ -114,14 +143,14 @@
 
     @include('admin.itam.reports._fx-notice', ['id' => 'fxDept', 'combined' => $combinedYearly])
 
-    {{-- Departments --}}
+    {{-- Departments or branches --}}
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
             <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Department</th>
+                        <th>{{ $unit }}</th>
                         <th class="text-center">Seats</th>
                         <th class="text-center">People</th>
                         <th>Licenses</th>
@@ -135,10 +164,10 @@
                     @forelse($groups as $g)
                     <tr class="{{ $g['is_bucket'] ? 'table-warning' : '' }}">
                         <td class="fw-semibold">
-                            {{ $g['department'] }}
+                            {{ $g['name'] }}
                             @if($g['is_bucket'])
                             <i class="bi bi-exclamation-triangle text-warning ms-1"
-                               title="Not a department: these seats are still paid for but have no owner to recharge"></i>
+                               title="Not a {{ strtolower($unit) }}: these seats are still paid for but have no owner to recharge"></i>
                             @endif
                         </td>
                         <td class="text-center">{{ $g['seats'] }}</td>
@@ -155,7 +184,7 @@
                     </tr>
                     @empty
                     <tr><td colspan="8" class="text-center py-5 text-muted">
-                        No licenses with a cost of this type.
+                        No licenses with a cost match these filters.
                     </td></tr>
                     @endforelse
                 </tbody>

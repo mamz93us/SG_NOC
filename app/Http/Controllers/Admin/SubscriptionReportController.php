@@ -235,13 +235,28 @@ class SubscriptionReportController extends Controller
         $month = $this->resolveMonth($request);
         $type = $this->resolveType($request, 'all');
         $display = $this->resolveDisplayCurrency($request);
+        $groupBy = $request->query('group') === 'branch' ? 'branch' : 'department';
+        $vendor = trim((string) $request->query('vendor', ''));
+        $branch = trim((string) $request->query('branch', ''));
 
         $licenses = $this->costedLicenses($type);
+        $vendorOptions = $licenses->map(fn (License $l) => (string) $l->vendorDisplay())->filter()
+            ->unique(fn ($v) => mb_strtolower($v))->sort(SORT_NATURAL | SORT_FLAG_CASE)->values();
+        if ($vendor !== '') {
+            $licenses = $licenses->filter(fn (License $l) => strcasecmp((string) $l->vendorDisplay(), $vendor) === 0)->values();
+        }
+
         $rows = $this->seatRows($licenses, $month);
+        // Branches with seats, before the branch filter narrows the rows. Buckets stay out of the list.
+        $branchOptions = $rows->reject(fn ($r) => str_starts_with($r['branch_key'], '__'))
+            ->pluck('branch', 'branch_key')->sort(SORT_NATURAL | SORT_FLAG_CASE);
+        if ($branch !== '') {
+            $rows = $rows->where('branch_key', $branch)->values();
+        }
 
         $groups = $rows
-            ->groupBy('department_key')
-            ->map(function (Collection $g, string $key) use ($display) {
+            ->groupBy($groupBy.'_key')
+            ->map(function (Collection $g, string $key) use ($display, $groupBy) {
                 $runRate = $this->sumByCurrency($g, 'monthly_per_seat');
                 $yearly = $this->sumByCurrency($g, 'yearly_per_seat');
                 $oneTime = $this->sumByCurrency($g, 'one_time_per_seat');
@@ -249,7 +264,7 @@ class SubscriptionReportController extends Controller
 
                 return [
                     'key' => $key,
-                    'department' => $g->first()['department'],
+                    'name' => $g->first()[$groupBy],
                     'is_bucket' => str_starts_with($key, '__'),
                     'seats' => $g->count(),
                     'people' => $g->pluck('email')->filter()->unique()->count(),
@@ -274,7 +289,7 @@ class SubscriptionReportController extends Controller
         }
 
         if ($request->boolean('csv')) {
-            return $this->departmentSummaryCsv($groups, $month, $display);
+            return $this->departmentSummaryCsv($groups, $month, $display, $groupBy);
         }
 
         $runRateByCurrency = $this->sumByCurrency($rows, 'monthly_per_seat');
@@ -299,6 +314,11 @@ class SubscriptionReportController extends Controller
             'combinedDue' => $this->converter->totalIn($dueByCurrency, $display),
             'departmentCount' => $groups->reject(fn ($g) => $g['is_bucket'])->count(),
             'monthOptions' => $this->monthOptions($month),
+            'groupBy' => $groupBy,
+            'vendor' => $vendor,
+            'vendorOptions' => $vendorOptions,
+            'branch' => $branch,
+            'branchOptions' => $branchOptions,
         ]);
     }
 
@@ -321,16 +341,16 @@ class SubscriptionReportController extends Controller
             ->all();
     }
 
-    private function departmentSummaryCsv(Collection $groups, CarbonImmutable $month, string $display): StreamedResponse
+    private function departmentSummaryCsv(Collection $groups, CarbonImmutable $month, string $display, string $groupBy): StreamedResponse
     {
         return $this->streamCsv(
-            'license-cost-by-department-'.$month->format('Y-m'),
+            "license-cost-by-{$groupBy}-".$month->format('Y-m'),
             $groups,
-            ['Department', 'Seats', 'People', 'Licenses', 'Per Year (as invoiced)', "Per Year ({$display})",
+            [ucfirst($groupBy), 'Seats', 'People', 'Licenses', 'Per Year (as invoiced)', "Per Year ({$display})",
                 'Monthly Cost (as invoiced)', "Monthly Cost ({$display})", 'Due This Month (as invoiced)', "Due This Month ({$display})",
                 'One-time (as invoiced)', "One-time ({$display})"],
             fn (array $g) => [
-                $g['department'],
+                $g['name'],
                 $g['seats'],
                 $g['people'],
                 implode(' / ', $g['services']),
@@ -351,7 +371,7 @@ class SubscriptionReportController extends Controller
         return $this->streamCsv(
             'license-seats-by-department-'.$month->format('Y-m'),
             $rows->sortBy([['department', 'asc'], ['user', 'asc'], ['service', 'asc']])->values(),
-            ['Department', 'User', 'Email', 'Seat Status', 'License', 'Billing Cycle', 'Currency',
+            ['Department', 'Branch', 'User', 'Email', 'Seat Status', 'License', 'Vendor', 'Billing Cycle', 'Currency',
                 'Per Year', "Per Year ({$display})", 'Monthly Cost', "Monthly Cost ({$display})",
                 'Due This Month', "Due This Month ({$display})", 'One-time', "One-time ({$display})",
                 'Renewal Date', 'Rate Basis'],
@@ -360,7 +380,7 @@ class SubscriptionReportController extends Controller
                 $money = fn (float $amount) => $amount ? $this->converter->convert($amount, $r['currency'], $display) : '';
 
                 return [
-                    $r['department'], $r['user'], $r['email'], $r['seat_status'], $r['service'], $r['billing_cycle'], $r['currency'],
+                    $r['department'], $r['branch'], $r['user'], $r['email'], $r['seat_status'], $r['service'], $r['vendor'], $r['billing_cycle'], $r['currency'],
                     $r['yearly_per_seat'] ?: '', $money((float) $r['yearly_per_seat']),
                     $r['monthly_per_seat'] ?: '', $money((float) $r['monthly_per_seat']),
                     $due ?: '', $money($due),
@@ -395,7 +415,7 @@ class SubscriptionReportController extends Controller
             ->when($type !== 'all', fn ($q) => $q->where('license_type', $type))
             // assignable.department feeds the by-department report; loading it
             // here keeps that grouping from firing a query per seat.
-            ->with(['supplier', 'assignments.assignable' => fn ($m) => $m->morphWith([Employee::class => ['department', 'linkedPrimary.department']])])
+            ->with($this->seatRelations())
             ->orderBy('license_name')
             ->get();
     }
@@ -410,9 +430,18 @@ class SubscriptionReportController extends Controller
         return License::query()
             ->where('cost', '>', 0)
             ->when($type !== 'all', fn ($q) => $q->where('license_type', $type))
-            ->with(['supplier', 'assignments.assignable' => fn ($m) => $m->morphWith([Employee::class => ['department', 'linkedPrimary.department']])])
+            ->with($this->seatRelations())
             ->orderBy('license_name')
             ->get();
+    }
+
+    /** What seatRows() reads from each seat holder, loaded up front instead of a query per seat. */
+    private function seatRelations(): array
+    {
+        return ['supplier', 'assignments.assignable' => fn ($m) => $m->morphWith([
+            Employee::class => ['department', 'branch', 'linkedPrimary.department', 'linkedPrimary.branch'],
+            Device::class => ['branch'],
+        ])];
     }
 
     /**
@@ -450,7 +479,7 @@ class SubscriptionReportController extends Controller
                     'email' => $this->assigneeEmail($assignment),
                     'seat_status' => 'Assigned',
                     'assigned_date' => $assignment->assigned_date,
-                ] + $this->departmentOf($assignment));
+                ] + $this->departmentOf($assignment) + $this->branchOf($assignment));
             }
 
             $spare = max(0, (int) $license->seats - $license->assignments->count());
@@ -465,11 +494,42 @@ class SubscriptionReportController extends Controller
                     // split — otherwise the parts stop summing to the whole.
                     'department_key' => '__unassigned',
                     'department' => 'Unassigned seats',
+                    'branch_key' => '__unassigned',
+                    'branch' => 'Unassigned seats',
                 ]);
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * Which branch carries a seat's cost: the holder's main record's branch, so a
+     * person's second mailbox (kept on JED for signatures) counts where the
+     * person works, falling back to the account's own branch. Seats with no
+     * branch get named buckets, as they do for departments.
+     *
+     * @return array{branch_key: string, branch: string}
+     */
+    private function branchOf(LicenseAssignment $assignment): array
+    {
+        $assignable = $assignment->assignable;
+
+        if ($assignable instanceof Employee) {
+            $branch = $assignable->hrSource()->branch ?? $assignable->branch;
+
+            return $branch
+                ? ['branch_key' => 'branch:'.$branch->id, 'branch' => $branch->name]
+                : ['branch_key' => '__no_branch', 'branch' => 'No branch set'];
+        }
+
+        if ($assignable instanceof Device) {
+            return $assignable->branch
+                ? ['branch_key' => 'branch:'.$assignable->branch->id, 'branch' => $assignable->branch->name]
+                : ['branch_key' => '__device', 'branch' => 'Devices (no branch)'];
+        }
+
+        return ['branch_key' => '__deleted', 'branch' => 'Deleted records'];
     }
 
     /**
