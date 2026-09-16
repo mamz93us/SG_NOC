@@ -209,15 +209,19 @@ class SubscriptionReportController extends Controller
     }
 
     /**
-     * Cost and payments due, split by the department that holds each seat.
+     * Licence cost and payments due, split by the department that holds each
+     * seat. Every licence with a cost is in it, not only recurring ones: the
+     * Microsoft 365 licences and the Autodesk and Kaspersky purchases were all
+     * missing while this report read recurring subscriptions only.
      *
-     * Two figures per department, answering the same two different questions
-     * the other reports keep apart:
+     * Per department:
      *
-     *  - monthly cost: every seat's run rate, charged this month or not. What
-     *    the department costs to keep running.
+     *  - monthly cost and per year: every recurring seat's run rate, charged
+     *    this month or not. What the department costs to keep running.
      *  - due this month: only seats on a licence renewing in this month, at
      *    their share of that charge.
+     *  - one-time: seats of licences bought once (perpetual, or recorded as
+     *    one-time), at their purchase price. Never added to the run rate.
      *
      * The second is an ALLOCATION, not a set of payments. A licence is one
      * indivisible charge on one card; splitting it across departments is a
@@ -229,16 +233,18 @@ class SubscriptionReportController extends Controller
     public function byDepartment(Request $request)
     {
         $month = $this->resolveMonth($request);
-        $type = $this->resolveType($request);
+        $type = $this->resolveType($request, 'all');
         $display = $this->resolveDisplayCurrency($request);
 
-        $licenses = $this->recurringLicenses($type);
+        $licenses = $this->costedLicenses($type);
         $rows = $this->seatRows($licenses, $month);
 
         $groups = $rows
             ->groupBy('department_key')
             ->map(function (Collection $g, string $key) use ($display) {
                 $runRate = $this->sumByCurrency($g, 'monthly_per_seat');
+                $yearly = $this->sumByCurrency($g, 'yearly_per_seat');
+                $oneTime = $this->sumByCurrency($g, 'one_time_per_seat');
                 $due = $this->dueByCurrency($g);
 
                 return [
@@ -250,13 +256,17 @@ class SubscriptionReportController extends Controller
                     'services' => $g->pluck('service')->unique()->sort()->values()->all(),
                     'run_rate' => $runRate,
                     'run_rate_combined' => $this->converter->totalIn($runRate, $display),
+                    'yearly' => $yearly,
+                    'yearly_combined' => $this->converter->totalIn($yearly, $display),
+                    'one_time' => $oneTime,
+                    'one_time_combined' => $this->converter->totalIn($oneTime, $display),
                     'due' => $due,
                     'due_combined' => $this->converter->totalIn($due, $display),
                 ];
             })
             // Biggest spender first; the catch-all buckets sink to the bottom
             // where they read as exceptions to chase, not as departments.
-            ->sortBy(fn ($g) => [$g['is_bucket'] ? 1 : 0, -$g['run_rate_combined']['total']])
+            ->sortBy(fn ($g) => [$g['is_bucket'] ? 1 : 0, -$g['yearly_combined']['total'], -$g['one_time_combined']['total']])
             ->values();
 
         if ($request->query('csv') === 'detail') {
@@ -268,17 +278,24 @@ class SubscriptionReportController extends Controller
         }
 
         $runRateByCurrency = $this->sumByCurrency($rows, 'monthly_per_seat');
+        $yearlyByCurrency = $this->sumByCurrency($rows, 'yearly_per_seat');
+        $oneTimeByCurrency = $this->sumByCurrency($rows, 'one_time_per_seat');
         $dueByCurrency = $this->dueByCurrency($rows);
 
         return view('admin.itam.reports.subscriptions-by-department', [
             'month' => $month,
             'type' => $type,
+            'typeOptions' => ['all' => 'All licenses'] + License::TYPE_LABELS,
             'groups' => $groups,
             'display' => $display,
             'displayOptions' => Currency::CODES,
             'runRateByCurrency' => $runRateByCurrency,
+            'yearlyByCurrency' => $yearlyByCurrency,
+            'oneTimeByCurrency' => $oneTimeByCurrency,
             'dueByCurrency' => $dueByCurrency,
             'combinedRunRate' => $this->converter->totalIn($runRateByCurrency, $display),
+            'combinedYearly' => $this->converter->totalIn($yearlyByCurrency, $display),
+            'combinedOneTime' => $this->converter->totalIn($oneTimeByCurrency, $display),
             'combinedDue' => $this->converter->totalIn($dueByCurrency, $display),
             'departmentCount' => $groups->reject(fn ($g) => $g['is_bucket'])->count(),
             'monthOptions' => $this->monthOptions($month),
@@ -307,19 +324,24 @@ class SubscriptionReportController extends Controller
     private function departmentSummaryCsv(Collection $groups, CarbonImmutable $month, string $display): StreamedResponse
     {
         return $this->streamCsv(
-            'subscription-cost-by-department-'.$month->format('Y-m'),
+            'license-cost-by-department-'.$month->format('Y-m'),
             $groups,
-            ['Department', 'Seats', 'People', 'Services', 'Monthly Cost (as invoiced)',
-                "Monthly Cost ({$display})", 'Due This Month (as invoiced)', "Due This Month ({$display})"],
+            ['Department', 'Seats', 'People', 'Licenses', 'Per Year (as invoiced)', "Per Year ({$display})",
+                'Monthly Cost (as invoiced)', "Monthly Cost ({$display})", 'Due This Month (as invoiced)', "Due This Month ({$display})",
+                'One-time (as invoiced)', "One-time ({$display})"],
             fn (array $g) => [
                 $g['department'],
                 $g['seats'],
                 $g['people'],
                 implode(' / ', $g['services']),
+                $this->currencyList($g['yearly']),
+                number_format($g['yearly_combined']['total'], 2, '.', ''),
                 $this->currencyList($g['run_rate']),
                 number_format($g['run_rate_combined']['total'], 2, '.', ''),
                 $this->currencyList($g['due']),
                 number_format($g['due_combined']['total'], 2, '.', ''),
+                $this->currencyList($g['one_time']),
+                number_format($g['one_time_combined']['total'], 2, '.', ''),
             ]
         );
     }
@@ -327,20 +349,22 @@ class SubscriptionReportController extends Controller
     private function departmentSeatCsv(Collection $rows, CarbonImmutable $month, string $display): StreamedResponse
     {
         return $this->streamCsv(
-            'subscription-seats-by-department-'.$month->format('Y-m'),
+            'license-seats-by-department-'.$month->format('Y-m'),
             $rows->sortBy([['department', 'asc'], ['user', 'asc'], ['service', 'asc']])->values(),
-            ['Department', 'User', 'Email', 'Seat Status', 'Service', 'Currency',
-                'Monthly Cost', "Monthly Cost ({$display})", 'Due This Month', "Due This Month ({$display})",
+            ['Department', 'User', 'Email', 'Seat Status', 'License', 'Billing Cycle', 'Currency',
+                'Per Year', "Per Year ({$display})", 'Monthly Cost', "Monthly Cost ({$display})",
+                'Due This Month', "Due This Month ({$display})", 'One-time', "One-time ({$display})",
                 'Renewal Date', 'Rate Basis'],
             function (array $r) use ($display) {
                 $due = $r['renewal_date'] ? (float) ($r['cost_per_seat'] ?? 0) : 0.0;
+                $money = fn (float $amount) => $amount ? $this->converter->convert($amount, $r['currency'], $display) : '';
 
                 return [
-                    $r['department'], $r['user'], $r['email'], $r['seat_status'], $r['service'], $r['currency'],
-                    $r['monthly_per_seat'],
-                    $this->converter->convert((float) $r['monthly_per_seat'], $r['currency'], $display),
-                    $due ?: '',
-                    $due ? $this->converter->convert($due, $r['currency'], $display) : '',
+                    $r['department'], $r['user'], $r['email'], $r['seat_status'], $r['service'], $r['billing_cycle'], $r['currency'],
+                    $r['yearly_per_seat'] ?: '', $money((float) $r['yearly_per_seat']),
+                    $r['monthly_per_seat'] ?: '', $money((float) $r['monthly_per_seat']),
+                    $due ?: '', $money($due),
+                    $r['one_time_per_seat'] ?: '', $money((float) $r['one_time_per_seat']),
                     $r['renewal_date']?->format('Y-m-d'),
                     $this->rateBasis($r['currency'], $display),
                 ];
@@ -371,7 +395,22 @@ class SubscriptionReportController extends Controller
             ->when($type !== 'all', fn ($q) => $q->where('license_type', $type))
             // assignable.department feeds the by-department report; loading it
             // here keeps that grouping from firing a query per seat.
-            ->with(['supplier', 'assignments.assignable' => fn ($m) => $m->morphWith([Employee::class => ['department']])])
+            ->with(['supplier', 'assignments.assignable' => fn ($m) => $m->morphWith([Employee::class => ['department', 'linkedPrimary.department']])])
+            ->orderBy('license_name')
+            ->get();
+    }
+
+    /**
+     * Every licence that costs something, whatever its billing cycle. A licence
+     * with no cost (Power Automate Free, Power BI free: up to 1,000,000 seats)
+     * has nothing to allocate and would add a placeholder row per empty seat.
+     */
+    private function costedLicenses(string $type): Collection
+    {
+        return License::query()
+            ->where('cost', '>', 0)
+            ->when($type !== 'all', fn ($q) => $q->where('license_type', $type))
+            ->with(['supplier', 'assignments.assignable' => fn ($m) => $m->morphWith([Employee::class => ['department', 'linkedPrimary.department']])])
             ->orderBy('license_name')
             ->get();
     }
@@ -395,6 +434,10 @@ class SubscriptionReportController extends Controller
                 'cost_per_seat' => $license->cost !== null ? (float) $license->cost : null,
                 'billing_cycle' => $license->billingCycleLabel(),
                 'monthly_per_seat' => $license->monthlyRunRatePerSeat() ?? 0.0,
+                // Straight from the cost, not monthly x 12: the rounded monthly figure would drift.
+                'yearly_per_seat' => $license->billingCycleMonths() && $license->cost !== null
+                    ? round((float) $license->cost * 12 / $license->billingCycleMonths(), 2) : 0.0,
+                'one_time_per_seat' => ! $license->billingCycleMonths() && $license->cost !== null ? (float) $license->cost : 0.0,
                 'renewal_date' => $license->renewalDateIn($month),
                 'payment_method' => $license->paymentMethodLabel(),
                 'payment_account' => $license->payment_account,
@@ -446,7 +489,8 @@ class SubscriptionReportController extends Controller
         $assignable = $assignment->assignable;
 
         if ($assignable instanceof Employee) {
-            $department = $assignable->department;
+            // A linked account (a person's second mailbox) belongs to its main record's department.
+            $department = $assignable->hrSource()->department;
 
             return $department
                 ? ['department_key' => 'dept:'.$department->id, 'department' => $department->name]
