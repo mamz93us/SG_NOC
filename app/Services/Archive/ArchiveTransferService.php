@@ -306,8 +306,20 @@ class ArchiveTransferService
      */
     private function copyToTemp(string $source): array
     {
-        $directory = (new TiffConverter)->cacheDirectory();
-        $temporary = $directory.'/transfer-'.bin2hex(random_bytes(8)).'.tmp';
+        // The SYSTEM temp directory, not the viewer's cache.
+        //
+        // This used to borrow TiffConverter::cacheDirectory(), and every single
+        // transfer failed. That directory is created 0711 by whichever user gets
+        // there first — the viewer, running as www-data — and 0711 gives a
+        // non-owner traverse but not write. The scheduler runs as azureuser, so it
+        // could not create its temp file, and the error it reported blamed disk
+        // space on a host with 87 GB free.
+        //
+        // A transient file deleted in a finally block has no business in a cache
+        // directory owned by another user. /tmp is 1777 and sticky: both users can
+        // write, neither can touch the other's.
+        $directory = sys_get_temp_dir();
+        $temporary = $directory.'/archive-transfer-'.bin2hex(random_bytes(8)).'.tmp';
 
         $in = @fopen($source, 'rb');
 
@@ -319,7 +331,16 @@ class ArchiveTransferService
 
         if (! $out) {
             fclose($in);
-            throw new \RuntimeException('Could not write a temporary copy — check disk space.');
+
+            // Say which directory and which of the two things is wrong. "Check
+            // disk space" sent the first 95 failures entirely the wrong way: the
+            // directory was unwritable and the disk was two-thirds empty.
+            $free = @disk_free_space($directory);
+            $why = is_writable($directory)
+                ? 'it is writable, so this is probably space — '.($free === false ? 'free space unknown' : round($free / 1073741824, 1).' GB free')
+                : 'not writable by '.(function_exists('posix_getpwuid') ? (posix_getpwuid(posix_geteuid())['name'] ?? 'this user') : 'this user');
+
+            throw new \RuntimeException('Could not write a temporary copy in '.$directory.' — '.$why.'.');
         }
 
         $context = hash_init('sha256');

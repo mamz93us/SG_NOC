@@ -89,14 +89,28 @@ class TiffConverter
         return @is_file($target) ? $target : null;
     }
 
-    /** The cache directory, created on first use with permissions both users can read. */
+    /**
+     * The cache directory, created on first use.
+     *
+     * 0770, not 0711. Two users share this directory — the viewer (www-data)
+     * writes conversions into it and archive:prune-cache (azureuser) lists and
+     * deletes them — and 0711 gives a non-owner traverse only. So the prune
+     * could neither glob() the directory nor unlink anything in it: it reported
+     * "0 file(s) removed" every night while the cache grew without limit, which
+     * is indistinguishable from a cache under its cap.
+     *
+     * The mode is only half of it. Whoever creates the directory owns it, so it
+     * also needs a GROUP both users are in — owner azureuser, group www-data is
+     * what NOC2 uses. prune() says so rather than returning a silent zero when
+     * it cannot read the directory.
+     */
     public function cacheDirectory(): string
     {
         $path = storage_path('app/private/'.trim((string) config('archive_portal.cache_path', 'archive-cache'), '/'));
 
         if (! @is_dir($path)) {
-            @mkdir($path, 0711, true);
-            @chmod($path, 0711);
+            @mkdir($path, 0770, true);
+            @chmod($path, 0770);
         }
 
         return $path;
@@ -108,12 +122,26 @@ class TiffConverter
      * Called by archive:prune-cache rather than on a request: a page that
      * sometimes stops to delete a gigabyte is a page that sometimes times out.
      *
-     * @return array{removed:int, freed_bytes:int, remaining_bytes:int}
+     * @return array{removed:int, freed_bytes:int, remaining_bytes:int, problem?:string}
      */
     public function prune(?float $maxGigabytes = null): array
     {
         $cap = (int) (($maxGigabytes ?? (float) config('archive_portal.cache_max_gb', 5)) * 1024 * 1024 * 1024);
-        $files = glob($this->cacheDirectory().'/*') ?: [];
+        $directory = $this->cacheDirectory();
+
+        // An unreadable directory globs to nothing, which reads exactly like an
+        // empty cache. Report it instead: this is how the prune ran clean every
+        // night for as long as the directory belonged to the other user.
+        if (! is_readable($directory) || ! is_writable($directory)) {
+            return [
+                'removed' => 0,
+                'freed_bytes' => 0,
+                'remaining_bytes' => 0,
+                'problem' => $directory.' cannot be listed and emptied by this user — it needs to be owned by the scheduler\'s user with the web user\'s group, mode 0770.',
+            ];
+        }
+
+        $files = glob($directory.'/*') ?: [];
 
         $entries = [];
         $total = 0;
