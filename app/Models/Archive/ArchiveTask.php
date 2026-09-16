@@ -60,7 +60,7 @@ class ArchiveTask extends Model
 
     public function scopePending(Builder $query): Builder
     {
-        return $query->where('status', self::STATUS_PENDING);
+        return $query->where($query->qualifyColumn('status'), self::STATUS_PENDING);
     }
 
     /**

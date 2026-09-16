@@ -137,7 +137,7 @@ class ArchiveSource extends Model
 
     public function scopeEnabled(Builder $query): Builder
     {
-        return $query->where('enabled', true);
+        return $query->where($query->qualifyColumn('enabled'), true);
     }
 
     /**

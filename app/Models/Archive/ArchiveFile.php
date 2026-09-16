@@ -91,10 +91,10 @@ class ArchiveFile extends Model
      */
     public function scopeNeedingText(Builder $query): Builder
     {
-        return $query->whereIn('text_status', [self::TEXT_NONE, self::TEXT_PENDING])
+        return $query->whereIn($query->qualifyColumn('text_status'), [self::TEXT_NONE, self::TEXT_PENDING])
             ->where(function (Builder $q) {
                 foreach (['pdf', 'tif', 'tiff', 'jpg', 'jpeg', 'png', 'bmp'] as $extension) {
-                    $q->orWhere('path', 'like', '%.'.$extension);
+                    $q->orWhere($q->qualifyColumn('path'), 'like', '%.'.$extension);
                 }
             });
     }
@@ -125,8 +125,8 @@ class ArchiveFile extends Model
     /** Files that have failed too often — the Transfer page's error list. */
     public function scopeTransferFailed(Builder $query): Builder
     {
-        return $query->where('disk', self::DISK_ARCMATE)
-            ->where('transfer_attempts', '>=', self::MAX_TRANSFER_ATTEMPTS);
+        return $query->where($query->qualifyColumn('disk'), self::DISK_ARCMATE)
+            ->where($query->qualifyColumn('transfer_attempts'), '>=', self::MAX_TRANSFER_ATTEMPTS);
     }
 
     public function archive(): BelongsTo
@@ -147,7 +147,7 @@ class ArchiveFile extends Model
     /** Files still living on the ArcMate share — the transfer worker's queue. */
     public function scopeOnArcMate(Builder $query): Builder
     {
-        return $query->where('disk', self::DISK_ARCMATE);
+        return $query->where($query->qualifyColumn('disk'), self::DISK_ARCMATE);
     }
 
     public function isOnArcMate(): bool

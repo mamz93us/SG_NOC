@@ -125,20 +125,20 @@ class Archive extends Model
     /** Archives whose files can actually be opened (see the class note). */
     public function scopeReadable(Builder $query): Builder
     {
-        return $query->where('readable', true);
+        return $query->where($query->qualifyColumn('readable'), true);
     }
 
     public function scopeMirrored(Builder $query): Builder
     {
-        return $query->where('mode', self::MODE_MIRROR);
+        return $query->where($query->qualifyColumn('mode'), self::MODE_MIRROR);
     }
 
     /** Archives the sync should still read from ArcMate. */
     public function scopeSyncable(Builder $query): Builder
     {
         return $query->readable()
-            ->whereNotNull('arcmate_database')
-            ->whereIn('mode', [self::MODE_MIRROR, self::MODE_READ_ONLY]);
+            ->whereNotNull($query->qualifyColumn('arcmate_database'))
+            ->whereIn($query->qualifyColumn('mode'), [self::MODE_MIRROR, self::MODE_READ_ONLY]);
     }
 
     // ─── State ───────────────────────────────────────────────────

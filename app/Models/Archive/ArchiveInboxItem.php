@@ -129,7 +129,7 @@ class ArchiveInboxItem extends Model
 
     public function scopeWaiting(Builder $query): Builder
     {
-        return $query->where('status', self::STATUS_WAITING);
+        return $query->where($query->qualifyColumn('status'), self::STATUS_WAITING);
     }
 
     /**
@@ -142,8 +142,8 @@ class ArchiveInboxItem extends Model
     public function scopeNeedingAi(Builder $query): Builder
     {
         return $query->waiting()
-            ->whereIn('ai_status', [self::AI_NONE, self::AI_QUEUED, self::AI_READING])
-            ->where('ai_attempts', '<', self::MAX_AI_ATTEMPTS);
+            ->whereIn($query->qualifyColumn('ai_status'), [self::AI_NONE, self::AI_QUEUED, self::AI_READING])
+            ->where($query->qualifyColumn('ai_attempts'), '<', self::MAX_AI_ATTEMPTS);
     }
 
     // ─── State ───────────────────────────────────────────────────
