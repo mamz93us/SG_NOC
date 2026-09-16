@@ -85,7 +85,7 @@ class ArchiveTransferService
                     break;
                 }
 
-                $file = $this->next();
+                $file = $this->next($source);
 
                 if (! $file) {
                     $stats['reason'] = 'Nothing left to transfer.';
@@ -266,11 +266,30 @@ class ArchiveTransferService
      * ever abandoned half way, the files people actually open should be the
      * ones that made it across.
      */
-    private function next(): ?ArchiveFile
+    private function next(?ArchiveSource $source = null): ?ArchiveFile
     {
+        $from = $source?->transfer_from;
+        $to = $source?->transfer_to;
+
         return ArchiveFile::query()
             ->transferQueue()
             ->join('archives', 'archives.id', '=', 'archive_files.archive_id')
+            // A chosen date range moves one stretch of history at a time, so
+            // 372 GB is several small decisions instead of one big one. The date
+            // is the DOCUMENT's capture date, not the file's, because that is what
+            // people mean by "last year's invoices" — and it is the same value the
+            // blob path is built from.
+            ->when($from || $to, function ($query) use ($from, $to) {
+                $query->join('archive_documents', 'archive_documents.id', '=', 'archive_files.archive_document_id');
+
+                if ($from) {
+                    $query->where('archive_documents.captured_at', '>=', $from.' 00:00:00');
+                }
+
+                if ($to) {
+                    $query->where('archive_documents.captured_at', '<=', $to.' 23:59:59');
+                }
+            })
             ->orderBy('archives.transfer_priority')
             ->orderByDesc('archive_files.id')
             ->select('archive_files.*')

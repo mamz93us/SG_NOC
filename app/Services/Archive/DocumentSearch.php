@@ -68,6 +68,10 @@ class DocumentSearch
             'from' => $this->date($request->query('from')),
             'to' => $this->date($request->query('to')),
             'words' => mb_substr(trim((string) $request->query('q', '')), 0, self::MAX_TERM) ?: null,
+            // 'date', or a field key. Checked against the archive's own fields
+            // before it reaches a query, so a column name cannot arrive in a URL.
+            'sort' => mb_substr(trim((string) $request->query('sort', 'date')), 0, 60),
+            'dir' => $request->query('dir') === 'asc' ? 'asc' : 'desc',
         ];
     }
 
@@ -112,11 +116,47 @@ class DocumentSearch
             $this->applyWords($query, $criteria['words']);
         }
 
+        return $this->applySort($query, $archive, $criteria);
+    }
+
+    /**
+     * Order by the capture date, or by one of the archive's own fields.
+     *
+     * A field's value lives in another table, so sorting by one is a left join:
+     * left, because a document whose invoice number was never filled in should
+     * still appear rather than vanish from a sorted list. Blanks go last in both
+     * directions, for the same reason undated documents do — an empty value is
+     * not what anybody is looking for.
+     *
+     * The sort key is matched against the archive's fields, so nothing from the
+     * URL reaches the query as a column name.
+     */
+    private function applySort(Builder $query, Archive $archive, array $criteria): Builder
+    {
+        $dir = ($criteria['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+        $sort = (string) ($criteria['sort'] ?? 'date');
+
+        $field = $sort === 'date' ? null : $archive->fields->firstWhere('key', $sort);
+
+        if ($field) {
+            return $query
+                ->leftJoin('archive_document_values as sort_value', function ($join) use ($field) {
+                    $join->on('sort_value.archive_document_id', '=', 'archive_documents.id')
+                        ->where('sort_value.archive_field_id', '=', $field->getKey());
+                })
+                // The join duplicates `id`, so say which table the rows come from
+                // or the paginator counts and hydrates the wrong thing.
+                ->select('archive_documents.*')
+                ->orderByRaw("sort_value.value_text IS NULL OR sort_value.value_text = ''")
+                ->orderBy('sort_value.value_text', $dir)
+                ->orderByDesc('archive_documents.id');
+        }
+
         // Undated documents sort last rather than first: a null capture date
         // means the file names were unreadable, which is rare and not what
         // anybody is looking for when they open an archive.
         return $query->orderByRaw('captured_at IS NULL')
-            ->orderByDesc('captured_at')
+            ->orderBy('captured_at', $dir)
             ->orderByDesc('id');
     }
 

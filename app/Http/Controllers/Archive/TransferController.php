@@ -51,6 +51,7 @@ class TransferController extends Controller
                 ? (int) round($estimatedRemaining / max(1, $bytesPerSecond))
                 : null,
             'allowedNow' => (bool) $source?->transferAllowedNow(),
+            'pendingInRange' => $this->pendingInRange($source),
             'failed' => ArchiveFile::query()->transferFailed()->with('archive')->limit(50)->get(),
             'failedCount' => ArchiveFile::query()->transferFailed()->count(),
             'runs' => ArchiveTransferRun::query()->orderByDesc('id')->limit(10)->get(),
@@ -71,6 +72,8 @@ class TransferController extends Controller
             'transfer_window_start' => ['nullable', 'date_format:H:i'],
             'transfer_window_end' => ['nullable', 'date_format:H:i'],
             'transfer_speed_mbps' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'transfer_from' => ['nullable', 'date_format:Y-m-d'],
+            'transfer_to' => ['nullable', 'date_format:Y-m-d'],
         ]);
 
         $source = ArchiveSource::query()->first();
@@ -84,6 +87,10 @@ class TransferController extends Controller
             'transfer_window_start' => $data['transfer_window_start'] ?: '19:00',
             'transfer_window_end' => $data['transfer_window_end'] ?: '07:00',
             'transfer_speed_mbps' => ($data['transfer_speed_mbps'] ?? 0) ?: null,
+            // Blank means no limit at that end, so a one-sided range works:
+            // "everything from 2024 onwards" is a from with no to.
+            'transfer_from' => $data['transfer_from'] ?: null,
+            'transfer_to' => $data['transfer_to'] ?: null,
         ])->save();
 
         return back()->with('status', 'Transfer settings saved. They apply on the next run, within a minute.');
@@ -145,6 +152,28 @@ class TransferController extends Controller
         ArchiveTask::queue(ArchiveTask::TYPE_VERIFY_SAMPLE, ['count' => $count], $request->user()?->getKey());
 
         return back()->with('status', "Queued a check of {$count} transferred files.");
+    }
+
+    /**
+     * Files still to move that fall inside the chosen date range.
+     *
+     * Null when no range is set, because the overall pending figure already says
+     * it. With a range, showing only the global total would be misleading: the
+     * worker is not going to move those files tonight, and the page should not
+     * imply that it will.
+     */
+    private function pendingInRange(?ArchiveSource $source): ?int
+    {
+        if (! $source || (! $source->transfer_from && ! $source->transfer_to)) {
+            return null;
+        }
+
+        return ArchiveFile::query()
+            ->transferQueue()
+            ->join('archive_documents', 'archive_documents.id', '=', 'archive_files.archive_document_id')
+            ->when($source->transfer_from, fn ($q, $d) => $q->where('archive_documents.captured_at', '>=', $d.' 00:00:00'))
+            ->when($source->transfer_to, fn ($q, $d) => $q->where('archive_documents.captured_at', '<=', $d.' 23:59:59'))
+            ->count();
     }
 
     // ─── Figures ─────────────────────────────────────────────────

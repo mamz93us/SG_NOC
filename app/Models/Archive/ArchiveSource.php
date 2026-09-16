@@ -41,6 +41,8 @@ class ArchiveSource extends Model
         'transfer_weekend_all_day',
         'transfer_anytime',
         'transfer_speed_mbps',
+        'transfer_from',
+        'transfer_to',
     ];
 
     protected $hidden = ['password'];
