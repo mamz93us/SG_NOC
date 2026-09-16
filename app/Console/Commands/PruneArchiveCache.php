@@ -23,6 +23,15 @@ class PruneArchiveCache extends Command
     {
         $result = $converter->prune($this->option('gb') !== null ? (float) $this->option('gb') : null);
 
+        // A prune that cannot reach its directory must say so and FAIL. Reported
+        // as a success with nothing removed, it looked like a cache under its cap
+        // for as long as the directory belonged to the web user.
+        if (isset($result['problem'])) {
+            $this->error('Cache not pruned: '.$result['problem']);
+
+            return self::FAILURE;
+        }
+
         $this->info(sprintf(
             'Cache: %s remaining, %d file(s) removed (%s freed).',
             $this->human($result['remaining_bytes']),

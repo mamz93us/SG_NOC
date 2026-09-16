@@ -372,3 +372,50 @@ test('one open end of a range still limits the transfer', function () {
 
     expect($this->transfers->run($this->source->fresh(), maxFiles: 10)['files'])->toBe(1);
 });
+
+// ─── Where the temporary copy goes ───────────────────────────────
+
+test('the temporary copy is not written into the viewer cache', function () {
+    // The bug that made EVERY transfer on NOC2 fail. copyToTemp() borrowed
+    // TiffConverter::cacheDirectory(), which is created by whichever user gets
+    // there first — the viewer, as www-data — and its mode gives a non-owner
+    // traverse but not write. The scheduler runs as a different user, so it
+    // could not create the file, and the error blamed disk space on a host with
+    // 87 GB free.
+    //
+    // Asserted by making the cache directory unwritable: a transfer that still
+    // succeeds is one that is not writing there. On Windows chmod does not
+    // remove write permission, so the check is skipped rather than passing
+    // vacuously.
+    $cache = (new \App\Services\Archive\TiffConverter)->cacheDirectory();
+    @mkdir($cache, 0770, true);
+    @chmod($cache, 0500);
+
+    if (is_writable($cache)) {
+        @chmod($cache, 0770);
+        $this->markTestSkipped('this filesystem ignores chmod, so an unwritable directory cannot be simulated');
+    }
+
+    try {
+        $file = ($this->makeFile)('cache-locked.pdf', 'invoice bytes');
+
+        expect($this->transfers->transfer($file))->toBeTrue();
+        expect($file->fresh()->disk)->toBe(ArchiveFile::DISK_AZURE);
+        expect($file->fresh()->transfer_error)->toBeNull();
+    } finally {
+        @chmod($cache, 0770);
+    }
+});
+
+test('the temporary copy is cleaned up, wherever it lives', function () {
+    // 372 GB moves through this directory one file at a time. A temp file left
+    // behind per transfer would fill the disk long before the archive finished.
+    $before = glob(sys_get_temp_dir().'/archive-transfer-*') ?: [];
+
+    $file = ($this->makeFile)('leaves-nothing.pdf', 'invoice bytes');
+    expect($this->transfers->transfer($file))->toBeTrue();
+
+    $after = glob(sys_get_temp_dir().'/archive-transfer-*') ?: [];
+
+    expect($after)->toBe($before);
+});
