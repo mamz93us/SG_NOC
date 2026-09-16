@@ -64,6 +64,23 @@
   .assistant-messages{ flex:1; overflow-y:auto; padding:18px 20px; display:flex; flex-direction:column; gap:14px; }
   .assistant-msg{ display:flex; align-items:flex-start; gap:10px; }
   .assistant-msg-user{ justify-content:flex-end; }
+  /* A document the answer pointed at. The chat renders text only, so a link
+     would arrive as a raw URL; this is the button that replaces it. */
+  .assistant-doc{
+    margin-top:8px; padding:10px 12px; border:1px solid var(--line, #e4e4e5);
+    border-radius:10px; background:#fff; max-width:100%;
+  }
+  .assistant-doc-title{ font-weight:600; font-size:.86rem; word-break:break-word; }
+  .assistant-doc-meta{ font-size:.75rem; color:var(--gray-600, #77787a); margin-top:1px; }
+  .assistant-doc-actions{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .assistant-doc-btn{
+    display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:7px;
+    font-size:.78rem; font-weight:600; text-decoration:none; cursor:pointer; border:1px solid transparent;
+  }
+  .assistant-doc-btn-primary{ background:var(--red-600, #ec2024); color:#fff; }
+  .assistant-doc-btn-primary:hover{ background:var(--red-700, #c81a1e); color:#fff; }
+  .assistant-doc-btn-ghost{ border-color:var(--line, #e4e4e5); color:var(--gray-800, #3e3f41); background:#fff; }
+  .assistant-doc-btn-ghost:hover{ background:var(--bg, #f4f4f5); }
   .assistant-msg-body{ min-width:0; max-width:85%; display:flex; flex-direction:column; align-items:flex-start; }
   .assistant-bubble{
     max-width:82%; padding:10px 14px; border-radius:16px; font-size:13.5px; line-height:1.55;
@@ -166,6 +183,9 @@
 
   var i18n = {
     greeting: @json(__('home_ai.widget.greeting')),
+    docView: @json(__('home_ai.widget.document_view')),
+    docDownload: @json(__('home_ai.widget.document_download')),
+    docScanned: @json(__('home_ai.widget.document_scanned')),
     thinking: @json(__('home_ai.widget.thinking')),
     status: {
       ready: @json(__('home_ai.widget.online')),
@@ -622,6 +642,61 @@
         });
       }
 
+      // Documents the answer referred to, drawn as buttons. The server already
+      // took the URLs out of the sentence and re-checked that this person may
+      // open each one, so this only has to draw them.
+      function addDocumentCards(body, documents) {
+        if (!Array.isArray(documents) || !documents.length) { return; }
+
+        documents.forEach(function (doc) {
+          var card = document.createElement("div");
+          card.className = "assistant-doc";
+
+          var title = document.createElement("div");
+          title.className = "assistant-doc-title";
+          title.textContent = doc.title || ("Document " + doc.id);
+          card.appendChild(title);
+
+          var metaBits = [];
+          if (doc.archive) { metaBits.push(doc.archive); }
+          if (doc.scanned) { metaBits.push(i18n.docScanned + " " + doc.scanned); }
+          if (metaBits.length) {
+            var meta = document.createElement("div");
+            meta.className = "assistant-doc-meta";
+            meta.textContent = metaBits.join(" · ");
+            card.appendChild(meta);
+          }
+
+          var actions = document.createElement("div");
+          actions.className = "assistant-doc-actions";
+
+          // A new tab, not this one: the archive is a different host with its own
+          // sign-in, and navigating away would lose the conversation.
+          var view = document.createElement("a");
+          view.className = "assistant-doc-btn assistant-doc-btn-primary";
+          view.href = doc.view;
+          view.target = "_blank";
+          view.rel = "noopener noreferrer";
+          view.textContent = i18n.docView;
+          actions.appendChild(view);
+
+          if (doc.download) {
+            var dl = document.createElement("a");
+            dl.className = "assistant-doc-btn assistant-doc-btn-ghost";
+            dl.href = doc.download;
+            dl.target = "_blank";
+            dl.rel = "noopener noreferrer";
+            dl.textContent = i18n.docDownload;
+            actions.appendChild(dl);
+          }
+
+          card.appendChild(actions);
+          body.appendChild(card);
+        });
+
+        scrollToBottom();
+      }
+
       function addDraftCard(body, draft) {
         if (draft.type === 'email') { return addEmailDraftCard(body, draft); }
         if (draft.type === 'calendar_event') { return addCalendarDraftCard(body, draft); }
@@ -670,6 +745,7 @@
             typeOut(answer, content, function () {
               messages.setAttribute('aria-busy', 'false');
               setStatus('ready');
+              if (res.data.documents) addDocumentCards(turn.body, res.data.documents);
               if (res.data.draft) addDraftCard(turn.body, res.data.draft);
               addActions(turn.body, reply.id, 0, content);
             });

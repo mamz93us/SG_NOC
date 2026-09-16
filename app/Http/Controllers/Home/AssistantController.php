@@ -34,6 +34,9 @@ use Illuminate\View\View;
  */
 class AssistantController extends Controller
 {
+    /** Buttons under one answer. More than a handful is a list, not an answer. */
+    private const MAX_DOCUMENT_BUTTONS = 5;
+
     public function __construct(
         private AssistantAgent $agent,
         private HomeTicketSubmitter $submitter,
@@ -159,6 +162,11 @@ class AssistantController extends Controller
             return response()->json(['message' => __('home_ai.errors.system_unavailable')], 503);
         }
 
+        // A document link is useless as text: the chat renders replies as plain
+        // text, so a URL arrives as a URL. Take them out of the sentence and hand
+        // the documents over as data, for the widget to draw buttons from.
+        $documents = $this->archiveDocuments($request, $reply, $conversation, $beforeId);
+
         return response()->json([
             'conversation_id' => $conversation->id,
             'message' => [
@@ -166,11 +174,141 @@ class AssistantController extends Controller
                 'role' => $reply->role,
                 'content' => $reply->content,
             ],
+            'documents' => $documents,
             // Generic — carries a 'type' of ticket/email/calendar_event so the
             // widget can render and confirm the right kind. See AssistantToolbox:
             // every draft_* tool only ever shapes this, never submits it.
             'draft' => $this->extractDraft($conversation, $beforeId),
         ]);
+    }
+
+    /**
+     * Archive documents the answer pointed at, as things to open.
+     *
+     * The links are stripped from the reply (and the stored message, so the
+     * history reads the same way) and returned as data instead.
+     *
+     * Access is re-checked here per document rather than trusted from the answer.
+     * The toolbox already refuses to return a document this person cannot open, but
+     * a button is a second chance to get that wrong, and the thing on the other
+     * side of it is a scanned invoice or an HR file.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function archiveDocuments(Request $request, AiMessage $reply, AiConversation $conversation, int $beforeId): array
+    {
+        if (! \App\Support\ArchivePortal::enabled() || trim((string) $reply->content) === '') {
+            return [];
+        }
+
+        [$clean, $ids] = \App\Services\Archive\Ai\ArchiveLinks::strip(
+            (string) $reply->content,
+            \App\Support\ArchivePortal::domain(),
+        );
+
+        // The model is told NOT to write a URL, so the documents it actually
+        // looked at come from the tool results. Anything it pasted anyway is
+        // merged in first, because naming a document explicitly is a stronger
+        // signal than having searched for it.
+        $ids = array_values(array_unique(array_merge($ids, $this->archiveToolDocumentIds($conversation, $beforeId))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        if ($clean !== $reply->content) {
+            $reply->forceFill(['content' => $clean])->save();
+        }
+
+        $access = \App\Services\Archive\ArchiveAccess::for($request->user());
+        $documents = [];
+
+        foreach (array_slice($ids, 0, self::MAX_DOCUMENT_BUTTONS) as $id) {
+            $document = $access->findDocument($id);
+
+            if (! $document) {
+                continue;
+            }
+
+            $document->loadMissing(['values.field', 'files', 'archive']);
+            $file = $document->files->first();
+
+            $documents[] = [
+                'id' => $document->getKey(),
+                'title' => $document->title(),
+                'archive' => $document->archive?->displayName(),
+                'scanned' => $document->captured_at?->format('Y-m-d'),
+                'view' => route('archive.document', $document->getKey()),
+                // Only with a file to send: a document whose scan has not been
+                // copied yet would give a download button that 404s.
+                'download' => $file
+                    ? route('archive.document.download', [$document->getKey(), $file->getKey()])
+                    : null,
+            ];
+        }
+
+        return $documents;
+    }
+
+    /**
+     * Document ids the archive tools returned during this turn.
+     *
+     * A broad search can return fifty, and fifty buttons is not an answer, so a
+     * long list is narrowed to the documents the reply actually talks about —
+     * matched on their own index values, which the model is told to quote exactly.
+     *
+     * @return array<int,int>
+     */
+    private function archiveToolDocumentIds(AiConversation $conversation, int $sinceMessageId): array
+    {
+        $found = [];
+
+        $toolMessages = $conversation->messages()
+            ->where('id', '>', $sinceMessageId)
+            ->where('role', AiMessage::ROLE_TOOL)
+            ->orderBy('id')
+            ->get();
+
+        foreach ($toolMessages as $toolMessage) {
+            $data = json_decode((string) $toolMessage->content, true);
+
+            if (! is_array($data)) {
+                continue;
+            }
+
+            // get_document: one document, looked at deliberately.
+            if (isset($data['id']) && is_numeric($data['id']) && isset($data['fields'])) {
+                $found[(int) $data['id']] = $data['fields'];
+            }
+
+            // search_documents / count: a list.
+            foreach ((array) ($data['documents'] ?? []) as $row) {
+                if (is_array($row) && isset($row['id']) && is_numeric($row['id'])) {
+                    $found[(int) $row['id']] = $row['fields'] ?? [];
+                }
+            }
+        }
+
+        if (count($found) <= self::MAX_DOCUMENT_BUTTONS) {
+            return array_keys($found);
+        }
+
+        $answer = mb_strtolower((string) $conversation->messages()->latest('id')->value('content'));
+        $mentioned = [];
+
+        foreach ($found as $id => $fields) {
+            foreach ((array) $fields as $value) {
+                $value = trim((string) $value);
+
+                // Two characters would match half the archive by accident.
+                if (mb_strlen($value) >= 3 && str_contains($answer, mb_strtolower($value))) {
+                    $mentioned[] = $id;
+                    break;
+                }
+            }
+        }
+
+        return $mentioned;
     }
 
     /** The most recent draft_* tool result produced by this turn, if any. */
