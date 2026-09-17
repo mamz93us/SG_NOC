@@ -66,6 +66,23 @@ it('reads Intune model strings into the same keys', function (string $manufactur
     ['Dell Inc.', 'Latitude 3500', 'DELL', ['DELL:3500']],
 ]);
 
+it('proves a form only where the text says it', function (string $side, string $text, ?string $form) {
+    $facts = $side === 'oracle'
+        ? ComputerFacts::fromOracle($text, null)
+        : ComputerFacts::fromIntune(...explode('|', $text), ...[null, null, null]);
+
+    expect($facts->form)->toBe($form);
+})->with([
+    ['oracle', 'P15v,i7,16GB,512GB,nVIDIA 4GB', 'laptop'],
+    ['oracle', 'DELL 9020 OPTILEX CORE I7-4770-4GB 500GB', 'desktop'],
+    ['oracle', 'W8PRO/CI74TH GEN/8GB/256GB/INT', null],
+    ['intune', 'LENOVO|10MLS4RX00', 'desktop'],
+    ['intune', 'LENOVO|21DJ', 'laptop'],
+    ['intune', 'HP|HP Pavilion All-in-One Desktop 24-ca2xxx', 'desktop'],
+    ['intune', 'Hewlett-Packard|HP 250 15.6 inch G10 Notebook PC', 'laptop'],
+    ['intune', 'Dell Inc.|Vostro 3591', null],
+]);
+
 it('reads a CPU the way the NOC device script reports it', function () {
     expect(ComputerFacts::cpuOf('13th Gen Intel(R) Core(TM) i7-1355U'))->toBe('I7-1355U')
         ->and(ComputerFacts::cpuOf('Intel(R) Core(TM) Ultra 7 155H'))->toBe('ULTRA 7 155H')

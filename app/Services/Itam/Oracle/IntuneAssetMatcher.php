@@ -10,6 +10,7 @@ namespace App\Services\Itam\Oracle;
  *
  *   same serial            decides on its own
  *   brands differ          never a pair
+ *   laptop and desktop     never a pair (when both texts prove their form)
  *   model keys differ      never a pair (a 20TA ThinkPad is not a 21KE one)
  *   same model keys        +50   strong
  *   same model code        +20   strong
@@ -62,6 +63,10 @@ final class IntuneAssetMatcher
         $brand = ComputerFacts::brandsAgree($oracle->brand, $intune->brand);
 
         if ($brand === false) {
+            return null;
+        }
+
+        if ($oracle->form !== null && $intune->form !== null && $oracle->form !== $intune->form) {
             return null;
         }
 

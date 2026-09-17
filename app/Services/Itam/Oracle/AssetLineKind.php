@@ -32,6 +32,9 @@ final class AssetLineKind
     /** A desktop word next to these is a typo on a laptop ("DELL OPTILEX N5520 … 15.6'"). */
     private const LAPTOP_DESPITE_DESKTOP_WORD = '/\bN55[12]0\b|\b15\.6\b/';
 
+    /** Words only a laptop's description has: its kind, its family, or a laptop screen size. */
+    private const LAPTOP_EVIDENCE = '/\bLAPTOP\b|\bLABTOP\b|\bLA\[TOP\b|\bNOTE\s?BOOK\b|\bNOTBOOK\b|\bNBK?\b|\bN\/B\b|\bTHINK\s?PAD\b|\bTHING\s+PAD\b|\bIDEA\s?PAD\b|\bTHINK\s?BOOK\b|\bYOGA\d?\b|\bLEGION\b|\bLOGION\b|\bLOQ\b|\bLATI(?:TUDE|TUDC)?\b|\bXPS\b|\bPROBOOK\b|\bELITEBOOK\b|\bZBOOK\b|\bOMNIBOOK\b|\bSPECT(?:RE|RA)?\b|\bENVY\b|\bOMEN\b|\bMACBOOK\b|\bSURFACE\b|\bMATEBOOK\b|\bZENBOOK\b|\bVAIO\b|\bTB\s?1[456]\b|\b(?:E1[456]|E4[789]0|E5[789]0|T14S?|T16|T4[89]0S?|T590|X1|X2[25]0|X390|L14|P1|P14S|P15[SV]?)\b|\b1[3456]\.\d"?|\b2-IN-1\b|\bX\s?360\b|\bCONVERTIBLE\b/';
+
     /** @return string|null OracleAsset::CATEGORY_LAPTOP / CATEGORY_DESKTOP, or null to leave the line out */
     public static function of(string $description): ?string
     {
@@ -57,5 +60,24 @@ final class AssetLineKind
         }
 
         return OracleAsset::CATEGORY_LAPTOP;
+    }
+
+    /**
+     * The shape the description proves, for telling a laptop from a desktop
+     * when pairing with Intune: a desktop, a laptop only when something in it
+     * says so, and null when it says neither — a line imported as a laptop by
+     * default is not evidence against a desktop.
+     */
+    public static function formOf(string $description): ?string
+    {
+        $kind = self::of($description);
+
+        if ($kind !== OracleAsset::CATEGORY_LAPTOP) {
+            return $kind;
+        }
+
+        $u = ' '.strtoupper(preg_replace('/\s+/u', ' ', $description) ?? $description).' ';
+
+        return preg_match(self::LAPTOP_EVIDENCE, $u) ? OracleAsset::CATEGORY_LAPTOP : null;
     }
 }

@@ -43,6 +43,20 @@ it('never pairs a different model or a different brand', function () {
     expect($result['links'])->toBe([]);
 });
 
+it('never pairs a laptop with a desktop, even as the holder\'s only machine of that brand', function () {
+    // Found on NOC2's dry run: a ThinkPad P15v and a ThinkCentre M710q (machine type 10ML).
+    $result = (new IntuneAssetMatcher)->assign(
+        [1 => oracleLaptop('P15v,i7,16GB,512GB,nVIDIA 4GB', '2023-05-31')],
+        ['device:9' => intuneLaptop('LENOVO', '10MLS4RX00', '2025-08-01')],
+    );
+
+    expect($result['links'])->toBe([])
+        ->and((new IntuneAssetMatcher)->score(
+            oracleLaptop('814730-DELL INS All in One 5490 i7 10510U- 16 GB -1 TB - 23.8"', '2020-06-30'),
+            intuneLaptop('Dell Inc.', 'Inspiron 5490 AIO', '2020-07-10'),
+        ))->not->toBeNull();
+});
+
 it('links on a serial number whatever else differs', function () {
     $result = (new IntuneAssetMatcher)->assign(
         [1 => oracleLaptop('NB SPEC X360 13-AW2002NX 17-11 5CD1281ZM1', '2021-06-30')],

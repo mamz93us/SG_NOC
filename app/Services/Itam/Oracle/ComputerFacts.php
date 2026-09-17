@@ -25,7 +25,9 @@ use DateTimeInterface;
  * - the CPU, normalised to I7-1355U / ULTRA 7 155H / RYZEN 5 5500U;
  * - serial-like tokens (Intune: the serial; Oracle: the few descriptions that
  *   carry one);
- * - a date: Oracle's purchase date, or Intune's enrollment date.
+ * - a date: Oracle's purchase date, or Intune's enrollment date;
+ * - the form, laptop or desktop, only where the text proves it: a ThinkPad
+ *   P15v is never a ThinkCentre, even as its holder's only Lenovo.
  */
 final class ComputerFacts
 {
@@ -41,6 +43,7 @@ final class ComputerFacts
         public readonly ?string $cpu,
         public readonly array $serials,
         public readonly ?CarbonImmutable $date,
+        public readonly ?string $form = null,
     ) {}
 
     public static function fromOracle(string $description, ?DateTimeInterface $purchaseDate): self
@@ -54,6 +57,7 @@ final class ComputerFacts
             self::cpuOf($description),
             self::serialTokens($description),
             $purchaseDate ? CarbonImmutable::instance($purchaseDate)->startOfDay() : null,
+            AssetLineKind::formOf($description),
         );
     }
 
@@ -69,7 +73,37 @@ final class ComputerFacts
             self::cpuOf($cpuName),
             $serial !== null ? [$serial] : [],
             $enrolledAt ? CarbonImmutable::instance($enrolledAt)->startOfDay() : null,
+            self::intuneForm($brand, (string) $model),
         );
+    }
+
+    private const INTUNE_DESKTOP = '/ALL[- ]IN[- ]ONE|\bAIO\b|\bDESKTOP\b|\bTOWER\b|\bOPTIPLEX\b|\bPRODESK\b|\bELITEDESK\b|\bTHINK\s?CENTRE\b|\bIDEA\s?CENTRE\b|\bIMAC\b|\bMAC\s?MINI\b|\bMACMINI\b|\bSFF\b|\bMFF\b/';
+
+    private const INTUNE_LAPTOP = '/NOTEBOOK|LAPTOP|\bPROBOOK\b|\bELITEBOOK\b|\bZBOOK\b|\bOMNIBOOK\b|\bSPECTRE\b|\bENVY\b|CONVERTIBLE|\bLATITUDE\b|\bXPS\b|\bVOSTRO 1[45]\b|\bINSPIRON 1[3-6]\b|\bMACBOOK|\bSURFACE (?:LAPTOP|PRO|BOOK|GO)\b|\bMATEBOOK\b|\bTHINK\s?PAD\b|\bTHINK\s?BOOK\b|\bIDEA\s?PAD\b|\bYOGA\b|\bLEGION\b|\bG1[5-8] \d{4}\b/';
+
+    /**
+     * The form an Intune model string proves. Lenovo reports a machine type:
+     * 10xx–12xx and F0xx are ThinkCentre and IdeaCentre desktops, 20xx–21xx
+     * ThinkPads, 80xx–83xx IdeaPads, Yogas and Legions.
+     */
+    private static function intuneForm(?string $brand, string $model): ?string
+    {
+        $u = self::upper($model);
+
+        if ($brand === 'LENOVO') {
+            if (preg_match('/^(?:1[0-2]|F0)[0-9A-Z]{2}(?:[0-9A-Z]{4,6})?$/', $u)) {
+                return 'desktop';
+            }
+            if (preg_match('/^(?:2[01]|8[0-3])[0-9A-Z]{2}(?:[0-9A-Z]{4,6})?$/', $u)) {
+                return 'laptop';
+            }
+        }
+
+        return match (true) {
+            (bool) preg_match(self::INTUNE_DESKTOP, $u) => 'desktop',
+            (bool) preg_match(self::INTUNE_LAPTOP, $u) => 'laptop',
+            default => null,
+        };
     }
 
     /**
