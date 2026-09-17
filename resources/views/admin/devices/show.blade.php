@@ -31,8 +31,60 @@
             <i class="bi bi-pencil me-1"></i>Edit
         </a>
         @endcan
+        @if($pendingScrapId)
+        <a href="{{ route('admin.itam.scrap.show', $pendingScrapId) }}" class="btn btn-sm btn-warning">
+            <i class="bi bi-hourglass-split me-1"></i>Scrap requested #{{ $pendingScrapId }}
+        </a>
+        @elseif(! in_array($device->status, ['retired', 'scrapped'], true))
+            @can('manage-assets')
+            <button type="button" class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#retireAssetModal"
+                    data-action="{{ route('admin.devices.retire', $device) }}"
+                    data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}"
+                    data-holder="{{ $assigned?->employee?->name }}">
+                <i class="bi bi-archive me-1"></i>Retire
+            </button>
+            @endcan
+            @can('request-scrap')
+            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#scrapAssetModal"
+                    data-device="{{ $device->id }}"
+                    data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}"
+                    data-holder="{{ $assigned?->employee?->name }}">
+                <i class="bi bi-trash3 me-1"></i>Scrap
+            </button>
+            @endcan
+        @endif
     </div>
 </div>
+
+@can('manage-assets')
+@include('admin.itam.oracle-assets._retire-modal')
+@endcan
+@can('request-scrap')
+@include('admin.itam.oracle-assets._scrap-modal')
+@endcan
+
+{{-- ── Not in Intune ── --}}
+@if(in_array($device->type, ['laptop', 'desktop'], true)
+    && ! in_array($device->status, ['retired', 'scrapped'], true)
+    && $device->azureDevice?->link_status !== 'linked')
+<div class="alert alert-warning d-flex align-items-center justify-content-between gap-3 py-2 mb-3">
+    <div class="small">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        <strong>Not in Intune.</strong> Every laptop and desktop has to be linked to its Intune device — link it, or retire or scrap it if it is gone.
+    </div>
+    @can('manage-itam')
+    <button type="button" class="btn btn-sm btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#intuneLinkModal"
+            data-action="{{ route('admin.itam.devices.intune-link', $device) }}"
+            data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}"
+            data-options="{{ json_encode($intuneLinkOptions) }}">
+        <i class="bi bi-link-45deg me-1"></i>Link to Intune device
+    </button>
+    @endcan
+</div>
+@can('manage-itam')
+@include('admin.itam.oracle-assets._intune-link-modal', ['unlinkedIntune' => $unlinkedIntune])
+@endcan
+@endif
 
 {{-- ── Asset Code Banner ── --}}
 @if($device->asset_code)
@@ -242,7 +294,29 @@
             </div>
             <div class="card-body p-0">
                 <table class="table table-sm table-borderless small mb-0">
-                    <tr><th class="text-muted ps-3" style="width:40%">Purchase Date</th>
+                    <tr><th class="text-muted ps-3" style="width:40%">Oracle Asset No.</th>
+                        <td>
+                            @if($device->oracle_asset_number)
+                                <span class="font-monospace">{{ $device->oracle_asset_number }}</span>
+                                @can('view-itam')
+                                <a href="{{ route('admin.itam.oracle-assets.index', ['q' => $device->oracle_asset_number]) }}" class="ms-1">register</a>
+                                @endcan
+                            @else
+                                —
+                            @endif
+                        </td></tr>
+                    @foreach($oracleUnits as $unit)
+                    <tr><th class="text-muted ps-3">In Oracle</th>
+                        <td>
+                            {{ $unit->description }}
+                            <div class="text-muted">
+                                Held by #{{ $unit->emp_no }} {{ $unit->emp_name }}
+                                @if($unit->purchase_date) · {{ $unit->purchase_date->format('d M Y') }}@if($unit->end_date) – {{ $unit->end_date->format('d M Y') }}@endif @endif
+                                @if($unit->removed_at)<span class="badge bg-light text-dark border ms-1">No longer in Oracle</span>@endif
+                            </div>
+                        </td></tr>
+                    @endforeach
+                    <tr><th class="text-muted ps-3">Purchase Date</th>
                         <td>{{ $device->purchase_date?->format('d M Y') ?: '—' }}</td></tr>
                     <tr><th class="text-muted ps-3">Warranty Exp.</th>
                         <td>

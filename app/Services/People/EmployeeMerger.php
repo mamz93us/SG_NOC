@@ -55,6 +55,7 @@ final class EmployeeMerger
         'knowbe4_scores' => ['employee_id'],
         'offboarding_tokens' => ['employee_id'],
         'offboarding_workflows' => ['employee_id', 'asset_target_employee_id'],
+        'oracle_assets' => ['employee_id'],
         'printer_deploy_tokens' => ['employee_id'],
         'vacation_employees' => ['employee_id'],
     ];

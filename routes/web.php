@@ -1601,6 +1601,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('devices/{device}', [DeviceController::class, 'destroy'])->name('devices.destroy');
         Route::post('devices/{device}/assign', [DeviceController::class, 'quickAssign'])->name('devices.assign');
         Route::post('devices/{device}/return', [DeviceController::class, 'quickReturn'])->name('devices.return');
+        // Out of service for good, without the scrap approval chain; from the device or the employee page.
+        Route::post('devices/{device}/retire', [\App\Http\Controllers\Admin\Itam\DeviceRetireController::class, 'store'])->name('devices.retire');
         Route::post('devices/phone-auto-assign', [PhoneAutoAssignController::class, 'store'])->name('devices.phone-auto-assign.store');
         Route::post('devices/phone-auto-assign/create-assets', [PhoneAutoAssignController::class, 'createAssets'])->name('devices.phone-auto-assign.create-assets');
         Route::post('devices/phone-auto-assign/manual-assign', [PhoneAutoAssignController::class, 'manualAssign'])->name('devices.phone-auto-assign.manual-assign');
@@ -2747,10 +2749,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
         // Rates behind those reports' combined totals. Keyed in, never fetched.
         Route::get('exchange-rates', [\App\Http\Controllers\Admin\ExchangeRateController::class, 'index'])->name('exchange-rates.index');
+
+        // Oracle's fixed-asset register: its laptops and desktops, matched to NOC assets and Intune.
+        Route::get('oracle-assets', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'index'])->name('oracle-assets.index');
     });
 
     Route::middleware('permission:manage-itam')->prefix('itam')->name('itam.')->group(function () {
         Route::put('exchange-rates', [\App\Http\Controllers\Admin\ExchangeRateController::class, 'update'])->name('exchange-rates.update');
+
+        Route::post('oracle-assets/import', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'import'])->name('oracle-assets.import');
+        Route::post('oracle-assets/{oracleAsset}/employee', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'assignEmployee'])->name('oracle-assets.employee');
+        Route::post('oracle-assets/{oracleAsset}/retire', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'retire'])->name('oracle-assets.retire');
+        Route::delete('oracle-assets/{oracleAsset}/match', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'unmatch'])->name('oracle-assets.unmatch');
+        Route::post('devices/{device}/intune-link', [\App\Http\Controllers\Admin\Itam\DeviceIntuneLinkController::class, 'store'])->name('devices.intune-link');
     });
 
     // ─── Asset Transfer ───────────────────────────────────────────
