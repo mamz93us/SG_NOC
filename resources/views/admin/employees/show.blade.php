@@ -890,48 +890,110 @@
                         <span class="text-muted">Add laptops, monitors, etc. to IT inventory first.</span>
                     </div>
                     @else
+                    @php
+                        $canRetireAssets = auth()->user()->can('manage-assets');
+                        $canScrapAssets = auth()->user()->can('request-scrap');
+                        $canLinkIntune = auth()->user()->can('manage-itam');
+                    @endphp
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0 small">
                             <thead class="table-light">
                                 <tr>
-                                    <th class="ps-3">Device</th><th>Type</th><th>Serial</th>
+                                    <th class="ps-3">Device</th><th>Type</th><th>Serial</th><th>Intune</th>
                                     <th>Condition</th><th>Assigned</th><th>Status</th><th class="pe-3"></th>
                                 </tr>
                             </thead>
                             <tbody>
                             @foreach($employee->assetAssignments as $a)
+                            @php
+                                $dev = $a->device;
+                                $isComputer = in_array($dev?->type, ['laptop', 'desktop'], true);
+                                $intuneLink = $dev?->azureDevice && $dev->azureDevice->link_status === 'linked' ? $dev->azureDevice : null;
+                                $inService = $dev && ! in_array($dev->status, ['retired', 'scrapped'], true);
+                                $scrapId = $dev ? ($pendingScrap[$dev->id] ?? null) : null;
+                                $assetLabel = $dev ? trim(($dev->asset_code ? $dev->asset_code.' · ' : '').$dev->name) : '';
+                            @endphp
                             <tr class="{{ $a->returned_date ? 'table-light text-muted' : '' }}">
                                 <td class="ps-3 fw-semibold">
-                                    <i class="bi {{ $a->device?->typeIcon() ?? 'bi-cpu' }} me-1 text-muted"></i>
-                                    @if($a->device)
-                                        <a href="{{ route('admin.devices.show', $a->device->id) }}" class="text-decoration-none">
-                                            {{ $a->device->name }}
+                                    <i class="bi {{ $dev?->typeIcon() ?? 'bi-cpu' }} me-1 text-muted"></i>
+                                    @if($dev)
+                                        <a href="{{ route('admin.devices.show', $dev->id) }}" class="text-decoration-none">
+                                            {{ $dev->name }}
                                         </a>
+                                        @if($dev->asset_code || $dev->oracle_asset_number)
+                                        <div class="fw-normal text-muted">
+                                            <span class="font-monospace">{{ $dev->asset_code }}</span>
+                                            @if($dev->oracle_asset_number)
+                                            <span title="Oracle fixed-asset number">{{ $dev->asset_code ? '·' : '' }} Oracle {{ $dev->oracle_asset_number }}</span>
+                                            @endif
+                                        </div>
+                                        @endif
                                     @else
                                         Unknown
                                     @endif
                                 </td>
                                 <td>
-                                    @if($a->device)<span class="badge {{ $a->device->typeBadgeClass() }}">{{ $a->device->typeLabel() }}</span>
+                                    @if($dev)<span class="badge {{ $dev->typeBadgeClass() }}">{{ $dev->typeLabel() }}</span>
                                     @else —
                                     @endif
                                 </td>
-                                <td class="text-muted">{{ $a->device?->serial_number ?? '—' }}</td>
-                                <td><span class="badge bg-{{ $a->conditionBadgeClass() }}">{{ ucfirst($a->condition) }}</span></td>
+                                <td class="text-muted">{{ $dev?->serial_number ?? '—' }}</td>
+                                <td class="text-nowrap">
+                                    @if(! $isComputer)
+                                        <span class="text-muted">—</span>
+                                    @elseif($intuneLink)
+                                        <a href="{{ route('admin.itam.azure.show', $intuneLink->id) }}" class="badge bg-success text-decoration-none" title="{{ $intuneLink->display_name }}">
+                                            <i class="bi bi-check2 me-1"></i>Intune
+                                        </a>
+                                    @elseif($a->returned_date || ! $inService)
+                                        <span class="text-muted">—</span>
+                                    @else
+                                        <span class="badge bg-warning text-dark" title="Every laptop and desktop has to be in Intune"><i class="bi bi-exclamation-triangle me-1"></i>Not in Intune</span>
+                                        @if($canLinkIntune)
+                                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-bs-toggle="modal" data-bs-target="#intuneLinkModal"
+                                                data-action="{{ route('admin.itam.devices.intune-link', $dev) }}"
+                                                data-asset="{{ $assetLabel }}"
+                                                data-options="{{ json_encode($intuneLinkOptions) }}">Link</button>
+                                        @endif
+                                    @endif
+                                </td>
+                                <td><span class="badge {{ $a->conditionBadgeClass() }}">{{ ucfirst($a->condition) }}</span></td>
                                 <td>{{ $a->assigned_date->format('d M Y') }}</td>
                                 <td>
                                     @if($a->returned_date)
                                     <span class="badge bg-success">Returned {{ $a->returned_date->format('d M Y') }}</span>
                                     @else<span class="badge bg-primary">Active</span>
                                     @endif
+                                    @if($dev && in_array($dev->status, ['retired', 'scrapped'], true))
+                                    <span class="badge {{ $dev->statusBadgeClass() }}">{{ ucfirst($dev->status) }}</span>
+                                    @endif
+                                    @if($scrapId)
+                                    <a href="{{ route('admin.itam.scrap.show', $scrapId) }}" class="badge bg-warning text-dark text-decoration-none">Scrap requested</a>
+                                    @endif
                                 </td>
-                                <td class="pe-3">
+                                <td class="pe-3 text-end text-nowrap">
                                     @if(!$a->returned_date)
-                                    @can('manage-employees')
-                                    <button class="btn btn-sm btn-outline-secondary"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#returnAssetModal{{ $a->id }}">Return</button>
-                                    @endcan
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        @can('manage-employees')
+                                        <button class="btn btn-outline-secondary"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#returnAssetModal{{ $a->id }}">Return</button>
+                                        @endcan
+                                        @if($inService && ! $scrapId)
+                                            @if($canRetireAssets)
+                                            <button type="button" class="btn btn-outline-dark" title="Out of service for good, without the scrap approval"
+                                                    data-bs-toggle="modal" data-bs-target="#retireAssetModal"
+                                                    data-action="{{ route('admin.devices.retire', $dev) }}"
+                                                    data-asset="{{ $assetLabel }}" data-holder="{{ $employee->name }}">Retire</button>
+                                            @endif
+                                            @if($canScrapAssets)
+                                            <button type="button" class="btn btn-outline-danger" title="Request scrap: IT manager, then super admin approve"
+                                                    data-bs-toggle="modal" data-bs-target="#scrapAssetModal"
+                                                    data-device="{{ $dev->id }}"
+                                                    data-asset="{{ $assetLabel }}" data-holder="{{ $employee->name }}">Scrap</button>
+                                            @endif
+                                        @endif
+                                    </div>
                                     @endif
                                 </td>
                             </tr>
@@ -1396,6 +1458,17 @@
     </div>
 </div>
 
+@endcan
+
+{{-- ── Retire / scrap / link to Intune (IT Assets tab) ── --}}
+@can('manage-assets')
+@include('admin.itam.oracle-assets._retire-modal')
+@endcan
+@can('request-scrap')
+@include('admin.itam.oracle-assets._scrap-modal')
+@endcan
+@can('manage-itam')
+@include('admin.itam.oracle-assets._intune-link-modal', ['unlinkedIntune' => $unlinkedIntune])
 @endcan
 
 {{-- ── Edit Extension Modal ── --}}

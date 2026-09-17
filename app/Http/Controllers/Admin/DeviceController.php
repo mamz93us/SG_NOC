@@ -48,7 +48,8 @@ class DeviceController extends Controller
                     ->orWhere('ip_address', 'like', "%{$s}%")
                     ->orWhere('mac_address', 'like', "%{$s}%")
                     ->orWhere('serial_number', 'like', "%{$s}%")
-                    ->orWhere('asset_code', 'like', "%{$s}%");
+                    ->orWhere('asset_code', 'like', "%{$s}%")
+                    ->orWhere('oracle_asset_number', $s);
             });
         }
         if ($request->filled('status')) {
@@ -172,9 +173,32 @@ class DeviceController extends Controller
                 });
         }
 
+        // Oracle's register lines on this asset, and what retiring, scrapping or linking it to Intune needs.
+        $oracleUnits = \App\Models\Itam\OracleAsset::where('device_id', $device->id)->orderBy('asset_number')->get();
+        $pendingScrapId = app(\App\Services\Itam\PendingScrapRequests::class)->forDevice((int) $device->id);
+        $intuneLinkOptions = [];
+        $unlinkedIntune = collect();
+
+        if (in_array($device->type, ['laptop', 'desktop'], true)
+            && ! in_array($device->status, ['retired', 'scrapped'], true)
+            && $device->azureDevice?->link_status !== 'linked'
+            && auth()->user()?->can('manage-itam')) {
+            $candidates = app(\App\Services\Itam\Oracle\IntuneCandidates::class);
+            $holder = $device->currentAssignment?->employee;
+            $holderId = $holder ? (int) ($holder->linked_primary_employee_id ?: $holder->id) : null;
+
+            foreach ($holderId ? ($candidates->forEmployees([$holderId])[$holderId] ?? []) : [] as $candidate) {
+                if ($candidate['intune']) {
+                    $intuneLinkOptions[] = ['id' => $candidate['intune']->id, 'label' => $candidate['label']];
+                }
+            }
+            $unlinkedIntune = $candidates->unlinkedComputers();
+        }
+
         return view('admin.devices.show', compact(
             'device', 'depreciation', 'employees',
-            'sshSessions', 'accessLogs', 'dhcpByMac'
+            'sshSessions', 'accessLogs', 'dhcpByMac',
+            'oracleUnits', 'pendingScrapId', 'intuneLinkOptions', 'unlinkedIntune'
         ));
     }
 
@@ -365,6 +389,7 @@ class DeviceController extends Controller
             'warranty_expiry' => 'nullable|date',
             // ITAM fields
             'asset_code' => 'nullable|string|max:50|unique:devices,asset_code',
+            'oracle_asset_number' => 'nullable|string|max:40',
             'purchase_cost' => 'nullable|numeric|min:0',
             'currency' => 'required|in:'.implode(',', Currency::CODES),
             'supplier_id' => 'nullable|exists:suppliers,id',
@@ -551,11 +576,13 @@ class DeviceController extends Controller
             'department_id' => 'nullable|exists:departments,id',
             'location_description' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
-            'status' => 'required|in:active,available,assigned,maintenance,retired',
+            // Scrapped is set by an approved scrap request only; a scrapped asset may keep it when edited.
+            'status' => 'required|in:active,available,assigned,maintenance,retired'.($device->status === 'scrapped' ? ',scrapped' : ''),
             'purchase_date' => 'nullable|date',
             'warranty_expiry' => 'nullable|date',
             // ITAM fields
             'asset_code' => 'nullable|string|max:50|unique:devices,asset_code,'.$device->id,
+            'oracle_asset_number' => 'nullable|string|max:40',
             'purchase_cost' => 'nullable|numeric|min:0',
             'currency' => 'required|in:'.implode(',', Currency::CODES),
             'supplier_id' => 'nullable|exists:suppliers,id',

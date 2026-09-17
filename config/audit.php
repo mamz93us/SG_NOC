@@ -124,6 +124,13 @@ return [
         App\Models\Vacation\VacationAbsence::class,
         App\Models\Vacation\VacationImport::class,
 
+        // Oracle's fixed-asset register, re-imported wholesale from each export.
+        // The import is logged by hand with its counts, and so are a person
+        // setting a unit's holder and undoing a match; the NOC assets and
+        // assignments it creates or changes are audited like any other.
+        App\Models\Itam\OracleAsset::class,
+        App\Models\Itam\OracleAssetImport::class,
+
         // Recruitment AI: every sync stamps the job and every screening rewrites
         // its row, CV text included — an audit copy would be the one place that
         // text sat unencrypted. RecruitmentAiController logs switching screening

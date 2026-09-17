@@ -953,6 +953,14 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('view-itam')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.oracle-assets.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.oracle-assets.index') }}">
+                                    <i class="bi bi-journal-check me-2"></i>Oracle Asset Register
+                                </a>
+                            </li>
+                            @endcan
                             @can('view-wallpapers')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/wallpapers*') ? 'active' : '' }}"

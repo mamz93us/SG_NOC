@@ -37,6 +37,7 @@ class Device extends Model
         'latest_firmware',
         // ── ITAM ──────────────────────────────────────────────────────
         'asset_code',
+        'oracle_asset_number',
         'purchase_cost',
         'currency',
         'supplier_id',
@@ -198,6 +199,12 @@ class Device extends Model
     public function azureDevice(): HasOne
     {
         return $this->hasOne(AzureDevice::class);
+    }
+
+    /** The units of Oracle's fixed-asset register this asset is (normally one). */
+    public function oracleAssets(): HasMany
+    {
+        return $this->hasMany(Itam\OracleAsset::class);
     }
 
     public function networkSwitch(): HasOne

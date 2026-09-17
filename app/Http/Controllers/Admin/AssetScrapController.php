@@ -106,6 +106,15 @@ class AssetScrapController extends Controller
             return back()->with('error', 'One or more devices are already scrapped or retired.');
         }
 
+        // A second request for the same asset (a double submit, or one from another page) would be approved twice.
+        $pending = app(\App\Services\Itam\PendingScrapRequests::class)->forDevices($devices->pluck('id'));
+        if ($pending !== []) {
+            $device = $devices->firstWhere('id', array_key_first($pending));
+
+            return back()->with('error', ($device?->asset_code ?: $device?->name ?: 'An asset')
+                .' is already in scrap request #'.$pending[array_key_first($pending)].', waiting for approval.');
+        }
+
         $alreadyScrappedAccessories = $accessories->whereIn('status', ['scrapped', 'retired']);
         if ($alreadyScrappedAccessories->isNotEmpty()) {
             return back()->with('error', 'One or more accessories are already scrapped or retired.');
@@ -197,6 +206,11 @@ class AssetScrapController extends Controller
 
             return $wf;
         });
+
+        // Asked from the employee page or the Oracle register: stay there.
+        if ($request->boolean('back')) {
+            return back()->with('success', "Scrap request #{$workflow->id} submitted ({$itemCount} ".($itemCount === 1 ? 'asset' : 'assets').'). Awaiting approval.');
+        }
 
         return redirect()
             ->route('admin.itam.scrap.show', $workflow->id)
