@@ -2762,6 +2762,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('oracle-assets/{oracleAsset}/retire', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'retire'])->name('oracle-assets.retire');
         Route::delete('oracle-assets/{oracleAsset}/match', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'unmatch'])->name('oracle-assets.unmatch');
         Route::post('devices/{device}/intune-link', [\App\Http\Controllers\Admin\Itam\DeviceIntuneLinkController::class, 'store'])->name('devices.intune-link');
+        // The other way round: an asset (an Intune laptop) with no Oracle number is told which Oracle unit it is.
+        Route::get('devices/{device}/oracle-options', [\App\Http\Controllers\Admin\Itam\DeviceOracleLinkController::class, 'options'])->name('devices.oracle-options');
+        Route::post('devices/{device}/oracle-link', [\App\Http\Controllers\Admin\Itam\DeviceOracleLinkController::class, 'store'])->name('devices.oracle-link');
     });
 
     // ─── Asset Transfer ───────────────────────────────────────────

@@ -920,11 +920,19 @@
                                         <a href="{{ route('admin.devices.show', $dev->id) }}" class="text-decoration-none">
                                             {{ $dev->name }}
                                         </a>
-                                        @if($dev->asset_code || $dev->oracle_asset_number)
+                                        @if($dev->asset_code || $dev->oracle_asset_number || ($isComputer && $inService && ! $a->returned_date))
                                         <div class="fw-normal text-muted">
                                             <span class="font-monospace">{{ $dev->asset_code }}</span>
                                             @if($dev->oracle_asset_number)
                                             <span title="Oracle fixed-asset number">{{ $dev->asset_code ? '·' : '' }} Oracle {{ $dev->oracle_asset_number }}</span>
+                                            @elseif($isComputer && $inService && ! $a->returned_date)
+                                            <span>{{ $dev->asset_code ? '·' : '' }} No Oracle no.</span>
+                                            @if($canLinkIntune)
+                                            <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-bs-toggle="modal" data-bs-target="#oracleLinkModal"
+                                                    data-action="{{ route('admin.itam.devices.oracle-link', $dev) }}"
+                                                    data-options-url="{{ route('admin.itam.devices.oracle-options', $dev) }}"
+                                                    data-asset="{{ $assetLabel }}">Link Oracle asset</button>
+                                            @endif
                                             @endif
                                         </div>
                                         @endif
@@ -1469,6 +1477,7 @@
 @endcan
 @can('manage-itam')
 @include('admin.itam.oracle-assets._intune-link-modal', ['unlinkedIntune' => $unlinkedIntune])
+@include('admin.itam.oracle-assets._oracle-link-modal')
 @endcan
 
 {{-- ── Edit Extension Modal ── --}}

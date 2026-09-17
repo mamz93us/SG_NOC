@@ -62,6 +62,11 @@
 @can('request-scrap')
 @include('admin.itam.oracle-assets._scrap-modal')
 @endcan
+@if(! $device->oracle_asset_number && in_array($device->type, ['laptop', 'desktop'], true) && ! in_array($device->status, ['retired', 'scrapped'], true))
+@can('manage-itam')
+@include('admin.itam.oracle-assets._oracle-link-modal')
+@endcan
+@endif
 
 {{-- ── Not in Intune ── --}}
 @if(in_array($device->type, ['laptop', 'desktop'], true)
@@ -303,6 +308,14 @@
                                 @endcan
                             @else
                                 —
+                                @if(in_array($device->type, ['laptop', 'desktop'], true) && ! in_array($device->status, ['retired', 'scrapped'], true))
+                                @can('manage-itam')
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-bs-toggle="modal" data-bs-target="#oracleLinkModal"
+                                        data-action="{{ route('admin.itam.devices.oracle-link', $device) }}"
+                                        data-options-url="{{ route('admin.itam.devices.oracle-options', $device) }}"
+                                        data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}">Link Oracle asset</button>
+                                @endcan
+                                @endif
                             @endif
                         </td></tr>
                     @foreach($oracleUnits as $unit)

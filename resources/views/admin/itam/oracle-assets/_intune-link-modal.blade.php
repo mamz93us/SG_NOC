@@ -22,7 +22,7 @@
                 <label class="form-label small fw-semibold" for="intuneLinkSelect">Intune device</label>
                 <select name="azure_device_id" id="intuneLinkSelect" class="form-select form-select-sm" required>
                     <option value="">Choose…</option>
-                    <optgroup label="Enrolled under this person's accounts" id="intuneLinkMine"></optgroup>
+                    <optgroup label="This person's Intune devices" id="intuneLinkMine"></optgroup>
                     <optgroup label="Other Intune devices not linked to any asset" id="intuneLinkOthers">
                         @foreach ($unlinkedIntune as $intune)
                             <option value="{{ $intune->id }}">{{ collect([
@@ -35,7 +35,7 @@
                         @endforeach
                     </optgroup>
                 </select>
-                <div class="form-text" id="intuneLinkNone">No Intune device is enrolled under this person's accounts; pick from the others, or retire the asset if it is gone.</div>
+                <div class="form-text" id="intuneLinkNone">This person has no Intune device waiting for an Oracle asset; pick from the others, or retire the asset if it is gone.</div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>

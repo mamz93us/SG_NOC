@@ -32,6 +32,8 @@ use Illuminate\Support\Str;
  *   asset is created already retired.
  * - linkIntune: a person says which Intune device an asset is. An asset the
  *   import created is merged into an Intune device that already has one.
+ * - linkOracle: the same decision started from the other side — an Intune
+ *   laptop with no Oracle number is told which Oracle unit it is.
  * - unmatch: a person undoes an automatic match.
  */
 class OracleAssetDevices
@@ -271,7 +273,66 @@ class OracleAssetDevices
         return $created;
     }
 
-    private function mergeInto(Device $created, Device $intuneAsset, AzureDevice $intune, ?int $userId): Device
+    /**
+     * A person says which Oracle unit an asset is, starting from the asset —
+     * typically an Intune laptop already assigned to someone, which the import
+     * could not match. The unit's own asset, if the import created one ("Not
+     * in Intune"), is merged into this one and deleted; a unit with no asset
+     * yet is simply put on it. The asset keeps its code, name and holder: the
+     * NOC's assignment is who has it now, even where Oracle still lists the
+     * unit under somebody else, and the history says so.
+     *
+     * @return Device the asset the unit is on afterwards (always $device)
+     */
+    public function linkOracle(Device $device, OracleAsset $unit, ?int $userId): Device
+    {
+        $code = $device->asset_code ?: $device->name;
+
+        if (in_array($device->status, ['retired', 'scrapped'], true)) {
+            throw new DomainException("{$code} is {$device->status}; a retired asset is not linked to Oracle.");
+        }
+        if ($unit->removed_at !== null) {
+            throw new DomainException("Oracle asset {$unit->asset_number} is no longer in Oracle's register.");
+        }
+
+        if ($existing = OracleAsset::where('device_id', $device->id)->first()) {
+            if ((int) $existing->id === (int) $unit->id) {
+                return $device;
+            }
+
+            throw new DomainException("{$code} is already Oracle asset {$existing->asset_number}.");
+        }
+
+        $current = $unit->device;
+
+        if ($current) {
+            if ($current->source !== 'oracle') {
+                throw new DomainException("Oracle asset {$unit->asset_number} is already ".($current->asset_code ?: $current->name)
+                    .'. Undo that match on the Oracle Asset Register first.');
+            }
+
+            return $this->mergeInto($current, $device, $device->azureDevice, $userId, true);
+        }
+
+        if ($unit->isResolved()) {
+            throw new DomainException("Oracle asset {$unit->asset_number} had an asset that was deleted; set it again from the Oracle Asset Register.");
+        }
+
+        $this->attach($unit, $device, OracleAsset::DEVICE_MANUAL, array_filter([
+            'reasons' => ['linked by hand from the asset'],
+            'intune_device_id' => $device->azureDevice?->id,
+        ]), null);
+
+        $unit->forceFill(['decided_by' => $userId, 'decided_at' => now()])->save();
+
+        return $device;
+    }
+
+    /**
+     * @param  bool  $otherHolderAllowed  true when a person started from the asset and chose the unit: the asset's
+     *                                    current holder stands even if Oracle lists the unit under someone else
+     */
+    private function mergeInto(Device $created, Device $intuneAsset, ?AzureDevice $intune, ?int $userId, bool $otherHolderAllowed = false): Device
     {
         $code = $created->asset_code ?: $created->name;
         $otherCode = $intuneAsset->asset_code ?: $intuneAsset->name;
@@ -288,8 +349,9 @@ class OracleAssetDevices
 
         $createdHolder = EmployeeAsset::with('employee')->where('asset_id', $created->id)->whereNull('returned_date')->first();
         $intuneHolder = EmployeeAsset::with('employee')->where('asset_id', $intuneAsset->id)->whereNull('returned_date')->first();
+        $otherHolder = $createdHolder?->employee && $intuneHolder?->employee && ! $this->samePerson($createdHolder->employee, $intuneHolder->employee);
 
-        if ($createdHolder?->employee && $intuneHolder?->employee && ! $this->samePerson($createdHolder->employee, $intuneHolder->employee)) {
+        if ($otherHolder && ! $otherHolderAllowed) {
             throw new DomainException("{$otherCode} is assigned to {$intuneHolder->employee->name}, not {$createdHolder->employee->name}.");
         }
         if (LicenseAssignment::where('assignable_type', Device::class)->where('assignable_id', $created->id)->exists()
@@ -300,16 +362,17 @@ class OracleAssetDevices
         $units = OracleAsset::where('device_id', $created->id)->get();
 
         foreach ($units as $unit) {
-            $this->attach($unit, $intuneAsset, OracleAsset::DEVICE_MANUAL, ['merged_from' => $code, 'intune_device_id' => $intune->id],
+            $this->attach($unit, $intuneAsset, OracleAsset::DEVICE_MANUAL, array_filter(['merged_from' => $code, 'intune_device_id' => $intune?->id]),
                 $intuneHolder ? null : $createdHolder?->employee, $createdHolder?->assigned_date);
             $unit->forceFill(['decided_by' => $userId, 'decided_at' => now()])->save();
         }
 
-        if ($intune->link_status !== 'linked') {
+        if ($intune && $intune->link_status !== 'linked') {
             $intune->forceFill(['link_status' => 'linked'])->save();
         }
 
-        AssetHistory::record($intuneAsset, 'note_added', "Took over Oracle asset {$intuneAsset->oracle_asset_number} from {$code}, which the Oracle import had created for it; {$code} was deleted.");
+        AssetHistory::record($intuneAsset, 'note_added', "Took over Oracle asset {$intuneAsset->oracle_asset_number} from {$code}, which the Oracle import had created for it; {$code} was deleted."
+            .($otherHolder ? " Oracle lists it under {$createdHolder->employee->name}; it stays with {$intuneHolder->employee->name}." : ''));
 
         ActivityLog::create([
             'model_type' => Device::class,

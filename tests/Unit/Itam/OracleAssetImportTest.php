@@ -12,6 +12,7 @@ use App\Services\AssetCodeService;
 use App\Services\Itam\AssetRetirement;
 use App\Services\Itam\Oracle\OracleAssetDevices;
 use App\Services\Itam\Oracle\OracleAssetImporter;
+use App\Services\Itam\Oracle\OracleLinkOptions;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -448,4 +449,103 @@ it('undoes a wrong match: the asset gets its own dates back and the unit an asse
         ->and($unit->device_id)->toBe($own->id)
         ->and($own->source)->toBe('oracle')
         ->and(EmployeeAsset::where('asset_id', $laptop->id)->whereNull('returned_date')->value('employee_id'))->toBe($ahmed->id);
+});
+
+it('links an Intune laptop with no Oracle number to its holder\'s unit, starting from the laptop', function () {
+    $bader = registerStaff('Bader Alharbi', '162', 20, 'bader@samirgroup.com');
+    intuneAsset($bader, 'SG-LAP-000010', 'HP', 'HP Laptop 15-fd0xxx', '2023-03-01');
+    $second = intuneAsset($bader, 'SG-LAP-000011', 'HP', 'HP Laptop 15-dw4xxx', '2023-03-02');
+
+    importRegister([registerRow('1001593', 'HP Laptop | Maldives 22C1 | Core i7-1255U - U15 | 16GB DDR4', '2023-02-28', '162', 'Bader Alharbi')]);
+    $unit = unitOf('1001593', '162');
+    $created = $unit->device;
+
+    $result = app(OracleAssetDevices::class)->linkOracle($second, $unit, null);
+
+    $unit->refresh();
+    $second->refresh();
+    expect($result->id)->toBe($second->id)
+        ->and($unit->device_id)->toBe($second->id)
+        ->and($unit->device_match)->toBe(OracleAsset::DEVICE_MANUAL)
+        ->and($second->oracle_asset_number)->toBe('1001593')
+        ->and($second->asset_code)->toBe('SG-LAP-000011')
+        ->and($second->purchase_date->toDateString())->toBe('2023-02-28')
+        ->and(Device::find($created->id))->toBeNull()
+        ->and(EmployeeAsset::where('asset_id', $second->id)->whereNull('returned_date')->value('employee_id'))->toBe($bader->id);
+});
+
+it('puts a unit whose holder is not in the NOC on the Intune laptop somebody has', function () {
+    $ahmed = registerStaff('Ahmed Manea', '2367', 10, 'ahmed@samirgroup.com');
+    $laptop = intuneAsset($ahmed, 'SG-LAP-000030', 'Dell Inc.', 'Vostro 15 3510', '2022-02-10');
+
+    importRegister([registerRow('1000925', 'DELL Vostro 3510 - i5 - 8 GB', '2022-01-31', '999', 'Somebody Who Left')]);
+    $unit = unitOf('1000925', '999');
+    expect($unit->device_id)->toBeNull();
+
+    app(OracleAssetDevices::class)->linkOracle($laptop, $unit, null);
+
+    $unit->refresh();
+    expect($unit->device_id)->toBe($laptop->id)
+        ->and($unit->device_match)->toBe(OracleAsset::DEVICE_MANUAL)
+        ->and($unit->employee_id)->toBeNull()
+        ->and($laptop->fresh()->oracle_asset_number)->toBe('1000925')
+        ->and(EmployeeAsset::where('asset_id', $laptop->id)->whereNull('returned_date')->value('employee_id'))->toBe($ahmed->id);
+});
+
+it('keeps the laptop with its holder when Oracle lists the unit under someone else, and says so', function () {
+    $bader = registerStaff('Bader Alharbi', '162', 20, 'bader@samirgroup.com');
+    registerStaff('Ibrahim Syed', '285', 10, 'ibrahim@samirgroup.com');
+    $baders = intuneAsset($bader, 'SG-LAP-000040', 'Dell Inc.', 'Vostro 15 3510', '2024-03-01');
+
+    // Oracle still lists the laptop under Ibrahim, who has no Intune device: the import made him an asset.
+    importRegister([registerRow('1001700', 'DELL Vostro 3510 - i5 - 8 GB', '2021-12-31', '285', 'Ibrahim Syed')]);
+    $unit = unitOf('1001700', '285');
+    $ibrahims = $unit->device;
+
+    app(OracleAssetDevices::class)->linkOracle($baders, $unit, null);
+
+    expect($unit->fresh()->device_id)->toBe($baders->id)
+        ->and(Device::find($ibrahims->id))->toBeNull()
+        ->and(EmployeeAsset::where('asset_id', $baders->id)->whereNull('returned_date')->value('employee_id'))->toBe($bader->id)
+        ->and(AssetHistory::where('device_id', $baders->id)->where('description', 'like', '%Oracle lists it under Ibrahim Syed%')->exists())->toBeTrue();
+});
+
+it('will not link an asset that already is an Oracle unit, or a unit already on another Intune laptop', function () {
+    $ahmed = registerStaff('Ahmed Manea', '2367', 10, 'ahmed@samirgroup.com');
+    $hp = intuneAsset($ahmed, 'SG-LAP-000001', 'HP', 'HP 250 15.6 inch G10 Notebook PC', '2025-08-12');
+    $dell = intuneAsset($ahmed, 'SG-LAP-000002', 'Dell Inc.', 'Vostro 15 3510', '2022-02-10');
+
+    importRegister([
+        registerRow('1001946', '(969K9ET)HP 250G10 i7-1355U 15 16GB/512 PC', '2025-07-31', '2367', 'Ahmed Manea'),
+        registerRow('12050', 'DELL INS 5110', '2012-05-31', '2367', 'Ahmed Manea'),
+    ]);
+    $matched = unitOf('1001946', '2367');
+    $old = unitOf('12050', '2367');
+    expect($matched->device_id)->toBe($hp->id);
+
+    expect(fn () => app(OracleAssetDevices::class)->linkOracle($dell, $matched, null))->toThrow(DomainException::class, 'SG-LAP-000001')
+        ->and(fn () => app(OracleAssetDevices::class)->linkOracle($hp, $old, null))->toThrow(DomainException::class, 'already Oracle asset 1001946');
+});
+
+it('offers the holder\'s own units first in the link dialog, and marks another model', function () {
+    $bader = registerStaff('Bader Alharbi', '162', 20, 'bader@samirgroup.com');
+    registerStaff('Ibrahim Syed', '285', 10, 'ibrahim@samirgroup.com');
+    $laptop = intuneAsset($bader, 'SG-LAP-000050', 'HP', 'HP Laptop 15-fd0xxx', '2024-02-05');
+    intuneAsset($bader, 'SG-LAP-000051', 'HP', 'HP Laptop 15-dw4xxx', '2024-02-06');
+
+    importRegister([
+        registerRow('1001014', 'HP Laptop 15 fd0027nx- (8N2B8EA) - Core i7 - 1355U', '2024-01-31', '162', 'Bader Alharbi'),
+        registerRow('1000100', 'DELL Vostro 3510 - i5 - 8 GB', '2022-01-31', '162', 'Bader Alharbi'),
+        registerRow('13175', 'HP PAV 15-N200NX-I3-317U-1.80GHZ', '2015-09-30', '999', 'Somebody Who Left'),
+        registerRow('1001700', 'DELL Vostro 3510 - i5 - 8 GB', '2021-12-31', '285', 'Ibrahim Syed'),
+    ]);
+
+    // The fd0 unit went to the fd0 laptop; the Dell stayed its own asset. Offer the Dell for the dw4 laptop.
+    $groups = app(OracleLinkOptions::class)->forDevice(Device::where('asset_code', 'SG-LAP-000051')->sole());
+
+    expect(array_column($groups[0]['options'], 'id'))->toBe([unitOf('1000100', '162')->id])
+        ->and($groups[0]['options'][0]['label'])->toEndWith('— a different model')
+        ->and(array_column($groups[1]['options'], 'id'))->toBe([unitOf('13175', '999')->id])
+        ->and(array_column($groups[2]['options'], 'id'))->toBe([unitOf('1001700', '285')->id])
+        ->and(unitOf('1001014', '162')->device_id)->toBe($laptop->id);
 });
