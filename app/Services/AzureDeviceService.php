@@ -52,7 +52,10 @@ class AzureDeviceService
                     $synced++;
                 } catch (\Throwable $devEx) {
                     $skipped++;
-                    Log::warning('AzureDeviceService: skipped '.($data['azure_device_id'] ?? '?').': '.$devEx->getMessage());
+                    // Error, not warning: production runs LOG_LEVEL=error, so a
+                    // warning here is written nowhere and a device that fails every
+                    // run looks exactly like one that synced.
+                    Log::error('AzureDeviceService: skipped '.($data['azure_device_id'] ?? '?').': '.$devEx->getMessage());
                 }
             }
         } catch (\Throwable $e) {
@@ -245,9 +248,16 @@ class AzureDeviceService
             return;
         }
 
+        // `note_added`, not `updated`: asset_history.event_type is an ENUM of the
+        // sixteen lifecycle events, and MySQL runs strict here, so 'updated' threw
+        // on every rename. The throw landed in the per-device catch in
+        // syncDevices(), which counted the device as skipped — before auto-link and
+        // auto-assign — and logged a warning that LOG_LEVEL=error never wrote. So an
+        // Intune rename never reached devices.name and nothing said why. The same
+        // event type the Azure link approval already records.
         AssetHistory::record(
             $device,
-            'updated',
+            'note_added',
             "Name changed from '{$oldName}' to '{$newName}' via Azure sync.",
             [
                 'azure_device_id' => $azDev->azure_device_id,
