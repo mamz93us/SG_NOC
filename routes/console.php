@@ -1116,6 +1116,47 @@ Schedule::command('knowbe4:sync')
     ->runInBackground()
     ->name('knowbe4-sync');
 
+// ─── Oracle Employee Portal API ───────────────────────────────────
+// A read-only pull from Oracle HR (sgprd.samirgroup.com/EmployeePortal/api).
+// Each command no-ops while its switch is off in Admin → Settings, so the
+// three feeds are enabled one at a time without a deploy.
+//
+// All three touch the network, so all three are ->runInBackground() with an
+// overlap window far longer than any measured run (the whole API is ~1.5 MB
+// in under two seconds): the windows are there to survive a hung connection
+// to the WAF, not a slow response.
+
+// Leave balances and records. Daily, because Oracle accrues monthly and the
+// Balances page calls a figure out of date after 35 days — an hourly pull
+// would buy nothing and re-link every person each time.
+Schedule::command('portal:sync-vacations')
+    ->dailyAt('04:30')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('portal-sync-vacations');
+
+// Company announcements. Hourly, because the gap between HR posting a notice
+// in Oracle and it reaching every company PC should be minutes, not a day.
+// 61 rows and 13 KB. At :20 so it is not stacked on the tasks that run at :00.
+Schedule::command('portal:sync-announcements')
+    ->hourlyAt(20)
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('portal-sync-announcements');
+
+// Employee records. Daily, because what it produces is a review queue a person
+// works through rather than a live feed, and because HR data moves on a human
+// timescale. A run that finds Oracle unchanged creates no batch at all.
+//
+// It never terminates anybody: the feed is the Saudi book, so every SSS Egypt
+// employee is permanently absent from it, and a transition to terminated
+// disables the person's Microsoft account. See EmployeeSync.
+Schedule::command('portal:sync-employees')
+    ->dailyAt('05:00')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('portal-sync-employees');
+
 // ─── AI IT Assistant — knowledge indexing and retention ──────────
 // PDF text extraction + embedding is too slow for an admin's publish click,
 // so new/changed employee-library PDFs are picked up here instead of inline.
@@ -1206,44 +1247,3 @@ Schedule::command('attendance:process --days=7')
     ->withoutOverlapping(60)
     ->runInBackground()
     ->name('attendance-process-week');
-
-// ─── Oracle Employee Portal API ───────────────────────────────────
-// A read-only pull from Oracle HR (sgprd.samirgroup.com/EmployeePortal/api).
-// Each command no-ops while its switch is off in Admin → Settings, so the
-// three feeds are enabled one at a time without a deploy.
-//
-// All three touch the network, so all three are ->runInBackground() with an
-// overlap window far longer than any measured run (the whole API is ~1.5 MB
-// in under two seconds): the windows are there to survive a hung connection
-// to the WAF, not a slow response.
-
-// Leave balances and records. Daily, because Oracle accrues monthly and the
-// Balances page calls a figure out of date after 35 days — an hourly pull
-// would buy nothing and re-link every person each time.
-Schedule::command('portal:sync-vacations')
-    ->dailyAt('04:30')
-    ->withoutOverlapping(30)
-    ->runInBackground()
-    ->name('portal-sync-vacations');
-
-// Company announcements. Hourly, because the gap between HR posting a notice
-// in Oracle and it reaching every company PC should be minutes, not a day.
-// 61 rows and 13 KB. At :20 so it is not stacked on the tasks that run at :00.
-Schedule::command('portal:sync-announcements')
-    ->hourlyAt(20)
-    ->withoutOverlapping(10)
-    ->runInBackground()
-    ->name('portal-sync-announcements');
-
-// Employee records. Daily, because what it produces is a review queue a person
-// works through rather than a live feed, and because HR data moves on a human
-// timescale. A run that finds Oracle unchanged creates no batch at all.
-//
-// It never terminates anybody: the feed is the Saudi book, so every SSS Egypt
-// employee is permanently absent from it, and a transition to terminated
-// disables the person's Microsoft account. See EmployeeSync.
-Schedule::command('portal:sync-employees')
-    ->dailyAt('05:00')
-    ->withoutOverlapping(30)
-    ->runInBackground()
-    ->name('portal-sync-employees');
