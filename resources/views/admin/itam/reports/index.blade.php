@@ -45,7 +45,7 @@
             ['microsoft-licenses', 'bi-microsoft', 'Microsoft 365 License Review', 'Every licensed Azure account: real employee, not in Oracle HR, not a person, second account, disabled or terminated.', 'primary'],
             ['subscriptions', 'bi-robot', 'AI Subscription Usage', 'Who holds a seat on each AI tool and what it costs per month.', 'dark'],
             ['subscription-payments', 'bi-cash-coin', 'Subscription Payments Due', 'What renews this month, split by card vs wire transfer — for finance.', 'success'],
-            ['subscriptions-by-department', 'bi-diagram-3', 'Subscription Cost by Department', 'Monthly cost and current-month charges allocated to each department.', 'info'],
+            ['subscriptions-by-department', 'bi-diagram-3', 'License Cost by Department', 'Every license with a cost, Microsoft 365 included: per year, monthly, due this month and one-time, by department.', 'info'],
         ] as [$route, $icon, $title, $desc, $color])
             <div class="col-md-6 col-lg-4">
                 <a href="{{ route('admin.itam.reports.' . $route) }}" class="text-decoration-none">
