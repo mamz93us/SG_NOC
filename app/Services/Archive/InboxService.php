@@ -7,6 +7,7 @@ use App\Models\Archive\ArchiveDocument;
 use App\Models\Archive\ArchiveDocumentValue;
 use App\Models\Archive\ArchiveField;
 use App\Models\Archive\ArchiveFile;
+use App\Models\Archive\ArchiveFileText;
 use App\Models\Archive\ArchiveInboxItem;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -252,11 +253,15 @@ class InboxService
 
                     $file->forceFill(['path' => $target])->save();
 
+                    $this->carryText($file, $item);
+
                     $item->forceFill([
                         'status' => ArchiveInboxItem::STATUS_FILED,
                         'archive_document_id' => $document->getKey(),
                         'filed_by_user_id' => $filedBy->getKey(),
                         'filed_at' => now(),
+                        // Carried across now, so the copy on the item goes.
+                        'ai_text' => null,
                     ])->save();
 
                     $moves[] = [$file, $item->path];
@@ -276,6 +281,67 @@ class InboxService
         $this->recount($archive);
 
         return ['document' => $document, 'error' => null];
+    }
+
+    /**
+     * Put the text AI already read onto the document's own file.
+     *
+     * A scan is read in the inbox to fill in the filing form, and that reading
+     * is charged for. Until this existed the text was then thrown away: the
+     * filed document had no text at all, so the first question asked about it —
+     * or the first read batch covering it — read and paid for exactly the same
+     * pages a second time.
+     *
+     * Each page keeps the source it actually came from, so a page lifted free
+     * off the PDF's own text layer is not recorded as one AI was paid to read.
+     *
+     * The file is stamped the way PageReader stamps one, and for the same
+     * reason: `done` only when every page has text. Capture reads at most ten
+     * pages, so a longer scan stays `pending` and a later batch reads the rest —
+     * and only the rest, because read() skips a page that already has text.
+     */
+    private function carryText(ArchiveFile $file, ArchiveInboxItem $item): void
+    {
+        $pages = (array) ($item->ai_text ?? []);
+
+        if ($pages === []) {
+            return;
+        }
+
+        $stored = 0;
+
+        foreach ($pages as $page => $read) {
+            $text = trim((string) ($read['text'] ?? ''));
+
+            if ($text === '') {
+                continue;
+            }
+
+            ArchiveFileText::create([
+                'archive_file_id' => $file->getKey(),
+                'page' => (int) $page,
+                'text' => $text,
+                'source' => $read['source'] ?? ArchiveFileText::SOURCE_AI,
+                'read_at' => now(),
+            ]);
+
+            $stored++;
+        }
+
+        if ($stored === 0) {
+            return;
+        }
+
+        $pageCount = (int) ($file->page_count ?: $item->pages);
+
+        $file->forceFill([
+            'pages_read' => $stored,
+            'page_count' => $pageCount ?: $stored,
+            'text_status' => $pageCount > 0 && $stored >= $pageCount
+                ? ArchiveFile::TEXT_DONE
+                : ArchiveFile::TEXT_PENDING,
+            'text_read_at' => now(),
+        ])->save();
     }
 
     /**
@@ -319,7 +385,12 @@ class InboxService
     /** Discard an item: the row is kept, the blob is not. */
     public function discard(ArchiveInboxItem $item): void
     {
-        $item->forceFill(['status' => ArchiveInboxItem::STATUS_DISCARDED])->save();
+        // The text goes with the bytes: a discarded scan will never become a
+        // document, so keeping what was read off it serves nothing.
+        $item->forceFill([
+            'status' => ArchiveInboxItem::STATUS_DISCARDED,
+            'ai_text' => null,
+        ])->save();
 
         try {
             Storage::disk($item->disk)->delete($item->path);

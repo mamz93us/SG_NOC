@@ -235,3 +235,32 @@ test('an unbound scan is read when any archive it could go to has AI on', functi
 
     expect($this->reader->calls)->toBeGreaterThan(0);
 });
+
+test('what was read is kept, so filing does not pay for it again', function () {
+    // The reading is charged for here, in the inbox. Keeping it is what lets
+    // InboxService put it on the document instead of the first question about
+    // that document reading the very same pages a second time.
+    $this->archive->forceFill(['ai_extract' => true])->save();
+
+    $item = ($this->scan)();
+
+    $this->processor->item($item);
+
+    $kept = $item->fresh()->ai_text;
+
+    expect($kept)->toHaveCount(1);
+    expect($kept[1]['text'])->toBe('INVOICE 4471');
+    // The source it really came from: this page went to the model, so a later
+    // count of what reading cost must not see it as the file's own words.
+    expect($kept[1]['source'])->toBe(\App\Models\Archive\ArchiveFileText::SOURCE_AI);
+});
+
+test('nothing is kept when nothing was read', function () {
+    // AI off: there is no text, and an empty map must not be stored as though
+    // there were something to carry.
+    $item = ($this->scan)();
+
+    $this->processor->item($item);
+
+    expect($item->fresh()->ai_text)->toBeNull();
+});
