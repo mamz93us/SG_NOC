@@ -184,7 +184,7 @@ class EmployeeController extends Controller
 
         // Who an asset can be handed to, for the transfer dialog on the IT Assets tab.
         $transferEmployees = auth()->user()?->can('manage-itam')
-            ? Employee::query()->active()->whereNull('linked_primary_employee_id')->with('branch:id,name')->orderBy('name')->get(['id', 'name', 'branch_id'])
+            ? Employee::query()->active()->whereNull('linked_primary_employee_id')->with('branch:id,name')->orderBy('name')->get(['id', 'name', 'branch_id', 'oracle_emp_no'])
             : collect();
 
         $intuneLinkOptions = [];

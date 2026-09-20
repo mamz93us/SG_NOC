@@ -126,8 +126,14 @@
                         <td class="mono">{{ $row['oracle_asset_number'] ?: '—' }}</td>
                         <td>{{ $row['name'] }}</td>
                         <td class="mono">{{ $row['serial_number'] ?: '—' }}</td>
-                        <td>{{ $row['from'] ?: '—' }}</td>
-                        <td>{{ $row['to'] ?: ($row['storage_location'] ?: '—') }}</td>
+                        <td>
+                            {{ $row['from'] ?: '—' }}
+                            @if ($row['from_no'])<div class="muted">Emp #{{ $row['from_no'] }}</div>@endif
+                        </td>
+                        <td>
+                            {{ $row['to'] ?: ($row['storage_location'] ?: '—') }}
+                            @if ($row['to_no'])<div class="muted">Emp #{{ $row['to_no'] }}</div>@endif
+                        </td>
                         <td>
                             {{ $row['reason_label'] ?: '—' }}
                             @if ($row['reason'] && $row['reason'] !== $row['reason_label'])

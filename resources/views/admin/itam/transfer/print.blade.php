@@ -2,14 +2,16 @@
      swallowed it, so none of these labels were assigned and the slip failed on $sourceLabel. --}}
 @php
     $settings = \App\Models\Setting::first();
+    // The Oracle employee number rides with the name: the slip is signed, then posted in Oracle.
+    $empLabel = fn ($e) => $e ? $e->name.($e->oracle_emp_no ? ' — Emp #'.$e->oracle_emp_no : '') : '—';
     $sourceLabel = match($sourceType) {
-        'employee'        => $fromEmployee?->name ?? '—',
+        'employee'        => $empLabel($fromEmployee),
         'branch_store'    => ($fromBranchName ?? $fromBranch?->name ?? 'Branch') . ' Store' . ($fromStorageLocation ? " ({$fromStorageLocation})" : ''),
         'universal_store' => 'Universal Store' . ($fromStorageLocation ? " ({$fromStorageLocation})" : ''),
         default           => '—',
     };
     $targetLabel = match($targetType) {
-        'employee'        => $toEmployee?->name ?? '—',
+        'employee'        => $empLabel($toEmployee),
         'branch_store'    => ($toBranchName ?? $toBranch?->name ?? 'Branch') . ' Store' . ($toStorageLocation ? " ({$toStorageLocation})" : ''),
         'universal_store' => 'Universal Store' . ($toStorageLocation ? " ({$toStorageLocation})" : ''),
         default           => '—',

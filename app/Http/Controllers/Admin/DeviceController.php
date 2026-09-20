@@ -185,7 +185,7 @@ class DeviceController extends Controller
 
         // Who this asset can be handed to, for the transfer dialog.
         $transferEmployees = $device->currentAssignment && auth()->user()?->can('manage-itam')
-            ? Employee::query()->active()->whereNull('linked_primary_employee_id')->with('branch:id,name')->orderBy('name')->get(['id', 'name', 'branch_id'])
+            ? Employee::query()->active()->whereNull('linked_primary_employee_id')->with('branch:id,name')->orderBy('name')->get(['id', 'name', 'branch_id', 'oracle_emp_no'])
             : collect();
         $intuneLinkOptions = [];
         $unlinkedIntune = collect();

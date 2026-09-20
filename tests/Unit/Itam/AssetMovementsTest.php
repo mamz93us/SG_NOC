@@ -175,9 +175,11 @@ beforeEach(function () {
     DB::table('roles')->insert(['slug' => 'super_admin', 'name' => 'Super Admin', 'is_super' => true]);
 });
 
-function movementStaff(string $name, int $branchId): Employee
+function movementStaff(string $name, int $branchId, ?string $oracleNo = null): Employee
 {
-    return Employee::withoutEvents(fn () => Employee::create(['name' => $name, 'branch_id' => $branchId, 'status' => 'active']));
+    return Employee::withoutEvents(fn () => Employee::create([
+        'name' => $name, 'branch_id' => $branchId, 'status' => 'active', 'oracle_emp_no' => $oracleNo,
+    ]));
 }
 
 function movementAsset(Employee $holder, string $code, string $oracleNumber = '1001946', ?float $cost = 4200.00): Device
@@ -307,8 +309,8 @@ it('keeps the scrap reason and who held it when the request is approved', functi
 });
 
 it('lists transfers, retirements and scraps for finance, with the Oracle number and the reason', function () {
-    $ahmed = movementStaff('Ahmed Manea', 10);
-    $bader = movementStaff('Bader Alharbi', 20);
+    $ahmed = movementStaff('Ahmed Manea', 10, '2367');
+    $bader = movementStaff('Bader Alharbi', 20, '4102');
     actAsSuperAdmin();
 
     $moved = movementAsset($ahmed, 'SG-LAP-000010', '1001946', 4200.00);
@@ -329,7 +331,12 @@ it('lists transfers, retirements and scraps for finance, with the Oracle number 
         ->and($transfer['oracle_asset_number'])->toBe('1001946')
         ->and($transfer['from'])->toBe('Ahmed Manea')
         ->and($transfer['to'])->toBe('Bader Alharbi')
+        // Finance posts against the person's Oracle record, so both sides carry the employee number.
+        ->and($transfer['from_no'])->toBe('2367')
+        ->and($transfer['to_no'])->toBe('4102')
         ->and($retire['from'])->toBe('Ahmed Manea')
+        ->and($retire['from_no'])->toBe('2367')
+        ->and($retire['to_no'])->toBeNull()
         ->and($retire['to'])->toBeNull()
         ->and($retire['reason_label'])->toBe('End of life — too old to use')
         ->and($retire['purchase_cost'])->toBe(1500.00);
@@ -343,4 +350,38 @@ it('lists transfers, retirements and scraps for finance, with the Oracle number 
     expect($movements->rows(['from' => '2026-09-01', 'to' => '2026-09-30', 'kind' => 'retire']))->toHaveCount(1)
         ->and($movements->rows(['from' => '2026-09-01', 'to' => '2026-09-19']))->toHaveCount(1)
         ->and($movements->rows(['from' => '2026-09-01', 'to' => '2026-09-30', 'oracle' => '12050']))->toHaveCount(1);
+});
+
+it('finds the Oracle employee number of a movement recorded before the number was kept', function () {
+    $ahmed = movementStaff('Ahmed Manea', 10, '2367');
+    $bader = movementStaff('Bader Alharbi', 20, '4102');
+    $device = movementAsset($ahmed, 'SG-LAP-000030', '1001946');
+    $old = movementAsset($ahmed, 'SG-LAP-000031', '1001947');
+
+    // Written the way it was before buildMeta() kept the numbers: ids and names only.
+    AssetHistory::create([
+        'device_id' => $device->id, 'event_type' => 'transferred', 'description' => 'Transferred',
+        'created_at' => '2026-09-10 08:00:00',
+        'meta' => [
+            'transfer_date' => '2026-09-10', 'condition' => 'good',
+            'from_employee_id' => $ahmed->id, 'from_employee' => $ahmed->name,
+            'to_employee_id' => $bader->id, 'to_employee' => $bader->name,
+        ],
+    ]);
+
+    // A retirement of the same vintage: the holder's name, no id and no number.
+    AssetHistory::create([
+        'device_id' => $old->id, 'event_type' => 'retired', 'description' => 'Retired: End of life',
+        'created_at' => '2026-09-11 08:00:00',
+        'meta' => ['retired_on' => '2026-09-11', 'holder' => 'Ahmed Manea', 'reason_code' => 'end_of_life'],
+    ]);
+
+    $rows = app(AssetMovements::class)->rows(['from' => '2026-09-01', 'to' => '2026-09-30']);
+    $transfer = $rows->firstWhere('kind', 'transfer');
+    $retire = $rows->firstWhere('kind', 'retire');
+
+    expect($transfer['from_no'])->toBe('2367')
+        ->and($transfer['to_no'])->toBe('4102')
+        // The holder is matched against that asset's own assignment history, not against every employee.
+        ->and($retire['from_no'])->toBe('2367');
 });

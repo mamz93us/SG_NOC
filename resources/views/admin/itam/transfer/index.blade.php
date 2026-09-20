@@ -46,7 +46,7 @@
                     <select name="from_employee_id" class="form-select" x-model="fromEmployeeId" @change="loadAssets()" :required="sourceType === 'employee'">
                         <option value="">— Select employee with assets —</option>
                         @foreach($employeesWithAssets as $emp)
-                            <option value="{{ $emp->id }}">{{ $emp->name }} ({{ $emp->email }})</option>
+                            <option value="{{ $emp->id }}">{{ $emp->name }}@if($emp->oracle_emp_no) — Emp #{{ $emp->oracle_emp_no }}@endif ({{ $emp->email }})</option>
                         @endforeach
                     </select>
                 </div>
@@ -143,7 +143,7 @@
                     <select name="to_employee_id" class="form-select" :required="targetType === 'employee'">
                         <option value="">— Select employee —</option>
                         @foreach($allEmployees as $emp)
-                            <option value="{{ $emp->id }}">{{ $emp->name }} ({{ $emp->email }})</option>
+                            <option value="{{ $emp->id }}">{{ $emp->name }}@if($emp->oracle_emp_no) — Emp #{{ $emp->oracle_emp_no }}@endif ({{ $emp->email }})</option>
                         @endforeach
                     </select>
                 </div>

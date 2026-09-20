@@ -57,7 +57,7 @@
         <select name="employee" class="form-select form-select-sm" style="max-width:220px">
             <option value="">Anyone</option>
             @foreach ($employees as $employee)
-                <option value="{{ $employee->id }}" @selected($filters['employee'] === $employee->id)>{{ $employee->name }}</option>
+                <option value="{{ $employee->id }}" @selected($filters['employee'] === $employee->id)>{{ $employee->name }}@if($employee->oracle_emp_no) — {{ $employee->oracle_emp_no }}@endif</option>
             @endforeach
         </select>
     </div>
@@ -147,8 +147,14 @@
                             <div class="text-muted text-truncate" style="max-width:260px" title="{{ $row['name'] }}">{{ $row['name'] }}</div>
                         </td>
                         <td class="font-monospace text-nowrap">{{ $row['oracle_asset_number'] ?: '—' }}</td>
-                        <td>{{ $row['from'] ?: '—' }}</td>
-                        <td>{{ $row['to'] ?: ($row['storage_location'] ?: '—') }}</td>
+                        <td>
+                            {{ $row['from'] ?: '—' }}
+                            @if ($row['from_no'])<div class="text-muted small">Emp #{{ $row['from_no'] }}</div>@endif
+                        </td>
+                        <td>
+                            {{ $row['to'] ?: ($row['storage_location'] ?: '—') }}
+                            @if ($row['to_no'])<div class="text-muted small">Emp #{{ $row['to_no'] }}</div>@endif
+                        </td>
                         <td>
                             {{ $row['reason_label'] ?: '—' }}
                             @if ($row['reason'] && $row['reason'] !== $row['reason_label'])

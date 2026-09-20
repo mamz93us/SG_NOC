@@ -20,10 +20,10 @@
                 </p>
                 <div class="mb-2">
                     <label class="form-label small fw-semibold" for="transferAssetTo">New holder</label>
-                    <input type="search" class="form-control form-control-sm mb-1" id="transferAssetFilter" placeholder="Filter by name" autocomplete="off">
+                    <input type="search" class="form-control form-control-sm mb-1" id="transferAssetFilter" placeholder="Filter by name or Oracle no." autocomplete="off">
                     <select name="to_employee_id" id="transferAssetTo" class="form-select form-select-sm" size="8" required>
                         @foreach ($transferEmployees as $employee)
-                            <option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->branch?->name ? ' · '.$employee->branch->name : '' }}</option>
+                            <option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->oracle_emp_no ? ' — Emp #'.$employee->oracle_emp_no : '' }}{{ $employee->branch?->name ? ' · '.$employee->branch->name : '' }}</option>
                         @endforeach
                     </select>
                 </div>

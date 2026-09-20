@@ -39,7 +39,7 @@
                     <select name="employee" class="form-select form-select-sm">
                         <option value="">Any Employee</option>
                         @foreach($employees as $e)
-                            <option value="{{ $e->id }}" @selected((int)request('employee') === $e->id)>{{ $e->name }}</option>
+                            <option value="{{ $e->id }}" @selected((int)request('employee') === $e->id)>{{ $e->name }}@if($e->oracle_emp_no) — {{ $e->oracle_emp_no }}@endif</option>
                         @endforeach
                     </select>
                 </div>
@@ -80,6 +80,9 @@
                                 'universal_store' => 'Universal Store',
                                 default           => $m['to_employee'] ?? $m['branch_name'] ?? '—',
                             };
+                            // The Oracle employee number beside the name, which is what finance posts against.
+                            $fromNo = $m['from_employee_no'] ?? ($empNumbers[$m['from_employee_id'] ?? 0] ?? null);
+                            $toNo = $m['to_employee_no'] ?? ($empNumbers[$m['to_employee_id'] ?? 0] ?? null);
                         @endphp
                         <tr>
                             <td>{{ $e->created_at?->format('d M Y H:i') }}</td>
@@ -96,12 +99,18 @@
                             </td>
                             <td>
                                 {{ $fromLabel }}
+                                @if($fromNo)
+                                    <small class="text-muted d-block">Emp #{{ $fromNo }}</small>
+                                @endif
                                 @if(!empty($m['from_storage_location']))
                                     <small class="text-muted d-block">{{ $m['from_storage_location'] }}</small>
                                 @endif
                             </td>
                             <td>
                                 {{ $toLabel }}
+                                @if($toNo)
+                                    <small class="text-muted d-block">Emp #{{ $toNo }}</small>
+                                @endif
                                 @if(!empty($m['storage_location']))
                                     <small class="text-muted d-block">{{ $m['storage_location'] }}</small>
                                 @endif

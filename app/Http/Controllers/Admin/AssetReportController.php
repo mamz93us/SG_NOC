@@ -171,17 +171,21 @@ class AssetReportController extends Controller
 
         if ($request->boolean('csv')) {
             $rows = $query->get();
+            $numbers = $this->employeeNumbers($rows);
 
             return $this->streamCsv('transfer-history-'.now()->format('Ymd-His'), $rows, [
-                'Date', 'Event', 'Asset Code', 'Asset Name', 'From Employee', 'To Employee', 'Branch', 'Storage Location', 'By',
-            ], function ($e) {
+                'Date', 'Event', 'Asset Code', 'Asset Name', 'From Employee', 'From Oracle Emp No.',
+                'To Employee', 'To Oracle Emp No.', 'Branch', 'Storage Location', 'By',
+            ], function ($e) use ($numbers) {
                 return [
                     $e->created_at?->format('Y-m-d H:i'),
                     $e->event_type,
                     $e->device?->asset_code,
                     $e->device?->name,
                     $e->meta['from_employee'] ?? null,
+                    $e->meta['from_employee_no'] ?? ($numbers[$e->meta['from_employee_id'] ?? 0] ?? null),
                     $e->meta['to_employee'] ?? null,
+                    $e->meta['to_employee_no'] ?? ($numbers[$e->meta['to_employee_id'] ?? 0] ?? null),
                     $e->meta['branch_name'] ?? $e->device?->branch?->name,
                     $e->meta['storage_location'] ?? null,
                     $e->user?->name,
@@ -191,9 +195,32 @@ class AssetReportController extends Controller
 
         $events = $query->paginate(50)->withQueryString();
         $branches = Branch::orderBy('name')->get();
-        $employees = Employee::active()->orderBy('name')->get(['id', 'name']);
+        $employees = Employee::active()->orderBy('name')->get(['id', 'name', 'oracle_emp_no']);
+        $empNumbers = $this->employeeNumbers(collect($events->items()));
 
-        return view('admin.itam.reports.transfers', compact('events', 'branches', 'employees'));
+        return view('admin.itam.reports.transfers', compact('events', 'branches', 'employees', 'empNumbers'));
+    }
+
+    /**
+     * The Oracle employee number for everyone in these movements. A transfer
+     * recorded from now on keeps the numbers in its own meta; older rows kept
+     * only the employee id, so they are looked up here.
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\AssetHistory>  $events
+     * @return array<int, string>
+     */
+    private function employeeNumbers($events): array
+    {
+        $ids = $events
+            ->flatMap(fn ($e) => [$e->meta['from_employee_id'] ?? null, $e->meta['to_employee_id'] ?? null])
+            ->filter()
+            ->unique()
+            ->all();
+
+        return $ids === [] ? [] : Employee::whereIn('id', $ids)
+            ->whereNotNull('oracle_emp_no')
+            ->pluck('oracle_emp_no', 'id')
+            ->all();
     }
 
     public function scrapHistory(Request $request)

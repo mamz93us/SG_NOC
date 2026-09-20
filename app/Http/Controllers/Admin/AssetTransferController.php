@@ -19,11 +19,11 @@ class AssetTransferController extends Controller
         $employeesWithAssets = Employee::active()
             ->whereHas('activeAssets')
             ->orderBy('name')
-            ->get(['id', 'name', 'email', 'branch_id']);
+            ->get(['id', 'name', 'email', 'branch_id', 'oracle_emp_no']);
 
         $allEmployees = Employee::active()
             ->orderBy('name')
-            ->get(['id', 'name', 'email', 'branch_id']);
+            ->get(['id', 'name', 'email', 'branch_id', 'oracle_emp_no']);
 
         $branches = Branch::orderBy('name')->get(['id', 'name']);
 
@@ -318,6 +318,8 @@ class AssetTransferController extends Controller
         if ($fromEmployee) {
             $meta['from_employee_id'] = $fromEmployee->id;
             $meta['from_employee']    = $fromEmployee->name;
+            // The Oracle employee number as it stood on the day, for finance.
+            $meta['from_employee_no'] = $fromEmployee->oracle_emp_no;
         }
         if ($fromBranch) {
             $meta['from_branch_id']        = $fromBranch->id;
@@ -332,6 +334,7 @@ class AssetTransferController extends Controller
         if ($toEmployee) {
             $meta['to_employee_id'] = $toEmployee->id;
             $meta['to_employee']    = $toEmployee->name;
+            $meta['to_employee_no'] = $toEmployee->oracle_emp_no;
             $meta['branch_id']      = $toEmployee->branch_id;
         }
         if ($toBranch) {
@@ -402,7 +405,8 @@ class AssetTransferController extends Controller
             'toBranchName'          => $meta['to_branch_name'] ?? null,
             'fromStorageLocation'   => $meta['from_storage_location'] ?? null,
             'toStorageLocation'     => $meta['storage_location'] ?? null,
-            'transferDate'          => $first->created_at,
+            // The day it changed hands, which is what is signed for — not the day it was typed in.
+            'transferDate'          => ! empty($meta['transfer_date']) ? \Carbon\Carbon::parse($meta['transfer_date']) : $first->created_at,
         ]);
     }
 }

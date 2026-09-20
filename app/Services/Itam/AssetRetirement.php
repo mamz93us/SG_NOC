@@ -40,13 +40,15 @@ class AssetRetirement
 
         DB::transaction(function () use ($device, $reason, $on, $reasonCode) {
             $holders = [];
+            $holderNumbers = [];
 
-            EmployeeAsset::with('employee:id,name')
+            EmployeeAsset::with('employee:id,name,oracle_emp_no')
                 ->where('asset_id', $device->id)
                 ->whereNull('returned_date')
                 ->get()
-                ->each(function (EmployeeAsset $assignment) use ($reason, $on, &$holders) {
+                ->each(function (EmployeeAsset $assignment) use ($reason, $on, &$holders, &$holderNumbers) {
                     $holders[] = $assignment->employee?->name;
+                    $holderNumbers[] = $assignment->employee?->oracle_emp_no;
 
                     // A model update, not a query update, so EmployeeAssetObserver closes the return tasks.
                     $assignment->update([
@@ -60,6 +62,8 @@ class AssetRetirement
             AssetHistory::record($device, 'retired', 'Retired: '.$reason, array_filter([
                 'retired_on' => $on->toDateString(),
                 'holder' => implode(', ', array_filter($holders)) ?: null,
+                // Their Oracle employee number, so finance posts the write-off against the right person.
+                'holder_no' => implode(', ', array_filter($holderNumbers)) ?: null,
                 'reason' => $reason,
                 'reason_code' => $reasonCode,
             ]));

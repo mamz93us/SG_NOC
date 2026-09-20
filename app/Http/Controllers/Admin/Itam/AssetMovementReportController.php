@@ -36,7 +36,7 @@ class AssetMovementReportController extends Controller
             'filters' => $filters,
             'kinds' => AssetMovements::KINDS,
             'branches' => Branch::orderBy('name')->get(['id', 'name']),
-            'employees' => Employee::query()->whereNull('linked_primary_employee_id')->orderBy('name')->get(['id', 'name']),
+            'employees' => Employee::query()->whereNull('linked_primary_employee_id')->orderBy('name')->get(['id', 'name', 'oracle_emp_no']),
         ];
 
         return $request->boolean('print')
@@ -75,7 +75,7 @@ class AssetMovementReportController extends Controller
 
             fputcsv($handle, [
                 'Date', 'Recorded', 'Movement', 'Asset Code', 'Oracle Asset No.', 'Asset', 'Type', 'Serial',
-                'From', 'To', 'Branch', 'Reason', 'Detail', 'Disposal', 'Scrap Request',
+                'From', 'From Oracle Emp No.', 'To', 'To Oracle Emp No.', 'Branch', 'Reason', 'Detail', 'Disposal', 'Scrap Request',
                 'Purchase Date', 'Purchase Cost', 'Currency', 'Recorded By',
             ]);
 
@@ -90,7 +90,9 @@ class AssetMovementReportController extends Controller
                     $row['type'],
                     $row['serial_number'],
                     $row['from'],
+                    $row['from_no'],
                     $row['to'] ?? ($row['storage_location'] ?: null),
+                    $row['to_no'],
                     $row['branch'],
                     $row['reason_label'],
                     $row['reason'],

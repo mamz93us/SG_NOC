@@ -291,11 +291,12 @@ class AssetScrapController extends Controller
                 foreach ($devices as $device) {
                     // Who held it is read before the assignments close: the movements report
                     // tells finance which employee each scrapped asset came off.
-                    $open = EmployeeAsset::with('employee:id,name')
+                    $open = EmployeeAsset::with('employee:id,name,oracle_emp_no')
                         ->where('asset_id', $device->id)
                         ->whereNull('returned_date')
                         ->get();
                     $holders = $open->map(fn (EmployeeAsset $a) => $a->employee?->name)->filter()->implode(', ');
+                    $holderNumbers = $open->map(fn (EmployeeAsset $a) => $a->employee?->oracle_emp_no)->filter()->implode(', ');
 
                     $open->each(fn (EmployeeAsset $a) => $a->update([
                         'returned_date' => now(),
@@ -318,6 +319,7 @@ class AssetScrapController extends Controller
                             'reason' => $workflow->payload['reason'] ?? null,
                             'reason_code' => $workflow->payload['reason_code'] ?? null,
                             'holder' => $holders !== '' ? $holders : null,
+                            'holder_no' => $holderNumbers !== '' ? $holderNumbers : null,
                         ])
                     );
                 }
