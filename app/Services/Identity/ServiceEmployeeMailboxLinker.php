@@ -112,6 +112,14 @@ class ServiceEmployeeMailboxLinker
         }
         unset($candidate);
 
+        // Until something is typed, show only what is genuinely a suggestion.
+        // The alternative is the first 25 accounts in the directory by name,
+        // which look like candidates and are not — and for these people the
+        // honest answer is usually that there is nothing to suggest at all.
+        if ($search === '') {
+            $candidates = array_values(array_filter($candidates, fn ($c) => $c['suggested']));
+        }
+
         usort($candidates, fn ($a, $b) => [$b['suggested'], mb_strtolower($a['name'])]
             <=> [$a['suggested'], mb_strtolower($b['name'])]);
 

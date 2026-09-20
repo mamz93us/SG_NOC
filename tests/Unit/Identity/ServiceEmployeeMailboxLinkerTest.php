@@ -267,6 +267,20 @@ it('puts a same-name account first and marks it', function () {
         ->and($candidates[0]['suggested'])->toBeTrue();
 });
 
+it('offers nothing at all until something is typed, when no name matches', function () {
+    // The alternative is the first 25 accounts in the directory by name, which
+    // look like candidates and are not. For these people "there is nothing to
+    // suggest" is usually the true answer: measured on production, one of 77
+    // service employees has a same-name account.
+    entraAccount('Someone Unrelated', 'unrelated@samirgroup.com');
+    entraAccount('Another Person', 'another@samirgroup.com');
+
+    expect(mailboxLinker()->candidates(serviceEmployee('Bander Al-Harbi')))->toBe([]);
+
+    // Typing finds them.
+    expect(mailboxLinker()->candidates(serviceEmployee('Bander Al-Harbi'), 'unrelated'))->toHaveCount(1);
+});
+
 it('does not offer every mailbox in the company when nothing is typed', function () {
     // 727 addresses in a picker is a list, not a choice. With no search, an
     // employee record is only offered when it looks like the same person.
