@@ -2797,14 +2797,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ─── Asset Scrap (request) ────────────────────────────────────
     Route::middleware('permission:request-scrap')->prefix('itam/scrap')->name('itam.scrap.')->group(function () {
-        Route::get('/', [\App\Http\Controllers\Admin\AssetScrapController::class, 'index'])->name('index');
         Route::get('create', [\App\Http\Controllers\Admin\AssetScrapController::class, 'create'])->name('create');
         Route::post('/', [\App\Http\Controllers\Admin\AssetScrapController::class, 'store'])->name('store');
+    });
+    // ─── Asset Scrap (read) ───────────────────────────────────────
+    // Either permission: an approver who cannot raise a request still has to
+    // read the list the bulk approval lives on. `create` above is registered
+    // first, so it is not swallowed by `{workflow}`.
+    Route::middleware('permission:request-scrap,approve-scrap')->prefix('itam/scrap')->name('itam.scrap.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\AssetScrapController::class, 'index'])->name('index');
         Route::get('{workflow}', [\App\Http\Controllers\Admin\AssetScrapController::class, 'show'])->name('show');
         Route::get('{workflow}/print', [\App\Http\Controllers\Admin\AssetScrapController::class, 'print'])->name('print');
     });
     // ─── Asset Scrap (approve / reject) ───────────────────────────
     Route::middleware('permission:approve-scrap')->prefix('itam/scrap')->name('itam.scrap.')->group(function () {
+        // Sign off everything waiting for this person at once, from the list.
+        Route::post('bulk-approve', [\App\Http\Controllers\Admin\AssetScrapController::class, 'bulkApprove'])->name('bulk-approve');
         Route::post('{workflow}/approve', [\App\Http\Controllers\Admin\AssetScrapController::class, 'approve'])->name('approve');
         Route::post('{workflow}/reject', [\App\Http\Controllers\Admin\AssetScrapController::class, 'reject'])->name('reject');
     });

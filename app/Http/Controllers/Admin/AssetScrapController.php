@@ -7,11 +7,14 @@ use App\Models\Accessory;
 use App\Models\AssetHistory;
 use App\Models\Device;
 use App\Models\EmployeeAsset;
+use App\Models\User;
 use App\Models\WorkflowRequest;
 use App\Models\WorkflowStep;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Throwable;
 
 class AssetScrapController extends Controller
 {
@@ -32,7 +35,18 @@ class AssetScrapController extends Controller
             ->groupBy('status')
             ->pluck('c', 'status');
 
-        return view('admin.itam.scrap.index', compact('requests', 'statusCounts'));
+        // Which of the listed requests this person may sign off, so the list can
+        // offer to approve them together. Worked out here, by the same test the
+        // approval itself makes, rather than in the view.
+        $user = Auth::user();
+        $awaitingMe = $user?->can('approve-scrap')
+            ? $requests->getCollection()
+                ->mapWithKeys(fn (WorkflowRequest $r) => [$r->id => $r->isAwaitingMyApproval($user->id)])
+                ->all()
+            : [];
+        $waitingForMe = count(array_filter($awaitingMe));
+
+        return view('admin.itam.scrap.index', compact('requests', 'statusCounts', 'awaitingMe', 'waitingForMe'));
     }
 
     public function create(Request $request)
@@ -257,108 +271,202 @@ class AssetScrapController extends Controller
 
         $request->validate(['comments' => 'nullable|string|max:1000']);
 
-        DB::transaction(function () use ($workflow, $user, $request) {
-            $step = $workflow->currentStepRecord();
-            $step->update([
-                'status' => 'approved',
-                'acted_by' => $user->id,
-                'acted_at' => now(),
-                'comments' => $request->input('comments'),
-            ]);
-
-            $deviceIds = $workflow->payload['device_ids'] ?? [];
-            $accessoryIds = $workflow->payload['accessory_ids'] ?? [];
-            $devices = Device::whereIn('id', $deviceIds)->get();
-
-            foreach ($devices as $device) {
-                AssetHistory::record(
-                    $device,
-                    'scrap_approved',
-                    "Step {$step->step_number} ({$step->approverRoleLabel()}) approved by {$user->name}",
-                    [
-                        'workflow_id' => $workflow->id,
-                        'step_number' => $step->step_number,
-                        'approver_id' => $user->id,
-                    ]
-                );
-            }
-
-            $nextStep = $workflow->current_step + 1;
-
-            if ($nextStep > $workflow->total_steps) {
-                $workflow->update(['status' => 'approved']);
-
-                foreach ($devices as $device) {
-                    // Who held it is read before the assignments close: the movements report
-                    // tells finance which employee each scrapped asset came off.
-                    $open = EmployeeAsset::with('employee:id,name,oracle_emp_no')
-                        ->where('asset_id', $device->id)
-                        ->whereNull('returned_date')
-                        ->get();
-                    $holders = $open->map(fn (EmployeeAsset $a) => $a->employee?->name)->filter()->implode(', ');
-                    $holderNumbers = $open->map(fn (EmployeeAsset $a) => $a->employee?->oracle_emp_no)->filter()->implode(', ');
-
-                    $open->each(fn (EmployeeAsset $a) => $a->update([
-                        'returned_date' => now(),
-                        'notes' => 'Closed on scrap approval (workflow #'.$workflow->id.')',
-                    ]));
-
-                    $device->update([
-                        'status' => 'scrapped',
-                        'scrap_workflow_id' => $workflow->id,
-                        'storage_location' => null,
-                    ]);
-
-                    AssetHistory::record(
-                        $device,
-                        'scrapped',
-                        'Asset scrapped after full approval',
-                        array_filter([
-                            'workflow_id' => $workflow->id,
-                            'disposal_method' => $workflow->payload['disposal_method'] ?? null,
-                            'reason' => $workflow->payload['reason'] ?? null,
-                            'reason_code' => $workflow->payload['reason_code'] ?? null,
-                            'holder' => $holders !== '' ? $holders : null,
-                            'holder_no' => $holderNumbers !== '' ? $holderNumbers : null,
-                        ])
-                    );
-                }
-
-                $accessoryQtyMap = $workflow->payload['accessory_qty'] ?? [];
-                if (! empty($accessoryIds)) {
-                    $scrapAccessories = Accessory::whereIn('id', $accessoryIds)
-                        ->lockForUpdate()
-                        ->get();
-
-                    foreach ($scrapAccessories as $accessory) {
-                        $qty = (int) ($accessoryQtyMap[$accessory->id] ?? $accessory->quantity_available);
-                        $qty = max(1, min($qty, $accessory->quantity_available));
-
-                        $newAvailable = max(0, $accessory->quantity_available - $qty);
-                        $newTotal = max(0, $accessory->quantity_total - $qty);
-
-                        $updates = [
-                            'quantity_total' => $newTotal,
-                            'quantity_available' => $newAvailable,
-                            'scrap_workflow_id' => $workflow->id,
-                        ];
-
-                        // Only mark the whole row as scrapped if no units remain.
-                        if ($newTotal === 0) {
-                            $updates['status'] = 'scrapped';
-                        }
-
-                        $accessory->update($updates);
-                    }
-                }
-            } else {
-                $workflow->update(['current_step' => $nextStep]);
-            }
-        });
+        DB::transaction(fn () => $this->applyApproval($workflow, $user, $request->input('comments')));
 
         return redirect()
             ->route('admin.itam.scrap.show', $workflow->id)
             ->with('success', 'Step approved.');
+    }
+
+    /**
+     * Approve every request that is waiting for this person, in one action: a
+     * fleet refresh raises one request per asset, and signing sixty of them a
+     * page at a time is what stops them being signed at all.
+     *
+     * Each request is a transaction of its own, so one that cannot be applied
+     * leaves the others approved rather than undoing the lot, and a request
+     * that was not approved is named back to the approver — silently skipping
+     * one would look exactly like approving it.
+     */
+    public function bulkApprove(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer',
+            'comments' => 'nullable|string|max:1000',
+        ], [
+            'ids.required' => 'Tick the requests to approve first.',
+        ]);
+
+        $user = Auth::user();
+        $ids = array_values(array_unique(array_map('intval', $validated['ids'])));
+
+        $workflows = WorkflowRequest::where('type', 'asset_scrap')
+            ->whereIn('id', $ids)
+            ->orderBy('id')
+            ->get();
+
+        $approved = 0;
+        $completed = 0;
+        $assets = 0;
+        $skipped = [];
+        $failed = [];
+
+        foreach ($workflows as $workflow) {
+            // The same test the single approval makes: this step, this person.
+            if (! $workflow->isAwaitingMyApproval($user->id)) {
+                $skipped[] = '#'.$workflow->id;
+
+                continue;
+            }
+
+            try {
+                $result = DB::transaction(fn () => $this->applyApproval($workflow, $user, $validated['comments'] ?? null));
+                $approved++;
+
+                if ($result['completed']) {
+                    $completed++;
+                    $assets += $result['assets'];
+                }
+            } catch (Throwable $e) {
+                report($e);
+                $failed[] = '#'.$workflow->id;
+            }
+        }
+
+        // An id that matched no scrap request at all — deleted, or another type.
+        foreach (array_diff($ids, $workflows->pluck('id')->all()) as $missing) {
+            $skipped[] = '#'.$missing;
+        }
+
+        $message = $approved === 0
+            ? 'Nothing was approved.'
+            : $approved.' '.Str::plural('request', $approved).' approved'
+                .($completed > 0 ? ' — '.$completed.' fully approved, '.$assets.' '.Str::plural('asset', $assets).' scrapped' : '')
+                .'.';
+
+        $problems = [];
+        if ($skipped !== []) {
+            $problems[] = count($skipped).' not waiting for your approval ('.implode(', ', $skipped).')';
+        }
+        if ($failed !== []) {
+            $problems[] = count($failed).' could not be approved ('.implode(', ', $failed).')';
+        }
+
+        return back()
+            ->with($approved > 0 ? 'success' : 'error', $message)
+            ->with('warning', $problems === [] ? null : 'Skipped: '.implode('; ', $problems).'.');
+    }
+
+    /**
+     * Approves the current step and, on the last one, scraps what the request
+     * holds. The caller opens the transaction.
+     *
+     * @return array{completed: bool, assets: int}
+     */
+    private function applyApproval(WorkflowRequest $workflow, User $user, ?string $comments): array
+    {
+        $scrappedAssets = 0;
+        $step = $workflow->currentStepRecord();
+        $step->update([
+            'status' => 'approved',
+            'acted_by' => $user->id,
+            'acted_at' => now(),
+            'comments' => $comments,
+        ]);
+
+        $deviceIds = $workflow->payload['device_ids'] ?? [];
+        $accessoryIds = $workflow->payload['accessory_ids'] ?? [];
+        $devices = Device::whereIn('id', $deviceIds)->get();
+
+        foreach ($devices as $device) {
+            AssetHistory::record(
+                $device,
+                'scrap_approved',
+                "Step {$step->step_number} ({$step->approverRoleLabel()}) approved by {$user->name}",
+                [
+                    'workflow_id' => $workflow->id,
+                    'step_number' => $step->step_number,
+                    'approver_id' => $user->id,
+                ]
+            );
+        }
+
+        $nextStep = $workflow->current_step + 1;
+
+        if ($nextStep > $workflow->total_steps) {
+            $workflow->update(['status' => 'approved']);
+
+            foreach ($devices as $device) {
+                // Who held it is read before the assignments close: the movements report
+                // tells finance which employee each scrapped asset came off.
+                $open = EmployeeAsset::with('employee:id,name,oracle_emp_no')
+                    ->where('asset_id', $device->id)
+                    ->whereNull('returned_date')
+                    ->get();
+                $holders = $open->map(fn (EmployeeAsset $a) => $a->employee?->name)->filter()->implode(', ');
+                $holderNumbers = $open->map(fn (EmployeeAsset $a) => $a->employee?->oracle_emp_no)->filter()->implode(', ');
+
+                $open->each(fn (EmployeeAsset $a) => $a->update([
+                    'returned_date' => now(),
+                    'notes' => 'Closed on scrap approval (workflow #'.$workflow->id.')',
+                ]));
+
+                $device->update([
+                    'status' => 'scrapped',
+                    'scrap_workflow_id' => $workflow->id,
+                    'storage_location' => null,
+                ]);
+
+                AssetHistory::record(
+                    $device,
+                    'scrapped',
+                    'Asset scrapped after full approval',
+                    array_filter([
+                        'workflow_id' => $workflow->id,
+                        'disposal_method' => $workflow->payload['disposal_method'] ?? null,
+                        'reason' => $workflow->payload['reason'] ?? null,
+                        'reason_code' => $workflow->payload['reason_code'] ?? null,
+                        'holder' => $holders !== '' ? $holders : null,
+                        'holder_no' => $holderNumbers !== '' ? $holderNumbers : null,
+                    ])
+                );
+
+                $scrappedAssets++;
+            }
+
+            $accessoryQtyMap = $workflow->payload['accessory_qty'] ?? [];
+            if (! empty($accessoryIds)) {
+                $scrapAccessories = Accessory::whereIn('id', $accessoryIds)
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($scrapAccessories as $accessory) {
+                    $qty = (int) ($accessoryQtyMap[$accessory->id] ?? $accessory->quantity_available);
+                    $qty = max(1, min($qty, $accessory->quantity_available));
+
+                    $newAvailable = max(0, $accessory->quantity_available - $qty);
+                    $newTotal = max(0, $accessory->quantity_total - $qty);
+
+                    $updates = [
+                        'quantity_total' => $newTotal,
+                        'quantity_available' => $newAvailable,
+                        'scrap_workflow_id' => $workflow->id,
+                    ];
+
+                    // Only mark the whole row as scrapped if no units remain.
+                    if ($newTotal === 0) {
+                        $updates['status'] = 'scrapped';
+                    }
+
+                    $accessory->update($updates);
+                }
+            }
+        } else {
+            $workflow->update(['current_step' => $nextStep]);
+        }
+
+        return ['completed' => $workflow->status === 'approved', 'assets' => $scrappedAssets];
     }
 
     public function reject(Request $request, WorkflowRequest $workflow)

@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAsset;
 use App\Models\User;
 use App\Models\WorkflowRequest;
+use App\Models\WorkflowStep;
 use App\Services\Itam\AssetMovements;
 use App\Services\Itam\AssetReasons;
 use App\Services\Itam\AssetRetirement;
@@ -384,4 +385,56 @@ it('finds the Oracle employee number of a movement recorded before the number wa
         ->and($transfer['to_no'])->toBe('4102')
         // The holder is matched against that asset's own assignment history, not against every employee.
         ->and($retire['from_no'])->toBe('2367');
+});
+
+it('approves every scrap request waiting for the approver in one action, and says what it skipped', function () {
+    $ahmed = movementStaff('Ahmed Manea', 10, '2367');
+    $first = movementAsset($ahmed, 'SG-LAP-000040');
+    $second = movementAsset($ahmed, 'SG-LAP-000041');
+    actAsSuperAdmin();
+
+    $scrap = app(AssetScrapController::class);
+    foreach ([$first, $second] as $device) {
+        $scrap->store(Request::create('/admin/itam/scrap', 'POST', [
+            'device_ids' => [$device->id],
+            'reason_code' => 'end_of_life',
+            'disposal_method' => 'recycle',
+        ]));
+    }
+
+    $ids = WorkflowRequest::where('type', 'asset_scrap')->pluck('id')->all();
+
+    // 9999 is nobody's request: it must be reported, not quietly dropped.
+    $bulk = fn () => $scrap->bulkApprove(Request::create('/admin/itam/scrap/bulk-approve', 'POST', [
+        'ids' => array_merge($ids, [9999]),
+        'comments' => 'Batch of the September refresh',
+    ]));
+
+    $bulk();
+
+    // Two-step chain: the first pass moves both on, nothing is scrapped yet.
+    expect(WorkflowRequest::whereIn('id', $ids)->where('status', 'pending')->count())->toBe(2)
+        ->and(WorkflowRequest::whereIn('id', $ids)->where('current_step', 2)->count())->toBe(2)
+        ->and(Device::whereIn('id', [$first->id, $second->id])->where('status', 'scrapped')->count())->toBe(0);
+
+    $response = $bulk();
+
+    expect(WorkflowRequest::whereIn('id', $ids)->where('status', 'approved')->count())->toBe(2)
+        ->and(Device::whereIn('id', [$first->id, $second->id])->where('status', 'scrapped')->count())->toBe(2)
+        ->and(EmployeeAsset::whereIn('asset_id', [$first->id, $second->id])->whereNull('returned_date')->exists())->toBeFalse()
+        ->and(AssetHistory::whereIn('device_id', [$first->id, $second->id])->where('event_type', 'scrapped')->count())->toBe(2);
+
+    $session = $response->getSession();
+    expect($session->get('success'))->toContain('2 requests approved')
+        ->and($session->get('success'))->toContain('2 assets scrapped')
+        // The id that matched nothing is named back, and so is a request already approved.
+        ->and($session->get('warning'))->toContain('#9999');
+
+    // Everything already approved: a third pass approves nothing and says so.
+    $again = $bulk();
+    expect($again->getSession()->get('error'))->toBe('Nothing was approved.')
+        ->and(Device::where('id', $first->id)->value('status'))->toBe('scrapped');
+
+    // The comment is kept on each step it signed.
+    expect(WorkflowStep::where('comments', 'Batch of the September refresh')->count())->toBe(4);
 });
