@@ -114,6 +114,7 @@
                 <tr>
                     <th class="ps-3">Date</th>
                     <th>Movement</th>
+                    <th>Asset code</th>
                     <th>Asset</th>
                     <th>Oracle no.</th>
                     <th>From</th>
@@ -138,13 +139,18 @@
                                 <a href="{{ route('admin.itam.scrap.show', $row['workflow_id']) }}" class="d-block text-muted">request #{{ $row['workflow_id'] }}</a>
                             @endif
                         </td>
-                        <td>
+                        <td class="text-nowrap">
                             @if ($row['device_id'])
-                                <a href="{{ route('admin.devices.show', $row['device_id']) }}" class="text-decoration-none font-monospace">{{ $row['asset_code'] ?: '—' }}</a>
+                                <a href="{{ route('admin.devices.show', $row['device_id']) }}" class="text-decoration-none font-monospace fw-semibold">{{ $row['asset_code'] ?: '—' }}</a>
                             @else
                                 <span class="font-monospace text-muted">{{ $row['asset_code'] ?: '—' }}</span>
                             @endif
-                            <div class="text-muted text-truncate" style="max-width:260px" title="{{ $row['name'] }}">{{ $row['name'] }}</div>
+                        </td>
+                        <td>
+                            <div class="text-truncate" style="max-width:260px" title="{{ $row['name'] }}">{{ $row['name'] }}</div>
+                            @if ($row['serial_number'])
+                                <div class="text-muted small font-monospace">{{ $row['serial_number'] }}</div>
+                            @endif
                         </td>
                         <td class="font-monospace text-nowrap">{{ $row['oracle_asset_number'] ?: '—' }}</td>
                         <td>
@@ -169,7 +175,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-5">
+                        <td colspan="10" class="text-center text-muted py-5">
                             <i class="bi bi-arrow-left-right d-block display-5 mb-2 opacity-25"></i>
                             No asset moved between {{ \Carbon\Carbon::parse($filters['from'])->format('d M Y') }} and {{ \Carbon\Carbon::parse($filters['to'])->format('d M Y') }}.
                         </td>

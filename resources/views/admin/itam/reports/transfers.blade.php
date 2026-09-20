@@ -56,6 +56,7 @@
                     <tr>
                         <th>Date</th>
                         <th>Type</th>
+                        <th>Asset code</th>
                         <th>Asset</th>
                         <th>From</th>
                         <th>To</th>
@@ -93,10 +94,14 @@
                                     <span class="badge bg-info"><i class="bi bi-box-seam me-1"></i>To Storage</span>
                                 @endif
                             </td>
-                            <td>
-                                <code>{{ $e->device?->asset_code ?? '—' }}</code>
-                                <span class="text-muted small">{{ $e->device?->name }}</span>
+                            <td class="text-nowrap">
+                                @if($e->device)
+                                    <a href="{{ route('admin.devices.show', $e->device) }}" class="text-decoration-none"><code>{{ $e->device->asset_code ?? '—' }}</code></a>
+                                @else
+                                    <code>—</code>
+                                @endif
                             </td>
+                            <td><span class="text-muted small">{{ $e->device?->name }}</span></td>
                             <td>
                                 {{ $fromLabel }}
                                 @if($fromNo)
@@ -118,7 +123,7 @@
                             <td>{{ $e->user?->name ?? '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center py-5 text-muted">No transfer history matching your filters.</td></tr>
+                        <tr><td colspan="7" class="text-center py-5 text-muted">No transfer history matching your filters.</td></tr>
                     @endforelse
                 </tbody>
             </table>
