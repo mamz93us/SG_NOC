@@ -247,6 +247,19 @@ return [
         'ai_classified_at',
         'ai_classify_error',
 
+        // Stamped on oracle_portal_settings by every Oracle Employee Portal
+        // pull — hourly for announcements, daily for people and leave. Each
+        // run already writes its own summary row saying what it did, so
+        // recording "the clock moved" as well would bury the setting changes
+        // that matter, like the key being replaced or a feed switched off.
+        'last_announcements_sync_at',
+        'last_employees_sync_at',
+        'last_vacations_sync_at',
+        'last_announcements_count',
+        'last_employees_count',
+        'last_vacation_balances_count',
+        'last_vacation_records_count',
+
         // Campaign counters, bumped by the send pipeline and the open/click and
         // SNS webhooks. Carried over from EmailMarketingActivityObserver, which
         // excluded them so a campaign's audit trail stayed about what a person

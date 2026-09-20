@@ -1171,6 +1171,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/itam', [SettingsController::class, 'updateItam'])->name('settings.itam');
         Route::post('settings/ticketing', [SettingsController::class, 'updateTicketing'])->name('settings.ticketing');
         Route::post('settings/noc-ticketing', [SettingsController::class, 'updateNocTicketing'])->name('settings.noc-ticketing');
+        Route::post('settings/oracle-portal', [SettingsController::class, 'updateOraclePortal'])->name('settings.oracle-portal');
         Route::post('settings/home-portal', [SettingsController::class, 'updateHomePortal'])->name('settings.home-portal');
 
         // ── Security Awareness (KnowBe4) ──────────────────────────
@@ -1270,6 +1271,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::middleware('permission:manage-vacations')->group(function () {
                 Route::get('import', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'index'])->name('imports.index');
                 Route::post('import', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'store'])->name('imports.store');
+                Route::post('import/pull', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'pull'])->name('imports.pull');
                 Route::post('people/{vacationEmployee}/link', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'link'])->name('people.link');
                 Route::post('people/{vacationEmployee}/no-employee', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'noEmployee'])->name('people.no-employee');
                 Route::post('people/{vacationEmployee}/reset', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'reset'])->name('people.reset');
@@ -1289,6 +1291,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'index'])->name('announcements.index');
             Route::get('announcements/create', [\App\Http\Controllers\Admin\AnnouncementController::class, 'create'])->name('announcements.create');
             Route::post('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'store'])->name('announcements.store');
+            Route::post('announcements/pull', [\App\Http\Controllers\Admin\AnnouncementController::class, 'pull'])->name('announcements.pull');
             Route::get('announcements/{announcement}/edit', [\App\Http\Controllers\Admin\AnnouncementController::class, 'edit'])->name('announcements.edit');
             Route::put('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'update'])->name('announcements.update');
             Route::delete('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
@@ -1825,6 +1828,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/linked-accounts/merge', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'merge'])->name('linked-accounts.merge');
         Route::delete('/linked-accounts/{employee}', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'destroy'])->name('linked-accounts.destroy');
         Route::post('/hr-import', [OracleHrImportController::class, 'upload'])->name('hr-import.upload');
+        // Oracle's Employee Portal API, and the two decisions it can only suggest.
+        Route::post('/hr-import/pull', [OracleHrImportController::class, 'pull'])->name('hr-import.pull');
+        Route::post('/hr-import/leavers/{employee}/terminate', [OracleHrImportController::class, 'terminateLeaver'])->name('hr-import.leaver.terminate');
+        Route::post('/hr-import/leavers/{employee}/ignore', [OracleHrImportController::class, 'ignoreLeaver'])->name('hr-import.leaver.ignore');
         Route::post('/hr-import/{batch}/apply', [OracleHrImportController::class, 'apply'])->name('hr-import.apply');
         Route::post('/hr-import/{batch}/service-employees', [OracleHrImportController::class, 'createServiceEmployees'])->name('hr-import.service-employees');
         Route::post('/hr-import/rows/{row}/resolve', [OracleHrImportController::class, 'resolveRow'])->name('hr-import.resolve-row');

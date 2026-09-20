@@ -56,8 +56,14 @@
                             <span class="ann-date">{{ $ann->published_at->locale(app()->getLocale())->translatedFormat('j M Y') }}</span>
                         @endif
                     </div>
-                    <h3>{{ $ann->title }}</h3>
-                    <p>{{ $ann->excerpt(220) }}</p>
+                    <h3 @class(['ann-title-only' => blank($ann->body)])>{{ $ann->title }}</h3>
+                    {{-- Announcements copied from Oracle carry a title and its
+                         dates only: their text lives in a picture we cannot
+                         fetch. Rendering an empty paragraph leaves a gap that
+                         reads as a broken slide. --}}
+                    @if(filled($ann->body))
+                        <p>{{ $ann->excerpt(220) }}</p>
+                    @endif
                     @if($ann->link_url)
                         <a class="ann-link" href="{{ $ann->link_url }}" target="_blank" rel="noopener noreferrer">
                             {{ $ann->link_label ?: __('home_index.announcements.read_more') }} &rarr;

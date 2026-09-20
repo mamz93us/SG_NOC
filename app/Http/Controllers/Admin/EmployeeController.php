@@ -353,6 +353,9 @@ class EmployeeController extends Controller
             'oracle_emp_no' => 'nullable|string|max:50',
             'oracle_department' => 'nullable|string|max:255',
             'oracle_dept_no' => 'nullable|string|max:50',
+            // Typed here until Oracle carries one, at which point the Employee
+            // Portal sync overwrites it. Empty in Oracle for everyone today.
+            'name_ar' => 'nullable|string|max:255',
             'manager' => 'nullable|string|max:255',
             'supervisor' => 'nullable|string|max:255',
         ];
@@ -371,7 +374,7 @@ class EmployeeController extends Controller
      */
     private function hrFields(array $validated, ?Employee $employee = null): array
     {
-        foreach (['oracle_emp_no', 'oracle_department', 'oracle_dept_no'] as $field) {
+        foreach (['oracle_emp_no', 'oracle_department', 'oracle_dept_no', 'name_ar'] as $field) {
             if (array_key_exists($field, $validated)) {
                 $value = trim((string) $validated[$field]);
                 $validated[$field] = $value === '' ? null : $value;

@@ -233,6 +233,9 @@
   .ann-date{ font-size:12px; color:rgba(255,255,255,.6); }
   .ann-slide h3{ font-size:19px; font-weight:700; line-height:1.3; }
   .ann-slide p{ font-size:13.5px; line-height:1.55; color:rgba(255,255,255,.78); max-width:78ch; }
+  /* A notice with no text of its own — Oracle's carry a title and dates only.
+     The title carries the slide instead of sitting above an empty gap. */
+  .ann-slide h3.ann-title-only{ font-size:22px; line-height:1.35; max-width:60ch; }
   .ann-slide a.ann-link{
     align-self:flex-start;
     margin-top:2px;

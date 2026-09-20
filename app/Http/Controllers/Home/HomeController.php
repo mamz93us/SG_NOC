@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Home;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\SetHomePortalLocale;
 use App\Models\AiSetting;
 use App\Models\Announcement;
 use App\Models\AnnouncementRead;
@@ -12,10 +13,10 @@ use App\Models\Knowbe4Score;
 use App\Models\Setting;
 use App\Services\EmployeeCard\SamsungWalletService;
 use App\Services\EmployeeCard\WalletPassService;
-use App\Http\Middleware\SetHomePortalLocale;
 use App\Services\Home\CoreSystems;
 use App\Services\Home\Greeter;
 use App\Services\Ticketing\TicketRequestService;
+use App\Support\AnnouncementCache;
 use App\Support\HomePortal;
 use App\Support\VCard;
 use Illuminate\Http\RedirectResponse;
@@ -310,16 +311,12 @@ class HomeController extends Controller
      */
     private function announcements(?Employee $employee)
     {
-        $key = sprintf(
-            'home.announcements.%s.%s',
-            $employee?->branch_id ?? 'nb',
-            $employee?->department_id ?? 'nd'
-        );
+        $key = AnnouncementCache::key($employee?->branch_id, $employee?->department_id);
 
         try {
             return Cache::remember(
                 $key,
-                now()->addMinutes(5),
+                now()->addMinutes(AnnouncementCache::TTL_MINUTES),
                 fn () => Announcement::liveFor($employee)->limit(12)->get()
             );
         } catch (\Throwable) {
