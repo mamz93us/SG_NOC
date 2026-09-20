@@ -192,7 +192,7 @@ class EmployeeController extends Controller
         $unlinkedIntune = collect();
         $needsIntuneLink = $openAssets->contains(fn ($a) => in_array($a->device?->type, ['laptop', 'desktop'], true)
             && ! in_array($a->device->status, ['retired', 'scrapped'], true)
-            && $a->device->azureDevice?->link_status !== 'linked');
+            && ! ($a->device->azureDevice?->isInIntune() ?? false));
 
         if ($needsIntuneLink && auth()->user()?->can('manage-itam')) {
             $candidates = app(\App\Services\Itam\Oracle\IntuneCandidates::class);

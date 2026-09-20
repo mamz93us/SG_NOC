@@ -59,7 +59,7 @@ class OracleLinkOptions
                 ->orWhereHas('device', fn (Builder $d) => $d
                     ->where('source', 'oracle')
                     ->whereNotIn('status', ['retired', 'scrapped'])
-                    ->whereDoesntHave('azureDevice', fn (Builder $a) => $a->where('link_status', 'linked'))))
+                    ->whereDoesntHave('azureDevice', fn (Builder $a) => $a->inIntune())))
             ->with('device:id,asset_code,name,source,status')
             ->get();
 

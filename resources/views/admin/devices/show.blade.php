@@ -76,11 +76,17 @@
 {{-- ── Not in Intune ── --}}
 @if(in_array($device->type, ['laptop', 'desktop'], true)
     && ! in_array($device->status, ['retired', 'scrapped'], true)
-    && $device->azureDevice?->link_status !== 'linked')
+    && ! ($device->azureDevice?->isInIntune() ?? false))
 <div class="alert alert-warning d-flex align-items-center justify-content-between gap-3 py-2 mb-3">
     <div class="small">
         <i class="bi bi-exclamation-triangle me-1"></i>
-        <strong>Not in Intune.</strong> Every laptop and desktop has to be linked to its Intune device — link it, or retire or scrap it if it is gone.
+        <strong>Not in Intune.</strong>
+        @if($device->azureDevice?->microsoftStateLabel())
+            {{ $device->azureDevice->microsoftStateLabel() }} — it was {{ $device->azureDevice->display_name }}.
+            Link it to its new Intune device, or retire or scrap it.
+        @else
+            Every laptop and desktop has to be linked to its Intune device — link it, or retire or scrap it if it is gone.
+        @endif
     </div>
     @can('manage-itam')
     <button type="button" class="btn btn-sm btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#intuneLinkModal"
@@ -454,6 +460,16 @@
                             <span class="badge bg-{{ $az->link_status === 'linked' ? 'success' : ($az->link_status === 'pending' ? 'warning text-dark' : 'secondary') }}">
                                 {{ ucfirst($az->link_status) }}
                             </span>
+                        </td></tr>
+                    <tr><th class="text-muted ps-3">In Microsoft</th>
+                        <td>
+                            @if($az->isInIntune())
+                                <span class="badge bg-success">Managed by Intune</span>
+                            @else
+                                {{-- The row is kept when Microsoft drops the device: it is the
+                                     only record of what this asset was enrolled as. --}}
+                                <span class="badge bg-secondary">{{ $az->microsoftStateLabel() ?? 'Not linked' }}</span>
+                            @endif
                         </td></tr>
                 </table>
             </div>

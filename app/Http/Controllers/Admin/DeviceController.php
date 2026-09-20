@@ -192,7 +192,7 @@ class DeviceController extends Controller
 
         if (in_array($device->type, ['laptop', 'desktop'], true)
             && ! in_array($device->status, ['retired', 'scrapped'], true)
-            && $device->azureDevice?->link_status !== 'linked'
+            && ! ($device->azureDevice?->isInIntune() ?? false)
             && auth()->user()?->can('manage-itam')) {
             $candidates = app(\App\Services\Itam\Oracle\IntuneCandidates::class);
             $holder = $device->currentAssignment?->employee;
@@ -748,7 +748,20 @@ class DeviceController extends Controller
             'notes' => $data['notes'] ?? null,
         ]);
         $device->update(['status' => 'available']);
-        AssetHistory::record($device, 'returned', "Returned from employee {$assignment->employee?->name}");
+        AssetHistory::record(
+            $device,
+            'returned',
+            "Returned from employee {$assignment->employee?->name}",
+            // The same keys an offboarding return writes, so the movements report
+            // reads a hand-back the same way whichever page made it.
+            array_filter([
+                'returned_on' => $data['returned_date'],
+                'from_employee_id' => $assignment->employee?->id,
+                'from_employee' => $assignment->employee?->name,
+                'from_employee_no' => $assignment->employee?->oracle_emp_no,
+                'condition' => $data['condition'],
+            ])
+        );
 
         return back()->with('success', 'Device returned successfully.');
     }

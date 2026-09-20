@@ -1089,7 +1089,7 @@
                             @php
                                 $dev = $a->device;
                                 $isComputer = in_array($dev?->type, ['laptop', 'desktop'], true);
-                                $intuneLink = $dev?->azureDevice && $dev->azureDevice->link_status === 'linked' ? $dev->azureDevice : null;
+                                $intuneLink = $dev?->azureDevice?->isInIntune() ? $dev->azureDevice : null;
                                 $inService = $dev && ! in_array($dev->status, ['retired', 'scrapped'], true);
                                 $scrapId = $dev ? ($pendingScrap[$dev->id] ?? null) : null;
                                 $assetLabel = $dev ? trim(($dev->asset_code ? $dev->asset_code.' · ' : '').$dev->name) : '';

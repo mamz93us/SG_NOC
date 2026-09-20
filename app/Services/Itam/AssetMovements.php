@@ -27,6 +27,7 @@ class AssetMovements
 {
     public const KINDS = [
         'transfer' => 'Transfer',
+        'return' => 'Returned to IT',
         'store' => 'To or from a store',
         'retire' => 'Retired',
         'scrap' => 'Scrapped',
@@ -34,6 +35,9 @@ class AssetMovements
 
     private const EVENTS = [
         'transferred' => 'transfer',
+        // A hand-back is a custody change finance sees on the same list — and
+        // offboarding is where most of them happen.
+        'returned' => 'return',
         'moved_to_storage' => 'store',
         'retired' => 'retire',
         'scrapped' => 'scrap',
@@ -207,7 +211,7 @@ class AssetMovements
         }
 
         $reasonCode = $meta['reason_code'] ?? null;
-        $effective = $meta['retired_on'] ?? $meta['transfer_date'] ?? null;
+        $effective = $meta['retired_on'] ?? $meta['transfer_date'] ?? $meta['returned_on'] ?? null;
 
         return [
             'id' => $event->id,

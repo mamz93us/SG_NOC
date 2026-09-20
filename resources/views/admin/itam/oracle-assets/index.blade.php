@@ -199,7 +199,7 @@
                 @forelse ($units as $unit)
                     @php
                         $device = $unit->device;
-                        $intune = $device?->azureDevice && $device->azureDevice->link_status === 'linked' ? $device->azureDevice : null;
+                        $intune = $device?->azureDevice?->isInIntune() ? $device->azureDevice : null;
                         $inService = $device && ! in_array($device->status, ['retired', 'scrapped'], true);
                         $scrapRequest = $device ? ($pendingScrap[$device->id] ?? null) : null;
                         $assetLabel = $device ? trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) : 'Oracle asset '.$unit->asset_number;

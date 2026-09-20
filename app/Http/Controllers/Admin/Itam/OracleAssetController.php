@@ -253,7 +253,9 @@ class OracleAssetController extends Controller
     private function applyState(Builder $query, string $state): void
     {
         $inService = fn (Builder $q) => $q->whereNotIn('status', ['retired', 'scrapped']);
-        $linked = fn (Builder $q) => $q->where('link_status', 'linked');
+        // Linked *and* still in Intune: a device deleted from Intune leaves its
+        // Entra object behind, so link_status alone kept calling it enrolled.
+        $linked = fn (Builder $q) => $q->inIntune();
 
         match ($state) {
             'removed' => $query->whereNotNull('removed_at'),

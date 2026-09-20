@@ -134,7 +134,7 @@
                             @endif
                         </td>
                         <td class="text-nowrap">
-                            <span class="badge {{ ['transfer' => 'bg-primary', 'store' => 'bg-info text-dark', 'retire' => 'bg-secondary', 'scrap' => 'bg-danger'][$row['kind']] ?? 'bg-light text-dark' }}">{{ $row['kind_label'] }}</span>
+                            <span class="badge {{ ['transfer' => 'bg-primary', 'return' => 'bg-success', 'store' => 'bg-info text-dark', 'retire' => 'bg-secondary', 'scrap' => 'bg-danger'][$row['kind']] ?? 'bg-light text-dark' }}">{{ $row['kind_label'] }}</span>
                             @if ($row['workflow_id'])
                                 <a href="{{ route('admin.itam.scrap.show', $row['workflow_id']) }}" class="d-block text-muted">request #{{ $row['workflow_id'] }}</a>
                             @endif

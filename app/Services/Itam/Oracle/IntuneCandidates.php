@@ -195,7 +195,9 @@ class IntuneCandidates
     /** @param  Collection<int, AzureDevice>  $intunes */
     private function bestIntune(Collection $intunes): ?AzureDevice
     {
-        return $intunes->firstWhere('link_status', 'linked') ?? $intunes->first();
+        return $intunes->first(fn (AzureDevice $i) => $i->isInIntune())
+            ?? $intunes->firstWhere('link_status', 'linked')
+            ?? $intunes->first();
     }
 
     private function label(?Device $device, ?AzureDevice $intune): string

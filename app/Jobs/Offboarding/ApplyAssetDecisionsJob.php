@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Offboarding;
 
+use App\Models\AssetHistory;
 use App\Models\Employee;
 use App\Models\EmployeeAsset;
 use App\Models\OffboardingWorkflow;
@@ -11,7 +12,18 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Str;
 
+/**
+ * What happens to a leaver's assets: handed to someone named on the offboarding
+ * form, or returned to IT.
+ *
+ * Both write the asset's own history as well as closing the assignment. Without
+ * that, an offboarding hand-back appeared nowhere on the device's History tab
+ * and nowhere on the Asset Movements report finance works from, while the very
+ * same move made from the employee page did — so a leaver's twelve laptops
+ * could come back with no trace a reader of either page would find.
+ */
 class ApplyAssetDecisionsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
@@ -49,7 +61,11 @@ class ApplyAssetDecisionsJob implements ShouldQueue
                 return;
             }
 
+            // One handover group for the batch, the same shape the transfer page
+            // writes — so the slip at itam/transfer/{group}/print prints this one too.
+            $group = (string) Str::uuid();
             $transferred = 0;
+
             foreach ($assets as $a) {
                 $a->update([
                     'returned_date' => $today,
@@ -61,6 +77,29 @@ class ApplyAssetDecisionsJob implements ShouldQueue
                     'assigned_date'  => $today,
                     'notes'          => "Transferred from {$sourceName} via offboarding #{$ow->id}.",
                 ]);
+
+                if ($a->device) {
+                    AssetHistory::record(
+                        $a->device,
+                        'transferred',
+                        "Transferred from {$sourceName} to {$target->name} via offboarding #{$ow->id}.",
+                        [
+                            'transfer_group_id' => $group,
+                            'transfer_date'     => $today,
+                            'source_type'       => 'employee',
+                            'target_type'       => 'employee',
+                            'from_employee_id'  => $ow->employee->id,
+                            'from_employee'     => $sourceName,
+                            'from_employee_no'  => $ow->employee->oracle_emp_no,
+                            'to_employee_id'    => $target->id,
+                            'to_employee'       => $target->name,
+                            'to_employee_no'    => $target->oracle_emp_no,
+                            'branch_id'         => $target->branch_id,
+                            'offboarding_id'    => $ow->id,
+                        ]
+                    );
+                }
+
                 $transferred++;
             }
 
@@ -81,6 +120,22 @@ class ApplyAssetDecisionsJob implements ShouldQueue
                 'returned_date' => $today,
                 'notes'         => "Returned to IT inventory via offboarding #{$ow->id}.",
             ]);
+
+            if ($a->device) {
+                AssetHistory::record(
+                    $a->device,
+                    'returned',
+                    "Returned to IT inventory from {$sourceName} via offboarding #{$ow->id}.",
+                    [
+                        'returned_on'      => $today,
+                        'from_employee_id' => $ow->employee?->id,
+                        'from_employee'    => $sourceName,
+                        'from_employee_no' => $ow->employee?->oracle_emp_no,
+                        'offboarding_id'   => $ow->id,
+                    ]
+                );
+            }
+
             $count++;
         }
         $engine->logEvent($ow->workflow, 'success',
