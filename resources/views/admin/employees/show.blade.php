@@ -891,7 +891,6 @@
                     </div>
                     @else
                     @php
-                        $canRetireAssets = auth()->user()->can('manage-assets');
                         $canScrapAssets = auth()->user()->can('request-scrap');
                         $canLinkIntune = auth()->user()->can('manage-itam');
                     @endphp
@@ -988,20 +987,14 @@
                                                 data-bs-target="#returnAssetModal{{ $a->id }}">Return</button>
                                         @endcan
                                         @if($inService && ! $scrapId)
+                                            {{-- Transfer sits where Retire used to: handing an asset on is the everyday
+                                                 action here. Retiring one is still on its own page and on the register. --}}
                                             @can('manage-itam')
                                             <button type="button" class="btn btn-outline-primary" title="Hand it to another employee"
                                                     data-bs-toggle="modal" data-bs-target="#transferAssetModal"
                                                     data-action="{{ route('admin.itam.transfer.device', $dev) }}"
                                                     data-asset="{{ $assetLabel }}" data-holder="{{ $employee->name }}" data-holder-id="{{ $employee->id }}">Transfer</button>
                                             @endcan
-                                        @endif
-                                        @if($inService && ! $scrapId)
-                                            @if($canRetireAssets)
-                                            <button type="button" class="btn btn-outline-dark" title="Out of service for good, without the scrap approval"
-                                                    data-bs-toggle="modal" data-bs-target="#retireAssetModal"
-                                                    data-action="{{ route('admin.devices.retire', $dev) }}"
-                                                    data-asset="{{ $assetLabel }}" data-holder="{{ $employee->name }}">Retire</button>
-                                            @endif
                                             @if($canScrapAssets)
                                             <button type="button" class="btn btn-outline-danger" title="Request scrap: IT manager, then super admin approve"
                                                     data-bs-toggle="modal" data-bs-target="#scrapAssetModal"
@@ -1476,10 +1469,7 @@
 
 @endcan
 
-{{-- ── Retire / scrap / link to Intune (IT Assets tab) ── --}}
-@can('manage-assets')
-@include('admin.itam.oracle-assets._retire-modal')
-@endcan
+{{-- ── Transfer / scrap / link to Intune (IT Assets tab). Retiring an asset is on its own page. ── --}}
 @can('request-scrap')
 @include('admin.itam.oracle-assets._scrap-modal')
 @endcan
