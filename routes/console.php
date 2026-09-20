@@ -799,13 +799,24 @@ Schedule::command('intune:sync-net-data')
 
 // ─── Ad-hoc Queue Drainer — every minute ─────────────────────────────────
 // This NOC runs NO long-lived queue worker (scheduler-as-worker model).
-// A handful of admin buttons still dispatch ShouldQueue jobs onto the
-// `default` DB queue — Intune HW sync (SyncIntuneHwDataJob, 30-min timeout),
-// GDMS device-account sync (SyncGdmsDeviceAccountsJob), SSL issuance
-// (IssueSslCertificateJob). Without a drainer those rows sit in `jobs`
-// forever ("queued… never runs"). This short-lived worker empties the queue
-// each minute and exits; withoutOverlapping(60) safely spans the longest job.
-Schedule::command('queue:work --stop-when-empty --max-time=280 --tries=1 --sleep=1')
+// A handful of admin buttons still dispatch ShouldQueue jobs — Intune HW sync
+// (SyncIntuneHwDataJob, 30-min timeout), GDMS device-account sync
+// (SyncGdmsDeviceAccountsJob), SSL issuance (IssueSslCertificateJob), the
+// offboarding chain, outbound emails and the AvePoint exports. Without a
+// drainer those rows sit in `jobs` forever ("queued… never runs").
+//
+// **Every queue the app dispatches onto must be listed here.** `queue:work`
+// with no --queue drains `default` only, so for a year everything the
+// offboarding chain, the mailers and AvePoint queued was written to `jobs` and
+// never read: RemoveIntuneDevicesJob ships on `offboarding`, so no leaver's
+// laptop was ever unenrolled from Intune, and nothing reported a failure
+// because the job had not run at all. ScheduledQueueDrainerTest reads the
+// onQueue() calls out of app/ and fails when one is missing from this list.
+//
+// Order is priority: the quick interactive work first, the AvePoint exports —
+// which stream whole mailboxes to Azure Blob — last, so a long export does not
+// hold up a button press. withoutOverlapping(60) spans the longest job.
+Schedule::command('queue:work --queue=default,offboarding,ucm,emails,avepoint --stop-when-empty --max-time=280 --tries=1 --sleep=1')
     ->everyMinute()
     ->withoutOverlapping(60)
     ->runInBackground()

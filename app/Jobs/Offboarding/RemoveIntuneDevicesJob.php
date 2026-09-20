@@ -16,8 +16,11 @@ use Illuminate\Queue\SerializesModels;
  * "offboarding from Defender" since the Intune→Defender connector treats the
  * device-delete as an offboard signal.
  *
- * Idempotent: re-running after partial completion just skips devices already
- * deleted (Graph returns 404 which we swallow).
+ * Idempotent: re-running after partial completion just skips devices Intune no
+ * longer holds — GraphService::deleteIntuneDevice() answers false for those,
+ * and they are counted and reported separately. Nothing is swallowed on the
+ * strength of a "404" in an error message: that is what hid a malformed Graph
+ * URL, which made every delete look like a device that was already gone.
  */
 class RemoveIntuneDevicesJob implements ShouldQueue
 {
@@ -60,6 +63,7 @@ class RemoveIntuneDevicesJob implements ShouldQueue
         }
 
         $deleted = 0;
+        $alreadyGone = 0;
         $failed  = 0;
         foreach ($devices as $d) {
             $id   = $d['id'] ?? null;
@@ -67,15 +71,16 @@ class RemoveIntuneDevicesJob implements ShouldQueue
             if (! $id) continue;
 
             try {
-                $graph->deleteIntuneDevice($id);
-                $deleted++;
-                $engine->logEvent($ow->workflow, 'success',
-                    "Intune device deleted: {$name}");
-            } catch (\Throwable $e) {
-                if (str_contains($e->getMessage(), '404')) {
-                    // Already gone — fine.
-                    continue;
+                if ($graph->deleteIntuneDevice($id)) {
+                    $deleted++;
+                    $engine->logEvent($ow->workflow, 'success',
+                        "Intune device deleted: {$name}");
+                } else {
+                    $alreadyGone++;
+                    $engine->logEvent($ow->workflow, 'info',
+                        "Intune no longer holds {$name} — nothing to delete.");
                 }
+            } catch (\Throwable $e) {
                 $failed++;
                 $engine->logEvent($ow->workflow, 'warning',
                     "Intune delete failed for {$name}: {$e->getMessage()}");
@@ -83,6 +88,6 @@ class RemoveIntuneDevicesJob implements ShouldQueue
         }
 
         $engine->logEvent($ow->workflow, 'info',
-            "Intune device cleanup complete — deleted={$deleted}, failed={$failed}.");
+            "Intune device cleanup complete — deleted={$deleted}, already gone={$alreadyGone}, failed={$failed}.");
     }
 }

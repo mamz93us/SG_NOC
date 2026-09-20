@@ -151,7 +151,7 @@ class GraphService
     private function patch(string $endpoint, array $data, int $timeout = self::TIMEOUT_STANDARD): void
     {
         $token = $this->getAccessToken();
-        $url = $this->baseUrl.$endpoint;
+        $url = $this->graphUrl($endpoint);
         $response = Http::timeout($timeout)->withToken($token)->patch($url, $data);
 
         if ($response->status() === 401 || $response->status() === 403) {
@@ -180,10 +180,16 @@ class GraphService
         }
     }
 
-    private function delete(string $endpoint, int $timeout = self::TIMEOUT_STANDARD): void
+    /**
+     * @param  bool  $missingIsGone  Answer false on 404 instead of throwing, for
+     *                               a caller deleting something that may already
+     *                               be deleted. Everything else still throws.
+     * @return bool True when Graph accepted the delete.
+     */
+    private function delete(string $endpoint, int $timeout = self::TIMEOUT_STANDARD, bool $missingIsGone = false): bool
     {
         $token = $this->getAccessToken();
-        $url = $this->baseUrl.$endpoint;
+        $url = $this->graphUrl($endpoint);
         $response = Http::timeout($timeout)->withToken($token)->delete($url);
 
         if ($response->status() === 401 || $response->status() === 403) {
@@ -191,9 +197,40 @@ class GraphService
             $response = Http::timeout($timeout)->withToken($token)->delete($url);
         }
 
-        if (! $response->successful()) {
-            throw new \RuntimeException("Graph DELETE {$endpoint} failed ({$response->status()}): ".$response->body());
+        if ($missingIsGone && $response->status() === 404) {
+            return false;
         }
+
+        if (! $response->successful()) {
+            // The URL, not the endpoint as passed: a wrong URL is the failure
+            // this message has to be able to show.
+            throw new \RuntimeException("Graph DELETE {$url} failed ({$response->status()}): ".$response->body());
+        }
+
+        return true;
+    }
+
+    /**
+     * An endpoint is either a path under v1.0 or a whole URL the caller built
+     * from betaUrl, which is where Intune lives.
+     *
+     * `get()` and `post()` have always made that test; `delete()` and `patch()`
+     * pasted baseUrl in front whatever they were given, so deleteIntuneDevice()
+     * asked for `https://graph.microsoft.com/v1.0https://graph.microsoft.com/beta/…`.
+     * Graph answers that 404, and the offboarding job read a 404 as "the device
+     * is already gone" — so no laptop was ever unenrolled, and the run said it
+     * had finished cleanly. A URL outside Graph is refused rather than called,
+     * so the next such mistake cannot be mistaken for an ordinary 404 either.
+     */
+    private function graphUrl(string $endpoint): string
+    {
+        $url = str_starts_with($endpoint, 'http') ? $endpoint : $this->baseUrl.$endpoint;
+
+        if (! str_starts_with($url, $this->baseUrl.'/') && ! str_starts_with($url, $this->betaUrl.'/')) {
+            throw new \InvalidArgumentException("Not a Microsoft Graph URL: {$url}");
+        }
+
+        return $url;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -1552,9 +1589,17 @@ class GraphService
      * Delete (offboard) a managed device from Intune. This is the "Defender
      * removal" path the user picked — Intune unenroll cascades to Defender
      * for Endpoint via the EM connector.
+     *
+     * @return bool True when Intune deleted it, false when Intune no longer
+     *              held it. The caller counts the two apart rather than reading
+     *              "404" out of an exception message, which is what let a
+     *              misrouted call pass for a device that was already gone.
      */
-    public function deleteIntuneDevice(string $managedDeviceId): void
+    public function deleteIntuneDevice(string $managedDeviceId): bool
     {
-        $this->delete($this->betaUrl."/deviceManagement/managedDevices/{$managedDeviceId}");
+        return $this->delete(
+            $this->betaUrl."/deviceManagement/managedDevices/{$managedDeviceId}",
+            missingIsGone: true
+        );
     }
 }
