@@ -2569,6 +2569,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');
         Route::put('employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
         Route::post('employees/{employee}/link-contact', [EmployeeController::class, 'linkContact'])->name('employees.link-contact');
+        // Giving a service employee the mailbox they turn out to have: the
+        // Oracle HR import always creates them with email = null, and nothing
+        // else could connect them to one afterwards.
+        Route::get('employees/{employee}/mailbox-candidates', [\App\Http\Controllers\Admin\ServiceEmployeeMailboxController::class, 'candidates'])->name('employees.mailbox.candidates');
+        Route::post('employees/{employee}/mailbox', [\App\Http\Controllers\Admin\ServiceEmployeeMailboxController::class, 'store'])->name('employees.mailbox.store');
         Route::delete('employees/{employee}/unlink-contact', [EmployeeController::class, 'unlinkContact'])->name('employees.unlink-contact');
         Route::patch('employees/{employee}/extension', [EmployeeController::class, 'updateExtension'])->name('employees.update-extension');
         // Signature roles — managed independently of the main profile save (own save/remove).

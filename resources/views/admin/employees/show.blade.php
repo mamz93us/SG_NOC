@@ -80,8 +80,20 @@
                     <span class="badge bg-secondary px-3 py-1">Service</span>
                     <div class="text-muted small mt-2">
                         No mailbox and no Entra account — HR data and attendance only.
-                        Add an email address if that changes.
                     </div>
+                    @can('manage-employees')
+                        @if($canLinkMailbox)
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2"
+                                    data-bs-toggle="modal" data-bs-target="#linkMailboxModal">
+                                <i class="bi bi-envelope-at me-1"></i>Link a mailbox
+                            </button>
+                            <div class="text-muted mt-1" style="font-size:.75rem">
+                                If they do have a company email now.
+                            </div>
+                        @elseif($mailboxProblem)
+                            <div class="text-muted small mt-2">{{ $mailboxProblem }}</div>
+                        @endif
+                    @endcan
                 @endif
             </div>
         </div>
@@ -531,6 +543,147 @@
                 </form>
             </div>
         </div>
+
+        {{--
+            Giving a service employee the mailbox they turn out to have.
+
+            One list, two kinds. A Microsoft account nobody holds is a link: the
+            address and the account id go onto this record. Another employee
+            record holding the address means the person is in the NOC twice,
+            which is a merge — one of the two records goes away — so it is
+            labelled and confirmed separately rather than presented as the same
+            button.
+
+            The script is inline rather than in @push because a pushed block can
+            render after markup that depends on it, and a dead popup is the
+            failure that produces.
+        --}}
+        @can('manage-employees')
+        @if($employee->isService() && $canLinkMailbox)
+        <div class="modal fade" id="linkMailboxModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-envelope-at me-1"></i>Link a mailbox to {{ $employee->name }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted">
+                            The Oracle HR import never puts an address on a service employee, because the one in
+                            Oracle's email column is usually their manager's. Pick the mailbox that really is theirs.
+                        </p>
+
+                        <input type="search" id="mailboxSearch" class="form-control form-control-sm mb-3"
+                               placeholder="Search by name or address" autocomplete="off">
+
+                        <div id="mailboxResults" class="list-group list-group-flush small">
+                            <div class="text-muted py-3">Loading…</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <form method="POST" id="linkMailboxForm" action="{{ route('admin.employees.mailbox.store', $employee) }}" class="d-none">
+            @csrf
+            <input type="hidden" name="kind" id="linkMailboxKind">
+            <input type="hidden" name="ref" id="linkMailboxRef">
+        </form>
+
+        <script>
+        (function () {
+            const url = @json(route('admin.employees.mailbox.candidates', $employee));
+            const results = document.getElementById('mailboxResults');
+            const search = document.getElementById('mailboxSearch');
+            const form = document.getElementById('linkMailboxForm');
+            const personName = @json($employee->name);
+            let timer = null;
+
+            function escape(value) {
+                const div = document.createElement('div');
+                div.textContent = value == null ? '' : String(value);
+                return div.innerHTML;
+            }
+
+            function choose(kind, ref, label) {
+                const message = kind === 'employee'
+                    ? 'Merge ' + personName + ' with the existing record for ' + label + '?\n\n'
+                        + 'They are the same person held twice, so one of the two records goes away and '
+                        + 'everything pointing at it — assets, punches, leave — moves across. This cannot be undone '
+                        + 'from here.'
+                    : 'Give ' + personName + ' the mailbox ' + label + '?\n\n'
+                        + 'They will count as a standard employee from then on.';
+
+                if (!confirm(message)) return;
+
+                document.getElementById('linkMailboxKind').value = kind;
+                document.getElementById('linkMailboxRef').value = ref;
+                form.submit();
+            }
+
+            function render(payload) {
+                if (payload.problem) {
+                    results.innerHTML = '<div class="text-muted py-3">' + escape(payload.problem) + '</div>';
+                    return;
+                }
+                if (!payload.candidates || payload.candidates.length === 0) {
+                    results.innerHTML = '<div class="text-muted py-3">'
+                        + 'No mailbox matches that. Most service employees genuinely have none — try searching for '
+                        + 'the address itself.</div>';
+                    return;
+                }
+
+                results.innerHTML = payload.candidates.map(function (c) {
+                    const isMerge = c.kind === 'employee';
+                    return '<div class="list-group-item d-flex align-items-center gap-2 px-0">'
+                        + '<div class="flex-grow-1">'
+                        + '<div class="fw-semibold">' + escape(c.name)
+                        + (c.suggested ? ' <span class="badge bg-success-subtle text-success-emphasis border fw-normal">same name</span>' : '')
+                        + '</div>'
+                        + '<div class="text-muted">' + escape(c.email) + '</div>'
+                        + (c.note ? '<div class="text-body-tertiary" style="font-size:.75rem">' + escape(c.note) + '</div>' : '')
+                        + '</div>'
+                        + '<span class="badge ' + (isMerge ? 'bg-warning-subtle text-warning-emphasis' : 'bg-light text-secondary') + ' border fw-normal">'
+                        + (isMerge ? 'Employee record' : 'Microsoft account') + '</span>'
+                        + '<button type="button" class="btn btn-sm ' + (isMerge ? 'btn-outline-warning' : 'btn-outline-primary') + '"'
+                        + ' data-kind="' + escape(c.kind) + '" data-ref="' + escape(c.ref) + '" data-label="' + escape(c.email) + '">'
+                        + (isMerge ? 'Merge' : 'Link') + '</button>'
+                        + '</div>';
+                }).join('');
+
+                results.querySelectorAll('button[data-kind]').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        choose(button.dataset.kind, button.dataset.ref, button.dataset.label);
+                    });
+                });
+            }
+
+            function load() {
+                const q = search.value.trim();
+                results.innerHTML = '<div class="text-muted py-3">Loading…</div>';
+
+                fetch(url + (q ? ('?q=' + encodeURIComponent(q)) : ''), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(render)
+                    .catch(function () {
+                        results.innerHTML = '<div class="text-danger py-3">Could not load mailboxes.</div>';
+                    });
+            }
+
+            document.getElementById('linkMailboxModal').addEventListener('show.bs.modal', load);
+            search.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(load, 250);
+            });
+        })();
+        </script>
+        @endif
+        @endcan
 
         @push('scripts')
         <script>
