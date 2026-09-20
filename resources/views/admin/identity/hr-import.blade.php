@@ -60,7 +60,43 @@
         </form>
     </div>
 </div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent">
+        <strong><i class="bi bi-cloud-download me-1"></i>Pull from Oracle</strong>
+    </div>
+    <div class="card-body">
+        @if($portalReady)
+            <p class="small text-muted mb-3">
+                Reads Oracle's live employee view instead of an export — the same matching and the same review
+                as an upload. It also brings the Arabic name, the employee category and Oracle's person id,
+                which the spreadsheet does not carry.
+                @if($portalLastSync) <br>Last pulled {{ $portalLastSync->diffForHumans() }}. @endif
+            </p>
+            <div class="alert alert-light border small mb-3">
+                <i class="bi bi-shield-check me-1"></i>
+                The pull never terminates anybody. Oracle's assignment status is recorded against each person and
+                anyone it calls inactive is listed below for a decision. The export has no mobile number and no
+                Dept No, so the spreadsheet upload above is still needed for those.
+            </div>
+            <form method="POST" action="{{ route('admin.identity.hr-import.pull') }}">
+                @csrf
+                <button class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-arrow-repeat me-1"></i>Pull &amp; stage for review
+                </button>
+            </form>
+            <div class="form-text mt-2">This also runs on its own every night. A day Oracle has not changed creates no batch.</div>
+        @else
+            <p class="small text-muted mb-0">
+                Pulling employees from Oracle is switched off or unconfigured — see
+                <a href="{{ route('admin.settings.index') }}#oracle-portal">Admin &rarr; Settings</a>.
+            </p>
+        @endif
+    </div>
+</div>
 @endcan
+
+@include('admin.identity._oracle-leavers')
 
 <div class="card shadow-sm border-0">
     <div class="card-header bg-transparent"><strong><i class="bi bi-clock-history me-1"></i>Recent Imports</strong></div>

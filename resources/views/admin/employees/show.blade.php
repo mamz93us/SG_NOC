@@ -98,8 +98,33 @@
             </div>
             <div class="card-body small">
                 <dl class="row mb-0">
+                    @if($employee->name_ar)
+                    <dt class="col-5 text-muted">Arabic Name</dt>
+                    <dd class="col-7" dir="rtl" lang="ar">{{ $employee->name_ar }}</dd>
+                    @endif
+
                     <dt class="col-5 text-muted">Email</dt>
                     <dd class="col-7">{{ $employee->email ?? '—' }}</dd>
+
+                    @if($employee->oracle_employee_category)
+                    <dt class="col-5 text-muted">Category</dt>
+                    <dd class="col-7">
+                        <span class="badge bg-light text-dark border">{{ $employee->oracle_employee_category }}</span>
+                        {{-- Oracle's job category. Not employee_type, which is about
+                             whether the person holds a mailbox. --}}
+                    </dd>
+                    @endif
+
+                    @if($employee->oracle_assignment_status === 'INACTIVE' && $employee->status !== 'terminated')
+                    <dt class="col-5 text-muted">Oracle says</dt>
+                    <dd class="col-7">
+                        <span class="badge bg-warning-subtle text-warning-emphasis border">Inactive in Oracle</span>
+                        <div class="text-muted" style="font-size:.78rem">
+                            Still employed here. Listed for a decision on
+                            <a href="{{ route('admin.identity.hr-import') }}">HR Import</a>.
+                        </div>
+                    </dd>
+                    @endif
 
                     @if($employee->job_title)
                     <dt class="col-5 text-muted">Job Title</dt>

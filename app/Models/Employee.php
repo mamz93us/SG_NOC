@@ -20,6 +20,22 @@ class Employee extends Model
      */
     public const TYPE_SERVICE = 'service';
 
+    /**
+     * Oracle's job category, from the Employee Portal's EMPLOYEE_CATEGORY.
+     *
+     * Not to be confused with `employee_type` above, however alike SERVICE and
+     * TYPE_SERVICE look: this is what somebody does, and 144 of the people in
+     * this category are field engineers who very much have mailboxes. Whether
+     * a person has one is decided by OracleHrImportService::mailboxOf(), never
+     * by their category. That is why the column is `oracle_employee_category`.
+     *
+     * @var list<string>
+     */
+    public const ORACLE_CATEGORIES = [
+        'SALES', 'SERVICE', 'OPERATION', 'ADMINISTRATORS',
+        'ENGINEER', 'COLLECTOR', 'MARKETING', 'RETAIL',
+    ];
+
     protected $fillable = [
         'azure_id',
         'employee_type',
@@ -27,9 +43,15 @@ class Employee extends Model
         'oracle_dept_no',
         'oracle_department',
         'oracle_location',
+        'oracle_employee_category',
+        'oracle_person_id',
+        'oracle_assignment_status',
+        'oracle_person_type',
+        'oracle_leaver_ignored_at',
         'mobile_phone',
         'oracle_synced_at',
         'name',
+        'name_ar',
         'gender',
         'email',
         'branch_id',
@@ -61,6 +83,7 @@ class Employee extends Model
         'azure_disabled_at' => 'datetime',
         'azure_removed_at' => 'datetime',
         'oracle_synced_at' => 'datetime',
+        'oracle_leaver_ignored_at' => 'datetime',
         'ucm_server_id' => 'integer',
     ];
 

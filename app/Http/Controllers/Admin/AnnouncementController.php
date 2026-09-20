@@ -7,10 +7,12 @@ use App\Models\ActivityLog;
 use App\Models\Announcement;
 use App\Models\Branch;
 use App\Models\Department;
+use App\Models\OraclePortal\PortalSetting;
+use App\Services\OraclePortal\AnnouncementSync;
+use App\Support\AnnouncementCache;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -31,7 +33,16 @@ class AnnouncementController extends Controller
                 ->orderByDesc('published_at')
                 ->orderByDesc('id')
                 ->paginate(25),
+            'portalReady' => $this->portalReady(),
         ]);
+    }
+
+    /** Show the Pull button only when Oracle is actually reachable and switched on. */
+    private function portalReady(): bool
+    {
+        $portal = PortalSetting::get();
+
+        return $portal->isConfigured() && $portal->sync_announcements;
     }
 
     public function create(): View
@@ -71,7 +82,7 @@ class AnnouncementController extends Controller
 
     public function update(Request $request, Announcement $announcement): RedirectResponse
     {
-        $announcement->update($this->validated($request));
+        $announcement->update($this->validated($request, $announcement));
 
         $this->audit('announcement_updated', $announcement);
         $this->flushCache();
@@ -79,6 +90,34 @@ class AnnouncementController extends Controller
         return redirect()
             ->route('admin.announcements.index')
             ->with('success', 'Announcement updated.');
+    }
+
+    /**
+     * Pull Oracle's announcements now, rather than waiting for the hourly run.
+     *
+     * 13 KB and well under a second, so it runs in the request. Edits made
+     * here are kept — the sync only refreshes a field it still owns.
+     */
+    public function pull(AnnouncementSync $sync): RedirectResponse
+    {
+        try {
+            $counts = $sync->sync(dryRun: false, userId: Auth::id());
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('admin.announcements.index')
+                ->with('error', 'Could not pull from Oracle: '.$e->getMessage());
+        }
+
+        $message = sprintf(
+            'Pulled %d announcements from Oracle: %d new, %d changed, %d unchanged, %d no longer listed.',
+            $counts['rows'], $counts['created'], $counts['updated'], $counts['unchanged'], $counts['removed'],
+        );
+
+        if ($counts['kept'] > 0) {
+            $message .= " {$counts['kept']} with edits made here were left alone.";
+        }
+
+        return redirect()->route('admin.announcements.index')->with('success', $message);
     }
 
     public function destroy(Announcement $announcement): RedirectResponse
@@ -93,12 +132,24 @@ class AnnouncementController extends Controller
             ->with('success', 'Announcement deleted.');
     }
 
-    private function validated(Request $request): array
+    /**
+     * @param  Announcement|null  $announcement  the row being edited, when there is one
+     */
+    private function validated(Request $request, ?Announcement $announcement = null): array
     {
+        // Oracle sends announcements with no text at all — its DESCRIPTION
+        // column is empty for every one of them, and the picture that carries
+        // the message cannot be fetched. Requiring a body on those would stop
+        // an admin fixing a title on the very rows most likely to need it.
+        // A notice somebody writes here still needs one.
+        $bodyRule = $announcement?->isFromOracle()
+            ? 'nullable|string|max:20000'
+            : 'required|string|max:20000';
+
         $data = $request->validate([
             'title' => 'required|string|max:200',
             'title_ar' => 'nullable|string|max:200',
-            'body' => 'required|string|max:20000',
+            'body' => $bodyRule,
             'body_ar' => 'nullable|string|max:20000',
             'link_url' => 'nullable|url|max:500',
             'link_label' => 'nullable|string|max:80',
@@ -111,6 +162,11 @@ class AnnouncementController extends Controller
         ], [
             'expires_at.after' => 'The expiry must be after the publish date.',
         ]);
+
+        // The column is NOT NULL, so a synced row saved with no body stores an
+        // empty string — which is also exactly what the sync writes, so the
+        // body goes back to being Oracle's the day Oracle has one.
+        $data['body'] = (string) ($data['body'] ?? '');
 
         $data['pinned'] = $request->boolean('pinned');
         $data['is_published'] = $request->boolean('is_published');
@@ -141,21 +197,10 @@ class AnnouncementController extends Controller
      */
     private function flushCache(): void
     {
-        try {
-            Cache::forget('home.announcements.nb.nd');
-
-            foreach (Branch::pluck('id') as $branchId) {
-                Cache::forget("home.announcements.{$branchId}.nd");
-
-                foreach (Department::pluck('id') as $deptId) {
-                    Cache::forget("home.announcements.{$branchId}.{$deptId}");
-                    Cache::forget("home.announcements.nb.{$deptId}");
-                }
-            }
-        } catch (\Throwable) {
-            // A cache store hiccup must not fail the save; entries expire in
-            // five minutes regardless.
-        }
+        // Shared with the Oracle sync, which writes the same rows from the
+        // scheduler. Note the enumeration also covers department-only keys
+        // when there are no branches, which the inline version here missed.
+        AnnouncementCache::flush();
     }
 
     private function audit(string $action, Announcement $announcement): void

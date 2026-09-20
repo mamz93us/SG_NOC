@@ -9,6 +9,8 @@ use App\Models\Employee;
 use App\Models\HrImportBatch;
 use App\Models\HrImportRow;
 use App\Models\IdentityUser;
+use App\Services\OraclePortal\EmployeeFacts;
+use App\Services\OraclePortal\PortalBook;
 use App\Support\BranchKeywordMatcher;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\UploadedFile;
@@ -24,9 +26,17 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
  * applies matched rows (applyMatched / applyBatchMatched) and resolves unmatched
  * rows per-row (resolveUnmatched). Once NOC employee data is populated, the
  * existing Identity ▸ Contact Sync flow PATCHes the new fields to Entra.
+ *
+ * Since the Employee Portal API landed there are two ways in — parse() for the
+ * spreadsheet and fromApi() for Oracle's live view — and both go through
+ * stage(), so they share one matcher, one mailbox rule and one review page. The
+ * API carries no mobile number and no DEPT NO, so it complements the export
+ * rather than replacing it.
  */
 class OracleHrImportService
 {
+    private ?PortalBook $book = null;
+
     /**
      * Canonical header → internal key. Headers are normalised before lookup
      * (lowercased, trimmed, underscores → spaces, collapsed), so both the old
@@ -81,39 +91,137 @@ class OracleHrImportService
             throw new \RuntimeException('Could not find the expected columns (Emp No, Email Address, …) in the file.');
         }
 
-        $mappings = AzureBranchMapping::all();
-        // "Shared" can only be seen across the whole file, so count first.
-        $emailCounts = $this->countEmails($rows, $headerIndex, $colMap);
-        $domains = array_map('strtolower', AllowedDomain::getList());
-
         $batch = HrImportBatch::create([
             'filename' => $file->getClientOriginalName(),
             'uploaded_by' => Auth::id(),
             'status' => 'parsed',
+            'source' => 'sheet',
         ]);
 
-        DB::transaction(function () use ($rows, $headerIndex, $colMap, $mappings, $batch, $emailCounts, $domains) {
-            foreach ($rows as $i => $raw) {
-                if ($i <= $headerIndex) {
-                    continue;
-                }
+        return $this->stage($this->sheetRows($rows, $headerIndex, $colMap), $batch);
+    }
 
-                $get = fn (string $key) => isset($colMap[$key]) ? trim((string) ($raw[$colMap[$key]] ?? '')) : '';
+    /**
+     * Stage Oracle's Employee Portal API in the same way as an upload.
+     *
+     * Only the reading differs: matching, the mailbox rule, branch resolution
+     * and the review page are the upload's, which is the point. Everything
+     * that makes the spreadsheet path safe — two signals before a match, an
+     * ambiguous row refused rather than guessed, nothing written until someone
+     * applies it — applies unchanged.
+     *
+     * @param  list<array<string,mixed>>  $attendanceRows  an /attendance payload
+     */
+    public function fromApi(array $attendanceRows, string $label, ?int $userId = null): HrImportBatch
+    {
+        $rows = EmployeeFacts::rows($attendanceRows);
 
-                $empNo = $get('emp_no');
-                $email = strtolower($get('email'));
+        if ($rows === []) {
+            throw new \RuntimeException('Oracle returned no employees.');
+        }
 
-                // Skip fully blank rows (no emp no AND no email).
-                if ($empNo === '' && $email === '') {
-                    continue;
-                }
+        $batch = HrImportBatch::create([
+            'filename' => $label,
+            'uploaded_by' => $userId,
+            'status' => 'parsed',
+            'source' => 'api',
+            'source_digest' => self::digestOf($rows),
+        ]);
 
-                $mobileRaw = $get('mobile_no');
-                $mobile = $this->normalizeMobile($mobileRaw);
-                $location = $get('location_name');
-                $name = $get('emp_name');
-                $g = strtoupper($get('gender'));
-                $gender = $g === 'F' ? 'female' : ($g === 'M' ? 'male' : null);
+        return $this->stage($rows, $batch);
+    }
+
+    /**
+     * A fingerprint of what Oracle said, so an unchanged day creates no batch.
+     *
+     * Oracle is read daily and changes rarely; without this the review page
+     * fills with identical batches and stops being worth opening.
+     *
+     * @param  list<array<string,mixed>>  $rows  as returned by EmployeeFacts::rows()
+     */
+    public static function digestOf(array $rows): string
+    {
+        $normalised = array_map(function (array $row) {
+            // The row number is positional, not a fact about the person: a
+            // reordered response is not a change.
+            unset($row['row_number']);
+            ksort($row);
+
+            return $row;
+        }, $rows);
+
+        usort($normalised, fn ($a, $b) => ($a['emp_no'] ?? '') <=> ($b['emp_no'] ?? ''));
+
+        return md5((string) json_encode($normalised));
+    }
+
+    /**
+     * The spreadsheet's rows in the same shape the API's arrive in.
+     *
+     * @param  array<int, array<int, mixed>>  $rows
+     * @param  array<string, int>  $colMap
+     * @return list<array<string,mixed>>
+     */
+    private function sheetRows(array $rows, int $headerIndex, array $colMap): array
+    {
+        $out = [];
+
+        foreach ($rows as $i => $raw) {
+            if ($i <= $headerIndex) {
+                continue;
+            }
+
+            $get = fn (string $key) => isset($colMap[$key]) ? trim((string) ($raw[$colMap[$key]] ?? '')) : '';
+
+            $empNo = $get('emp_no');
+            $email = strtolower($get('email'));
+
+            // Skip fully blank rows (no emp no AND no email).
+            if ($empNo === '' && $email === '') {
+                continue;
+            }
+
+            $g = strtoupper($get('gender'));
+
+            $out[] = [
+                'row_number' => $i + 1,
+                'emp_no' => $empNo,
+                'emp_name' => $get('emp_name'),
+                'email' => $email,
+                'mobile_no' => $get('mobile_no'),
+                'location_name' => $get('location_name'),
+                'dept_no' => $get('dept_no'),
+                'dept_name' => $get('dept_name'),
+                'job_name' => $get('job_name'),
+                'gender' => $g === 'F' ? 'female' : ($g === 'M' ? 'male' : null),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Turn normalised rows into staged HrImportRows. Nothing is written to the
+     * employees table here.
+     *
+     * @param  list<array<string,mixed>>  $rows
+     */
+    private function stage(array $rows, HrImportBatch $batch): HrImportBatch
+    {
+        $mappings = AzureBranchMapping::all();
+        // "Shared" can only be seen across the whole source, so count first.
+        $emailCounts = $this->countEmailsIn($rows);
+        $domains = array_map('strtolower', AllowedDomain::getList());
+        $fromApi = $batch->source === 'api';
+
+        DB::transaction(function () use ($rows, $mappings, $batch, $emailCounts, $domains, $fromApi) {
+            foreach ($rows as $row) {
+                $empNo = (string) ($row['emp_no'] ?? '');
+                $email = strtolower((string) ($row['email'] ?? ''));
+                $name = (string) ($row['emp_name'] ?? '');
+                $location = (string) ($row['location_name'] ?? '');
+                $mobileRaw = (string) ($row['mobile_no'] ?? '');
+                $mobile = $mobileRaw === '' ? null : $this->normalizeMobile($mobileRaw);
 
                 [$ownMailbox, $mailboxReason] = $this->mailboxOf($email, $emailCounts, $domains);
 
@@ -127,6 +235,24 @@ class OracleHrImportService
                 }
                 if ($location !== '' && $branchId === null) {
                     $errorNote = trim(($errorNote ? $errorNote.'; ' : '').'No branch keyword matched location: '.$location);
+                }
+
+                // A person this feed is not about. The Employee Portal serves
+                // the Saudi book only, and EMP_NO collides with SSS Egypt's
+                // series, so a match onto a Cairo record would be a different
+                // person with the same number.
+                //
+                // Scoped to an API batch on purpose. The constraint belongs to
+                // THIS feed, and applying it to the spreadsheet too would make
+                // HR's upload — which has worked for months — start depending
+                // on config/oracle_portal.php naming branches that exist.
+                if ($fromApi && $employee && ! $this->book()->allows($employee->branch_id)) {
+                    $errorNote = trim(($errorNote ? $errorNote.'; ' : '')
+                        .'Matched '.$employee->name.', who is outside this feed\'s branches ('
+                        .implode(', ', $this->book()->branchNames()).') — Oracle numbers collide between the '
+                        .'SamirGroup and SSS Egypt series, so this was not applied.');
+                    $employee = null;
+                    $method = 'out_of_book';
                 }
 
                 // No confident match -> unmatched for manual resolution, with a reason
@@ -145,7 +271,7 @@ class OracleHrImportService
 
                 HrImportRow::create([
                     'hr_import_batch_id' => $batch->id,
-                    'row_number' => $i + 1,
+                    'row_number' => $row['row_number'] ?? null,
                     'emp_no' => $empNo ?: null,
                     'emp_name' => $name ?: null,
                     'email' => $email ?: null,
@@ -154,10 +280,20 @@ class OracleHrImportService
                     'mobile_raw' => $mobileRaw ?: null,
                     'mobile_normalized' => $mobile,
                     'location_name' => $location ?: null,
-                    'dept_no' => $get('dept_no') ?: null,
-                    'dept_name' => $get('dept_name') ?: null,
-                    'job_name' => $get('job_name') ?: null,
-                    'gender' => $gender,
+                    'dept_no' => ($row['dept_no'] ?? '') ?: null,
+                    'dept_name' => ($row['dept_name'] ?? '') ?: null,
+                    'job_name' => ($row['job_name'] ?? '') ?: null,
+                    'gender' => $row['gender'] ?? null,
+                    // Only an API batch carries these; a sheet leaves them null.
+                    'person_id' => $row['person_id'] ?? null,
+                    'assignment_id' => $row['assignment_id'] ?? null,
+                    'person_name_ar' => $row['person_name_ar'] ?? null,
+                    'employee_category' => $row['employee_category'] ?? null,
+                    'assignment_status' => $row['assignment_status'] ?? null,
+                    'person_type' => $row['person_type'] ?? null,
+                    'supervisor_name' => $row['supervisor_name'] ?? null,
+                    'manager_name' => $row['manager_name'] ?? null,
+                    'hire_date' => $row['hire_date'] ?? null,
                     'matched_employee_id' => $employee?->id,
                     'match_method' => $method,
                     'resolved_branch_id' => $branchId,
@@ -170,6 +306,33 @@ class OracleHrImportService
         $batch->refreshCounts();
 
         return $batch->fresh();
+    }
+
+    private function book(): PortalBook
+    {
+        return $this->book ??= app(PortalBook::class);
+    }
+
+    /**
+     * How many rows carry each address — the whole-source pass mailboxOf()
+     * needs to spot an address shared between a person and their manager.
+     *
+     * @param  list<array<string,mixed>>  $rows
+     * @return array<string, int>
+     */
+    private function countEmailsIn(array $rows): array
+    {
+        $counts = [];
+
+        foreach ($rows as $row) {
+            $email = strtolower(trim((string) ($row['email'] ?? '')));
+
+            if ($email !== '') {
+                $counts[$email] = ($counts[$email] ?? 0) + 1;
+            }
+        }
+
+        return $counts;
     }
 
     /**
@@ -662,6 +825,38 @@ class OracleHrImportService
         }
         if ($row->resolved_branch_id) {
             $attrs['branch_id'] = $row->resolved_branch_id;
+        }
+
+        // From the Employee Portal API only; a spreadsheet row leaves these
+        // null, and the never-blank rule above means a sheet import can no
+        // longer erase what an API pull filled in — or the other way round for
+        // the mobile number and DEPT NO the API does not carry.
+        if ($row->person_id) {
+            $attrs['oracle_person_id'] = $row->person_id;
+        }
+        if ($row->employee_category) {
+            $attrs['oracle_employee_category'] = $row->employee_category;
+        }
+        if ($row->person_type) {
+            $attrs['oracle_person_type'] = $row->person_type;
+        }
+        if ($row->assignment_status) {
+            // What Oracle says, recorded so it is visible and reportable.
+            // Never `status`: that transition disables the person's Microsoft
+            // account, and it stays a human's decision.
+            $attrs['oracle_assignment_status'] = $row->assignment_status;
+        }
+        if ($row->hire_date && ! $employee->hired_date) {
+            // Oracle knows when somebody started, but an existing date here may
+            // have been corrected by hand, so only a blank is filled.
+            $attrs['hired_date'] = $row->hire_date;
+        }
+
+        // Arabic name: NOC-editable, and Oracle wins once it has one. Oracle's
+        // PERSON_NAME_AR is empty for all 617 people today, so in practice a
+        // name typed here stands until HR fills the column in.
+        if ($row->person_name_ar) {
+            $attrs['name_ar'] = $row->person_name_ar;
         }
         if ($row->dept_name) {
             $department = Department::firstOrCreate(['name' => $row->dept_name]);

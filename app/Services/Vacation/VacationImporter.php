@@ -265,6 +265,7 @@ class VacationImporter
                     'vacation_absences.id', 'vacation_absences.vacation_employee_id', 'vacation_absences.absence_type',
                     'vacation_absences.start_date', 'vacation_absences.end_date', 'vacation_absences.calendar_days',
                     'vacation_absences.work_days', 'vacation_absences.duration', 'vacation_absences.removed_at',
+                    'vacation_employees.oracle_emp_no',
                 ])
                 ->keyBy(fn ($row) => mb_strtolower($row->vacation_employee_id.'|'.$row->absence_type.'|'
                     .substr((string) $row->start_date, 0, 10).'|'.substr((string) $row->end_date, 0, 10)));
@@ -333,13 +334,30 @@ class VacationImporter
             }
 
             if ($withdrawMissing) {
-                $gone = $held->filter(fn ($row) => $row->removed_at === null && ! isset($seen[$row->id]))->pluck('id')->all();
+                // Oracle filters some people out of its leave data entirely, so
+                // nothing ever mentions them and every import would read their
+                // held records as withdrawn. Protect them instead of emptying
+                // their history one import at a time.
+                $blocked = $this->blockedNumbers($book);
+
+                $missing = $held->filter(fn ($row) => $row->removed_at === null && ! isset($seen[$row->id]));
+
+                $isBlocked = fn ($row) => isset($blocked[ltrim(trim((string) $row->oracle_emp_no), '0')]);
+
+                $gone = $missing->reject($isBlocked)->pluck('id')->all();
+                $kept = $blocked === [] ? collect() : $missing->filter($isBlocked);
 
                 foreach (array_chunk($gone, 1000) as $ids) {
                     DB::table('vacation_absences')->whereIn('id', $ids)->update(['removed_at' => $now, 'updated_at' => $now]);
                 }
 
                 $counts['removed'] = count($gone);
+
+                if ($kept->isNotEmpty()) {
+                    $numbers = $kept->pluck('oracle_emp_no')->unique()->sort()->implode(', ');
+                    $this->note($notes, "{$kept->count()} records for people Oracle leaves out of its leave data "
+                        ."({$numbers}) were kept rather than withdrawn.");
+                }
             }
 
             $counts['created'] = count($inserts);
@@ -410,6 +428,31 @@ class VacationImporter
         if (! array_key_exists($book, VacationEmployee::books())) {
             throw new InvalidArgumentException("Unknown vacation book '{$book}'. Books are listed in config/vacations.php.");
         }
+    }
+
+    /**
+     * The book's blocked person numbers, as a set keyed by the number with any
+     * leading zeros stripped — the same normalisation VacationLinker matches
+     * on, so "0166" in config finds "166" on the record and the other way
+     * round.
+     *
+     * @return array<string, true>
+     */
+    private function blockedNumbers(string $book): array
+    {
+        $numbers = (array) (VacationEmployee::books()[$book]['blocked'] ?? []);
+
+        $set = [];
+
+        foreach ($numbers as $number) {
+            $key = ltrim(trim((string) $number), '0');
+
+            if ($key !== '') {
+                $set[$key] = true;
+            }
+        }
+
+        return $set;
     }
 
     private function note(array &$notes, string $message): void
