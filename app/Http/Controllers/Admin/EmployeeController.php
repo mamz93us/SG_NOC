@@ -13,6 +13,7 @@ use App\Models\EmployeeAsset;
 use App\Models\EmployeeSignatureRole;
 use App\Models\IdentityUser;
 use App\Services\Identity\AzureContactSyncService;
+use App\Services\Identity\ServiceEmployeeMailboxLinker;
 use App\Services\PhoneDeviceLookup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -204,11 +205,20 @@ class EmployeeController extends Controller
             $unlinkedIntune = $candidates->unlinkedComputers();
         }
 
+        // A service employee who turns out to have a mailbox. The Oracle HR
+        // import always creates them without one, and nothing else could
+        // connect them to one afterwards.
+        $mailboxProblem = $employee->isService()
+            ? app(ServiceEmployeeMailboxLinker::class)->problemWith($employee)
+            : null;
+        $canLinkMailbox = $employee->isService() && $mailboxProblem === null;
+
         return view('admin.employees.show', compact(
             'employee', 'availableDevices', 'availableAccessories',
             'availableLicenses', 'licenseAssignments', 'phoneInfo', 'azureDevices',
             'networkPresence', 'mainRecord', 'personAccounts',
-            'pendingScrap', 'intuneLinkOptions', 'unlinkedIntune', 'transferEmployees'
+            'pendingScrap', 'intuneLinkOptions', 'unlinkedIntune', 'transferEmployees',
+            'canLinkMailbox', 'mailboxProblem'
         ));
     }
 
