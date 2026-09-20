@@ -333,7 +333,8 @@
                                 @endcan
                             @else
                                 —
-                                @if(in_array($device->type, ['laptop', 'desktop'], true) && ! in_array($device->status, ['retired', 'scrapped'], true))
+                                {{-- With an asset code the banner at the top carries this button already. --}}
+                                @if(! $device->asset_code && in_array($device->type, ['laptop', 'desktop'], true) && ! in_array($device->status, ['retired', 'scrapped'], true))
                                 @can('manage-itam')
                                 <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-bs-toggle="modal" data-bs-target="#oracleLinkModal"
                                         data-action="{{ route('admin.itam.devices.oracle-link', $device) }}"
