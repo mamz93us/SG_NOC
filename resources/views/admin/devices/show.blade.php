@@ -99,6 +99,31 @@
         <div class="text-muted small">Asset Code</div>
         <div class="font-monospace fw-bold fs-5">{{ $device->asset_code }}</div>
     </div>
+    @if($device->oracle_asset_number)
+    <div class="ps-3 border-start">
+        <div class="text-muted small">Oracle Asset No.</div>
+        <div class="font-monospace fw-bold fs-5">
+            @can('view-itam')
+            <a href="{{ route('admin.itam.oracle-assets.index', ['q' => $device->oracle_asset_number]) }}" class="text-decoration-none">{{ $device->oracle_asset_number }}</a>
+            @else
+            {{ $device->oracle_asset_number }}
+            @endcan
+        </div>
+    </div>
+    @elseif(in_array($device->type, ['laptop', 'desktop'], true) && ! in_array($device->status, ['retired', 'scrapped'], true))
+    <div class="ps-3 border-start">
+        <div class="text-muted small">Oracle Asset No.</div>
+        <div class="fw-semibold text-warning-emphasis">
+            Not linked
+            @can('manage-itam')
+            <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-bs-toggle="modal" data-bs-target="#oracleLinkModal"
+                    data-action="{{ route('admin.itam.devices.oracle-link', $device) }}"
+                    data-options-url="{{ route('admin.itam.devices.oracle-options', $device) }}"
+                    data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}">Link Oracle asset</button>
+            @endcan
+        </div>
+    </div>
+    @endif
 </div>
 @endif
 

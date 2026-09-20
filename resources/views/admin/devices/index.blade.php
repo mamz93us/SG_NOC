@@ -60,6 +60,13 @@
         </select>
     </div>
     <div class="col-auto">
+        <select name="oracle" class="form-select form-select-sm" title="Oracle fixed-asset register">
+            <option value="">Oracle: all</option>
+            <option value="none"   {{ request('oracle') == 'none'   ? 'selected' : '' }}>No Oracle number</option>
+            <option value="linked" {{ request('oracle') == 'linked' ? 'selected' : '' }}>Has an Oracle number</option>
+        </select>
+    </div>
+    <div class="col-auto">
         <button type="submit" class="btn btn-sm btn-secondary">Filter</button>
         <a href="{{ route('admin.devices.index') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
     </div>
@@ -90,6 +97,11 @@
                         <th>
                             <a href="{{ request()->fullUrlWithQuery(['sort' => 'asset_code', 'direction' => request('sort') == 'asset_code' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none">
                                 Asset Code {!! request('sort') == 'asset_code' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'oracle_asset_number', 'direction' => request('sort') == 'oracle_asset_number' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" class="text-dark text-decoration-none" title="Number in Oracle's fixed-asset register">
+                                Oracle No. {!! request('sort') == 'oracle_asset_number' ? (request('direction') == 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') : '<i class="bi bi-arrows-expand small text-muted"></i>' !!}
                             </a>
                         </th>
                         <th>
@@ -133,6 +145,19 @@
                     <tr>
                         <td class="font-monospace text-muted">
                             {{ $d->asset_code ?: '—' }}
+                        </td>
+                        <td class="font-monospace text-nowrap">
+                            @if($d->oracle_asset_number)
+                                @can('view-itam')
+                                <a href="{{ route('admin.itam.oracle-assets.index', ['q' => $d->oracle_asset_number]) }}" class="text-decoration-none">{{ $d->oracle_asset_number }}</a>
+                                @else
+                                {{ $d->oracle_asset_number }}
+                                @endcan
+                            @elseif(in_array($d->type, ['laptop', 'desktop'], true) && ! in_array($d->status, ['retired', 'scrapped'], true))
+                                <span class="badge bg-warning text-dark" title="Not linked to Oracle's asset register">No Oracle no.</span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
                         </td>
                         <td>
                             <span class="badge {{ $d->statusBadgeClass() }}">{{ ucfirst($d->status) }}</span>

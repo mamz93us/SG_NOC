@@ -23,7 +23,7 @@ class DeviceController extends Controller
 {
     public function index(Request $request)
     {
-        $allowed = ['asset_code', 'status', 'type', 'name', 'manufacturer', 'model', 'updated_at'];
+        $allowed = ['asset_code', 'oracle_asset_number', 'status', 'type', 'name', 'manufacturer', 'model', 'updated_at'];
         $sort = in_array($request->sort, $allowed) ? $request->sort : null;
         $dir = $request->direction === 'asc' ? 'asc' : 'desc';
 
@@ -54,6 +54,12 @@ class DeviceController extends Controller
         }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        }
+        // Assets with no Oracle fixed-asset number, so the ones still to link are one filter away.
+        if ($request->query('oracle') === 'none') {
+            $query->where(fn ($q) => $q->whereNull('oracle_asset_number')->orWhere('oracle_asset_number', ''));
+        } elseif ($request->query('oracle') === 'linked') {
+            $query->whereNotNull('oracle_asset_number')->where('oracle_asset_number', '<>', '');
         }
         if ($request->filled('model_id')) {
             $query->where('device_model_id', $request->model_id);
