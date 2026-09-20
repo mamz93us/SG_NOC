@@ -630,9 +630,13 @@
                     return;
                 }
                 if (!payload.candidates || payload.candidates.length === 0) {
-                    results.innerHTML = '<div class="text-muted py-3">'
-                        + 'No mailbox matches that. Most service employees genuinely have none — try searching for '
-                        + 'the address itself.</div>';
+                    // Nothing typed yet means "no obvious match", which for these
+                    // people is the normal answer — not a failed search.
+                    results.innerHTML = search.value.trim() === ''
+                        ? '<div class="text-muted py-3">'
+                            + 'No mailbox here obviously belongs to ' + escape(personName) + '. '
+                            + 'Search by name or address to find theirs.</div>'
+                        : '<div class="text-muted py-3">Nothing matches that.</div>';
                     return;
                 }
 
