@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\Itam\OracleAsset;
 use App\Models\Itam\OracleAssetImport;
+use App\Services\Itam\AssetReasons;
 use App\Services\Itam\AssetRetirement;
 use App\Services\Itam\Oracle\IntuneCandidates;
 use App\Services\Itam\Oracle\OracleAssetDevices;
@@ -204,20 +205,22 @@ class OracleAssetController extends Controller
     public function retire(Request $request, OracleAsset $oracleAsset, OracleAssetDevices $devices, AssetRetirement $retirement): RedirectResponse
     {
         $data = $request->validate([
-            'reason' => ['required', 'string', 'max:1000'],
+            'reason_code' => ['required', 'in:'.implode(',', array_keys(AssetReasons::RETIRE))],
+            'reason' => ['nullable', 'string', 'max:1000'],
             'retired_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
         ], [
-            'reason.required' => 'Say why the asset is retired.',
+            'reason_code.required' => 'Choose why the asset is retired.',
         ]);
 
         $on = CarbonImmutable::parse($data['retired_on']);
+        $reason = AssetReasons::compose(AssetReasons::retireLabel($data['reason_code']), $data['reason'] ?? null);
 
         try {
             if ($oracleAsset->device) {
                 abort_unless(Auth::user()?->can('manage-assets'), 403);
-                $retirement->retire($oracleAsset->device, $data['reason'], $on);
+                $retirement->retire($oracleAsset->device, $reason, $on, $data['reason_code']);
             } else {
-                DB::transaction(fn () => $devices->retireUnheld($oracleAsset, $data['reason'], $on, Auth::id()));
+                DB::transaction(fn () => $devices->retireUnheld($oracleAsset, $reason, $on, Auth::id(), $data['reason_code']));
             }
         } catch (DomainException $e) {
             return back()->with('error', $e->getMessage());

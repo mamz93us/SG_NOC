@@ -2733,6 +2733,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('by-branch', [\App\Http\Controllers\Admin\AssetReportController::class, 'byBranch'])->name('by-branch');
             Route::get('by-employee', [\App\Http\Controllers\Admin\AssetReportController::class, 'byEmployee'])->name('by-employee');
             Route::get('transfer-history', [\App\Http\Controllers\Admin\AssetReportController::class, 'transferHistory'])->name('transfers');
+            // Transfers, retirements and scraps in one list, for finance to post against Oracle.
+            Route::get('movements', [\App\Http\Controllers\Admin\Itam\AssetMovementReportController::class, 'index'])->name('movements');
             Route::get('scrap-history', [\App\Http\Controllers\Admin\AssetReportController::class, 'scrapHistory'])->name('scraps');
             Route::get('costs', [\App\Http\Controllers\Admin\AssetReportController::class, 'costs'])->name('costs');
             Route::get('stale-licenses', [\App\Http\Controllers\Admin\AssetReportController::class, 'staleLicenses'])->name('stale-licenses');
@@ -2774,6 +2776,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('branch-store/{branch}/assets', [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForBranchStore'])->name('branch-store-assets');
         Route::get('universal-store/assets', [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForUniversalStore'])->name('universal-store-assets');
         Route::post('/', [\App\Http\Controllers\Admin\AssetTransferController::class, 'store'])->name('store');
+        // One asset from its holder to another employee, from the employee or device page.
+        Route::post('device/{device}', [\App\Http\Controllers\Admin\AssetTransferController::class, 'transferDevice'])->name('device');
         Route::get('{group}/print', [\App\Http\Controllers\Admin\AssetTransferController::class, 'print'])->name('print');
     });
 

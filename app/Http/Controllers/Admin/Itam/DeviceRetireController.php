@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\Itam;
 
 use App\Http\Controllers\Controller;
 use App\Models\Device;
+use App\Services\Itam\AssetReasons;
 use App\Services\Itam\AssetRetirement;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -19,15 +20,18 @@ class DeviceRetireController extends Controller
     public function store(Request $request, Device $device, AssetRetirement $retirement): RedirectResponse
     {
         $data = $request->validate([
-            'reason' => ['required', 'string', 'max:1000'],
+            'reason_code' => ['required', 'in:'.implode(',', array_keys(AssetReasons::RETIRE))],
+            'reason' => ['nullable', 'string', 'max:1000'],
             'retired_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
         ], [
-            'reason.required' => 'Say why the asset is retired.',
+            'reason_code.required' => 'Choose why the asset is retired.',
             'retired_on.before_or_equal' => 'An asset cannot be retired on a day that has not come yet.',
         ]);
 
+        $reason = AssetReasons::compose(AssetReasons::retireLabel($data['reason_code']), $data['reason'] ?? null);
+
         try {
-            $retirement->retire($device, $data['reason'], CarbonImmutable::parse($data['retired_on']));
+            $retirement->retire($device, $reason, CarbonImmutable::parse($data['retired_on']), $data['reason_code']);
         } catch (DomainException $e) {
             return back()->with('error', $e->getMessage());
         }

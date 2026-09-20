@@ -182,6 +182,11 @@ class EmployeeController extends Controller
         $openAssets = $employee->assetAssignments->whereNull('returned_date');
         $pendingScrap = app(\App\Services\Itam\PendingScrapRequests::class)->forDevices($openAssets->pluck('asset_id'));
 
+        // Who an asset can be handed to, for the transfer dialog on the IT Assets tab.
+        $transferEmployees = auth()->user()?->can('manage-itam')
+            ? Employee::query()->active()->whereNull('linked_primary_employee_id')->with('branch:id,name')->orderBy('name')->get(['id', 'name', 'branch_id'])
+            : collect();
+
         $intuneLinkOptions = [];
         $unlinkedIntune = collect();
         $needsIntuneLink = $openAssets->contains(fn ($a) => in_array($a->device?->type, ['laptop', 'desktop'], true)
@@ -203,7 +208,7 @@ class EmployeeController extends Controller
             'employee', 'availableDevices', 'availableAccessories',
             'availableLicenses', 'licenseAssignments', 'phoneInfo', 'azureDevices',
             'networkPresence', 'mainRecord', 'personAccounts',
-            'pendingScrap', 'intuneLinkOptions', 'unlinkedIntune'
+            'pendingScrap', 'intuneLinkOptions', 'unlinkedIntune', 'transferEmployees'
         ));
     }
 

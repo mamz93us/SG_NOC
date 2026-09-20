@@ -988,6 +988,14 @@
                                                 data-bs-target="#returnAssetModal{{ $a->id }}">Return</button>
                                         @endcan
                                         @if($inService && ! $scrapId)
+                                            @can('manage-itam')
+                                            <button type="button" class="btn btn-outline-primary" title="Hand it to another employee"
+                                                    data-bs-toggle="modal" data-bs-target="#transferAssetModal"
+                                                    data-action="{{ route('admin.itam.transfer.device', $dev) }}"
+                                                    data-asset="{{ $assetLabel }}" data-holder="{{ $employee->name }}" data-holder-id="{{ $employee->id }}">Transfer</button>
+                                            @endcan
+                                        @endif
+                                        @if($inService && ! $scrapId)
                                             @if($canRetireAssets)
                                             <button type="button" class="btn btn-outline-dark" title="Out of service for good, without the scrap approval"
                                                     data-bs-toggle="modal" data-bs-target="#retireAssetModal"
@@ -1478,6 +1486,7 @@
 @can('manage-itam')
 @include('admin.itam.oracle-assets._intune-link-modal', ['unlinkedIntune' => $unlinkedIntune])
 @include('admin.itam.oracle-assets._oracle-link-modal')
+@include('admin.itam.oracle-assets._transfer-modal', ['transferEmployees' => $transferEmployees])
 @endcan
 
 {{-- ── Edit Extension Modal ── --}}

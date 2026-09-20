@@ -75,11 +75,21 @@ class AssetScrapController extends Controller
             'accessory_ids.*' => 'integer|exists:accessories,id',
             'accessory_qty' => 'nullable|array',
             'accessory_qty.*' => 'integer|min:1',
-            'reason' => 'required|string|max:2000',
+            // The reason is picked from a list so a month's scraps can be counted by reason;
+            // the box beside it is the detail, and both are kept.
+            'reason_code' => 'required|in:'.implode(',', array_keys(\App\Services\Itam\AssetReasons::SCRAP)),
+            'reason' => 'nullable|string|max:2000',
             'disposal_method' => 'required|in:recycle,donate,destroy,sell,return_to_supplier',
             'photos' => 'nullable|array|max:5',
             'photos.*' => 'image|max:4096',
+        ], [
+            'reason_code.required' => 'Choose why the assets are being scrapped.',
         ]);
+
+        $validated['reason'] = \App\Services\Itam\AssetReasons::compose(
+            \App\Services\Itam\AssetReasons::scrapLabel($validated['reason_code']),
+            $validated['reason'] ?? null,
+        );
 
         $deviceIds = $validated['device_ids'] ?? [];
         $accessoryIds = $validated['accessory_ids'] ?? [];
@@ -166,6 +176,7 @@ class AssetScrapController extends Controller
                     'accessory_qty' => $accessoryQty,
                     'asset_codes' => $assetCodes,
                     'reason' => $validated['reason'],
+                    'reason_code' => $validated['reason_code'],
                     'disposal_method' => $validated['disposal_method'],
                     'photos' => $photoPaths,
                 ],
@@ -199,6 +210,7 @@ class AssetScrapController extends Controller
                     [
                         'workflow_id' => $wf->id,
                         'reason' => $validated['reason'],
+                        'reason_code' => $validated['reason_code'],
                         'disposal_method' => $validated['disposal_method'],
                     ]
                 );
@@ -277,12 +289,18 @@ class AssetScrapController extends Controller
                 $workflow->update(['status' => 'approved']);
 
                 foreach ($devices as $device) {
-                    EmployeeAsset::where('asset_id', $device->id)
+                    // Who held it is read before the assignments close: the movements report
+                    // tells finance which employee each scrapped asset came off.
+                    $open = EmployeeAsset::with('employee:id,name')
+                        ->where('asset_id', $device->id)
                         ->whereNull('returned_date')
-                        ->update([
-                            'returned_date' => now(),
-                            'notes' => 'Closed on scrap approval (workflow #'.$workflow->id.')',
-                        ]);
+                        ->get();
+                    $holders = $open->map(fn (EmployeeAsset $a) => $a->employee?->name)->filter()->implode(', ');
+
+                    $open->each(fn (EmployeeAsset $a) => $a->update([
+                        'returned_date' => now(),
+                        'notes' => 'Closed on scrap approval (workflow #'.$workflow->id.')',
+                    ]));
 
                     $device->update([
                         'status' => 'scrapped',
@@ -294,10 +312,13 @@ class AssetScrapController extends Controller
                         $device,
                         'scrapped',
                         'Asset scrapped after full approval',
-                        [
+                        array_filter([
                             'workflow_id' => $workflow->id,
                             'disposal_method' => $workflow->payload['disposal_method'] ?? null,
-                        ]
+                            'reason' => $workflow->payload['reason'] ?? null,
+                            'reason_code' => $workflow->payload['reason_code'] ?? null,
+                            'holder' => $holders !== '' ? $holders : null,
+                        ])
                     );
                 }
 

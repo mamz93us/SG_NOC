@@ -62,6 +62,11 @@
 @can('request-scrap')
 @include('admin.itam.oracle-assets._scrap-modal')
 @endcan
+@if($assigned && ! in_array($device->status, ['retired', 'scrapped'], true))
+@can('manage-itam')
+@include('admin.itam.oracle-assets._transfer-modal', ['transferEmployees' => $transferEmployees])
+@endcan
+@endif
 @if(! $device->oracle_asset_number && in_array($device->type, ['laptop', 'desktop'], true) && ! in_array($device->status, ['retired', 'scrapped'], true))
 @can('manage-itam')
 @include('admin.itam.oracle-assets._oracle-link-modal')
@@ -151,6 +156,16 @@
                 <i class="bi bi-person-plus me-1"></i>Assign
             </button>
             @else
+            @can('manage-itam')
+            @if(! in_array($device->status, ['retired', 'scrapped'], true) && ! $pendingScrapId)
+            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#transferAssetModal"
+                    data-action="{{ route('admin.itam.transfer.device', $device) }}"
+                    data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}"
+                    data-holder="{{ $assigned->employee->name }}" data-holder-id="{{ $assigned->employee->id }}">
+                <i class="bi bi-arrow-left-right me-1"></i>Transfer
+            </button>
+            @endif
+            @endcan
             <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#returnModal">
                 <i class="bi bi-box-arrow-left me-1"></i>Return
             </button>

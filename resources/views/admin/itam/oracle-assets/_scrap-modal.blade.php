@@ -20,6 +20,15 @@
                     until the request is approved; approval closes the assignment and marks it scrapped.
                 </p>
                 <div class="mb-2">
+                    <label class="form-label small fw-semibold" for="scrapAssetReasonCode">Reason</label>
+                    <select name="reason_code" id="scrapAssetReasonCode" class="form-select form-select-sm" required>
+                        <option value="">Choose a reason…</option>
+                        @foreach (\App\Services\Itam\AssetReasons::SCRAP as $code => $label)
+                            <option value="{{ $code }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="mb-2">
                     <label class="form-label small fw-semibold" for="scrapAssetMethod">Disposal</label>
                     <select name="disposal_method" id="scrapAssetMethod" class="form-select form-select-sm" style="max-width:240px" required>
                         <option value="destroy">Destroy</option>
@@ -30,9 +39,9 @@
                     </select>
                 </div>
                 <div>
-                    <label class="form-label small fw-semibold" for="scrapAssetReason">Reason</label>
-                    <textarea name="reason" id="scrapAssetReason" class="form-control form-control-sm" rows="2" maxlength="2000" required
-                              placeholder="e.g. Broken screen and motherboard; not worth repairing."></textarea>
+                    <label class="form-label small fw-semibold" for="scrapAssetReason">Detail <span class="text-muted fw-normal">(optional)</span></label>
+                    <textarea name="reason" id="scrapAssetReason" class="form-control form-control-sm" rows="2" maxlength="2000"
+                              placeholder="e.g. Broken screen and motherboard; quote was more than a new one."></textarea>
                 </div>
             </div>
             <div class="modal-footer">

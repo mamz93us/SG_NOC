@@ -132,7 +132,7 @@ class OracleAssetDevices
         return $device;
     }
 
-    public function retireUnheld(OracleAsset $unit, string $reason, CarbonInterface $on, ?int $userId): Device
+    public function retireUnheld(OracleAsset $unit, string $reason, CarbonInterface $on, ?int $userId, ?string $reasonCode = null): Device
     {
         if ($unit->isResolved()) {
             throw new DomainException("Oracle asset {$unit->asset_number} already has a NOC asset.");
@@ -141,7 +141,12 @@ class OracleAssetDevices
         $device = $this->newAsset($unit, 'retired', null);
 
         AssetHistory::record($device, 'created', "Created from Oracle asset {$unit->asset_number}, held in Oracle by #{$unit->emp_no} {$unit->emp_name}, who is not in the NOC.");
-        AssetHistory::record($device, 'retired', 'Retired: '.$reason, ['retired_on' => $on->toDateString()]);
+        AssetHistory::record($device, 'retired', 'Retired: '.$reason, array_filter([
+            'retired_on' => $on->toDateString(),
+            'reason' => $reason,
+            'reason_code' => $reasonCode,
+            'holder' => trim("#{$unit->emp_no} {$unit->emp_name}"),
+        ]));
 
         $unit->forceFill([
             'device_id' => $device->id,

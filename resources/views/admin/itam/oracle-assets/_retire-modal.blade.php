@@ -23,10 +23,19 @@
                     <input type="date" name="retired_on" id="retireAssetOn" class="form-control form-control-sm" style="max-width:180px"
                            value="{{ now()->toDateString() }}" max="{{ now()->toDateString() }}" required>
                 </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold" for="retireAssetReasonCode">Reason</label>
+                    <select name="reason_code" id="retireAssetReasonCode" class="form-select form-select-sm" required>
+                        <option value="">Choose a reason…</option>
+                        @foreach (\App\Services\Itam\AssetReasons::RETIRE as $code => $label)
+                            <option value="{{ $code }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div>
-                    <label class="form-label small fw-semibold" for="retireAssetReason">Reason</label>
-                    <textarea name="reason" id="retireAssetReason" class="form-control form-control-sm" rows="2" maxlength="1000" required
-                              placeholder="e.g. 2013 laptop the employee no longer has; written off."></textarea>
+                    <label class="form-label small fw-semibold" for="retireAssetReason">Detail <span class="text-muted fw-normal">(optional)</span></label>
+                    <textarea name="reason" id="retireAssetReason" class="form-control form-control-sm" rows="2" maxlength="1000"
+                              placeholder="e.g. 2013 laptop, the employee left in 2019 and never returned it."></textarea>
                 </div>
             </div>
             <div class="modal-footer">

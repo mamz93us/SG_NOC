@@ -24,7 +24,7 @@ class AssetRetirement
 {
     public function __construct(private PendingScrapRequests $scrapRequests) {}
 
-    public function retire(Device $device, string $reason, CarbonInterface $on): void
+    public function retire(Device $device, string $reason, CarbonInterface $on, ?string $reasonCode = null): void
     {
         $reason = trim($reason);
 
@@ -38,7 +38,7 @@ class AssetRetirement
             throw new DomainException(($device->asset_code ?: $device->name)." is in scrap request #{$requestId}, which is waiting for approval. Approve or reject that first.");
         }
 
-        DB::transaction(function () use ($device, $reason, $on) {
+        DB::transaction(function () use ($device, $reason, $on, $reasonCode) {
             $holders = [];
 
             EmployeeAsset::with('employee:id,name')
@@ -60,6 +60,8 @@ class AssetRetirement
             AssetHistory::record($device, 'retired', 'Retired: '.$reason, array_filter([
                 'retired_on' => $on->toDateString(),
                 'holder' => implode(', ', array_filter($holders)) ?: null,
+                'reason' => $reason,
+                'reason_code' => $reasonCode,
             ]));
         });
     }

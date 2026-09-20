@@ -182,6 +182,11 @@ class DeviceController extends Controller
         // Oracle's register lines on this asset, and what retiring, scrapping or linking it to Intune needs.
         $oracleUnits = \App\Models\Itam\OracleAsset::where('device_id', $device->id)->orderBy('asset_number')->get();
         $pendingScrapId = app(\App\Services\Itam\PendingScrapRequests::class)->forDevice((int) $device->id);
+
+        // Who this asset can be handed to, for the transfer dialog.
+        $transferEmployees = $device->currentAssignment && auth()->user()?->can('manage-itam')
+            ? Employee::query()->active()->whereNull('linked_primary_employee_id')->with('branch:id,name')->orderBy('name')->get(['id', 'name', 'branch_id'])
+            : collect();
         $intuneLinkOptions = [];
         $unlinkedIntune = collect();
 
@@ -204,7 +209,7 @@ class DeviceController extends Controller
         return view('admin.devices.show', compact(
             'device', 'depreciation', 'employees',
             'sshSessions', 'accessLogs', 'dhcpByMac',
-            'oracleUnits', 'pendingScrapId', 'intuneLinkOptions', 'unlinkedIntune'
+            'oracleUnits', 'pendingScrapId', 'intuneLinkOptions', 'unlinkedIntune', 'transferEmployees'
         ));
     }
 

@@ -39,6 +39,7 @@
             ['by-branch', 'bi-building', 'By Branch', 'Group all assets by their assigned branch.', 'info'],
             ['by-employee', 'bi-person-badge', 'By Employee', 'View any employee\'s current and past asset assignments.', 'success'],
             ['costs', 'bi-cash-stack', 'Cost Report', 'Total costs (devices + accessories + licenses) by branch, employee, or drill-down.', 'primary'],
+            ['movements', 'bi-arrow-left-right', 'Asset Movements (for finance)', 'Transfers, retirements and scraps in one list with their Oracle asset numbers and reasons — print or CSV for the finance team.', 'success'],
             ['transfers', 'bi-arrow-left-right', 'Transfer History', 'Every transfer between employees or to a branch store.', 'warning'],
             ['scraps', 'bi-trash3', 'Scrap History', 'All assets that have been formally scrapped.', 'danger'],
             ['stale-licenses', 'bi-exclamation-triangle', 'Stale Licenses', 'Licenses still held by a terminated or Azure-disabled employee.', 'danger'],

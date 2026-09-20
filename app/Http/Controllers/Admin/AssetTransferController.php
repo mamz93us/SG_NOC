@@ -137,81 +137,9 @@ class AssetTransferController extends Controller
                 $validated, $fromEmployee, $fromBranch, $toEmployee, $toBranch, $transferGroupId
             ) {
                 foreach ($validated['asset_ids'] as $deviceId) {
-                    $device = Device::findOrFail($deviceId);
-
-                    // Validate the asset is actually at the claimed source.
-                    if ($fromEmployee) {
-                        $assignment = EmployeeAsset::where('asset_id', $deviceId)
-                            ->where('employee_id', $fromEmployee->id)
-                            ->whereNull('returned_date')
-                            ->first();
-                        if (!$assignment) {
-                            throw new \RuntimeException("Asset {$device->asset_code} is not assigned to {$fromEmployee->name}.");
-                        }
-                        $assignment->update([
-                            'returned_date' => $validated['transfer_date'],
-                            'condition'     => $validated['condition'],
-                            'notes'         => $validated['notes'],
-                        ]);
-                    } else {
-                        if ($device->currentAssignment) {
-                            throw new \RuntimeException("Asset {$device->asset_code} has an active employee assignment — return it first.");
-                        }
-                        if (in_array($device->status, ['scrapped', 'retired'])) {
-                            throw new \RuntimeException("Asset {$device->asset_code} is {$device->status}.");
-                        }
-                        if ($validated['source_type'] === 'branch_store' && $device->branch_id !== $fromBranch->id) {
-                            throw new \RuntimeException("Asset {$device->asset_code} is not in {$fromBranch->name} store.");
-                        }
-                        if ($validated['source_type'] === 'universal_store' && $device->branch_id !== null) {
-                            throw new \RuntimeException("Asset {$device->asset_code} is not in the universal store.");
-                        }
-                    }
-
-                    // Capture the device's pre-move location for the history meta.
-                    $fromStorageLocation = $device->storage_location;
-
-                    // Apply target.
-                    if ($toEmployee) {
-                        EmployeeAsset::create([
-                            'employee_id'   => $toEmployee->id,
-                            'asset_id'      => $deviceId,
-                            'assigned_date' => $validated['transfer_date'],
-                            'condition'     => $validated['condition'],
-                            'notes'         => $validated['notes'],
-                        ]);
-                        $device->update([
-                            'status'           => 'assigned',
-                            'storage_location' => null,
-                            'branch_id'        => $toEmployee->branch_id ?: $device->branch_id,
-                        ]);
-                        $eventType = 'transferred';
-                    } elseif ($toBranch) {
-                        $device->update([
-                            'status'           => 'available',
-                            'branch_id'        => $toBranch->id,
-                            'storage_location' => $validated['storage_location'] ?? null,
-                        ]);
-                        $eventType = 'moved_to_storage';
-                    } else { // universal_store target
-                        $device->update([
-                            'status'           => 'available',
-                            'branch_id'        => null,
-                            'storage_location' => $validated['storage_location'] ?? null,
-                        ]);
-                        $eventType = 'moved_to_storage';
-                    }
-
-                    $meta = $this->buildMeta(
-                        $validated, $fromEmployee, $fromBranch, $toEmployee, $toBranch,
-                        $transferGroupId, $fromStorageLocation
-                    );
-
-                    AssetHistory::record(
-                        $device,
-                        $eventType,
-                        $this->buildDescription($validated, $fromEmployee, $fromBranch, $toEmployee, $toBranch),
-                        $meta
+                    $this->moveDevice(
+                        Device::findOrFail($deviceId),
+                        $validated, $fromEmployee, $fromBranch, $toEmployee, $toBranch, $transferGroupId
                     );
                 }
             });
@@ -222,6 +150,150 @@ class AssetTransferController extends Controller
         return redirect()
             ->route('admin.itam.transfer.print', $transferGroupId)
             ->with('success', count($validated['asset_ids']) . ' asset(s) transferred successfully.');
+    }
+
+    /**
+     * One asset's move, shared by the transfer page and the single-asset
+     * transfer on an employee's or a device's page. Refuses a move the source
+     * does not actually hold, so a stale page cannot move somebody else's
+     * asset, and writes the same history event either way.
+     *
+     * @param  array<string, mixed>  $validated  source_type, target_type, transfer_date, condition, notes, storage_location
+     *
+     * @throws \RuntimeException when the asset is not where the caller says it is
+     */
+    private function moveDevice(
+        Device $device,
+        array $validated,
+        ?Employee $fromEmployee,
+        ?Branch $fromBranch,
+        ?Employee $toEmployee,
+        ?Branch $toBranch,
+        string $transferGroupId
+    ): void {
+        $label = $device->asset_code ?: $device->name;
+
+        if ($fromEmployee) {
+            $assignment = EmployeeAsset::where('asset_id', $device->id)
+                ->where('employee_id', $fromEmployee->id)
+                ->whereNull('returned_date')
+                ->first();
+            if (! $assignment) {
+                throw new \RuntimeException("Asset {$label} is not assigned to {$fromEmployee->name}.");
+            }
+            if (in_array($device->status, ['scrapped', 'retired'])) {
+                throw new \RuntimeException("Asset {$label} is {$device->status}.");
+            }
+            $assignment->update([
+                'returned_date' => $validated['transfer_date'],
+                'condition'     => $validated['condition'],
+                'notes'         => $validated['notes'] ?? null,
+            ]);
+        } else {
+            if ($device->currentAssignment) {
+                throw new \RuntimeException("Asset {$label} has an active employee assignment — return it first.");
+            }
+            if (in_array($device->status, ['scrapped', 'retired'])) {
+                throw new \RuntimeException("Asset {$label} is {$device->status}.");
+            }
+            if ($validated['source_type'] === 'branch_store' && $device->branch_id !== $fromBranch->id) {
+                throw new \RuntimeException("Asset {$label} is not in {$fromBranch->name} store.");
+            }
+            if ($validated['source_type'] === 'universal_store' && $device->branch_id !== null) {
+                throw new \RuntimeException("Asset {$label} is not in the universal store.");
+            }
+        }
+
+        // Capture the device's pre-move location for the history meta.
+        $fromStorageLocation = $device->storage_location;
+
+        if ($toEmployee) {
+            EmployeeAsset::create([
+                'employee_id'   => $toEmployee->id,
+                'asset_id'      => $device->id,
+                'assigned_date' => $validated['transfer_date'],
+                'condition'     => $validated['condition'],
+                'notes'         => $validated['notes'] ?? null,
+            ]);
+            $device->update([
+                'status'           => 'assigned',
+                'storage_location' => null,
+                'branch_id'        => $toEmployee->branch_id ?: $device->branch_id,
+            ]);
+            $eventType = 'transferred';
+        } elseif ($toBranch) {
+            $device->update([
+                'status'           => 'available',
+                'branch_id'        => $toBranch->id,
+                'storage_location' => $validated['storage_location'] ?? null,
+            ]);
+            $eventType = 'moved_to_storage';
+        } else { // universal_store target
+            $device->update([
+                'status'           => 'available',
+                'branch_id'        => null,
+                'storage_location' => $validated['storage_location'] ?? null,
+            ]);
+            $eventType = 'moved_to_storage';
+        }
+
+        AssetHistory::record(
+            $device,
+            $eventType,
+            $this->buildDescription($validated, $fromEmployee, $fromBranch, $toEmployee, $toBranch),
+            $this->buildMeta($validated, $fromEmployee, $fromBranch, $toEmployee, $toBranch, $transferGroupId, $fromStorageLocation)
+        );
+    }
+
+    /**
+     * One asset from the employee holding it to another employee, from that
+     * employee's page or the asset's own page. The transfer page does the same
+     * thing in bulk; both end on the same handover form.
+     */
+    public function transferDevice(Request $request, Device $device)
+    {
+        $validated = $request->validate([
+            'to_employee_id' => 'required|exists:employees,id',
+            'transfer_date'  => 'required|date|before_or_equal:today',
+            'condition'      => 'required|in:good,fair,poor',
+            'notes'          => 'nullable|string|max:1000',
+        ], [
+            'to_employee_id.required' => 'Choose the employee the asset goes to.',
+            'transfer_date.before_or_equal' => 'An asset cannot be handed over on a day that has not come yet.',
+        ]);
+
+        $assignment = EmployeeAsset::with('employee')
+            ->where('asset_id', $device->id)
+            ->whereNull('returned_date')
+            ->first();
+
+        if (! $assignment?->employee) {
+            return back()->with('error', ($device->asset_code ?: $device->name).' is not assigned to anyone — assign it instead of transferring it.');
+        }
+
+        $fromEmployee = $assignment->employee;
+        $toEmployee = Employee::findOrFail($validated['to_employee_id']);
+
+        if ($fromEmployee->id === $toEmployee->id) {
+            return back()->with('error', $toEmployee->name.' already holds it.');
+        }
+        if ($requestId = app(\App\Services\Itam\PendingScrapRequests::class)->forDevice((int) $device->id)) {
+            return back()->with('error', ($device->asset_code ?: $device->name)." is in scrap request #{$requestId}, which is waiting for approval.");
+        }
+
+        $transferGroupId = (string) Str::uuid();
+        $validated['source_type'] = 'employee';
+        $validated['target_type'] = 'employee';
+
+        try {
+            DB::transaction(fn () => $this->moveDevice($device, $validated, $fromEmployee, null, $toEmployee, null, $transferGroupId));
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('admin.itam.transfer.print', $transferGroupId)
+            ->with('success', ($device->asset_code ?: $device->name)." transferred from {$fromEmployee->name} to {$toEmployee->name}.");
     }
 
     private function buildMeta(
@@ -238,6 +310,9 @@ class AssetTransferController extends Controller
             'condition'         => $validated['condition'],
             'source_type'       => $validated['source_type'],
             'target_type'       => $validated['target_type'],
+            // The day it changed hands, which is not always the day it was typed in:
+            // the movements report puts it in the period finance is closing.
+            'transfer_date'     => $validated['transfer_date'],
         ];
 
         if ($fromEmployee) {

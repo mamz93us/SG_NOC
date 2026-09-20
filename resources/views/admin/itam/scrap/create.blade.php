@@ -122,9 +122,19 @@
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white"><strong>2. Reason & Disposal</strong></div>
             <div class="card-body row g-3">
-                <div class="col-12">
+                <div class="col-md-6">
                     <label class="form-label">Reason for Scrapping</label>
-                    <textarea name="reason" class="form-control" rows="3" maxlength="2000" required placeholder="Describe why these assets need to be scrapped (damaged, end-of-life, etc.)"></textarea>
+                    <select name="reason_code" class="form-select" required>
+                        <option value="">Choose a reason…</option>
+                        @foreach (\App\Services\Itam\AssetReasons::SCRAP as $code => $label)
+                            <option value="{{ $code }}" {{ old('reason_code') === $code ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">Finance counts a month's scraps by reason, so it is picked from a list.</div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Detail <span class="text-muted">(optional)</span></label>
+                    <textarea name="reason" class="form-control" rows="3" maxlength="2000" placeholder="What happened — a ticket number, the repair quote, where it was lost.">{{ old('reason') }}</textarea>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Disposal Method</label>
