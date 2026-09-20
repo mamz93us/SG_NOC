@@ -200,7 +200,10 @@ class AzureDeviceService
                         AssetHistory::record(
                             $localDevice,
                             'returned',
-                            "Auto-released — Azure deviceId rotated on serial {$serial} (old UPN {$oldUpn} → new UPN {$rawUpn})"
+                            "Auto-released — Azure deviceId rotated on serial {$serial} (old UPN {$oldUpn} → new UPN {$rawUpn})",
+                            // The sync's own bookkeeping, not an asset handed back:
+                            // the movements report leaves these out.
+                            ['auto_release' => true, 'serial' => $serial]
                         );
                         $localDevice->update(['status' => 'available']);
                     }

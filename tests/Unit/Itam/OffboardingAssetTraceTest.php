@@ -217,3 +217,29 @@ it('records an offboarding transfer as a transfer, with both sides and one hando
         ->and($row['to'])->toBe('Bader Alharbi')
         ->and($row['to_no'])->toBe('4102');
 });
+
+it('leaves the sync own auto-release off the report, and on the device history', function () {
+    [$ow, $leaver, $device] = leaverWithLaptop('return_to_it');
+
+    // What the device sync writes when Azure rotates a deviceId: it closes the
+    // assignment itself. All 341 returned rows on NOC2 were these.
+    AssetHistory::record($device, 'returned', 'Auto-released — Azure deviceId rotated on serial SN-300',
+        ['auto_release' => true, 'serial' => 'SN-300']);
+
+    $rows = app(AssetMovements::class)->rows([
+        'from' => now()->subDay()->toDateString(), 'to' => now()->addDay()->toDateString(),
+    ]);
+
+    expect(AssetHistory::where('device_id', $device->id)->count())->toBe(1)
+        ->and($rows)->toHaveCount(0);
+
+    // The offboarding hand-back of the same asset does count.
+    (new ApplyAssetDecisionsJob($ow->id))->handle(app(App\Services\Workflow\WorkflowEngine::class));
+
+    $rows = app(AssetMovements::class)->rows([
+        'from' => now()->subDay()->toDateString(), 'to' => now()->addDay()->toDateString(),
+    ]);
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows->first()['from'])->toBe('Ahmed Manea');
+});

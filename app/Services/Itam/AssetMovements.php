@@ -36,7 +36,11 @@ class AssetMovements
     private const EVENTS = [
         'transferred' => 'transfer',
         // A hand-back is a custody change finance sees on the same list — and
-        // offboarding is where most of them happen.
+        // offboarding is where most of them happen. Only one that names the
+        // person it came from counts: the device sync closes an assignment by
+        // itself when Azure rotates a deviceId, and those (341 of the 341
+        // `returned` rows on NOC2 when this was written) are its own
+        // bookkeeping, not an asset changing hands. They are dropped in rows().
         'returned' => 'return',
         'moved_to_storage' => 'store',
         'retired' => 'retire',
@@ -90,7 +94,8 @@ class AssetMovements
 
         $events = $query->get();
         $codes = $this->employeeCodes($events);
-        $rows = $events->map(fn (AssetHistory $event) => $this->row($event, $codes));
+        $rows = $events->map(fn (AssetHistory $event) => $this->row($event, $codes))
+            ->reject(fn (array $row) => $row['kind'] === 'return' && ! $row['from']);
 
         if (! empty($filters['from'])) {
             $from = CarbonImmutable::parse($filters['from'])->startOfDay();
