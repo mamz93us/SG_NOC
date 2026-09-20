@@ -5,15 +5,29 @@ namespace App\Models\Attendance;
 use App\Models\Employee;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * A raw BioTime punch, copied verbatim. Never edited — see attendance_days.
+ * A raw BioTime punch, copied verbatim. HR never edits one — corrections are
+ * AttendanceAdjustment rows laid over the day, see attendance_days.
+ *
+ * The source database may still change its own row, and then this copy
+ * follows it: Services\Attendance\PunchMirror re-reads a window, rewrites
+ * punches whose fields moved and stamps `removed_at` on the ones the source
+ * no longer holds. Soft-deleting on that column is what keeps a removed punch
+ * out of the day processor, the monthly sheet and the Oracle feed without
+ * each of them having to remember.
  *
  * punch_time is the device's wall clock; it is read and shown as-is and must
  * never be passed through setTimezone().
  */
 class AttendancePunch extends Model
 {
+    use SoftDeletes;
+
+    /** Stamped, never deleted — the house name for "the source no longer lists it". */
+    public const DELETED_AT = 'removed_at';
+
     public $timestamps = false;
 
     /**
@@ -44,6 +58,7 @@ class AttendancePunch extends Model
         'terminal_alias',
         'area_alias',
         'synced_at',
+        'removed_at',
     ];
 
     protected $casts = [
@@ -51,6 +66,7 @@ class AttendancePunch extends Model
         'employee_id' => 'integer',
         'punch_time' => 'datetime',
         'synced_at' => 'datetime',
+        'removed_at' => 'datetime',
     ];
 
     public function source(): BelongsTo
@@ -73,5 +89,11 @@ class AttendancePunch extends Model
         $state = (string) $this->punch_state;
 
         return self::STATES[$state] ?? self::STATES[strtoupper($state)] ?? '—';
+    }
+
+    /** The subject key the day processor files this punch under. */
+    public function subjectKey(): string
+    {
+        return $this->employee_id ? 'emp:'.$this->employee_id : 'bt:'.$this->biotime_employee_id;
     }
 }

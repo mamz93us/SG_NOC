@@ -106,7 +106,7 @@
                     <th>Last sync</th>
                     <th class="text-end">Watermark</th>
                     <th class="text-end">Codes</th>
-                    <th style="width:260px"></th>
+                    <th style="width:340px"></th>
                 </tr>
             </thead>
             <tbody>
@@ -179,7 +179,7 @@
                         <td class="text-end font-monospace small">{{ $source->watermarkLabel() }}</td>
                         <td class="text-end small">{{ number_format($source->employees_count) }}</td>
                         <td class="text-end">
-                            <div class="d-flex gap-1 justify-content-end">
+                            <div class="d-flex flex-wrap gap-1 justify-content-end">
                                 <form method="POST" action="{{ route('admin.attendance.sources.test', $source) }}">
                                     @csrf
                                     <button class="btn btn-sm btn-outline-success js-busy" data-busy="Testing…">
@@ -190,6 +190,13 @@
                                     @csrf
                                     <button class="btn btn-sm btn-outline-primary js-busy" data-busy="Syncing…">
                                         <i class="bi bi-arrow-repeat me-1"></i>Sync now
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ route('admin.attendance.sources.check', $source) }}">
+                                    @csrf
+                                    <button class="btn btn-sm btn-outline-warning js-busy" data-busy="Checking…"
+                                            title="Compare the last 7 days punch by punch and take what the source has edited or deleted">
+                                        <i class="bi bi-clipboard-check me-1"></i>Check
                                     </button>
                                 </form>
                                 <a href="{{ route('admin.attendance.sources.edit', $source) }}" class="btn btn-sm btn-outline-secondary">

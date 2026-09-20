@@ -1225,9 +1225,12 @@ Schedule::command('ai:prune-conversations')
 // ─── Attendance (ZKTeco BioTime) ──────────────────────────────────
 // biotime:sync and attendance:work are registered at the top of this file.
 
-// Per-day counts against BioTime for the last week: re-reads short days,
-// reports punches deleted at the source, retries unmapped codes.
-Schedule::command('biotime:reconcile --fix')
+// The last week's punches compared with the source row by row, and brought
+// back in step: biotime:sync only reads forwards, so a punch ZKTeco later
+// edits or deletes never reaches the NOC any other way. Approved periods are
+// left alone and a mass removal is reported, not applied — see PunchMirror.
+// The per-source budget keeps four sources inside the overlap window.
+Schedule::command('biotime:reconcile --fix --max-seconds=600')
     ->dailyAt('02:30')
     ->withoutOverlapping(60)
     ->runInBackground()

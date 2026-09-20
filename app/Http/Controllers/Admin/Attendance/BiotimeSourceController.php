@@ -143,6 +143,20 @@ class BiotimeSourceController extends Controller
             ->with('success', "Sync of \"{$source->name}\" queued — it starts within a minute. The banner above shows when it is done.");
     }
 
+    /**
+     * Compares the last week's punches with the source row by row and brings
+     * the NOC back in step — what biotime:reconcile does nightly. Queued for
+     * the same reason a sync is: it reads the whole window.
+     */
+    public function check(BiotimeSource $source): RedirectResponse
+    {
+        AttendanceTask::queue('mirror', ['source_id' => $source->id, 'days' => 7],
+            "Check {$source->name} against the source", Auth::id());
+
+        return redirect()->route('admin.attendance.sources.index')
+            ->with('success', "Check of \"{$source->name}\" queued — the last 7 days are compared with the source punch by punch, and new, edited and deleted ones are applied here. Punches inside an approved period are left alone.");
+    }
+
     private function form(BiotimeSource $source): View
     {
         return view('admin.attendance.sources.form', [

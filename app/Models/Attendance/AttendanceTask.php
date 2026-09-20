@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *   sync     {source_id}                 read new punches from one source
  *   rebuild  {from, to, employee_ids?}   recalculate days (null ids = everyone)
  *   relink   {source_id?}                retry matching unmapped codes
+ *   mirror   {source_id, days?}          compare a window with the source again
  */
 class AttendanceTask extends Model
 {

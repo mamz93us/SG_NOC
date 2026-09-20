@@ -53,8 +53,11 @@ return [
         App\Models\VoiceMeshRun::class,
         App\Models\VoiceQualityReport::class,
 
-        // Attendance punches are raw device data and never edited; the derived
-        // attendance_days table is rebuildable by design.
+        // Attendance punches are raw device data, and the derived
+        // attendance_days table is rebuildable by design. The one thing that
+        // ever rewrites a punch — PunchMirror, following an edit or a deletion
+        // in the source database — logs what it did by hand, per source and
+        // per run, rather than a row per punch.
         App\Models\Attendance\AttendancePunch::class,
         App\Models\Attendance\AttendanceDay::class,
 

@@ -2,13 +2,13 @@
 
 namespace App\Services\Identity;
 
+use App\Models\Attendance\AttendancePunch;
 use App\Models\Employee;
 use App\Models\IdentityLicense;
 use App\Models\IdentitySyncLog;
 use App\Models\IdentityUser;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -71,7 +71,9 @@ final class LicenseHolderReview
             ]);
 
         $lastPunch = Schema::hasTable('attendance_punches')
-            ? DB::table('attendance_punches')
+            // Through the model, so a punch the source deleted (removed_at) is not
+            // someone's last sign of life.
+            ? AttendancePunch::query()
                 ->whereNotNull('employee_id')
                 ->groupBy('employee_id')
                 ->selectRaw('employee_id, max(punch_time) as last_punch')
