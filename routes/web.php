@@ -1225,6 +1225,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
                 Route::put('sources/{source}', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'update'])->name('sources.update');
                 Route::post('sources/{source}/test', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'test'])->name('sources.test');
                 Route::post('sources/{source}/sync', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'sync'])->name('sources.sync');
+                // Row-by-row against the source: takes punches it has edited or deleted, which a sync never revisits.
+                Route::post('sources/{source}/check', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'check'])->name('sources.check');
                 Route::post('shifts', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'store'])->name('shifts.store');
                 Route::put('shifts/{shift}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'update'])->name('shifts.update');
                 Route::delete('shifts/{shift}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'destroy'])->name('shifts.destroy');

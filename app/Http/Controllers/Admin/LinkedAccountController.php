@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Attendance\AttendancePunch;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\IdentityUser;
@@ -13,7 +14,6 @@ use App\Services\People\EmployeeMerger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
@@ -60,7 +60,9 @@ class LinkedAccountController extends Controller
                 'employees.job_title', 'branches.name as branch', 'departments.name as department',
             ]);
         $lastPunch = Schema::hasTable('attendance_punches')
-            ? DB::table('attendance_punches')->whereNotNull('employee_id')->groupBy('employee_id')
+            // Through the model, so a punch the source deleted (removed_at) is not
+            // someone's last sign of life.
+            ? AttendancePunch::query()->whereNotNull('employee_id')->groupBy('employee_id')
                 ->selectRaw('employee_id, max(punch_time) as last_punch')->pluck('last_punch', 'employee_id')->all()
             : [];
         $suggestions = array_values(array_filter(
