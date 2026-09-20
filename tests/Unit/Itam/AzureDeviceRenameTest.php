@@ -68,6 +68,9 @@ beforeEach(function () {
         $t->string('azure_device_id')->unique();
         $t->string('display_name')->nullable();
         $t->string('serial_number')->nullable();
+        $t->string('intune_managed_device_id')->nullable();
+        $t->timestamp('intune_removed_at')->nullable();
+        $t->timestamp('removed_at')->nullable();
         $t->unsignedBigInteger('device_id')->nullable();
         $t->string('link_status')->default('unlinked');
         $t->timestamps();
@@ -160,4 +163,29 @@ it('refuses an event type the history column cannot hold', function () {
     preg_match_all("/'([a-z_]+)'/", $enum[1], $values);
 
     expect($values[1])->toBe(AssetHistory::EVENT_TYPES);
+});
+
+it('renames from neither when two Intune devices claim one asset', function () {
+    [$device, $first] = renamedPair('SG-OLD-NAME', 'SG-FIRST-NAME');
+
+    // A second Intune device linked to the same asset, with its own name: each
+    // renamed the asset to its own on every run, and its history filled up.
+    $second = AzureDevice::create([
+        'azure_device_id' => 'az-101', 'display_name' => 'SG-SECOND-NAME', 'serial_number' => 'SN-101',
+        'device_id' => $device->id, 'link_status' => 'linked',
+    ]);
+
+    $service = app(AzureDeviceService::class);
+    $service->syncLinkedDeviceName($first);
+    $service->syncLinkedDeviceName($second);
+
+    expect($device->fresh()->name)->toBe('SG-OLD-NAME')
+        ->and(AssetHistory::count())->toBe(0);
+
+    // With the stale link gone, the remaining one renames it as usual.
+    $second->update(['link_status' => 'unlinked', 'device_id' => null]);
+    $service->syncLinkedDeviceName($first);
+
+    expect($device->fresh()->name)->toBe('SG-FIRST-NAME')
+        ->and(AssetHistory::count())->toBe(1);
 });

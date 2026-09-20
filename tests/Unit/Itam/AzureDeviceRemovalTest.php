@@ -278,3 +278,34 @@ it('refuses to mark anything when Graph answers with nothing at all', function (
     expect($result['removed'])->toBe(0)
         ->and(AzureDevice::whereNotNull('removed_at')->count())->toBe(0);
 });
+
+it('takes Microsoft placeholder dates for no date, instead of failing the device', function () {
+    // Intune sends 0001-01-01T00:00:00Z for a date it does not hold, which MySQL
+    // in strict mode refuses — two devices on NOC2 were skipped every run for it.
+    Http::fake([
+        'graph.microsoft.com/v1.0/deviceManagement/managedDevices*' => Http::response(['value' => [[
+            'id' => 'intune-a',
+            'azureADDeviceId' => 'dev-a',
+            'deviceName' => 'PC-dev-a',
+            'serialNumber' => 'SN-dev-a',
+            'enrolledDateTime' => '0001-01-01T00:00:00Z',
+            'lastSyncDateTime' => '0001-01-01T00:00:00Z',
+        ]]]),
+        'graph.microsoft.com/v1.0/devices*' => Http::response(['value' => [[
+            'id' => 'graph-dev-a',
+            'deviceId' => 'dev-a',
+            'displayName' => 'PC-dev-a',
+            'approximateLastSignInDateTime' => '0001-01-01T00:00:00Z',
+            'physicalIds' => [],
+        ]]]),
+    ]);
+
+    $result = azureSync()->syncDevices();
+    $device = AzureDevice::where('azure_device_id', 'dev-a')->first();
+
+    expect($result['skipped'])->toBe(0)
+        ->and($result['synced'])->toBe(1)
+        ->and($device)->not->toBeNull()
+        ->and($device->enrolled_date)->toBeNull()
+        ->and($device->last_activity_at)->toBeNull();
+});
