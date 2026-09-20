@@ -1,5 +1,7 @@
-@php($settings = \App\Models\Setting::first())
+{{-- Everything in one block on purpose: the inline php directive that used to sit above this one
+     swallowed it, so none of these labels were assigned and the slip failed on $sourceLabel. --}}
 @php
+    $settings = \App\Models\Setting::first();
     $sourceLabel = match($sourceType) {
         'employee'        => $fromEmployee?->name ?? '—',
         'branch_store'    => ($fromBranchName ?? $fromBranch?->name ?? 'Branch') . ' Store' . ($fromStorageLocation ? " ({$fromStorageLocation})" : ''),

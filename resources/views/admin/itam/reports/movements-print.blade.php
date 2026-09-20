@@ -1,5 +1,7 @@
-@php($settings = \App\Models\Setting::first())
+{{-- Everything in one block on purpose: an inline php directive right above a block one swallows it,
+     and nothing in the block is assigned. --}}
 @php
+    $settings = \App\Models\Setting::first();
     $from = \Carbon\Carbon::parse($filters['from']);
     $to = \Carbon\Carbon::parse($filters['to']);
     $kindLabel = $filters['kind'] ? ($kinds[$filters['kind']] ?? $filters['kind']) : 'All movements';
