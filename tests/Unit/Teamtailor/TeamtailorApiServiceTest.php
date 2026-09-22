@@ -130,6 +130,29 @@ it('lists jobs with token auth and pagination', function () {
     });
 });
 
+it('lists closed jobs too unless asked for one status', function () {
+    Http::fake(['api.teamtailor.com/*' => Http::response(['data' => []], 200)]);
+
+    // Left out, Teamtailor lists published jobs only: 6 of 57 on 2026-09-22.
+    (new TeamtailorApiService)->listJobs();
+    (new TeamtailorApiService)->listJobs(['filter[status]' => 'archived']);
+
+    $sent = Http::recorded()->map(fn ($pair) => $pair[0]['filter[status]'])->all();
+
+    expect($sent)->toBe(['all', 'archived']);
+});
+
+it('names a job\'s status as filter[status] does', function (array $attributes, ?string $expected) {
+    expect(TeamtailorApiService::jobStatus($attributes))->toBe($expected);
+})->with([
+    'published reads open'   => [['status' => 'open', 'human-status' => 'published'], 'published'],
+    'stored before, as open' => [['status' => 'open'], 'published'],
+    'unlisted'               => [['status' => 'unlisted', 'human-status' => 'unlisted'], 'unlisted'],
+    'archived'               => [['status' => 'archived', 'human-status' => 'archived'], 'archived'],
+    'blank human-status'     => [['status' => 'open', 'human-status' => ''], 'published'],
+    'none'                   => [[], null],
+]);
+
 it('lists a job\'s applicants via the candidates relationship with job-applications included', function () {
     Http::fake(['api.teamtailor.com/*' => Http::response(['data' => [], 'included' => []], 200)]);
 
