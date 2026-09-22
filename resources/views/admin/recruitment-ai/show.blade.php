@@ -16,7 +16,7 @@
             </a>
         </div>
         <h4 class="mb-0 fw-bold"><i class="bi bi-stars me-2 text-primary"></i>{{ $title }}</h4>
-        <small class="text-muted">Teamtailor job {{ $jobId }}@if ($job->job_status) · {{ $job->job_status }}@endif</small>
+        <small class="text-muted">Teamtailor job {{ $jobId }}@if ($job->job_status) · @include('admin.teamtailor.jobs._status', ['jobStatus' => $job->job_status])@endif</small>
     </div>
     @can('view-candidates')
         <a href="{{ route('admin.jobs.show', ['job' => $jobId, 'title' => $title]) }}" class="btn btn-outline-secondary btn-sm">

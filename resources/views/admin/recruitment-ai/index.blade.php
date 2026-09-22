@@ -35,6 +35,10 @@
     </div>
 @endif
 
+@if ($configured)
+    @include('admin.teamtailor.jobs._status_filter', ['route' => 'admin.recruitment-ai.index', 'status' => $status, 'counts' => $counts])
+@endif
+
 <div class="card shadow-sm border-0">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -57,7 +61,7 @@
                             <a href="{{ route('admin.recruitment-ai.show', $row['id']) }}" class="fw-semibold text-decoration-none">{{ $row['title'] }}</a>
                             <div class="small text-muted">Job {{ $row['id'] }}</div>
                         </td>
-                        <td><span class="badge bg-light text-body border">{{ $row['status'] ?? '—' }}</span></td>
+                        <td>@include('admin.teamtailor.jobs._status', ['jobStatus' => $row['status']])</td>
                         <td>
                             @if ($job?->screening_enabled)
                                 <span class="badge bg-success-subtle text-success border border-success-subtle">On</span>
@@ -87,7 +91,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">No jobs to show.</td>
+                        <td colspan="7" class="text-center text-muted py-4">No {{ $status === 'all' ? '' : $status }} jobs to show.</td>
                     </tr>
                 @endforelse
             </tbody>

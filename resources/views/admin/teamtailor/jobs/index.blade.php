@@ -6,7 +6,7 @@
         <h4 class="mb-0 fw-bold"><i class="bi bi-briefcase me-2 text-primary"></i>Jobs</h4>
         <small class="text-muted">
             @if($configured && !$error)
-                {{ number_format($total) }} job{{ $total === 1 ? '' : 's' }} from Teamtailor
+                {{ number_format($total) }} {{ $status === 'all' ? '' : $status }} job{{ $total === 1 ? '' : 's' }} from Teamtailor{{ $status === 'all' ? ', open and closed' : '' }}
             @else
                 Teamtailor recruitment
             @endif
@@ -37,16 +37,16 @@
 </div>
 @endif
 
+@if($configured)
+    @include('admin.teamtailor.jobs._status_filter', ['route' => 'admin.jobs.index', 'status' => $status])
+@endif
+
 <div class="card shadow-sm border-0">
     <div class="card-body p-0">
         @if($jobs->isEmpty())
         <div class="text-center py-5 text-muted">
             <i class="bi bi-briefcase display-4 d-block mb-2"></i>
-            @if($configured && !$error)
-                No jobs to show.
-            @else
-                No jobs to show.
-            @endif
+            No {{ $status === 'all' ? '' : $status }} jobs to show.
         </div>
         @else
         <div class="table-responsive">
@@ -63,20 +63,7 @@
                     @foreach($jobs as $j)
                     <tr>
                         <td class="ps-3 fw-semibold">{{ $j['title'] }}</td>
-                        <td>
-                            @php $st = strtolower((string) $j['status']); @endphp
-                            @if($st === 'open' || $st === 'published')
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">{{ ucfirst($st) }}</span>
-                            @elseif($st === 'draft' || $st === 'unlisted')
-                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ ucfirst($st) }}</span>
-                            @elseif($st === 'archived')
-                                <span class="badge bg-dark-subtle text-dark border">{{ ucfirst($st) }}</span>
-                            @elseif($st)
-                                <span class="badge bg-light text-dark border">{{ ucfirst($st) }}</span>
-                            @else
-                                <span class="text-muted">—</span>
-                            @endif
-                        </td>
+                        <td>@include('admin.teamtailor.jobs._status', ['jobStatus' => $j['status']])</td>
                         <td>{{ $j['created_at'] ? \Illuminate\Support\Carbon::parse($j['created_at'])->format('d M Y') : '—' }}</td>
                         <td class="pe-3 text-end">
                             <a href="{{ route('admin.jobs.show', ['job' => $j['id'], 'title' => $j['title']]) }}"

@@ -20,11 +20,15 @@ class JobController extends Controller
     private const PER_PAGE = 25;
 
     /**
-     * List the recruiting jobs candidates apply to.
+     * List the recruiting jobs candidates apply to, closed ones included,
+     * narrowed to one Teamtailor status by ?status=.
      */
     public function index(Request $request, TeamtailorApiService $teamtailor)
     {
         $page = max(1, (int) $request->query('page', 1));
+        $status = in_array($request->query('status'), TeamtailorApiService::JOB_STATUSES, true)
+            ? $request->query('status')
+            : 'all';
 
         $jobs = collect();
         $total = 0;
@@ -33,7 +37,7 @@ class JobController extends Controller
 
         if ($configured) {
             try {
-                $body = $teamtailor->listJobs([], $page, self::PER_PAGE, '-created-at');
+                $body = $teamtailor->listJobs(['filter[status]' => $status], $page, self::PER_PAGE, '-created-at');
                 $total = (int) Arr::get($body, 'meta.record-count', 0);
                 $jobs = collect(Arr::get($body, 'data', []))
                     ->map(fn ($row) => $this->mapJob($row));
@@ -54,6 +58,7 @@ class JobController extends Controller
             'jobs' => $jobs,
             'paginator' => $paginator,
             'total' => $total,
+            'status' => $status,
             'error' => $error,
             'configured' => $configured,
         ]);
@@ -242,7 +247,7 @@ class JobController extends Controller
         return [
             'id' => $row['id'] ?? null,
             'title' => $a['title'] ?? ($a['internal-name'] ?? '—'),
-            'status' => $a['status'] ?? null,
+            'status' => TeamtailorApiService::jobStatus($a),
             'created_at' => $a['created-at'] ?? null,
         ];
     }
