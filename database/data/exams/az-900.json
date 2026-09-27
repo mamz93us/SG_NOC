@@ -1,0 +1,1506 @@
+{
+  "exam": {
+    "code": "AZ-900",
+    "title": "Microsoft Azure Fundamentals",
+    "description": "AZ-900 validates foundational knowledge of cloud concepts, core Azure architecture and services, and Azure management and governance. This is an internal practice simulation with original questions written for the IT team; it is not affiliated with or endorsed by Microsoft.",
+    "duration_minutes": 45,
+    "question_count": 45,
+    "passing_score": 700
+  },
+  "questions": [
+    {
+      "uid": "az900-001",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Your company is moving workloads to Azure and wants to clarify the shared responsibility model. Which responsibility always remains with the customer, regardless of whether the workload uses IaaS, PaaS, or SaaS?",
+      "options": {
+        "A": "Physical datacenter security",
+        "B": "Information and data",
+        "C": "Operating system patching",
+        "D": "Physical network infrastructure"
+      },
+      "answer": ["B"],
+      "explanation": "Under the shared responsibility model the customer always owns their information and data, the devices that connect, and accounts and identities. Operating system patching moves to the provider in PaaS and SaaS, and physical security is always the provider's.",
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+    },
+    {
+      "uid": "az900-002",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Your company plans to migrate a line-of-business application to the cloud. The team needs full control over the operating system and must install custom third-party software on the servers. Which cloud service model should you use?",
+      "options": {
+        "A": "Software as a service (SaaS)",
+        "B": "Platform as a service (PaaS)",
+        "C": "Infrastructure as a service (IaaS)",
+        "D": "Serverless computing"
+      },
+      "answer": ["C"],
+      "explanation": "IaaS gives the customer the most control: you manage the operating system and everything installed on it, while the provider manages the physical hardware. PaaS and serverless abstract the OS away, so you cannot freely customize it.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-003",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Your compliance team wants deployed cloud resources to meet corporate standards and regulatory requirements, using templates and automatic auditing to detect configuration drift. Which cloud benefit does this describe?",
+      "options": {
+        "A": "Governance",
+        "B": "Elasticity",
+        "C": "Reliability",
+        "D": "Scalability"
+      },
+      "answer": ["A"],
+      "explanation": "Governance in the cloud means using templates, policies, and auditing so resources stay compliant with corporate and regulatory standards. Elasticity and scalability are about adjusting resources to demand, and reliability is about recovering from failures.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-004",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Which of the following is an example of capital expenditure (CapEx)?",
+      "options": {
+        "A": "Paying a monthly bill for Azure virtual machines based on hours used",
+        "B": "Purchasing physical servers and storage arrays for an on-premises datacenter",
+        "C": "Paying per gigabyte for data stored in Azure Blob Storage",
+        "D": "Paying for Azure Functions executions at the end of each month"
+      },
+      "answer": ["B"],
+      "explanation": "CapEx is an up-front spend on physical infrastructure that is then depreciated over time, such as buying servers. The other options are consumption-based charges, which are operational expenditure (OpEx).",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-005",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "An online retailer's website automatically adds compute resources during a holiday sales event and automatically removes them when traffic returns to normal. Which cloud benefit does this demonstrate?",
+      "options": {
+        "A": "Predictability",
+        "B": "High availability",
+        "C": "Manageability",
+        "D": "Elasticity"
+      },
+      "answer": ["D"],
+      "explanation": "Elasticity is the ability to automatically add and remove resources as demand changes, so you pay only for what the workload needs at the time. High availability is about keeping the service up, not about matching capacity to load.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-006",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "An application running on a single Azure virtual machine is slow. You resize the virtual machine to a size with more CPUs and more memory. Which type of scaling did you perform?",
+      "options": {
+        "A": "Horizontal scaling (scaling out)",
+        "B": "Vertical scaling (scaling up)",
+        "C": "Scaling in",
+        "D": "Geo-distribution"
+      },
+      "answer": ["B"],
+      "explanation": "Vertical scaling (scaling up) adds capability, such as CPU or memory, to an existing resource. Horizontal scaling (scaling out) adds more instances instead of making one instance bigger.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-007",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "A service level agreement (SLA) for an Azure service guarantees an uptime of 99.95 percent. Which cloud benefit is this SLA primarily expressing?",
+      "options": {
+        "A": "Scalability",
+        "B": "Governance",
+        "C": "High availability",
+        "D": "Predictability"
+      },
+      "answer": ["C"],
+      "explanation": "High availability is about keeping resources available with minimal downtime, and Azure SLAs express it as a guaranteed uptime percentage. Scalability and governance are unrelated to uptime guarantees.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-008",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Which cloud benefit describes the ability of a system to recover from failures and continue to function, for example by running across multiple regions?",
+      "options": {
+        "A": "Reliability",
+        "B": "Elasticity",
+        "C": "Manageability",
+        "D": "Agility"
+      },
+      "answer": ["A"],
+      "explanation": "Reliability is the ability of a system to recover from failures and continue to function, which the cloud supports through decentralized design across regions. Elasticity concerns matching capacity to demand.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-009",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Your finance team wants to forecast cloud spending accurately, and your operations team wants to be confident that applications will perform consistently as load changes. Which cloud benefit covers both of these needs?",
+      "options": {
+        "A": "Reliability",
+        "B": "Security",
+        "C": "Scalability",
+        "D": "Predictability"
+      },
+      "answer": ["D"],
+      "explanation": "Predictability in the cloud has two parts: performance predictability (for example through autoscaling and load balancing) and cost predictability (tracking and forecasting spend). Scalability alone does not address cost forecasting.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-010",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Cloud manageability is often described as management of the cloud and management in the cloud. Which of the following is an example of management of the cloud?",
+      "options": {
+        "A": "Using a web portal to view and change resources",
+        "B": "Running Azure CLI commands from a terminal",
+        "C": "Automatically replacing failing resources based on monitored health",
+        "D": "Calling REST APIs from a deployment script"
+      },
+      "answer": ["C"],
+      "explanation": "Management of the cloud refers to what the cloud does for your resources, such as automatic scaling, template-based deployment, health monitoring with automatic replacement, and alerts. Portals, CLI, and APIs are the tools used for management in the cloud.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-011",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Which cloud deployment model is built, controlled, and maintained by a third-party cloud provider and lets anyone purchase and use its services?",
+      "options": {
+        "A": "Private cloud",
+        "B": "Public cloud",
+        "C": "Hybrid cloud",
+        "D": "On-premises datacenter"
+      },
+      "answer": ["B"],
+      "explanation": "A public cloud is owned and operated by a provider such as Microsoft and is available to anyone who wants to buy services. A private cloud is used by a single organization.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-012",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "For regulatory reasons, your organization must keep all compute resources in its own datacenter, but it still wants to offer internal teams self-service provisioning of virtual machines. Which deployment model fits these requirements?",
+      "options": {
+        "A": "Public cloud",
+        "B": "Hybrid cloud",
+        "C": "Private cloud",
+        "D": "Multi-cloud"
+      },
+      "answer": ["C"],
+      "explanation": "A private cloud delivers cloud capabilities such as self-service to a single organization, and it can be hosted entirely in the organization's own datacenter. Hybrid and public models would place some or all resources with a public provider.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-013",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Your company runs legacy applications on-premises and wants to use Azure for extra capacity during seasonal peaks, with both environments connected and able to share data. Which deployment model should you use?",
+      "options": {
+        "A": "Hybrid cloud",
+        "B": "Private cloud",
+        "C": "Public cloud only",
+        "D": "Community cloud"
+      },
+      "answer": ["A"],
+      "explanation": "A hybrid cloud combines a private (on-premises) environment with a public cloud and lets workloads and data move between them, for example to burst into the public cloud at peak times.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-014",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Your company runs its workloads on VMware on-premises. It wants to move them to Azure while continuing to use familiar VMware tools such as vCenter and vSphere. Which Azure service should you use?",
+      "options": {
+        "A": "Azure Virtual Desktop",
+        "B": "Azure Arc",
+        "C": "Azure Kubernetes Service (AKS)",
+        "D": "Azure VMware Solution"
+      },
+      "answer": ["D"],
+      "explanation": "Azure VMware Solution runs VMware environments on dedicated Azure bare-metal infrastructure, so teams keep using their existing VMware tools and skills. Azure Arc extends Azure management to resources outside Azure but does not host VMware workloads.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-015",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Which of the following is an example of software as a service (SaaS)?",
+      "options": {
+        "A": "Microsoft 365",
+        "B": "Azure Virtual Machines",
+        "C": "Azure App Service",
+        "D": "Azure Kubernetes Service (AKS)"
+      },
+      "answer": ["A"],
+      "explanation": "Microsoft 365 is a complete application delivered over the internet, which is SaaS. Azure Virtual Machines is IaaS, and App Service is PaaS.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-016",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Your company deploys a web application to a platform as a service (PaaS) offering. Under the shared responsibility model, which of the following is the cloud provider responsible for?",
+      "options": {
+        "A": "Accounts and identities",
+        "B": "Information and data",
+        "C": "The operating system",
+        "D": "End-user devices"
+      },
+      "answer": ["C"],
+      "explanation": "In PaaS the provider manages the physical infrastructure and the operating system, while the customer keeps responsibility for data, devices, and accounts and identities.",
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+    },
+    {
+      "uid": "az900-017",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Which statement about serverless computing is correct?",
+      "options": {
+        "A": "You must provision and patch the servers that run your code",
+        "B": "It is a form of infrastructure as a service (IaaS)",
+        "C": "You must purchase reserved capacity before you can use it",
+        "D": "The cloud provider manages the infrastructure, and you are typically billed only for the resources used when your code runs"
+      },
+      "answer": ["D"],
+      "explanation": "With serverless computing the provider manages servers, scaling, and patching, and the consumption model bills only for the execution that occurs. Serverless is similar to PaaS, not IaaS, and does not require reserved capacity.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-018",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Which cloud service model places the most management responsibility on the customer?",
+      "options": {
+        "A": "Software as a service (SaaS)",
+        "B": "Infrastructure as a service (IaaS)",
+        "C": "Platform as a service (PaaS)",
+        "D": "Serverless computing"
+      },
+      "answer": ["B"],
+      "explanation": "IaaS leaves the customer responsible for the operating system, middleware, runtime, applications, and data, which is the most of any service model. SaaS places the least responsibility on the customer.",
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+    },
+    {
+      "uid": "az900-019",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Your CFO wants to avoid large up-front infrastructure investments and instead pay for technology as it is used, deducting the cost in the same period it is incurred. Which expenditure model does cloud computing primarily follow?",
+      "options": {
+        "A": "Operational expenditure (OpEx)",
+        "B": "Capital expenditure (CapEx)",
+        "C": "Fixed-asset depreciation",
+        "D": "Deferred expenditure"
+      },
+      "answer": ["A"],
+      "explanation": "Cloud computing is primarily OpEx: you pay for services as you consume them, with no up-front hardware purchase. CapEx is the up-front purchase of physical infrastructure that is depreciated over several years.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-020",
+      "domain": "Describe cloud concepts",
+      "type": "multiple",
+      "question": "Which two statements describe characteristics of the public cloud? (Choose two.)",
+      "options": {
+        "A": "No capital expenditure is required to scale up",
+        "B": "The organization has complete control over the physical hardware",
+        "C": "Resources must be located in the organization's own datacenter",
+        "D": "Applications can be provisioned and deprovisioned quickly"
+      },
+      "answer": ["A", "D"],
+      "explanation": "The public cloud requires no up-front capital expenditure to scale, and resources can be provisioned and removed quickly. Complete control over hardware and hosting in your own datacenter are characteristics of a private cloud.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-021",
+      "domain": "Describe cloud concepts",
+      "type": "multiple",
+      "question": "Under the shared responsibility model, which three responsibilities are always retained by the customer, regardless of the cloud service model? (Choose three.)",
+      "options": {
+        "A": "Information and data",
+        "B": "Physical hosts",
+        "C": "Devices (mobile phones and PCs)",
+        "D": "Accounts and identities",
+        "E": "Physical network"
+      },
+      "answer": ["A", "C", "D"],
+      "explanation": "Customers always keep responsibility for their information and data, the devices that access cloud services, and accounts and identities. Physical hosts and the physical network are always the provider's responsibility.",
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+    },
+    {
+      "uid": "az900-022",
+      "domain": "Describe cloud concepts",
+      "type": "multiple",
+      "question": "Your company plans to move an application from on-premises servers to a platform as a service (PaaS) offering. Which two tasks will the cloud provider handle? (Choose two.)",
+      "options": {
+        "A": "Patching the operating system",
+        "B": "Writing and maintaining the application code",
+        "C": "Maintaining the physical hardware",
+        "D": "Deciding which users can access the application's data"
+      },
+      "answer": ["A", "C"],
+      "explanation": "In PaaS the provider manages the physical hardware and the operating system, including patching. The customer still owns the application code and who can access the data.",
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+    },
+    {
+      "uid": "az900-023",
+      "domain": "Describe cloud concepts",
+      "type": "multiple",
+      "question": "Which two actions are examples of horizontal scaling? (Choose two.)",
+      "options": {
+        "A": "Adding more RAM to an existing virtual machine",
+        "B": "Adding virtual machine instances to a virtual machine scale set",
+        "C": "Resizing a virtual machine to a larger size",
+        "D": "Adding more web servers behind a load balancer"
+      },
+      "answer": ["B", "D"],
+      "explanation": "Horizontal scaling (scaling out) adds more instances of a resource, such as more VMs in a scale set or more web servers behind a load balancer. Adding RAM or resizing a VM makes one instance bigger, which is vertical scaling.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-024",
+      "domain": "Describe cloud concepts",
+      "type": "multiple",
+      "question": "Which two statements describe the consumption-based model used by cloud providers? (Choose two.)",
+      "options": {
+        "A": "There are no up-front infrastructure costs",
+        "B": "You must buy enough capacity in advance to handle peak demand",
+        "C": "You can pay for additional resources only when you need them",
+        "D": "You pay a fixed annual fee regardless of how much you use"
+      },
+      "answer": ["A", "C"],
+      "explanation": "In the consumption-based model there are no up-front costs, you don't buy infrastructure you may not use, and you pay for additional resources only when needed. Buying for peak demand in advance is the traditional on-premises approach.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-025",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Statement: In the infrastructure as a service (IaaS) model, the customer is responsible for patching and updating the operating system of their virtual machines. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "Yes. In IaaS the provider manages the physical infrastructure, but the guest operating system, including its updates, is the customer's responsibility.",
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+    },
+    {
+      "uid": "az900-026",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Statement: Moving all workloads to a SaaS offering removes every security responsibility from the customer. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "No. Even with SaaS, the customer remains responsible for their information and data, their devices, and their accounts and identities.",
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+    },
+    {
+      "uid": "az900-027",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Your company is launching a new project and needs to minimize up-front hardware spending while keeping the ability to grow quickly. Solution: You purchase additional physical servers for the on-premises datacenter. Does this meet the goal?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "No. Buying physical servers is a capital expenditure with a large up-front cost. Using cloud resources on a consumption basis would avoid the up-front spend and allow fast growth.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-028",
+      "domain": "Describe cloud concepts",
+      "type": "single",
+      "question": "Statement: A hybrid cloud combines public and private cloud environments and allows data and applications to be shared between them. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "Yes. A hybrid cloud uses both public and private clouds in an interconnected environment, letting the organization decide where each workload runs.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+    },
+    {
+      "uid": "az900-029",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Which of the following best describes an Azure availability zone?",
+      "options": {
+        "A": "A group of Azure regions within the same geography",
+        "B": "A physically separate location within an Azure region, made up of one or more datacenters with independent power, cooling, and networking",
+        "C": "A logical grouping of virtual machines within a single datacenter",
+        "D": "A second region that Azure pairs with the primary region for disaster recovery"
+      },
+      "answer": ["B"],
+      "explanation": "Availability zones are physically separate locations inside a region, each with independent power, cooling, and networking, so a failure in one zone doesn't take down the others. A logical grouping of VMs within a datacenter is an availability set.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-030",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Which statement about Azure region pairs is correct?",
+      "options": {
+        "A": "Every Azure region is paired with another region in a different geography",
+        "B": "All Azure services automatically replicate all data to the paired region",
+        "C": "Planned Azure platform updates are rolled out to paired regions one region at a time rather than simultaneously",
+        "D": "Both regions in a pair are located in the same datacenter"
+      },
+      "answer": ["C"],
+      "explanation": "Azure staggers planned system updates across a region pair so both regions are not updated at the same time. Not every region has a pair, most pairs are in the same geography, and replication to the pair depends on the service and how you configure it (for example, GRS storage).",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-031",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your company is a contractor for US federal agencies and must host workloads in a physically and logically isolated instance of Azure that is operated by screened US personnel. What should you use?",
+      "options": {
+        "A": "Azure operated by 21Vianet",
+        "B": "An availability zone in a US region",
+        "C": "A region pair in the United States",
+        "D": "Azure Government"
+      },
+      "answer": ["D"],
+      "explanation": "Azure Government is a sovereign cloud for US government agencies and their partners, physically isolated from public Azure and operated by screened US personnel. Azure operated by 21Vianet is the sovereign cloud in China.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-032",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Which statement about Azure resource groups is correct?",
+      "options": {
+        "A": "A resource can belong to only one resource group at a time",
+        "B": "Resource groups can be nested inside other resource groups",
+        "C": "Deleting a resource group leaves its resources in place",
+        "D": "All resources in a resource group must be in the same region as the resource group"
+      },
+      "answer": ["A"],
+      "explanation": "Each resource belongs to exactly one resource group, although it can be moved to another. Resource groups cannot be nested, deleting a resource group deletes every resource in it, and resources can be in different regions from their resource group.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-033",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your company wants the marketing and engineering departments to receive separate Azure invoices and billing reports. What should you create for each department?",
+      "options": {
+        "A": "A separate resource group",
+        "B": "A separate subscription",
+        "C": "A separate virtual network",
+        "D": "A separate availability zone"
+      },
+      "answer": ["B"],
+      "explanation": "A subscription is a billing boundary: Azure produces separate billing reports and invoices for each subscription. Resource groups organize resources but do not produce separate invoices.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-034",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "What is the correct order of Azure organizational scopes, from the broadest to the narrowest?",
+      "options": {
+        "A": "Subscriptions > management groups > resource groups > resources",
+        "B": "Resource groups > subscriptions > management groups > resources",
+        "C": "Management groups > subscriptions > resource groups > resources",
+        "D": "Management groups > resource groups > subscriptions > resources"
+      },
+      "answer": ["C"],
+      "explanation": "Management groups contain subscriptions, subscriptions contain resource groups, and resource groups contain resources. Settings such as policies and role assignments applied at a higher scope are inherited by the scopes below it.",
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/management-groups/overview"
+    },
+    {
+      "uid": "az900-035",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your company wants employees to reach a full Windows desktop and business applications from any device, with the desktops hosted in Azure and several users sharing a single Windows 11 multi-session host. Which service should you use?",
+      "options": {
+        "A": "Azure Bastion",
+        "B": "Azure App Service",
+        "C": "Azure Virtual Machine Scale Sets",
+        "D": "Azure Virtual Desktop"
+      },
+      "answer": ["D"],
+      "explanation": "Azure Virtual Desktop is a desktop and app virtualization service that runs in Azure and supports Windows 11 and Windows 10 Enterprise multi-session. Azure Bastion only provides secure RDP/SSH access to VMs for administrators.",
+      "reference": "https://learn.microsoft.com/en-us/azure/virtual-desktop/overview"
+    },
+    {
+      "uid": "az900-036",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "You need a group of identical, load-balanced virtual machines whose number increases or decreases automatically in response to demand or a schedule. What should you use?",
+      "options": {
+        "A": "An availability set",
+        "B": "A virtual machine scale set",
+        "C": "Azure Container Instances",
+        "D": "A resource group"
+      },
+      "answer": ["B"],
+      "explanation": "Virtual machine scale sets create and manage a group of identical, load-balanced VMs and can autoscale the instance count. An availability set improves resiliency but does not add or remove VMs automatically.",
+      "reference": "https://learn.microsoft.com/en-us/azure/virtual-machine-scale-sets/overview"
+    },
+    {
+      "uid": "az900-037",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your company runs two virtual machines for an application in a single datacenter. You need to protect the application from a rack-level hardware failure and from planned maintenance that reboots hosts, and the grouping feature itself must not add cost. What should you use?",
+      "options": {
+        "A": "Availability zones",
+        "B": "Region pairs",
+        "C": "An availability set",
+        "D": "Azure Site Recovery"
+      },
+      "answer": ["C"],
+      "explanation": "An availability set spreads VMs across fault domains (separate racks, power, and network) and update domains (staggered maintenance) within a datacenter, and there is no charge for the availability set itself. Availability zones protect against a whole-datacenter failure.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-038",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "A developer needs to run a single container in Azure as quickly as possible, without provisioning virtual machines or adopting a container orchestration platform. What should the developer use?",
+      "options": {
+        "A": "Azure Container Instances",
+        "B": "Azure Kubernetes Service (AKS)",
+        "C": "Azure Virtual Desktop",
+        "D": "Azure Virtual Machine Scale Sets"
+      },
+      "answer": ["A"],
+      "explanation": "Azure Container Instances is a PaaS offering that runs a container directly, without managing VMs or an orchestrator. AKS is used when you need to orchestrate many containers.",
+      "reference": "https://learn.microsoft.com/en-us/azure/container-instances/container-instances-overview"
+    },
+    {
+      "uid": "az900-039",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "You need to run a small piece of code each time a new file is uploaded to Azure Blob Storage. You want to avoid managing servers and pay only when the code runs. What should you use?",
+      "options": {
+        "A": "Azure Virtual Machines",
+        "B": "Azure App Service",
+        "C": "Azure Kubernetes Service (AKS)",
+        "D": "Azure Functions"
+      },
+      "answer": ["D"],
+      "explanation": "Azure Functions is an event-driven serverless compute service: code runs in response to triggers such as a new blob, and on a consumption plan you pay only for executions. VMs and App Service run continuously and bill while running.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-functions/functions-overview"
+    },
+    {
+      "uid": "az900-040",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your company wants to host a web application and a REST API with built-in autoscaling, deployment slots, and support for languages such as .NET, Java, Node.js, and Python, without managing the underlying operating system. Which service should you use?",
+      "options": {
+        "A": "Azure App Service",
+        "B": "Azure Virtual Machines",
+        "C": "Azure Virtual Desktop",
+        "D": "Azure Data Box"
+      },
+      "answer": ["A"],
+      "explanation": "Azure App Service is a PaaS service for hosting web apps, REST APIs, and mobile back ends, with autoscaling and deployment slots, while Azure manages the OS and infrastructure. Virtual machines would require you to manage the OS.",
+      "reference": "https://learn.microsoft.com/en-us/azure/app-service/overview"
+    },
+    {
+      "uid": "az900-041",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your company needs a private, dedicated connection from its on-premises datacenter to Azure that does not travel over the public internet and offers more predictable latency. What should you use?",
+      "options": {
+        "A": "A site-to-site VPN",
+        "B": "A point-to-site VPN",
+        "C": "Azure ExpressRoute",
+        "D": "Virtual network peering"
+      },
+      "answer": ["C"],
+      "explanation": "ExpressRoute extends on-premises networks into Microsoft's cloud over a private connection through a connectivity provider, not the public internet. Site-to-site and point-to-site VPNs are encrypted but still travel over the internet.",
+      "reference": "https://learn.microsoft.com/en-us/azure/expressroute/expressroute-introduction"
+    },
+    {
+      "uid": "az900-042",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "You need to send encrypted traffic between your on-premises network and an Azure virtual network over the public internet. Which Azure resource must you deploy in the virtual network?",
+      "options": {
+        "A": "An ExpressRoute circuit",
+        "B": "An Azure DNS zone",
+        "C": "A private endpoint",
+        "D": "A VPN gateway"
+      },
+      "answer": ["D"],
+      "explanation": "A VPN gateway sends encrypted traffic between an Azure virtual network and an on-premises location over the public internet. ExpressRoute is a private connection that does not use the internet.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-043",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Virtual machines in an Azure virtual network must reach an Azure Storage account through a private IP address from that virtual network, so that the traffic never uses the storage account's public address. What should you configure?",
+      "options": {
+        "A": "A public endpoint with a firewall rule",
+        "B": "A private endpoint",
+        "C": "A VPN gateway",
+        "D": "A public DNS zone"
+      },
+      "answer": ["B"],
+      "explanation": "A private endpoint is a network interface with a private IP address from your virtual network that connects privately to a service such as Azure Storage through Azure Private Link. A public endpoint, even with firewall rules, is still reached at a public address.",
+      "reference": "https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-overview"
+    },
+    {
+      "uid": "az900-044",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Which statement about Azure DNS is correct?",
+      "options": {
+        "A": "You use Azure DNS to purchase and register new domain names",
+        "B": "Azure DNS supports only private DNS zones",
+        "C": "Azure DNS hosts your DNS domains so you can manage records with the same credentials, APIs, and billing as other Azure services",
+        "D": "Azure DNS requires you to deploy DNS servers on virtual machines"
+      },
+      "answer": ["C"],
+      "explanation": "Azure DNS hosts DNS domains on Azure infrastructure and lets you manage records with your Azure credentials, tools, and billing, for both public and private zones. You cannot buy a domain name through Azure DNS itself.",
+      "reference": "https://learn.microsoft.com/en-us/azure/dns/dns-overview"
+    },
+    {
+      "uid": "az900-045",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your company must keep audit files for seven years. The files are almost never read, and when they are needed, a retrieval time of several hours is acceptable. You need the lowest possible storage cost. Which blob access tier should you use?",
+      "options": {
+        "A": "Hot",
+        "B": "Cool",
+        "C": "Cold",
+        "D": "Archive"
+      },
+      "answer": ["D"],
+      "explanation": "The archive tier has the lowest storage cost and is an offline tier: blobs must be rehydrated to an online tier, which can take hours, before they can be read. Hot, cool, and cold are online tiers with higher storage costs.",
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview"
+    },
+    {
+      "uid": "az900-046",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Which Azure Blob Storage access tier is intended for data that is infrequently accessed, must be available immediately, and is stored for a minimum of 30 days?",
+      "options": {
+        "A": "Hot",
+        "B": "Cool",
+        "C": "Cold",
+        "D": "Archive"
+      },
+      "answer": ["B"],
+      "explanation": "The cool tier is an online tier for infrequently accessed data kept for at least 30 days. The cold tier targets a minimum of 90 days, and archive targets 180 days and is offline.",
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview"
+    },
+    {
+      "uid": "az900-047",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "You need a storage account whose data is replicated across availability zones in the primary region and also copied to a secondary region, and applications must be able to read from the secondary region at any time. Which redundancy option should you choose?",
+      "options": {
+        "A": "Geo-redundant storage (GRS)",
+        "B": "Geo-zone-redundant storage (GZRS)",
+        "C": "Read-access geo-redundant storage (RA-GRS)",
+        "D": "Read-access geo-zone-redundant storage (RA-GZRS)"
+      },
+      "answer": ["D"],
+      "explanation": "RA-GZRS replicates synchronously across three availability zones in the primary region, copies data to a secondary region, and allows read access to the secondary at all times. GZRS without RA only allows secondary reads after a failover, and GRS/RA-GRS use LRS rather than zones in the primary region.",
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/common/storage-redundancy"
+    },
+    {
+      "uid": "az900-048",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Which Azure Storage redundancy option has the lowest cost and keeps three copies of the data within a single datacenter in the primary region?",
+      "options": {
+        "A": "Locally redundant storage (LRS)",
+        "B": "Zone-redundant storage (ZRS)",
+        "C": "Geo-redundant storage (GRS)",
+        "D": "Read-access geo-redundant storage (RA-GRS)"
+      },
+      "answer": ["A"],
+      "explanation": "LRS replicates data three times within one datacenter in the primary region and is the least expensive option, but it does not protect against a datacenter-wide failure. ZRS spreads the copies across availability zones.",
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/common/storage-redundancy"
+    },
+    {
+      "uid": "az900-049",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your branch offices use Windows file servers. You want Azure Files to be the central copy of the data while each branch server keeps a local cache of frequently used files for fast access. What should you use?",
+      "options": {
+        "A": "AzCopy",
+        "B": "Azure Migrate",
+        "C": "Azure File Sync",
+        "D": "Azure Data Box"
+      },
+      "answer": ["C"],
+      "explanation": "Azure File Sync centralizes file shares in Azure Files and turns Windows Servers into fast local caches, with cloud tiering for less-used files. AzCopy is a one-time copy tool and does not keep servers in sync.",
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/file-sync/file-sync-introduction"
+    },
+    {
+      "uid": "az900-050",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your company needs to move 80 TB of archived data to Azure. The office internet connection is slow and would take months to upload the data. What should you use?",
+      "options": {
+        "A": "AzCopy",
+        "B": "Azure Storage Explorer",
+        "C": "Azure File Sync",
+        "D": "Azure Data Box"
+      },
+      "answer": ["D"],
+      "explanation": "Azure Data Box is a physical device that Microsoft ships to you; you copy data onto it and ship it back to be uploaded into Azure, which suits large transfers over limited bandwidth. AzCopy and Storage Explorer transfer over the network.",
+      "reference": "https://learn.microsoft.com/en-us/azure/databox/data-box-overview"
+    },
+    {
+      "uid": "az900-051",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your company wants a single hub to discover its on-premises servers, databases, and web apps, assess their readiness and estimated cost in Azure, and then migrate them. Which service should you use?",
+      "options": {
+        "A": "Azure Migrate",
+        "B": "Azure Arc",
+        "C": "Azure Data Box",
+        "D": "Azure Advisor"
+      },
+      "answer": ["A"],
+      "explanation": "Azure Migrate is a central hub for discovering, assessing, and migrating on-premises servers, databases, and web apps to Azure. Azure Arc manages resources where they are rather than migrating them.",
+      "reference": "https://learn.microsoft.com/en-us/azure/migrate/migrate-services-overview"
+    },
+    {
+      "uid": "az900-052",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Which Azure service provides cloud-based identity and access management, including single sign-on to Microsoft 365, the Azure portal, and thousands of SaaS applications?",
+      "options": {
+        "A": "Microsoft Defender for Cloud",
+        "B": "Azure Key Vault",
+        "C": "Microsoft Entra ID",
+        "D": "Microsoft Purview"
+      },
+      "answer": ["C"],
+      "explanation": "Microsoft Entra ID (formerly Azure Active Directory) is Microsoft's cloud identity and access management service, providing authentication, single sign-on, and MFA. Defender for Cloud is a security posture and workload protection service.",
+      "reference": "https://learn.microsoft.com/en-us/entra/fundamentals/what-is-entra"
+    },
+    {
+      "uid": "az900-053",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "You need to require multifactor authentication only when users sign in from outside the corporate network, and block sign-ins from specific countries entirely. What should you use?",
+      "options": {
+        "A": "Microsoft Entra Conditional Access",
+        "B": "Azure role-based access control (RBAC)",
+        "C": "Azure Policy",
+        "D": "Resource locks"
+      },
+      "answer": ["A"],
+      "explanation": "Conditional Access evaluates signals such as user, location, device, and application during sign-in and then allows access, requires MFA, or blocks access. RBAC and Azure Policy govern what can be done with Azure resources, not how users sign in.",
+      "reference": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/overview"
+    },
+    {
+      "uid": "az900-054",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "In a defense-in-depth strategy, which layer is focused on controlling access to infrastructure and change control, for example by using single sign-on, multifactor authentication, and auditing of sign-in events?",
+      "options": {
+        "A": "Perimeter",
+        "B": "Identity and access",
+        "C": "Network",
+        "D": "Compute"
+      },
+      "answer": ["B"],
+      "explanation": "The identity and access layer controls access to infrastructure and change control using measures such as SSO, MFA, and auditing. The perimeter layer protects against network-based attacks such as DDoS.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-055",
+      "domain": "Describe Azure architecture and services",
+      "type": "multiple",
+      "question": "Your developers plan to deploy containerized applications to Azure. Which two statements are correct? (Choose two.)",
+      "options": {
+        "A": "Each container includes its own full guest operating system, just like a virtual machine",
+        "B": "Azure Container Instances runs containers without you managing virtual machines",
+        "C": "Azure Kubernetes Service (AKS) is a managed service for orchestrating containers",
+        "D": "Azure Container Instances requires you to manage a Kubernetes control plane"
+      },
+      "answer": ["B", "C"],
+      "explanation": "ACI runs individual containers without managing VMs, and AKS is a managed Kubernetes service for orchestrating many containers. Containers share the host OS kernel rather than each carrying a full guest OS, and ACI has no Kubernetes control plane to manage.",
+      "reference": "https://learn.microsoft.com/en-us/azure/container-instances/container-instances-overview"
+    },
+    {
+      "uid": "az900-056",
+      "domain": "Describe Azure architecture and services",
+      "type": "multiple",
+      "question": "Which three Azure Blob Storage access tiers are online tiers, where data can be read without first being rehydrated? (Choose three.)",
+      "options": {
+        "A": "Archive",
+        "B": "Hot",
+        "C": "Cool",
+        "D": "Cold"
+      },
+      "answer": ["B", "C", "D"],
+      "explanation": "Hot, cool, and cold are online tiers whose data can be read immediately. Archive is an offline tier, so its blobs must be rehydrated to an online tier before they can be read.",
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview"
+    },
+    {
+      "uid": "az900-057",
+      "domain": "Describe Azure architecture and services",
+      "type": "multiple",
+      "question": "Which two Azure Storage redundancy options copy data to a secondary region? (Choose two.)",
+      "options": {
+        "A": "Locally redundant storage (LRS)",
+        "B": "Zone-redundant storage (ZRS)",
+        "C": "Geo-redundant storage (GRS)",
+        "D": "Geo-zone-redundant storage (GZRS)"
+      },
+      "answer": ["C", "D"],
+      "explanation": "GRS and GZRS both replicate data asynchronously to a secondary region. LRS keeps copies in a single datacenter and ZRS spreads them across zones, but both stay within the primary region.",
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/common/storage-redundancy"
+    },
+    {
+      "uid": "az900-058",
+      "domain": "Describe Azure architecture and services",
+      "type": "multiple",
+      "question": "You need to copy files from an on-premises workstation to Azure Blob Storage over the network. Which two tools can you use? (Choose two.)",
+      "options": {
+        "A": "AzCopy",
+        "B": "Azure Storage Explorer",
+        "C": "Azure Data Box",
+        "D": "Azure Advisor"
+      },
+      "answer": ["A", "B"],
+      "explanation": "AzCopy is a command-line utility and Azure Storage Explorer is a graphical app for Windows, macOS, and Linux; both transfer data to and from storage accounts over the network. Data Box is an offline, shipped device, and Advisor gives recommendations.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-059",
+      "domain": "Describe Azure architecture and services",
+      "type": "multiple",
+      "question": "Your company wants to eliminate passwords for employee sign-ins. Which three passwordless authentication methods does Microsoft Entra ID support? (Choose three.)",
+      "options": {
+        "A": "Security questions",
+        "B": "Windows Hello for Business",
+        "C": "Password hash synchronization",
+        "D": "FIDO2 security keys (passkeys)",
+        "E": "Microsoft Authenticator"
+      },
+      "answer": ["B", "D", "E"],
+      "explanation": "Windows Hello for Business, FIDO2 security keys/passkeys, and the Microsoft Authenticator app are passwordless methods in Microsoft Entra ID. Security questions are only a self-service password reset option, and password hash synchronization is a hybrid identity sync method, not a sign-in method.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-060",
+      "domain": "Describe Azure architecture and services",
+      "type": "multiple",
+      "question": "Your security team is adopting the Zero Trust model. Which three are guiding principles of Zero Trust? (Choose three.)",
+      "options": {
+        "A": "Verify explicitly",
+        "B": "Trust any device that is connected to the corporate network",
+        "C": "Use least privilege access",
+        "D": "Assume breach",
+        "E": "Rely on the perimeter firewall as the main security control"
+      },
+      "answer": ["A", "C", "D"],
+      "explanation": "Zero Trust is built on verify explicitly, use least privilege access, and assume breach. It rejects the idea that anything inside the network perimeter is automatically trusted.",
+      "reference": "https://learn.microsoft.com/en-us/security/zero-trust/zero-trust-overview"
+    },
+    {
+      "uid": "az900-061",
+      "domain": "Describe Azure architecture and services",
+      "type": "multiple",
+      "question": "You have two Azure virtual networks, and virtual machines in each must communicate with each other using private IP addresses. Which two options can you use? (Choose two.)",
+      "options": {
+        "A": "An Azure DNS public zone",
+        "B": "Virtual network peering",
+        "C": "A resource lock",
+        "D": "VPN gateways configured for a VNet-to-VNet connection"
+      },
+      "answer": ["B", "D"],
+      "explanation": "Virtual network peering connects VNets directly over the Microsoft backbone, and VPN gateways can also link VNets with a VNet-to-VNet connection. A public DNS zone only resolves names, and a resource lock only prevents changes.",
+      "reference": "https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-peering-overview"
+    },
+    {
+      "uid": "az900-062",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Statement: Microsoft Entra Domain Services provides managed domain services such as domain join, Group Policy, LDAP, and Kerberos/NTLM authentication without you having to deploy or manage domain controllers. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "Yes. Microsoft Entra Domain Services is a managed service that provides traditional domain features for legacy applications while Microsoft runs the domain controllers.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-063",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Statement: To let users from a partner company access your organization's applications, you must create a new account with a password in your Microsoft Entra tenant for each partner user. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "No. With Microsoft Entra External ID B2B collaboration, partner users are invited as guests and sign in with their own existing identities, so you don't manage passwords for them.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-064",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Statement: A single Azure resource group can contain resources that are deployed in different Azure regions. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "Yes. A resource group's location only determines where its metadata is stored; the resources inside it can be in other regions.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-065",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Your company must keep a virtual machine-based application running even if an entire Azure datacenter fails. Solution: You deploy two virtual machines in an availability set. Does this meet the goal?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "No. An availability set protects against rack and maintenance failures within a single datacenter. To survive the loss of a datacenter, deploy the VMs across availability zones (or regions).",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+    },
+    {
+      "uid": "az900-066",
+      "domain": "Describe Azure architecture and services",
+      "type": "single",
+      "question": "Statement: Microsoft Defender for Cloud can assess security posture and provide recommendations for resources in Azure, in on-premises datacenters, and in other clouds such as AWS and Google Cloud. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "Yes. Defender for Cloud is a cloud-native application protection platform that covers Azure, on-premises machines (for example through Azure Arc), and connected AWS and Google Cloud environments, with a secure score and recommendations.",
+      "reference": "https://learn.microsoft.com/en-us/azure/defender-for-cloud/defender-for-cloud-introduction"
+    },
+    {
+      "uid": "az900-067",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Before deploying anything, you need to estimate the monthly cost of a planned solution that includes three virtual machines, a storage account, and a VPN gateway. Which tool should you use?",
+      "options": {
+        "A": "Azure Pricing calculator",
+        "B": "Microsoft Cost Management",
+        "C": "Azure Advisor",
+        "D": "Azure Service Health"
+      },
+      "answer": ["A"],
+      "explanation": "The Pricing calculator estimates the cost of Azure services you plan to deploy. Cost Management analyzes the cost of resources that are already running.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+    },
+    {
+      "uid": "az900-068",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "You need to receive an email notification when a subscription's actual spending reaches 80 percent of a monthly spending limit you define. What should you configure?",
+      "options": {
+        "A": "An Azure Advisor recommendation",
+        "B": "A budget in Microsoft Cost Management",
+        "C": "An estimate in the Azure Pricing calculator",
+        "D": "An Azure Service Health alert"
+      },
+      "answer": ["B"],
+      "explanation": "Budgets in Microsoft Cost Management let you set a spending threshold and send alerts when actual or forecasted costs reach defined percentages. Service Health alerts are about Azure service incidents, not spending.",
+      "reference": "https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/tutorial-acm-create-budgets"
+    },
+    {
+      "uid": "az900-069",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Your company deploys the same virtual machine size, with the same configuration, in two different Azure regions and notices that the hourly price differs. What explains the difference?",
+      "options": {
+        "A": "The tags applied to each virtual machine",
+        "B": "The name of the resource group",
+        "C": "The Azure region where each virtual machine is deployed",
+        "D": "The management group that contains the subscription"
+      },
+      "answer": ["C"],
+      "explanation": "Azure prices can vary by region because of differences in local costs such as power, land, and taxes. Tags, resource group names, and management groups have no effect on the price of a resource.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+    },
+    {
+      "uid": "az900-070",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "When reviewing bandwidth charges, which type of data transfer is typically free in Azure?",
+      "options": {
+        "A": "Outbound data transfer from Azure to the internet",
+        "B": "Data transfer between two Azure regions",
+        "C": "Outbound data transfer from Azure to an on-premises network",
+        "D": "Inbound data transfer into Azure datacenters"
+      },
+      "answer": ["D"],
+      "explanation": "Inbound (ingress) data transfer into Azure datacenters is free. Outbound (egress) data transfer, including between regions, is generally charged.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+    },
+    {
+      "uid": "az900-071",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Your company runs a set of virtual machines 24 hours a day with steady, predictable usage and expects to keep them for the next three years. You need to significantly reduce their compute cost without the risk of the VMs being evicted. What should you use?",
+      "options": {
+        "A": "Azure Reservations",
+        "B": "Azure Spot Virtual Machines",
+        "C": "Pay-as-you-go pricing",
+        "D": "Moving the VMs to a new resource group"
+      },
+      "answer": ["A"],
+      "explanation": "Azure Reservations give a discount for committing to a one-year or three-year term, which suits steady, always-on workloads. Spot VMs are cheaper but can be evicted when Azure needs the capacity.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+    },
+    {
+      "uid": "az900-072",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Your finance team wants each Azure resource labeled with its cost center so that costs can be grouped and filtered by cost center in cost reports. What should you use?",
+      "options": {
+        "A": "Resource locks",
+        "B": "Tags",
+        "C": "Azure Advisor",
+        "D": "Azure Service Health"
+      },
+      "answer": ["B"],
+      "explanation": "Tags are name-value pairs applied to resources, resource groups, and subscriptions, and Cost Management can group and filter costs by tag. Resource locks only prevent deletion or modification.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources"
+    },
+    {
+      "uid": "az900-073",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Company policy states that Azure resources may be created only in the West Europe and North Europe regions. You need to enforce this so that deployments to any other region are denied. What should you use?",
+      "options": {
+        "A": "Azure role-based access control (RBAC)",
+        "B": "A resource lock",
+        "C": "Azure Policy",
+        "D": "Microsoft Purview"
+      },
+      "answer": ["C"],
+      "explanation": "Azure Policy enforces rules on resource properties, such as allowed locations, and can deny noncompliant deployments. RBAC controls who can act, not which properties a resource may have.",
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/policy/overview"
+    },
+    {
+      "uid": "az900-074",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "You need to prevent anyone from accidentally deleting a production Azure SQL database, while still allowing administrators to change its settings. What should you apply?",
+      "options": {
+        "A": "A ReadOnly resource lock",
+        "B": "The Reader role for all administrators",
+        "C": "A tag named environment=production",
+        "D": "A Delete (CanNotDelete) resource lock"
+      },
+      "answer": ["D"],
+      "explanation": "A Delete (CanNotDelete) lock lets authorized users read and modify a resource but blocks deletion. A ReadOnly lock would also block changes, which is not what you want.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources"
+    },
+    {
+      "uid": "az900-075",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Your company is designing a management group hierarchy. How many levels of management groups can the tree support, not counting the root level or the subscription level?",
+      "options": {
+        "A": "Six",
+        "B": "Three",
+        "C": "Ten",
+        "D": "Unlimited"
+      },
+      "answer": ["A"],
+      "explanation": "A management group tree supports up to six levels of depth, excluding the root level and the subscription level.",
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/management-groups/overview"
+    },
+    {
+      "uid": "az900-076",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "The help desk team must be able to start, stop, and restart virtual machines in one resource group, but must not be able to manage any other resources. What should you use?",
+      "options": {
+        "A": "An Azure Policy assignment",
+        "B": "A resource lock",
+        "C": "An Azure role-based access control (RBAC) role assignment scoped to the resource group",
+        "D": "A new management group"
+      },
+      "answer": ["C"],
+      "explanation": "Azure RBAC grants specific permissions to users or groups at a chosen scope, so a role assignment on the resource group limits the help desk to that group. Azure Policy controls resource properties, not user permissions.",
+      "reference": "https://learn.microsoft.com/en-us/azure/role-based-access-control/overview"
+    },
+    {
+      "uid": "az900-077",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "You assign a user the Reader role at the subscription scope. What access does the user have to the resource groups in that subscription?",
+      "options": {
+        "A": "No access, until a role is assigned on each resource group",
+        "B": "Read access to all resource groups and resources in the subscription, inherited from the subscription",
+        "C": "Contributor access to all resource groups",
+        "D": "Read access only to resource groups created after the assignment"
+      },
+      "answer": ["B"],
+      "explanation": "Azure RBAC role assignments are inherited by child scopes, so Reader at the subscription applies to every resource group and resource in it, existing or new.",
+      "reference": "https://learn.microsoft.com/en-us/azure/role-based-access-control/overview"
+    },
+    {
+      "uid": "az900-078",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Your company needs a unified service to discover, classify, and govern data across on-premises, multicloud, and SaaS sources, and to track data lineage. Which service should you use?",
+      "options": {
+        "A": "Microsoft Defender for Cloud",
+        "B": "Azure Policy",
+        "C": "Azure Monitor",
+        "D": "Microsoft Purview"
+      },
+      "answer": ["D"],
+      "explanation": "Microsoft Purview is a family of data governance, risk, and compliance solutions that maps and classifies data across on-premises, multicloud, and SaaS sources. Defender for Cloud focuses on security posture and threat protection.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+    },
+    {
+      "uid": "az900-079",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "An auditor asks for Microsoft's independent audit reports for Azure, such as ISO 27001 certificates and SOC reports. Where should you get them?",
+      "options": {
+        "A": "Azure Advisor",
+        "B": "Service Trust Portal",
+        "C": "Azure Service Health",
+        "D": "Microsoft Cost Management"
+      },
+      "answer": ["B"],
+      "explanation": "The Service Trust Portal provides Microsoft's audit reports, certifications, and compliance documents for its cloud services. Advisor and Service Health report on your own resources, not on Microsoft's compliance audits.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+    },
+    {
+      "uid": "az900-080",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Your team needs to deploy the same set of Azure resources to development, test, and production repeatedly and consistently, with the configuration kept in source control. What should you use?",
+      "options": {
+        "A": "Infrastructure as code with Bicep or ARM templates",
+        "B": "Azure Advisor recommendations",
+        "C": "Resource locks",
+        "D": "Azure Service Health"
+      },
+      "answer": ["A"],
+      "explanation": "Bicep files and ARM templates describe resources declaratively, so the same file deploys an identical, repeatable environment and can be versioned in source control. The other options do not deploy resources.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/overview"
+    },
+    {
+      "uid": "az900-081",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Which language uses a concise declarative syntax to deploy Azure resources and is transpiled into Azure Resource Manager (ARM) JSON templates?",
+      "options": {
+        "A": "Azure CLI",
+        "B": "Azure PowerShell",
+        "C": "Bicep",
+        "D": "AzCopy"
+      },
+      "answer": ["C"],
+      "explanation": "Bicep is a domain-specific language for declaratively deploying Azure resources, and Bicep files are converted to ARM JSON templates. Azure CLI and Azure PowerShell are imperative command tools.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/overview"
+    },
+    {
+      "uid": "az900-082",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Which Azure service is the deployment and management layer that receives, authenticates, and authorizes every request to create or change resources, whether it comes from the portal, Azure CLI, Azure PowerShell, or the REST API?",
+      "options": {
+        "A": "Azure Arc",
+        "B": "Azure Monitor",
+        "C": "Azure Policy",
+        "D": "Azure Resource Manager (ARM)"
+      },
+      "answer": ["D"],
+      "explanation": "Azure Resource Manager is the single management layer that handles all requests to Azure, which is why every tool produces consistent results. Azure Policy is evaluated as part of that process but is not the management layer itself.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/overview"
+    },
+    {
+      "uid": "az900-083",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "An administrator is working from a borrowed laptop and needs to run Azure CLI and Azure PowerShell commands against the company's subscription without installing any software. What should the administrator use?",
+      "options": {
+        "A": "Azure Cloud Shell",
+        "B": "Azure Storage Explorer",
+        "C": "Azure Bastion",
+        "D": "Azure Advisor"
+      },
+      "answer": ["A"],
+      "explanation": "Azure Cloud Shell is a browser-based, authenticated shell with Bash and PowerShell and the Azure CLI and Azure PowerShell tools preinstalled. Azure Bastion provides RDP/SSH access to VMs, not a management shell.",
+      "reference": "https://learn.microsoft.com/en-us/azure/cloud-shell/overview"
+    },
+    {
+      "uid": "az900-084",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Your company has Linux servers in its own datacenter and in another cloud provider. You want to see them in the Azure portal, organize them with tags, and apply Azure Policy to them as if they were Azure resources. What should you use?",
+      "options": {
+        "A": "Azure Migrate",
+        "B": "Azure Arc",
+        "C": "Azure ExpressRoute",
+        "D": "Azure Data Box"
+      },
+      "answer": ["B"],
+      "explanation": "Azure Arc projects servers, Kubernetes clusters, and data services outside Azure into Azure Resource Manager so you can manage and govern them with Azure tools. Azure Migrate moves workloads into Azure rather than managing them where they are.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-arc/overview"
+    },
+    {
+      "uid": "az900-085",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Which service analyzes your deployed Azure resources and provides personalized recommendations in the categories of reliability, security, performance, operational excellence, and cost?",
+      "options": {
+        "A": "Azure Service Health",
+        "B": "Azure Monitor",
+        "C": "Azure Advisor",
+        "D": "Azure Pricing calculator"
+      },
+      "answer": ["C"],
+      "explanation": "Azure Advisor evaluates your resources and gives personalized best-practice recommendations across reliability, security, performance, operational excellence, and cost. Service Health reports on Azure service issues rather than your configuration.",
+      "reference": "https://learn.microsoft.com/en-us/azure/advisor/advisor-overview"
+    },
+    {
+      "uid": "az900-086",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "You need to be alerted when an Azure service outage or planned maintenance event affects the regions and services that your subscription uses. What should you use?",
+      "options": {
+        "A": "Azure Advisor",
+        "B": "Microsoft Defender for Cloud",
+        "C": "Azure Policy",
+        "D": "Azure Service Health"
+      },
+      "answer": ["D"],
+      "explanation": "Azure Service Health gives a personalized view of service incidents, planned maintenance, and health advisories that affect your services and regions, and can raise alerts. Advisor gives configuration recommendations instead.",
+      "reference": "https://learn.microsoft.com/en-us/azure/service-health/overview"
+    },
+    {
+      "uid": "az900-087",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "A single virtual machine is unreachable and you want to know whether an Azure platform problem is affecting that specific VM. Which component of Azure Service Health should you check?",
+      "options": {
+        "A": "Azure status",
+        "B": "Service health",
+        "C": "Resource health",
+        "D": "Azure Advisor"
+      },
+      "answer": ["C"],
+      "explanation": "Resource health shows the current and past health of your individual resources, such as a specific VM. Azure status gives a global view of all Azure services, and Service health is a personalized view of services and regions.",
+      "reference": "https://learn.microsoft.com/en-us/azure/service-health/overview"
+    },
+    {
+      "uid": "az900-088",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "You need to write and run Kusto Query Language (KQL) queries against log data collected by Azure Monitor. Which tool should you use?",
+      "options": {
+        "A": "Log Analytics",
+        "B": "Azure Advisor",
+        "C": "Azure Service Health",
+        "D": "Azure Pricing calculator"
+      },
+      "answer": ["A"],
+      "explanation": "Log Analytics is the Azure portal tool for editing and running KQL queries against data in Azure Monitor Logs.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/logs/log-analytics-overview"
+    },
+    {
+      "uid": "az900-089",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Your developers want to monitor a web application's request rates, response times, failure rates, and dependencies, and to see which pages users visit most. Which feature of Azure Monitor should they use?",
+      "options": {
+        "A": "Azure Advisor",
+        "B": "Application Insights",
+        "C": "Azure Service Health",
+        "D": "Azure Policy"
+      },
+      "answer": ["B"],
+      "explanation": "Application Insights is the application performance monitoring feature of Azure Monitor and tracks requests, response times, failures, dependencies, and page views. The other services do not monitor application telemetry.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview"
+    },
+    {
+      "uid": "az900-090",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "You need to be notified by email whenever a virtual machine's CPU usage stays above 90 percent for 10 minutes. What should you configure?",
+      "options": {
+        "A": "An Azure Advisor recommendation",
+        "B": "An Azure Service Health alert",
+        "C": "A Cost Management budget",
+        "D": "An Azure Monitor alert rule with an action group"
+      },
+      "answer": ["D"],
+      "explanation": "Azure Monitor alert rules evaluate metrics such as CPU percentage against a condition and use an action group to send notifications such as email. Service Health alerts cover Azure platform events, not your VM's metrics.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/overview"
+    },
+    {
+      "uid": "az900-091",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Your company has 12 subscriptions. You need to apply the same Azure Policy to all of them, including subscriptions added later, with as little administrative effort as possible. What should you do?",
+      "options": {
+        "A": "Assign the policy to every resource group in each subscription",
+        "B": "Place the subscriptions in a management group and assign the policy to the management group",
+        "C": "Apply a tag to each subscription",
+        "D": "Apply a resource lock to each subscription"
+      },
+      "answer": ["B"],
+      "explanation": "Policies assigned at a management group are inherited by every subscription in it, including subscriptions moved into it later. Assigning per resource group is far more work and misses new resource groups.",
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/management-groups/overview"
+    },
+    {
+      "uid": "az900-092",
+      "domain": "Describe Azure management and governance",
+      "type": "multiple",
+      "question": "Your company wants to reduce the cost of its Azure virtual machines. Which two actions will lower costs? (Choose two.)",
+      "options": {
+        "A": "Apply tags to each virtual machine",
+        "B": "Use Azure Hybrid Benefit with existing Windows Server licenses that have Software Assurance",
+        "C": "Move the virtual machines to a new resource group",
+        "D": "Deallocate virtual machines when they are not in use",
+        "E": "Apply a Delete lock to each virtual machine"
+      },
+      "answer": ["B", "D"],
+      "explanation": "Azure Hybrid Benefit lets you reuse eligible on-premises licenses to avoid paying for the Windows Server license in Azure, and deallocated VMs stop incurring compute charges. Tags, resource groups, and locks have no effect on price.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+    },
+    {
+      "uid": "az900-093",
+      "domain": "Describe Azure management and governance",
+      "type": "multiple",
+      "question": "Which three tools can you use to create and manage Azure resources? (Choose three.)",
+      "options": {
+        "A": "Azure Pricing calculator",
+        "B": "Azure CLI",
+        "C": "Azure portal",
+        "D": "Service Trust Portal",
+        "E": "Azure PowerShell"
+      },
+      "answer": ["B", "C", "E"],
+      "explanation": "The Azure portal, Azure CLI, and Azure PowerShell all send requests through Azure Resource Manager to create and manage resources. The Pricing calculator only estimates cost, and the Service Trust Portal publishes compliance documentation.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+    },
+    {
+      "uid": "az900-094",
+      "domain": "Describe Azure management and governance",
+      "type": "multiple",
+      "question": "Which two statements about Azure Policy are correct? (Choose two.)",
+      "options": {
+        "A": "Azure Policy grants users permission to create resources",
+        "B": "Azure Policy evaluates existing resources and reports whether they are compliant",
+        "C": "Azure Policy can deny the creation of resources that do not meet its rules",
+        "D": "Azure Policy applies only to resources created by users with the Owner role"
+      },
+      "answer": ["B", "C"],
+      "explanation": "Azure Policy evaluates both existing and new resources for compliance and can deny noncompliant deployments. Granting permissions is the job of Azure RBAC, and policies apply regardless of who creates the resource.",
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/policy/overview"
+    },
+    {
+      "uid": "az900-095",
+      "domain": "Describe Azure management and governance",
+      "type": "multiple",
+      "question": "Which two statements about Azure resource tags are correct? (Choose two.)",
+      "options": {
+        "A": "A tag is a name-value pair applied to a resource, resource group, or subscription",
+        "B": "Resources automatically inherit the tags of their resource group by default",
+        "C": "Azure Policy can be used to require or enforce tags on resources",
+        "D": "A tag determines the region where a resource is deployed"
+      },
+      "answer": ["A", "C"],
+      "explanation": "Tags are name-value pairs, and Azure Policy can require tags or copy them from a resource group. By default, resources do not inherit tags from their resource group or subscription, and tags do not affect where a resource is deployed.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources"
+    },
+    {
+      "uid": "az900-096",
+      "domain": "Describe Azure management and governance",
+      "type": "multiple",
+      "question": "Your company wants to collect, analyze, and act on telemetry from its Azure resources and applications. Which three are features of Azure Monitor? (Choose three.)",
+      "options": {
+        "A": "Application Insights",
+        "B": "Azure Pricing calculator",
+        "C": "Log Analytics",
+        "D": "Alerts",
+        "E": "Service Trust Portal"
+      },
+      "answer": ["A", "C", "D"],
+      "explanation": "Application Insights, Log Analytics, and alerts are all part of Azure Monitor. The Pricing calculator estimates costs, and the Service Trust Portal publishes Microsoft compliance reports.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/overview"
+    },
+    {
+      "uid": "az900-097",
+      "domain": "Describe Azure management and governance",
+      "type": "multiple",
+      "question": "Which two factors affect the cost of an Azure resource? (Choose two.)",
+      "options": {
+        "A": "The number of tags applied to the resource",
+        "B": "The Azure region where the resource is deployed",
+        "C": "The name of the resource group that contains the resource",
+        "D": "The resource type and its selected size or performance tier"
+      },
+      "answer": ["B", "D"],
+      "explanation": "Cost depends on factors such as the resource type and its size or tier, the region, consumption, and bandwidth. Tags and resource group names are organizational and do not change the price.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+    },
+    {
+      "uid": "az900-098",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Statement: A resource lock applies to all users, so even a user with the Owner role cannot delete a resource that has a Delete lock until the lock is removed. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "Yes. Locks override user permissions: an Owner cannot delete a locked resource until someone with permission to manage locks removes the lock first.",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources"
+    },
+    {
+      "uid": "az900-099",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "Statement: The Azure Pricing calculator shows the actual charges incurred by the resources currently deployed in your subscription. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "No. The Pricing calculator only estimates the cost of services you plan to use. Actual incurred charges are analyzed in Microsoft Cost Management.",
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+    },
+    {
+      "uid": "az900-100",
+      "domain": "Describe Azure management and governance",
+      "type": "single",
+      "question": "You need to ensure that every new Azure resource is created with a costCenter tag. Solution: You apply a Delete resource lock at the subscription scope. Does this meet the goal?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "No. A resource lock only prevents deletion or modification; it cannot require tags. An Azure Policy definition that requires the costCenter tag (with the deny effect) would meet the goal.",
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/policy/overview"
+    }
+  ]
+}

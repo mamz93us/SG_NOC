@@ -1,0 +1,1142 @@
+{
+  "exam": {
+    "code": "AI-900",
+    "title": "Microsoft Azure AI Fundamentals",
+    "description": "AI-900 validates foundational knowledge of artificial intelligence and machine learning concepts and the Azure services behind them, including computer vision, natural language processing, document processing and generative AI workloads. This is an internal practice simulation built from original questions for team preparation; it is not affiliated with or endorsed by Microsoft.",
+    "duration_minutes": 45,
+    "question_count": 45,
+    "passing_score": 700
+  },
+  "questions": [
+    {
+      "uid": "ai900-001",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "A manufacturer collects temperature and vibration readings from its production machines every second. It wants to be alerted automatically when readings deviate from normal patterns, which may indicate an impending failure. Which type of AI workload is this?",
+      "options": {
+        "A": "Anomaly detection",
+        "B": "Computer vision",
+        "C": "Natural language processing",
+        "D": "Knowledge mining"
+      },
+      "answer": ["A"],
+      "explanation": "Anomaly detection identifies unusual data points or patterns in a stream of data, such as sensor readings that differ from normal machine behavior.",
+      "reference": "https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-fundamentals/"
+    },
+    {
+      "uid": "ai900-002",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "A law firm has millions of scanned contracts, emails and memos. It wants to extract text and entities from them with AI enrichment and make the whole collection searchable from a single index. Which Azure service should it use?",
+      "options": {
+        "A": "Azure AI Content Safety",
+        "B": "Azure AI Search",
+        "C": "Azure AI Translator",
+        "D": "Azure Machine Learning designer"
+      },
+      "answer": ["B"],
+      "explanation": "Knowledge mining is implemented with Azure AI Search, which can apply AI enrichment (such as OCR and entity extraction) during indexing and make large volumes of unstructured content searchable.",
+      "reference": "https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search"
+    },
+    {
+      "uid": "ai900-003",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "An online retailer wants to create a first-draft product description automatically from a short list of bullet points supplied by a merchandiser. Which type of AI workload is this?",
+      "options": {
+        "A": "Anomaly detection",
+        "B": "Knowledge mining",
+        "C": "Generative AI",
+        "D": "Computer vision"
+      },
+      "answer": ["C"],
+      "explanation": "Generative AI creates new original content, such as text, from a prompt. Writing a product description from bullet points is a text-generation task."
+    },
+    {
+      "uid": "ai900-004",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "An insurance company receives thousands of scanned invoices from repair shops each week. It needs to extract the vendor name, invoice date, line items and total amount into its claims system. Which Azure service best fits this document processing workload?",
+      "options": {
+        "A": "Azure AI Speech",
+        "B": "Azure AI Custom Vision",
+        "C": "Azure AI Translator",
+        "D": "Azure AI Document Intelligence"
+      },
+      "answer": ["D"],
+      "explanation": "Azure AI Document Intelligence extracts text, key-value pairs and tables from documents, and its prebuilt invoice model returns fields such as vendor, date, line items and totals without custom training.",
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/overview"
+    },
+    {
+      "uid": "ai900-005",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "A bank discovers that its loan approval model approves applicants of one gender at a noticeably higher rate than applicants of another gender who have identical income, credit history and debt. Which Responsible AI principle is being violated?",
+      "options": {
+        "A": "Fairness",
+        "B": "Inclusiveness",
+        "C": "Transparency",
+        "D": "Reliability and safety"
+      },
+      "answer": ["A"],
+      "explanation": "Fairness means AI systems should treat all people equitably and not allocate opportunities, such as loans, differently to groups with similar qualifications."
+    },
+    {
+      "uid": "ai900-006",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "A hospital is deploying an AI system that recommends medication dosages. The team requires rigorous testing, defined operating limits, and a safe fallback to a clinician whenever the system encounters conditions it was not designed for. Which Responsible AI principle does this address most directly?",
+      "options": {
+        "A": "Accountability",
+        "B": "Reliability and safety",
+        "C": "Inclusiveness",
+        "D": "Transparency"
+      },
+      "answer": ["B"],
+      "explanation": "Reliability and safety means AI systems should perform consistently as designed, respond safely to unanticipated conditions and be thoroughly tested before and during deployment."
+    },
+    {
+      "uid": "ai900-007",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "A government agency designs its AI-powered service portal so that it works with screen readers, offers spoken input for people with limited mobility, and provides captions for audio responses. Which Responsible AI principle does this demonstrate?",
+      "options": {
+        "A": "Fairness",
+        "B": "Privacy and security",
+        "C": "Inclusiveness",
+        "D": "Accountability"
+      },
+      "answer": ["C"],
+      "explanation": "Inclusiveness means AI systems should empower and engage everyone, including people with disabilities, by designing for the full range of human abilities."
+    },
+    {
+      "uid": "ai900-008",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "A company's customer service chatbot clearly tells users that they are talking to an AI, explains what the bot can and cannot do, and documents how its answers are produced. Which Responsible AI principle does this support?",
+      "options": {
+        "A": "Reliability and safety",
+        "B": "Fairness",
+        "C": "Privacy and security",
+        "D": "Transparency"
+      },
+      "answer": ["D"],
+      "explanation": "Transparency means people should understand when they are interacting with AI, how the system works and what its limitations are."
+    },
+    {
+      "uid": "ai900-009",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "An organization creates an internal review board that must approve every AI system before release and names the people who are answerable for each system's behavior in production. Which Responsible AI principle is this?",
+      "options": {
+        "A": "Accountability",
+        "B": "Transparency",
+        "C": "Fairness",
+        "D": "Inclusiveness"
+      },
+      "answer": ["A"],
+      "explanation": "Accountability means people must be answerable for AI systems, supported by governance structures and oversight such as review boards."
+    },
+    {
+      "uid": "ai900-010",
+      "domain": "Describe AI workloads and considerations",
+      "type": "multiple",
+      "question": "Which of the following scenarios are examples of computer vision workloads? (Choose two.)",
+      "options": {
+        "A": "Translating a sales contract from French to English",
+        "B": "Checking camera images to determine whether workers on a construction site are wearing hard hats",
+        "C": "Predicting next month's sales revenue from historical figures",
+        "D": "Reading the text printed on photographs of street signs",
+        "E": "Determining whether a written product review is positive or negative"
+      },
+      "answer": ["B", "D"],
+      "explanation": "Detecting hard hats in images (object detection) and reading text from photos (OCR) both analyze visual input, so they are computer vision workloads. Translation and sentiment analysis are NLP, and sales prediction is machine learning forecasting."
+    },
+    {
+      "uid": "ai900-011",
+      "domain": "Describe AI workloads and considerations",
+      "type": "multiple",
+      "question": "Which of the following are among Microsoft's six Responsible AI principles? (Choose two.)",
+      "options": {
+        "A": "Privacy and security",
+        "B": "Profitability",
+        "C": "Scalability",
+        "D": "Inclusiveness"
+      },
+      "answer": ["A", "D"],
+      "explanation": "Microsoft's six principles are fairness, reliability and safety, privacy and security, inclusiveness, transparency and accountability. Profitability and scalability are business or technical goals, not Responsible AI principles."
+    },
+    {
+      "uid": "ai900-012",
+      "domain": "Describe AI workloads and considerations",
+      "type": "multiple",
+      "question": "A support team is evaluating AI solutions. Which of the following tasks are natural language processing (NLP) workloads? (Choose three.)",
+      "options": {
+        "A": "Extracting the main talking points from support tickets",
+        "B": "Identifying the language each incoming email is written in",
+        "C": "Counting the number of cars in a parking lot image",
+        "D": "Classifying photos of products as damaged or undamaged",
+        "E": "Identifying the people and organizations mentioned in news articles"
+      },
+      "answer": ["A", "B", "E"],
+      "explanation": "Key phrase extraction, language detection and entity recognition all analyze written text, which makes them NLP workloads. Counting cars and classifying product photos are computer vision tasks."
+    },
+    {
+      "uid": "ai900-013",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "Statement: Forecasting next quarter's electricity demand for a city from several years of historical usage data is an example of a machine learning prediction workload. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "Forecasting uses historical data to train a model that predicts future numeric values, which is a common machine learning prediction workload."
+    },
+    {
+      "uid": "ai900-014",
+      "domain": "Describe AI workloads and considerations",
+      "type": "single",
+      "question": "Statement: Removing names, addresses and national ID numbers from a dataset before using it to train a model primarily supports the transparency principle of Responsible AI. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "Protecting personal data used by an AI system supports the privacy and security principle. Transparency is about people understanding how the system works and its limitations."
+    },
+    {
+      "uid": "ai900-015",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "An ice cream shop wants to predict how many cones it will sell each day based on the forecast temperature and the day of the week. Which type of machine learning should it use?",
+      "options": {
+        "A": "Classification",
+        "B": "Regression",
+        "C": "Clustering",
+        "D": "Anomaly detection"
+      },
+      "answer": ["B"],
+      "explanation": "Regression predicts a numeric value, such as the number of cones sold, from input features."
+    },
+    {
+      "uid": "ai900-016",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "A retailer wants to group its customers into segments based on similar purchasing behavior. It has no predefined segment names or labels in its data. Which type of machine learning is appropriate?",
+      "options": {
+        "A": "Regression",
+        "B": "Binary classification",
+        "C": "Clustering",
+        "D": "Multiclass classification"
+      },
+      "answer": ["C"],
+      "explanation": "Clustering is an unsupervised technique that groups items by similarity without needing known labels."
+    },
+    {
+      "uid": "ai900-017",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "A hospital wants a model that predicts whether a discharged patient will be readmitted within 30 days: yes or no. Which type of machine learning model is this?",
+      "options": {
+        "A": "Regression",
+        "B": "Clustering",
+        "C": "Multiclass classification",
+        "D": "Binary classification"
+      },
+      "answer": ["D"],
+      "explanation": "Binary classification predicts one of two possible classes, such as readmitted or not readmitted."
+    },
+    {
+      "uid": "ai900-018",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "You are training a model to predict house prices. Your dataset contains columns for floor area, number of bedrooms, location and sale price. In this training data, what is the sale price column?",
+      "options": {
+        "A": "The label",
+        "B": "A feature",
+        "C": "A cluster",
+        "D": "A hyperparameter"
+      },
+      "answer": ["A"],
+      "explanation": "The label is the value the model learns to predict. Floor area, bedrooms and location are features used as inputs."
+    },
+    {
+      "uid": "ai900-019",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "You have trained a model that predicts the delivery time of parcels in hours. Which metric is appropriate for evaluating this model?",
+      "options": {
+        "A": "Precision",
+        "B": "Root mean squared error (RMSE)",
+        "C": "Recall",
+        "D": "Area under the curve (AUC)"
+      },
+      "answer": ["B"],
+      "explanation": "Predicting a number is a regression task, and RMSE measures the typical size of the prediction errors. Precision, recall and AUC are classification metrics."
+    },
+    {
+      "uid": "ai900-020",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "Why do data scientists hold back part of their labeled data as a validation set instead of using all of it for training?",
+      "options": {
+        "A": "To halve the time needed to train the model",
+        "B": "To let the model use more features during training",
+        "C": "To evaluate how well the model performs on data it did not see during training",
+        "D": "To have the data labeled automatically"
+      },
+      "answer": ["C"],
+      "explanation": "Validation data is kept separate so the trained model can be tested on unseen data, which shows whether it generalizes or has overfitted to the training data."
+    },
+    {
+      "uid": "ai900-021",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "A business analyst with little data science experience wants Azure Machine Learning to try many algorithms and hyperparameter combinations automatically and report the best-performing model for a dataset. Which capability should they use?",
+      "options": {
+        "A": "Azure Machine Learning designer",
+        "B": "A compute instance",
+        "C": "Data labeling",
+        "D": "Automated machine learning (automated ML)"
+      },
+      "answer": ["D"],
+      "explanation": "Automated ML iterates over combinations of algorithms, featurization and hyperparameters and ranks the resulting models by the chosen metric.",
+      "reference": "https://learn.microsoft.com/en-us/azure/machine-learning/concept-automated-ml"
+    },
+    {
+      "uid": "ai900-022",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "You want to build a machine learning training pipeline by dragging data sources and processing components onto a visual canvas and connecting them, without writing code. Which Azure Machine Learning feature should you use?",
+      "options": {
+        "A": "Azure Machine Learning designer",
+        "B": "Azure AI Language",
+        "C": "Jupyter notebooks",
+        "D": "The Azure Machine Learning CLI"
+      },
+      "answer": ["A"],
+      "explanation": "Azure Machine Learning designer provides a drag-and-drop canvas for building, training and deploying pipelines visually.",
+      "reference": "https://learn.microsoft.com/en-us/azure/machine-learning/concept-designer"
+    },
+    {
+      "uid": "ai900-023",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "A fraud detection model is evaluated on 200 transactions. The confusion matrix shows 80 true positives, 20 false positives, 10 false negatives and 90 true negatives. What is the model's precision?",
+      "options": {
+        "A": "0.89",
+        "B": "0.80",
+        "C": "0.85",
+        "D": "0.90"
+      },
+      "answer": ["B"],
+      "explanation": "Precision = TP / (TP + FP) = 80 / (80 + 20) = 0.80. Recall would be 80 / 90 = 0.89 and accuracy would be 170 / 200 = 0.85."
+    },
+    {
+      "uid": "ai900-024",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "Which statement best describes deep learning?",
+      "options": {
+        "A": "A set of hand-written if-then rules created by domain experts",
+        "B": "A technique used only to group unlabeled data into clusters",
+        "C": "A form of machine learning that uses artificial neural networks with many layers",
+        "D": "A technique that produces predictions without any training data"
+      },
+      "answer": ["C"],
+      "explanation": "Deep learning is a subset of machine learning based on multi-layer artificial neural networks, which underpin modern computer vision, speech and language models."
+    },
+    {
+      "uid": "ai900-025",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "Large language models are based on the transformer architecture. Which technique lets a transformer weigh how strongly each token in a sequence relates to the other tokens?",
+      "options": {
+        "A": "Decision tree splitting",
+        "B": "K-means centroid assignment",
+        "C": "Linear regression",
+        "D": "The attention mechanism"
+      },
+      "answer": ["D"],
+      "explanation": "Attention (self-attention) lets a transformer calculate how relevant each token is to every other token, which captures context across the whole input."
+    },
+    {
+      "uid": "ai900-026",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "multiple",
+      "question": "You have trained a model that classifies support emails as urgent or not urgent. Which metrics should you use to evaluate it? (Choose two.)",
+      "options": {
+        "A": "Mean absolute error (MAE)",
+        "B": "Precision",
+        "C": "Coefficient of determination (R²)",
+        "D": "Root mean squared error (RMSE)",
+        "E": "Recall"
+      },
+      "answer": ["B", "E"],
+      "explanation": "Precision and recall are classification metrics derived from the confusion matrix. MAE, R² and RMSE evaluate regression models."
+    },
+    {
+      "uid": "ai900-027",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "multiple",
+      "question": "Which of the following are supervised machine learning techniques? (Choose two.)",
+      "options": {
+        "A": "Clustering",
+        "B": "Regression",
+        "C": "Principal component analysis (dimensionality reduction)",
+        "D": "Classification"
+      },
+      "answer": ["B", "D"],
+      "explanation": "Regression and classification are supervised because they learn from data that includes known labels. Clustering and principal component analysis work on unlabeled data and are unsupervised."
+    },
+    {
+      "uid": "ai900-028",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "multiple",
+      "question": "Your team is creating an Azure Machine Learning workspace to train and serve custom models. Which of the following can you create and use within the workspace? (Choose three.)",
+      "options": {
+        "A": "Compute clusters for scalable model training",
+        "B": "A prebuilt Azure AI Translator document translation endpoint",
+        "C": "Managed online endpoints for real-time inferencing",
+        "D": "Registered data assets that can be reused across experiments",
+        "E": "The prebuilt sentiment analysis API of Azure AI Language"
+      },
+      "answer": ["A", "C", "D"],
+      "explanation": "An Azure Machine Learning workspace manages compute (such as clusters), data assets, models and endpoints for deployment. Translator and the Language sentiment API are separate prebuilt Azure AI services.",
+      "reference": "https://learn.microsoft.com/en-us/azure/machine-learning/overview-what-is-azure-machine-learning"
+    },
+    {
+      "uid": "ai900-029",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "Statement: In a model that predicts whether an email is spam, the words that appear in each email are features. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "Features are the input values used to make a prediction. The words in the email are inputs, and spam or not spam is the label."
+    },
+    {
+      "uid": "ai900-030",
+      "domain": "Describe fundamental principles of machine learning on Azure",
+      "type": "single",
+      "question": "Statement: An R² (coefficient of determination) value closer to 0 indicates that a regression model explains more of the variance in the data. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "R² closer to 1 means the model explains more of the variance in the label. A value near 0 means the model explains very little of it."
+    },
+    {
+      "uid": "ai900-031",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "A city traffic department wants to locate every vehicle in a traffic camera image and draw a bounding box around each one. Which computer vision technique is required?",
+      "options": {
+        "A": "Object detection",
+        "B": "Image classification",
+        "C": "Semantic segmentation",
+        "D": "Optical character recognition (OCR)"
+      },
+      "answer": ["A"],
+      "explanation": "Object detection identifies multiple objects in an image and returns a class and bounding box for each one."
+    },
+    {
+      "uid": "ai900-032",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "A medical imaging team needs a model that labels every individual pixel of a scan as either tumor tissue or healthy tissue. Which computer vision technique is this?",
+      "options": {
+        "A": "Object detection",
+        "B": "Semantic segmentation",
+        "C": "Image classification",
+        "D": "Facial detection"
+      },
+      "answer": ["B"],
+      "explanation": "Semantic segmentation classifies each pixel in an image, producing a precise mask of each region rather than a bounding box."
+    },
+    {
+      "uid": "ai900-033",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "A shipping company photographs every package on arrival and needs to assign a single label to each photo: \"damaged\" or \"undamaged\". Which computer vision technique should it use?",
+      "options": {
+        "A": "Object detection",
+        "B": "Semantic segmentation",
+        "C": "Image classification",
+        "D": "Optical character recognition (OCR)"
+      },
+      "answer": ["C"],
+      "explanation": "Image classification assigns a label to the image as a whole, without locating individual objects within it."
+    },
+    {
+      "uid": "ai900-034",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "You need to extract lines of printed and handwritten text from photos of whiteboards and store signs. Which Azure AI capability should you use?",
+      "options": {
+        "A": "Azure AI Custom Vision object detection",
+        "B": "Azure AI Face detection",
+        "C": "Azure AI Translator",
+        "D": "The Read (OCR) feature of Azure AI Vision"
+      },
+      "answer": ["D"],
+      "explanation": "The Read OCR feature in Azure AI Vision extracts printed and handwritten text from images and returns it with its position.",
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/computer-vision/overview"
+    },
+    {
+      "uid": "ai900-035",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "A company sells 30 proprietary products that no prebuilt model recognizes. It has labeled photos of each product and wants to train a model that identifies which product appears in a photo, with minimal coding. Which service should it use?",
+      "options": {
+        "A": "Azure AI Custom Vision",
+        "B": "The prebuilt tagging feature of Azure AI Vision image analysis",
+        "C": "Azure AI Face",
+        "D": "Azure AI Content Safety"
+      },
+      "answer": ["A"],
+      "explanation": "Azure AI Custom Vision trains image classification or object detection models on your own labeled images, which is needed for classes that prebuilt models do not know.",
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/custom-vision-service/overview"
+    },
+    {
+      "uid": "ai900-036",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "A photo-sharing website wants to generate a human-readable sentence describing each uploaded image, such as \"a person riding a bicycle on a city street\", to use as alternative text. No custom training should be needed. Which service should it use?",
+      "options": {
+        "A": "Azure AI Face",
+        "B": "Azure AI Vision image analysis",
+        "C": "Azure AI Document Intelligence",
+        "D": "Azure AI Custom Vision object detection"
+      },
+      "answer": ["B"],
+      "explanation": "Azure AI Vision image analysis can generate captions and tags that describe an image using prebuilt models."
+    },
+    {
+      "uid": "ai900-037",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "A retailer publishes photos from in-store events and must blur every visitor's face before publishing. It does not need to know who anyone is. Which capability is required?",
+      "options": {
+        "A": "Facial identification",
+        "B": "Facial verification",
+        "C": "Face detection",
+        "D": "Optical character recognition"
+      },
+      "answer": ["C"],
+      "explanation": "Face detection finds the location of human faces in an image and returns bounding boxes, which is enough to blur them. Identification and verification match faces to identities and are not needed."
+    },
+    {
+      "uid": "ai900-038",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "Which statement about Azure AI Face reflects Microsoft's current Responsible AI policy?",
+      "options": {
+        "A": "Any Azure customer can use face identification without restriction.",
+        "B": "Face can infer a person's emotional state from a facial image.",
+        "C": "Face returns predicted gender and age for each detected face.",
+        "D": "Face identification and verification are Limited Access features that require an application and approval from Microsoft."
+      },
+      "answer": ["D"],
+      "explanation": "Facial recognition features such as identification and verification are Limited Access. Microsoft retired the inference of emotion, gender and age from Face.",
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/face/overview-identity"
+    },
+    {
+      "uid": "ai900-039",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "A photo kiosk must reject pictures that are unsuitable for ID cards. For each face in a picture, it needs the face's location plus attributes such as head pose, blur, occlusion and whether glasses are worn. Which service provides this?",
+      "options": {
+        "A": "Azure AI Face detection",
+        "B": "Azure AI Custom Vision image classification",
+        "C": "The Read (OCR) feature of Azure AI Vision",
+        "D": "Azure AI Content Safety"
+      },
+      "answer": ["A"],
+      "explanation": "Face detection in Azure AI Face returns a bounding box for each face and can return attributes such as head pose, glasses, blur and occlusion, without identifying the person."
+    },
+    {
+      "uid": "ai900-040",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "You are creating an Azure AI Custom Vision project to find and locate every soldering defect on photos of circuit boards, where one board can contain several defects. Which project type should you choose?",
+      "options": {
+        "A": "Image classification (multiclass)",
+        "B": "Object detection",
+        "C": "Image classification (multilabel)"
+      },
+      "answer": ["B"],
+      "explanation": "Object detection returns the location of each instance of an object, so it can find multiple defects on one board. Classification only labels the image as a whole."
+    },
+    {
+      "uid": "ai900-041",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "multiple",
+      "question": "Which tasks can Azure AI Vision perform using prebuilt models, without training a custom model? (Choose two.)",
+      "options": {
+        "A": "Read printed and handwritten text in an image",
+        "B": "Identify a company's proprietary machine parts by their internal part numbers",
+        "C": "Generate captions and tags that describe an image",
+        "D": "Translate spoken audio into another language"
+      },
+      "answer": ["A", "C"],
+      "explanation": "Azure AI Vision provides prebuilt OCR, captioning and tagging. Recognizing proprietary parts needs a custom-trained model, and translating speech is an Azure AI Speech feature."
+    },
+    {
+      "uid": "ai900-042",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "multiple",
+      "question": "Which Azure AI Face capabilities are facial recognition features that fall under Limited Access? (Choose two.)",
+      "options": {
+        "A": "Detecting the location of faces in an image",
+        "B": "Face identification (one-to-many matching)",
+        "C": "Face verification (one-to-one matching)",
+        "D": "Returning the head pose of a detected face"
+      },
+      "answer": ["B", "C"],
+      "explanation": "Identification (who is this among a group of people) and verification (are these two faces the same person) are facial recognition and require Limited Access approval. Detecting faces and their head pose does not identify anyone."
+    },
+    {
+      "uid": "ai900-043",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "Statement: The OCR capability in Azure AI Vision can extract handwritten text as well as printed text from images. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "The Read OCR feature supports both printed text and handwritten text for supported languages."
+    },
+    {
+      "uid": "ai900-044",
+      "domain": "Describe features of computer vision workloads on Azure",
+      "type": "single",
+      "question": "Statement: An image classification model returns the bounding box coordinates of each object it finds in an image. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "Image classification assigns labels to the whole image. Returning bounding boxes for individual objects is object detection."
+    },
+    {
+      "uid": "ai900-045",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "A hotel chain wants to determine automatically whether each guest review is positive, negative, neutral or mixed. Which Azure AI Language feature should it use?",
+      "options": {
+        "A": "Key phrase extraction",
+        "B": "Named entity recognition",
+        "C": "Sentiment analysis",
+        "D": "Language detection"
+      },
+      "answer": ["C"],
+      "explanation": "Sentiment analysis returns positive, negative, neutral or mixed labels with confidence scores for documents and sentences.",
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/language-service/overview"
+    },
+    {
+      "uid": "ai900-046",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "A help desk wants a list of the main topics mentioned in each support ticket, such as \"printer driver\" or \"VPN connection\", so it can see common themes. Which Azure AI Language feature should it use?",
+      "options": {
+        "A": "Sentiment analysis",
+        "B": "PII detection",
+        "C": "Language detection",
+        "D": "Key phrase extraction"
+      },
+      "answer": ["D"],
+      "explanation": "Key phrase extraction returns the main concepts and talking points in a piece of text."
+    },
+    {
+      "uid": "ai900-047",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "Before storing chat transcripts for analytics, a company must find and redact phone numbers, email addresses and credit card numbers in the text. Which capability should it use?",
+      "options": {
+        "A": "Personally identifiable information (PII) detection in Azure AI Language",
+        "B": "Key phrase extraction in Azure AI Language",
+        "C": "Language detection in Azure AI Language",
+        "D": "Azure AI Translator"
+      },
+      "answer": ["A"],
+      "explanation": "PII detection, part of entity recognition in Azure AI Language, identifies sensitive information such as phone numbers and card numbers and can return a redacted version of the text."
+    },
+    {
+      "uid": "ai900-048",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "A travel company is building an app that must understand requests such as \"Book me a flight to Riyadh next Monday\", recognizing the user's intent (book a flight) and extracting entities such as the destination and date. Which Azure AI Language feature should it use?",
+      "options": {
+        "A": "Custom question answering",
+        "B": "Conversational language understanding (CLU)",
+        "C": "Sentiment analysis",
+        "D": "Azure AI Translator"
+      },
+      "answer": ["B"],
+      "explanation": "Conversational language understanding, the successor to LUIS, is trained to predict intents and extract entities from user utterances."
+    },
+    {
+      "uid": "ai900-049",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "An HR department wants a bot that answers employees' questions using the answers already written in its FAQ documents and intranet pages. Which Azure AI Language feature is designed for this?",
+      "options": {
+        "A": "Conversational language understanding",
+        "B": "Named entity recognition",
+        "C": "Custom question answering",
+        "D": "Text to speech"
+      },
+      "answer": ["C"],
+      "explanation": "Custom question answering, the successor to QnA Maker, builds a knowledge base of question-and-answer pairs from sources such as FAQ documents and URLs."
+    },
+    {
+      "uid": "ai900-050",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "A call center wants to convert thousands of recorded customer calls into written transcripts for later analysis. Which capability should it use?",
+      "options": {
+        "A": "Text to speech in Azure AI Speech",
+        "B": "Text translation in Azure AI Translator",
+        "C": "Language detection in Azure AI Language",
+        "D": "Speech to text in Azure AI Speech"
+      },
+      "answer": ["D"],
+      "explanation": "Speech to text transcribes spoken audio into text, in real time or in batches of recorded files.",
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/speech-service/overview"
+    },
+    {
+      "uid": "ai900-051",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "During a live webinar, a presenter speaks in English and attendees need real-time Spanish subtitles of what is being said. Which capability should you use?",
+      "options": {
+        "A": "Speech translation in Azure AI Speech",
+        "B": "Document translation in Azure AI Translator",
+        "C": "Summarization in Azure AI Language",
+        "D": "Conversational language understanding"
+      },
+      "answer": ["A"],
+      "explanation": "Speech translation in Azure AI Speech translates spoken audio in real time and can output translated text or synthesized speech."
+    },
+    {
+      "uid": "ai900-052",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "A legal department needs to translate hundreds of Word and PDF files into Arabic while keeping the original layout and formatting. Which capability should it use?",
+      "options": {
+        "A": "Speech translation in Azure AI Speech",
+        "B": "Document translation in Azure AI Translator",
+        "C": "Key phrase extraction in Azure AI Language",
+        "D": "Custom question answering in Azure AI Language"
+      },
+      "answer": ["B"],
+      "explanation": "Document translation in Azure AI Translator translates whole documents in batches and preserves their structure and formatting.",
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/translator/overview"
+    },
+    {
+      "uid": "ai900-053",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "A global support center needs to route incoming emails to the right regional team. For each email it needs the language name, its ISO language code and a confidence score. Which Azure AI Language feature should it use?",
+      "options": {
+        "A": "Sentiment analysis",
+        "B": "Entity linking",
+        "C": "Language detection",
+        "D": "PII detection"
+      },
+      "answer": ["C"],
+      "explanation": "Language detection returns the detected language's name, ISO 639-1 code and a confidence score for each document."
+    },
+    {
+      "uid": "ai900-054",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "Managers receive 40-page project reports and want a short paragraph that condenses the most important information in each one. Which Azure AI Language feature should you use?",
+      "options": {
+        "A": "Key phrase extraction",
+        "B": "Named entity recognition",
+        "C": "Conversational language understanding",
+        "D": "Summarization"
+      },
+      "answer": ["D"],
+      "explanation": "Summarization produces a condensed version of a document, either by extracting key sentences or by generating an abstractive summary. Key phrase extraction returns only a list of phrases."
+    },
+    {
+      "uid": "ai900-055",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "A bank wants its phone system to read account balances aloud to callers in a natural-sounding voice. Which capability should it use?",
+      "options": {
+        "A": "Text to speech in Azure AI Speech",
+        "B": "Speech to text in Azure AI Speech",
+        "C": "Azure AI Translator",
+        "D": "Language detection in Azure AI Language"
+      },
+      "answer": ["A"],
+      "explanation": "Text to speech synthesizes spoken audio from text, using neural voices that sound natural."
+    },
+    {
+      "uid": "ai900-056",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "Given the sentence \"Contoso opened a new office in Jeddah in March\", a system returns \"Contoso\" as an organization, \"Jeddah\" as a location and \"March\" as a date. Which feature produced this result?",
+      "options": {
+        "A": "Key phrase extraction",
+        "B": "Named entity recognition",
+        "C": "Sentiment analysis",
+        "D": "Summarization"
+      },
+      "answer": ["B"],
+      "explanation": "Named entity recognition identifies entities in text and classifies them into categories such as person, organization, location and date/time."
+    },
+    {
+      "uid": "ai900-057",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "multiple",
+      "question": "Which of the following features are provided by Azure AI Language? (Choose two.)",
+      "options": {
+        "A": "Speech synthesis",
+        "B": "Sentiment analysis",
+        "C": "Image captioning",
+        "D": "Named entity recognition",
+        "E": "Document translation"
+      },
+      "answer": ["B", "D"],
+      "explanation": "Sentiment analysis and named entity recognition are Azure AI Language features. Speech synthesis belongs to Azure AI Speech, image captioning to Azure AI Vision and document translation to Azure AI Translator."
+    },
+    {
+      "uid": "ai900-058",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "multiple",
+      "question": "You are building a voice-enabled assistant for a car. It must capture what the driver says, work out what the driver wants, and reply with a spoken answer. Which capabilities should you use? (Choose three.)",
+      "options": {
+        "A": "Azure AI Custom Vision",
+        "B": "Speech to text in Azure AI Speech",
+        "C": "Conversational language understanding in Azure AI Language",
+        "D": "Azure AI Document Intelligence",
+        "E": "Text to speech in Azure AI Speech"
+      },
+      "answer": ["B", "C", "E"],
+      "explanation": "Speech to text transcribes the driver, conversational language understanding identifies the intent and entities, and text to speech speaks the reply."
+    },
+    {
+      "uid": "ai900-059",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "Statement: Custom question answering in Azure AI Language is the successor to QnA Maker for building knowledge bases of questions and answers. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "QnA Maker was retired and its functionality continues in custom question answering, a feature of Azure AI Language."
+    },
+    {
+      "uid": "ai900-060",
+      "domain": "Describe features of Natural Language Processing (NLP) workloads on Azure",
+      "type": "single",
+      "question": "Statement: Key phrase extraction returns a score that indicates whether a piece of text expresses a positive or negative opinion. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "Key phrase extraction returns the main phrases in the text. Opinion scores come from sentiment analysis."
+    },
+    {
+      "uid": "ai900-061",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "In the context of large language models, what is a token?",
+      "options": {
+        "A": "A security key used to authenticate calls to the model endpoint",
+        "B": "A complete sentence in the prompt",
+        "C": "A trained model version stored in the model catalog",
+        "D": "A unit of text, such as a word or part of a word, that the model processes"
+      },
+      "answer": ["D"],
+      "explanation": "Language models break text into tokens, which are words, word fragments or characters. Prompt and response lengths and usage costs are measured in tokens."
+    },
+    {
+      "uid": "ai900-062",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "What are embeddings in generative AI solutions?",
+      "options": {
+        "A": "Numeric vectors that represent the meaning of text, so that semantically similar content has vectors that are close together",
+        "B": "Images generated from a text description",
+        "C": "Compressed copies of documents stored in a search index",
+        "D": "Encrypted versions of prompts sent to the model"
+      },
+      "answer": ["A"],
+      "explanation": "Embeddings map text (or other content) to vectors in a multi-dimensional space where distance reflects semantic similarity, enabling vector search and retrieval."
+    },
+    {
+      "uid": "ai900-063",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "You are configuring a chat application that uses a GPT model in Azure OpenAI. What is the purpose of the system message?",
+      "options": {
+        "A": "To store the conversation history for billing purposes",
+        "B": "To set the model's role, tone, rules and limits for the whole conversation",
+        "C": "To retrain the model's weights on your data",
+        "D": "To set the maximum number of tokens the model can return"
+      },
+      "answer": ["B"],
+      "explanation": "The system message gives the model instructions that shape its behavior, such as its persona, the topics it may discuss and the response format."
+    },
+    {
+      "uid": "ai900-064",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "A company wants its chat assistant to answer questions using its own policy documents without retraining the model. Which approach describes retrieval-augmented generation (RAG)?",
+      "options": {
+        "A": "Fine-tuning the model on the policy documents",
+        "B": "Raising the temperature so the model produces more varied answers",
+        "C": "Retrieving relevant passages from the documents at query time and adding them to the prompt so the model grounds its answer in them",
+        "D": "Generating an image of each policy document"
+      },
+      "answer": ["C"],
+      "explanation": "RAG retrieves relevant content, for example from an Azure AI Search index, and includes it in the prompt so the model answers from that grounding data."
+    },
+    {
+      "uid": "ai900-065",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "A developer wants a model's answers to a support question to be as consistent and predictable as possible each time the question is asked. Which parameter change helps achieve this?",
+      "options": {
+        "A": "Increase the temperature to 1.5",
+        "B": "Increase the maximum response tokens",
+        "C": "Remove the system message",
+        "D": "Lower the temperature toward 0"
+      },
+      "answer": ["D"],
+      "explanation": "Temperature controls randomness. Lower values make the model choose the most likely tokens, giving more focused and repeatable output, while higher values make output more varied."
+    },
+    {
+      "uid": "ai900-066",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "What does the term \"hallucination\" mean when describing generative AI output?",
+      "options": {
+        "A": "A response that sounds fluent and confident but is factually incorrect or not supported by the source data",
+        "B": "A response that the content filter has blocked",
+        "C": "A response that is cut off because it reached the token limit",
+        "D": "A response written in a different language from the prompt"
+      },
+      "answer": ["A"],
+      "explanation": "A hallucination is plausible-sounding content that is false or invented, which is why grounding and verification are important."
+    },
+    {
+      "uid": "ai900-067",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "A marketing team wants to create original illustrations from text descriptions such as \"a desert city skyline at sunset in watercolor style\". Which type of model should they deploy in Azure OpenAI?",
+      "options": {
+        "A": "A text embeddings model such as text-embedding-3-large",
+        "B": "An image generation model such as DALL-E 3 or GPT-image-1",
+        "C": "The Whisper speech-to-text model",
+        "D": "A chat model such as gpt-4o-mini used for text output"
+      },
+      "answer": ["B"],
+      "explanation": "Image generation models create new images from natural-language prompts. Embeddings models return vectors, Whisper transcribes speech, and chat models used for text produce text."
+    },
+    {
+      "uid": "ai900-068",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "You need to find documents that are similar in meaning to a user's query, even when they use different words. Which type of Azure OpenAI model should you use to represent the documents and the query?",
+      "options": {
+        "A": "An image generation model",
+        "B": "A speech-to-text model",
+        "C": "An embeddings model",
+        "D": "A chat model with a high temperature"
+      },
+      "answer": ["C"],
+      "explanation": "Embeddings models turn text into vectors that capture meaning. Comparing vector similarity enables semantic (vector) search."
+    },
+    {
+      "uid": "ai900-069",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "Which statement correctly describes the default content filtering system used with Azure OpenAI models?",
+      "options": {
+        "A": "It checks only the model's responses, never the user's prompts.",
+        "B": "It guarantees that model responses contain no factual errors.",
+        "C": "It translates prompts into English before sending them to the model.",
+        "D": "It evaluates both prompts and responses for harmful content such as hate, sexual, violence and self-harm, and filters it by severity level."
+      },
+      "answer": ["D"],
+      "explanation": "The content filtering system, built on Azure AI Content Safety, classifies both input prompts and output completions across harm categories and severity levels and blocks content above the configured threshold.",
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/content-safety/overview"
+    },
+    {
+      "uid": "ai900-070",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "What can you do with the model catalog in the Azure AI Foundry (Microsoft Foundry) portal?",
+      "options": {
+        "A": "Browse, compare and deploy models from Microsoft, OpenAI, Meta, Mistral and other providers",
+        "B": "Store raw training datasets only",
+        "C": "Host Git repositories for application code",
+        "D": "Monitor CPU usage of Azure virtual machines"
+      },
+      "answer": ["A"],
+      "explanation": "The model catalog lets you discover, compare, evaluate and deploy foundation models from many providers for use in your generative AI solutions."
+    },
+    {
+      "uid": "ai900-071",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "Microsoft's guidance for responsible generative AI describes a process of identify, measure, mitigate and operate. What is the first stage of this process?",
+      "options": {
+        "A": "Apply mitigations such as content filters",
+        "B": "Identify the potential harms the solution could cause",
+        "C": "Define a deployment and incident response plan",
+        "D": "Measure how often harmful output occurs"
+      },
+      "answer": ["B"],
+      "explanation": "The process starts by identifying and prioritizing potential harms, then measuring them in the solution, mitigating them in layers and operating the solution responsibly.",
+      "reference": "https://learn.microsoft.com/en-us/azure/foundry/responsible-use-of-ai-overview"
+    },
+    {
+      "uid": "ai900-072",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "A company already has a copilot that answers staff questions in chat. It now wants an AI agent that can also check stock levels through an inventory API and create purchase orders. What distinguishes an AI agent from a simple chat assistant?",
+      "options": {
+        "A": "An agent answers only from the model's training data.",
+        "B": "An agent does not use a language model.",
+        "C": "An agent can use tools, such as APIs and data sources, to reason through steps and take actions that complete a task.",
+        "D": "An agent needs no instructions or configuration."
+      },
+      "answer": ["C"],
+      "explanation": "Agents combine a generative AI model with instructions and tools, which lets them retrieve information and take actions on the user's behalf rather than only replying with text."
+    },
+    {
+      "uid": "ai900-073",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "Mitigating harms in a generative AI solution is often described in four layers: model, safety system, system message and grounding, and user experience. At which layer do content filters that block harmful prompts and responses operate?",
+      "options": {
+        "A": "Model",
+        "B": "User experience",
+        "C": "System message and grounding",
+        "D": "Safety system"
+      },
+      "answer": ["D"],
+      "explanation": "The safety system layer includes platform-level protections such as content filters and abuse monitoring that act on prompts and responses."
+    },
+    {
+      "uid": "ai900-074",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "A developer includes three sample customer questions, each followed by the exact answer format expected, in the prompt before the real question. Which prompt engineering technique is this?",
+      "options": {
+        "A": "Fine-tuning",
+        "B": "Retrieval-augmented generation",
+        "C": "Few-shot prompting",
+        "D": "Lowering the temperature"
+      },
+      "answer": ["C"],
+      "explanation": "Few-shot prompting provides examples of the desired input and output in the prompt so the model follows the demonstrated pattern, without changing the model's weights."
+    },
+    {
+      "uid": "ai900-075",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "multiple",
+      "question": "An HR assistant built on Azure OpenAI sometimes invents policy details. Which actions help reduce these hallucinations? (Choose two.)",
+      "options": {
+        "A": "Raise the temperature",
+        "B": "Ground responses in content retrieved from the approved HR policy documents",
+        "C": "Increase the maximum number of response tokens",
+        "D": "Instruct the model in the system message to answer only from the provided content and to say when it does not know"
+      },
+      "answer": ["B", "D"],
+      "explanation": "Grounding the model in trusted data and instructing it to stay within that data reduce fabricated answers. A higher temperature increases randomness, and more tokens only allows longer answers."
+    },
+    {
+      "uid": "ai900-076",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "multiple",
+      "question": "Which of the following are generative AI workloads? (Choose two.)",
+      "options": {
+        "A": "Drafting replies to customer emails with a large language model",
+        "B": "Predicting customer churn with a logistic regression model",
+        "C": "Creating marketing images from a text prompt",
+        "D": "Grouping customers into segments with k-means clustering"
+      },
+      "answer": ["A", "C"],
+      "explanation": "Generative AI creates new content such as text and images. Churn prediction and customer segmentation are traditional machine learning tasks."
+    },
+    {
+      "uid": "ai900-077",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "multiple",
+      "question": "Azure AI Content Safety, which underpins the content filters for Azure OpenAI, classifies text and images into harm categories. Which of the following are among those categories? (Choose three.)",
+      "options": {
+        "A": "Spelling errors",
+        "B": "Hate",
+        "C": "Violence",
+        "D": "High latency",
+        "E": "Self-harm"
+      },
+      "answer": ["B", "C", "E"],
+      "explanation": "Azure AI Content Safety evaluates the harm categories hate, sexual, violence and self-harm, each with a severity level. Spelling and latency are not harm categories."
+    },
+    {
+      "uid": "ai900-078",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "multiple",
+      "question": "You are building a chat application with a GPT model deployed in Azure OpenAI in Foundry Models. It must answer questions from thousands of internal documents by using retrieval-augmented generation. Which components are commonly used to implement the retrieval part? (Choose two.)",
+      "options": {
+        "A": "An Azure AI Search index of the documents",
+        "B": "Azure AI Face",
+        "C": "Azure AI Custom Vision",
+        "D": "An embeddings model to vectorize the documents and the user's question"
+      },
+      "answer": ["A", "D"],
+      "explanation": "A common RAG pattern uses an embeddings model to create vectors and Azure AI Search to find the most relevant passages, which are then added to the prompt."
+    },
+    {
+      "uid": "ai900-079",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "Statement: A large language model generates text by repeatedly predicting a likely next token based on the tokens that come before it. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["A"],
+      "shuffle": false,
+      "explanation": "LLMs generate output one token at a time, each time predicting the next token from the prompt and the tokens already generated."
+    },
+    {
+      "uid": "ai900-080",
+      "domain": "Describe features of generative AI workloads on Azure",
+      "type": "single",
+      "question": "Statement: Setting the temperature of an Azure OpenAI model to 0 guarantees that its responses are factually accurate. Is this statement true?",
+      "options": {
+        "A": "Yes",
+        "B": "No"
+      },
+      "answer": ["B"],
+      "shuffle": false,
+      "explanation": "A low temperature makes output more deterministic, but the model can still confidently produce incorrect information. Accuracy depends on grounding and verification."
+    }
+  ]
+}
