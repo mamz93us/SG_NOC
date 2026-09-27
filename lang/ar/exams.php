@@ -79,5 +79,10 @@ return [
         'Describe features of computer vision workloads on Azure' => 'وصف ميزات أحمال عمل الرؤية الحاسوبية على Azure',
         'Describe features of Natural Language Processing (NLP) workloads on Azure' => 'وصف ميزات أحمال عمل معالجة اللغة الطبيعية (NLP) على Azure',
         'Describe features of generative AI workloads on Azure' => 'وصف ميزات أحمال عمل الذكاء الاصطناعي التوليدي على Azure',
+        'Manage Azure identities and governance' => 'إدارة هويات Azure والحوكمة',
+        'Implement and manage storage' => 'تنفيذ التخزين وإدارته',
+        'Deploy and manage Azure compute resources' => 'نشر موارد الحوسبة في Azure وإدارتها',
+        'Implement and manage virtual networking' => 'تنفيذ الشبكات الظاهرية وإدارتها',
+        'Monitor and maintain Azure resources' => 'مراقبة موارد Azure وصيانتها',
     ],
 ];
