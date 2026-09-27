@@ -22,6 +22,13 @@ class AzureDeviceService
      * Sync Azure AD / Intune devices into azure_devices table.
      * Returns summary: ['synced' => N, 'new' => N, 'auto_linked' => N, 'auto_assigned' => N]
      */
+    /**
+     * Both device fetches ask Graph for one page of this size and never follow
+     * the next-link it hands back, so a list this long is a page and not the
+     * fleet.
+     */
+    private const FETCH_PAGE_SIZE = 999;
+
     public function syncDevices(): array
     {
         $synced = 0;
@@ -29,6 +36,9 @@ class AzureDeviceService
         $autoLinked = 0;
         $autoAssigned = 0;
         $skipped = 0;
+        $removed = 0;
+        $restored = 0;
+        $seen = [];
 
         try {
             $azureDevices = $this->fetchAzureAdDevices();
@@ -38,8 +48,17 @@ class AzureDeviceService
             $merged = $this->mergeDeviceLists($azureDevices, $intuneDevices);
 
             foreach ($merged as $data) {
+                // Seen in Microsoft, whatever happens next: a device whose upsert
+                // throws must not then be counted as one Microsoft no longer has.
+                if (! empty($data['azure_device_id'])) {
+                    $seen[] = $data['azure_device_id'];
+                }
+
                 try {
                     $result = $this->upsertDevice($data);
+                    if ($result['restored']) {
+                        $restored++;
+                    }
                     if ($result['new']) {
                         $newCount++;
                     }
@@ -52,9 +71,13 @@ class AzureDeviceService
                     $synced++;
                 } catch (\Throwable $devEx) {
                     $skipped++;
-                    Log::warning('AzureDeviceService: skipped '.($data['azure_device_id'] ?? '?').': '.$devEx->getMessage());
+                    // Error, not warning: production runs LOG_LEVEL=error, so a
+                    // warning here is written nowhere and a device that fails every
+                    // run looks exactly like one that synced.
+                    Log::error('AzureDeviceService: skipped '.($data['azure_device_id'] ?? '?').': '.$devEx->getMessage());
                 }
             }
+            $removed = $this->markMissing(count($merged), $seen);
         } catch (\Throwable $e) {
             Log::error('AzureDeviceService::syncDevices failed: '.$e->getMessage());
             throw $e;
@@ -66,7 +89,50 @@ class AzureDeviceService
             'auto_linked' => $autoLinked,
             'auto_assigned' => $autoAssigned,
             'skipped' => $skipped,
+            'removed' => $removed,
+            'restored' => $restored,
         ];
+    }
+
+    /**
+     * Stamp the rows Microsoft no longer lists at all. **Nothing is deleted**:
+     * the row is the asset's record of what it was enrolled as, and the device
+     * page shows the date it went. A device that comes back is un-stamped by
+     * the upsert.
+     *
+     * Refused rather than applied when the fetch cannot be trusted — an empty
+     * list, one under half of what is known, or one at the page ceiling of the
+     * two un-paginated fetches — because a throttled or truncated page would
+     * otherwise mark most of the fleet as gone. The identity sync guards a
+     * short Graph list the same way.
+     *
+     * @param  array<int, string>  $seen
+     */
+    private function markMissing(int $fetched, array $seen): int
+    {
+        $known = AzureDevice::whereNull('removed_at')->count();
+
+        if ($fetched === 0 || ($known > 0 && $fetched * 2 < $known)) {
+            Log::error("AzureDeviceService: refusing to mark devices removed — Graph returned {$fetched} device(s) against {$known} known.");
+
+            return 0;
+        }
+
+        if ($fetched >= self::FETCH_PAGE_SIZE) {
+            Log::error('AzureDeviceService: refusing to mark devices removed — the device list hit the '.self::FETCH_PAGE_SIZE.'-row page ceiling, so it is probably truncated.');
+
+            return 0;
+        }
+
+        $removed = AzureDevice::whereNull('removed_at')
+            ->whereNotIn('azure_device_id', $seen)
+            ->update(['removed_at' => now()]);
+
+        if ($removed > 0) {
+            Log::info("AzureDeviceService: {$removed} device(s) are no longer in Microsoft — rows kept and stamped.");
+        }
+
+        return $removed;
     }
 
     /**
@@ -134,7 +200,10 @@ class AzureDeviceService
                         AssetHistory::record(
                             $localDevice,
                             'returned',
-                            "Auto-released — Azure deviceId rotated on serial {$serial} (old UPN {$oldUpn} → new UPN {$rawUpn})"
+                            "Auto-released — Azure deviceId rotated on serial {$serial} (old UPN {$oldUpn} → new UPN {$rawUpn})",
+                            // The sync's own bookkeeping, not an asset handed back:
+                            // the movements report leaves these out.
+                            ['auto_release' => true, 'serial' => $serial]
                         );
                         $localDevice->update(['status' => 'available']);
                     }
@@ -149,9 +218,26 @@ class AzureDeviceService
             $azDev = new AzureDevice;
         }
 
+        // Deleting a device from Intune — what offboarding does — leaves the Entra
+        // object behind, so the Intune id simply stops coming. That is the moment
+        // the asset left Intune, and it is kept as a date: the row itself stays,
+        // because it is the only record of what the asset was enrolled as.
+        $intuneRemovedAt = $azDev->intune_removed_at;
+        if ($intuneId) {
+            $intuneRemovedAt = null;
+        } elseif ($azDev->intune_managed_device_id && ! $intuneRemovedAt) {
+            $intuneRemovedAt = now();
+            Log::info("AzureDeviceService: {$azDev->display_name} is no longer managed by Intune (Entra object remains).");
+        }
+
+        $restored = (bool) $azDev->removed_at;
+
         $azDev->fill([
             'azure_device_id' => $data['azure_device_id'],
             'intune_managed_device_id' => $intuneId,
+            'intune_removed_at' => $intuneRemovedAt,
+            // Listed again, so it is back.
+            'removed_at' => null,
             'display_name' => $data['display_name'],
             'device_type' => $data['device_type'] ?? null,
             'os' => $data['os'] ?? null,
@@ -183,6 +269,7 @@ class AzureDeviceService
             'new' => ! $exists,
             'auto_linked' => $autoLinked,
             'auto_assigned' => $autoAssigned,
+            'restored' => $restored,
             'model' => $azDev,
         ];
     }
@@ -245,9 +332,32 @@ class AzureDeviceService
             return;
         }
 
+        // Two Intune devices linked to one asset, each with its own name, renamed
+        // it to their own on every run: the asset flip-flopped and its history
+        // filled with renames. The NOC cannot know which one is the asset, so it
+        // renames from neither and says so — the stale link has to be removed.
+        $claims = AzureDevice::where('device_id', $device->id)
+            ->where('link_status', 'linked')
+            ->whereNull('removed_at')
+            ->count();
+
+        if ($claims > 1) {
+            Log::error("AzureDeviceService: {$claims} Intune devices are linked to asset #{$device->id} ("
+                .($device->asset_code ?: $device->name).') — not renaming it. Unlink the stale one.');
+
+            return;
+        }
+
+        // `note_added`, not `updated`: asset_history.event_type is an ENUM of the
+        // sixteen lifecycle events, and MySQL runs strict here, so 'updated' threw
+        // on every rename. The throw landed in the per-device catch in
+        // syncDevices(), which counted the device as skipped — before auto-link and
+        // auto-assign — and logged a warning that LOG_LEVEL=error never wrote. So an
+        // Intune rename never reached devices.name and nothing said why. The same
+        // event type the Azure link approval already records.
         AssetHistory::record(
             $device,
-            'updated',
+            'note_added',
             "Name changed from '{$oldName}' to '{$newName}' via Azure sync.",
             [
                 'azure_device_id' => $azDev->azure_device_id,
@@ -391,7 +501,7 @@ class AzureDeviceService
                 ->withToken($token)
                 ->get('https://graph.microsoft.com/v1.0/devices', [
                     '$select' => 'id,displayName,operatingSystem,operatingSystemVersion,deviceId,physicalIds,approximateLastSignInDateTime',
-                    '$top' => 999,
+                    '$top' => self::FETCH_PAGE_SIZE,
                 ]);
 
             if ($response->status() === 403) {
@@ -400,7 +510,7 @@ class AzureDeviceService
                     ->withToken($token)
                     ->get('https://graph.microsoft.com/v1.0/devices', [
                         '$select' => 'id,displayName,operatingSystem,operatingSystemVersion,deviceId,physicalIds,approximateLastSignInDateTime',
-                        '$top' => 999,
+                        '$top' => self::FETCH_PAGE_SIZE,
                     ]);
             }
 
@@ -418,7 +528,7 @@ class AzureDeviceService
                     'os' => $d['operatingSystem'] ?? null,
                     'os_version' => $d['operatingSystemVersion'] ?? null,
                     'serial_number' => $this->extractSerial($d['physicalIds'] ?? []),
-                    'last_activity' => $d['approximateLastSignInDateTime'] ?? null,
+                    'last_activity' => self::cleanDate($d['approximateLastSignInDateTime'] ?? null),
                 ];
             })->toArray();
         } catch (\Throwable $e) {
@@ -436,7 +546,7 @@ class AzureDeviceService
                 ->withToken($token)
                 ->get('https://graph.microsoft.com/v1.0/deviceManagement/managedDevices', [
                     '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,lastSyncDateTime,model,manufacturer,azureADDeviceId',
-                    '$top' => 999,
+                    '$top' => self::FETCH_PAGE_SIZE,
                 ]);
 
             if ($response->status() === 403) {
@@ -445,7 +555,7 @@ class AzureDeviceService
                     ->withToken($token)
                     ->get('https://graph.microsoft.com/v1.0/deviceManagement/managedDevices', [
                         '$select' => 'id,deviceName,serialNumber,userPrincipalName,operatingSystem,enrolledDateTime,lastSyncDateTime,model,manufacturer,azureADDeviceId',
-                        '$top' => 999,
+                        '$top' => self::FETCH_PAGE_SIZE,
                     ]);
             }
 
@@ -465,8 +575,8 @@ class AzureDeviceService
                     'manufacturer' => $d['manufacturer'] ?? null,
                     'model' => $d['model'] ?? null,
                     'upn' => $d['userPrincipalName'] ?? null,
-                    'enrolled_date' => $d['enrolledDateTime'] ?? null,
-                    'last_activity' => $d['lastSyncDateTime'] ?? null,
+                    'enrolled_date' => self::cleanDate($d['enrolledDateTime'] ?? null),
+                    'last_activity' => self::cleanDate($d['lastSyncDateTime'] ?? null),
                     'device_type' => null,
                 ];
             })->toArray();
@@ -475,6 +585,21 @@ class AzureDeviceService
 
             return [];
         }
+    }
+
+    /**
+     * Microsoft writes an unset date as `0001-01-01T00:00:00Z`, which MySQL in
+     * strict mode refuses outright — and the throw was caught per device, so two
+     * devices were skipped on every run for months with a warning the production
+     * log level never wrote. Anything before Microsoft existed is no date.
+     */
+    private static function cleanDate(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        return str_starts_with($value, '0001-') || $value < '1900-' ? null : $value;
     }
 
     private function mergeDeviceLists(array $azureAd, array $intune): array

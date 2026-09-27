@@ -57,8 +57,24 @@ class AssetHistory extends Model
     /**
      * Record a history event for a device.
      */
+    /**
+     * @throws \InvalidArgumentException when $event is not one of EVENT_TYPES.
+     *
+     * The column is an ENUM and MySQL runs strict, so an unknown event throws
+     * there anyway — but only there, and only in production. Refusing it here
+     * means a wrong event type fails in a test and on SQLite too, rather than
+     * reaching the one environment where the failure is a skipped device and a
+     * log line nobody sees (the Azure rename did exactly that with 'updated').
+     */
     public static function record(Device $device, string $event, string $description, array $meta = []): self
     {
+        if (! in_array($event, self::EVENT_TYPES, true)) {
+            throw new \InvalidArgumentException(
+                "Unknown asset history event '{$event}'. Add it to AssetHistory::EVENT_TYPES and to the "
+                .'asset_history.event_type enum, or use one of: '.implode(', ', self::EVENT_TYPES)
+            );
+        }
+
         return static::create([
             'device_id'   => $device->id,
             'event_type'  => $event,

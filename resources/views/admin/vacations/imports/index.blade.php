@@ -59,6 +59,33 @@
                 </form>
             </div>
         </div>
+
+        <div class="card shadow-sm border-0 mt-3">
+            <div class="card-header bg-transparent fw-semibold">
+                <i class="bi bi-cloud-download me-1"></i>Pull from Oracle
+            </div>
+            <div class="card-body">
+                @if ($portalReady)
+                    <p class="small text-muted mb-3">
+                        Reads the balances and the leave records straight from Oracle — the same figures, the same rules
+                        as an upload, with no sheet to export. Balances count for <strong>today</strong>, because the API
+                        reports the position as it stands rather than as of an export date.
+                        @if ($portalLastSync)
+                            <br>Last pulled {{ $portalLastSync->diffForHumans() }}.
+                        @endif
+                    </p>
+                    <form method="POST" action="{{ route('admin.vacations.imports.pull') }}">
+                        @csrf
+                        <button class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-arrow-repeat me-1"></i>Pull now
+                        </button>
+                    </form>
+                    <div class="form-text mt-2">This also runs on its own every night.</div>
+                @else
+                    <p class="small text-muted mb-0">{{ $portalIssue }}</p>
+                @endif
+            </div>
+        </div>
     </div>
 
     <div class="col-lg-7">

@@ -981,6 +981,14 @@
                                 </a>
                             </li>
                             @endcanroute
+                            @canroute('admin.itam.oracle-assets.index')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.itam.oracle-assets.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.itam.oracle-assets.index') }}">
+                                    <i class="bi bi-journal-check me-2"></i>Oracle Asset Register
+                                </a>
+                            </li>
+                            @endcanroute
                             @canroute('admin.wallpapers.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/wallpapers*') ? 'active' : '' }}"
@@ -1325,6 +1333,41 @@
                             <li>
                                 <a class="dropdown-item" href="{{ route('admin.settings.index') }}#ai-assistant">
                                     <i class="bi bi-sliders me-2"></i>Assistant Settings
+                                </a>
+                            </li>
+                            @endcanroute
+                        </ul>
+                    </li>
+                    @endcanroute
+
+                    {{-- ── Exams dropdown (practice exams for the team) ── --}}
+                    @canroute('admin.exams.index', 'admin.exams.results.index', 'admin.exams.manage.index')
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/exams*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-mortarboard me-1"></i>Exams
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @canroute('admin.exams.index')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.exams.index', 'admin.exams.show') ? 'active' : '' }}"
+                                   href="{{ route('admin.exams.index') }}">
+                                    <i class="bi bi-pencil-square me-2"></i>Take an exam
+                                </a>
+                            </li>
+                            @endcanroute
+                            @canroute('admin.exams.results.index', 'admin.exams.manage.index')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.exams.results.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.exams.results.index') }}">
+                                    <i class="bi bi-bar-chart-line me-2"></i>Team results
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.exams.manage.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.exams.manage.index') }}">
+                                    <i class="bi bi-collection me-2"></i>Exams &amp; question banks
                                 </a>
                             </li>
                             @endcanroute

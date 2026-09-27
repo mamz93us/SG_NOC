@@ -28,6 +28,16 @@ class TeamtailorApiService
     private const MAX_PAGE_SIZE = 30;
 
     /**
+     * What filter[status] accepts on GET /v1/jobs, checked against the live
+     * API on 2026-09-22. Without it Teamtailor lists published jobs only: 6 of
+     * 57, hiding every closed one — unlisted (off the career site, no public
+     * applications) and archived. So listJobs() asks for `all` unless told
+     * otherwise. `open` and `closed` are refused with HTTP 400, although a
+     * published job's `status` attribute reads `open` (see jobStatus()).
+     */
+    public const JOB_STATUSES = ['all', 'published', 'unlisted', 'archived', 'draft', 'scheduled'];
+
+    /**
      * Credentials are resolved DB-first (admin Settings UI), then fall back to
      * the env-driven config. Constructor params override both, mirroring
      * App\Services\Identity\GraphService.
@@ -192,7 +202,9 @@ class TeamtailorApiService
     }
 
     /**
-     * GET /v1/jobs — the recruiting positions candidates apply to.
+     * GET /v1/jobs — the recruiting positions candidates apply to, closed ones
+     * included: every status unless $filters sets filter[status] to one of
+     * JOB_STATUSES.
      *
      * @param  array<string,string|int>  $filters
      * @return array decoded JSON:API body: data[], links{}, meta{}
@@ -208,7 +220,7 @@ class TeamtailorApiService
             self::MAX_PAGE_SIZE
         ));
 
-        $query = array_merge($filters, [
+        $query = array_merge(['filter[status]' => 'all'], $filters, [
             'page[size]' => $size,
             'page[number]' => max(1, $page),
         ]);
@@ -228,6 +240,24 @@ class TeamtailorApiService
     public function getJob(string $id): array
     {
         return $this->get('/v1/jobs/'.rawurlencode($id));
+    }
+
+    /**
+     * A job's status in JOB_STATUSES' words. `human-status` already speaks
+     * them; `status`, and what was stored from it before, says `open` for a
+     * published job.
+     *
+     * @param  array<string,mixed>  $attributes  a job resource's attributes
+     */
+    public static function jobStatus(array $attributes): ?string
+    {
+        $status = strtolower(trim((string) (($attributes['human-status'] ?? null) ?: ($attributes['status'] ?? ''))));
+
+        return match ($status) {
+            '' => null,
+            'open' => 'published',
+            default => $status,
+        };
     }
 
     /**

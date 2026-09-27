@@ -799,13 +799,24 @@ Schedule::command('intune:sync-net-data')
 
 // ─── Ad-hoc Queue Drainer — every minute ─────────────────────────────────
 // This NOC runs NO long-lived queue worker (scheduler-as-worker model).
-// A handful of admin buttons still dispatch ShouldQueue jobs onto the
-// `default` DB queue — Intune HW sync (SyncIntuneHwDataJob, 30-min timeout),
-// GDMS device-account sync (SyncGdmsDeviceAccountsJob), SSL issuance
-// (IssueSslCertificateJob). Without a drainer those rows sit in `jobs`
-// forever ("queued… never runs"). This short-lived worker empties the queue
-// each minute and exits; withoutOverlapping(60) safely spans the longest job.
-Schedule::command('queue:work --stop-when-empty --max-time=280 --tries=1 --sleep=1')
+// A handful of admin buttons still dispatch ShouldQueue jobs — Intune HW sync
+// (SyncIntuneHwDataJob, 30-min timeout), GDMS device-account sync
+// (SyncGdmsDeviceAccountsJob), SSL issuance (IssueSslCertificateJob), the
+// offboarding chain, outbound emails and the AvePoint exports. Without a
+// drainer those rows sit in `jobs` forever ("queued… never runs").
+//
+// **Every queue the app dispatches onto must be listed here.** `queue:work`
+// with no --queue drains `default` only, so for a year everything the
+// offboarding chain, the mailers and AvePoint queued was written to `jobs` and
+// never read: RemoveIntuneDevicesJob ships on `offboarding`, so no leaver's
+// laptop was ever unenrolled from Intune, and nothing reported a failure
+// because the job had not run at all. ScheduledQueueDrainerTest reads the
+// onQueue() calls out of app/ and fails when one is missing from this list.
+//
+// Order is priority: the quick interactive work first, the AvePoint exports —
+// which stream whole mailboxes to Azure Blob — last, so a long export does not
+// hold up a button press. withoutOverlapping(60) spans the longest job.
+Schedule::command('queue:work --queue=default,offboarding,ucm,emails,avepoint --stop-when-empty --max-time=280 --tries=1 --sleep=1')
     ->everyMinute()
     ->withoutOverlapping(60)
     ->runInBackground()
@@ -1116,6 +1127,47 @@ Schedule::command('knowbe4:sync')
     ->runInBackground()
     ->name('knowbe4-sync');
 
+// ─── Oracle Employee Portal API ───────────────────────────────────
+// A read-only pull from Oracle HR (sgprd.samirgroup.com/EmployeePortal/api).
+// Each command no-ops while its switch is off in Admin → Settings, so the
+// three feeds are enabled one at a time without a deploy.
+//
+// All three touch the network, so all three are ->runInBackground() with an
+// overlap window far longer than any measured run (the whole API is ~1.5 MB
+// in under two seconds): the windows are there to survive a hung connection
+// to the WAF, not a slow response.
+
+// Leave balances and records. Daily, because Oracle accrues monthly and the
+// Balances page calls a figure out of date after 35 days — an hourly pull
+// would buy nothing and re-link every person each time.
+Schedule::command('portal:sync-vacations')
+    ->dailyAt('04:30')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('portal-sync-vacations');
+
+// Company announcements. Hourly, because the gap between HR posting a notice
+// in Oracle and it reaching every company PC should be minutes, not a day.
+// 61 rows and 13 KB. At :20 so it is not stacked on the tasks that run at :00.
+Schedule::command('portal:sync-announcements')
+    ->hourlyAt(20)
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('portal-sync-announcements');
+
+// Employee records. Daily, because what it produces is a review queue a person
+// works through rather than a live feed, and because HR data moves on a human
+// timescale. A run that finds Oracle unchanged creates no batch at all.
+//
+// It never terminates anybody: the feed is the Saudi book, so every SSS Egypt
+// employee is permanently absent from it, and a transition to terminated
+// disables the person's Microsoft account. See EmployeeSync.
+Schedule::command('portal:sync-employees')
+    ->dailyAt('05:00')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->name('portal-sync-employees');
+
 // ─── AI IT Assistant — knowledge indexing and retention ──────────
 // PDF text extraction + embedding is too slow for an admin's publish click,
 // so new/changed employee-library PDFs are picked up here instead of inline.
@@ -1184,9 +1236,12 @@ Schedule::command('ai:prune-conversations')
 // ─── Attendance (ZKTeco BioTime) ──────────────────────────────────
 // biotime:sync and attendance:work are registered at the top of this file.
 
-// Per-day counts against BioTime for the last week: re-reads short days,
-// reports punches deleted at the source, retries unmapped codes.
-Schedule::command('biotime:reconcile --fix')
+// The last week's punches compared with the source row by row, and brought
+// back in step: biotime:sync only reads forwards, so a punch ZKTeco later
+// edits or deletes never reaches the NOC any other way. Approved periods are
+// left alone and a mass removal is reported, not applied — see PunchMirror.
+// The per-source budget keeps four sources inside the overlap window.
+Schedule::command('biotime:reconcile --fix --max-seconds=600')
     ->dailyAt('02:30')
     ->withoutOverlapping(60)
     ->runInBackground()

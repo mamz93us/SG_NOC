@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin\Vacation;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\OraclePortal\PortalSetting;
 use App\Models\Vacation\VacationEmployee;
 use App\Models\Vacation\VacationImport;
+use App\Services\OraclePortal\VacationSync;
 use App\Services\Vacation\VacationImporter;
 use App\Services\Vacation\VacationSheetReader;
 use Carbon\CarbonImmutable;
@@ -30,11 +32,48 @@ class VacationImportController extends Controller
 {
     public function index(): View
     {
+        $portal = PortalSetting::get();
+
         return view('admin.vacations.imports.index', [
             'books' => VacationEmployee::books(),
             'defaultBook' => VacationEmployee::defaultBook(),
             'imports' => VacationImport::with('importer:id,name')->latest('id')->limit(30)->get(),
+            'portalReady' => $portal->isConfigured() && $portal->sync_vacations,
+            'portalIssue' => $portal->sync_vacations
+                ? $portal->configurationIssue()
+                : 'Pulling leave from Oracle is switched off in Admin → Settings.',
+            'portalLastSync' => $portal->last_vacations_sync_at,
         ]);
+    }
+
+    /**
+     * Pull both feeds from Oracle now, instead of waiting for the nightly run.
+     *
+     * The same importer, the same rows and the same withdrawal window as the
+     * upload — only the source differs. HR needs this the morning a balance is
+     * visibly wrong, and it doubles as the post-deploy smoke test.
+     *
+     * It runs in the request for the same reason the upload does: the whole
+     * pull is three GETs and about a second's work for the entire company.
+     */
+    public function pull(VacationSync $sync): RedirectResponse
+    {
+        try {
+            $result = $sync->sync(dryRun: false, userId: Auth::id());
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('admin.vacations.imports.index')
+                ->with('error', 'Could not pull from Oracle: '.$e->getMessage());
+        }
+
+        $imports = [$result['balances'], $result['absences']];
+
+        $message = collect($imports)->map(fn (VacationImport $i) => $i->summary())->implode("\n");
+        $problems = collect($imports)->sum(fn (VacationImport $i) => count($i->notes ?? []));
+
+        return redirect()
+            ->route('admin.vacations.imports.index')
+            ->with('success', $message.($problems > 0 ? "\nSee the notes on the imports below." : ''));
     }
 
     public function store(Request $request, VacationSheetReader $reader, VacationImporter $importer): RedirectResponse

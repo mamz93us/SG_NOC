@@ -10,6 +10,8 @@ use App\Services\Attendance\AttendancePeriodService;
 use App\Services\Attendance\BioTimeConnection;
 use App\Services\Attendance\BioTimeSyncService;
 use App\Services\Attendance\EmployeeLinker;
+use App\Services\Attendance\PunchMirror;
+use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -31,7 +33,7 @@ class AttendanceWork extends Command
 
     private const MAX_ATTEMPTS = 3;
 
-    public function handle(BioTimeSyncService $sync, AttendanceDayProcessor $processor, EmployeeLinker $linker): int
+    public function handle(BioTimeSyncService $sync, AttendanceDayProcessor $processor, EmployeeLinker $linker, PunchMirror $mirror): int
     {
         $this->recoverStale();
 
@@ -60,7 +62,7 @@ class AttendanceWork extends Command
             $processor->forget();
 
             try {
-                $result = $this->perform($task, $sync, $processor, $linker);
+                $result = $this->perform($task, $sync, $processor, $linker, $mirror);
                 $task->forceFill(['status' => AttendanceTask::DONE, 'result' => $result, 'finished_at' => now()])->save();
                 $this->info('  '.$result);
             } catch (\Throwable $e) {
@@ -78,7 +80,7 @@ class AttendanceWork extends Command
         return self::SUCCESS;
     }
 
-    private function perform(AttendanceTask $task, BioTimeSyncService $sync, AttendanceDayProcessor $processor, EmployeeLinker $linker): string
+    private function perform(AttendanceTask $task, BioTimeSyncService $sync, AttendanceDayProcessor $processor, EmployeeLinker $linker, PunchMirror $mirror): string
     {
         $payload = $task->payload ?? [];
 
@@ -93,6 +95,25 @@ class AttendanceWork extends Command
                     ? 'Another sync of this source was already running; it carries on from there.'
                     : sprintf('%s row(s), %d new code(s), %d day(s) recalculated%s.', number_format($r['rows']), $r['new_codes'], $r['days'],
                         $r['done'] ? '' : ' — more to read, the scheduled sync continues');
+
+            case 'mirror':
+                $source = BiotimeSource::find($payload['source_id'] ?? 0)
+                    ?? throw new \RuntimeException('That source no longer exists.');
+
+                $days = max(1, min(90, (int) ($payload['days'] ?? 7)));
+                $r = $mirror->run($source,
+                    CarbonImmutable::today()->subDays($days - 1)->toDateString(),
+                    CarbonImmutable::today()->toDateString(),
+                    true, false, 200);
+
+                if ($r['status'] === 'busy') {
+                    return 'A sync of this source was already running; nothing was compared.';
+                }
+
+                return sprintf('%d punch(es) written, %d rewritten, %d stamped removed, %d day(s) recalculated.%s%s',
+                    $r['added'], $r['changed'], $r['removed'], $r['days'],
+                    $r['locked'] ? " {$r['locked']} left alone inside an approved period." : '',
+                    $r['refused'] ? ' Removals not applied: '.$r['refused'].'.' : '');
 
             case 'rebuild':
                 $days = $processor->rebuildRange($payload['from'], $payload['to'], $payload['employee_ids'] ?? null);

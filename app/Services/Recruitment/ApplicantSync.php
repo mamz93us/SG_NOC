@@ -45,7 +45,7 @@ class ApplicantSync
 
         return [
             'ad' => JobAd::fromTeamtailor($data),
-            'status' => isset($data['attributes']['status']) ? (string) $data['attributes']['status'] : null,
+            'status' => TeamtailorApiService::jobStatus($data['attributes'] ?? []),
         ];
     }
 

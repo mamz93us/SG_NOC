@@ -33,6 +33,10 @@ use Illuminate\Support\Facades\Log;
  * Idempotent — upserted on (source, external_id) — and resumable: the
  * watermark is saved after every chunk, so a big first backfill that is cut
  * short by max-rows or a crash simply carries on next run.
+ *
+ * Only ever forwards, though: past the watermark, once. A punch the source
+ * later EDITS or DELETES is never revisited here — that is PunchMirror's job,
+ * run nightly by biotime:reconcile.
  */
 class BioTimeSyncService
 {
@@ -108,19 +112,6 @@ class BioTimeSyncService
         $this->resolveEvent($source, 'biotime_source');
 
         return $result;
-    }
-
-    /**
-     * Re-reads every punch in a date range regardless of the watermark — used
-     * by biotime:reconcile when the source has punches the NOC does not.
-     */
-    public function pullRange(BiotimeSource $source, string $fromDate, string $toDate): array
-    {
-        $db = $this->bioTime->connection($source);
-        $reader = $this->reader($source);
-        $window = [$fromDate.' 00:00:00', CarbonImmutable::parse($toDate)->addDay()->toDateString().' 00:00:00'];
-
-        return $this->pull($source, $reader, $db, $reader->floorCursor(), PHP_INT_MAX, $window, false);
     }
 
     /**
@@ -330,11 +321,15 @@ class BioTimeSyncService
     }
 
     /**
+     * Writes normalised punches. Shared with PunchMirror, so a punch the mirror
+     * rewrites takes exactly the path a sync would have taken — the same areas,
+     * terminals, codes and links, the same upsert.
+     *
      * @param  list<array<string, mixed>>  $rows  normalised punches
      * @param  array<string, array<string, true>>  $touched
      * @return int codes seen for the first time
      */
-    private function store(BiotimeSource $source, array $rows, Carbon $syncedAt, array &$touched): int
+    public function store(BiotimeSource $source, array $rows, Carbon $syncedAt, array &$touched): int
     {
         if ($rows === []) {
             return 0;
@@ -357,6 +352,9 @@ class BioTimeSyncService
                 'biotime_employee_id' => $biotimeEmployee->id,
                 'employee_id' => $biotimeEmployee->employee_id,
                 'synced_at' => $syncedAt,
+                // The source has it, so it is live: a punch PunchMirror stamped
+                // as removed and ZKTeco holds again comes back here too.
+                'removed_at' => null,
             ];
 
             $subject = $biotimeEmployee->employee_id ? 'emp:'.$biotimeEmployee->employee_id : 'bt:'.$biotimeEmployee->id;
@@ -368,7 +366,7 @@ class BioTimeSyncService
                 $chunk,
                 ['biotime_source_id', 'external_id'],
                 ['biotime_id', 'biotime_employee_id', 'employee_id', 'emp_code', 'punch_time', 'punch_state',
-                    'terminal_sn', 'terminal_alias', 'area_alias', 'synced_at'],
+                    'terminal_sn', 'terminal_alias', 'area_alias', 'synced_at', 'removed_at'],
             );
         }
 

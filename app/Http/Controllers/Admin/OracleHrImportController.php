@@ -7,8 +7,12 @@ use App\Models\ActivityLog;
 use App\Models\Employee;
 use App\Models\HrImportBatch;
 use App\Models\HrImportRow;
+use App\Models\OraclePortal\PortalSetting;
 use App\Services\Identity\OracleHrImportService;
+use App\Services\OraclePortal\EmployeeSync;
+use App\Services\OraclePortal\LeaverReview;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Admin UI for importing the Oracle HRMS employee export into the NOC.
@@ -21,14 +25,113 @@ class OracleHrImportController extends Controller
     /**
      * Upload form + list of recent import batches.
      */
-    public function index()
+    public function index(LeaverReview $review)
     {
         $batches = HrImportBatch::with('uploader')->latest()->take(20)->get();
+        $portal = PortalSetting::get();
 
         return view('admin.identity.hr-import', [
             'batches' => $batches,
             'batch' => null,
+            'portalReady' => $portal->isConfigured() && $portal->sync_employees,
+            'portalLastSync' => $portal->last_employees_sync_at,
+            'leavers' => $review->leavers(),
+            'ignoredLeavers' => $review->ignored(),
+            'absent' => $review->absent(),
         ]);
+    }
+
+    /**
+     * Stage Oracle's employee view now, rather than waiting for the nightly run.
+     *
+     * 617 people and about a second of HTTP, but the matcher runs a few queries
+     * per row, so this is the one pull that is worth watching. Nothing is
+     * written to employee records beyond what Oracle says about each person's
+     * assignment — everything else waits for the review below.
+     */
+    public function pull(EmployeeSync $sync)
+    {
+        try {
+            $result = $sync->sync(dryRun: false, userId: Auth::id());
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Could not pull from Oracle: '.$e->getMessage());
+        }
+
+        if ($result['unchanged']) {
+            return back()->with('success', "Oracle is unchanged since the last pull ({$result['rows']} people) — nothing new to review.");
+        }
+
+        $message = "Staged {$result['rows']} people from Oracle — "
+            ."{$result['batch']->matched_count} matched, {$result['batch']->unmatched_count} need a decision.";
+
+        if ($result['leavers_refused']) {
+            $message .= " Oracle called {$result['inactive']} matched people inactive, too many to believe, "
+                .'so no assignment statuses were recorded.';
+        } elseif ($result['inactive'] > 0) {
+            $message .= " {$result['inactive']} are inactive in Oracle but still employed here — listed below. "
+                .'Nothing was terminated.';
+        }
+
+        return redirect()
+            ->route('admin.identity.hr-import.show', $result['batch'])
+            ->with('success', $message);
+    }
+
+    /**
+     * Accept Oracle's word that somebody has left.
+     *
+     * This is the only place in the whole integration that writes
+     * `status = 'terminated'`, and it takes a person's click to get here — the
+     * transition cascades into disabling their Microsoft account and flagging
+     * every asset they hold.
+     */
+    public function terminateLeaver(Request $request, Employee $employee)
+    {
+        if ($employee->status === 'terminated') {
+            return back()->with('error', "{$employee->name} is already recorded as terminated.");
+        }
+
+        $employee->update([
+            'status' => 'terminated',
+            'terminated_date' => now()->toDateString(),
+        ]);
+
+        ActivityLog::create([
+            'model_type' => Employee::class,
+            'model_id' => $employee->id,
+            'model_label' => $employee->name,
+            'action' => 'portal_leaver_terminated',
+            'changes' => [
+                'oracle_emp_no' => $employee->oracle_emp_no,
+                'oracle_assignment_status' => $employee->oracle_assignment_status,
+                'decided_by' => 'admin from the Oracle leaver list',
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return back()->with('success', "{$employee->name} is recorded as terminated. Their Microsoft account "
+            .'has been disabled and any assets they hold are flagged for return.');
+    }
+
+    /**
+     * Oracle is wrong about this one — mid-transfer, or running ahead of the
+     * real last day. Remembered so the same row is not offered every night.
+     */
+    public function ignoreLeaver(Employee $employee)
+    {
+        $employee->forceFill(['oracle_leaver_ignored_at' => now()])->save();
+
+        ActivityLog::create([
+            'model_type' => Employee::class,
+            'model_id' => $employee->id,
+            'model_label' => $employee->name,
+            'action' => 'portal_leaver_ignored',
+            'changes' => ['oracle_emp_no' => $employee->oracle_emp_no],
+            'user_id' => Auth::id(),
+        ]);
+
+        return back()->with('success', "{$employee->name} will not be listed again unless Oracle marks them "
+            .'active and then inactive once more.');
     }
 
     /**

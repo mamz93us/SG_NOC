@@ -77,6 +77,7 @@ beforeEach(function () {
     foreach (array_merge(
         glob(database_path('migrations/2026_09_10_*.php')),
         glob(database_path('migrations/2026_09_11_*.php')),
+        glob(database_path('migrations/2026_09_2*_*attendance*.php')),
         glob(database_path('migrations/2026_09_12_*biotime*.php')),
         glob(database_path('migrations/*_hr_api_keys_table.php')),
     ) as $migration) {

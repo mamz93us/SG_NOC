@@ -42,9 +42,30 @@ beforeEach(function () {
     $this->travelTo(CarbonImmutable::parse('2026-09-14 10:00'));
 
     foreach (['vacation_absences', 'vacation_balances', 'vacation_employees', 'vacation_imports',
-        'activity_logs', 'departments', 'employees', 'branches', 'users'] as $table) {
+        'activity_logs', 'departments', 'employees', 'branches', 'users',
+        'oracle_portal_settings'] as $table) {
         Schema::dropIfExists($table);
     }
+
+    // The import page offers a "Pull from Oracle" card, so it reads the
+    // Employee Portal settings. Left out of the schema, the page 500s.
+    Schema::create('oracle_portal_settings', function (Blueprint $t) {
+        $t->id();
+        $t->boolean('enabled')->default(false);
+        $t->text('base_url')->nullable();
+        $t->text('api_key')->nullable();
+        $t->boolean('sync_announcements')->default(false);
+        $t->boolean('sync_employees')->default(false);
+        $t->boolean('sync_vacations')->default(false);
+        $t->timestamp('last_announcements_sync_at')->nullable();
+        $t->timestamp('last_employees_sync_at')->nullable();
+        $t->timestamp('last_vacations_sync_at')->nullable();
+        $t->unsignedInteger('last_announcements_count')->nullable();
+        $t->unsignedInteger('last_employees_count')->nullable();
+        $t->unsignedInteger('last_vacation_balances_count')->nullable();
+        $t->unsignedInteger('last_vacation_records_count')->nullable();
+        $t->timestamps();
+    });
 
     Schema::create('users', function (Blueprint $t) {
         $t->id();

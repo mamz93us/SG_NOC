@@ -13,6 +13,7 @@ use App\Models\EmployeeAsset;
 use App\Models\EmployeeSignatureRole;
 use App\Models\IdentityUser;
 use App\Services\Identity\AzureContactSyncService;
+use App\Services\Identity\ServiceEmployeeMailboxLinker;
 use App\Services\PhoneDeviceLookup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -111,7 +112,7 @@ class EmployeeController extends Controller
             'manager',
             'supervisor',
             'activeAssets.device',
-            'assetAssignments.device',
+            'assetAssignments.device.azureDevice',
             'activeItems',
             'items',
             'identityUser',
@@ -177,10 +178,47 @@ class EmployeeController extends Controller
         // resolved from their MACs through the DHCP lease table.
         $networkPresence = app(\App\Services\Network\EmployeeNetworkLocator::class)->locate($employee);
 
+        // IT Assets tab: assets waiting in a scrap request, and — for a laptop or desktop not
+        // linked to Intune — the Intune devices enrolled under any of this person's accounts.
+        $openAssets = $employee->assetAssignments->whereNull('returned_date');
+        $pendingScrap = app(\App\Services\Itam\PendingScrapRequests::class)->forDevices($openAssets->pluck('asset_id'));
+
+        // Who an asset can be handed to, for the transfer dialog on the IT Assets tab.
+        $transferEmployees = auth()->user()?->can('manage-itam')
+            ? Employee::query()->active()->whereNull('linked_primary_employee_id')->with('branch:id,name')->orderBy('name')->get(['id', 'name', 'branch_id', 'oracle_emp_no'])
+            : collect();
+
+        $intuneLinkOptions = [];
+        $unlinkedIntune = collect();
+        $needsIntuneLink = $openAssets->contains(fn ($a) => in_array($a->device?->type, ['laptop', 'desktop'], true)
+            && ! in_array($a->device->status, ['retired', 'scrapped'], true)
+            && ! ($a->device->azureDevice?->isInIntune() ?? false));
+
+        if ($needsIntuneLink && auth()->user()?->can('manage-itam')) {
+            $candidates = app(\App\Services\Itam\Oracle\IntuneCandidates::class);
+
+            foreach ($candidates->forEmployees([(int) $mainRecord->id])[(int) $mainRecord->id] ?? [] as $candidate) {
+                if ($candidate['intune']) {
+                    $intuneLinkOptions[] = ['id' => $candidate['intune']->id, 'label' => $candidate['label']];
+                }
+            }
+            $unlinkedIntune = $candidates->unlinkedComputers();
+        }
+
+        // A service employee who turns out to have a mailbox. The Oracle HR
+        // import always creates them without one, and nothing else could
+        // connect them to one afterwards.
+        $mailboxProblem = $employee->isService()
+            ? app(ServiceEmployeeMailboxLinker::class)->problemWith($employee)
+            : null;
+        $canLinkMailbox = $employee->isService() && $mailboxProblem === null;
+
         return view('admin.employees.show', compact(
             'employee', 'availableDevices', 'availableAccessories',
             'availableLicenses', 'licenseAssignments', 'phoneInfo', 'azureDevices',
-            'networkPresence', 'mainRecord', 'personAccounts'
+            'networkPresence', 'mainRecord', 'personAccounts',
+            'pendingScrap', 'intuneLinkOptions', 'unlinkedIntune', 'transferEmployees',
+            'canLinkMailbox', 'mailboxProblem'
         ));
     }
 
@@ -325,6 +363,9 @@ class EmployeeController extends Controller
             'oracle_emp_no' => 'nullable|string|max:50',
             'oracle_department' => 'nullable|string|max:255',
             'oracle_dept_no' => 'nullable|string|max:50',
+            // Typed here until Oracle carries one, at which point the Employee
+            // Portal sync overwrites it. Empty in Oracle for everyone today.
+            'name_ar' => 'nullable|string|max:255',
             'manager' => 'nullable|string|max:255',
             'supervisor' => 'nullable|string|max:255',
         ];
@@ -343,7 +384,7 @@ class EmployeeController extends Controller
      */
     private function hrFields(array $validated, ?Employee $employee = null): array
     {
-        foreach (['oracle_emp_no', 'oracle_department', 'oracle_dept_no'] as $field) {
+        foreach (['oracle_emp_no', 'oracle_department', 'oracle_dept_no', 'name_ar'] as $field) {
             if (array_key_exists($field, $validated)) {
                 $value = trim((string) $validated[$field]);
                 $validated[$field] = $value === '' ? null : $value;

@@ -31,8 +31,9 @@ class SettingsController extends Controller
         $settings = Setting::get();
         $ucmServers = UcmServer::orderBy('name')->get();
         $aiSettings = AiSetting::get();
+        $portalSettings = \App\Models\OraclePortal\PortalSetting::get();
 
-        return view('admin.settings', compact('settings', 'ucmServers', 'aiSettings'));
+        return view('admin.settings', compact('settings', 'ucmServers', 'aiSettings', 'portalSettings'));
     }
 
     /**
@@ -972,6 +973,71 @@ class SettingsController extends Controller
             ->route('admin.settings.index')
             ->with('success', 'Create Ticket API settings updated.')
             ->withFragment('noc-ticketing');
+    }
+
+    /**
+     * Oracle Employee Portal API — announcements, people and leave.
+     *
+     * Its own singleton table rather than columns here, because `settings` is
+     * at InnoDB's row-size limit. Three per-feed switches because the feeds
+     * carry very different risk: leave is inert, announcements are company-wide
+     * text, and the employee feed produces a list about who has left.
+     */
+    public function updateOraclePortal(Request $request)
+    {
+        $request->validate([
+            'base_url' => 'nullable|url|max:500',
+            'api_key' => 'nullable|string|max:500',
+        ]);
+
+        $settings = \App\Models\OraclePortal\PortalSetting::get();
+
+        $before = [
+            'enabled' => (bool) $settings->enabled,
+            'base_url' => $settings->base_url,
+            'sync_announcements' => (bool) $settings->sync_announcements,
+            'sync_employees' => (bool) $settings->sync_employees,
+            'sync_vacations' => (bool) $settings->sync_vacations,
+        ];
+
+        $settings->enabled = $request->boolean('enabled');
+        $settings->base_url = $request->base_url;
+        $settings->sync_announcements = $request->boolean('sync_announcements');
+        $settings->sync_employees = $request->boolean('sync_employees');
+        $settings->sync_vacations = $request->boolean('sync_vacations');
+
+        // Blank means "keep the current key" — otherwise opening the page and
+        // saving any other field would wipe it.
+        if ($request->filled('api_key')) {
+            $settings->api_key = $request->api_key;
+        }
+
+        $settings->save();
+
+        ActivityLog::create([
+            'model_type' => 'OraclePortalSetting',
+            'model_id' => $settings->id,
+            'action' => 'oracle_portal_updated',
+            'changes' => [
+                'before' => $before,
+                'after' => [
+                    'enabled' => (bool) $settings->enabled,
+                    'base_url' => $settings->base_url,
+                    'sync_announcements' => (bool) $settings->sync_announcements,
+                    'sync_employees' => (bool) $settings->sync_employees,
+                    'sync_vacations' => (bool) $settings->sync_vacations,
+                ],
+                // Never the key itself — the audit log must not become the one
+                // place a secret is readable.
+                'key_changed' => $request->filled('api_key'),
+            ],
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()
+            ->route('admin.settings.index')
+            ->with('success', 'Oracle Employee Portal API settings updated.')
+            ->withFragment('oracle-portal');
     }
 
     // ─────────────────────────────────────────────────────────────

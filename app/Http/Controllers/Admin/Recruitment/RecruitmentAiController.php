@@ -44,11 +44,15 @@ class RecruitmentAiController extends Controller
         'score', 'fit', 'must_haves_met', 'must_haves_total', 'evaluation', 'facts', 'cv_read_as', 'screened_at',
     ];
 
-    public function index(TeamtailorApiService $teamtailor): View
+    /** Every Teamtailor job, closed ones included, narrowed to one status by ?status=. */
+    public function index(Request $request, TeamtailorApiService $teamtailor): View
     {
         $configured = $teamtailor->isConfigured();
         $error = null;
         $jobs = collect();
+        $status = in_array($request->query('status'), TeamtailorApiService::JOB_STATUSES, true)
+            ? $request->query('status')
+            : 'all';
 
         if ($configured) {
             try {
@@ -60,7 +64,7 @@ class RecruitmentAiController extends Controller
                         $jobs->push([
                             'id' => (string) $row['id'],
                             'title' => $row['attributes']['title'] ?? ($row['attributes']['internal-name'] ?? '—'),
-                            'status' => $row['attributes']['status'] ?? null,
+                            'status' => TeamtailorApiService::jobStatus($row['attributes'] ?? []),
                         ]);
                     }
                     $page++;
@@ -79,14 +83,28 @@ class RecruitmentAiController extends Controller
             ->get()
             ->keyBy('teamtailor_job_id');
 
-        // A job set up here that Teamtailor no longer lists still shows, so its data can be deleted.
+        // A job set up here that Teamtailor did not list (deleted there, or older
+        // than the 300 read) still shows, so its data can be deleted. Its last
+        // known status is shown only when the list could not be read.
+        $listed = $configured && $error === null;
+
         foreach ($local as $id => $job) {
             if (! $jobs->contains('id', (string) $id)) {
-                $jobs->push(['id' => (string) $id, 'title' => $job->title ?? '—', 'status' => $job->job_status ?? 'not listed']);
+                $jobs->push([
+                    'id' => (string) $id,
+                    'title' => $job->title ?? '—',
+                    'status' => $listed ? 'not listed' : (TeamtailorApiService::jobStatus(['status' => $job->job_status]) ?? 'not listed'),
+                ]);
             }
         }
 
-        return view('admin.recruitment-ai.index', compact('jobs', 'local', 'configured', 'error'));
+        $counts = ['all' => $jobs->count()] + $jobs->countBy('status')->all();
+
+        if ($status !== 'all') {
+            $jobs = $jobs->where('status', $status)->values();
+        }
+
+        return view('admin.recruitment-ai.index', compact('jobs', 'local', 'configured', 'error', 'status', 'counts'));
     }
 
     public function show(Request $request, TeamtailorApiService $teamtailor, string $job): View

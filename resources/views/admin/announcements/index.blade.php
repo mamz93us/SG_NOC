@@ -10,15 +10,33 @@
             What the company sees on the employee home portal &mdash; the slider shows the newest few.
         </small>
     </div>
-    <a href="{{ route('admin.announcements.create') }}" class="btn btn-primary btn-sm">
-        <i class="bi bi-plus-lg me-1"></i>New Announcement
-    </a>
+    <div class="d-flex gap-2">
+        @if($portalReady)
+            <form method="POST" action="{{ route('admin.announcements.pull') }}">
+                @csrf
+                <button class="btn btn-outline-secondary btn-sm"
+                        title="Read Oracle's announcements now. Edits made here are kept.">
+                    <i class="bi bi-cloud-download me-1"></i>Pull from Oracle
+                </button>
+            </form>
+        @endif
+        <a href="{{ route('admin.announcements.create') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>New Announcement
+        </a>
+    </div>
 </div>
 
 @if (session('success'))
     <div class="alert alert-success d-flex gap-2 align-items-start">
         <i class="bi bi-check-circle-fill fs-5"></i>
         <div>{{ session('success') }}</div>
+    </div>
+@endif
+
+@if (session('error'))
+    <div class="alert alert-danger d-flex gap-2 align-items-start">
+        <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+        <div>{{ session('error') }}</div>
     </div>
 @endif
 
@@ -45,9 +63,31 @@
                                     <i class="bi bi-pin-angle-fill text-warning me-1" title="Pinned"></i>
                                 @endif
                                 {{ $ann->title }}
+                                @if($ann->isFromOracle())
+                                    <span class="badge bg-light text-secondary border fw-normal ms-1"
+                                          title="Copied from Oracle's Employee Portal (#{{ $ann->external_id }})">
+                                        <i class="bi bi-cloud-download me-1"></i>Oracle
+                                    </span>
+                                @endif
+                                @if($ann->removed_at)
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border fw-normal ms-1"
+                                          title="Oracle stopped listing this on {{ $ann->removed_at->format('d M Y') }}">
+                                        No longer in Oracle
+                                    </span>
+                                @endif
                             </div>
                             <div class="small text-muted text-truncate" style="max-width:420px">
-                                {{ $ann->excerpt(110) }}
+                                @if(filled($ann->body))
+                                    {{ $ann->excerpt(110) }}
+                                @elseif($ann->external_image_name)
+                                    {{-- Oracle's notices are a designed image, and its bytes are not
+                                         reachable through the API — only the file's name is. Showing it
+                                         is what tells whoever is looking which notice this actually is. --}}
+                                    <i class="bi bi-image me-1"></i>{{ $ann->external_image_name }}
+                                    <span class="text-body-tertiary">&mdash; picture not available from Oracle</span>
+                                @else
+                                    <span class="text-body-tertiary">No text</span>
+                                @endif
                             </div>
                         </td>
                         <td>

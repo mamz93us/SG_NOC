@@ -29,6 +29,8 @@
   .ann-item-top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:9px; }
   .ann-item h3{ font-size:17.5px; font-weight:700; color:var(--ink); }
   .ann-item .ann-body{ font-size:14px; line-height:1.65; color:var(--ink-soft); white-space:pre-wrap; }
+  /* Oracle's announcements have a title and dates and no text of their own. */
+  .ann-item h3.ann-title-only{ margin-bottom:0; }
   .ann-tag{
     font-size:10.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase;
     padding:3px 9px; border-radius:20px; background:var(--bg); color:var(--ink-soft);
@@ -81,8 +83,11 @@
             @endif
         </div>
 
-        <h3>{{ $ann->title }}</h3>
-        <div class="ann-body">{{ $ann->body }}</div>
+        <h3 @class(['ann-title-only' => blank($ann->body)])>{{ $ann->title }}</h3>
+        {{-- See the slider: an Oracle announcement has no text of its own. --}}
+        @if(filled($ann->body))
+            <div class="ann-body">{{ $ann->body }}</div>
+        @endif
 
         @if($ann->link_url)
             <a class="ann-link" href="{{ $ann->link_url }}" target="_blank" rel="noopener noreferrer">

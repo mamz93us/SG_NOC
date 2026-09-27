@@ -250,9 +250,30 @@ Flags:
 | Punched at another branch | Warning |
 | Check-in edited / Check-out edited / Excused | Information |
 
-Raw punches (`attendance_punches`) are never edited. `attendance_days` is
-derived from them and can be rebuilt at any time with **Rebuild days** on the
-page, or with `php artisan attendance:process --from=… --to=…`.
+**HR never edits a raw punch** (`attendance_punches`) — corrections are
+separate records laid over the day. `attendance_days` is derived from the
+punches and can be rebuilt at any time with **Rebuild days** on the page, or
+with `php artisan attendance:process --from=… --to=…`.
+
+The source database is a different matter. `biotime:sync` only reads forwards,
+so a punch ZKTeco **edits or deletes after handing it over** would otherwise
+stay here for good, still driving that day's check-in and check-out. The
+nightly `biotime:reconcile --fix` — or **Check** on a source — compares the
+last week punch by punch and brings the NOC back in step: it writes what is
+new, rewrites what the source changed, and stamps `removed_at` on what the
+source no longer holds, rebuilding every day either side. A stamped punch is
+out of every screen, export and API answer, but is still in the table, and
+comes back by itself if ZKTeco has the punch again.
+
+Two things it will not do. **A day inside an approved period is left exactly
+as it was signed off** — that month has gone to Oracle, and Oracle reads the
+day's punches, not only its totals; those punches are counted and reported
+instead, and reopening the period is HR's decision. And **it will not stamp a
+whole window**: a source that answers with nothing, or where more than 25
+punches *and* more than a tenth of the window have gone, is reported and left
+alone, because a restored, repointed or retention-pruned database looks
+exactly like a mass deletion. `--allow-bulk-delete` is for when a person has
+looked and wants them removed anyway.
 
 ## 8. Shifts, holidays and corrections
 
@@ -439,12 +460,14 @@ Tell the Oracle team:
 |---|---|
 | `biotime:sync` | Every 5 min (scheduler) with `--max-seconds=240`, so a run never overlaps the next one. `--source=ID`, `--since=YYYY-MM-DD` to re-read from a date, `--max-rows=`. |
 | `attendance:work` | Every minute. Runs the work the pages queue instead of doing it in the web request: **Sync now**, recalculations after shift or holiday changes, **Rebuild days**, and re-matching codes. Progress shows in a banner at the top of every attendance page. |
-| `biotime:reconcile --fix` | Nightly 02:30. Compares per-day counts with BioTime for the last 7 days, re-reads any day that is short, reports punches that were deleted in BioTime, and retries auto-matching. |
+| `biotime:reconcile --fix` | Nightly 02:30 with `--max-seconds=600`. Compares the last 7 days with the source **punch by punch** and applies the difference: new punches written, edited ones rewritten, deleted ones stamped `removed_at`. Approved days are left alone and a mass removal is reported rather than applied (`--allow-bulk-delete` overrides). Also retries auto-matching. Without `--fix` it only reports. |
 | `biotime:test [source]` | The page's Test connection, from the shell. |
 | `attendance:process` | Hourly with `--days=2` and nightly with `--days=7`. Records absences, which no sync can do because nobody punched, and applies shift and holiday changes to recent days. Use `--from=` / `--to=` for any range. |
 
-A source that fails 3 syncs in a row, and a count mismatch that survives
-`--fix`, each raise a **NocEvent** (module `attendance`). The event resolves itself once the problem clears.
+A source that fails 3 syncs in a row, and a difference from the source that
+`--fix` did not apply — removals held back by the guard, or punches inside an
+approved period — each raise a **NocEvent** (module `attendance`). The event
+resolves itself once the problem clears.
 
 ## 12. Troubleshooting
 

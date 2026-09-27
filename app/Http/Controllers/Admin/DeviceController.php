@@ -23,7 +23,7 @@ class DeviceController extends Controller
 {
     public function index(Request $request)
     {
-        $allowed = ['asset_code', 'status', 'type', 'name', 'manufacturer', 'model', 'updated_at'];
+        $allowed = ['asset_code', 'oracle_asset_number', 'status', 'type', 'name', 'manufacturer', 'model', 'updated_at'];
         $sort = in_array($request->sort, $allowed) ? $request->sort : null;
         $dir = $request->direction === 'asc' ? 'asc' : 'desc';
 
@@ -48,11 +48,18 @@ class DeviceController extends Controller
                     ->orWhere('ip_address', 'like', "%{$s}%")
                     ->orWhere('mac_address', 'like', "%{$s}%")
                     ->orWhere('serial_number', 'like', "%{$s}%")
-                    ->orWhere('asset_code', 'like', "%{$s}%");
+                    ->orWhere('asset_code', 'like', "%{$s}%")
+                    ->orWhere('oracle_asset_number', $s);
             });
         }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        }
+        // Assets with no Oracle fixed-asset number, so the ones still to link are one filter away.
+        if ($request->query('oracle') === 'none') {
+            $query->where(fn ($q) => $q->whereNull('oracle_asset_number')->orWhere('oracle_asset_number', ''));
+        } elseif ($request->query('oracle') === 'linked') {
+            $query->whereNotNull('oracle_asset_number')->where('oracle_asset_number', '<>', '');
         }
         if ($request->filled('model_id')) {
             $query->where('device_model_id', $request->model_id);
@@ -172,9 +179,37 @@ class DeviceController extends Controller
                 });
         }
 
+        // Oracle's register lines on this asset, and what retiring, scrapping or linking it to Intune needs.
+        $oracleUnits = \App\Models\Itam\OracleAsset::where('device_id', $device->id)->orderBy('asset_number')->get();
+        $pendingScrapId = app(\App\Services\Itam\PendingScrapRequests::class)->forDevice((int) $device->id);
+
+        // Who this asset can be handed to, for the transfer dialog.
+        $transferEmployees = $device->currentAssignment && auth()->user()?->can('manage-itam')
+            ? Employee::query()->active()->whereNull('linked_primary_employee_id')->with('branch:id,name')->orderBy('name')->get(['id', 'name', 'branch_id', 'oracle_emp_no'])
+            : collect();
+        $intuneLinkOptions = [];
+        $unlinkedIntune = collect();
+
+        if (in_array($device->type, ['laptop', 'desktop'], true)
+            && ! in_array($device->status, ['retired', 'scrapped'], true)
+            && ! ($device->azureDevice?->isInIntune() ?? false)
+            && auth()->user()?->can('manage-itam')) {
+            $candidates = app(\App\Services\Itam\Oracle\IntuneCandidates::class);
+            $holder = $device->currentAssignment?->employee;
+            $holderId = $holder ? (int) ($holder->linked_primary_employee_id ?: $holder->id) : null;
+
+            foreach ($holderId ? ($candidates->forEmployees([$holderId])[$holderId] ?? []) : [] as $candidate) {
+                if ($candidate['intune']) {
+                    $intuneLinkOptions[] = ['id' => $candidate['intune']->id, 'label' => $candidate['label']];
+                }
+            }
+            $unlinkedIntune = $candidates->unlinkedComputers();
+        }
+
         return view('admin.devices.show', compact(
             'device', 'depreciation', 'employees',
-            'sshSessions', 'accessLogs', 'dhcpByMac'
+            'sshSessions', 'accessLogs', 'dhcpByMac',
+            'oracleUnits', 'pendingScrapId', 'intuneLinkOptions', 'unlinkedIntune', 'transferEmployees'
         ));
     }
 
@@ -365,6 +400,7 @@ class DeviceController extends Controller
             'warranty_expiry' => 'nullable|date',
             // ITAM fields
             'asset_code' => 'nullable|string|max:50|unique:devices,asset_code',
+            'oracle_asset_number' => 'nullable|string|max:40',
             'purchase_cost' => 'nullable|numeric|min:0',
             'currency' => 'required|in:'.implode(',', Currency::CODES),
             'supplier_id' => 'nullable|exists:suppliers,id',
@@ -551,11 +587,13 @@ class DeviceController extends Controller
             'department_id' => 'nullable|exists:departments,id',
             'location_description' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
-            'status' => 'required|in:active,available,assigned,maintenance,retired',
+            // Scrapped is set by an approved scrap request only; a scrapped asset may keep it when edited.
+            'status' => 'required|in:active,available,assigned,maintenance,retired'.($device->status === 'scrapped' ? ',scrapped' : ''),
             'purchase_date' => 'nullable|date',
             'warranty_expiry' => 'nullable|date',
             // ITAM fields
             'asset_code' => 'nullable|string|max:50|unique:devices,asset_code,'.$device->id,
+            'oracle_asset_number' => 'nullable|string|max:40',
             'purchase_cost' => 'nullable|numeric|min:0',
             'currency' => 'required|in:'.implode(',', Currency::CODES),
             'supplier_id' => 'nullable|exists:suppliers,id',
@@ -710,7 +748,20 @@ class DeviceController extends Controller
             'notes' => $data['notes'] ?? null,
         ]);
         $device->update(['status' => 'available']);
-        AssetHistory::record($device, 'returned', "Returned from employee {$assignment->employee?->name}");
+        AssetHistory::record(
+            $device,
+            'returned',
+            "Returned from employee {$assignment->employee?->name}",
+            // The same keys an offboarding return writes, so the movements report
+            // reads a hand-back the same way whichever page made it.
+            array_filter([
+                'returned_on' => $data['returned_date'],
+                'from_employee_id' => $assignment->employee?->id,
+                'from_employee' => $assignment->employee?->name,
+                'from_employee_no' => $assignment->employee?->oracle_emp_no,
+                'condition' => $data['condition'],
+            ])
+        );
 
         return back()->with('success', 'Device returned successfully.');
     }

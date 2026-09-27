@@ -272,6 +272,56 @@ it('withdraws what a later export stopped listing, keeps older history, and rest
         ->and(VacationAbsence::active()->count())->toBe(5);
 });
 
+it('keeps the records of people Oracle leaves out of its leave data', function () {
+    // Oracle filters 1655, 1656 and 2682 out of both vacation endpoints at the
+    // database level while still listing them as employees, so nothing Oracle
+    // sends — a sheet or the API — ever mentions them. Without protecting
+    // them, every import covering a span they have leave in reads all of it as
+    // withdrawn, and their history empties one import at a time.
+    config(['vacations.books.samirgroup.blocked' => ['1655']]);
+
+    $importer = vacationImporter();
+    $blocked = vacationRecordRow('1655', 'Annual Leave', '10-JUL-26', '12-JUL-26');
+    $ordinary = vacationRecordRow('1976', 'Annual Leave', '01-JUL-26', '02-JUL-26');
+    $other = vacationRecordRow('1982', 'Sick Leave', '20-AUG-26', '20-AUG-26');
+
+    $importer->importAbsences('samirgroup', [$blocked, $ordinary, $other]);
+
+    // The next export is Oracle's whole list again, and — as always — it does
+    // not mention 1655. Their record sits inside the window and is the only
+    // thing missing, so without the protection it would be withdrawn here.
+    $later = $importer->importAbsences('samirgroup', [$ordinary, $other]);
+
+    expect($later->removed)->toBe(0)
+        ->and(vacationRecord('1655', '2026-07-10')->removed_at)->toBeNull()
+        ->and(vacationRecord('1655', '2026-07-10')->status())->not->toBe(VacationAbsence::STATUS_WITHDRAWN)
+        ->and(collect($later->notes ?? [])->contains(fn ($n) => str_contains($n, '1655')))->toBeTrue();
+
+    // Now leave that really was cancelled disappears. The anchor keeps the
+    // window over both July records, so the ordinary one is genuinely inside
+    // the span and missing — and it is withdrawn while 1655's is not.
+    $anchor = vacationRecordRow('1982', 'Annual Leave', '01-JUL-26', '01-JUL-26');
+    $third = $importer->importAbsences('samirgroup', [$other, $anchor]);
+
+    expect($third->removed)->toBe(1)
+        ->and(vacationRecord('1976', '2026-07-01')->removed_at)->not->toBeNull()
+        ->and(vacationRecord('1655', '2026-07-10')->removed_at)->toBeNull();
+});
+
+it('withdraws normally when the book blocks nobody', function () {
+    config(['vacations.books.samirgroup.blocked' => []]);
+
+    $importer = vacationImporter();
+    $a = vacationRecordRow('1976', 'Annual Leave', '01-JUL-26', '02-JUL-26');
+    $b = vacationRecordRow('1982', 'Sick Leave', '20-AUG-26', '20-AUG-26');
+
+    $importer->importAbsences('samirgroup', [$a, $b]);
+    $later = $importer->importAbsences('samirgroup', [$b, vacationRecordRow('1982', 'Annual Leave', '01-JUL-26', '01-JUL-26')]);
+
+    expect($later->removed)->toBe(1)
+        ->and(vacationRecord('1976', '2026-07-01')->removed_at)->not->toBeNull();
+});
+
 it('names the rows it cannot read and imports the rest', function () {
     $import = vacationImporter()->importAbsences('samirgroup', [
         ['row' => 2] + vacationRecordRow('1976', 'Annual Leave', 'soon', '22-SEP-26'),

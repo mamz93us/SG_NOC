@@ -39,13 +39,14 @@
             ['by-branch', 'bi-building', 'By Branch', 'Group all assets by their assigned branch.', 'info'],
             ['by-employee', 'bi-person-badge', 'By Employee', 'View any employee\'s current and past asset assignments.', 'success'],
             ['costs', 'bi-cash-stack', 'Cost Report', 'Total costs (devices + accessories + licenses) by branch, employee, or drill-down.', 'primary'],
+            ['movements', 'bi-arrow-left-right', 'Asset Movements (for finance)', 'Transfers, retirements and scraps in one list with their Oracle asset numbers and reasons — print or CSV for the finance team.', 'success'],
             ['transfers', 'bi-arrow-left-right', 'Transfer History', 'Every transfer between employees or to a branch store.', 'warning'],
             ['scraps', 'bi-trash3', 'Scrap History', 'All assets that have been formally scrapped.', 'danger'],
             ['stale-licenses', 'bi-exclamation-triangle', 'Stale Licenses', 'Licenses still held by a terminated or Azure-disabled employee.', 'danger'],
             ['microsoft-licenses', 'bi-microsoft', 'Microsoft 365 License Review', 'Every licensed Azure account: real employee, not in Oracle HR, not a person, second account, disabled or terminated.', 'primary'],
             ['subscriptions', 'bi-robot', 'AI Subscription Usage', 'Who holds a seat on each AI tool and what it costs per month.', 'dark'],
             ['subscription-payments', 'bi-cash-coin', 'Subscription Payments Due', 'What renews this month, split by card vs wire transfer — for finance.', 'success'],
-            ['subscriptions-by-department', 'bi-diagram-3', 'Subscription Cost by Department', 'Monthly cost and current-month charges allocated to each department.', 'info'],
+            ['subscriptions-by-department', 'bi-diagram-3', 'License Cost by Department', 'Every license with a cost, Microsoft 365 included: per year, monthly, due this month and one-time, by department.', 'info'],
         ] as [$route, $icon, $title, $desc, $color])
             <div class="col-md-6 col-lg-4">
                 <a href="{{ route('admin.itam.reports.' . $route) }}" class="text-decoration-none">

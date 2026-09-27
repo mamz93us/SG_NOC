@@ -31,6 +31,17 @@
                             @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Arabic Name</label>
+                            <input type="text" name="name_ar" dir="rtl" lang="ar"
+                                   class="form-control @error('name_ar') is-invalid @enderror"
+                                   value="{{ old('name_ar', $employee->name_ar ?? '') }}">
+                            @error('name_ar')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">
+                                Oracle holds this as PERSON_NAME_AR and sends it once HR fills it in, which
+                                overwrites anything typed here. It is empty in Oracle for everyone today.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label small fw-semibold">Email</label>
                             <input type="email" name="email" class="form-control @error('email') is-invalid @enderror"
                                    value="{{ old('email', $employee->email ?? '') }}">

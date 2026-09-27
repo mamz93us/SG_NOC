@@ -92,6 +92,7 @@ beforeEach(function () {
     foreach (array_merge(
         glob(database_path('migrations/2026_09_10_*.php')),
         glob(database_path('migrations/2026_09_11_*.php')),
+        glob(database_path('migrations/2026_09_2*_*attendance*.php')),
         glob(database_path('migrations/2026_09_12_*biotime*.php')),
     ) as $migration) {
         if (! str_contains($migration, 'permission')) {

@@ -810,6 +810,118 @@
         : '');
     $nocTicketExampleJson = json_encode(\App\Services\Ticketing\TicketCatalog::example(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 @endphp
+{{-- ─────────────── Oracle Employee Portal API (read-only) ─────────────── --}}
+<div class="card mt-4" id="oracle-portal">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-database-fill-down text-primary fs-5"></i>
+        <h5 class="mb-0">Oracle Employee Portal API (Oracle &rarr; NOC)</h5>
+        @if($portalSettings->isConfigured())
+            <span class="badge bg-success ms-auto">Enabled</span>
+        @elseif($portalSettings->base_url && $portalSettings->api_key)
+            <span class="badge bg-warning text-dark ms-auto">Configured (disabled)</span>
+        @else
+            <span class="badge bg-secondary ms-auto">Not Configured</span>
+        @endif
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info small">
+            <i class="bi bi-info-circle me-1"></i>
+            Oracle HR's read-only REST API. It feeds three things, each with its own switch below:
+            company <strong>announcements</strong> for the home portal, <strong>employee records</strong> staged for
+            review on HR Import, and Oracle's <strong>leave balances and records</strong>.
+            <br>
+            <span class="text-muted">
+                GET only — nothing the NOC does is ever written back. The employee feed never terminates anybody:
+                it records what Oracle says and lists anyone marked inactive for a person to decide on.
+            </span>
+        </div>
+
+        <form method="POST" action="{{ route('admin.settings.oracle-portal') }}">
+            @csrf
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label">API base URL</label>
+                    <input type="url" name="base_url" class="form-control @error('base_url') is-invalid @enderror"
+                           value="{{ old('base_url', $portalSettings->base_url) }}"
+                           placeholder="https://sgprd.samirgroup.com/EmployeePortal/api">
+                    @error('base_url')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <div class="form-text">
+                        No trailing slash needed. This host is published only in the public DNS zone, so the NOC
+                        reaches it through the dnsmasq forwarder in <code>deployment/dns/</code> — a
+                        &ldquo;could not resolve host&rdquo; here means that, not a dead server.
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">API key (<code>X-API-Key</code>)</label>
+                    <input type="password" name="api_key" class="form-control" autocomplete="new-password"
+                           placeholder="{{ $portalSettings->api_key ? '•••••• (leave blank to keep current)' : 'Paste key here' }}">
+                    <div class="form-text">Stored encrypted and never written to the audit log.</div>
+                </div>
+            </div>
+
+            <hr class="my-3">
+
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="portal_enabled"
+                               name="enabled" value="1" @checked(old('enabled', $portalSettings->enabled))>
+                        <label class="form-check-label fw-semibold" for="portal_enabled">Enabled</label>
+                    </div>
+                    <div class="form-text">The master switch. With this off, nothing below runs.</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="portal_sync_announcements"
+                               name="sync_announcements" value="1" @checked(old('sync_announcements', $portalSettings->sync_announcements))>
+                        <label class="form-check-label" for="portal_sync_announcements">Announcements</label>
+                    </div>
+                    <div class="form-text">
+                        Hourly.
+                        @if($portalSettings->last_announcements_sync_at)
+                            Last {{ $portalSettings->last_announcements_sync_at->diffForHumans() }}.
+                        @endif
+                        <br><span class="text-muted">Oracle sends a title and dates only — no body text, and the
+                        picture is not reachable through the API.</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="portal_sync_employees"
+                               name="sync_employees" value="1" @checked(old('sync_employees', $portalSettings->sync_employees))>
+                        <label class="form-check-label" for="portal_sync_employees">Employees</label>
+                    </div>
+                    <div class="form-text">
+                        Daily, staged for review.
+                        @if($portalSettings->last_employees_sync_at)
+                            Last {{ $portalSettings->last_employees_sync_at->diffForHumans() }}.
+                        @endif
+                        <br><span class="text-muted">Saudi book only — SSS Egypt is not in this feed.</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="portal_sync_vacations"
+                               name="sync_vacations" value="1" @checked(old('sync_vacations', $portalSettings->sync_vacations))>
+                        <label class="form-check-label" for="portal_sync_vacations">Leave</label>
+                    </div>
+                    <div class="form-text">
+                        Daily.
+                        @if($portalSettings->last_vacations_sync_at)
+                            Last {{ $portalSettings->last_vacations_sync_at->diffForHumans() }}.
+                        @endif
+                        <br><span class="text-muted">Balances count for the day they are pulled.</span>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-3">
+                <i class="bi bi-save me-1"></i>Save Oracle Portal Settings
+            </button>
+        </form>
+    </div>
+</div>
+
 <div class="card mt-4" id="noc-ticketing">
     <div class="card-header d-flex align-items-center gap-2">
         <i class="bi bi-ticket-perforated-fill text-primary fs-5"></i>

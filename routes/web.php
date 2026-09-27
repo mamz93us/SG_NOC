@@ -1122,6 +1122,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/itam', [SettingsController::class, 'updateItam'])->name('settings.itam');
         Route::post('settings/ticketing', [SettingsController::class, 'updateTicketing'])->name('settings.ticketing');
         Route::post('settings/noc-ticketing', [SettingsController::class, 'updateNocTicketing'])->name('settings.noc-ticketing');
+        Route::post('settings/oracle-portal', [SettingsController::class, 'updateOraclePortal'])->name('settings.oracle-portal');
         Route::post('settings/home-portal', [SettingsController::class, 'updateHomePortal'])->name('settings.home-portal');
         // Re-pulls categories/sub-categories from the ticketing API's own lookup endpoints.
         Route::post('settings/noc-ticketing/refresh-catalog', [SettingsController::class, 'refreshNocTicketCatalog'])->name('settings.noc-ticketing.refresh');
@@ -1249,6 +1250,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::put('sources/{source}', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'update'])->name('sources.update');
             Route::post('sources/{source}/test', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'test'])->name('sources.test');
             Route::post('sources/{source}/sync', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'sync'])->name('sources.sync');
+            // Row-by-row against the source: takes punches it has edited or deleted, which a sync never revisits.
+            Route::post('sources/{source}/check', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'check'])->name('sources.check');
             Route::post('shifts', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'store'])->name('shifts.store');
             Route::put('shifts/{shift}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'update'])->name('shifts.update');
             Route::delete('shifts/{shift}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'destroy'])->name('shifts.destroy');
@@ -1295,6 +1298,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::middleware('permission:manage-vacations')->group(function () {
             Route::get('import', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'index'])->name('imports.index');
             Route::post('import', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'store'])->name('imports.store');
+            Route::post('import/pull', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'pull'])->name('imports.pull');
             Route::post('people/{vacationEmployee}/link', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'link'])->name('people.link');
             Route::post('people/{vacationEmployee}/no-employee', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'noEmployee'])->name('people.no-employee');
             Route::post('people/{vacationEmployee}/reset', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'reset'])->name('people.reset');
@@ -1314,6 +1318,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'index'])->name('announcements.index');
         Route::get('announcements/create', [\App\Http\Controllers\Admin\AnnouncementController::class, 'create'])->name('announcements.create');
         Route::post('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'store'])->name('announcements.store');
+        Route::post('announcements/pull', [\App\Http\Controllers\Admin\AnnouncementController::class, 'pull'])->name('announcements.pull');
         Route::get('announcements/{announcement}/edit', [\App\Http\Controllers\Admin\AnnouncementController::class, 'edit'])->name('announcements.edit');
         Route::put('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'update'])->name('announcements.update');
         Route::delete('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
@@ -1453,6 +1458,49 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('access', [\App\Http\Controllers\Admin\AiAccessController::class, 'index'])->name('access.index');
         Route::post('access', [\App\Http\Controllers\Admin\AiAccessController::class, 'store'])->name('access.store');
         Route::delete('access/{feature}/{user}', [\App\Http\Controllers\Admin\AiAccessController::class, 'destroy'])->name('access.destroy');
+    });
+
+    // ── Exams (practice exams for the team: AZ-900, AI-900, …) ───────
+    // take-exams sits them; manage-exams owns the bank (the answer key)
+    // and sees everyone's results. Concrete paths before {exam}.
+    Route::prefix('exams')->name('exams.')->group(function () {
+        Route::middleware('permission:manage-exams')->group(function () {
+            Route::get('manage', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'index'])->name('manage.index');
+            Route::get('manage/create', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'create'])->name('manage.create');
+            Route::post('manage', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'store'])->name('manage.store');
+            Route::post('manage/load-bundled', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'loadBundled'])->name('manage.load-bundled');
+            Route::post('manage/import', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'import'])->name('manage.import');
+            Route::get('manage/{exam}/edit', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'edit'])->name('manage.edit');
+            Route::put('manage/{exam}', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'update'])->name('manage.update');
+            Route::delete('manage/{exam}', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'destroy'])->name('manage.destroy');
+
+            Route::get('manage/{exam}/questions', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'index'])->name('manage.questions.index');
+            Route::get('manage/{exam}/questions/create', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'create'])->name('manage.questions.create');
+            Route::post('manage/{exam}/questions', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'store'])->name('manage.questions.store');
+            Route::get('manage/{exam}/questions/{question}/edit', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'edit'])->name('manage.questions.edit');
+            Route::put('manage/{exam}/questions/{question}', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'update'])->name('manage.questions.update');
+            Route::post('manage/{exam}/questions/{question}/toggle', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'toggle'])->name('manage.questions.toggle');
+            Route::delete('manage/{exam}/questions/{question}', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'destroy'])->name('manage.questions.destroy');
+
+            Route::get('results', [\App\Http\Controllers\Admin\Exams\ExamResultController::class, 'index'])->name('results.index');
+            Route::get('results/export', [\App\Http\Controllers\Admin\Exams\ExamResultController::class, 'export'])->name('results.export');
+        });
+
+        // A score report and its answers: the candidate's own, or anyone's for a manager.
+        Route::middleware('permission:take-exams,manage-exams')->group(function () {
+            Route::get('attempts/{attempt}', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'result'])->name('attempts.result');
+            Route::get('attempts/{attempt}/answers', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'answers'])->name('attempts.answers');
+        });
+
+        Route::middleware('permission:take-exams')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\Exams\ExamController::class, 'index'])->name('index');
+            Route::get('attempts/{attempt}/q/{position}', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'question'])->whereNumber('position')->name('attempts.question');
+            Route::post('attempts/{attempt}/q/{position}', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'answer'])->whereNumber('position')->name('attempts.answer');
+            Route::get('attempts/{attempt}/review', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'review'])->name('attempts.review');
+            Route::post('attempts/{attempt}/finish', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'finish'])->name('attempts.finish');
+            Route::get('{exam}', [\App\Http\Controllers\Admin\Exams\ExamController::class, 'show'])->name('show');
+            Route::post('{exam}/start', [\App\Http\Controllers\Admin\Exams\ExamController::class, 'start'])->name('start');
+        });
     });
     Route::middleware('permission:view-ai-conversations')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
         Route::get('conversations', [\App\Http\Controllers\Admin\AiConversationController::class, 'index'])->name('conversations.index');
@@ -1615,6 +1663,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('devices/{device}', [DeviceController::class, 'destroy'])->name('devices.destroy');
         Route::post('devices/{device}/assign', [DeviceController::class, 'quickAssign'])->name('devices.assign');
         Route::post('devices/{device}/return', [DeviceController::class, 'quickReturn'])->name('devices.return');
+        // Out of service for good, without the scrap approval chain; from the device or the employee page.
+        Route::post('devices/{device}/retire', [\App\Http\Controllers\Admin\Itam\DeviceRetireController::class, 'store'])->name('devices.retire');
         Route::post('devices/phone-auto-assign', [PhoneAutoAssignController::class, 'store'])->name('devices.phone-auto-assign.store');
         Route::post('devices/phone-auto-assign/create-assets', [PhoneAutoAssignController::class, 'createAssets'])->name('devices.phone-auto-assign.create-assets');
         Route::post('devices/phone-auto-assign/manual-assign', [PhoneAutoAssignController::class, 'manualAssign'])->name('devices.phone-auto-assign.manual-assign');
@@ -1837,6 +1887,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/linked-accounts/merge', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'merge'])->name('linked-accounts.merge');
         Route::delete('/linked-accounts/{employee}', [\App\Http\Controllers\Admin\LinkedAccountController::class, 'destroy'])->name('linked-accounts.destroy');
         Route::post('/hr-import', [OracleHrImportController::class, 'upload'])->name('hr-import.upload');
+        // Oracle's Employee Portal API, and the two decisions it can only suggest.
+        Route::post('/hr-import/pull', [OracleHrImportController::class, 'pull'])->name('hr-import.pull');
+        Route::post('/hr-import/leavers/{employee}/terminate', [OracleHrImportController::class, 'terminateLeaver'])->name('hr-import.leaver.terminate');
+        Route::post('/hr-import/leavers/{employee}/ignore', [OracleHrImportController::class, 'ignoreLeaver'])->name('hr-import.leaver.ignore');
         Route::post('/hr-import/{batch}/apply', [OracleHrImportController::class, 'apply'])->name('hr-import.apply');
         Route::post('/hr-import/{batch}/service-employees', [OracleHrImportController::class, 'createServiceEmployees'])->name('hr-import.service-employees');
         Route::post('/hr-import/rows/{row}/resolve', [OracleHrImportController::class, 'resolveRow'])->name('hr-import.resolve-row');
@@ -2574,6 +2628,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');
         Route::put('employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
         Route::post('employees/{employee}/link-contact', [EmployeeController::class, 'linkContact'])->name('employees.link-contact');
+        // Giving a service employee the mailbox they turn out to have: the
+        // Oracle HR import always creates them with email = null, and nothing
+        // else could connect them to one afterwards.
+        Route::get('employees/{employee}/mailbox-candidates', [\App\Http\Controllers\Admin\ServiceEmployeeMailboxController::class, 'candidates'])->name('employees.mailbox.candidates');
+        Route::post('employees/{employee}/mailbox', [\App\Http\Controllers\Admin\ServiceEmployeeMailboxController::class, 'store'])->name('employees.mailbox.store');
         Route::delete('employees/{employee}/unlink-contact', [EmployeeController::class, 'unlinkContact'])->name('employees.unlink-contact');
         Route::patch('employees/{employee}/extension', [EmployeeController::class, 'updateExtension'])->name('employees.update-extension');
         // Signature roles — managed independently of the main profile save (own save/remove).
@@ -2749,6 +2808,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('by-branch', [\App\Http\Controllers\Admin\AssetReportController::class, 'byBranch'])->name('by-branch');
             Route::get('by-employee', [\App\Http\Controllers\Admin\AssetReportController::class, 'byEmployee'])->name('by-employee');
             Route::get('transfer-history', [\App\Http\Controllers\Admin\AssetReportController::class, 'transferHistory'])->name('transfers');
+            // Transfers, retirements and scraps in one list, for finance to post against Oracle.
+            Route::get('movements', [\App\Http\Controllers\Admin\Itam\AssetMovementReportController::class, 'index'])->name('movements');
             Route::get('scrap-history', [\App\Http\Controllers\Admin\AssetReportController::class, 'scrapHistory'])->name('scraps');
             Route::get('costs', [\App\Http\Controllers\Admin\AssetReportController::class, 'costs'])->name('costs');
             Route::get('stale-licenses', [\App\Http\Controllers\Admin\AssetReportController::class, 'staleLicenses'])->name('stale-licenses');
@@ -2765,10 +2826,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
         // Rates behind those reports' combined totals. Keyed in, never fetched.
         Route::get('exchange-rates', [\App\Http\Controllers\Admin\ExchangeRateController::class, 'index'])->name('exchange-rates.index');
+
+        // Oracle's fixed-asset register: its laptops and desktops, matched to NOC assets and Intune.
+        Route::get('oracle-assets', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'index'])->name('oracle-assets.index');
     });
 
     Route::middleware('permission:manage-itam')->prefix('itam')->name('itam.')->group(function () {
         Route::put('exchange-rates', [\App\Http\Controllers\Admin\ExchangeRateController::class, 'update'])->name('exchange-rates.update');
+
+        Route::post('oracle-assets/import', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'import'])->name('oracle-assets.import');
+        Route::post('oracle-assets/{oracleAsset}/employee', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'assignEmployee'])->name('oracle-assets.employee');
+        Route::post('oracle-assets/{oracleAsset}/retire', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'retire'])->name('oracle-assets.retire');
+        Route::delete('oracle-assets/{oracleAsset}/match', [\App\Http\Controllers\Admin\Itam\OracleAssetController::class, 'unmatch'])->name('oracle-assets.unmatch');
+        Route::post('devices/{device}/intune-link', [\App\Http\Controllers\Admin\Itam\DeviceIntuneLinkController::class, 'store'])->name('devices.intune-link');
+        // The other way round: an asset (an Intune laptop) with no Oracle number is told which Oracle unit it is.
+        Route::get('devices/{device}/oracle-options', [\App\Http\Controllers\Admin\Itam\DeviceOracleLinkController::class, 'options'])->name('devices.oracle-options');
+        Route::post('devices/{device}/oracle-link', [\App\Http\Controllers\Admin\Itam\DeviceOracleLinkController::class, 'store'])->name('devices.oracle-link');
     });
 
     // ─── Asset Transfer ───────────────────────────────────────────
@@ -2778,19 +2851,29 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::get('branch-store/{branch}/assets', [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForBranchStore'])->name('branch-store-assets');
         Route::get('universal-store/assets', [\App\Http\Controllers\Admin\AssetTransferController::class, 'assetsForUniversalStore'])->name('universal-store-assets');
         Route::post('/', [\App\Http\Controllers\Admin\AssetTransferController::class, 'store'])->name('store');
+        // One asset from its holder to another employee, from the employee or device page.
+        Route::post('device/{device}', [\App\Http\Controllers\Admin\AssetTransferController::class, 'transferDevice'])->name('device');
         Route::get('{group}/print', [\App\Http\Controllers\Admin\AssetTransferController::class, 'print'])->name('print');
     });
 
     // ─── Asset Scrap (request) ────────────────────────────────────
     Route::middleware('permission:request-scrap')->prefix('itam/scrap')->name('itam.scrap.')->group(function () {
-        Route::get('/', [\App\Http\Controllers\Admin\AssetScrapController::class, 'index'])->name('index');
         Route::get('create', [\App\Http\Controllers\Admin\AssetScrapController::class, 'create'])->name('create');
         Route::post('/', [\App\Http\Controllers\Admin\AssetScrapController::class, 'store'])->name('store');
+    });
+    // ─── Asset Scrap (read) ───────────────────────────────────────
+    // Either permission: an approver who cannot raise a request still has to
+    // read the list the bulk approval lives on. `create` above is registered
+    // first, so it is not swallowed by `{workflow}`.
+    Route::middleware('permission:request-scrap,approve-scrap')->prefix('itam/scrap')->name('itam.scrap.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\AssetScrapController::class, 'index'])->name('index');
         Route::get('{workflow}', [\App\Http\Controllers\Admin\AssetScrapController::class, 'show'])->name('show');
         Route::get('{workflow}/print', [\App\Http\Controllers\Admin\AssetScrapController::class, 'print'])->name('print');
     });
     // ─── Asset Scrap (approve / reject) ───────────────────────────
     Route::middleware('permission:approve-scrap')->prefix('itam/scrap')->name('itam.scrap.')->group(function () {
+        // Sign off everything waiting for this person at once, from the list.
+        Route::post('bulk-approve', [\App\Http\Controllers\Admin\AssetScrapController::class, 'bulkApprove'])->name('bulk-approve');
         Route::post('{workflow}/approve', [\App\Http\Controllers\Admin\AssetScrapController::class, 'approve'])->name('approve');
         Route::post('{workflow}/reject', [\App\Http\Controllers\Admin\AssetScrapController::class, 'reject'])->name('reject');
     });

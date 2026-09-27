@@ -19,6 +19,19 @@ return [
     | work days. The SamirGroup sheet confirms Friday and Saturday — no annual
     | leave in it starts on either, and its used days match that count.
     |
+    | blocked: people Oracle filters out of its leave data at the database
+    | level, so they are absent from every export and from both API endpoints
+    | while still appearing in the employee list. They are not missing data and
+    | not an import fault — they will simply never have a balance here.
+    |
+    | Naming them matters for more than the notes: an import withdraws held
+    | records that its own rows do not mention, and a blocked person's records
+    | are never mentioned by anything. Without this list, any import covering a
+    | span they have leave in would stamp all of it "No longer in Oracle". That
+    | is true of the spreadsheet path as it stands, not only of the API.
+    | Verified 2026-09-20: ?personNumber=1655 returns [] on both vacation
+    | endpoints while /employees returns the person.
+    |
     */
 
     'books' => [
@@ -26,6 +39,7 @@ return [
             'label' => 'SamirGroup (Saudi Arabia)',
             'branches' => ['JED', 'RYD', 'KBR', 'ABH'],
             'weekend' => [CarbonInterface::FRIDAY, CarbonInterface::SATURDAY],
+            'blocked' => ['1655', '1656', '2682'],
         ],
     ],
 

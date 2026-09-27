@@ -4,6 +4,7 @@ namespace App\Services\Archive;
 
 use App\Models\Archive\Archive;
 use App\Models\Archive\ArchiveAiSettings;
+use App\Models\Archive\ArchiveFileText;
 use App\Models\Archive\ArchiveInboxItem;
 use App\Models\User;
 use App\Services\Ai\PdfPages;
@@ -149,7 +150,7 @@ class InboxProcessor
                 return ['pages' => 0, 'fields' => 0, 'error' => null];
             }
 
-            [$text, $refused] = $this->read($item, $local, $pageCount);
+            [$text, $refused, $readPages] = $this->read($item, $local, $pageCount);
 
             // A cap, not a fault. The item goes back in the queue with its
             // attempt given back, because being told "tomorrow" three times must
@@ -184,6 +185,10 @@ class InboxProcessor
             $item->forceFill([
                 'ai_status' => ArchiveInboxItem::AI_DONE,
                 'ai_suggestions' => $suggestions ?: null,
+                // Kept so filing can put it in archive_file_texts rather than
+                // paying to read the very same pages again. InboxService clears
+                // it once it has, so the text lives in one place.
+                'ai_text' => $readPages ?: null,
                 'ai_archive_id' => $archive?->getKey(),
                 'ai_confidence' => $archive ? $this->confidenceOf($suggestions) : null,
                 'error' => null,
@@ -209,12 +214,22 @@ class InboxProcessor
      * "scan to PDF" driver often carries its own text layer, and paying to look at
      * a page whose words are already in the file buys nothing.
      *
-     * @return array{0:string, 1:?string} the text, and why reading stopped early
-     *                                    if a cap refused it
+     * Each page is kept SEPARATELY as well as joined, with the source it came
+     * from, because that is the shape `archive_file_texts` wants once the scan
+     * becomes a document: one row per page. Without it the filing had only the
+     * joined blob, could not tell a page read free off the text layer from one
+     * AI was paid to look at, and so kept neither — and the document was read
+     * again, and charged again, the first time anybody asked about it.
+     *
+     * Returns the joined text, why reading stopped early if a cap refused it,
+     * and each page that was read.
+     *
+     * @return array{0:string, 1:?string, 2:array<int,array{text:string, source:string}>}
      */
     private function read(ArchiveInboxItem $item, string $local, int $pageCount): array
     {
         $parts = [];
+        $read = [];
         $pages = min($pageCount, self::MAX_PAGES);
         $refused = null;
 
@@ -230,6 +245,7 @@ class InboxProcessor
 
             if (mb_strlen($layer) >= 8) {
                 $parts[] = '[page '.$page.']'.PHP_EOL.$layer;
+                $read[$page] = ['text' => $layer, 'source' => ArchiveFileText::SOURCE_PDF_TEXT];
 
                 continue;
             }
@@ -240,12 +256,15 @@ class InboxProcessor
             // it enforces BOTH caps, the month's budget and this person's pages
             // today, rather than leaving the second to a caller that forgot it.
             try {
-                $parts[] = '[page '.$page.']'.PHP_EOL.$this->reader->readUnfiledPage(
+                $text = $this->reader->readUnfiledPage(
                     $local,
                     $page,
                     $item->archive_id,
                     $item->user_id,
                 );
+
+                $parts[] = '[page '.$page.']'.PHP_EOL.$text;
+                $read[$page] = ['text' => $text, 'source' => ArchiveFileText::SOURCE_AI];
             } catch (ArchiveSpendRefused $e) {
                 // Checked per page rather than once per item: a 10-page scan can
                 // cross a cap half way through, and the pages already read stay
@@ -255,7 +274,7 @@ class InboxProcessor
             }
         }
 
-        return [trim(implode(PHP_EOL.PHP_EOL, $parts)), $refused];
+        return [trim(implode(PHP_EOL.PHP_EOL, $parts)), $refused, $read];
     }
 
     // ─── Where does it belong ────────────────────────────────────

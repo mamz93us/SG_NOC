@@ -69,10 +69,14 @@
                     </span>
                 @endforeach
             </h4>
+            @if ($employee->name_ar)
+                <div class="text-muted" dir="rtl" lang="ar">{{ $employee->name_ar }}</div>
+            @endif
             <div class="text-muted">{{ collect([$employee->job_title, $employee->department?->name, $employee->branch?->name])->filter()->implode(' · ') ?: '—' }}</div>
             <div class="small text-muted mt-1">
                 {{ collect([
                     $employee->oracle_emp_no ? 'Oracle no. '.$employee->oracle_emp_no : 'No Oracle no.',
+                    $employee->oracle_employee_category,
                     $canAttendance ? ($codes ? 'BioTime code '.$codes : 'No BioTime code') : null,
                     $employee->manager ? 'Manager: '.$employee->manager->name : null,
                     $employee->hired_date ? 'Hired '.$employee->hired_date->format('d M Y').' ('.$employee->hired_date->diffForHumans($today, ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]).')' : null,

@@ -19,6 +19,8 @@ class Announcement extends Model
         'is_published', 'published_at', 'expires_at',
         'audience', 'audience_branch_id', 'audience_department_id',
         'created_by', 'created_by_name',
+        'source', 'external_id', 'external_image_name',
+        'synced_at', 'synced_fields', 'removed_at',
     ];
 
     protected $casts = [
@@ -28,11 +30,19 @@ class Announcement extends Model
         'expires_at' => 'datetime',
         'audience_branch_id' => 'integer',
         'audience_department_id' => 'integer',
+        'synced_at' => 'datetime',
+        'removed_at' => 'datetime',
+        'synced_fields' => 'array',
     ];
 
     public const SEVERITIES = ['info', 'success', 'urgent'];
 
     public const AUDIENCES = ['all', 'branch', 'department'];
+
+    /** Typed here, or copied from Oracle's Employee Portal. */
+    public const SOURCE_MANUAL = 'manual';
+
+    public const SOURCE_ORACLE = 'oracle';
 
     public function branch(): BelongsTo
     {
@@ -97,6 +107,17 @@ class Announcement extends Model
         return $query->orderByDesc('pinned')
             ->orderByDesc('published_at')
             ->orderByDesc('id');
+    }
+
+    /** Rows the Oracle sync owns. Nothing else may ever be in its reach. */
+    public function scopeFromOracle(Builder $query): Builder
+    {
+        return $query->where('source', self::SOURCE_ORACLE);
+    }
+
+    public function isFromOracle(): bool
+    {
+        return $this->source === self::SOURCE_ORACLE;
     }
 
     public function isUrgent(): bool

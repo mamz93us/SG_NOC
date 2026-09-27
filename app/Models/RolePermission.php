@@ -247,6 +247,10 @@ class RolePermission extends Model
                 'use-archive-ai' => 'Use Document Archive AI (ask the archive, ask about a document, archive search in the Samir AI Assistant)',
                 'manage-archive-portal' => 'Manage the Document Archive (archives, fields, members, the ArcMate source, transfer to Azure, AI batches & budget)',
             ],
+            'Exams' => [
+                'take-exams' => 'Take Practice Exams (AZ-900, AI-900, …) and see your own scores',
+                'manage-exams' => 'Manage Exams (question banks with the answers, everyone\'s results)',
+            ],
         ];
     }
 
@@ -273,6 +277,8 @@ class RolePermission extends Model
             'manage-email-marketing-settings',
             // Candidate CVs and who may read them: granted to named people, never by default.
             'use-recruitment-ai', 'manage-ai-access',
+            // The question bank is the answer key, and admins sit the exams.
+            'manage-exams',
         ]));
         $viewerPerms = [
             'view-branches', 'view-contacts',
@@ -288,6 +294,7 @@ class RolePermission extends Model
             'view-phones', 'view-phone-firmware', 'view-printer-usage',
             'view-server-status', 'view-downloads', 'view-branch-agents',
             'view-voice-mesh', 'view-voice-quality',
+            'take-exams',
         ];
         $hrPerms = [
             'manage-hr-portal',

@@ -39,7 +39,7 @@
                     <select name="employee" class="form-select form-select-sm">
                         <option value="">Any Employee</option>
                         @foreach($employees as $e)
-                            <option value="{{ $e->id }}" @selected((int)request('employee') === $e->id)>{{ $e->name }}</option>
+                            <option value="{{ $e->id }}" @selected((int)request('employee') === $e->id)>{{ $e->name }}@if($e->oracle_emp_no) — {{ $e->oracle_emp_no }}@endif</option>
                         @endforeach
                     </select>
                 </div>
@@ -56,6 +56,7 @@
                     <tr>
                         <th>Date</th>
                         <th>Type</th>
+                        <th>Asset code</th>
                         <th>Asset</th>
                         <th>From</th>
                         <th>To</th>
@@ -80,6 +81,9 @@
                                 'universal_store' => 'Universal Store',
                                 default           => $m['to_employee'] ?? $m['branch_name'] ?? '—',
                             };
+                            // The Oracle employee number beside the name, which is what finance posts against.
+                            $fromNo = $m['from_employee_no'] ?? ($empNumbers[$m['from_employee_id'] ?? 0] ?? null);
+                            $toNo = $m['to_employee_no'] ?? ($empNumbers[$m['to_employee_id'] ?? 0] ?? null);
                         @endphp
                         <tr>
                             <td>{{ $e->created_at?->format('d M Y H:i') }}</td>
@@ -90,18 +94,28 @@
                                     <span class="badge bg-info"><i class="bi bi-box-seam me-1"></i>To Storage</span>
                                 @endif
                             </td>
-                            <td>
-                                <code>{{ $e->device?->asset_code ?? '—' }}</code>
-                                <span class="text-muted small">{{ $e->device?->name }}</span>
+                            <td class="text-nowrap">
+                                @if($e->device)
+                                    <a href="{{ route('admin.devices.show', $e->device) }}" class="text-decoration-none"><code>{{ $e->device->asset_code ?? '—' }}</code></a>
+                                @else
+                                    <code>—</code>
+                                @endif
                             </td>
+                            <td><span class="text-muted small">{{ $e->device?->name }}</span></td>
                             <td>
                                 {{ $fromLabel }}
+                                @if($fromNo)
+                                    <small class="text-muted d-block">Emp #{{ $fromNo }}</small>
+                                @endif
                                 @if(!empty($m['from_storage_location']))
                                     <small class="text-muted d-block">{{ $m['from_storage_location'] }}</small>
                                 @endif
                             </td>
                             <td>
                                 {{ $toLabel }}
+                                @if($toNo)
+                                    <small class="text-muted d-block">Emp #{{ $toNo }}</small>
+                                @endif
                                 @if(!empty($m['storage_location']))
                                     <small class="text-muted d-block">{{ $m['storage_location'] }}</small>
                                 @endif
@@ -109,7 +123,7 @@
                             <td>{{ $e->user?->name ?? '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center py-5 text-muted">No transfer history matching your filters.</td></tr>
+                        <tr><td colspan="7" class="text-center py-5 text-muted">No transfer history matching your filters.</td></tr>
                     @endforelse
                 </tbody>
             </table>

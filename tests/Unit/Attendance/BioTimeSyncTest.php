@@ -19,6 +19,7 @@ use App\Services\Attendance\AttendancePeriodService;
 use App\Services\Attendance\BioTimeConnection;
 use App\Services\Attendance\BioTimeSyncService;
 use App\Services\Attendance\EmployeeLinker;
+use App\Services\Attendance\PunchMirror;
 use App\Services\Attendance\Readers\AccessTransactionReader;
 use App\Services\Attendance\Readers\CheckInOutReader;
 use App\Services\Attendance\Readers\IclockTransactionReader;
@@ -91,7 +92,7 @@ beforeEach(function () {
 
     foreach (['attendance_exports', 'attendance_periods', 'attendance_tasks', 'attendance_adjustments', 'attendance_holidays', 'attendance_shift_assignments', 'attendance_shifts',
         'attendance_days', 'attendance_punches', 'biotime_employees', 'biotime_terminals', 'biotime_areas',
-        'biotime_sources', 'noc_events', 'azure_branch_mappings', 'employees', 'branches'] as $table) {
+        'biotime_sources', 'noc_events', 'activity_logs', 'azure_branch_mappings', 'employees', 'branches'] as $table) {
         Schema::dropIfExists($table);
     }
 
@@ -118,6 +119,21 @@ beforeEach(function () {
         $t->unsignedInteger('branch_id');
         $t->timestamps();
     });
+    // PunchMirror logs what it wrote by hand, and the AuditObserver is
+    // attached to every model — both need this table to exist.
+    Schema::create('activity_logs', function (Blueprint $t) {
+        $t->id();
+        $t->string('model_type');
+        $t->unsignedBigInteger('model_id');
+        $t->string('model_label', 150)->nullable();
+        $t->string('action');
+        $t->json('changes')->nullable();
+        $t->unsignedBigInteger('user_id')->nullable();
+        $t->string('actor_label', 100)->nullable();
+        $t->string('ip_address')->nullable();
+        $t->text('user_agent')->nullable();
+        $t->timestamps();
+    });
     Schema::create('noc_events', function (Blueprint $t) {
         $t->id();
         foreach (['module', 'entity_type', 'entity_id', 'source_type', 'severity', 'title', 'status'] as $column) {
@@ -136,7 +152,7 @@ beforeEach(function () {
     });
 
     // Every attendance migration except the permission grant (no role_permissions here).
-    foreach (glob(database_path('migrations/2026_09_1*_*.php')) as $migration) {
+    foreach (glob(database_path('migrations/2026_09_[12]*_*.php')) as $migration) {
         $name = basename($migration);
         if ((str_contains($name, 'biotime') || str_contains($name, 'attendance')) && ! str_contains($name, 'permission')) {
             (require $migration)->up();
@@ -204,6 +220,16 @@ function testReaders(): PunchReaders
             };
         }
     };
+}
+
+/** A mirror reading the same fake database as bioTimeSync(). */
+function punchMirror(): PunchMirror
+{
+    $processor = new AttendanceDayProcessor(new AttendanceDayBuilder);
+    $connection = bioTimeOn('biotime_fake');
+    $sync = new BioTimeSyncService($connection, new EmployeeLinker($processor), $processor, testReaders());
+
+    return new PunchMirror($connection, $sync, $processor, testReaders());
 }
 
 function biotimePunch(int $id, string $code, string $time, ?string $area = 'Jeddah HQ'): void
@@ -1136,4 +1162,145 @@ it('finds periods that would cover the same people on the same days', function (
         ->and(AttendancePeriod::overlapping('2026-09-15', '2026-10-15', null)->exists())->toBeTrue() // all branches
         ->and(AttendancePeriod::overlapping('2026-09-15', '2026-10-15', 3)->exists())->toBeFalse()   // another branch
         ->and(AttendancePeriod::overlapping('2026-10-01', '2026-10-31', 1)->exists())->toBeFalse();  // next month
+});
+
+// ── The mirror: punches the source edits or deletes ──────────────────
+//
+// biotime:sync only reads forwards, so none of these reach the NOC on their
+// own. PunchMirror re-compares a window row by row; biotime:reconcile --fix
+// runs it nightly.
+
+it('rewrites a punch the source edited, and rebuilds the day around it', function () {
+    $source = cleanNinthOfSeptember();
+
+    DB::connection('biotime_fake')->table('iclock_transaction')
+        ->where('id', 2)->update(['punch_time' => '2026-09-09 15:40:00']);
+
+    $result = punchMirror()->run($source, '2026-09-09', '2026-09-09', true);
+
+    expect($result['changed'])->toBe(1)
+        ->and($result['added'])->toBe(0)
+        ->and($result['removed'])->toBe(0)
+        ->and(AttendancePunch::count())->toBe(2)
+        ->and(AttendanceDay::sole()->last_out->format('H:i'))->toBe('15:40');
+});
+
+it('a plain sync never sees that edit: its watermark is already past the row', function () {
+    $source = cleanNinthOfSeptember();
+
+    DB::connection('biotime_fake')->table('iclock_transaction')
+        ->where('id', 2)->update(['punch_time' => '2026-09-09 15:40:00']);
+
+    expect(bioTimeSync()->sync($source)['rows'])->toBe(0)
+        ->and(AttendanceDay::sole()->last_out->format('H:i'))->toBe('17:05');
+});
+
+it('stamps a punch the source deleted, so it stops counting towards the day', function () {
+    $source = cleanNinthOfSeptember();
+
+    DB::connection('biotime_fake')->table('iclock_transaction')->where('id', 2)->delete();
+
+    $result = punchMirror()->run($source, '2026-09-09', '2026-09-09', true);
+
+    expect($result['removed'])->toBe(1)
+        ->and($result['refused'])->toBeNull()
+        // Stamped, not deleted: out of every read, still on the record.
+        ->and(AttendancePunch::count())->toBe(1)
+        ->and(AttendancePunch::withTrashed()->count())->toBe(2)
+        ->and(AttendancePunch::onlyTrashed()->sole()->removed_at)->not->toBeNull();
+
+    $day = AttendanceDay::sole();
+    expect($day->last_out)->toBeNull()
+        ->and($day->hasFlag(AttendanceDayBuilder::FLAG_MISSING_CHECK_OUT))->toBeTrue();
+});
+
+it('takes a removed punch back when the source holds it again', function () {
+    $source = cleanNinthOfSeptember();
+    DB::connection('biotime_fake')->table('iclock_transaction')->where('id', 2)->delete();
+    punchMirror()->run($source, '2026-09-09', '2026-09-09', true);
+
+    biotimePunch(2, '1001', '2026-09-09 17:05:00');
+    $result = punchMirror()->run($source, '2026-09-09', '2026-09-09', true);
+
+    expect($result['added'])->toBe(1)
+        ->and(AttendancePunch::count())->toBe(2)
+        // Revived on (source, external_id), not inserted a second time.
+        ->and(AttendancePunch::withTrashed()->count())->toBe(2)
+        ->and(AttendanceDay::sole()->last_out->format('H:i'))->toBe('17:05');
+});
+
+it('rebuilds the day a punch left when an edit moved it to another date', function () {
+    $source = cleanNinthOfSeptember();
+
+    DB::connection('biotime_fake')->table('iclock_transaction')->where('id', 1)->update(['punch_time' => '2026-09-08 08:55:00']);
+    DB::connection('biotime_fake')->table('iclock_transaction')->where('id', 2)->update(['punch_time' => '2026-09-08 17:05:00']);
+
+    $result = punchMirror()->run($source, '2026-09-08', '2026-09-09', true);
+
+    expect($result['changed'])->toBe(2)
+        // The 9th kept nothing, so its day is gone rather than left stale.
+        ->and(AttendanceDay::where('work_date', '2026-09-09')->exists())->toBeFalse()
+        ->and(AttendanceDay::where('work_date', '2026-09-08')->sole()->last_out->format('H:i'))->toBe('17:05');
+});
+
+it('leaves an approved day exactly as it was signed off, and says so', function () {
+    $source = cleanNinthOfSeptember();
+    (new AttendancePeriodService)->approve(attendancePeriod(), null);
+
+    DB::connection('biotime_fake')->table('iclock_transaction')->where('id', 2)->delete();
+
+    $result = punchMirror()->run($source, '2026-09-09', '2026-09-09', true);
+
+    expect($result['removed'])->toBe(0)
+        ->and($result['locked'])->toBe(1)
+        ->and(AttendancePunch::count())->toBe(2)
+        ->and(AttendanceDay::sole()->last_out->format('H:i'))->toBe('17:05');
+});
+
+it('refuses to empty the NOC when the source answers with nothing', function () {
+    attendanceEmployee(10, 'Ahmed', '1001', 1);
+    foreach (range(1, 30) as $i) {
+        biotimePunch($i, '1001', sprintf('2026-09-09 08:%02d:00', $i));
+    }
+    $source = biotimeSource();
+    bioTimeSync()->sync($source);
+
+    // A restore, a repointed database, a table the source has pruned — none
+    // of them is an instruction to drop 30 punches.
+    DB::connection('biotime_fake')->table('iclock_transaction')->delete();
+
+    $result = punchMirror()->run($source, '2026-09-09', '2026-09-09', true);
+
+    expect($result['refused'])->toContain('no punches at all')
+        ->and($result['removed'])->toBe(0)
+        ->and(AttendancePunch::count())->toBe(30);
+});
+
+it('only reports when it is not asked to fix', function () {
+    $source = cleanNinthOfSeptember();
+    DB::connection('biotime_fake')->table('iclock_transaction')
+        ->where('id', 2)->update(['punch_time' => '2026-09-09 15:40:00']);
+
+    $result = punchMirror()->run($source, '2026-09-09', '2026-09-09', false);
+
+    expect($result['changed'])->toBe(1)
+        ->and($result['applied'])->toBeFalse()
+        ->and(AttendanceDay::sole()->last_out->format('H:i'))->toBe('17:05');
+});
+
+it('biotime:reconcile --fix applies the difference and logs what it did', function () {
+    app()->instance(BioTimeConnection::class, bioTimeOn('biotime_fake'));
+    app()->instance(PunchReaders::class, testReaders());
+    $source = cleanNinthOfSeptember();
+
+    DB::connection('biotime_fake')->table('iclock_transaction')->where('id', 2)->delete();
+
+    $this->artisan('biotime:reconcile --fix --days=3')->assertSuccessful();
+
+    expect(AttendancePunch::count())->toBe(1)
+        ->and(AttendanceDay::sole()->last_out)->toBeNull();
+
+    $log = DB::table('activity_logs')->where('action', 'attendance_punches_mirrored')->first();
+    expect($log)->not->toBeNull()
+        ->and(json_decode($log->changes, true)['removed'])->toBe(1);
 });

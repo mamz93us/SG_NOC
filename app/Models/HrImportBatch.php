@@ -17,6 +17,8 @@ class HrImportBatch extends Model
         'error_count',
         'applied_count',
         'status',
+        'source',
+        'source_digest',
     ];
 
     protected $casts = [

@@ -53,8 +53,11 @@ return [
         App\Models\VoiceMeshRun::class,
         App\Models\VoiceQualityReport::class,
 
-        // Attendance punches are raw device data and never edited; the derived
-        // attendance_days table is rebuildable by design.
+        // Attendance punches are raw device data, and the derived
+        // attendance_days table is rebuildable by design. The one thing that
+        // ever rewrites a punch — PunchMirror, following an edit or a deletion
+        // in the source database — logs what it did by hand, per source and
+        // per run, rather than a row per punch.
         App\Models\Attendance\AttendancePunch::class,
         App\Models\Attendance\AttendanceDay::class,
 
@@ -124,6 +127,13 @@ return [
         App\Models\Vacation\VacationAbsence::class,
         App\Models\Vacation\VacationImport::class,
 
+        // Oracle's fixed-asset register, re-imported wholesale from each export.
+        // The import is logged by hand with its counts, and so are a person
+        // setting a unit's holder and undoing a match; the NOC assets and
+        // assignments it creates or changes are audited like any other.
+        App\Models\Itam\OracleAsset::class,
+        App\Models\Itam\OracleAssetImport::class,
+
         // Recruitment AI: every sync stamps the job and every screening rewrites
         // its row, CV text included — an audit copy would be the one place that
         // text sat unencrypted. RecruitmentAiController logs switching screening
@@ -171,6 +181,10 @@ return [
         //     ScanDestinationController logs each of those by hand as a security
         //     action — never including the token.
         App\Models\Archive\ArchiveScanEndpoint::class,
+
+        // Practice exams: a sitting rewrites its row on every answer. Starting
+        // and finishing are logged by hand (ExamSession).
+        App\Models\Exams\ExamAttempt::class,
     ],
 
     /*
@@ -239,6 +253,19 @@ return [
         'ai_classify',
         'ai_classified_at',
         'ai_classify_error',
+
+        // Stamped on oracle_portal_settings by every Oracle Employee Portal
+        // pull — hourly for announcements, daily for people and leave. Each
+        // run already writes its own summary row saying what it did, so
+        // recording "the clock moved" as well would bury the setting changes
+        // that matter, like the key being replaced or a feed switched off.
+        'last_announcements_sync_at',
+        'last_employees_sync_at',
+        'last_vacations_sync_at',
+        'last_announcements_count',
+        'last_employees_count',
+        'last_vacation_balances_count',
+        'last_vacation_records_count',
 
         // Campaign counters, bumped by the send pipeline and the open/click and
         // SNS webhooks. Carried over from EmailMarketingActivityObserver, which

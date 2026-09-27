@@ -47,7 +47,17 @@
                         @endif
                     </div>
                     @error('asset_code')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
- 
+
+                    <div class="mt-2">
+                        <label class="form-label small fw-semibold" for="dv_oracle_asset_number">Oracle Asset No.</label>
+                        <input type="text" name="oracle_asset_number" id="dv_oracle_asset_number"
+                               class="form-control form-control-sm font-monospace @error('oracle_asset_number') is-invalid @enderror"
+                               value="{{ old('oracle_asset_number', $device->oracle_asset_number ?? '') }}" maxlength="40"
+                               placeholder="e.g. 1001946" style="max-width:220px">
+                        <div class="form-text small">The asset's number in Oracle's fixed-asset register. Laptops bought together share one.</div>
+                        @error('oracle_asset_number')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                    </div>
+
                     {{-- Condition + Status under asset code --}}
                     <div class="row g-2 mt-2">
                         <div class="col-6">
@@ -67,6 +77,10 @@
                                 <option value="assigned"    {{ old('status', $device->status ?? '') == 'assigned'    ? 'selected' : '' }}>Assigned</option>
                                 <option value="maintenance" {{ old('status', $device->status ?? '') == 'maintenance' ? 'selected' : '' }}>Maintenance</option>
                                 <option value="retired"     {{ old('status', $device->status ?? '') == 'retired'     ? 'selected' : '' }}>Retired</option>
+                                {{-- Scrapped only comes from an approved scrap request; offered here so saving the form keeps it. --}}
+                                @if(($device->status ?? null) === 'scrapped')
+                                <option value="scrapped" {{ old('status', $device->status) == 'scrapped' ? 'selected' : '' }}>Scrapped</option>
+                                @endif
                             </select>
                         </div>
                     </div>

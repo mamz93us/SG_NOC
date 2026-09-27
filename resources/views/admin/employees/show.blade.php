@@ -80,8 +80,20 @@
                     <span class="badge bg-secondary px-3 py-1">Service</span>
                     <div class="text-muted small mt-2">
                         No mailbox and no Entra account — HR data and attendance only.
-                        Add an email address if that changes.
                     </div>
+                    @can('manage-employees')
+                        @if($canLinkMailbox)
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2"
+                                    data-bs-toggle="modal" data-bs-target="#linkMailboxModal">
+                                <i class="bi bi-envelope-at me-1"></i>Link a mailbox
+                            </button>
+                            <div class="text-muted mt-1" style="font-size:.75rem">
+                                If they do have a company email now.
+                            </div>
+                        @elseif($mailboxProblem)
+                            <div class="text-muted small mt-2">{{ $mailboxProblem }}</div>
+                        @endif
+                    @endcan
                 @endif
             </div>
         </div>
@@ -98,8 +110,33 @@
             </div>
             <div class="card-body small">
                 <dl class="row mb-0">
+                    @if($employee->name_ar)
+                    <dt class="col-5 text-muted">Arabic Name</dt>
+                    <dd class="col-7" dir="rtl" lang="ar">{{ $employee->name_ar }}</dd>
+                    @endif
+
                     <dt class="col-5 text-muted">Email</dt>
                     <dd class="col-7">{{ $employee->email ?? '—' }}</dd>
+
+                    @if($employee->oracle_employee_category)
+                    <dt class="col-5 text-muted">Category</dt>
+                    <dd class="col-7">
+                        <span class="badge bg-light text-dark border">{{ $employee->oracle_employee_category }}</span>
+                        {{-- Oracle's job category. Not employee_type, which is about
+                             whether the person holds a mailbox. --}}
+                    </dd>
+                    @endif
+
+                    @if($employee->oracle_assignment_status === 'INACTIVE' && $employee->status !== 'terminated')
+                    <dt class="col-5 text-muted">Oracle says</dt>
+                    <dd class="col-7">
+                        <span class="badge bg-warning-subtle text-warning-emphasis border">Inactive in Oracle</span>
+                        <div class="text-muted" style="font-size:.78rem">
+                            Still employed here. Listed for a decision on
+                            <a href="{{ route('admin.identity.hr-import') }}">HR Import</a>.
+                        </div>
+                    </dd>
+                    @endif
 
                     @if($employee->job_title)
                     <dt class="col-5 text-muted">Job Title</dt>
@@ -507,6 +544,151 @@
             </div>
         </div>
 
+        {{--
+            Giving a service employee the mailbox they turn out to have.
+
+            One list, two kinds. A Microsoft account nobody holds is a link: the
+            address and the account id go onto this record. Another employee
+            record holding the address means the person is in the NOC twice,
+            which is a merge — one of the two records goes away — so it is
+            labelled and confirmed separately rather than presented as the same
+            button.
+
+            The script is inline rather than in @push because a pushed block can
+            render after markup that depends on it, and a dead popup is the
+            failure that produces.
+        --}}
+        @can('manage-employees')
+        @if($employee->isService() && $canLinkMailbox)
+        <div class="modal fade" id="linkMailboxModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-envelope-at me-1"></i>Link a mailbox to {{ $employee->name }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted">
+                            The Oracle HR import never puts an address on a service employee, because the one in
+                            Oracle's email column is usually their manager's. Pick the mailbox that really is theirs.
+                        </p>
+
+                        <input type="search" id="mailboxSearch" class="form-control form-control-sm mb-3"
+                               placeholder="Search by name or address" autocomplete="off">
+
+                        <div id="mailboxResults" class="list-group list-group-flush small">
+                            <div class="text-muted py-3">Loading…</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <form method="POST" id="linkMailboxForm" action="{{ route('admin.employees.mailbox.store', $employee) }}" class="d-none">
+            @csrf
+            <input type="hidden" name="kind" id="linkMailboxKind">
+            <input type="hidden" name="ref" id="linkMailboxRef">
+        </form>
+
+        <script>
+        (function () {
+            const url = @json(route('admin.employees.mailbox.candidates', $employee));
+            const results = document.getElementById('mailboxResults');
+            const search = document.getElementById('mailboxSearch');
+            const form = document.getElementById('linkMailboxForm');
+            const personName = @json($employee->name);
+            let timer = null;
+
+            function escape(value) {
+                const div = document.createElement('div');
+                div.textContent = value == null ? '' : String(value);
+                return div.innerHTML;
+            }
+
+            function choose(kind, ref, label) {
+                const message = kind === 'employee'
+                    ? 'Merge ' + personName + ' with the existing record for ' + label + '?\n\n'
+                        + 'They are the same person held twice, so one of the two records goes away and '
+                        + 'everything pointing at it — assets, punches, leave — moves across. This cannot be undone '
+                        + 'from here.'
+                    : 'Give ' + personName + ' the mailbox ' + label + '?\n\n'
+                        + 'They will count as a standard employee from then on.';
+
+                if (!confirm(message)) return;
+
+                document.getElementById('linkMailboxKind').value = kind;
+                document.getElementById('linkMailboxRef').value = ref;
+                form.submit();
+            }
+
+            function render(payload) {
+                if (payload.problem) {
+                    results.innerHTML = '<div class="text-muted py-3">' + escape(payload.problem) + '</div>';
+                    return;
+                }
+                if (!payload.candidates || payload.candidates.length === 0) {
+                    // Nothing typed yet means "no obvious match", which for these
+                    // people is the normal answer — not a failed search.
+                    results.innerHTML = search.value.trim() === ''
+                        ? '<div class="text-muted py-3">'
+                            + 'No mailbox here obviously belongs to ' + escape(personName) + '. '
+                            + 'Search by name or address to find theirs.</div>'
+                        : '<div class="text-muted py-3">Nothing matches that.</div>';
+                    return;
+                }
+
+                results.innerHTML = payload.candidates.map(function (c) {
+                    const isMerge = c.kind === 'employee';
+                    return '<div class="list-group-item d-flex align-items-center gap-2 px-0">'
+                        + '<div class="flex-grow-1">'
+                        + '<div class="fw-semibold">' + escape(c.name)
+                        + (c.suggested ? ' <span class="badge bg-success-subtle text-success-emphasis border fw-normal">same name</span>' : '')
+                        + '</div>'
+                        + '<div class="text-muted">' + escape(c.email) + '</div>'
+                        + (c.note ? '<div class="text-body-tertiary" style="font-size:.75rem">' + escape(c.note) + '</div>' : '')
+                        + '</div>'
+                        + '<span class="badge ' + (isMerge ? 'bg-warning-subtle text-warning-emphasis' : 'bg-light text-secondary') + ' border fw-normal">'
+                        + (isMerge ? 'Employee record' : 'Microsoft account') + '</span>'
+                        + '<button type="button" class="btn btn-sm ' + (isMerge ? 'btn-outline-warning' : 'btn-outline-primary') + '"'
+                        + ' data-kind="' + escape(c.kind) + '" data-ref="' + escape(c.ref) + '" data-label="' + escape(c.email) + '">'
+                        + (isMerge ? 'Merge' : 'Link') + '</button>'
+                        + '</div>';
+                }).join('');
+
+                results.querySelectorAll('button[data-kind]').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        choose(button.dataset.kind, button.dataset.ref, button.dataset.label);
+                    });
+                });
+            }
+
+            function load() {
+                const q = search.value.trim();
+                results.innerHTML = '<div class="text-muted py-3">Loading…</div>';
+
+                fetch(url + (q ? ('?q=' + encodeURIComponent(q)) : ''), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(render)
+                    .catch(function () {
+                        results.innerHTML = '<div class="text-danger py-3">Could not load mailboxes.</div>';
+                    });
+            }
+
+            document.getElementById('linkMailboxModal').addEventListener('show.bs.modal', load);
+            search.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(load, 250);
+            });
+        })();
+        </script>
+        @endif
+        @endcan
+
         @push('scripts')
         <script>
         document.getElementById('revokeAppModal')?.addEventListener('show.bs.modal', function (e) {
@@ -890,48 +1072,119 @@
                         <span class="text-muted">Add laptops, monitors, etc. to IT inventory first.</span>
                     </div>
                     @else
+                    @php
+                        $canScrapAssets = auth()->user()->can('request-scrap');
+                        $canLinkIntune = auth()->user()->can('manage-itam');
+                    @endphp
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0 small">
                             <thead class="table-light">
                                 <tr>
-                                    <th class="ps-3">Device</th><th>Type</th><th>Serial</th>
+                                    <th class="ps-3">Device</th><th>Type</th><th>Serial</th><th>Intune</th>
                                     <th>Condition</th><th>Assigned</th><th>Status</th><th class="pe-3"></th>
                                 </tr>
                             </thead>
                             <tbody>
                             @foreach($employee->assetAssignments as $a)
+                            @php
+                                $dev = $a->device;
+                                $isComputer = in_array($dev?->type, ['laptop', 'desktop'], true);
+                                $intuneLink = $dev?->azureDevice?->isInIntune() ? $dev->azureDevice : null;
+                                $inService = $dev && ! in_array($dev->status, ['retired', 'scrapped'], true);
+                                $scrapId = $dev ? ($pendingScrap[$dev->id] ?? null) : null;
+                                $assetLabel = $dev ? trim(($dev->asset_code ? $dev->asset_code.' · ' : '').$dev->name) : '';
+                            @endphp
                             <tr class="{{ $a->returned_date ? 'table-light text-muted' : '' }}">
                                 <td class="ps-3 fw-semibold">
-                                    <i class="bi {{ $a->device?->typeIcon() ?? 'bi-cpu' }} me-1 text-muted"></i>
-                                    @if($a->device)
-                                        <a href="{{ route('admin.devices.show', $a->device->id) }}" class="text-decoration-none">
-                                            {{ $a->device->name }}
+                                    <i class="bi {{ $dev?->typeIcon() ?? 'bi-cpu' }} me-1 text-muted"></i>
+                                    @if($dev)
+                                        <a href="{{ route('admin.devices.show', $dev->id) }}" class="text-decoration-none">
+                                            {{ $dev->name }}
                                         </a>
+                                        @if($dev->asset_code || $dev->oracle_asset_number || ($isComputer && $inService && ! $a->returned_date))
+                                        <div class="fw-normal text-muted">
+                                            <span class="font-monospace">{{ $dev->asset_code }}</span>
+                                            @if($dev->oracle_asset_number)
+                                            <span title="Oracle fixed-asset number">{{ $dev->asset_code ? '·' : '' }} Oracle {{ $dev->oracle_asset_number }}</span>
+                                            @elseif($isComputer && $inService && ! $a->returned_date)
+                                            <span>{{ $dev->asset_code ? '·' : '' }} No Oracle no.</span>
+                                            @if($canLinkIntune)
+                                            <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-bs-toggle="modal" data-bs-target="#oracleLinkModal"
+                                                    data-action="{{ route('admin.itam.devices.oracle-link', $dev) }}"
+                                                    data-options-url="{{ route('admin.itam.devices.oracle-options', $dev) }}"
+                                                    data-asset="{{ $assetLabel }}">Link Oracle asset</button>
+                                            @endif
+                                            @endif
+                                        </div>
+                                        @endif
                                     @else
                                         Unknown
                                     @endif
                                 </td>
                                 <td>
-                                    @if($a->device)<span class="badge {{ $a->device->typeBadgeClass() }}">{{ $a->device->typeLabel() }}</span>
+                                    @if($dev)<span class="badge {{ $dev->typeBadgeClass() }}">{{ $dev->typeLabel() }}</span>
                                     @else —
                                     @endif
                                 </td>
-                                <td class="text-muted">{{ $a->device?->serial_number ?? '—' }}</td>
-                                <td><span class="badge bg-{{ $a->conditionBadgeClass() }}">{{ ucfirst($a->condition) }}</span></td>
+                                <td class="text-muted">{{ $dev?->serial_number ?? '—' }}</td>
+                                <td class="text-nowrap">
+                                    @if(! $isComputer)
+                                        <span class="text-muted">—</span>
+                                    @elseif($intuneLink)
+                                        <a href="{{ route('admin.itam.azure.show', $intuneLink->id) }}" class="badge bg-success text-decoration-none" title="{{ $intuneLink->display_name }}">
+                                            <i class="bi bi-check2 me-1"></i>Intune
+                                        </a>
+                                    @elseif($a->returned_date || ! $inService)
+                                        <span class="text-muted">—</span>
+                                    @else
+                                        <span class="badge bg-warning text-dark" title="Every laptop and desktop has to be in Intune"><i class="bi bi-exclamation-triangle me-1"></i>Not in Intune</span>
+                                        @if($canLinkIntune)
+                                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-bs-toggle="modal" data-bs-target="#intuneLinkModal"
+                                                data-action="{{ route('admin.itam.devices.intune-link', $dev) }}"
+                                                data-asset="{{ $assetLabel }}"
+                                                data-options="{{ json_encode($intuneLinkOptions) }}">Link</button>
+                                        @endif
+                                    @endif
+                                </td>
+                                <td><span class="badge {{ $a->conditionBadgeClass() }}">{{ ucfirst($a->condition) }}</span></td>
                                 <td>{{ $a->assigned_date->format('d M Y') }}</td>
                                 <td>
                                     @if($a->returned_date)
                                     <span class="badge bg-success">Returned {{ $a->returned_date->format('d M Y') }}</span>
                                     @else<span class="badge bg-primary">Active</span>
                                     @endif
+                                    @if($dev && in_array($dev->status, ['retired', 'scrapped'], true))
+                                    <span class="badge {{ $dev->statusBadgeClass() }}">{{ ucfirst($dev->status) }}</span>
+                                    @endif
+                                    @if($scrapId)
+                                    <a href="{{ route('admin.itam.scrap.show', $scrapId) }}" class="badge bg-warning text-dark text-decoration-none">Scrap requested</a>
+                                    @endif
                                 </td>
-                                <td class="pe-3">
+                                <td class="pe-3 text-end text-nowrap">
                                     @if(!$a->returned_date)
-                                    @can('manage-employees')
-                                    <button class="btn btn-sm btn-outline-secondary"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#returnAssetModal{{ $a->id }}">Return</button>
-                                    @endcan
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        @can('manage-employees')
+                                        <button class="btn btn-outline-secondary"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#returnAssetModal{{ $a->id }}">Return</button>
+                                        @endcan
+                                        @if($inService && ! $scrapId)
+                                            {{-- Transfer sits where Retire used to: handing an asset on is the everyday
+                                                 action here. Retiring one is still on its own page and on the register. --}}
+                                            @can('manage-itam')
+                                            <button type="button" class="btn btn-outline-primary" title="Hand it to another employee"
+                                                    data-bs-toggle="modal" data-bs-target="#transferAssetModal"
+                                                    data-action="{{ route('admin.itam.transfer.device', $dev) }}"
+                                                    data-asset="{{ $assetLabel }}" data-holder="{{ $employee->name }}" data-holder-id="{{ $employee->id }}">Transfer</button>
+                                            @endcan
+                                            @if($canScrapAssets)
+                                            <button type="button" class="btn btn-outline-danger" title="Request scrap: IT manager, then super admin approve"
+                                                    data-bs-toggle="modal" data-bs-target="#scrapAssetModal"
+                                                    data-device="{{ $dev->id }}"
+                                                    data-asset="{{ $assetLabel }}" data-holder="{{ $employee->name }}">Scrap</button>
+                                            @endif
+                                        @endif
+                                    </div>
                                     @endif
                                 </td>
                             </tr>
@@ -1396,6 +1649,16 @@
     </div>
 </div>
 
+@endcan
+
+{{-- ── Transfer / scrap / link to Intune (IT Assets tab). Retiring an asset is on its own page. ── --}}
+@can('request-scrap')
+@include('admin.itam.oracle-assets._scrap-modal')
+@endcan
+@can('manage-itam')
+@include('admin.itam.oracle-assets._intune-link-modal', ['unlinkedIntune' => $unlinkedIntune])
+@include('admin.itam.oracle-assets._oracle-link-modal')
+@include('admin.itam.oracle-assets._transfer-modal', ['transferEmployees' => $transferEmployees])
 @endcan
 
 {{-- ── Edit Extension Modal ── --}}

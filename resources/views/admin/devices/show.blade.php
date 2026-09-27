@@ -31,8 +31,76 @@
             <i class="bi bi-pencil me-1"></i>Edit
         </a>
         @endcan
+        @if($pendingScrapId)
+        <a href="{{ route('admin.itam.scrap.show', $pendingScrapId) }}" class="btn btn-sm btn-warning">
+            <i class="bi bi-hourglass-split me-1"></i>Scrap requested #{{ $pendingScrapId }}
+        </a>
+        @elseif(! in_array($device->status, ['retired', 'scrapped'], true))
+            @can('manage-assets')
+            <button type="button" class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#retireAssetModal"
+                    data-action="{{ route('admin.devices.retire', $device) }}"
+                    data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}"
+                    data-holder="{{ $assigned?->employee?->name }}">
+                <i class="bi bi-archive me-1"></i>Retire
+            </button>
+            @endcan
+            @can('request-scrap')
+            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#scrapAssetModal"
+                    data-device="{{ $device->id }}"
+                    data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}"
+                    data-holder="{{ $assigned?->employee?->name }}">
+                <i class="bi bi-trash3 me-1"></i>Scrap
+            </button>
+            @endcan
+        @endif
     </div>
 </div>
+
+@can('manage-assets')
+@include('admin.itam.oracle-assets._retire-modal')
+@endcan
+@can('request-scrap')
+@include('admin.itam.oracle-assets._scrap-modal')
+@endcan
+@if($assigned && ! in_array($device->status, ['retired', 'scrapped'], true))
+@can('manage-itam')
+@include('admin.itam.oracle-assets._transfer-modal', ['transferEmployees' => $transferEmployees])
+@endcan
+@endif
+@if(! $device->oracle_asset_number && in_array($device->type, ['laptop', 'desktop'], true) && ! in_array($device->status, ['retired', 'scrapped'], true))
+@can('manage-itam')
+@include('admin.itam.oracle-assets._oracle-link-modal')
+@endcan
+@endif
+
+{{-- ── Not in Intune ── --}}
+@if(in_array($device->type, ['laptop', 'desktop'], true)
+    && ! in_array($device->status, ['retired', 'scrapped'], true)
+    && ! ($device->azureDevice?->isInIntune() ?? false))
+<div class="alert alert-warning d-flex align-items-center justify-content-between gap-3 py-2 mb-3">
+    <div class="small">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        <strong>Not in Intune.</strong>
+        @if($device->azureDevice?->microsoftStateLabel())
+            {{ $device->azureDevice->microsoftStateLabel() }} — it was {{ $device->azureDevice->display_name }}.
+            Link it to its new Intune device, or retire or scrap it.
+        @else
+            Every laptop and desktop has to be linked to its Intune device — link it, or retire or scrap it if it is gone.
+        @endif
+    </div>
+    @can('manage-itam')
+    <button type="button" class="btn btn-sm btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#intuneLinkModal"
+            data-action="{{ route('admin.itam.devices.intune-link', $device) }}"
+            data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}"
+            data-options="{{ json_encode($intuneLinkOptions) }}">
+        <i class="bi bi-link-45deg me-1"></i>Link to Intune device
+    </button>
+    @endcan
+</div>
+@can('manage-itam')
+@include('admin.itam.oracle-assets._intune-link-modal', ['unlinkedIntune' => $unlinkedIntune])
+@endcan
+@endif
 
 {{-- ── Asset Code Banner ── --}}
 @if($device->asset_code)
@@ -42,6 +110,31 @@
         <div class="text-muted small">Asset Code</div>
         <div class="font-monospace fw-bold fs-5">{{ $device->asset_code }}</div>
     </div>
+    @if($device->oracle_asset_number)
+    <div class="ps-3 border-start">
+        <div class="text-muted small">Oracle Asset No.</div>
+        <div class="font-monospace fw-bold fs-5">
+            @can('view-itam')
+            <a href="{{ route('admin.itam.oracle-assets.index', ['q' => $device->oracle_asset_number]) }}" class="text-decoration-none">{{ $device->oracle_asset_number }}</a>
+            @else
+            {{ $device->oracle_asset_number }}
+            @endcan
+        </div>
+    </div>
+    @elseif(in_array($device->type, ['laptop', 'desktop'], true) && ! in_array($device->status, ['retired', 'scrapped'], true))
+    <div class="ps-3 border-start">
+        <div class="text-muted small">Oracle Asset No.</div>
+        <div class="fw-semibold text-warning-emphasis">
+            Not linked
+            @can('manage-itam')
+            <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-bs-toggle="modal" data-bs-target="#oracleLinkModal"
+                    data-action="{{ route('admin.itam.devices.oracle-link', $device) }}"
+                    data-options-url="{{ route('admin.itam.devices.oracle-options', $device) }}"
+                    data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}">Link Oracle asset</button>
+            @endcan
+        </div>
+    </div>
+    @endif
 </div>
 @endif
 
@@ -69,6 +162,16 @@
                 <i class="bi bi-person-plus me-1"></i>Assign
             </button>
             @else
+            @can('manage-itam')
+            @if(! in_array($device->status, ['retired', 'scrapped'], true) && ! $pendingScrapId)
+            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#transferAssetModal"
+                    data-action="{{ route('admin.itam.transfer.device', $device) }}"
+                    data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}"
+                    data-holder="{{ $assigned->employee->name }}" data-holder-id="{{ $assigned->employee->id }}">
+                <i class="bi bi-arrow-left-right me-1"></i>Transfer
+            </button>
+            @endif
+            @endcan
             <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#returnModal">
                 <i class="bi bi-box-arrow-left me-1"></i>Return
             </button>
@@ -242,7 +345,38 @@
             </div>
             <div class="card-body p-0">
                 <table class="table table-sm table-borderless small mb-0">
-                    <tr><th class="text-muted ps-3" style="width:40%">Purchase Date</th>
+                    <tr><th class="text-muted ps-3" style="width:40%">Oracle Asset No.</th>
+                        <td>
+                            @if($device->oracle_asset_number)
+                                <span class="font-monospace">{{ $device->oracle_asset_number }}</span>
+                                @can('view-itam')
+                                <a href="{{ route('admin.itam.oracle-assets.index', ['q' => $device->oracle_asset_number]) }}" class="ms-1">register</a>
+                                @endcan
+                            @else
+                                —
+                                {{-- With an asset code the banner at the top carries this button already. --}}
+                                @if(! $device->asset_code && in_array($device->type, ['laptop', 'desktop'], true) && ! in_array($device->status, ['retired', 'scrapped'], true))
+                                @can('manage-itam')
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-bs-toggle="modal" data-bs-target="#oracleLinkModal"
+                                        data-action="{{ route('admin.itam.devices.oracle-link', $device) }}"
+                                        data-options-url="{{ route('admin.itam.devices.oracle-options', $device) }}"
+                                        data-asset="{{ trim(($device->asset_code ? $device->asset_code.' · ' : '').$device->name) }}">Link Oracle asset</button>
+                                @endcan
+                                @endif
+                            @endif
+                        </td></tr>
+                    @foreach($oracleUnits as $unit)
+                    <tr><th class="text-muted ps-3">In Oracle</th>
+                        <td>
+                            {{ $unit->description }}
+                            <div class="text-muted">
+                                Held by #{{ $unit->emp_no }} {{ $unit->emp_name }}
+                                @if($unit->purchase_date) · {{ $unit->purchase_date->format('d M Y') }}@if($unit->end_date) – {{ $unit->end_date->format('d M Y') }}@endif @endif
+                                @if($unit->removed_at)<span class="badge bg-light text-dark border ms-1">No longer in Oracle</span>@endif
+                            </div>
+                        </td></tr>
+                    @endforeach
+                    <tr><th class="text-muted ps-3">Purchase Date</th>
                         <td>{{ $device->purchase_date?->format('d M Y') ?: '—' }}</td></tr>
                     <tr><th class="text-muted ps-3">Warranty Exp.</th>
                         <td>
@@ -326,6 +460,16 @@
                             <span class="badge bg-{{ $az->link_status === 'linked' ? 'success' : ($az->link_status === 'pending' ? 'warning text-dark' : 'secondary') }}">
                                 {{ ucfirst($az->link_status) }}
                             </span>
+                        </td></tr>
+                    <tr><th class="text-muted ps-3">In Microsoft</th>
+                        <td>
+                            @if($az->isInIntune())
+                                <span class="badge bg-success">Managed by Intune</span>
+                            @else
+                                {{-- The row is kept when Microsoft drops the device: it is the
+                                     only record of what this asset was enrolled as. --}}
+                                <span class="badge bg-secondary">{{ $az->microsoftStateLabel() ?? 'Not linked' }}</span>
+                            @endif
                         </td></tr>
                 </table>
             </div>

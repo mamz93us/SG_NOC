@@ -64,12 +64,14 @@ class SyncAzureDevices extends Command
 
             ActivityLog::log(
                 "Azure device sync (CLI): {$result['synced']} synced, " .
-                "{$result['new']} new, {$result['auto_linked']} auto-linked"
+                "{$result['new']} new, {$result['auto_linked']} auto-linked, " .
+                "{$result['removed']} no longer in Microsoft, {$result['restored']} back"
             );
 
             $this->info(
                 "✅ Device sync completed. " .
-                "Synced: {$result['synced']} | New: {$result['new']} | Auto-linked: {$result['auto_linked']}"
+                "Synced: {$result['synced']} | New: {$result['new']} | Auto-linked: {$result['auto_linked']} | " .
+                "No longer in Microsoft: {$result['removed']} | Back: {$result['restored']}"
             );
 
             return self::SUCCESS;
