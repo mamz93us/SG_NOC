@@ -44,7 +44,7 @@
                         <td class="text-muted">{{ $domain->description ?: '—' }}</td>
                         <td class="text-center">
                             @if(!$domain->is_primary)
-                            <form method="POST" action="{{ route('admin.settings.domains.set-primary', $domain->id) }}" class="d-inline">
+                            <form method="POST" action="{{ route('admin.settings.domains.primary', $domain->id) }}" class="d-inline">
                                 @csrf @method('PATCH')
                                 <button type="submit" class="btn btn-sm btn-outline-warning" title="Set as primary">
                                     <i class="bi bi-star me-1"></i>Set Primary

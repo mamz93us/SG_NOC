@@ -114,13 +114,14 @@
                 <ul class="navbar-nav me-auto">
 
                     {{-- ── NOC dropdown (ops landing — first) ── --}}
-                    @can('view-noc')
+                    @canroute('admin.noc.dashboard', 'admin.logs.branches.index', 'admin.snmp-devices.index', 'admin.branch-agents.index', 'admin.noc.incidents.index', 'admin.deploy.index', 'portal.browser', 'admin.browser-portal.index', 'admin.alerts.dashboard')
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/noc*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-speedometer2 me-1"></i>NOC
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @canroute('admin.noc.dashboard', 'admin.noc.health', 'admin.noc.overview.index', 'admin.noc.alerts', 'admin.noc.extensions', 'admin.noc.events')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.noc.dashboard') ? 'active' : '' }}"
                                    href="{{ route('admin.noc.dashboard') }}">
@@ -161,7 +162,8 @@
                                     <i class="bi bi-clock-history me-2"></i>Events Log
                                 </a>
                             </li>
-                            @can('view-syslog')
+                            @endcanroute
+                            @canroute('admin.logs.branches.index', 'admin.logs.branches.sophos', 'admin.logs.branches.ucm')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.logs.branches.index') ? 'active' : '' }}"
                                    href="{{ route('admin.logs.branches.index') }}">
@@ -180,23 +182,24 @@
                                     <i class="bi bi-telephone-fill me-2 text-warning"></i>Branch Logs · UCM (by IP)
                                 </a>
                             </li>
-                            @can('manage-syslog')
+                            @endcanroute
+                            @canroute('admin.branches.log-collectors.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.branches.log-collectors.*') ? 'active' : '' }}"
                                    href="{{ route('admin.branches.log-collectors.index') }}">
                                     <i class="bi bi-hdd-network me-2 text-secondary"></i>Branch Log Collectors
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-branch-agents')
+                            @endcanroute
+                            @canroute('admin.branch-agents.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.branch-agents.*') ? 'active' : '' }}"
                                    href="{{ route('admin.branch-agents.index') }}">
                                     <i class="bi bi-pc-display-horizontal me-2 text-info"></i>Branch Agents
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-syslog')
+                            @endcanroute
+                            @canroute('admin.snmp-devices.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.snmp-devices.*') ? 'active' : '' }}"
                                    href="{{ route('admin.snmp-devices.index') }}">
@@ -213,8 +216,8 @@
                                 </a>
                             </li>
                             @endif
-                            @endcan
-                            @endcan
+                            @endcanroute
+                            @canroute('admin.noc.wallboard')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.noc.wallboard') ? 'active' : '' }}"
@@ -223,7 +226,8 @@
                                     <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
                                 </a>
                             </li>
-                            @canany(['view-incidents','manage-incidents'])
+                            @endcanroute
+                            @canroute('admin.noc.incidents.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.noc.incidents.*') ? 'active' : '' }}"
@@ -235,31 +239,35 @@
                                     @endif
                                 </a>
                             </li>
-                            @endcanany
+                            @endcanroute
+                            @canroute('admin.telnet.index', 'admin.deploy.index', 'portal.browser', 'admin.browser-portal.index')
                             <li><hr class="dropdown-divider"></li>
+                            @endcanroute
+                            @canroute('admin.telnet.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.telnet.*') ? 'active' : '' }}"
                                    href="{{ route('admin.telnet.index') }}">
                                     <i class="bi bi-terminal-fill me-2 text-success"></i>Telnet / SSH Client
                                 </a>
                             </li>
-                            @can('view-deploy-servers')
+                            @endcanroute
+                            @canroute('admin.deploy.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.deploy.*') ? 'active' : '' }}"
                                    href="{{ route('admin.deploy.index') }}">
                                     <i class="bi bi-rocket-takeoff-fill me-2 text-primary"></i>Deployment Servers
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-browser-portal')
+                            @endcanroute
+                            @canroute('portal.browser')
                             <li>
                                 <a class="dropdown-item" href="{{ route('portal.browser') }}" target="_blank">
                                     <i class="bi bi-shield-lock me-2 text-warning"></i>Remote Browser (Portal)
                                     <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-browser-portal')
+                            @endcanroute
+                            @canroute('admin.browser-portal.index', 'admin.browser-portal.events', 'admin.browser-portal.settings')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.browser-portal.index') || request()->routeIs('admin.browser-portal.logs') ? 'active' : '' }}"
                                    href="{{ route('admin.browser-portal.index') }}">
@@ -278,7 +286,8 @@
                                     <i class="bi bi-gear me-2 text-muted"></i>Browser — Settings
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
+                            @canroute('admin.alerts.dashboard')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.alerts.dashboard') || request()->routeIs('admin.alert-rules.*') ? 'active' : '' }}"
@@ -296,54 +305,56 @@
                                     @endif
                                 </a>
                             </li>
+                            @endcanroute
                         </ul>
                     </li>
-                    @endcan
+                    @endcanroute
 
                     {{-- ── Telephony dropdown (Contacts + UCM/Extensions + Call Quality) ── --}}
-                    @canany(['view-contacts','view-extensions','view-trunks','view-phones','view-voice-quality'])
+                    @canroute('admin.contacts.index', 'admin.extensions.index', 'admin.trunks.index', 'admin.phones.index', 'admin.phones.firmware.index', 'admin.voice-quality.dashboard')
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/contacts*','admin/extensions*','admin/trunks*','admin/gdms*','admin/phones*','admin/voice-quality*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-telephone-fill me-1"></i>Telephony
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
-                            @can('view-contacts')
+                            @canroute('admin.contacts.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/contacts*') ? 'active' : '' }}"
                                    href="{{ route('admin.contacts.index') }}">
                                     <i class="bi bi-person-lines-fill me-2"></i>Contacts
                                 </a>
                             </li>
-                            @endcan
-                            @canany(['view-extensions','view-trunks','view-phones'])
+                            @endcanroute
+                            @canroute('admin.extensions.index', 'admin.trunks.index', 'admin.gdms.ucm', 'admin.phones.index', 'admin.phones.firmware.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-hdd-stack me-1"></i>UCM / PBX</h6></li>
-                            @can('view-extensions')
+                            @endcanroute
+                            @canroute('admin.extensions.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/extensions*') ? 'active' : '' }}"
                                    href="{{ route('admin.extensions.index') }}">
                                     <i class="bi bi-telephone me-2"></i>Extensions
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-trunks')
+                            @endcanroute
+                            @canroute('admin.trunks.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/trunks*') ? 'active' : '' }}"
                                    href="{{ route('admin.trunks.index') }}">
                                     <i class="bi bi-hdd-network-fill me-2"></i>Trunks
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-extensions')
+                            @endcanroute
+                            @canroute('admin.gdms.ucm')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/gdms*') ? 'active' : '' }}"
                                    href="{{ route('admin.gdms.ucm') }}">
                                     <i class="bi bi-cloud-check-fill me-2"></i>UCM Status
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-phones')
+                            @endcanroute
+                            @canroute('admin.phones.index', 'admin.gdms.templates.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.phones.index', 'admin.phones.show', 'admin.phones.create') ? 'active' : '' }}"
                                    href="{{ route('admin.phones.index') }}">
@@ -356,8 +367,8 @@
                                     <i class="bi bi-file-earmark-code me-2"></i>Config Templates
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-phone-firmware')
+                            @endcanroute
+                            @canroute('admin.phones.firmware.index', 'admin.phones.firmware.status', 'admin.phones.firmware.downloads')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/phones/firmware') ? 'active' : '' }}"
                                    href="{{ route('admin.phones.firmware.index') }}">
@@ -376,19 +387,18 @@
                                     <i class="bi bi-download me-2"></i>Firmware Downloads
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
+                            @canroute('admin.telecom.landlines.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-telephone-inbound me-1"></i>Telecom</h6></li>
-                            @can('view-extensions')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/telecom/landlines*') ? 'active' : '' }}"
                                    href="{{ route('admin.telecom.landlines.index') }}">
                                     <i class="bi bi-telephone me-2"></i>Landlines
                                 </a>
                             </li>
-                            @endcan
-                            @endcanany
-                            @can('view-voice-quality')
+                            @endcanroute
+                            @canroute('admin.voice-quality.dashboard')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-soundwave me-1"></i>Call Quality</h6></li>
                             <li>
@@ -397,19 +407,20 @@
                                     <i class="bi bi-soundwave me-2 text-info"></i>Voice Quality
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                         </ul>
                     </li>
-                    @endcanany
+                    @endcanroute
 
                     {{-- ── Attendance dropdown (with Vacations) ── --}}
-                    @canany(['view-attendance', 'view-vacations'])
+                    @canroute('admin.people.index', 'admin.attendance.sources.index', 'admin.vacations.imports.index')
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/attendance*') || request()->is('admin/vacations*') || request()->is('admin/people*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-fingerprint me-1"></i>Attendance
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @canroute('admin.people.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.people.*') ? 'active' : '' }}"
                                    href="{{ route('admin.people.index') }}">
@@ -417,7 +428,8 @@
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>
-                            @can('view-attendance')
+                            @endcanroute
+                            @canroute('admin.attendance.days.index', 'admin.attendance.employees.index', 'admin.attendance.areas.index', 'admin.attendance.shifts.index', 'admin.attendance.holidays.index', 'admin.attendance.periods.index', 'admin.attendance.owners.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.attendance.days.*') ? 'active' : '' }}"
                                    href="{{ route('admin.attendance.days.index') }}">
@@ -460,7 +472,8 @@
                                     <i class="bi bi-shield-lock me-2"></i>Owners
                                 </a>
                             </li>
-                            @can('manage-attendance')
+                            @endcanroute
+                            @canroute('admin.attendance.sources.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.attendance.sources.*') ? 'active' : '' }}"
@@ -468,13 +481,12 @@
                                     <i class="bi bi-database-gear me-2"></i>BioTime Sources
                                 </a>
                             </li>
-                            @endcan
-                            @endcan
-                            @can('view-vacations')
-                            @can('view-attendance')
+                            @endcanroute
+                            @canroute('admin.vacations.balances.index', 'admin.vacations.absences.index', 'admin.vacations.imports.index')
                             <li><hr class="dropdown-divider"></li>
-                            @endcan
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-airplane me-1"></i>Vacations</h6></li>
+                            @endcanroute
+                            @canroute('admin.vacations.balances.index', 'admin.vacations.absences.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.vacations.balances.*') ? 'active' : '' }}"
                                    href="{{ route('admin.vacations.balances.index') }}">
@@ -487,28 +499,28 @@
                                     <i class="bi bi-calendar-range me-2"></i>Leave Records
                                 </a>
                             </li>
-                            @can('manage-vacations')
+                            @endcanroute
+                            @canroute('admin.vacations.imports.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.vacations.imports.*') ? 'active' : '' }}"
                                    href="{{ route('admin.vacations.imports.index') }}">
                                     <i class="bi bi-file-earmark-arrow-up me-2"></i>Import from Oracle
                                 </a>
                             </li>
-                            @endcan
-                            @endcan
+                            @endcanroute
                         </ul>
                     </li>
-                    @endcanany
+                    @endcanroute
 
                     {{-- ── Network dropdown (with Printers) ── --}}
-                    @canany(['view-network','view-printers','view-printer-usage','manage-printer-alerts','manage-printers','view-print-manager'])
+                    @canroute('admin.network.overview', 'admin.network.voice-mesh.index', 'admin.network.monitoring.index', 'admin.switch-qos.dashboard', 'admin.printers.index', 'admin.network.dhcp.index', 'admin.network.sophos.index', 'admin.network.fortigate.index', 'admin.network.access-points.index', 'admin.backups.index', 'admin.downloads.index', 'admin.radius.macs.index', 'admin.network.dns.index', 'admin.network.events', 'admin.printers.usage', 'admin.printers.branch.index', 'admin.intune-groups.index', 'admin.print-manager.index')
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/network*','admin/printers*','admin/print-manager*','admin/my-printers*','admin/intune-groups*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-diagram-3-fill me-1"></i>Network
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark dropdown-mega dropdown-mega-3 shadow">
-                            @can('view-network')
+                            @canroute('admin.network.overview', 'admin.network.tunnel-health.index', 'admin.network.tunnel-health.history', 'admin.network.tunnel-health.report')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.overview') ? 'active' : '' }}"
                                    href="{{ route('admin.network.overview') }}">
@@ -533,14 +545,16 @@
                                     <i class="bi bi-file-earmark-text me-2"></i>Tunnel Outage Report
                                 </a>
                             </li>
-                            @can('view-voice-mesh')
+                            @endcanroute
+                            @canroute('admin.network.voice-mesh.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.voice-mesh.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.voice-mesh.index') }}">
                                     <i class="bi bi-telephone-outbound me-2"></i>Voice Mesh
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
+                            @canroute('admin.network.isp.index', 'admin.network.isp-providers.index', 'admin.network.isp-report.index', 'admin.network.ip-reservations.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.isp.*') && ! request()->routeIs('admin.network.isp-report.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.isp.index') }}">
@@ -565,6 +579,8 @@
                                     <i class="bi bi-hdd-rack me-2"></i>IP Reservations
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.network.diagnostics.index', 'admin.network.monitoring.index', 'admin.network.monitoring.hosts.list', 'admin.network.monitoring.dashboard')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.diagnostics.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.diagnostics.index') }}">
@@ -589,12 +605,16 @@
                                     <i class="bi bi-speedometer2 me-2 text-info"></i>SNMP Dashboard
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.switch-qos.dashboard')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.switch-qos.*') ? 'active' : '' }}"
                                    href="{{ route('admin.switch-qos.dashboard') }}">
                                     <i class="bi bi-speedometer2 me-2 text-primary"></i>Switch QoS Monitor
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.network.workers.index', 'admin.network.scanner.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.workers.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.workers.index') }}">
@@ -607,39 +627,44 @@
                                     <i class="bi bi-radar me-2"></i>IP Scanner
                                 </a>
                             </li>
-                            @can('view-printers')
+                            @endcanroute
+                            @canroute('admin.network-discovery.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/network-discovery*') ? 'active' : '' }}"
                                    href="{{ route('admin.network-discovery.index') }}">
                                     <i class="bi bi-broadcast-pin me-2"></i>Network Discovery
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
+                            @canroute('admin.network.sla.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.sla.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.sla.index') }}">
                                     <i class="bi bi-graph-up me-2"></i>SLA Dashboard
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.network.ipam.index', 'admin.network.dhcp.index', 'admin.network.sophos.index', 'admin.network.fortigate.index', 'admin.network.access-points.index', 'admin.backups.index', 'admin.downloads.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-hdd-rack me-1"></i>IPAM / DHCP</h6></li>
-                            @can('view-network')
+                            @endcanroute
+                            @canroute('admin.network.ipam.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.ipam.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.ipam.index') }}">
                                     <i class="bi bi-grid-3x3 me-2"></i>IPAM Subnets
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-dhcp-leases')
+                            @endcanroute
+                            @canroute('admin.network.dhcp.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.dhcp.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.dhcp.index') }}">
                                     <i class="bi bi-hdd-network-fill me-2"></i>DHCP Leases
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-sophos')
+                            @endcanroute
+                            @canroute('admin.network.sophos.index', 'admin.network.sophos-central.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.sophos.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.sophos.index') }}">
@@ -652,40 +677,40 @@
                                     <i class="bi bi-cloud-fill me-2"></i>Sophos Central
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-fortigate')
+                            @endcanroute
+                            @canroute('admin.network.fortigate.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.fortigate.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.fortigate.index') }}">
                                     <i class="bi bi-bricks me-2"></i>FortiGate Firewalls
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-access-points')
+                            @endcanroute
+                            @canroute('admin.network.access-points.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.access-points.*') ? 'active' : '' }}"
                                    href="{{ route('admin.network.access-points.index') }}">
                                     <i class="bi bi-router me-2"></i>Access Points
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-backups')
+                            @endcanroute
+                            @canroute('admin.backups.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.backups.*') ? 'active' : '' }}"
                                    href="{{ route('admin.backups.index') }}">
                                     <i class="bi bi-shield-lock-fill me-2"></i>Device Backups
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-downloads')
+                            @endcanroute
+                            @canroute('admin.downloads.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.downloads.*') ? 'active' : '' }}"
                                    href="{{ route('admin.downloads.index') }}">
                                     <i class="bi bi-cloud-arrow-up-fill me-2"></i>Download Center
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-radius')
+                            @endcanroute
+                            @canroute('admin.radius.macs.index', 'admin.radius.nas.index', 'admin.radius.vlan.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-shield-lock me-1"></i>RADIUS / 802.1X</h6></li>
                             <li>
@@ -706,7 +731,8 @@
                                     <i class="bi bi-diagram-3 me-2"></i>VLAN Policy
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
+                            @canroute('admin.network.dns.index', 'admin.network.dns.lookup.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-globe2 me-1"></i>DNS</h6></li>
                             <li>
@@ -721,6 +747,8 @@
                                     <i class="bi bi-search me-2"></i>Domain Lookup
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.network.topology.index', 'admin.network.port-map.index', 'admin.network.switches', 'admin.network.clients')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.topology.*') ? 'active' : '' }}"
@@ -747,27 +775,27 @@
                                     <i class="bi bi-laptop me-2"></i>Clients
                                 </a>
                             </li>
-                            @can('view-network-events')
+                            @endcanroute
+                            @canroute('admin.network.events')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.network.events') ? 'active' : '' }}"
                                    href="{{ route('admin.network.events') }}">
                                     <i class="bi bi-clock-history me-2"></i>Change Monitor
                                 </a>
                             </li>
-                            @endcan
-                            @endcan
+                            @endcanroute
                             {{-- ── Printers (was its own top-level menu) ── --}}
-                            @can('view-network')
+                            @canroute('admin.network.overview')
                             <li><hr class="dropdown-divider"></li>
-                            @endcan
+                            @endcanroute
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-printer-fill me-1"></i>Printers</h6></li>
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/my-printers*') ? 'active' : '' }}"
-                                   href="/admin/my-printers">
+                                   href="{{ route('admin.my-printers') }}">
                                     <i class="bi bi-person-badge me-2"></i>My Printers
                                 </a>
                             </li>
-                            @can('view-printers')
+                            @canroute('admin.printers.dashboard', 'admin.printers.index', 'admin.printers.snmp.status', 'admin.printers.unified.index', 'admin.printers.drivers.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.printers.dashboard') ? 'active' : '' }}"
                                    href="{{ route('admin.printers.dashboard') }}">
@@ -798,32 +826,32 @@
                                     <i class="bi bi-file-earmark-arrow-down me-2"></i>Printer Drivers
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-printer-usage')
+                            @endcanroute
+                            @canroute('admin.printers.usage')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/printers/usage*') ? 'active' : '' }}"
                                    href="{{ route('admin.printers.usage') }}">
                                     <i class="bi bi-bar-chart-fill me-2 text-info"></i>Printer Usage Report
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-printer-alerts')
+                            @endcanroute
+                            @canroute('admin.printers.branch.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/printers/branch-settings*') ? 'active' : '' }}"
                                    href="{{ route('admin.printers.branch.index') }}">
                                     <i class="bi bi-bell-fill me-2 text-warning"></i>Printer Alert Settings
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-printers')
+                            @endcanroute
+                            @canroute('admin.intune-groups.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/intune-groups*') ? 'active' : '' }}"
                                    href="{{ route('admin.intune-groups.index') }}">
                                     <i class="bi bi-collection me-2 text-primary"></i>Intune Groups
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-print-manager')
+                            @endcanroute
+                            @canroute('admin.print-manager.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-cloud-arrow-up me-1"></i>CUPS / IPP Proxy</h6></li>
                             <li>
@@ -832,13 +860,13 @@
                                     <i class="bi bi-printer me-2 text-info"></i>Print Manager
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                         </ul>
                     </li>
-                    @endcanany
+                    @endcanroute
 
                     {{-- ── Assets + ITAM dropdown ── --}}
-                    @canany(['view-assets','view-credentials','view-employees','view-itam','view-licenses','view-accessories','view-wallpapers'])
+                    @canroute('admin.devices.index', 'admin.credentials.index', 'admin.employees.index', 'admin.itam.dashboard', 'admin.itam.licenses.index', 'admin.itam.accessories.index', 'admin.wallpapers.index', 'admin.itam.transfer.index', 'admin.itam.scrap.index')
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/devices*','admin/credentials*','admin/employees*','admin/itam*','admin/wallpapers*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -846,7 +874,7 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark dropdown-mega shadow">
                             {{-- ── Device Inventory ── --}}
-                            @can('view-assets')
+                            @canroute('admin.devices.index', 'admin.devices.warranty', 'admin.devices.firmware', 'admin.devices.models.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.devices.index') ? 'active' : '' }}"
                                    href="{{ route('admin.devices.index') }}">
@@ -871,8 +899,8 @@
                                     <i class="bi bi-collection me-2"></i>Device Models
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-assets')
+                            @endcanroute
+                            @canroute('admin.devices.phone-auto-assign', 'admin.devices.import')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.devices.phone-auto-assign') ? 'active' : '' }}"
                                    href="{{ route('admin.devices.phone-auto-assign') }}">
@@ -885,17 +913,17 @@
                                     <i class="bi bi-file-earmark-spreadsheet me-2"></i>Import MAC/Serial
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                             {{-- Printer pages live in the Network menu --}}
-                            @can('view-credentials')
+                            @canroute('admin.credentials.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/credentials*') ? 'active' : '' }}"
                                    href="{{ route('admin.credentials.index') }}">
                                     <i class="bi bi-key-fill me-2"></i>Credentials
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-employees')
+                            @endcanroute
+                            @canroute('admin.employees.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/employees*') ? 'active' : '' }}"
@@ -903,13 +931,13 @@
                                     <i class="bi bi-person-vcard-fill me-2"></i>Employees
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
 
                             {{-- ── ITAM section ── --}}
-                            @canany(['view-itam','view-licenses','view-accessories'])
+                            @canroute('admin.itam.dashboard', 'admin.itam.licenses.index', 'admin.itam.accessories.index', 'admin.wallpapers.index')
                             <li><hr class="dropdown-divider"></li>
-                            @endcanany
-                            @can('view-itam')
+                            @endcanroute
+                            @canroute('admin.itam.dashboard', 'admin.itam.purchase-orders.index', 'admin.itam.suppliers.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.dashboard') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.dashboard') }}">
@@ -928,77 +956,77 @@
                                     <i class="bi bi-shop me-2"></i>Suppliers
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-licenses')
+                            @endcanroute
+                            @canroute('admin.itam.licenses.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.licenses.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.licenses.index') }}">
                                     <i class="bi bi-file-earmark-check me-2"></i>Software Licenses
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-accessories')
+                            @endcanroute
+                            @canroute('admin.itam.accessories.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.accessories.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.accessories.index') }}">
                                     <i class="bi bi-box-seam me-2"></i>Accessories
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-itam')
+                            @endcanroute
+                            @canroute('admin.itam.azure.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.azure.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.azure.index') }}">
                                     <i class="bi bi-microsoft me-2"></i>Azure Device Sync
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-itam')
+                            @endcanroute
+                            @canroute('admin.itam.oracle-assets.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.oracle-assets.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.oracle-assets.index') }}">
                                     <i class="bi bi-journal-check me-2"></i>Oracle Asset Register
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-wallpapers')
+                            @endcanroute
+                            @canroute('admin.wallpapers.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/wallpapers*') ? 'active' : '' }}"
                                    href="{{ route('admin.wallpapers.index') }}">
                                     <i class="bi bi-image me-2"></i>Managed Wallpapers
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-itam')
+                            @endcanroute
+                            @canroute('admin.itam.mac-address')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.mac-address') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.mac-address') }}">
                                     <i class="bi bi-fingerprint me-2"></i>MAC Registry
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
 
                             {{-- ── Asset Operations: Transfer / Stores / Scrap / Reports ── --}}
-                            @canany(['manage-itam','view-itam','request-scrap'])
+                            @canroute('admin.itam.transfer.index', 'admin.itam.stores.index', 'admin.itam.scrap.index', 'admin.itam.reports.index')
                             <li><hr class="dropdown-divider"></li>
-                            @endcanany
-                            @can('manage-itam')
+                            @endcanroute
+                            @canroute('admin.itam.transfer.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.transfer.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.transfer.index') }}">
                                     <i class="bi bi-arrow-left-right me-2"></i>Asset Transfer
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-itam')
+                            @endcanroute
+                            @canroute('admin.itam.stores.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.stores.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.stores.index') }}">
                                     <i class="bi bi-box-seam me-2"></i>Branch Stores
                                 </a>
                             </li>
-                            @endcan
-                            @can('request-scrap')
+                            @endcanroute
+                            @canroute('admin.itam.scrap.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.scrap.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.scrap.index') }}">
@@ -1009,16 +1037,16 @@
                                     @endif
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-itam')
+                            @endcanroute
+                            @canroute('admin.itam.reports.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.itam.reports.*') ? 'active' : '' }}"
                                    href="{{ route('admin.itam.reports.index') }}">
                                     <i class="bi bi-file-earmark-bar-graph me-2"></i>Asset Reports
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-assets')
+                            @endcanroute
+                            @canroute('admin.devices.scan')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.devices.scan') ? 'active' : '' }}"
@@ -1026,28 +1054,28 @@
                                     <i class="bi bi-qr-code-scan me-2"></i>QR Scanner
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                         </ul>
                     </li>
-                    @endcanany
+                    @endcanroute
 
                     {{-- ── Workflows dropdown ── --}}
-                    @canany(['view-workflows','manage-workflows','approve-workflows'])
+                    @canroute('admin.workflows.my-requests', 'admin.workflows.pending', 'admin.workflows.create', 'admin.offboarding.index', 'admin.avepoint.dashboard', 'admin.workflow-templates.index', 'admin.forms.index')
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/workflows*','admin/forms*','admin/workflow-templates*','admin/form-previews*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-diagram-2-fill me-1"></i>Workflows
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
-                            @can('view-workflows')
+                            @canroute('admin.workflows.my-requests')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.workflows.my-requests') ? 'active' : '' }}"
                                    href="{{ route('admin.workflows.my-requests') }}">
                                     <i class="bi bi-send me-2"></i>My Requests
                                 </a>
                             </li>
-                            @endcan
-                            @can('approve-workflows')
+                            @endcanroute
+                            @canroute('admin.workflows.pending')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.workflows.pending') ? 'active' : '' }}"
                                    href="{{ route('admin.workflows.pending') }}">
@@ -1058,8 +1086,8 @@
                                     @endif
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-workflows')
+                            @endcanroute
+                            @canroute('admin.workflows.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.workflows.index') ? 'active' : '' }}"
@@ -1067,8 +1095,8 @@
                                     <i class="bi bi-list-ul me-2"></i>All Workflows
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-workflows')
+                            @endcanroute
+                            @canroute('admin.workflows.create')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.workflows.create') ? 'active' : '' }}"
@@ -1076,8 +1104,8 @@
                                     <i class="bi bi-plus-circle-fill me-2"></i>New Request
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-offboarding')
+                            @endcanroute
+                            @canroute('admin.offboarding.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.offboarding.*') ? 'active' : '' }}"
@@ -1085,18 +1113,16 @@
                                     <i class="bi bi-person-x-fill me-2 text-danger"></i>Offboarding
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-avepoint')
+                            @endcanroute
+                            @canroute('admin.avepoint.dashboard')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.avepoint.*') ? 'active' : '' }}"
                                    href="{{ route('admin.avepoint.dashboard') }}">
                                     <i class="bi bi-cloud-arrow-down-fill me-2 text-info"></i>AvePoint Backups
                                 </a>
                             </li>
-                            @endcan
-                            {{-- Guarded: a stale route cache must not take the whole admin panel down --}}
-                            @if (Route::has('admin.form-previews.onboarding'))
-                            @can('view-workflows')
+                            @endcanroute
+                            @canroute('admin.form-previews.onboarding', 'admin.form-previews.offboarding')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-eye me-1"></i>Manager Form Previews</h6></li>
                             <li>
@@ -1113,9 +1139,8 @@
                                     <i class="bi bi-box-arrow-up-right ms-1 small opacity-50"></i>
                                 </a>
                             </li>
-                            @endcan
-                            @endif
-                            @can('manage-workflow-templates')
+                            @endcanroute
+                            @canroute('admin.workflow-templates.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.workflow-templates.index') ? 'active' : '' }}"
@@ -1125,14 +1150,14 @@
                             </li>
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/workflow-templates/*/builder') ? 'active' : '' }}"
-                                   href="/admin/workflow-templates"
+                                   href="{{ route('admin.workflow-templates.index') }}"
                                    title="Open visual builder from any template row">
                                     <i class="bi bi-node-plus me-2"></i>Visual Builder
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                             {{-- ── Forms (moved from the standalone Forms menu) ── --}}
-                            @can('manage-workflows')
+                            @canroute('admin.forms.index', 'admin.forms.create')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-ui-checks-grid me-1"></i>Forms</h6></li>
                             <li>
@@ -1147,19 +1172,20 @@
                                     <i class="bi bi-plus-circle-fill me-2"></i>New Form
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                         </ul>
                     </li>
-                    @endcanany
+                    @endcanroute
 
                     {{-- ── Identity dropdown ── --}}
-                    @can('view-identity')
+                    @canroute('admin.identity.users', 'admin.identity.group-mappings.index')
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/identity*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-people-fill me-1"></i>Identity
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @canroute('admin.identity.users', 'admin.identity.licenses', 'admin.identity.groups')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.identity.users') ? 'active' : '' }}"
                                    href="{{ route('admin.identity.users') }}">
@@ -1178,15 +1204,17 @@
                                     <i class="bi bi-collection me-2"></i>Groups
                                 </a>
                             </li>
-                            @can('manage-identity')
+                            @endcanroute
+                            @canroute('admin.identity.group-mappings.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/identity/group-mappings*') ? 'active' : '' }}"
-                                   href="/admin/identity/group-mappings">
+                                   href="{{ route('admin.identity.group-mappings.index') }}">
                                     <i class="bi bi-diagram-3 me-2"></i>Group Auto-Assignments
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
+                            @canroute('admin.identity.contact-sync', 'admin.identity.linked-accounts', 'admin.identity.hr-import', 'admin.identity.sync-logs')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.identity.contact-sync') ? 'active' : '' }}"
@@ -1212,23 +1240,24 @@
                                     <i class="bi bi-clock-history me-2"></i>Sync Logs
                                 </a>
                             </li>
+                            @endcanroute
                         </ul>
                     </li>
-                    @endcan
+                    @endcanroute
 
                     {{-- Documentation, Marketing, Teamtailor & Admin Tools folded into the Admin menu below --}}
 
                     {{-- Create Ticket / My Tickets are employee links — kept off the admin menu bar --}}
 
                     {{-- ── AI dropdown (every AI Assistant page in one place) ── --}}
-                    @canany(['manage-ai-assistant','answer-ai-knowledge-gaps','view-ai-conversations','use-recruitment-ai','manage-ai-access'])
+                    @canroute('admin.ai-assistant.knowledge.index', 'admin.ai-assistant.knowledge-gaps.index', 'admin.recruitment-ai.index', 'admin.ai-assistant.conversations.index', 'admin.ai-assistant.access.index', 'admin.settings.index')
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/ai-assistant*') || request()->is('admin/recruitment-ai*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-robot me-1"></i>AI
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
-                            @can('manage-ai-assistant')
+                            @canroute('admin.ai-assistant.knowledge.index', 'admin.ai-assistant.knowledge.websites.index', 'admin.ai-assistant.knowledge-stats')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge.*') && ! request()->routeIs('admin.ai-assistant.knowledge.websites.*') ? 'active' : '' }}"
                                    href="{{ route('admin.ai-assistant.knowledge.index') }}">
@@ -1247,24 +1276,24 @@
                                     <i class="bi bi-bar-chart me-2"></i>Knowledge Statistics
                                 </a>
                             </li>
-                            @endcan
-                            @can('answer-ai-knowledge-gaps')
+                            @endcanroute
+                            @canroute('admin.ai-assistant.knowledge-gaps.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.knowledge-gaps.*') ? 'active' : '' }}"
                                    href="{{ route('admin.ai-assistant.knowledge-gaps.index') }}">
                                     <i class="bi bi-question-circle me-2"></i>Knowledge Gaps
                                 </a>
                             </li>
-                            @endcan
-                            @can('use-recruitment-ai')
+                            @endcanroute
+                            @canroute('admin.recruitment-ai.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.recruitment-ai.*') ? 'active' : '' }}"
                                    href="{{ route('admin.recruitment-ai.index') }}">
                                     <i class="bi bi-person-check me-2"></i>Recruitment AI
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-ai-conversations')
+                            @endcanroute
+                            @canroute('admin.ai-assistant.conversations.index', 'admin.ai-assistant.usage')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.conversations.*') ? 'active' : '' }}"
@@ -1278,8 +1307,8 @@
                                     <i class="bi bi-graph-up me-2"></i>Usage
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-ai-access')
+                            @endcanroute
+                            @canroute('admin.ai-assistant.access.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.access.*') ? 'active' : '' }}"
@@ -1287,47 +1316,47 @@
                                     <i class="bi bi-shield-check me-2"></i>AI Access
                                 </a>
                             </li>
-                            @endcan
-                            @canany(['manage-ai-assistant','manage-settings'])
+                            @endcanroute
+                            @canroute('admin.ai-assistant.instructions.edit', 'admin.settings.index')
                             <li><hr class="dropdown-divider"></li>
-                            @endcanany
-                            @can('manage-ai-assistant')
+                            @endcanroute
+                            @canroute('admin.ai-assistant.instructions.edit')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.ai-assistant.instructions.*') ? 'active' : '' }}"
                                    href="{{ route('admin.ai-assistant.instructions.edit') }}">
                                     <i class="bi bi-card-text me-2"></i>Instructions
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                             {{-- The Azure OpenAI connection is a card on General Settings --}}
-                            @can('manage-settings')
+                            @canroute('admin.settings.index')
                             <li>
                                 <a class="dropdown-item" href="{{ route('admin.settings.index') }}#ai-assistant">
                                     <i class="bi bi-sliders me-2"></i>Assistant Settings
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                         </ul>
                     </li>
-                    @endcanany
+                    @endcanroute
 
                     {{-- ── Exams dropdown (practice exams for the team) ── --}}
-                    @canany(['take-exams','manage-exams'])
+                    @canroute('admin.exams.index', 'admin.exams.results.index', 'admin.exams.manage.index')
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/exams*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-mortarboard me-1"></i>Exams
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
-                            @can('take-exams')
+                            @canroute('admin.exams.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.exams.index', 'admin.exams.show') ? 'active' : '' }}"
                                    href="{{ route('admin.exams.index') }}">
                                     <i class="bi bi-pencil-square me-2"></i>Take an exam
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-exams')
+                            @endcanroute
+                            @canroute('admin.exams.results.index', 'admin.exams.manage.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.exams.results.*') ? 'active' : '' }}"
@@ -1341,259 +1370,297 @@
                                     <i class="bi bi-collection me-2"></i>Exams &amp; question banks
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                         </ul>
                     </li>
-                    @endcanany
+                    @endcanroute
 
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
-                    @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','view-mail-delivery','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines','view-knowbe4-scores','manage-portal-documents'])
+                    @canroute(
+                        'admin.settings.index', 'admin.mail-senders.index', 'admin.email-templates.index', 'admin.business-apps.index',
+                        'admin.ticket-stats.index', 'admin.tickets.index', 'admin.announcements.index', 'admin.portal-documents.index',
+                        'admin.archive.index', 'admin.greeting-lines.index', 'admin.knowbe4.index', 'admin.settings.locations',
+                        'admin.branches.index', 'admin.settings.departments', 'admin.settings.domains', 'admin.settings.asset-types',
+                        'admin.settings.internet-access-levels.index', 'admin.settings.provisioning-licenses', 'admin.api-docs', 'admin.hr-api-keys.index',
+                        'admin.access-gateway.index', 'admin.access-gateway.audit', 'admin.users.index', 'admin.roles.index',
+                        'admin.permissions.index', 'admin.server-status', 'admin.notification-rules.index', 'admin.sync-status',
+                        'admin.email-log.index', 'admin.mail-delivery.index', 'admin.license-monitors.index', 'admin.phone-logs.index',
+                        'admin.activity-logs', 'admin.smtp-relay.index', 'admin.documentation.index', 'admin.candidates.index',
+                        'admin.email-marketing.settings', 'portal.marketing.dashboard', 'admin.signatures.index', 'admin.admin-links.index'
+                    )
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ request()->is('admin/settings*','admin/users*','admin/permissions*','admin/phone-logs*','admin/activity-logs*','admin/branches*','admin/notifications*','admin/license-monitors*','admin/internet-access-levels*','admin/email-templates*','admin/documentation*','admin/email-marketing*','admin/admin-links*','admin/jobs*','admin/candidates*','admin/signatures*','admin/access-gateway*','admin/smtp-relay*','admin/tickets*','admin/announcements*','admin/greeting-lines*','admin/knowbe4*') ? 'active' : '' }}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-gear-fill me-1"></i>Admin
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark dropdown-mega shadow">
-                            @can('manage-settings')
+                            @canroute('admin.settings.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.settings.index') ? 'active' : '' }}"
                                    href="{{ route('admin.settings.index') }}">
                                     <i class="bi bi-sliders me-2"></i>General Settings
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.mail-senders.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.mail-senders.*') ? 'active' : '' }}"
                                    href="{{ route('admin.mail-senders.index') }}">
                                     <i class="bi bi-envelope-at me-2"></i>Sender Addresses
                                 </a>
                             </li>
-                            @if (Route::has('admin.email-templates.index'))
+                            @endcanroute
+                            @canroute('admin.email-templates.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.email-templates.*') ? 'active' : '' }}"
                                    href="{{ route('admin.email-templates.index') }}">
                                     <i class="bi bi-envelope-paper me-2"></i>Email Templates
                                 </a>
                             </li>
-                            @endif
+                            @endcanroute
+                            @canroute('admin.business-apps.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.business-apps.*') ? 'active' : '' }}"
                                    href="{{ route('admin.business-apps.index') }}">
                                     <i class="bi bi-app-indicator me-2"></i>Business App Accounts
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.ticket-stats.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.ticket-stats.*') ? 'active' : '' }}"
                                    href="{{ route('admin.ticket-stats.index') }}">
                                     <i class="bi bi-ticket-detailed me-2"></i>Ticket Portal Stats
                                 </a>
                             </li>
-                            @can('view-tickets')
+                            @endcanroute
+                            @canroute('admin.tickets.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.tickets.index') || request()->routeIs('admin.tickets.show') ? 'active' : '' }}"
                                    href="{{ route('admin.tickets.index') }}">
                                     <i class="bi bi-clock-history me-2"></i>Ticket Submissions
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-announcements')
+                            @endcanroute
+                            @canroute('admin.announcements.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.announcements.*') ? 'active' : '' }}"
                                    href="{{ route('admin.announcements.index') }}">
                                     <i class="bi bi-megaphone-fill me-2"></i>Announcements
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-portal-documents')
+                            @endcanroute
+                            @canroute('admin.portal-documents.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.portal-documents.*') ? 'active' : '' }}"
                                    href="{{ route('admin.portal-documents.index') }}">
                                     <i class="bi bi-folder2-open me-2"></i>Employee Documents
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-archive-portal')
+                            @endcanroute
+                            @canroute('admin.archive.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.archive.*') ? 'active' : '' }}"
                                    href="{{ route('admin.archive.index') }}">
                                     <i class="bi bi-archive me-2"></i>Document Archive
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-greeting-lines')
+                            @endcanroute
+                            @canroute('admin.greeting-lines.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.greeting-lines.*') ? 'active' : '' }}"
                                    href="{{ route('admin.greeting-lines.index') }}">
                                     <i class="bi bi-chat-heart-fill me-2"></i>Greeting Lines
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-knowbe4-scores')
+                            @endcanroute
+                            @canroute('admin.knowbe4.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.knowbe4.*') ? 'active' : '' }}"
                                    href="{{ route('admin.knowbe4.index') }}">
                                     <i class="bi bi-shield-check me-2"></i>Security Awareness
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
+                            @canroute('admin.settings.locations', 'admin.branches.index', 'admin.settings.departments', 'admin.settings.domains', 'admin.settings.asset-types', 'admin.settings.internet-access-levels.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-building me-1"></i>Organisation</h6></li>
+                            @endcanroute
+                            @canroute('admin.settings.locations')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.settings.locations') ? 'active' : '' }}"
                                    href="{{ route('admin.settings.locations') }}">
                                     <i class="bi bi-geo-alt-fill me-2"></i>Locations
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.branches.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/branches*') ? 'active' : '' }}"
                                    href="{{ route('admin.branches.index') }}">
                                     <i class="bi bi-building me-2"></i>Branches
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.settings.departments')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.settings.departments') ? 'active' : '' }}"
                                    href="{{ route('admin.settings.departments') }}">
                                     <i class="bi bi-grid-1x2-fill me-2"></i>Departments
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.settings.domains')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.settings.domains') ? 'active' : '' }}"
                                    href="{{ route('admin.settings.domains') }}">
                                     <i class="bi bi-globe me-2"></i>Allowed Domains
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.settings.asset-types')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.settings.asset-types') ? 'active' : '' }}"
                                    href="{{ route('admin.settings.asset-types') }}">
                                     <i class="bi bi-tags-fill me-2"></i>Asset Types & Codes
                                 </a>
                             </li>
-                            {{-- ── Internet Access Levels (guarded until route is registered) ── --}}
-                            @if (Route::has('admin.settings.internet-access-levels.index'))
+                            @endcanroute
+                            @canroute('admin.settings.internet-access-levels.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.settings.internet-access-levels.*') ? 'active' : '' }}"
                                    href="{{ route('admin.settings.internet-access-levels.index') }}">
                                     <i class="bi bi-wifi me-2"></i>Internet Access Levels
                                 </a>
                             </li>
-                            @endif
+                            @endcanroute
+                            @canroute('admin.settings.provisioning-licenses', 'admin.api-docs', 'admin.hr-api-keys.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-cloud-check me-1"></i>Provisioning</h6></li>
+                            @endcanroute
+                            @canroute('admin.settings.provisioning-licenses')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.settings.provisioning-licenses') ? 'active' : '' }}"
                                    href="{{ route('admin.settings.provisioning-licenses') }}">
                                     <i class="bi bi-patch-check-fill me-2"></i>Provisioning Licenses
                                 </a>
                             </li>
+                            @endcanroute
+                            @canroute('admin.api-docs')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/api-docs*') ? 'active' : '' }}"
-                                   href="/admin/api-docs">
+                                   href="{{ route('admin.api-docs') }}">
                                     <i class="bi bi-code-slash me-2"></i>HR API Docs & Keys
                                 </a>
                             </li>
-                            @can('manage-settings')
+                            @endcanroute
+                            @canroute('admin.hr-api-keys.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.hr-api-keys.*') ? 'active' : '' }}"
-                                   href="/admin/hr-api-keys">
+                                   href="{{ route('admin.hr-api-keys.index') }}">
                                     <i class="bi bi-key me-2"></i>HR API Keys
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
+                            @canroute('admin.access-gateway.index', 'admin.access-gateway.audit', 'admin.users.index', 'admin.roles.index', 'admin.permissions.index')
                             <li><hr class="dropdown-divider"></li>
-                            @endcan
-                            @canany(['manage-agw-allowlist','view-agw-audit'])
+                            @endcanroute
+                            @canroute('admin.access-gateway.index', 'admin.access-gateway.audit')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/access-gateway*') ? 'active' : '' }}"
                                    href="{{ route(auth()->user()->can('manage-agw-allowlist') ? 'admin.access-gateway.index' : 'admin.access-gateway.audit') }}">
                                     <i class="bi bi-shield-lock me-2"></i>Access Gateway
                                 </a>
                             </li>
-                            @endcanany
-                            @can('manage-users')
+                            @endcanroute
+                            @canroute('admin.users.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/users*') ? 'active' : '' }}"
                                    href="{{ route('admin.users.index') }}">
                                     <i class="bi bi-person-badge-fill me-2"></i>Users
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-roles')
+                            @endcanroute
+                            @canroute('admin.roles.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/roles*') ? 'active' : '' }}"
                                    href="{{ route('admin.roles.index') }}">
                                     <i class="bi bi-people-fill me-2"></i>Roles
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-permissions')
+                            @endcanroute
+                            @canroute('admin.permissions.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/permissions*') ? 'active' : '' }}"
                                    href="{{ route('admin.permissions.index') }}">
                                     <i class="bi bi-shield-lock-fill me-2"></i>Permissions
                                 </a>
                             </li>
-                            @endcan
-                            @canany(['manage-notification-rules','view-email-logs','view-mail-delivery','manage-license-monitors','manage-allowed-domains','view-server-status'])
+                            @endcanroute
+                            @canroute('admin.server-status', 'admin.notification-rules.index', 'admin.sync-status', 'admin.email-log.index', 'admin.mail-delivery.index', 'admin.license-monitors.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-layers me-1"></i>Platform</h6></li>
-                            @can('view-server-status')
+                            @canroute('admin.server-status')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.server-status') ? 'active' : '' }}"
                                    href="{{ route('admin.server-status') }}">
                                     <i class="bi bi-hdd-rack-fill me-2"></i>Server Status
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-notification-rules')
+                            @endcanroute
+                            @canroute('admin.notification-rules.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.notification-rules.index') ? 'active' : '' }}"
                                    href="{{ route('admin.notification-rules.index') }}">
                                     <i class="bi bi-funnel-fill me-2"></i>Notification Rules
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
+                            @canroute('admin.sync-status')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.sync-status') ? 'active' : '' }}"
                                    href="{{ route('admin.sync-status') }}">
                                     <i class="bi bi-arrow-repeat me-2"></i>Sync Status
                                 </a>
                             </li>
-                            @can('view-email-logs')
+                            @endcanroute
+                            @canroute('admin.email-log.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.email-log.index') ? 'active' : '' }}"
                                    href="{{ route('admin.email-log.index') }}">
                                     <i class="bi bi-envelope-check me-2"></i>Email Log
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-mail-delivery')
+                            @endcanroute
+                            @canroute('admin.mail-delivery.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.mail-delivery.*') ? 'active' : '' }}"
                                    href="{{ route('admin.mail-delivery.index') }}">
                                     <i class="bi bi-send-check me-2 text-primary"></i>Mail Delivery (SES)
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-license-monitors')
+                            @endcanroute
+                            @canroute('admin.license-monitors.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.license-monitors.index') ? 'active' : '' }}"
                                    href="{{ route('admin.license-monitors.index') }}">
                                     <i class="bi bi-clipboard2-pulse me-2"></i>License Monitors
                                 </a>
                             </li>
-                            @endcan
-                            @endcanany
-                            @canany(['view-phone-logs','view-activity-logs'])
+                            @endcanroute
+                            @endcanroute
+                            @canroute('admin.phone-logs.index', 'admin.activity-logs', 'admin.smtp-relay.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-journal-text me-1"></i>Logs</h6></li>
-                            @can('view-phone-logs')
+                            @canroute('admin.phone-logs.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/phone-logs*') ? 'active' : '' }}"
                                    href="{{ route('admin.phone-logs.index') }}">
                                     <i class="bi bi-telephone-inbound-fill me-2"></i>Phone Logs
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-activity-logs')
+                            @endcanroute
+                            @canroute('admin.activity-logs', 'admin.access-stats.index')
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/activity-logs*') ? 'active' : '' }}"
                                    href="{{ route('admin.activity-logs') }}">
@@ -1606,18 +1673,18 @@
                                     <i class="bi bi-people me-2"></i>Access Analytics
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-smtp-relay')
+                            @endcanroute
+                            @canroute('admin.smtp-relay.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.smtp-relay.*') ? 'active' : '' }}"
                                    href="{{ route('admin.smtp-relay.index') }}">
                                     <i class="bi bi-envelope-paper me-2"></i>SMTP Relay Log
                                 </a>
                             </li>
-                            @endcan
-                            @endcanany
+                            @endcanroute
+                            @endcanroute
                             {{-- ── Documentation (folded into Admin) ── --}}
-                            @can('view-documentation')
+                            @canroute('admin.documentation.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/documentation*') ? 'active' : '' }}"
@@ -1625,9 +1692,9 @@
                                     <i class="bi bi-book-fill me-2"></i>Documentation
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                             {{-- ── Recruitment / Teamtailor (folded into Admin) ── --}}
-                            @can('view-candidates')
+                            @canroute('admin.jobs.index', 'admin.candidates.index')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-people-fill me-1"></i>Recruitment</h6></li>
                             <li>
@@ -1642,20 +1709,20 @@
                                     <i class="bi bi-person-rolodex me-2"></i>Candidates
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                             {{-- ── Email Marketing (folded into Admin) ── --}}
-                            @canany(['manage-email-marketing','manage-email-marketing-settings','view-email-marketing'])
+                            @canroute('admin.email-marketing.settings', 'admin.email-marketing.suppressions', 'admin.email-marketing.quota', 'admin.email-marketing.senders.index', 'portal.marketing.dashboard')
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header text-secondary"><i class="bi bi-envelope-paper me-1"></i>Email Marketing</h6></li>
-                            @can('manage-email-marketing-settings')
+                            @canroute('admin.email-marketing.settings')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.settings') ? 'active' : '' }}"
                                    href="{{ route('admin.email-marketing.settings') }}">
                                     <i class="bi bi-gear me-2"></i>SES Settings
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-email-marketing')
+                            @endcanroute
+                            @canroute('admin.email-marketing.suppressions', 'admin.email-marketing.quota')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.suppressions') ? 'active' : '' }}"
                                    href="{{ route('admin.email-marketing.suppressions') }}">
@@ -1668,26 +1735,26 @@
                                     <i class="bi bi-speedometer2 me-2"></i>Quota &amp; Status
                                 </a>
                             </li>
-                            @endcan
-                            @can('manage-email-marketing-settings')
+                            @endcanroute
+                            @canroute('admin.email-marketing.senders.index')
                             <li>
                                 <a class="dropdown-item {{ request()->routeIs('admin.email-marketing.senders.*') ? 'active' : '' }}"
                                    href="{{ route('admin.email-marketing.senders.index') }}">
                                     <i class="bi bi-person-badge me-2"></i>Sender Allowlist
                                 </a>
                             </li>
-                            @endcan
-                            @can('view-email-marketing')
+                            @endcanroute
+                            @canroute('portal.marketing.dashboard')
                             <li>
                                 <a class="dropdown-item" href="{{ route('portal.marketing.dashboard') }}" target="_blank">
                                     <i class="bi bi-grid me-2 text-info"></i>Marketing Portal
                                     <i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:.65rem"></i>
                                 </a>
                             </li>
-                            @endcan
-                            @endcanany
+                            @endcanroute
+                            @endcanroute
                             {{-- ── Email Signatures ── --}}
-                            @can('manage-signatures')
+                            @canroute('admin.signatures.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/signatures*') ? 'active' : '' }}"
@@ -1695,9 +1762,9 @@
                                     <i class="bi bi-envelope-paper-fill me-2"></i>Email Signatures
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                             {{-- ── Admin Tools (folded into Admin) ── --}}
-                            @can('view-admin-links')
+                            @canroute('admin.admin-links.index')
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->is('admin/admin-links*') ? 'active' : '' }}"
@@ -1705,10 +1772,10 @@
                                     <i class="bi bi-grid-3x3-gap-fill me-2"></i>Admin Tools
                                 </a>
                             </li>
-                            @endcan
+                            @endcanroute
                         </ul>
                     </li>
-                    @endcanany
+                    @endcanroute
 
                 </ul>
 

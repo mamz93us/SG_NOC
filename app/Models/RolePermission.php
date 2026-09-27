@@ -99,9 +99,22 @@ class RolePermission extends Model
                 'manage-identity-settings' => 'Manage Microsoft Graph API Settings',
             ],
             'Administration' => [
-                'manage-settings' => 'Access & Edit Settings',
+                'manage-settings' => 'Edit General Settings (integration credentials, SSO, SMTP, UCM servers, portal options)',
                 'manage-users' => 'Manage Users',
                 'manage-permissions' => 'Manage Role Permissions',
+                'manage-mail-senders' => 'Manage Sender Addresses (the From address each service sends as)',
+                'manage-email-templates' => 'Edit Email Templates',
+                'manage-business-apps' => 'Manage Business App Accounts (who is asked to create each app account, and its Azure group)',
+                'manage-sync-status' => 'View Sync Status, Change Sync Intervals & Run a Sync Now',
+                'view-api-docs' => 'View API Documentation (HR & Attendance APIs)',
+                'manage-hr-api-keys' => 'Create / Revoke API Keys (machine access to HR & attendance data)',
+            ],
+            'Organisation' => [
+                'manage-locations' => 'Manage Locations (floors, offices, racks — branches there also need Manage Branches)',
+                'manage-departments' => 'Manage Departments',
+                'manage-asset-types' => 'Manage Asset Types & Asset Codes',
+                'manage-internet-access-levels' => 'Manage Internet Access Levels',
+                'manage-provisioning-licenses' => 'Manage Provisioning Licenses (default licences for new users)',
             ],
             'Workflows' => [
                 'view-workflows' => 'View Workflow Requests',
@@ -206,6 +219,7 @@ class RolePermission extends Model
                 'create-tickets' => 'Raise Tickets in the IT Ticketing System',
                 'create-tickets-for-others' => 'Raise Tickets on Behalf of Another Employee',
                 'view-tickets' => 'View Ticket Submission History',
+                'view-ticket-stats' => 'View IT Ticket Portal Stats',
             ],
             'Access Gateway' => [
                 'view-agw-audit' => 'View Access Gateway Audit Log',

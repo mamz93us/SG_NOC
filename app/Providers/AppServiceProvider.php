@@ -19,8 +19,10 @@ use App\Observers\EmployeeAssetObserver;
 use App\Observers\EmployeeObserver;
 use App\Observers\NocEventObserver;
 use App\Observers\WorkflowRequestObserver;
+use App\Support\RouteAccess;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 // Events
@@ -179,6 +181,12 @@ class AppServiceProvider extends ServiceProvider
         }
 
         Gate::define('edit-content', fn ($user) => $gateCheck($user, 'manage-contacts'));
+
+        // `@canroute('admin.x.index', …)`: true when the signed-in user may open
+        // at least one of the named routes, read from the routes' own
+        // `permission:` gates. The admin menu uses it so a link is shown to
+        // exactly the people its page lets in — see RouteAccess.
+        Blade::if('canroute', fn (string ...$names) => RouteAccess::allowsAny(auth()->user(), ...$names));
 
         // ── Load SMTP settings from DB ───────────────────────────────
         try {

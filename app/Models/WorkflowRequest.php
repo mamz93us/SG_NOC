@@ -134,14 +134,18 @@ class WorkflowRequest extends Model
             // `approver_role` is an approval-chain ROLE NAME from the workflow
             // template (it_manager, security, …) — not a slug from the roles
             // table — so this stays a mapping rather than becoming a lookup.
-            // What did change: the superuser test reads the role's is_super flag
-            // instead of comparing the slug to 'super_admin', so a renamed or
-            // additional superuser role can still approve.
+            // The superuser test reads the role's is_super flag, so a renamed
+            // or additional superuser role can still approve. The other chain
+            // roles go to whoever holds the permission that approves this kind
+            // of request. That used to be `role === 'admin'`, which no custom
+            // role could meet: a role given Approve Workflows saw Pending
+            // Approvals, and an empty list.
             $isSuper = $user->isSuperAdmin();
+            $approves = $this->type === 'asset_scrap' ? 'approve-scrap' : 'approve-workflows';
 
             return match ($step->approver_role) {
                 'super_admin' => $isSuper,
-                'it_manager', 'hr', 'manager', 'security' => $isSuper || $user->role === 'admin',
+                'it_manager', 'hr', 'manager', 'security' => $isSuper || $user->hasPermission($approves),
                 default => false,
             };
         }
