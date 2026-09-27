@@ -39,18 +39,37 @@
                 </ul>
             @endif
         </div>
-        <div class="card-footer bg-transparent d-flex justify-content-end gap-2 p-3">
+        <form method="POST" action="{{ route('admin.exams.start', $exam) }}" class="card-footer bg-transparent p-3">
+            @csrf
+            @if ($arabicCount > 0)
+                @php($chosen = old('language', $open->language ?? 'en'))
+                <div class="mb-3">
+                    <div class="fw-semibold small mb-1">Exam language · {{ __('exams.language', [], 'ar') }}</div>
+                    <div class="btn-group" role="group" aria-label="Exam language">
+                        <input type="radio" class="btn-check" name="language" id="lang-en" value="en" @checked($chosen !== 'ar')>
+                        <label class="btn btn-outline-primary" for="lang-en">English</label>
+                        <input type="radio" class="btn-check" name="language" id="lang-ar" value="ar" @checked($chosen === 'ar')>
+                        <label class="btn btn-outline-primary" for="lang-ar" lang="ar">العربية</label>
+                    </div>
+                    <div class="small text-muted mt-1">
+                        Questions are shown in this language, with a button to see any question in the English original.
+                        <span lang="ar" dir="rtl" class="d-block">{{ __('exams.language_hint', [], 'ar') }}</span>
+                        @if ($arabicCount < $bankSize)
+                            <span class="d-block">{{ __('exams.arabic_partial', ['count' => $arabicCount, 'total' => $bankSize], 'en') }}</span>
+                        @endif
+                    </div>
+                </div>
+            @endif
+            <div class="d-flex justify-content-end gap-2">
             <a href="{{ route('admin.exams.index') }}" class="btn btn-outline-secondary">Not now</a>
-            <form method="POST" action="{{ route('admin.exams.start', $exam) }}">
-                @csrf
                 @if ($open)
                     <button class="btn btn-warning"><i class="bi bi-play-circle me-1"></i>Resume exam
                         <span class="small">({{ gmdate($open->secondsLeft() >= 3600 ? 'G:i:s' : 'i:s', $open->secondsLeft()) }} left)</span></button>
                 @else
                     <button class="btn btn-primary" @disabled($questionCount === 0)><i class="bi bi-play-fill me-1"></i>Start exam</button>
                 @endif
-            </form>
-        </div>
+            </div>
+        </form>
     </div>
 </div>
 @endsection

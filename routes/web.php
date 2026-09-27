@@ -1481,6 +1481,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::put('manage/{exam}/questions/{question}', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'update'])->name('manage.questions.update');
             Route::post('manage/{exam}/questions/{question}/toggle', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'toggle'])->name('manage.questions.toggle');
             Route::delete('manage/{exam}/questions/{question}', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'destroy'])->name('manage.questions.destroy');
+            Route::post('manage/translate', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'translate'])->name('manage.translate');
 
             Route::get('results', [\App\Http\Controllers\Admin\Exams\ExamResultController::class, 'index'])->name('results.index');
             Route::get('results/export', [\App\Http\Controllers\Admin\Exams\ExamResultController::class, 'export'])->name('results.export');

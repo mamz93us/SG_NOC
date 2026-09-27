@@ -15,13 +15,15 @@
     <div class="table-responsive">
         <table class="table align-middle mb-0">
             <thead class="table-light">
-                <tr><th>Exam</th><th class="text-end">Questions</th><th class="text-end">Per attempt</th><th class="text-end">Minutes</th><th class="text-end">Pass</th><th class="text-end">Attempts</th><th class="text-end">Pass rate</th><th>Status</th><th></th></tr>
+                <tr><th>Exam</th><th class="text-end">Questions</th><th class="text-end">Arabic</th><th class="text-end">Per attempt</th><th class="text-end">Minutes</th><th class="text-end">Pass</th><th class="text-end">Attempts</th><th class="text-end">Pass rate</th><th>Status</th><th></th></tr>
             </thead>
             <tbody>
                 @forelse ($exams as $exam)
                     <tr>
                         <td><span class="fw-semibold">{{ $exam->code }}</span><div class="small text-muted">{{ $exam->title }}</div></td>
                         <td class="text-end">{{ $exam->active_questions_count }}@if ($exam->questions_count !== $exam->active_questions_count)<span class="text-muted small"> / {{ $exam->questions_count }}</span>@endif</td>
+                        <td class="text-end {{ ($arabic[$exam->id] ?? 0) < $exam->active_questions_count ? 'text-warning' : 'text-success' }}"
+                            title="Active questions with a full Arabic translation">{{ $arabic[$exam->id] ?? 0 }}</td>
                         <td class="text-end">{{ $exam->questionsPerAttempt($exam->active_questions_count) }}</td>
                         <td class="text-end">{{ $exam->duration_minutes }}</td>
                         <td class="text-end">{{ $exam->passing_score }}</td>
@@ -37,7 +39,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="9" class="text-center text-muted py-4">No exams yet — load the bundled banks below.</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-4">No exams yet — load the bundled banks below.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -67,10 +67,10 @@ class ExamResultController extends Controller
 
         return response()->streamDownload(function () use ($rows) {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Attempt', 'Exam', 'Name', 'Email', 'Started', 'Finished', 'Minutes', 'Correct', 'Questions', 'Score', 'Pass mark', 'Result', 'Timed out']);
+            fputcsv($out, ['Attempt', 'Exam', 'Language', 'Name', 'Email', 'Started', 'Finished', 'Minutes', 'Correct', 'Questions', 'Score', 'Pass mark', 'Result', 'Timed out']);
             foreach ($rows as $a) {
                 fputcsv($out, [
-                    $a->id, $a->exam?->code, $a->user?->name, $a->user?->email,
+                    $a->id, $a->exam?->code, $a->language, $a->user?->name, $a->user?->email,
                     $a->started_at?->format('Y-m-d H:i'), $a->submitted_at?->format('Y-m-d H:i'),
                     $a->durationSeconds() !== null ? round($a->durationSeconds() / 60, 1) : '',
                     $a->correct_count, $a->total_questions, $a->score, $a->passing_score,

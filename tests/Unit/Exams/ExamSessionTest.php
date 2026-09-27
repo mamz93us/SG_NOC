@@ -33,6 +33,7 @@ beforeEach(function () {
     RbacTestSchema::create();
     (require database_path('migrations/2026_09_27_100001_create_exams_tables.php'))->up();
     (require database_path('migrations/2026_09_27_100002_add_exam_permissions.php'))->up();
+    (require database_path('migrations/2026_09_27_120001_add_arabic_to_exams.php'))->up();
 
     Role::clearCache();
     RolePermission::clearCache();

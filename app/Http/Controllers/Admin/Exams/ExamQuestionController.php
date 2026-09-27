@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Admin\Exams;
 use App\Http\Controllers\Controller;
 use App\Models\Exams\Exam;
 use App\Models\Exams\ExamQuestion;
+use App\Services\Ai\TextTranslator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -94,6 +97,40 @@ class ExamQuestionController extends Controller
         return back()->with('success', 'Question deleted. Scores already given are unchanged.');
     }
 
+    /**
+     * Fills the Arabic fields from the English with the AI assistant's
+     * translator. The form only shows the result; saving is a separate,
+     * reviewed step.
+     */
+    public function translate(Request $request, TextTranslator $translator): JsonResponse
+    {
+        $data = $request->validate([
+            'question' => ['required', 'string', 'max:5000'],
+            'options' => ['nullable', 'array'],
+            'options.*' => ['nullable', 'string', 'max:1000'],
+            'explanation' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        try {
+            $options = [];
+            foreach ($data['options'] ?? [] as $key => $text) {
+                if (in_array($key, self::KEYS, true) && filled($text)) {
+                    $options[$key] = $translator->translate($text, 'ar');
+                }
+            }
+
+            return response()->json([
+                'question' => $translator->translate($data['question'], 'ar'),
+                'options' => $options,
+                'explanation' => filled($data['explanation'] ?? null) ? $translator->translate($data['explanation'], 'ar') : '',
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('ExamQuestionController: translation failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'The translation could not be made. Check the AI Assistant settings, or type the Arabic yourself.'], 502);
+        }
+    }
+
     private function validated(Request $request): array
     {
         $data = $request->validate([
@@ -106,6 +143,10 @@ class ExamQuestionController extends Controller
             'answer.*' => ['in:'.implode(',', self::KEYS)],
             'explanation' => ['nullable', 'string', 'max:5000'],
             'reference' => ['nullable', 'url', 'max:500'],
+            'question_ar' => ['nullable', 'string', 'max:5000'],
+            'options_ar' => ['nullable', 'array'],
+            'options_ar.*' => ['nullable', 'string', 'max:1000'],
+            'explanation_ar' => ['nullable', 'string', 'max:5000'],
         ], [
             'answer.required' => 'Tick the correct answer.',
         ]);
@@ -113,6 +154,7 @@ class ExamQuestionController extends Controller
         // Keep only the filled options, re-lettered A, B, C… in order, and
         // carry the ticked answers across the re-lettering.
         $options = [];
+        $optionsAr = [];
         $answer = [];
         foreach (self::KEYS as $key) {
             $text = trim((string) ($data['options'][$key] ?? ''));
@@ -121,6 +163,8 @@ class ExamQuestionController extends Controller
             }
             $newKey = self::KEYS[count($options)];
             $options[$newKey] = $text;
+            // The Arabic travels with its English option through the re-lettering.
+            $optionsAr[$newKey] = trim((string) ($data['options_ar'][$key] ?? ''));
             if (in_array($key, $data['answer'], true)) {
                 $answer[] = $newKey;
             }
@@ -147,6 +191,9 @@ class ExamQuestionController extends Controller
             'answer' => $answer,
             'explanation' => $data['explanation'] ?? null,
             'reference' => $data['reference'] ?? null,
+            'question_ar' => filled($data['question_ar'] ?? null) ? trim($data['question_ar']) : null,
+            'options_ar' => array_filter($optionsAr) ? $optionsAr : null,
+            'explanation_ar' => filled($data['explanation_ar'] ?? null) ? trim($data['explanation_ar']) : null,
             'shuffle_options' => $request->boolean('shuffle_options'),
             'is_active' => $request->boolean('is_active'),
         ];

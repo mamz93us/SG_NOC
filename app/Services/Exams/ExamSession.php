@@ -27,8 +27,10 @@ class ExamSession
      * attempt whose time ran out is graded first, so "start" never hands back
      * a sitting with no time left.
      */
-    public function startOrResume(Exam $exam, User $user): ExamAttempt
+    public function startOrResume(Exam $exam, User $user, string $language = 'en'): ExamAttempt
     {
+        $language = array_key_exists($language, ExamAttempt::LANGUAGES) ? $language : 'en';
+
         $open = ExamAttempt::where('exam_id', $exam->id)
             ->where('user_id', $user->id)
             ->where('status', ExamAttempt::STATUS_IN_PROGRESS)
@@ -36,6 +38,12 @@ class ExamSession
             ->first();
 
         if ($open && ! $this->expireIfDue($open)) {
+            // The language is only how the questions are shown, so a candidate
+            // may change it when they come back.
+            if ($open->language !== $language) {
+                $open->forceFill(['language' => $language])->save();
+            }
+
             return $open;
         }
 
@@ -60,6 +68,7 @@ class ExamSession
             'exam_id' => $exam->id,
             'user_id' => $user->id,
             'status' => ExamAttempt::STATUS_IN_PROGRESS,
+            'language' => $language,
             'started_at' => $now,
             'expires_at' => $now->copy()->addMinutes(max(1, $exam->duration_minutes)),
             'question_ids' => $ids,
@@ -74,6 +83,7 @@ class ExamSession
             'exam' => $exam->code,
             'questions' => count($ids),
             'minutes' => $exam->duration_minutes,
+            'language' => $language,
         ]);
 
         return $attempt;

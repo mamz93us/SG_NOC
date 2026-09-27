@@ -56,7 +56,10 @@
                     <tr class="{{ $q->is_active ? '' : 'opacity-50' }}">
                         <td>
                             <div class="small">{{ \Illuminate\Support\Str::limit($q->question, 220) }}</div>
-                            @if ($q->uid)<div class="small text-muted">{{ $q->uid }}</div>@endif
+                            <div class="small text-muted">
+                                {{ $q->uid }}
+                                @if ($q->hasArabic())<span class="badge text-bg-light border ms-1" title="Has an Arabic translation">AR</span>@else<span class="badge text-bg-warning ms-1" title="No complete Arabic translation — shown in English in Arabic sittings">EN only</span>@endif
+                            </div>
                         </td>
                         <td class="small">{{ $q->domain }}</td>
                         <td class="small">{{ $q->isMultiple() ? 'Multiple' : 'Single' }}</td>

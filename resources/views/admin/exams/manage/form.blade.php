@@ -25,6 +25,14 @@
                 <label class="form-label">Description</label>
                 <textarea name="description" class="form-control" rows="3">{{ old('description', $exam->description) }}</textarea>
             </div>
+            <div class="col-md-12">
+                <label class="form-label">Title in Arabic <span class="text-muted small">(optional)</span></label>
+                <input name="title_ar" class="form-control" dir="rtl" lang="ar" value="{{ old('title_ar', $exam->title_ar) }}" maxlength="200">
+            </div>
+            <div class="col-12">
+                <label class="form-label">Description in Arabic <span class="text-muted small">(optional)</span></label>
+                <textarea name="description_ar" class="form-control" dir="rtl" lang="ar" rows="3">{{ old('description_ar', $exam->description_ar) }}</textarea>
+            </div>
             <div class="col-md-4">
                 <label class="form-label">Minutes</label>
                 <input type="number" name="duration_minutes" class="form-control @error('duration_minutes') is-invalid @enderror" min="1" max="600" value="{{ old('duration_minutes', $exam->duration_minutes) }}" required>

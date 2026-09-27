@@ -72,12 +72,13 @@
     <div class="card-header bg-transparent fw-semibold">Every attempt</div>
     <div class="table-responsive">
         <table class="table align-middle mb-0">
-            <thead class="table-light"><tr><th>Person</th><th>Exam</th><th>Started</th><th>Time taken</th><th class="text-end">Correct</th><th class="text-end">Score</th><th>Result</th><th></th></tr></thead>
+            <thead class="table-light"><tr><th>Person</th><th>Exam</th><th>Language</th><th>Started</th><th>Time taken</th><th class="text-end">Correct</th><th class="text-end">Score</th><th>Result</th><th></th></tr></thead>
             <tbody>
                 @forelse ($attempts as $a)
                     <tr>
                         <td>{{ $a->user?->name }}</td>
                         <td class="fw-semibold">{{ $a->exam?->code }}</td>
+                        <td class="small">{{ \App\Models\Exams\ExamAttempt::LANGUAGES[$a->language] ?? $a->language }}</td>
                         <td class="small">{{ $a->started_at?->format('d M Y H:i') }}</td>
                         <td class="small">{{ $a->durationSeconds() !== null ? gmdate($a->durationSeconds() >= 3600 ? 'G:i:s' : 'i:s', $a->durationSeconds()) : '—' }}</td>
                         <td class="text-end">{{ $a->correct_count !== null ? $a->correct_count.' / '.$a->total_questions : $a->answeredCount().' answered' }}</td>
@@ -100,7 +101,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="text-center text-muted py-4">No attempts match.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">No attempts match.</td></tr>
                 @endforelse
             </tbody>
         </table>

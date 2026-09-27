@@ -12,7 +12,7 @@ class Exam extends Model
 {
     protected $fillable = [
         'code', 'title', 'description', 'duration_minutes', 'question_count',
-        'passing_score', 'show_review', 'is_active',
+        'passing_score', 'show_review', 'is_active', 'title_ar', 'description_ar',
     ];
 
     protected $casts = [
@@ -31,6 +31,22 @@ class Exam extends Model
     public function activeQuestions(): HasMany
     {
         return $this->questions()->where('is_active', true);
+    }
+
+    public function titleIn(string $language): string
+    {
+        return $language === 'ar' && filled($this->title_ar) ? $this->title_ar : $this->title;
+    }
+
+    public function descriptionIn(string $language): ?string
+    {
+        return $language === 'ar' && filled($this->description_ar) ? $this->description_ar : $this->description;
+    }
+
+    /** Active questions that can be shown in Arabic. */
+    public function arabicQuestionCount(): int
+    {
+        return $this->activeQuestions()->get(['id', 'question_ar', 'options', 'options_ar'])->filter->hasArabic()->count();
     }
 
     public function attempts(): HasMany

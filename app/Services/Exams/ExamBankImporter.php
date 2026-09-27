@@ -18,7 +18,11 @@ use InvalidArgumentException;
  *             "question_count": 45, "passing_score": 700},
  *    "questions": [{"uid": "az900-001", "domain": …, "type": "single",
  *                   "question": …, "options": {"A": …}, "answer": ["B"],
- *                   "explanation": …, "reference": …, "shuffle": false}]}
+ *                   "explanation": …, "reference": …, "shuffle": false,
+ *                   "question_ar": …, "options_ar": {"A": …}, "explanation_ar": …}]}
+ *
+ * The Arabic is optional, question by question; options_ar must use the
+ * same keys as options, because grading only ever compares keys.
  *
  * Idempotent on (exam, uid): loading a bank again updates its questions'
  * wording and answers and adds new ones. It never deletes a question and
@@ -67,8 +71,12 @@ class ExamBankImporter
             $exam = Exam::where('code', $examData['code'])->first();
             if (! $exam) {
                 $exam = Exam::create($examData);
-            } elseif (($examData['description'] ?? null) && ! $exam->description) {
-                $exam->update(['description' => $examData['description']]);
+            } else {
+                // Fill what the exam lacks; never overwrite a manager's own wording.
+                $exam->update(collect(['description', 'title_ar', 'description_ar'])
+                    ->filter(fn ($field) => filled($examData[$field] ?? null) && blank($exam->{$field}))
+                    ->mapWithKeys(fn ($field) => [$field => $examData[$field]])
+                    ->all());
             }
 
             $existing = $exam->questions()->whereNotNull('uid')->get()->keyBy('uid');
@@ -119,6 +127,8 @@ class ExamBankImporter
             'code' => strtoupper(trim((string) $exam['code'])),
             'title' => trim((string) $exam['title']),
             'description' => isset($exam['description']) ? trim((string) $exam['description']) : null,
+            'title_ar' => isset($exam['title_ar']) ? trim((string) $exam['title_ar']) : null,
+            'description_ar' => isset($exam['description_ar']) ? trim((string) $exam['description_ar']) : null,
             'duration_minutes' => max(1, (int) ($exam['duration_minutes'] ?? 45)),
             'question_count' => max(0, (int) ($exam['question_count'] ?? 45)),
             'passing_score' => min(1000, max(1, (int) ($exam['passing_score'] ?? 700))),
@@ -165,6 +175,10 @@ class ExamBankImporter
             if ($type === ExamQuestion::TYPE_SINGLE && count($answer) !== 1) {
                 $errors[] = "Question {$n} ({$uid}): a single-answer question has exactly one key in \"answer\".";
             }
+            $optionsAr = $q['options_ar'] ?? null;
+            if ($optionsAr !== null && (! is_array($optionsAr) || array_diff_key($optionsAr, $options) || array_diff_key($options, $optionsAr))) {
+                $errors[] = "Question {$n} ({$uid}): \"options_ar\" must have exactly the keys of \"options\".";
+            }
 
             $questions[] = [
                 'uid' => $uid,
@@ -176,6 +190,9 @@ class ExamBankImporter
                 'explanation' => isset($q['explanation']) ? trim((string) $q['explanation']) : null,
                 'reference' => isset($q['reference']) ? mb_substr(trim((string) $q['reference']), 0, 500) : null,
                 'shuffle_options' => (bool) ($q['shuffle'] ?? true),
+                'question_ar' => isset($q['question_ar']) ? trim((string) $q['question_ar']) : null,
+                'options_ar' => is_array($optionsAr) ? array_map(fn ($t) => trim((string) $t), $optionsAr) : null,
+                'explanation_ar' => isset($q['explanation_ar']) ? trim((string) $q['explanation_ar']) : null,
             ];
         }
 
