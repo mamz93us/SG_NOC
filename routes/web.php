@@ -1434,6 +1434,49 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::post('access', [\App\Http\Controllers\Admin\AiAccessController::class, 'store'])->name('access.store');
             Route::delete('access/{feature}/{user}', [\App\Http\Controllers\Admin\AiAccessController::class, 'destroy'])->name('access.destroy');
         });
+
+        // ── Exams (practice exams for the team: AZ-900, AI-900, …) ───────
+        // take-exams sits them; manage-exams owns the bank (the answer key)
+        // and sees everyone's results. Concrete paths before {exam}.
+        Route::prefix('exams')->name('exams.')->group(function () {
+            Route::middleware('permission:manage-exams')->group(function () {
+                Route::get('manage', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'index'])->name('manage.index');
+                Route::get('manage/create', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'create'])->name('manage.create');
+                Route::post('manage', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'store'])->name('manage.store');
+                Route::post('manage/load-bundled', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'loadBundled'])->name('manage.load-bundled');
+                Route::post('manage/import', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'import'])->name('manage.import');
+                Route::get('manage/{exam}/edit', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'edit'])->name('manage.edit');
+                Route::put('manage/{exam}', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'update'])->name('manage.update');
+                Route::delete('manage/{exam}', [\App\Http\Controllers\Admin\Exams\ExamManageController::class, 'destroy'])->name('manage.destroy');
+
+                Route::get('manage/{exam}/questions', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'index'])->name('manage.questions.index');
+                Route::get('manage/{exam}/questions/create', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'create'])->name('manage.questions.create');
+                Route::post('manage/{exam}/questions', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'store'])->name('manage.questions.store');
+                Route::get('manage/{exam}/questions/{question}/edit', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'edit'])->name('manage.questions.edit');
+                Route::put('manage/{exam}/questions/{question}', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'update'])->name('manage.questions.update');
+                Route::post('manage/{exam}/questions/{question}/toggle', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'toggle'])->name('manage.questions.toggle');
+                Route::delete('manage/{exam}/questions/{question}', [\App\Http\Controllers\Admin\Exams\ExamQuestionController::class, 'destroy'])->name('manage.questions.destroy');
+
+                Route::get('results', [\App\Http\Controllers\Admin\Exams\ExamResultController::class, 'index'])->name('results.index');
+                Route::get('results/export', [\App\Http\Controllers\Admin\Exams\ExamResultController::class, 'export'])->name('results.export');
+            });
+
+            // A score report and its answers: the candidate's own, or anyone's for a manager.
+            Route::middleware('permission:take-exams,manage-exams')->group(function () {
+                Route::get('attempts/{attempt}', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'result'])->name('attempts.result');
+                Route::get('attempts/{attempt}/answers', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'answers'])->name('attempts.answers');
+            });
+
+            Route::middleware('permission:take-exams')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Admin\Exams\ExamController::class, 'index'])->name('index');
+                Route::get('attempts/{attempt}/q/{position}', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'question'])->whereNumber('position')->name('attempts.question');
+                Route::post('attempts/{attempt}/q/{position}', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'answer'])->whereNumber('position')->name('attempts.answer');
+                Route::get('attempts/{attempt}/review', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'review'])->name('attempts.review');
+                Route::post('attempts/{attempt}/finish', [\App\Http\Controllers\Admin\Exams\ExamAttemptController::class, 'finish'])->name('attempts.finish');
+                Route::get('{exam}', [\App\Http\Controllers\Admin\Exams\ExamController::class, 'show'])->name('show');
+                Route::post('{exam}/start', [\App\Http\Controllers\Admin\Exams\ExamController::class, 'start'])->name('start');
+            });
+        });
         Route::middleware('permission:view-ai-conversations')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
             Route::get('conversations', [\App\Http\Controllers\Admin\AiConversationController::class, 'index'])->name('conversations.index');
             Route::get('conversations/{aiConversation}', [\App\Http\Controllers\Admin\AiConversationController::class, 'show'])->name('conversations.show');

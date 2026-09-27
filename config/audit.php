@@ -181,6 +181,10 @@ return [
         //     ScanDestinationController logs each of those by hand as a security
         //     action — never including the token.
         App\Models\Archive\ArchiveScanEndpoint::class,
+
+        // Practice exams: a sitting rewrites its row on every answer. Starting
+        // and finishing are logged by hand (ExamSession).
+        App\Models\Exams\ExamAttempt::class,
     ],
 
     /*

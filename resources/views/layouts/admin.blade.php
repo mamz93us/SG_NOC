@@ -1311,6 +1311,41 @@
                     </li>
                     @endcanany
 
+                    {{-- ── Exams dropdown (practice exams for the team) ── --}}
+                    @canany(['take-exams','manage-exams'])
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('admin/exams*') ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-mortarboard me-1"></i>Exams
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow">
+                            @can('take-exams')
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.exams.index', 'admin.exams.show') ? 'active' : '' }}"
+                                   href="{{ route('admin.exams.index') }}">
+                                    <i class="bi bi-pencil-square me-2"></i>Take an exam
+                                </a>
+                            </li>
+                            @endcan
+                            @can('manage-exams')
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.exams.results.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.exams.results.index') }}">
+                                    <i class="bi bi-bar-chart-line me-2"></i>Team results
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.exams.manage.*') ? 'active' : '' }}"
+                                   href="{{ route('admin.exams.manage.index') }}">
+                                    <i class="bi bi-collection me-2"></i>Exams &amp; question banks
+                                </a>
+                            </li>
+                            @endcan
+                        </ul>
+                    </li>
+                    @endcanany
+
                     {{-- ── Admin dropdown (Settings + Documentation + Marketing + Recruiting + Tools) ── --}}
                     @canany(['manage-settings','manage-users','manage-permissions','view-phone-logs','view-activity-logs','manage-notification-rules','view-email-logs','view-mail-delivery','manage-license-monitors','manage-allowed-domains','view-documentation','manage-email-marketing','manage-email-marketing-settings','view-admin-links','view-candidates','manage-signatures','manage-agw-allowlist','view-agw-audit','view-smtp-relay','view-tickets','manage-announcements','manage-greeting-lines','view-knowbe4-scores','manage-portal-documents'])
                     <li class="nav-item dropdown">
