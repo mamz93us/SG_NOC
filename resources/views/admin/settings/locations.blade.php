@@ -3,7 +3,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4 class="mb-0 fw-bold"><i class="bi bi-geo-alt-fill me-2 text-primary"></i>Locations</h4>
-    @can('manage-settings')
+    @can('manage-branches')
     <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addBranchModal">
         <i class="bi bi-plus-lg me-1"></i>Add Branch
     </button>
@@ -34,11 +34,14 @@
             <i class="bi bi-building me-2 text-primary"></i>{{ $branch->name }}
             <span class="badge bg-secondary ms-2">{{ $branch->networkFloors->count() }} floor(s)</span>
         </button>
-        @can('manage-settings')
+        @canany(['manage-locations', 'manage-branches'])
         <div class="d-flex gap-1 ms-2">
+            @can('manage-locations')
             <button class="btn btn-sm btn-outline-primary" onclick="openAddFloorModal({{ $branch->id }}, '{{ addslashes($branch->name) }}')">
                 <i class="bi bi-plus-lg me-1"></i>Floor
             </button>
+            @endcan
+            @can('manage-branches')
             <button class="btn btn-sm btn-outline-secondary" onclick="openEditBranchModal({{ $branch->id }}, '{{ addslashes($branch->name) }}')">
                 <i class="bi bi-pencil"></i>
             </button>
@@ -47,8 +50,9 @@
                 @csrf @method('DELETE')
                 <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
             </form>
+            @endcan
         </div>
-        @endcan
+        @endcanany
     </div>
 
     <div id="branch{{ $branch->id }}" class="collapse @if($loop->first) show @endif">
@@ -65,21 +69,16 @@
                             <i class="bi bi-layers me-2 text-secondary"></i>{{ $floor->name }}
                             <span class="text-muted fw-normal ms-1">({{ $floor->racks->count() }} rack(s), {{ $floor->offices->count() }} office(s))</span>
                             @if($floor->ext_range_start && $floor->ext_range_end)
-<<<<<<< Updated upstream
                                 <span class="badge bg-primary ms-2" title="IP Phone extension range for this floor">
                                     <i class="bi bi-telephone-fill me-1"></i>Ext {{ $floor->ext_range_start }}–{{ $floor->ext_range_end }}
                                 </span>
                             @else
                                 <span class="badge bg-light text-muted border ms-2" title="No extension range set">
                                     <i class="bi bi-telephone me-1"></i>No ext range
-=======
-                                <span class="badge bg-success ms-1" style="font-size:.65rem" title="Extension range">
-                                    ext {{ $floor->ext_range_start }}–{{ $floor->ext_range_end }}
->>>>>>> Stashed changes
                                 </span>
                             @endif
                         </button>
-                        @can('manage-settings')
+                        @can('manage-locations')
                         <div class="d-flex gap-1">
                             <button class="btn btn-sm btn-outline-success" style="font-size:.7rem;padding:.2rem .4rem"
                                     onclick="openAddOfficeModal({{ $floor->id }}, '{{ addslashes($floor->name) }}')">
@@ -115,7 +114,7 @@
                                         @foreach($floor->offices as $office)
                                         <li class="list-group-item px-0 py-1 d-flex justify-content-between align-items-center">
                                             <span><i class="bi bi-geo me-1 text-muted"></i>{{ $office->name }}</span>
-                                            @can('manage-settings')
+                                            @can('manage-locations')
                                             <div class="d-flex gap-1">
                                                 <button class="btn btn-sm btn-outline-secondary p-0 px-1" style="font-size:.7rem"
                                                         onclick="openEditOfficeModal({{ $office->id }}, '{{ addslashes($office->name) }}', '{{ addslashes($office->description ?? '') }}', {{ $office->sort_order }})">
@@ -147,7 +146,7 @@
                                             <span><i class="bi bi-hdd-rack me-1 text-muted"></i>{{ $rack->name }}
                                                 @if($rack->capacity)<small class="text-muted">({{ $rack->capacity }}U)</small>@endif
                                             </span>
-                                            @can('manage-settings')
+                                            @can('manage-locations')
                                             <div class="d-flex gap-1">
                                                 <button class="btn btn-sm btn-outline-secondary p-0 px-1" style="font-size:.7rem"
                                                         onclick="openEditRackModal({{ $rack->id }}, '{{ addslashes($rack->name) }}', '{{ addslashes($rack->description ?? '') }}', {{ $rack->capacity ?? 0 }}, {{ $rack->sort_order }})">
@@ -179,7 +178,7 @@
 </div>
 
 {{-- ─── Modals ──────────────────────────────────────────────────────────── --}}
-@can('manage-settings')
+@can('manage-branches')
 
 {{-- Add Branch --}}
 <div class="modal fade" id="addBranchModal" tabindex="-1">
@@ -229,7 +228,9 @@
         </div>
     </div>
 </div>
+@endcan
 
+@can('manage-locations')
 {{-- Add Floor --}}
 <div class="modal fade" id="addFloorModal" tabindex="-1">
     <div class="modal-dialog">

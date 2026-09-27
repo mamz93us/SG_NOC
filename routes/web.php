@@ -762,8 +762,8 @@ if ($ticketHost = config('ticket_tracking.host')) {
 }
 Route::get('/go', [TicketForwardController::class, 'forward'])->name('ticket.go');
 
-// IT Ticket Portal analytics — dashboard + CSV export (Admin menu, manage-settings).
-Route::middleware(['auth', 'permission:manage-settings'])
+// IT Ticket Portal analytics — dashboard + CSV export (Admin menu, view-ticket-stats).
+Route::middleware(['auth', 'permission:view-ticket-stats'])
     ->prefix('admin')->name('admin.')
     ->group(function () {
         Route::get('ticket-stats', [TicketStatsController::class, 'index'])->name('ticket-stats.index');
@@ -771,7 +771,7 @@ Route::middleware(['auth', 'permission:manage-settings'])
     });
 
 // JSON summary for reuse by other NOC widgets (auth-gated, path per spec).
-Route::middleware(['auth', 'permission:manage-settings'])
+Route::middleware(['auth', 'permission:view-ticket-stats'])
     ->get('api/ticket-stats', [TicketStatsController::class, 'data'])->name('api.ticket-stats');
 
 // ──────────────────────────────────────────────────────────────────
@@ -1071,6 +1071,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     });
 
     // ─── Settings ─────────────────────────────────────────────
+    // General Settings only. Never put a page that has its own permission in
+    // this group: the group's gate is added to the page's, so holding the
+    // page's permission was not enough. Until 2026-09-16 attendance,
+    // vacations, the AI pages, announcements and more sat in here, and a role
+    // given their permissions was still turned away.
     Route::middleware('permission:manage-settings')->group(function () {
         Route::get('settings', [SettingsController::class, 'index'])
             ->name('settings.index');
@@ -1094,19 +1099,6 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/azure-blob', [SettingsController::class, 'updateAzureBlob'])->name('settings.azure-blob');
         Route::post('settings/offboarding', [SettingsController::class, 'updateOffboarding'])->name('settings.offboarding');
 
-        // ── Per-service sender addresses (Admin → Sender Addresses) ──
-        Route::get('mail-senders', [\App\Http\Controllers\Admin\MailSenderController::class, 'index'])
-            ->name('mail-senders.index');
-        Route::post('mail-senders', [\App\Http\Controllers\Admin\MailSenderController::class, 'update'])
-            ->name('mail-senders.update');
-        Route::post('mail-senders/{serviceKey}/test', [\App\Http\Controllers\Admin\MailSenderController::class, 'test'])
-            ->name('mail-senders.test');
-
-        // ── Business app accounts (Salesforce / Oracle / …) ──
-        Route::get('business-apps', [\App\Http\Controllers\Admin\BusinessAppController::class, 'index'])
-            ->name('business-apps.index');
-        Route::post('business-apps', [\App\Http\Controllers\Admin\BusinessAppController::class, 'update'])
-            ->name('business-apps.update');
         // Test-connection buttons live on the Settings page — accessible to any settings manager
         Route::post('settings/test-meraki', [NetworkController::class,  'testConnection'])->name('settings.test-meraki');
         Route::post('settings/test-graph', [IdentityController::class, 'testConnection'])->name('settings.test-graph');
@@ -1125,18 +1117,46 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/ai-assistant', [SettingsController::class, 'updateAi'])->name('settings.ai-assistant');
         Route::post('settings/ai-assistant/test', [SettingsController::class, 'testAi'])->name('settings.ai-assistant.test');
 
-        // ── Sync Status Dashboard ────────────────────────────────────
+        // ── SMTP / Outgoing Mail ──────────────────────────────────────
+        Route::post('settings/cups', [SettingsController::class, 'updateCups'])->name('settings.cups');
+        Route::post('settings/itam', [SettingsController::class, 'updateItam'])->name('settings.itam');
+        Route::post('settings/ticketing', [SettingsController::class, 'updateTicketing'])->name('settings.ticketing');
+        Route::post('settings/noc-ticketing', [SettingsController::class, 'updateNocTicketing'])->name('settings.noc-ticketing');
+        Route::post('settings/home-portal', [SettingsController::class, 'updateHomePortal'])->name('settings.home-portal');
+        // Re-pulls categories/sub-categories from the ticketing API's own lookup endpoints.
+        Route::post('settings/noc-ticketing/refresh-catalog', [SettingsController::class, 'refreshNocTicketCatalog'])->name('settings.noc-ticketing.refresh');
+        Route::post('settings/smtp', [SettingsController::class, 'updateSmtp'])->name('settings.smtp');
+        Route::post('settings/test-smtp', [SettingsController::class, 'testSmtp'])->name('settings.test-smtp');
+    });
+
+    // ── Per-service sender addresses (Admin → Sender Addresses) ──
+    Route::middleware('permission:manage-mail-senders')->group(function () {
+        Route::get('mail-senders', [\App\Http\Controllers\Admin\MailSenderController::class, 'index'])
+            ->name('mail-senders.index');
+        Route::post('mail-senders', [\App\Http\Controllers\Admin\MailSenderController::class, 'update'])
+            ->name('mail-senders.update');
+        Route::post('mail-senders/{serviceKey}/test', [\App\Http\Controllers\Admin\MailSenderController::class, 'test'])
+            ->name('mail-senders.test');
+    });
+
+    // ── Business app accounts (Salesforce / Oracle / …) ──
+    Route::middleware('permission:manage-business-apps')->group(function () {
+        Route::get('business-apps', [\App\Http\Controllers\Admin\BusinessAppController::class, 'index'])
+            ->name('business-apps.index');
+        Route::post('business-apps', [\App\Http\Controllers\Admin\BusinessAppController::class, 'update'])
+            ->name('business-apps.update');
+    });
+
+    // ── Sync Status Dashboard ────────────────────────────────────
+    Route::middleware('permission:manage-sync-status')->group(function () {
         Route::get('sync-status', [\App\Http\Controllers\Admin\SyncStatusController::class, 'index'])->name('sync-status');
         Route::post('sync-status/intervals', [\App\Http\Controllers\Admin\SyncStatusController::class, 'updateIntervals'])->name('sync-status.intervals');
         Route::post('sync-status/trigger', [\App\Http\Controllers\Admin\SyncStatusController::class, 'triggerSync'])->name('sync-status.trigger');
+    });
 
-        // ── Locations (all 4 tiers: branches, floors, racks, offices) ──
+    // ── Locations (all 4 tiers: branches, floors, racks, offices) ──
+    Route::middleware('permission:manage-locations')->group(function () {
         Route::get('settings/locations', [SettingsController::class, 'locations'])->name('settings.locations');
-
-        // Branches (modal-based, same page)
-        Route::post('settings/branches', [BranchController::class, 'store'])->name('settings.branches.store');
-        Route::put('settings/branches/{branch}', [BranchController::class, 'update'])->name('settings.branches.update');
-        Route::delete('settings/branches/{branch}', [BranchController::class, 'destroy'])->name('settings.branches.destroy');
 
         // Floors (same CRUD as before, also accessible from settings)
         Route::post('settings/floors', [NetworkController::class, 'storeFloor'])->name('settings.floors.store');
@@ -1152,305 +1172,299 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('settings/offices', [NetworkController::class, 'storeOffice'])->name('settings.offices.store');
         Route::put('settings/offices/{office}', [NetworkController::class, 'updateOffice'])->name('settings.offices.update');
         Route::delete('settings/offices/{office}', [NetworkController::class, 'destroyOffice'])->name('settings.offices.destroy');
+    });
+    // Branches from the Locations page: the same actions as the Branches
+    // page, so the same permission.
+    Route::middleware('permission:manage-branches')->group(function () {
+        Route::post('settings/branches', [BranchController::class, 'store'])->name('settings.branches.store');
+        Route::put('settings/branches/{branch}', [BranchController::class, 'update'])->name('settings.branches.update');
+        Route::delete('settings/branches/{branch}', [BranchController::class, 'destroy'])->name('settings.branches.destroy');
+    });
 
-        // ── Departments ──────────────────────────────────────────────
+    // ── Departments ──────────────────────────────────────────────
+    Route::middleware('permission:manage-departments')->group(function () {
         Route::get('settings/departments', [SettingsController::class, 'departments'])->name('settings.departments');
         Route::post('settings/departments', [SettingsController::class, 'storeDepartment'])->name('settings.departments.store');
         Route::put('settings/departments/{department}', [SettingsController::class, 'updateDepartment'])->name('settings.departments.update');
         Route::delete('settings/departments/{department}', [SettingsController::class, 'destroyDepartment'])->name('settings.departments.destroy');
+    });
 
-        // ── Asset Types ──────────────────────────────────────────────
+    // ── Asset Types ──────────────────────────────────────────────
+    Route::middleware('permission:manage-asset-types')->group(function () {
         Route::get('settings/asset-types', [\App\Http\Controllers\Admin\AssetTypeController::class, 'index'])->name('settings.asset-types');
         Route::post('settings/asset-types', [\App\Http\Controllers\Admin\AssetTypeController::class, 'store'])->name('settings.asset-types.store');
         Route::put('settings/asset-types/{assetType}', [\App\Http\Controllers\Admin\AssetTypeController::class, 'update'])->name('settings.asset-types.update');
         Route::delete('settings/asset-types/{assetType}', [\App\Http\Controllers\Admin\AssetTypeController::class, 'destroy'])->name('settings.asset-types.destroy');
         Route::post('settings/asset-types/settings', [\App\Http\Controllers\Admin\AssetTypeController::class, 'updateSettings'])->name('settings.asset-types.settings');
+    });
 
-        // ── SMTP / Outgoing Mail ──────────────────────────────────────
-        Route::post('settings/cups', [SettingsController::class, 'updateCups'])->name('settings.cups');
-        Route::post('settings/itam', [SettingsController::class, 'updateItam'])->name('settings.itam');
-        Route::post('settings/ticketing', [SettingsController::class, 'updateTicketing'])->name('settings.ticketing');
-        Route::post('settings/noc-ticketing', [SettingsController::class, 'updateNocTicketing'])->name('settings.noc-ticketing');
-        Route::post('settings/home-portal', [SettingsController::class, 'updateHomePortal'])->name('settings.home-portal');
+    // ── Security Awareness (KnowBe4) ──────────────────────────
+    // Its own permission: this shows every colleague's risk score and
+    // phishing history, which someone who can merely edit settings does
+    // not automatically need. The employee portal still shows a person
+    // only their own score.
+    Route::middleware('permission:view-knowbe4-scores')->group(function () {
+        Route::get('knowbe4', [\App\Http\Controllers\Admin\Knowbe4Controller::class, 'index'])->name('knowbe4.index');
+        Route::get('knowbe4/export', [\App\Http\Controllers\Admin\Knowbe4Controller::class, 'export'])->name('knowbe4.export');
+        Route::post('knowbe4/sync', [\App\Http\Controllers\Admin\Knowbe4Controller::class, 'sync'])->name('knowbe4.sync');
+    });
 
-        // ── Security Awareness (KnowBe4) ──────────────────────────
-        // Its own permission: this shows every colleague's risk score and
-        // phishing history, which someone who can merely edit settings does
-        // not automatically need. The employee portal still shows a person
-        // only their own score.
-        Route::middleware('permission:view-knowbe4-scores')->group(function () {
-            Route::get('knowbe4', [\App\Http\Controllers\Admin\Knowbe4Controller::class, 'index'])->name('knowbe4.index');
-            Route::get('knowbe4/export', [\App\Http\Controllers\Admin\Knowbe4Controller::class, 'export'])->name('knowbe4.export');
-            Route::post('knowbe4/sync', [\App\Http\Controllers\Admin\Knowbe4Controller::class, 'sync'])->name('knowbe4.sync');
+    // ── Attendance (ZKTeco BioTime) ───────────────────────────
+    // Punches are copied read-only from one or more BioTime SQL Server
+    // databases by biotime:sync. See BIOTIME_ATTENDANCE_SETUP.md.
+    Route::prefix('attendance')->name('attendance.')->group(function () {
+        Route::middleware('permission:view-attendance')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'index'])->name('days.index');
+            Route::get('export', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'export'])->name('days.export');
+            Route::get('days/{day}', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'show'])->name('days.show');
+            // One person's whole month. {employee} is a model, so the CSV
+            // route must be declared before it or "export" binds as an id.
+            Route::get('monthly', [\App\Http\Controllers\Admin\Attendance\AttendanceMonthController::class, 'index'])->name('monthly.index');
+            Route::get('monthly/{employee}/export', [\App\Http\Controllers\Admin\Attendance\AttendanceMonthController::class, 'export'])->name('monthly.export');
+            Route::get('monthly/{employee}', [\App\Http\Controllers\Admin\Attendance\AttendanceMonthController::class, 'show'])->name('monthly.show');
+            Route::get('employees', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'index'])->name('employees.index');
+            Route::get('areas', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'index'])->name('areas.index');
+            Route::get('shifts', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'index'])->name('shifts.index');
+            Route::get('holidays', [\App\Http\Controllers\Admin\Attendance\AttendanceHolidayController::class, 'index'])->name('holidays.index');
+            Route::get('periods', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'index'])->name('periods.index');
+            Route::get('periods/{period}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'show'])->name('periods.show');
+            Route::get('exports/{export}/download/{format}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'download'])
+                ->whereIn('format', ['csv', 'json'])->name('exports.download');
+            Route::get('owners', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'index'])->name('owners.index');
         });
 
-        // ── Attendance (ZKTeco BioTime) ───────────────────────────
-        // Punches are copied read-only from one or more BioTime SQL Server
-        // databases by biotime:sync. See BIOTIME_ATTENDANCE_SETUP.md.
-        Route::prefix('attendance')->name('attendance.')->group(function () {
-            Route::middleware('permission:view-attendance')->group(function () {
-                Route::get('/', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'index'])->name('days.index');
-                Route::get('export', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'export'])->name('days.export');
-                Route::get('days/{day}', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'show'])->name('days.show');
-                // One person's whole month. {employee} is a model, so the CSV
-                // route must be declared before it or "export" binds as an id.
-                Route::get('monthly', [\App\Http\Controllers\Admin\Attendance\AttendanceMonthController::class, 'index'])->name('monthly.index');
-                Route::get('monthly/{employee}/export', [\App\Http\Controllers\Admin\Attendance\AttendanceMonthController::class, 'export'])->name('monthly.export');
-                Route::get('monthly/{employee}', [\App\Http\Controllers\Admin\Attendance\AttendanceMonthController::class, 'show'])->name('monthly.show');
-                Route::get('employees', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'index'])->name('employees.index');
-                Route::get('areas', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'index'])->name('areas.index');
-                Route::get('shifts', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'index'])->name('shifts.index');
-                Route::get('holidays', [\App\Http\Controllers\Admin\Attendance\AttendanceHolidayController::class, 'index'])->name('holidays.index');
-                Route::get('periods', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'index'])->name('periods.index');
-                Route::get('periods/{period}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'show'])->name('periods.show');
-                Route::get('exports/{export}/download/{format}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'download'])
-                    ->whereIn('format', ['csv', 'json'])->name('exports.download');
-                Route::get('owners', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'index'])->name('owners.index');
-            });
-
-            // Connections hold SQL credentials; links decide whose punches are whose.
-            Route::middleware('permission:manage-attendance')->group(function () {
-                Route::post('reprocess', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'reprocess'])->name('days.reprocess');
-                Route::post('employees/automatch', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'automatch'])->name('employees.automatch');
-                Route::post('employees/{biotimeEmployee}/link', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'link'])->name('employees.link');
-                Route::post('employees/{biotimeEmployee}/no-employee', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'noEmployee'])->name('employees.no-employee');
-                Route::post('employees/{biotimeEmployee}/reset', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'reset'])->name('employees.reset');
-                Route::put('areas/{area}', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'update'])->name('areas.update');
-                Route::put('terminals/{terminal}', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'updateTerminal'])->name('areas.terminals.update');
-                Route::get('sources', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'index'])->name('sources.index');
-                Route::get('sources/create', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'create'])->name('sources.create');
-                Route::post('sources', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'store'])->name('sources.store');
-                Route::get('sources/{source}/edit', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'edit'])->name('sources.edit');
-                Route::put('sources/{source}', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'update'])->name('sources.update');
-                Route::post('sources/{source}/test', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'test'])->name('sources.test');
-                Route::post('sources/{source}/sync', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'sync'])->name('sources.sync');
-                Route::post('shifts', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'store'])->name('shifts.store');
-                Route::put('shifts/{shift}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'update'])->name('shifts.update');
-                Route::delete('shifts/{shift}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'destroy'])->name('shifts.destroy');
-                Route::post('shift-assignments', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'assign'])->name('shifts.assign');
-                Route::delete('shift-assignments/{assignment}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'unassign'])->name('shifts.unassign');
-                Route::post('holidays', [\App\Http\Controllers\Admin\Attendance\AttendanceHolidayController::class, 'store'])->name('holidays.store');
-                Route::delete('holidays/{holiday}', [\App\Http\Controllers\Admin\Attendance\AttendanceHolidayController::class, 'destroy'])->name('holidays.destroy');
-                // Corrections: never edit punches, always leave a reason and a history.
-                Route::post('days/{day}/adjustments', [\App\Http\Controllers\Admin\Attendance\AttendanceAdjustmentController::class, 'store'])->name('days.adjust');
-                Route::post('adjustments/{adjustment}/revoke', [\App\Http\Controllers\Admin\Attendance\AttendanceAdjustmentController::class, 'revoke'])->name('adjustments.revoke');
-                Route::post('periods', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'store'])->name('periods.store');
-                Route::delete('periods/{period}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'destroy'])->name('periods.destroy');
-            });
-
-            // Signing off: approve and lock a period, reopen it, send it to Oracle.
-            Route::middleware('permission:approve-attendance')->group(function () {
-                Route::post('periods/{period}/approve', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'approve'])->name('periods.approve');
-                Route::post('periods/{period}/reopen', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'reopen'])->name('periods.reopen');
-                Route::post('periods/{period}/export', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'export'])->name('periods.export');
-            });
-
-            // The owner list decides who can read a branch's or the whole
-            // company's attendance from the home-portal assistant.
-            Route::middleware('permission:manage-attendance-owners')->group(function () {
-                Route::post('owners', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'store'])->name('owners.store');
-                Route::put('owners/{owner}', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'update'])->name('owners.update');
-                Route::delete('owners/{owner}', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'destroy'])->name('owners.destroy');
-            });
+        // Connections hold SQL credentials; links decide whose punches are whose.
+        Route::middleware('permission:manage-attendance')->group(function () {
+            Route::post('reprocess', [\App\Http\Controllers\Admin\Attendance\AttendanceDayController::class, 'reprocess'])->name('days.reprocess');
+            Route::post('employees/automatch', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'automatch'])->name('employees.automatch');
+            Route::post('employees/{biotimeEmployee}/link', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'link'])->name('employees.link');
+            Route::post('employees/{biotimeEmployee}/no-employee', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'noEmployee'])->name('employees.no-employee');
+            Route::post('employees/{biotimeEmployee}/reset', [\App\Http\Controllers\Admin\Attendance\BiotimeEmployeeController::class, 'reset'])->name('employees.reset');
+            Route::put('areas/{area}', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'update'])->name('areas.update');
+            Route::put('terminals/{terminal}', [\App\Http\Controllers\Admin\Attendance\BiotimeAreaController::class, 'updateTerminal'])->name('areas.terminals.update');
+            Route::get('sources', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'index'])->name('sources.index');
+            Route::get('sources/create', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'create'])->name('sources.create');
+            Route::post('sources', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'store'])->name('sources.store');
+            Route::get('sources/{source}/edit', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'edit'])->name('sources.edit');
+            Route::put('sources/{source}', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'update'])->name('sources.update');
+            Route::post('sources/{source}/test', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'test'])->name('sources.test');
+            Route::post('sources/{source}/sync', [\App\Http\Controllers\Admin\Attendance\BiotimeSourceController::class, 'sync'])->name('sources.sync');
+            Route::post('shifts', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'store'])->name('shifts.store');
+            Route::put('shifts/{shift}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'update'])->name('shifts.update');
+            Route::delete('shifts/{shift}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'destroy'])->name('shifts.destroy');
+            Route::post('shift-assignments', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'assign'])->name('shifts.assign');
+            Route::delete('shift-assignments/{assignment}', [\App\Http\Controllers\Admin\Attendance\AttendanceShiftController::class, 'unassign'])->name('shifts.unassign');
+            Route::post('holidays', [\App\Http\Controllers\Admin\Attendance\AttendanceHolidayController::class, 'store'])->name('holidays.store');
+            Route::delete('holidays/{holiday}', [\App\Http\Controllers\Admin\Attendance\AttendanceHolidayController::class, 'destroy'])->name('holidays.destroy');
+            // Corrections: never edit punches, always leave a reason and a history.
+            Route::post('days/{day}/adjustments', [\App\Http\Controllers\Admin\Attendance\AttendanceAdjustmentController::class, 'store'])->name('days.adjust');
+            Route::post('adjustments/{adjustment}/revoke', [\App\Http\Controllers\Admin\Attendance\AttendanceAdjustmentController::class, 'revoke'])->name('adjustments.revoke');
+            Route::post('periods', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'store'])->name('periods.store');
+            Route::delete('periods/{period}', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'destroy'])->name('periods.destroy');
         });
 
-        // ── Vacations (Oracle leave balances and leave records) ───
-        // Imported from Oracle's sheets today and by an API later, both through
-        // Services\Vacation\VacationImporter. See VACATIONS.md.
-        Route::prefix('vacations')->name('vacations.')->group(function () {
-            Route::middleware('permission:view-vacations')->group(function () {
-                Route::get('/', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'index'])->name('balances.index');
-                Route::get('export', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'export'])->name('balances.export');
-                Route::get('people/{vacationEmployee}', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'show'])->name('balances.show');
-                Route::get('records', [\App\Http\Controllers\Admin\Vacation\VacationAbsenceController::class, 'index'])->name('absences.index');
-                Route::get('records/export', [\App\Http\Controllers\Admin\Vacation\VacationAbsenceController::class, 'export'])->name('absences.export');
-            });
-
-            // An import replaces Oracle's figures; a link decides whose leave is whose.
-            Route::middleware('permission:manage-vacations')->group(function () {
-                Route::get('import', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'index'])->name('imports.index');
-                Route::post('import', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'store'])->name('imports.store');
-                Route::post('people/{vacationEmployee}/link', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'link'])->name('people.link');
-                Route::post('people/{vacationEmployee}/no-employee', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'noEmployee'])->name('people.no-employee');
-                Route::post('people/{vacationEmployee}/reset', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'reset'])->name('people.reset');
-            });
+        // Signing off: approve and lock a period, reopen it, send it to Oracle.
+        Route::middleware('permission:approve-attendance')->group(function () {
+            Route::post('periods/{period}/approve', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'approve'])->name('periods.approve');
+            Route::post('periods/{period}/reopen', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'reopen'])->name('periods.reopen');
+            Route::post('periods/{period}/export', [\App\Http\Controllers\Admin\Attendance\AttendancePeriodController::class, 'export'])->name('periods.export');
         });
 
-        // ── Employee profiles: attendance and vacations of one person ──
-        // Either permission opens the page; each half shows only to its own holders.
-        Route::middleware('permission:view-attendance,view-vacations')->group(function () {
-            Route::get('people', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'index'])->name('people.index');
-            Route::get('people/{employee}', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'show'])->name('people.show');
+        // The owner list decides who can read a branch's or the whole
+        // company's attendance from the home-portal assistant.
+        Route::middleware('permission:manage-attendance-owners')->group(function () {
+            Route::post('owners', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'store'])->name('owners.store');
+            Route::put('owners/{owner}', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'update'])->name('owners.update');
+            Route::delete('owners/{owner}', [\App\Http\Controllers\Admin\Attendance\AttendanceOwnerController::class, 'destroy'])->name('owners.destroy');
+        });
+    });
+
+    // ── Vacations (Oracle leave balances and leave records) ───
+    // Imported from Oracle's sheets today and by an API later, both through
+    // Services\Vacation\VacationImporter. See VACATIONS.md.
+    Route::prefix('vacations')->name('vacations.')->group(function () {
+        Route::middleware('permission:view-vacations')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'index'])->name('balances.index');
+            Route::get('export', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'export'])->name('balances.export');
+            Route::get('people/{vacationEmployee}', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'show'])->name('balances.show');
+            Route::get('records', [\App\Http\Controllers\Admin\Vacation\VacationAbsenceController::class, 'index'])->name('absences.index');
+            Route::get('records/export', [\App\Http\Controllers\Admin\Vacation\VacationAbsenceController::class, 'export'])->name('absences.export');
         });
 
-        // ── Employee home portal authoring ────────────────────────
-        // What the whole company reads on home.samirgroup.net each morning.
-        Route::middleware('permission:manage-announcements')->group(function () {
-            Route::get('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'index'])->name('announcements.index');
-            Route::get('announcements/create', [\App\Http\Controllers\Admin\AnnouncementController::class, 'create'])->name('announcements.create');
-            Route::post('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'store'])->name('announcements.store');
-            Route::get('announcements/{announcement}/edit', [\App\Http\Controllers\Admin\AnnouncementController::class, 'edit'])->name('announcements.edit');
-            Route::put('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'update'])->name('announcements.update');
-            Route::delete('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
+        // An import replaces Oracle's figures; a link decides whose leave is whose.
+        Route::middleware('permission:manage-vacations')->group(function () {
+            Route::get('import', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'index'])->name('imports.index');
+            Route::post('import', [\App\Http\Controllers\Admin\Vacation\VacationImportController::class, 'store'])->name('imports.store');
+            Route::post('people/{vacationEmployee}/link', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'link'])->name('people.link');
+            Route::post('people/{vacationEmployee}/no-employee', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'noEmployee'])->name('people.no-employee');
+            Route::post('people/{vacationEmployee}/reset', [\App\Http\Controllers\Admin\Vacation\VacationBalanceController::class, 'reset'])->name('people.reset');
+        });
+    });
+
+    // ── Employee profiles: attendance and vacations of one person ──
+    // Either permission opens the page; each half shows only to its own holders.
+    Route::middleware('permission:view-attendance,view-vacations')->group(function () {
+        Route::get('people', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'index'])->name('people.index');
+        Route::get('people/{employee}', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'show'])->name('people.show');
+    });
+
+    // ── Employee home portal authoring ────────────────────────
+    // What the whole company reads on home.samirgroup.net each morning.
+    Route::middleware('permission:manage-announcements')->group(function () {
+        Route::get('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'index'])->name('announcements.index');
+        Route::get('announcements/create', [\App\Http\Controllers\Admin\AnnouncementController::class, 'create'])->name('announcements.create');
+        Route::post('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'store'])->name('announcements.store');
+        Route::get('announcements/{announcement}/edit', [\App\Http\Controllers\Admin\AnnouncementController::class, 'edit'])->name('announcements.edit');
+        Route::put('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'update'])->name('announcements.update');
+        Route::delete('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
+    });
+
+    // The employee document library — manuals, guides, forms and IT
+    // policies read on the home portal. Uploads are on the `private` disk
+    // and are never served by nginx; `download` here is the author's own
+    // copy so a draft can be checked before it is published.
+    Route::middleware('permission:manage-portal-documents')->group(function () {
+        Route::get('portal-documents', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'index'])->name('portal-documents.index');
+        Route::get('portal-documents/create', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'create'])->name('portal-documents.create');
+        Route::post('portal-documents', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'store'])->name('portal-documents.store');
+        Route::get('portal-documents/{portalDocument}/edit', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'edit'])->name('portal-documents.edit');
+        Route::get('portal-documents/{portalDocument}/download', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'download'])->name('portal-documents.download');
+        Route::put('portal-documents/{portalDocument}', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'update'])->name('portal-documents.update');
+        Route::delete('portal-documents/{portalDocument}', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'destroy'])->name('portal-documents.destroy');
+    });
+
+    // ── Document archive (archive.samirgroup.net) ─────────────────
+    // Its SETTINGS, not its contents. The portal itself is for reading,
+    // filing and asking — searching an archive, opening a scan, approving an
+    // AI proposal — and none of that belongs to whoever configures the
+    // ArcMate mirror. So the mirror, the transfer, the AI budget and the scan
+    // destinations are administered here, beside every other subsystem's
+    // settings, and the portal has no settings pages at all.
+    //
+    // Being on this host is the point: /admin demands 2FA, and the archive
+    // host deliberately skips it, so configuration was the one archive
+    // surface reachable with a password alone.
+    Route::middleware(['permission:manage-archive-portal', 'throttle:120,1'])
+        ->prefix('archive')->name('archive.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Archive\ManageController::class, 'index'])->name('index');
+            Route::post('/source', [\App\Http\Controllers\Archive\ManageController::class, 'saveSource'])->name('source.save');
+            Route::post('/source/test', [\App\Http\Controllers\Archive\ManageController::class, 'testSource'])->name('source.test');
+
+            // Moving the 372 GB to Azure. Nothing here copies anything: the
+            // buttons change a setting or queue a task, and the worker picks
+            // it up within a minute.
+            Route::get('/transfer', [\App\Http\Controllers\Archive\TransferController::class, 'index'])->name('transfer');
+            Route::post('/transfer/settings', [\App\Http\Controllers\Archive\TransferController::class, 'saveSettings'])->name('transfer.settings');
+            Route::post('/transfer/archives/{archive}', [\App\Http\Controllers\Archive\TransferController::class, 'archiveAction'])
+                ->whereNumber('archive')->name('transfer.archive');
+            Route::post('/transfer/retry', [\App\Http\Controllers\Archive\TransferController::class, 'retry'])->name('transfer.retry');
+            Route::post('/transfer/verify', [\App\Http\Controllers\Archive\TransferController::class, 'verify'])->name('transfer.verify');
+
+            // AI: the budget, which archives it may touch, and the batches
+            // that read history or propose values. Nothing here calls Azure —
+            // a batch is a row the scheduler works in slices.
+            Route::get('/ai', [\App\Http\Controllers\Archive\AiController::class, 'index'])->name('ai');
+            Route::post('/ai/settings', [\App\Http\Controllers\Archive\AiController::class, 'saveSettings'])->name('ai.settings');
+            Route::post('/ai/archives/{archive}', [\App\Http\Controllers\Archive\AiController::class, 'saveArchive'])
+                ->whereNumber('archive')->name('ai.archive');
+            Route::post('/ai/estimate', [\App\Http\Controllers\Archive\AiController::class, 'estimate'])->name('ai.estimate');
+            Route::post('/ai/batches', [\App\Http\Controllers\Archive\AiController::class, 'start'])->name('ai.start');
+            Route::post('/ai/batches/{batch}', [\App\Http\Controllers\Archive\AiController::class, 'batchAction'])
+                ->whereNumber('batch')->name('ai.batch');
+            // Scan destinations: the addresses and SFTP logins the copiers
+            // send to. A destination only ever grants "put a document in" —
+            // never read — which is what makes an address held in a copier's
+            // plain settings acceptable.
+            Route::get('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'index'])->name('scan');
+            Route::post('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'store'])->name('scan.store');
+            Route::post('/scan/{endpoint}/toggle', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'toggle'])
+                ->whereNumber('endpoint')->name('scan.toggle');
+            Route::post('/scan/{endpoint}/rotate', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'rotate'])
+                ->whereNumber('endpoint')->name('scan.rotate');
+            Route::delete('/scan/{endpoint}', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'destroy'])
+                ->whereNumber('endpoint')->name('scan.destroy');
+
+            Route::post('/tasks', [\App\Http\Controllers\Archive\ManageController::class, 'queueTask'])->name('tasks.store');
+            Route::post('/archives', [\App\Http\Controllers\Archive\ManageController::class, 'enable'])->name('enable');
+            Route::get('/archives/{archive}', [\App\Http\Controllers\Archive\ManageController::class, 'showArchive'])
+                ->whereNumber('archive')->name('archive');
+            // A field ArcMate does not have. Safe on a mirrored archive
+            // BECAUSE it has no arcmate_column: the sync maps values by
+            // column, so it never writes this one and never clears it.
+            Route::post('/archives/{archive}/fields', [\App\Http\Controllers\Archive\ManageController::class, 'addField'])
+                ->whereNumber('archive')->name('fields.store');
+            Route::post('/archives/{archive}/members', [\App\Http\Controllers\Archive\ManageController::class, 'addMember'])
+                ->whereNumber('archive')->name('members.store');
+            Route::delete('/archives/{archive}/members/{member}', [\App\Http\Controllers\Archive\ManageController::class, 'removeMember'])
+                ->whereNumber('archive')->whereNumber('member')->name('members.destroy');
         });
 
-        // The employee document library — manuals, guides, forms and IT
-        // policies read on the home portal. Uploads are on the `private` disk
-        // and are never served by nginx; `download` here is the author's own
-        // copy so a draft can be checked before it is published.
-        Route::middleware('permission:manage-portal-documents')->group(function () {
-            Route::get('portal-documents', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'index'])->name('portal-documents.index');
-            Route::get('portal-documents/create', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'create'])->name('portal-documents.create');
-            Route::post('portal-documents', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'store'])->name('portal-documents.store');
-            Route::get('portal-documents/{portalDocument}/edit', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'edit'])->name('portal-documents.edit');
-            Route::get('portal-documents/{portalDocument}/download', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'download'])->name('portal-documents.download');
-            Route::put('portal-documents/{portalDocument}', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'update'])->name('portal-documents.update');
-            Route::delete('portal-documents/{portalDocument}', [\App\Http\Controllers\Admin\PortalDocumentController::class, 'destroy'])->name('portal-documents.destroy');
-        });
+    // ── AI IT Assistant ───────────────────────────────────────────
+    // Knowledge article authoring + settings live under manage-ai-assistant;
+    // the transcript/usage viewer is a separate, narrower permission — a
+    // conversation can contain whatever an employee typed into it.
+    Route::middleware('permission:manage-ai-assistant')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
+        Route::get('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'index'])->name('knowledge.index');
+        Route::get('knowledge/create', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'create'])->name('knowledge.create');
+        Route::post('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'store'])->name('knowledge.store');
+        Route::post('knowledge/reindex-all', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexAll'])->name('knowledge.reindex-all');
+        Route::get('knowledge/reindex-status', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexStatus'])->name('knowledge.reindex-status');
+        // Category and tags by AI: suggested into the form, assigned to one article, or queued for many (ai:classify-articles).
+        Route::post('knowledge/classify-suggest', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classifySuggest'])->name('knowledge.classify-suggest');
+        Route::post('knowledge/classify-all', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classifyAll'])->name('knowledge.classify-all');
+        Route::get('knowledge/classify-status', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classifyStatus'])->name('knowledge.classify-status');
+        Route::post('knowledge/{aiKnowledgeArticle}/classify', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classify'])->name('knowledge.classify');
+        Route::get('knowledge/stats', [\App\Http\Controllers\Admin\AiKnowledgeStatsController::class, 'index'])->name('knowledge-stats');
+        // Websites read into the knowledge base: saving only allows; ai:crawl-websites reads.
+        Route::get('knowledge/websites', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'index'])->name('knowledge.websites.index');
+        Route::post('knowledge/websites', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'store'])->name('knowledge.websites.store');
+        Route::get('knowledge/websites/{aiWebSource}', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'show'])->name('knowledge.websites.show');
+        Route::put('knowledge/websites/{aiWebSource}', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'update'])->name('knowledge.websites.update');
+        Route::post('knowledge/websites/{aiWebSource}/crawl', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'crawl'])->name('knowledge.websites.crawl');
+        Route::delete('knowledge/websites/{aiWebSource}', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'destroy'])->name('knowledge.websites.destroy');
+        // PDF imports: the upload only queues; ai:import-pdfs reads and translates.
+        Route::post('knowledge/imports', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'store'])->name('knowledge.imports.store');
+        Route::get('knowledge/imports/status', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'status'])->name('knowledge.imports.status');
+        Route::get('knowledge/imports/{aiKnowledgeImport}/file', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'file'])->name('knowledge.imports.file');
+        Route::post('knowledge/imports/{aiKnowledgeImport}/retry', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'retry'])->name('knowledge.imports.retry');
+        Route::delete('knowledge/imports/{aiKnowledgeImport}', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'destroy'])->name('knowledge.imports.destroy');
+        Route::get('knowledge/{aiKnowledgeArticle}/edit', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'edit'])->name('knowledge.edit');
+        Route::put('knowledge/{aiKnowledgeArticle}', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'update'])->name('knowledge.update');
+        Route::delete('knowledge/{aiKnowledgeArticle}', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'destroy'])->name('knowledge.destroy');
 
-        // ── Document archive (archive.samirgroup.net) ─────────────────
-        // Its SETTINGS, not its contents. The portal itself is for reading,
-        // filing and asking — searching an archive, opening a scan, approving an
-        // AI proposal — and none of that belongs to whoever configures the
-        // ArcMate mirror. So the mirror, the transfer, the AI budget and the scan
-        // destinations are administered here, beside every other subsystem's
-        // settings, and the portal has no settings pages at all.
-        //
-        // Being on this host is the point: /admin demands 2FA, and the archive
-        // host deliberately skips it, so configuration was the one archive
-        // surface reachable with a password alone.
-        Route::middleware(['permission:manage-archive-portal', 'throttle:120,1'])
-            ->prefix('archive')->name('archive.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\Archive\ManageController::class, 'index'])->name('index');
-                Route::post('/source', [\App\Http\Controllers\Archive\ManageController::class, 'saveSource'])->name('source.save');
-                Route::post('/source/test', [\App\Http\Controllers\Archive\ManageController::class, 'testSource'])->name('source.test');
+        Route::get('instructions', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'edit'])->name('instructions.edit');
+        Route::post('instructions', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'update'])->name('instructions.update');
+        Route::post('instructions/match-threshold', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'updateMatchThreshold'])->name('instructions.match-threshold');
+    });
+    // The questions the assistant could not answer. Its own permission, so HR
+    // can answer policy questions without the assistant's settings.
+    Route::middleware('permission:answer-ai-knowledge-gaps')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
+        Route::get('knowledge-gaps', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'index'])->name('knowledge-gaps.index');
+        Route::get('knowledge-gaps/{aiKnowledgeGap}/answer', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'answerForm'])->name('knowledge-gaps.answer-form');
+        Route::post('knowledge-gaps/answer', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'answer'])->name('knowledge-gaps.answer');
+        Route::post('knowledge-gaps/dismiss', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'dismiss'])->name('knowledge-gaps.dismiss');
+        Route::post('knowledge-gaps/translate', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'translate'])->name('knowledge-gaps.translate');
+        Route::post('knowledge-gaps/{aiKnowledgeGap}/confirm', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'confirm'])->name('knowledge-gaps.confirm');
+        Route::post('knowledge-gaps/{aiKnowledgeGap}/reopen', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'reopen'])->name('knowledge-gaps.reopen');
+    });
+    // Who may use the AI features that read restricted data (Recruitment AI).
+    // Writes per-user grants and denies; each change is a security event.
+    Route::middleware('permission:manage-ai-access')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
+        Route::get('access', [\App\Http\Controllers\Admin\AiAccessController::class, 'index'])->name('access.index');
+        Route::post('access', [\App\Http\Controllers\Admin\AiAccessController::class, 'store'])->name('access.store');
+        Route::delete('access/{feature}/{user}', [\App\Http\Controllers\Admin\AiAccessController::class, 'destroy'])->name('access.destroy');
+    });
+    Route::middleware('permission:view-ai-conversations')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
+        Route::get('conversations', [\App\Http\Controllers\Admin\AiConversationController::class, 'index'])->name('conversations.index');
+        Route::get('conversations/{aiConversation}', [\App\Http\Controllers\Admin\AiConversationController::class, 'show'])->name('conversations.show');
+        Route::get('usage', [\App\Http\Controllers\Admin\AiConversationController::class, 'usage'])->name('usage');
+    });
 
-                // Moving the 372 GB to Azure. Nothing here copies anything: the
-                // buttons change a setting or queue a task, and the worker picks
-                // it up within a minute.
-                Route::get('/transfer', [\App\Http\Controllers\Archive\TransferController::class, 'index'])->name('transfer');
-                Route::post('/transfer/settings', [\App\Http\Controllers\Archive\TransferController::class, 'saveSettings'])->name('transfer.settings');
-                Route::post('/transfer/archives/{archive}', [\App\Http\Controllers\Archive\TransferController::class, 'archiveAction'])
-                    ->whereNumber('archive')->name('transfer.archive');
-                Route::post('/transfer/retry', [\App\Http\Controllers\Archive\TransferController::class, 'retry'])->name('transfer.retry');
-                Route::post('/transfer/verify', [\App\Http\Controllers\Archive\TransferController::class, 'verify'])->name('transfer.verify');
-
-                // AI: the budget, which archives it may touch, and the batches
-                // that read history or propose values. Nothing here calls Azure —
-                // a batch is a row the scheduler works in slices.
-                Route::get('/ai', [\App\Http\Controllers\Archive\AiController::class, 'index'])->name('ai');
-                Route::post('/ai/settings', [\App\Http\Controllers\Archive\AiController::class, 'saveSettings'])->name('ai.settings');
-                Route::post('/ai/archives/{archive}', [\App\Http\Controllers\Archive\AiController::class, 'saveArchive'])
-                    ->whereNumber('archive')->name('ai.archive');
-                Route::post('/ai/estimate', [\App\Http\Controllers\Archive\AiController::class, 'estimate'])->name('ai.estimate');
-                Route::post('/ai/batches', [\App\Http\Controllers\Archive\AiController::class, 'start'])->name('ai.start');
-                Route::post('/ai/batches/{batch}', [\App\Http\Controllers\Archive\AiController::class, 'batchAction'])
-                    ->whereNumber('batch')->name('ai.batch');
-                // Scan destinations: the addresses and SFTP logins the copiers
-                // send to. A destination only ever grants "put a document in" —
-                // never read — which is what makes an address held in a copier's
-                // plain settings acceptable.
-                Route::get('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'index'])->name('scan');
-                Route::post('/scan', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'store'])->name('scan.store');
-                Route::post('/scan/{endpoint}/toggle', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'toggle'])
-                    ->whereNumber('endpoint')->name('scan.toggle');
-                Route::post('/scan/{endpoint}/rotate', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'rotate'])
-                    ->whereNumber('endpoint')->name('scan.rotate');
-                Route::delete('/scan/{endpoint}', [\App\Http\Controllers\Archive\ScanDestinationController::class, 'destroy'])
-                    ->whereNumber('endpoint')->name('scan.destroy');
-
-                Route::post('/tasks', [\App\Http\Controllers\Archive\ManageController::class, 'queueTask'])->name('tasks.store');
-                Route::post('/archives', [\App\Http\Controllers\Archive\ManageController::class, 'enable'])->name('enable');
-                Route::get('/archives/{archive}', [\App\Http\Controllers\Archive\ManageController::class, 'showArchive'])
-                    ->whereNumber('archive')->name('archive');
-                // A field ArcMate does not have. Safe on a mirrored archive
-                // BECAUSE it has no arcmate_column: the sync maps values by
-                // column, so it never writes this one and never clears it.
-                Route::post('/archives/{archive}/fields', [\App\Http\Controllers\Archive\ManageController::class, 'addField'])
-                    ->whereNumber('archive')->name('fields.store');
-                Route::post('/archives/{archive}/members', [\App\Http\Controllers\Archive\ManageController::class, 'addMember'])
-                    ->whereNumber('archive')->name('members.store');
-                Route::delete('/archives/{archive}/members/{member}', [\App\Http\Controllers\Archive\ManageController::class, 'removeMember'])
-                    ->whereNumber('archive')->whereNumber('member')->name('members.destroy');
-            });
-
-        // ── AI IT Assistant ───────────────────────────────────────────
-        // Knowledge article authoring + settings live under manage-ai-assistant;
-        // the transcript/usage viewer is a separate, narrower permission — a
-        // conversation can contain whatever an employee typed into it.
-        Route::middleware('permission:manage-ai-assistant')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
-            Route::get('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'index'])->name('knowledge.index');
-            Route::get('knowledge/create', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'create'])->name('knowledge.create');
-            Route::post('knowledge', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'store'])->name('knowledge.store');
-            Route::post('knowledge/reindex-all', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexAll'])->name('knowledge.reindex-all');
-            Route::get('knowledge/reindex-status', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'reindexStatus'])->name('knowledge.reindex-status');
-            // Category and tags by AI: suggested into the form, assigned to one article, or queued for many (ai:classify-articles).
-            Route::post('knowledge/classify-suggest', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classifySuggest'])->name('knowledge.classify-suggest');
-            Route::post('knowledge/classify-all', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classifyAll'])->name('knowledge.classify-all');
-            Route::get('knowledge/classify-status', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classifyStatus'])->name('knowledge.classify-status');
-            Route::post('knowledge/{aiKnowledgeArticle}/classify', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'classify'])->name('knowledge.classify');
-            Route::get('knowledge/stats', [\App\Http\Controllers\Admin\AiKnowledgeStatsController::class, 'index'])->name('knowledge-stats');
-            // Websites read into the knowledge base: saving only allows; ai:crawl-websites reads.
-            Route::get('knowledge/websites', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'index'])->name('knowledge.websites.index');
-            Route::post('knowledge/websites', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'store'])->name('knowledge.websites.store');
-            Route::get('knowledge/websites/{aiWebSource}', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'show'])->name('knowledge.websites.show');
-            Route::put('knowledge/websites/{aiWebSource}', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'update'])->name('knowledge.websites.update');
-            Route::post('knowledge/websites/{aiWebSource}/crawl', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'crawl'])->name('knowledge.websites.crawl');
-            Route::delete('knowledge/websites/{aiWebSource}', [\App\Http\Controllers\Admin\AiWebSourceController::class, 'destroy'])->name('knowledge.websites.destroy');
-            // PDF imports: the upload only queues; ai:import-pdfs reads and translates.
-            Route::post('knowledge/imports', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'store'])->name('knowledge.imports.store');
-            Route::get('knowledge/imports/status', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'status'])->name('knowledge.imports.status');
-            Route::get('knowledge/imports/{aiKnowledgeImport}/file', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'file'])->name('knowledge.imports.file');
-            Route::post('knowledge/imports/{aiKnowledgeImport}/retry', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'retry'])->name('knowledge.imports.retry');
-            Route::delete('knowledge/imports/{aiKnowledgeImport}', [\App\Http\Controllers\Admin\AiKnowledgeImportController::class, 'destroy'])->name('knowledge.imports.destroy');
-            Route::get('knowledge/{aiKnowledgeArticle}/edit', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'edit'])->name('knowledge.edit');
-            Route::put('knowledge/{aiKnowledgeArticle}', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'update'])->name('knowledge.update');
-            Route::delete('knowledge/{aiKnowledgeArticle}', [\App\Http\Controllers\Admin\AiKnowledgeController::class, 'destroy'])->name('knowledge.destroy');
-
-            Route::get('instructions', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'edit'])->name('instructions.edit');
-            Route::post('instructions', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'update'])->name('instructions.update');
-            Route::post('instructions/match-threshold', [\App\Http\Controllers\Admin\AiInstructionsController::class, 'updateMatchThreshold'])->name('instructions.match-threshold');
-        });
-        // The questions the assistant could not answer. Its own permission, so HR
-        // can answer policy questions without the assistant's settings.
-        Route::middleware('permission:answer-ai-knowledge-gaps')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
-            Route::get('knowledge-gaps', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'index'])->name('knowledge-gaps.index');
-            Route::get('knowledge-gaps/{aiKnowledgeGap}/answer', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'answerForm'])->name('knowledge-gaps.answer-form');
-            Route::post('knowledge-gaps/answer', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'answer'])->name('knowledge-gaps.answer');
-            Route::post('knowledge-gaps/dismiss', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'dismiss'])->name('knowledge-gaps.dismiss');
-            Route::post('knowledge-gaps/translate', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'translate'])->name('knowledge-gaps.translate');
-            Route::post('knowledge-gaps/{aiKnowledgeGap}/confirm', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'confirm'])->name('knowledge-gaps.confirm');
-            Route::post('knowledge-gaps/{aiKnowledgeGap}/reopen', [\App\Http\Controllers\Admin\AiKnowledgeGapController::class, 'reopen'])->name('knowledge-gaps.reopen');
-        });
-        // Who may use the AI features that read restricted data (Recruitment AI).
-        // Writes per-user grants and denies; each change is a security event.
-        Route::middleware('permission:manage-ai-access')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
-            Route::get('access', [\App\Http\Controllers\Admin\AiAccessController::class, 'index'])->name('access.index');
-            Route::post('access', [\App\Http\Controllers\Admin\AiAccessController::class, 'store'])->name('access.store');
-            Route::delete('access/{feature}/{user}', [\App\Http\Controllers\Admin\AiAccessController::class, 'destroy'])->name('access.destroy');
-        });
-        Route::middleware('permission:view-ai-conversations')->prefix('ai-assistant')->name('ai-assistant.')->group(function () {
-            Route::get('conversations', [\App\Http\Controllers\Admin\AiConversationController::class, 'index'])->name('conversations.index');
-            Route::get('conversations/{aiConversation}', [\App\Http\Controllers\Admin\AiConversationController::class, 'show'])->name('conversations.show');
-            Route::get('usage', [\App\Http\Controllers\Admin\AiConversationController::class, 'usage'])->name('usage');
-        });
-
-        Route::middleware('permission:manage-greeting-lines')->group(function () {
-            Route::get('greeting-lines', [\App\Http\Controllers\Admin\GreetingLineController::class, 'index'])->name('greeting-lines.index');
-            Route::post('greeting-lines', [\App\Http\Controllers\Admin\GreetingLineController::class, 'store'])->name('greeting-lines.store');
-            Route::put('greeting-lines/{greetingLine}', [\App\Http\Controllers\Admin\GreetingLineController::class, 'update'])->name('greeting-lines.update');
-            Route::delete('greeting-lines/{greetingLine}', [\App\Http\Controllers\Admin\GreetingLineController::class, 'destroy'])->name('greeting-lines.destroy');
-        });
-        // Re-pulls categories/sub-categories from the ticketing API's own lookup endpoints.
-        Route::post('settings/noc-ticketing/refresh-catalog', [SettingsController::class, 'refreshNocTicketCatalog'])->name('settings.noc-ticketing.refresh');
-        Route::post('settings/smtp', [SettingsController::class, 'updateSmtp'])->name('settings.smtp');
-        Route::post('settings/test-smtp', [SettingsController::class, 'testSmtp'])->name('settings.test-smtp');
-
-        // ── Allowed Domains ──────────────────────────────────────────
-        Route::get('settings/domains', [\App\Http\Controllers\Admin\AllowedDomainController::class, 'index'])->name('settings.domains');
-        Route::post('settings/domains', [\App\Http\Controllers\Admin\AllowedDomainController::class, 'store'])->name('settings.domains.store');
-        Route::delete('settings/domains/{allowedDomain}', [\App\Http\Controllers\Admin\AllowedDomainController::class, 'destroy'])->name('settings.domains.destroy');
-        Route::patch('settings/domains/{allowedDomain}/set-primary', [\App\Http\Controllers\Admin\AllowedDomainController::class, 'setPrimary'])->name('settings.domains.set-primary');
+    Route::middleware('permission:manage-greeting-lines')->group(function () {
+        Route::get('greeting-lines', [\App\Http\Controllers\Admin\GreetingLineController::class, 'index'])->name('greeting-lines.index');
+        Route::post('greeting-lines', [\App\Http\Controllers\Admin\GreetingLineController::class, 'store'])->name('greeting-lines.store');
+        Route::put('greeting-lines/{greetingLine}', [\App\Http\Controllers\Admin\GreetingLineController::class, 'update'])->name('greeting-lines.update');
+        Route::delete('greeting-lines/{greetingLine}', [\App\Http\Controllers\Admin\GreetingLineController::class, 'destroy'])->name('greeting-lines.destroy');
     });
 
     // ─── Access Gateway (NOC-AGW: fronts the legacy IIS app) ──
@@ -2677,30 +2691,34 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::delete('/settings/domains/{allowedDomain}', [AllowedDomainController::class, 'destroy'])->name('settings.domains.destroy');
     });
 
+    // ── Provisioning Settings ─────────────────────────────────────
+    // The provisioning form is a card on General Settings; the default
+    // licences are a page of their own.
     Route::middleware('permission:manage-settings')->group(function () {
-        // ── Provisioning Settings ─────────────────────────────────────
         Route::post('/settings/provisioning', [SettingsController::class, 'updateProvisioning'])->name('settings.provisioning');
+    });
+    Route::middleware('permission:manage-provisioning-licenses')->group(function () {
         Route::get('/settings/provisioning-licenses', [SettingsController::class, 'provisioningLicenses'])->name('settings.provisioning-licenses');
         Route::post('/settings/provisioning-licenses', [SettingsController::class, 'setDefaultLicense'])->name('settings.provisioning-licenses.save');
+    });
 
-        // ── Email Templates ───────────────────────────────────────────
-        Route::prefix('email-templates')->name('email-templates.')->group(function () {
-            Route::get('/', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('index');
-            Route::get('/{key}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'edit'])->name('edit');
-            Route::put('/{key}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'update'])->name('update');
-            Route::delete('/{key}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'reset'])->name('reset');
-            Route::post('/{key}/preview', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'preview'])->name('preview');
-            Route::post('/{key}/test', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'test'])->name('test');
-        });
+    // ── Email Templates ───────────────────────────────────────────
+    Route::middleware('permission:manage-email-templates')->prefix('email-templates')->name('email-templates.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('index');
+        Route::get('/{key}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'edit'])->name('edit');
+        Route::put('/{key}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'update'])->name('update');
+        Route::delete('/{key}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'reset'])->name('reset');
+        Route::post('/{key}/preview', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'preview'])->name('preview');
+        Route::post('/{key}/test', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'test'])->name('test');
+    });
 
-        // ── Internet Access Levels ────────────────────────────────────
-        Route::prefix('settings/internet-access-levels')->name('settings.internet-access-levels.')->group(function () {
-            Route::get('/', [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'index'])->name('index');
-            Route::post('/', [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'store'])->name('store');
-            Route::put('/{internetAccessLevel}', [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'update'])->name('update');
-            Route::delete('/{internetAccessLevel}', [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'destroy'])->name('destroy');
-            Route::get('/azure-groups/search', [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'searchAzureGroups'])->name('azure-groups.search');
-        });
+    // ── Internet Access Levels ────────────────────────────────────
+    Route::middleware('permission:manage-internet-access-levels')->prefix('settings/internet-access-levels')->name('settings.internet-access-levels.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'store'])->name('store');
+        Route::put('/{internetAccessLevel}', [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'update'])->name('update');
+        Route::delete('/{internetAccessLevel}', [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'destroy'])->name('destroy');
+        Route::get('/azure-groups/search', [\App\Http\Controllers\Admin\InternetAccessLevelController::class, 'searchAzureGroups'])->name('azure-groups.search');
     });
 
     // ─── Network Discovery ────────────────────────────────────────
@@ -2965,7 +2983,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // })->where('task', '[0-9]+');
 
     // ── Branch / Department → Azure Group Mappings ───────────────
-    Route::prefix('identity/group-mappings')->name('admin.identity.group-mappings.')->middleware('permission:manage-identity')->group(function () {
+    Route::prefix('identity/group-mappings')->name('identity.group-mappings.')->middleware('permission:manage-identity')->group(function () {
         Route::get('/', [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'index'])->name('index');
         Route::get('/create', [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'create'])->name('create');
         Route::post('/', [\App\Http\Controllers\Admin\BranchDepartmentGroupController::class, 'store'])->name('store');
@@ -3020,15 +3038,17 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
     // ── My Printers (SSO auto-assign — any authenticated user) ───────
     Route::get('my-printers', [\App\Http\Controllers\Admin\MyPrintersController::class, 'index'])
-        ->name('admin.my-printers');
+        ->name('my-printers');
 
     // ── API Documentation ─────────────────────────────────────────────
     Route::get('api-docs', [\App\Http\Controllers\Admin\ApiDocsController::class, 'index'])
-        ->name('admin.api-docs')
-        ->middleware('permission:manage-settings');
+        ->name('api-docs')
+        ->middleware('permission:view-api-docs');
 
     // ── HR API Key Manager ────────────────────────────────────────────
-    Route::middleware('permission:manage-settings')->group(function () {
+    // A key is machine access to employee and attendance data, so it is its
+    // own permission rather than part of Settings.
+    Route::middleware('permission:manage-hr-api-keys')->group(function () {
         Route::get('hr-api-keys', [HrApiKeyController::class, 'index'])->name('hr-api-keys.index');
         Route::post('hr-api-keys', [HrApiKeyController::class, 'store'])->name('hr-api-keys.store');
         Route::post('hr-api-keys/{hrApiKey}/revoke', [HrApiKeyController::class, 'revoke'])->name('hr-api-keys.revoke');

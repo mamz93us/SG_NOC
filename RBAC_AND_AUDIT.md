@@ -153,6 +153,48 @@ unchecked checkbox posts nothing, so without it a role with every box cleared
 looked identical to a role that was not on the form — and revoking a role's last
 permission was impossible.
 
+### One gate per page, and a menu that reads it
+
+**A page's permission must be its only gate.** Laravel adds a route group's
+middleware to every route inside it, so a `permission:` route nested in another
+permission's group needs both — and the matrix never says so. Until 2026-09-16
+142 routes sat inside the `manage-settings` group: attendance, vacations,
+employee profiles, announcements, employee documents, KnowBe4, greeting lines,
+every AI Assistant page and the document archive settings. The HR role and a
+custom IT role were given those pages' own permissions and were still turned
+away. Give each gated block its
+own group at the top level of the admin routes.
+
+A page that only `manage-settings` opened has its own permission now as well, so
+Settings is no longer the price of reaching them: `manage-mail-senders`,
+`manage-email-templates`, `manage-business-apps`, `manage-sync-status`,
+`view-api-docs`, `manage-hr-api-keys`, `view-ticket-stats`, `manage-locations`,
+`manage-departments`, `manage-asset-types`, `manage-internet-access-levels` and
+`manage-provisioning-licenses`. Branch add / edit / delete on the Locations page
+asks `manage-branches`, like the Branches page. The migration that split them
+(`2026_09_16_400001`) granted each to every holder of `manage-settings`.
+
+**The admin menu reads the gates off the routes.** Each link in
+`layouts/admin.blade.php` sits in `@canroute('route.name', …)`, which is true
+when the signed-in user may open at least one of the named routes
+(`App\Support\RouteAccess`, same rules as `EnsurePermission`). A dropdown or a
+section names one route per permission it holds. Never wrap a menu link in
+`@can('some-slug')`: the slug beside the link and the gate on the route were
+typed separately and drifted both ways — links hidden inside another
+permission's block, and links (Alert Rules, Sync Status, Forms) shown to people
+the page then refused.
+
+`RouteGateTest` fails when a route stacks `manage-settings` on another
+permission, when an admin page has no gate (a short list of personal pages
+aside), or when a gate names an unregistered slug. `AdminMenuTest` fails when a
+link sits in a block that would show it to someone its page refuses, or hide it
+from someone its page admits.
+
+Role-based workflow approval steps (`it_manager`, `hr`, `manager`, `security`)
+go to superusers and holders of `approve-workflows` — `approve-scrap` for scrap
+requests. They used to check `role === 'admin'`, which no custom role can meet:
+a role given Approve Workflows saw Pending Approvals and an empty list.
+
 ---
 
 ## Audit trail
@@ -254,8 +296,11 @@ the cache and the sessions.
 
 1. Add the slug to `RolePermission::allPermissions()` under the right category.
    **This step is not optional** — see the registry section above.
-2. Gate the routes with `permission:your-slug` (comma-separated is OR).
-3. Gate the nav item with `@can('your-slug')`.
+2. Gate the routes with `permission:your-slug` (comma-separated is OR), in a
+   group of their own — never inside another permission's group.
+3. Wrap the menu link in `@canroute('your.route.name')`, and add that route (or
+   one with the same gate) to the enclosing dropdown's `@canroute` list.
+   `AdminMenuTest` says which block is wrong if you miss one.
 4. Write a migration granting it to the roles that should have it
    (`RolePermission::firstOrCreate`), matching the pattern in
    `database/migrations/*_add_*_permissions.php`.
@@ -272,9 +317,11 @@ option automatically.
 
 ## Tests
 
-`tests/Unit/Rbac/` and `tests/Unit/Audit/` — 48 tests covering permission
-resolution, grant/deny precedence, the surface and landing rules, redaction, and
-the regression that the matrix save cannot destroy an unregistered grant.
+`tests/Unit/Rbac/` and `tests/Unit/Audit/` cover permission resolution,
+grant/deny precedence, the surface and landing rules, redaction, the regression
+that the matrix save cannot destroy an unregistered grant, `RouteAccess` agreeing
+with `EnsurePermission`, the route gates (`RouteGateTest`) and the menu
+(`AdminMenuTest`).
 
 They build their tables directly (`RbacTestSchema`) rather than using
 `RefreshDatabase`, because 18 migrations in this repo issue raw MySQL
